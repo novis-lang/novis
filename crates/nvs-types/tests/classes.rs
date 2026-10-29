@@ -315,10 +315,11 @@ fn a_ternary_expressions_type_mismatch_is_diagnosed() {
 
 #[test]
 fn a_class_type_still_refuses_the_nullable_conversion() {
-    // `rule:expressions/nullable-conversion-availability`'s class row, which is **absolute**: `as` converts between
-    // the types `rule:types/conversion` tabulates, and none of them is a class.
-    // `is` plus `rule:types/narrowing` answers class membership, and § 3a's
-    // `tryParse` answers a parse.
+    // `rule:expressions/nullable-conversion-availability`'s class row, which is
+    // **absolute**: `as` converts between the types `rule:types/conversion`
+    // tabulates, and none of them is a class. `is` plus `rule:types/narrowing`
+    // answers class membership, and `tryParse` (`rule:expressions/try-parse`)
+    // answers a parse.
     let diags = check_src(
         "<?nvs\nclass P {\n  public int $n = 1;\n}\nclass T {\n  function m(object $o): void {\n    var $p = $o as ?P;\n  }\n}\n",
     );
@@ -328,11 +329,11 @@ fn a_class_type_still_refuses_the_nullable_conversion() {
             .any(|d| d.code == Some(code::E_CLASS_CONVERSION_TARGET)),
         "{diags:?}"
     );
-    // `Core\Uri` and `Core\Uuid` are named here on purpose. § 3 first admitted
-    // them as a two-class *parse roster* where `$s as ?T` compiled, and
-    // withdrew it; from a `string` operand — the exact shape the roster
-    // existed for — they are the same diagnostic as any other class now, and
-    // this is what would notice the exception growing back.
+    // `Core\Uri` and `Core\Uuid` are named here on purpose. The nullable
+    // conversion first admitted them as a two-class *parse roster* where
+    // `$s as ?T` compiled, and withdrew it; from a `string` operand — the exact
+    // shape the roster existed for — they are the same diagnostic as any other
+    // class now, and this is what would notice the exception growing back.
     for class in [r"Core\Uri", r"Core\Uuid"] {
         let diags = check_src(&format!(
             "<?nvs\nclass T {{\n  function m(string $s): void {{\n    var $v = $s as ?{class};\n  }}\n}}\n"
@@ -633,7 +634,7 @@ fn a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs() {
         "{divergent:?}"
     );
 
-    // The very same declarations, instantiated by name: § 5 refuses the `new`
+    // The very same declarations, instantiated by name: the rule refuses the `new`
     // over the class reference and leaves `Dog` alone everywhere else.
     let written_out = check_src(
         "<?nvs\n\
@@ -697,7 +698,8 @@ fn a_class_reference_carries_the_three_dynamic_sites() {
     assert!(!accepted.has_errors(), "{accepted:?}");
 
     // The constructor really is the one consulted: with no signature resolved
-    // the extra argument would go unreported, as it did before § 4.
+    // the extra argument would go unreported, as it did before these three
+    // sites were typed.
     let arity = check_src(
         "<?nvs\n\
          abstract class Animal {\n\
@@ -944,7 +946,7 @@ fn a_property_key_ranges_over_the_public_properties_and_nothing_else() {
          \x20 private string $token = \"\";\n\
          }\n";
 
-    // Every row of § 2 at once: the `string` door written out (own property and
+    // Every row of the rule at once: the `string` door written out (own property and
     // inherited one), the same door computed, the qualifier stripping as every
     // checked conversion strips one, the key-to-key narrowing, and the total
     // way back out.
@@ -962,7 +964,8 @@ fn a_property_key_ranges_over_the_public_properties_and_nothing_else() {
     assert!(!rows.has_errors(), "{rows:?}");
 
     // `as` is the only source: a `string` does not reach the position on its
-    // own, and no row produces a key from anything but the two § 2 names.
+    // own, and no row produces a key from anything but the two names the rule
+    // gives.
     let bare = check_src(&format!(
         "{CLASSES}class T {{\n\
          \x20 function take(property<User> $k): void {{}}\n\
@@ -1129,8 +1132,8 @@ fn a_property_key_over_a_class_with_no_public_property_is_refused() {
 /// key's public set holds a `readonly` property, naming it -- and the bound is
 /// asserted on both sides, since a refusal written over the *receiver* rather
 /// than over the set would look identical on the failing half alone. The read
-/// is asserted green in the same class, because § 5 refuses the write and not
-/// the key.
+/// is asserted green in the same class, because the rule refuses the write and
+/// not the key.
 #[test]
 fn a_write_through_a_key_whose_set_holds_a_readonly_property_is_refused() {
     const CLASSES: &str = "<?nvs\n\
@@ -1157,7 +1160,7 @@ fn a_write_through_a_key_whose_set_holds_a_readonly_property_is_refused() {
     assert_eq!(readonly.len(), 1, "{refused:?}");
     assert!(readonly[0].message.contains("`User::$id`"), "{refused:?}");
 
-    // A read through the same key is untouched: § 5 refuses the write, and a
+    // A read through the same key is untouched: the rule refuses the write, and a
     // key over a set holding a `readonly` property is still a key.
     let read = check_src(&format!(
         "{CLASSES}class T {{\n\
@@ -1259,7 +1262,7 @@ fn a_qualified_write_through_a_key_must_fit_every_property() {
 
 /// `rule:types/property-key-access`: the operand's *type* is what admits `$obj->$key`, so every
 /// other operand keeps `E0235` -- now reported by this crate, since a parser
-/// sees no types. § 4's own table of neighbours is the body: a call, a
+/// sees no types. The rule's own list of three neighbours is the body: a call, a
 /// receiver with no `T` to check against, and a receiver that is not one.
 #[test]
 fn a_computed_member_name_without_a_property_key_is_still_e0235() {
@@ -1295,7 +1298,7 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
         "a `string` operand"
     );
 
-    // § 4 row 2, both halves: a receiver with no `T` cannot check the one
+    // The second neighbour, both halves: a receiver with no `T` cannot check the one
     // thing the key promises, whether it is erased or merely another class.
     assert!(
         has_e0235(&format!(
@@ -1314,7 +1317,7 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
         "a receiver that does not satisfy the key's class"
     );
 
-    // § 4 row 1: a key is not a method name, so computed dispatch is refused
+    // The first neighbour: a key is not a method name, so computed dispatch is refused
     // with the same code and for `rule:classes/no-call-magic`'s older reason.
     assert!(
         has_e0235(&format!(
@@ -1325,7 +1328,7 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
         "a computed method name"
     );
 
-    // § 4 row 3: `unset` through a key is refused where `unset` of any
+    // The third neighbour: `unset` through a key is refused where `unset` of any
     // declared property is, and is one error rather than two.
     let unset = check_src(&format!(
         "{CLASSES}class T {{\n\

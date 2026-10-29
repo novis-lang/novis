@@ -17,10 +17,11 @@
 //! own singleton exactly where the position names that singleton, and as its
 //! plain base everywhere else. That is what `rule:types/single-value-types`'s *Verification*
 //! asks for — without it nothing a caller writes ever satisfies a single-value type
-//! except through an `as` — and it is why § 4's free-widening rows in
+//! except through an `as` — and it is why the same rule's free-widening rows in
 //! [`super::assign`] are the only other half needed: every other position
 //! already sees the base. [`super::members`] applies the same helper to an
-//! enum case, which is § 3's atom rather than § 1's.
+//! enum case, which is `rule:types/enum-case-type`'s atom rather than a
+//! single-value type's.
 //!
 //! [`check_array_literal`] is `rule:types/arrays`'s half of the same idea for the one
 //! composite literal: an array literal checked against an `array<T>` target
@@ -175,12 +176,13 @@ pub(crate) fn unplaced_expectation(expr: &Expr, env: &mut Env<'_>) -> Option<Typ
 /// read backwards, for the one caller that needs the value the author wrote
 /// rather than the type the position gave it.
 ///
-/// [`super::operators::infer_conversion`]'s § 6 refusal is that caller: by the
-/// time it runs, a literal the target does not accept has already widened back
-/// to its base, taking the only record of which value it was with it. `None`
-/// for every expression that is not one of § 1's two literals or `rule:types/grammar`'s two `bool` ones, including a malformed one — a literal that does not
-/// survive its own text has no singleton to be, exactly as
-/// [`infer_str_literal`] and [`infer_int_literal`] already decide.
+/// [`super::operators::infer_conversion`]'s `rule:types/single-value-types`
+/// refusal is that caller: by the time it runs, a literal the target does not
+/// accept has already widened back to its base, taking the only record of which
+/// value it was with it. `None` for every expression that is not one of that
+/// rule's two literals or `rule:types/grammar`'s two `bool` ones, including a
+/// malformed one — a literal that does not survive its own text has no singleton to be,
+/// exactly as [`infer_str_literal`] and [`infer_int_literal`] already decide.
 pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
     match expr.kind {
         // No text to decode and no range to fail: the token *is* the value, so
@@ -289,14 +291,14 @@ pub(crate) fn negated_literal_result(
 /// `uint` is the only type this changes anything for, and it changes
 /// everything about writing one. An unplaced digit run defaults to `int` two
 /// functions below, so before this existed every literal beside a `uint` was
-/// § 4's mixed-signedness refusal — `$u + 1`, `$u & 3` and `$u << 1` were all
+/// `rule:types/arithmetic`'s mixed-signedness refusal — `$u + 1`, `$u & 3` and `$u << 1` were all
 /// `E0407`, and a `uint` operand could meet only a `uint`-declared local. A
 /// compound assignment never had the problem, because
 /// [`super::assign::check_compound_assign`] already hands its value the
 /// target's type as a hint; this is the same hint for the spelling that hint
 /// was missing.
 ///
-/// Value-preserving on every row of § 4's table, and that is why it is safe to
+/// Value-preserving on every row of that rule's table, and that is why it is safe to
 /// apply to the whole table rather than to the arithmetic rows alone: a bare
 /// digit run is never negative — a leading `-` is a wrapping
 /// [`ExprKind::Unary`], deliberately not placed here — so the same value is
@@ -725,7 +727,8 @@ pub(crate) fn wants_decimal_in_union(
 ///
 /// An exponent is folded into the scale rather than rejected — `1.5e3` is
 /// mantissa 1500 at scale 0, and `1.5e-30` is a scale-31 value this refuses.
-/// Trailing zeros are *kept*, because § 4 makes scale observable in rendering:
+/// Trailing zeros are *kept*, because `rule:types/conversion` makes scale
+/// observable in rendering:
 /// `19.90 as string` is `"19.90"`, so `19.90` is a scale-2 value and not a
 /// second spelling of `19.9`.
 pub(crate) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {

@@ -1,15 +1,15 @@
-//! `rule:concurrency/a-connection-is-a-root-isolate`'s qualifiers at the connection boundary — what a peer sent arrives
-//! as, what a topic name may be built from, and which of an event's fields a
-//! client may have chosen.
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s qualifiers at the
+//! connection boundary — what a peer sent arrives as, what a topic name may be
+//! built from, and which of an event's fields a client may have chosen.
 //!
 //! Each is an ordinary checker question rather than a runtime one, which is the
-//! point: § 3's payload, § 4's name and § 5's event fields are decided by
-//! registry rows (`nvs_stdlib::socket`'s `Core\Socket\Message`,
+//! point: a received frame's payload, a topic's name and an SSE event's fields
+//! are decided by registry rows (`nvs_stdlib::socket`'s `Core\Socket\Message`,
 //! `nvs_stdlib::topic`'s `Core\Topic` and `nvs_stdlib::sse`'s `Core\Sse`), so a
 //! program that would leak any of them does not compile. The qualifier rule at
-//! this boundary that is not here — a `secret` crossing § 2's `args:` or § 4's
-//! publish — is in `isolates.rs`, beside the graph copy it shares with `spawn
-//! script`.
+//! this boundary that is not here — a `secret` crossing an upgrade's `args:` or
+//! a topic's publish — is in `isolates.rs`, beside the graph copy it shares with
+//! `spawn script`.
 //!
 //! See `tests/common/mod.rs` for the shared fixtures.
 
@@ -18,15 +18,17 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// `rule:concurrency/a-connection-is-a-loop`: "a received frame's payload is `tainted` — it is untrusted
-/// input arriving over a network, exactly like a request body".
+/// `rule:concurrency/a-connection-is-a-loop`: "a received frame's payload is
+/// `tainted` — it is untrusted input arriving over a network, exactly like a
+/// request body".
 ///
 /// The claim is a property of the *payload* and not of the member that answered
 /// it, so it is asserted on both sides of one value: the same expression is
-/// refused where a plain `string` is expected and accepted where `rule:security/taint-propagation`'s
-/// checked conversion has proven its shape. Reading `text()` and then narrowing
-/// away the `null` is the whole of what § 3's loop does before it uses the
-/// value, so the fixture is the shape a program actually writes.
+/// refused where a plain `string` is expected and accepted where
+/// `rule:security/taint-propagation`'s checked conversion has proven its shape.
+/// Reading `text()` and then narrowing away the `null` is the whole of what a
+/// connection's loop does before it uses the value, so the fixture is the shape
+/// a program actually writes.
 #[test]
 fn a_received_frames_payload_is_tainted_until_laundered() {
     let refused = check_src(
@@ -47,12 +49,12 @@ fn a_received_frames_payload_is_tainted_until_laundered() {
         "{refused:?}"
     );
 
-    // `rule:security/taint-propagation`'s checked conversion is what laundering is spelled as
-    // today: `as uint` already throws on a malformed shape, so a value that
-    // survives it is proven safe. § 3 names `Core\Validate` as the launderer a
-    // program reaches for, and that class has no text member yet
-    // (`nvs_stdlib::validate`); when it grows one it launders through this same
-    // rule rather than a second one.
+    // `rule:security/taint-propagation`'s checked conversion is what laundering
+    // is spelled as today: `as uint` already throws on a malformed shape, so a
+    // value that survives it is proven safe. `rule:concurrency/a-peer-frame-is-tainted`
+    // names `Core\Validate` as the launderer a program reaches for, and that
+    // class has no text member yet (`nvs_stdlib::validate`); when it grows one it
+    // launders through this same rule rather than a second one.
     let laundered = check_src(
         "<?nvs\n\
          class T {\n\

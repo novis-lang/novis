@@ -750,8 +750,8 @@ impl<'a> Lexer<'a> {
     ///
     /// A duration is reached only from a **plain decimal** integer: the
     /// `0x`/`0o`/`0b` forms return before this point, so `0x1d` stays one hex
-    /// literal, and a float that is followed by a unit letter is § 1's
-    /// fractional refusal rather than a rounded duration.
+    /// literal, and a float that is followed by a unit letter is the duration
+    /// grammar's fractional refusal rather than a rounded duration.
     ///
     /// The trigger is deliberately narrow. A candidate is scanned with
     /// [`duration::is_duration_char`] — the digits plus the unit letters in
@@ -1986,7 +1986,7 @@ mod tests {
         // suffix at all, so `19.99m` is not one decimal token. `rule:types/duration`
         // decides which *kind* of refusal it gets: a duration is recognised
         // only after a plain decimal integer, and a fractional count is that
-        // rule's own named lexer error (`1.5s`, its § 4), so `19.99m` is
+        // rule's own named lexer error (`1.5s`), so `19.99m` is
         // rejected by the duration grammar rather than lexing as two tokens.
         // A suffix outside the unit alphabet still splits in two -- see
         // `a_non_unit_suffix_is_still_an_integer_and_an_identifier`.

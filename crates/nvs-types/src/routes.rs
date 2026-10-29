@@ -3,7 +3,7 @@
 //!
 //! # Why this is a recognized name rather than a shape alias
 //!
-//! § 1 writes the attribute as an ordinary
+//! That rule writes the attribute as an ordinary
 //! `rule:attributes/inert-metadata`
 //! `type Core\Route = { path: string, method: Core\Http\Method, slotted?: bool };`
 //! and then adds the one thing that makes it not one: the compiler acts on the
@@ -27,50 +27,55 @@
 //! with a payload shares. That is one declaration read on its own.
 //!
 //! **The whole program's routes**, as [`RouteTable`]: [`check_class_routes`]
-//! adds one row per `#[Route]` — every one the method carries, so `rule:attributes/repeatable`'s repetition is one method serving two verbs — as [`crate::check`]'s
-//! per-class walk reaches it,
-//! and [`check_table`] then holds the collected rows to the two of § 1-§ 3's
-//! four compile errors that are questions about the *enumeration* — a duplicate
-//! route and one method's routes with two paths. A row needs a `path` and a `method` to exist
-//! at all, so this is also where an attribute that named neither is refused.
+//! adds one row per `#[Route]` — every one the method carries, so
+//! `rule:attributes/repeatable`'s repetition is one method serving two verbs — as
+//! [`crate::check`]'s per-class walk reaches it, and [`check_table`] then holds the
+//! collected rows to the two of `rule:routing/routes-are-compiled-not-registered`'s
+//! compile errors that are questions about the *enumeration* — a duplicate route
+//! and one method's routes with two paths. A row needs a `path` and a `method` to
+//! exist at all, so this is also where an attribute that named neither is refused.
 //!
 //! Between the two, and inside [`collect_route`], the path is read twice: once
-//! on its own against § 2's grammar ([`parse_path`], which splits it into
-//! [`Capture`]s and refuses the four ways it is not a path), and once against
-//! the method the attribute is attached to ([`check_captures`], which asks § 3
-//! whether each capture names a parameter and whether that parameter's declared
-//! type is one a segment converts to). Both live here rather than in the
-//! per-attribute walk for [`check_class_routes`]' own reason: a payload with no
-//! declaration around it can see neither the parameter list nor the class.
+//! on its own against `rule:routing/path-grammar` ([`parse_path`], which splits it
+//! into [`Capture`]s and refuses the four ways it is not a path), and once against
+//! the method the attribute is attached to ([`check_captures`], which asks
+//! `rule:security/route-capture-is-laundered-by-its-type` whether each capture
+//! names a parameter and whether that parameter's declared type is one a segment
+//! converts to). Both live here rather than in the per-attribute walk for
+//! [`check_class_routes`]' own reason: a payload with no declaration around it can
+//! see neither the parameter list nor the class.
 //!
 //! The same walk reads
 //! `rule:routing/a-query-parameter-is-declared-like-a-capture`
 //! 's `#[Query]` ([`query_params`]): a parameter the *declaration* binds from
 //! the query string rather than one the path names, so it is a second reading of
 //! the same parameter list and not a third reading of the path. The keys land on
-//! the row, because the only question asked about them is § 6's and it is asked
-//! from [`crate::links`] once the whole table exists.
+//! the row, because the only question asked about them is
+//! `rule:routing/a-leftover-link-key-is-a-query-string`'s, and it is asked from
+//! [`crate::links`] once the whole table exists.
 //!
-//! And it reads
-//! `rule:attributes/access-is-a-required-sibling`'s `#[Access]`, which is here for `#[Query]`'s reason — it is a
-//! `#[Route]`'s sibling and means nothing away from one. Its *payload* is
-//! [`ACCESS_OPTIONS`] and [`check_access`], from the per-attribute walk; § 1's
-//! presence rule is a question about the method's attribute list and so is
-//! asked by the same walk that finds the `#[Route]` ([`check_access_declared`]);
-//! § 1a's one-per-method rule is a question about that list as a whole and so
-//! is [`check_one_access`], from the walk that visits every method's list. The
-//! decision itself rides on the row as [`Route::access`], because `rule:security/access-is-checked-for-presence-not-meaning`
-//! leaves enforcement to whoever dispatches. § 4's `csrf` opt-out is a question
-//! about a *method's* verbs rather than a row's — one `#[Access]` covers every
-//! `#[Route]` the method carries — and so is [`check_csrf_opt_out`], from the
+//! And it reads `rule:attributes/access-is-a-required-sibling`'s `#[Access]`, which
+//! is here for `#[Query]`'s reason — it is a `#[Route]`'s sibling and means nothing
+//! away from one. Its *payload* is [`ACCESS_OPTIONS`] and [`check_access`], from
+//! the per-attribute walk; the presence rule is a question about the method's
+//! attribute list and so is asked by the same walk that finds the `#[Route]`
+//! ([`check_access_declared`]); `rule:attributes/access-payload`'s one-per-method
+//! rule is a question about that list as a whole and so is [`check_one_access`],
+//! from the walk that visits every method's list. The decision itself rides on the
+//! row as [`Route::access`], because
+//! `rule:security/access-is-checked-for-presence-not-meaning` leaves enforcement to
+//! whoever dispatches. `rule:security/csrf-is-on-by-default`'s `csrf` opt-out is a
+//! question about a *method's* verbs rather than a row's — one `#[Access]` covers
+//! every `#[Route]` the method carries — and so is [`check_csrf_opt_out`], from the
 //! same walk.
 //!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
-//! never copied — `rule:tooling/commands-are-compiled` takes § 3's list unchanged and `rule:routing/a-query-parameter-is-declared-like-a-capture` takes
+//! never copied — `rule:tooling/commands-are-compiled` takes the capture list
+//! unchanged and `rule:routing/a-query-parameter-is-declared-like-a-capture` takes
 //! it unchanged again for a query parameter, so all three passes ask one
 //! question. The single thing this pass adds to it is that a `{name...}` arrives
-//! as the one `tainted string` § 3 says it does, so it binds a `string` and
-//! nothing else.
+//! as the one `tainted string` the path grammar says it does, so it binds a
+//! `string` and nothing else.
 //!
 //! And it reads
 //! `rule:attributes/api-adds-and-cannot-contradict`'s `#[Api]`, which is here for the same reason again and is the one
@@ -169,9 +174,9 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 /// enum case is one of the three things a payload may contain (`rule:attributes/payload-is-a-compile-time-constant`);
 /// it is the same `Core\Http\Method` `Core\Request::method` answers with, which
 /// is why the row names that enum rather than a spelling of its own. There is
-/// no `methods:` row: § 1 serves two verbs by repeating the attribute
-/// (`rule:attributes/repeatable`), so a union or an array here would be a second way to write
-/// what the existing rule already covers.
+/// no `methods:` row: `rule:routing/route-attribute` serves two verbs by
+/// repeating the attribute (`rule:attributes/repeatable`), so a union or an array
+/// here would be a second way to write what the existing rule already covers.
 ///
 /// `slotted` is `rule:core-classes/html-later`'s route field: an ordinary
 /// `bool`, absent meaning `false`, which [`Route::slotted`] carries.
@@ -184,10 +189,11 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
 /// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-payload`'s own spelling, and
 /// the one roster here whose required field the roster itself cannot mark.
 ///
-/// `allow` is [`OptionTy::Mixed`] because § 1a declares it `mixed` and says
-/// why: § 2 is a promise not to know what the decision means, so placing the
-/// value at a type would be a claim this compiler does not make. What stands
-/// in place of that type is [`check_access`]. `csrf` is § 4's per-route
+/// `allow` is [`OptionTy::Mixed`] because that rule declares it `mixed` and says
+/// why: `rule:security/access-is-checked-for-presence-not-meaning` is a promise
+/// not to know what the decision means, so placing the value at a type would be
+/// a claim this compiler does not make. What stands in place of that type is
+/// [`check_access`]. `csrf` is `rule:security/csrf-is-on-by-default`'s per-route
 /// opt-out and is an ordinary `bool` — the verbs it applies to are the route's
 /// own, so there is no field here naming them.
 pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
@@ -211,21 +217,24 @@ pub(crate) fn option_home(attribute: &str, option: &str) -> Option<&'static str>
 /// say for [`collect_route`]'s reason: a roster says what a field may hold,
 /// and *required* is a fact about the thing being declared. An `#[Access]`
 /// carrying none declares nothing, so it is refused wherever it is attached —
-/// § 3's omission is the mistake whether or not a row was going to be built
-/// out of a sibling `#[Route]`.
+/// the omission `rule:attributes/access-is-a-required-sibling` refuses is the
+/// mistake whether or not a row was going to be built out of a sibling `#[Route]`.
 ///
-/// **Its value names something.** § 1a narrows `rule:attributes/payload-is-a-compile-time-constant`'s compile-time
-/// constant to an enum case or a class constant, and those are one syntactic
-/// form ([`ExprKind::ClassConstAccess`]): `Role::Admin` and `Policy::ADMIN`
-/// differ only in what they resolve to, which § 2 promises not to ask. What is
-/// refused is the bare literal — `allow: "admin"` is the magic string the
-/// attribute exists to replace, and § 2's guarantee is precisely that the name
-/// resolves.
+/// **Its value names something.** The payload rule narrows
+/// `rule:attributes/payload-is-a-compile-time-constant`'s compile-time constant to
+/// an enum case or a class constant, and those are one syntactic form
+/// ([`ExprKind::ClassConstAccess`]): `Role::Admin` and `Policy::ADMIN` differ only
+/// in what they resolve to, which
+/// `rule:security/access-is-checked-for-presence-not-meaning` promises not to ask.
+/// What is refused is the bare literal — `allow: "admin"` is the magic string the
+/// attribute exists to replace, and that rule's guarantee is precisely that the
+/// name resolves.
 ///
-/// § 1a's other two rules are not here, because neither is about one payload:
-/// "exactly one `#[Access]` per method" is a question about an attribute list
-/// and is [`check_one_access`], and `csrf: false` on a route whose every verb is
-/// safe is a question about that method's verbs and is [`check_csrf_opt_out`].
+/// That rule's other two requirements are not here, because neither is about
+/// one payload: "exactly one `#[Access]` per method" is a question about an
+/// attribute list and is [`check_one_access`], and `csrf: false` on a route
+/// whose every verb is safe is a question about that method's verbs and is
+/// [`check_csrf_opt_out`].
 pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
     let Some(field) = written(attr, ALLOW, env) else {
         env.diags.report(
@@ -264,14 +273,14 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
 /// [`check_access`] with the other two payload rules: a repeat is a fact about
 /// the *list*, and the walk that checks one payload holds one attribute with no
 /// list around it. Asked of every method rather than only of a `#[Route]`'s,
-/// because § 1a says one per method and an `#[Access]` on a method with no route
-/// is already an attribute that will be read by whoever dispatches — two of them
-/// there are the same two readings.
+/// because the rule says one per method and an `#[Access]` on a method with no
+/// route is already an attribute that will be read by whoever dispatches — two of
+/// them there are the same two readings.
 ///
-/// `rule:attributes/repeatable` makes every attribute repeatable in general, and this is the narrowing
-/// § 1a writes over it: a *third* is reported too, each against the first, so an
-/// author deleting the extras is told about all of them at once rather than one
-/// per rebuild.
+/// `rule:attributes/repeatable` makes every attribute repeatable in general, and
+/// this is the narrowing `rule:attributes/access-payload` writes over it: a
+/// *third* is reported too, each against the first, so an author deleting the
+/// extras is told about all of them at once rather than one per rebuild.
 pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut first: Option<Span> = None;
     for attr in groups.iter().flat_map(|group| &group.attributes) {
@@ -384,8 +393,8 @@ pub struct Route {
     /// reader of a row is a diagnostic or a link, and neither has anything to
     /// say about the integer.
     pub verb: String,
-    /// `path` exactly as written, captures and all, and admitted by § 2's
-    /// grammar — [`parse_path`] is what a reader splits it with rather than a
+    /// `path` exactly as written, captures and all, and admitted by
+    /// `rule:routing/path-grammar` — [`parse_path`] is what a reader splits it with rather than a
     /// second reading of the same string.
     pub path: String,
 
@@ -404,11 +413,13 @@ pub struct Route {
     /// `Core\Router\Responder`, and the runtime cannot read the return type
     /// off a class descriptor's method row.
     pub returns_value: bool,
-    /// Every parameter this route declares: § 2's path captures in path order
-    /// first, then `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters in declaration order.
+    /// Every parameter this route declares: the path's captures in path order
+    /// first, then `rule:routing/a-query-parameter-is-declared-like-a-capture`'s
+    /// `#[Query]` parameters in declaration order.
     ///
     /// On the row rather than left in the declaration because both readers are
-    /// past the walk that built it. [`crate::links`] asks § 6's question after
+    /// past the walk that built it. [`crate::links`] asks
+    /// `rule:routing/a-leftover-link-key-is-a-query-string`'s question after
     /// every file has been walked, by which time the method that declared these
     /// is in a file the walk has moved past; and
     /// `rule:routing/api-document-is-generated-from-the-route-table`
@@ -424,24 +435,25 @@ pub struct Route {
     /// depends on the file's imports and the row outlives the walk over that
     /// file.
     ///
-    /// A string, and nothing structured, is the whole of § 2's promise: this
-    /// compiler never asks what a decision *means*, only that the name
+    /// A string, and nothing structured, is the whole of that rule's promise:
+    /// this compiler never asks what a decision *means*, only that the name
     /// resolves, so what rides across is the answer to that question and
     /// nothing else. `None` only where the declaration was already refused —
-    /// no sibling `#[Access]` (§ 1), no `allow`, or an `allow` naming nothing
-    /// (§ 1a) — so every row of a program that compiles carries a decision.
+    /// no sibling `#[Access]`, no `allow`, or an `allow` naming nothing — so
+    /// every row of a program that compiles carries a decision.
     pub access: Option<String>,
     /// `rule:attributes/access-payload`'s `csrf`, as the declaration answered it: `false` only
     /// where the sibling `#[Access]` wrote exactly that, and `true` everywhere
     /// else including where it wrote nothing.
     ///
-    /// The *author's* answer and not § 4's whole one: whether there is a check
-    /// here at all is a question about [`UNSAFE_VERBS`], which every reader of
-    /// a row can ask of [`Self::verb`] and which the runtime's own row derives
-    /// once at boot. Splitting it that way is what keeps the two independent —
-    /// [`check_csrf_opt_out`] refuses the field where there is nothing to opt
-    /// out of, so a `false` under safe verbs other than `Get` belongs to a
-    /// program that did not compile and never reaches a table.
+    /// The *author's* answer and not `rule:security/csrf-is-on-by-default`'s whole
+    /// one: whether there is a check here at all is a question about
+    /// [`UNSAFE_VERBS`], which every reader of a row can ask of [`Self::verb`] and
+    /// which the runtime's own row derives once at boot. Splitting it that way is
+    /// what keeps the two independent — [`check_csrf_opt_out`] refuses the field
+    /// where there is nothing to opt out of, so a `false` under safe verbs other
+    /// than `Get` belongs to a program that did not compile and never reaches a
+    /// table.
     pub csrf: bool,
     /// `rule:core-classes/html-later`'s `slotted`: `true` only where the
     /// attribute wrote `slotted: true`, so the response sends its shell when
@@ -588,7 +600,7 @@ struct Api {
 /// Where one of a route's parameters arrives from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParamIn {
-    /// § 2's capture: a segment of the matched path.
+    /// A `rule:routing/path-grammar` capture: a segment of the matched path.
     Path,
     /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` marker: a key of the query string.
     Query,
@@ -611,9 +623,10 @@ pub enum ParamIn {
 /// choose a JSON Schema for it.
 #[derive(Debug)]
 pub struct RouteParam {
-    /// The parameter's own name, sigil-less — the capture's name (§ 3) or the
-    /// query key, which are the same spelling for the same reason: the
-    /// attribute carries nothing that could give either another one.
+    /// The parameter's own name, sigil-less — the capture's name
+    /// (`rule:security/route-capture-is-laundered-by-its-type`) or the query key,
+    /// which are the same spelling for the same reason: the attribute carries
+    /// nothing that could give either another one.
     pub name: String,
     /// Path or query.
     pub source: ParamIn,
@@ -736,11 +749,11 @@ pub struct EnumCapture {
 ///
 /// A `Vec` rather than a map keyed by either of the two things a route is
 /// looked up by, because *both* keys have a duplicate error attached to them:
-/// a map would drop the row a collision is reported against, and § 2's
-/// precedence makes the path key a shape rather than the written text. Order
-/// is what makes the pair deterministic — a duplicate is always reported at
-/// the row that arrives second, and the load order it arrives in does not
-/// depend on filesystem enumeration (`rule:programs/implementing`).
+/// a map would drop the row a collision is reported against, and
+/// `rule:routing/precedence-is-structural` makes the path key a shape rather than
+/// the written text. Order is what makes the pair deterministic — a duplicate is
+/// always reported at the row that arrives second, and the load order it arrives
+/// in does not depend on filesystem enumeration (`rule:programs/implementing`).
 ///
 /// The table also carries the unit's one mark about how it is served: whether
 /// the program calls `Core\Router::dispatch` anywhere
@@ -954,8 +967,9 @@ impl RouteTable {
 /// Every `#[Route]` `decl` declares, collected into `env`'s table.
 ///
 /// A no-op — not even a lookup — for a class carrying no `#[Route]`, which is
-/// what keeps § 5's "a program with no `#[Route]` anywhere pays nothing at all,
-/// including no pass" true of this walk as well as of the scan.
+/// what keeps a program with no `#[Route]` anywhere paying nothing in this walk,
+/// no pass included, as `rule:routing/table-is-opt-in` keeps it paying nothing
+/// in the scan.
 ///
 /// Run from [`crate::check`]'s per-class walk rather than from
 /// [`crate::attributes`]', for [`crate::commands::check_class_commands`]'
@@ -963,12 +977,13 @@ impl RouteTable {
 /// attached to, and the per-attribute walk holds a payload with no declaration
 /// around it.
 ///
-/// **Every** `#[Route]` on the method becomes a row, which is `rule:attributes/repeatable`'s
-/// repetition read as `rule:routing/route-attribute` writes it — one method serving two verbs
-/// declares two routes. The method's *other* two questions are asked once
-/// against the first of them: § 1's sibling `#[Access]` and § 4's `csrf`
-/// opt-out are facts about the method, so asking them per attribute would
-/// report one mistake once per verb.
+/// **Every** `#[Route]` on the method becomes a row, which is
+/// `rule:attributes/repeatable`'s repetition read as `rule:routing/route-attribute`
+/// writes it — one method serving two verbs declares two routes. The method's
+/// *other* two questions are asked once against the first of them:
+/// `rule:attributes/access-is-a-required-sibling`'s sibling `#[Access]` and
+/// `rule:security/csrf-is-on-by-default`'s `csrf` opt-out are facts about the
+/// method, so asking them per attribute would report one mistake once per verb.
 pub(crate) fn check_class_routes(
     decl: &ClassDecl,
     class: &QName,
@@ -1037,11 +1052,12 @@ pub(crate) fn check_class_routes(
 /// about a *method* — the walk that checks one payload cannot see the sibling
 /// it is missing — and asked of every `#[Route]`, including one this pass then
 /// refuses to build a row out of: a route with a broken path still declares a
-/// route, and § 3's reasoning does not wait for the path to parse.
+/// route, and the reasoning that an omission is not a default does not wait for
+/// the path to parse.
 ///
 /// The diagnostic points at the `#[Route]` and not at the method, because the
 /// attribute is what makes the declaration owe a decision. Suggesting
-/// `Audience::Public` in the help is § 1's own wording, and the case it names
+/// `Audience::Public` in the help is the rule's own wording, and the case it names
 /// is [`nvs_stdlib::router::AUDIENCE`] — the point of naming it in `Core` is
 /// that the fix for this error is a name that already resolves.
 ///
@@ -1068,9 +1084,8 @@ fn check_access_declared<'a>(
         )
         .with_primary(attr.span, "this route has no sibling `#[Access]`")
         .with_help(
-            "§ 3 gives an omission no default, because a route that is open by decision and one \
-             that is open by oversight would otherwise read alike — write \
-             `#[Access(allow: Core\\Audience::Public)]` on the method if it is genuinely open",
+            "a route without `#[Access]` has no default access. If everyone may call this route, \
+             write `#[Access(allow: Core\\Audience::Public)]` on the method",
         ),
     );
     None
@@ -1173,13 +1188,14 @@ fn csrf_of(access: Option<&Attribute>, env: &mut Env<'_>) -> bool {
 /// has the upgrade's origin check to opt out of.
 ///
 /// The verbs are the *method's* rather than the row's, which is why this is
-/// asked here and not in [`collect_route`]: § 1a gives a method one `#[Access]`
-/// covering every `#[Route]` it carries, so a single unsafe verb among them is
-/// a check to opt out of and the field is doing its job. Asking it of the row
-/// instead would report one mistake once per verb and would still have to read
-/// the sibling attributes to know it was the same mistake.
+/// asked here and not in [`collect_route`]: `rule:attributes/access-payload` gives
+/// a method one `#[Access]` covering every `#[Route]` it carries, so a single
+/// unsafe verb among them is a check to opt out of and the field is doing its
+/// job. Asking it of the row instead would report one mistake once per verb and
+/// would still have to read the sibling attributes to know it was the same
+/// mistake.
 ///
-/// Only `false` is refused. `csrf: true` on a safe route restates § 4's default
+/// Only `false` is refused. `csrf: true` on a safe route restates the default
 /// rather than claiming anything untrue, and refusing a *restatement* would be
 /// this compiler holding an opinion about style.
 ///
@@ -1329,19 +1345,21 @@ pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>
 /// `rule:attributes/access-is-a-required-sibling`'s sibling rule read from the other side: an `#[Access]` on a
 /// method carrying no `#[Route]`.
 ///
-/// § 1 states the rule as a route owing a decision, which is
+/// The rule is first stated as a route owing a decision, which is
 /// [`check_class_routes`]' `E_ROUTE_WITHOUT_ACCESS`. The same sentence asked of
 /// a method that declares no route at all is this, and it is a refusal rather
-/// than a silence because § 2 promises the compiler will never interpret what
-/// `allow` names: the route table is the only thing that ever reads one, so an
-/// `#[Access]` away from a `#[Route]` guards nothing and cannot be made to.
+/// than a silence because `rule:security/access-is-checked-for-presence-not-meaning`
+/// promises the compiler will never interpret what `allow` names: the route
+/// table is the only thing that ever reads one, so an `#[Access]` away from a
+/// `#[Route]` guards nothing and cannot be made to.
 ///
 /// Asked from [`crate::attributes`]' per-method walk for [`check_stray_query`]'s
 /// reason — [`check_class_routes`] answers over the methods a `#[Route]` marks,
 /// and a stray `#[Access]` is by definition on one of the others.
 ///
 /// Reported for the first `#[Access]` alone, where [`check_stray_query`] reports
-/// per parameter: § 1a admits one per method and a second is
+/// per parameter: `rule:attributes/access-payload` admits one per method and a
+/// second is
 /// [`check_one_access`]'s own error, so naming every one of them here would
 /// report the author's single mistake once per attribute they are about to
 /// delete together.
@@ -2199,7 +2217,8 @@ fn check_security(table: &RouteTable, diags: &mut Diagnostics) {
 
 /// One `#[Route]` payload as a row, or the refusal that it is not one.
 ///
-/// § 1's shape marks only `name` optional, and this is where that is enforced
+/// `rule:routing/route-attribute` requires `path` and `method`, and this is where
+/// that is enforced
 /// rather than in [`crate::attributes::check_roster`]: the roster says what a
 /// field may hold, and *required* is a fact about the row being built, which is
 /// the reading [`crate::commands`]' own gap gives `#[Command]`'s `name` for the
@@ -2627,7 +2646,8 @@ fn split_doc(text: &str) -> Option<Doc> {
     })
 }
 
-/// § 2's three capture forms, each holding the name it binds. A segment that is
+/// `rule:routing/path-grammar`'s three capture forms, each holding the name it
+/// binds. A segment that is
 /// none of them is a literal, compared byte for byte and case-sensitively
 /// (`rule:classes/names-resolve-case-sensitively`),
 /// and is not held here at all.
@@ -2642,8 +2662,8 @@ enum Capture<'a> {
 }
 
 impl<'a> Capture<'a> {
-    /// The parameter name this capture binds to, sigil-less, as § 3 compares
-    /// it.
+    /// The parameter name this capture binds to, sigil-less, as
+    /// `rule:security/route-capture-is-laundered-by-its-type` compares it.
     fn name(self) -> &'a str {
         match self {
             Self::One(name) | Self::Optional(name) | Self::Rest(name) => name,
@@ -2662,22 +2682,23 @@ impl<'a> Capture<'a> {
     }
 }
 
-/// A path § 2's grammar does not admit: the clause that completes "this
+/// A path the path grammar does not admit: the clause that completes "this
 /// handler's path …", and the help that follows it.
 struct Refusal {
     what: String,
     help: &'static str,
 }
 
-/// § 2's grammar over one whole path: the captures it declares, in order, or
-/// the one way it is not a path.
+/// `rule:routing/path-grammar` over one whole path: the captures it declares, in
+/// order, or the one way it is not a path.
 ///
 /// Pure, and separate from the diagnostic it feeds, so the grammar reads as the
-/// rules § 2 writes rather than through the reporting around them. It stops at
-/// the first refusal for the reason [`collect_route`] drops the row: a path is
-/// one thing, and a reader fixing its first fault re-reads the rest anyway.
+/// rules that rule writes rather than through the reporting around them. It
+/// stops at the first refusal for the reason [`collect_route`] drops the row: a
+/// path is one thing, and a reader fixing its first fault re-reads the rest
+/// anyway.
 ///
-/// § 2's "at most once" and "never in the same path as a `{name...}`" are not
+/// The grammar's "at most once" and "never in the same path as a `{name...}`" are not
 /// checked separately, because both fall out of *last position only*: one
 /// segment is last, so a second trailing form is already somewhere it is
 /// refused.
@@ -2718,11 +2739,11 @@ fn parse_path(path: &str) -> Result<Vec<Capture<'_>>, Refusal> {
     Ok(captures)
 }
 
-/// One segment read as § 2's grammar: the capture it declares, `None` for a
-/// fixed segment, or the clause saying what it is instead.
+/// One segment read as `rule:routing/path-grammar`: the capture it declares,
+/// `None` for a fixed segment, or the clause saying what it is instead.
 ///
 /// A segment carrying a brace anywhere is held to being a capture *whole*.
-/// There is no escape and no partial form, which is the half of § 2 that keeps
+/// There is no escape and no partial form, which is the half of the grammar that keeps
 /// `{` an ordinary byte in a fixed segment impossible rather than ambiguous:
 /// a path meaning one of two things is refused rather than repaired
 /// (`rule:errors/ambiguous-input-refused`).
@@ -2761,14 +2782,14 @@ fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
     Ok(Some(capture))
 }
 
-/// § 4's reading of a declared `path`, for the link half: one
-/// [`UrlPiece`] per segment, each carrying its own leading `/`, or `None` for a
-/// path § 2's grammar does not admit.
+/// `rule:routing/link-target-and-params-are-checked`'s reading of a declared
+/// `path`, for the link half: one [`UrlPiece`] per segment, each carrying its own
+/// leading `/`, or `None` for a path `rule:routing/path-grammar` does not admit.
 ///
 /// The **only** reading of a path outside [`parse_path`], and deliberately over
 /// [`capture_of`] rather than beside it: a fold and its runtime path are one
-/// implementation, so `Core\Router::url`'s substitution is handed a path already split by § 2's
-/// own grammar and never a second parser of it. A row in the table is always
+/// implementation, so `Core\Router::url`'s substitution is handed a path already
+/// split by the path grammar itself and never a second parser of it. A row in the table is always
 /// `Some` — [`collect_route`] drops a path that refused — so the option exists
 /// for the caller that has not been through that gate rather than for a state a
 /// table can be in.
@@ -2788,10 +2809,11 @@ pub(crate) fn link_pieces(path: &str) -> Option<Vec<UrlPiece>> {
     Some(pieces)
 }
 
-/// § 3's two questions about the method the attribute is attached to — every
-/// capture names a parameter of that name, and that parameter's declared type
-/// is one a segment converts to — and § 2's one question of the same kind: a
-/// `{name?}` is well-typed only where its parameter has a default.
+/// `rule:security/route-capture-is-laundered-by-its-type`'s two questions about
+/// the method the attribute is attached to — every capture names a parameter of
+/// that name, and that parameter's declared type is one a segment converts to —
+/// and `rule:routing/a-trailing-segment-may-be-absent`'s one question of the same
+/// kind: a `{name?}` is well-typed only where its parameter has a default.
 ///
 /// The primary span of the two type-shaped refusals is the *parameter*, as it
 /// is for [`crate::commands::check_convertible`]: the path is written correctly
@@ -3025,7 +3047,7 @@ fn converts_from_segment(ty: crate::ty::TypeId, env: &Env<'_>) -> bool {
 /// implementing `Parses` all convert, and none of them names a set anything
 /// could be checked against — a `Parses` class narrows nothing, because the
 /// contract says the text either parses or does not and never which texts do.
-/// What is left is § 5's other addition:
+/// What is left is the closed-set rule's other addition:
 ///
 /// - a **union of `string` or `int` single-value types**, and a lone single-value type,
 ///   which is the same set written with one member;
@@ -3192,10 +3214,11 @@ fn ambiguous_case_value(
 /// parameter list to opposite ends: a capture starts from the path and looks
 /// for the parameter it names, while a `#[Query]` starts from the declaration
 /// and names no part of the path at all. It is the counterpart of
-/// [`crate::commands::check_options`]' walk, and § 3's "the same type list as a
-/// path capture" is that list read from the one place that holds it.
+/// [`crate::commands::check_options`]' walk, and that rule's "the same type list
+/// as a path capture" is that list read from the one place that holds it.
 ///
-/// **A failed conversion is still a compile error here**, not § 3's `400`: the
+/// **A failed conversion is still a compile error here**, not
+/// `rule:routing/a-bad-query-value-is-a-400`'s `400`: the
 /// `400` is what a bad *value* gets at run time, and this is the declaration
 /// saying it would have nothing to arrive at whatever the value was.
 fn query_params(
@@ -3241,7 +3264,7 @@ fn query_params(
         keys.push(RouteParam {
             name,
             source: ParamIn::Query,
-            // § 3: a default is the declaration saying the key may be absent,
+            // A default is the declaration saying the key may be absent,
             // and it is the only thing that says so — the marker itself carries
             // no optionality.
             required: param.default.is_none(),
@@ -3335,8 +3358,9 @@ fn enum_case(
 ///
 /// Resolved rather than folded, because folding is the one thing this compiler
 /// must not do here: [`check_access`] admits an enum case and a class constant
-/// as one syntactic form precisely so that § 2's promise — the name resolves,
-/// and nothing asks what it means — survives to the dispatcher. So the class
+/// as one syntactic form precisely so that
+/// `rule:security/access-is-checked-for-presence-not-meaning`'s promise — the name
+/// resolves, and nothing asks what it means — survives to the dispatcher. So the class
 /// side goes through the resolution every other `Class::…` in this crate gets
 /// and the member side is its own written text, with no lookup of a value
 /// behind it and no requirement that the two together name anything declared.
@@ -3405,14 +3429,14 @@ pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
     }
 }
 
-/// The two of § 1-§ 3's compile errors that are questions about the whole
-/// enumeration: one route declared twice, and one method's routes with two
-/// paths. Then [`check_security`]'s two, which are the same kind of question
-/// about the security schemes.
+/// The two of `rule:routing/routes-are-compiled-not-registered`'s compile errors
+/// that are questions about the whole enumeration: one route declared twice, and
+/// one method's routes with two paths. Then [`check_security`]'s two, which are
+/// the same kind of question about the security schemes.
 ///
 /// Run once, after every file has been walked, because a route in the entry
-/// file collides with one in a file § 5's scan found and neither declaration
-/// can see the other. Both are reported at the row that arrives *second* in
+/// file collides with one in a file `rule:routing/table-is-opt-in`'s scan found
+/// and neither declaration can see the other. Both are reported at the row that arrives *second* in
 /// load order, so which of two colliding declarations is named does not depend
 /// on the filesystem.
 ///
@@ -3434,9 +3458,9 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
                 )
                 .with_primary(row.span, "this route is declared twice")
                 .with_help(
-                    "§ 2 matches a path by shape, so two captures that differ only in name are \
-                     one route — serve the second verb from its own `#[Route]`, or give the two \
-                     paths different fixed segments",
+                    "two paths whose captures differ only in name are the same route. Serve the \
+                     second verb from its own `#[Route]`, or give the two paths different fixed \
+                     segments",
                 ),
             );
             routes.insert((row.verb.as_str(), shape(&row.path)), prior);
@@ -3504,11 +3528,11 @@ fn check_operation_ids(table: &RouteTable, diags: &mut Diagnostics) {
     }
 }
 
-/// § 2's path *shape*: the path with every capture's name erased but its
+/// The path's *shape*: the path with every capture's name erased but its
 /// *form* kept, so `/users/{id}` and `/users/{userId}` are the one route they
 /// match as while `/posts/{page}` and `/posts/{page?}` stay two.
 ///
-/// The form is kept because § 2's precedence is structural — a literal beats a
+/// The form is kept because `rule:routing/precedence-is-structural` — a literal beats a
 /// `{name}`, which beats a `{name?}`, which beats a `{name...}` — so the three
 /// are three nodes of the trie and a pair of them has an answer that does not
 /// depend on declaration order. Erasing the form would report that pair as the

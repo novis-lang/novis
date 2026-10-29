@@ -27086,7 +27086,7 @@ error[E0762]: the route `Users::index` declares no access decision
   |
 8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
-  = help: § 3 gives an omission no default, because a route that is open by decision and one that is open by oversight would otherwise read alike — write `#[Access(allow: Core\Audience::Public)]` on the method if it is genuinely open
+  = help: a route without `#[Access]` has no default access. If everyone may call this route, write `#[Access(allow: Core\Audience::Public)]` on the method
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

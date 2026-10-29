@@ -908,8 +908,9 @@ fn infer_kind(
                 if let Some(conds) = &arm.conditions {
                     for c in conds {
                         // `rule:expressions/switch-match-equality`: an arm is compared against the subject
-                        // by the one equality rule, so a disjoint arm is § 2's
-                        // refusal written without the operator. `match (true)`
+                        // by the one equality rule, so a disjoint arm is
+                        // `rule:expressions/disjoint-comparison-refused`'s refusal
+                        // written without the operator. `match (true)`
                         // is unaffected — every arm there is a `bool` too.
                         let cond_ty = check_expr(c, None, live, scope, ctx, env);
                         reject_disjoint_equality(subject_ty, cond_ty, c.span, env);
@@ -979,7 +980,8 @@ fn infer_kind(
         // `rule:iteration/generators`'s suspension point, reached *inside* another
         // expression. `check_expr_stmt` is what a `yield;` of its own goes
         // through, so arriving here is the proof this one was written where a
-        // value is consumed — and § 5 gives a generator no `send()`, so there
+        // value is consumed — and `rule:iteration/one-way-only` gives a
+        // generator no `send()`, so there
         // is nothing for `yield` to produce. Same code as the two spellings
         // beside it: this is one more shape of `yield` the language does not
         // have.
@@ -1085,7 +1087,7 @@ fn infer_kind(
         // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is
         // the proof this `require` was used for its value.
         //
-        // § 3 types that boundary `mixed` and gives exactly one reason: what a
+        // The rule types that boundary `mixed` and gives exactly one reason: what a
         // `return`-ing target hands back cannot be known statically, and
         // `mixed` is `rule:types/conversion`'s one unchecked position. There is nothing
         // to check here beyond the path, and nothing narrower to answer — a
@@ -1100,7 +1102,7 @@ fn infer_kind(
         // neither side is checked against the other and both are checked
         // against nothing but the position the whole expression sits in.
         ExprKind::Catch { guarded, arms } => {
-            // § 4: an arm is checked from the **pre-guard** definite-assignment
+            // An arm is checked from the **pre-guard** definite-assignment
             // state, as a block clause is, because an arm runs precisely when
             // the guard did not complete — so a local the guard assigned cannot
             // be assumed assigned inside one. What is live afterwards is the
@@ -1138,7 +1140,8 @@ fn infer_kind(
                 if let Some(name) = fresh {
                     arm_added.retain(|n| *n != name);
                 }
-                // § 3: a `throw` arm is typed `never`, so it produces no value
+                // `rule:expressions/catch-arm-is-an-expression`: a `throw` arm is
+                // typed `never`, so it produces no value
                 // — it contributes nothing to the union and is not a way the
                 // expression finishes, exactly as a terminating clause is left
                 // out of the block form's own join.

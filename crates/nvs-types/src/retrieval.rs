@@ -1,9 +1,10 @@
 //! `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
 //! at run time.
 //!
-//! § 5 is what makes this a checker pass at all. A declaration's attached
-//! attributes are fixed by its source, and [`crate::attributes`] has already
-//! proved every payload value is a compile-time constant (§ 2), so the whole
+//! `rule:attributes/retrieval-folds-while-checking` is what makes this a checker
+//! pass at all. A declaration's attached attributes are fixed by its source, and
+//! [`crate::attributes`] has already proved every payload value is a
+//! compile-time constant (`rule:attributes/payload-is-a-compile-time-constant`), so the whole
 //! question — *which attribute payload objects structurally satisfy `T`* — has an
 //! answer before the program starts. The call is therefore **replaced** with
 //! that answer: a compiled-in `null` where nothing matches, the matched
@@ -15,8 +16,9 @@
 //!
 //! # Structural, not nominal
 //!
-//! § 4's rule is that retrieval matches on *shape*: an attribute's payload object is an
-//! answer to `get<T>` exactly when it satisfies `T` under
+//! `rule:attributes/structural-retrieval` makes retrieval match on *shape*: an
+//! attribute's payload object is an answer to `get<T>` exactly when it
+//! satisfies `T` under
 //! [`crate::expr::built_fits`]: `rule:types/shape-type`'s width subtyping, with field
 //! types compared covariantly because the payload is folded into a new value at
 //! each retrieval. That holds regardless of whether it was
@@ -28,8 +30,9 @@
 //!
 //! # Which declaration `$target` names
 //!
-//! § 4 fixes four spellings and this pass inspects them **syntactically**,
-//! exactly as `rule:security/secret-sinks-refuse`'s sinks inspect a literal argument: the reference
+//! `rule:attributes/structural-retrieval` fixes four spellings and this pass
+//! inspects them **syntactically**, exactly as `rule:security/secret-sinks-refuse`'s
+//! sinks inspect a literal argument: the reference
 //! is never evaluated, so `Foo::bar` here is a written name rather than a
 //! callable value. A method is its own method reference; a class
 //! is its `constructor`'s; a parameter is its method's reference plus
@@ -48,15 +51,16 @@
 //! to be: the answer a misspelling would otherwise fold to — `null`, or the
 //! empty array — is the very answer a correct retrieval of an absent attribute
 //! gives, so nothing downstream could ever tell the two apart. A `$member`
-//! that is not a string literal has no name to check, and § 4's *Consequences*
-//! already fixes that case as an empty result rather than a diagnostic: `get`
-//! folds to `null` and `all` to the empty array.
+//! that is not a string literal has no name to check, and the same rule already
+//! fixes that case as an empty result rather than a diagnostic: `get` folds to
+//! `null` and `all` to the empty array.
 //!
 //! # What a matched payload has to be
 //!
-//! § 5 replaces the call with the payload, so every value in a *matched*
-//! payload needs a constant form ([`ConstArg`]), and **every shape § 2 admits
-//! has one** — a class constant and `Foo::class` through
+//! `rule:attributes/retrieval-folds-while-checking` replaces the call with the
+//! payload, so every value in a *matched* payload needs a constant form
+//! ([`ConstArg`]), and **every shape `rule:attributes/payload-is-a-compile-time-constant`
+//! admits has one** — a class constant and `Foo::class` through
 //! [`crate::signatures::resolve_const`], which is the same entry a *read* of
 //! the name inlines, and an enum case through [`crate::enums`].
 //!
@@ -70,7 +74,7 @@
 //! `E0731` is what is left over: a class constant whose *own* declaration
 //! folded to no value (`E0792`'s gap, one position along) has nothing to
 //! compile in. It is reported at the retrieval and never where the attribute is
-//! *attached*, because § 2 admits the spelling and an attribute nobody
+//! *attached*, because that rule admits the spelling and an attribute nobody
 //! retrieves costs nothing.
 
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
@@ -466,7 +470,8 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
     Some((qname, span_text(env.src, *name).to_owned()))
 }
 
-/// Whether `member` names a real declaration of the target — § 4's validation
+/// Whether `member` names a real declaration of the target —
+/// `rule:attributes/structural-retrieval`'s validation
 /// of a *written* member name, and the whole of what `E0798` reports on.
 ///
 /// Asked of [`crate::signatures`] rather than of [`AttributeTable`], which
@@ -494,8 +499,8 @@ pub(crate) fn declares_member(class: &QName, method: &str, member: &str, env: &E
     method == "constructor" && resolve_property(class, member, env.signatures, env.graph).is_some()
 }
 
-/// The attach sites `$target` plus `$member` names, joined where § 4's two
-/// spellings overlap — see this module's own docs.
+/// The attach sites `$target` plus `$member` names, joined where
+/// `rule:attributes/structural-retrieval`'s two spellings overlap — see this module's own docs.
 pub(crate) fn sites_for<'a>(
     env: &Env<'a>,
     class: &QName,
@@ -508,7 +513,8 @@ pub(crate) fn sites_for<'a>(
     let Some(member) = member.filter(|name| !name.is_empty()) else {
         return if method == "constructor" {
             // A class with no written `constructor` still names itself this
-            // way — `rule:classes/definite-property-initialization` synthesizes one, so § 4 uses the spelling for
+            // way — `rule:classes/definite-property-initialization` synthesizes
+            // one, so `rule:attributes/structural-retrieval` uses the spelling for
             // every class rather than only for the ones that declare it, and
             // a class that *does* write one may carry attributes on both.
             let mut sites = entry.own.clone();
@@ -685,8 +691,9 @@ fn literal_fits(
     field_fits(ty, want, env.interner, env.graph, env.signatures)
 }
 
-/// One matched payload as the constant § 5 replaces the call with, or `None`
-/// after reporting `E0731` for a value with no constant form.
+/// One matched payload as the constant `rule:attributes/retrieval-folds-while-checking`
+/// replaces the call with, or `None` after reporting `E0731` for a value with no
+/// constant form.
 pub(crate) fn fold_payload<'a>(site: Site<'a>, env: &mut Env<'a>) -> Option<ConstArg> {
     let outer = env.src;
     env.src = site.src;

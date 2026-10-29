@@ -1,5 +1,5 @@
-//! `rule:types/duration`'s duration grammar,
-//! in the one implementation its § 5 requires.
+//! `rule:types/duration`'s duration grammar, in the one implementation that
+//! rule requires.
 //!
 //! `30s`, `1h30m`, `500ms` — Go's `time.ParseDuration` grammar with `d` and `w`
 //! added. That rule holds the reasoning; this module is the code, and restates
@@ -7,15 +7,15 @@
 //!
 //! # Why the grammar lives in the *syntax* crate
 //!
-//! § 5 names three places that must agree — the duration written in the source, the run-time
-//! `Core\Time\Duration::parse`, and a duration-valued `nvs.toml` directive —
-//! and says the three share one parser so a grammar change cannot land in one
-//! and miss the others. Exactly one of the three is lexical, so exactly one
-//! crate is forced: the lexer cannot reach `nvs-stdlib` without the front end
-//! depending on the runtime heap, while `nvs-stdlib` reaching *here* is an edge
-//! `rule:tooling/reflection-and-source-parsing-are-core-features`
-//! already owes for `Core\Ast`. So this is `nvs-syntax`'s, and the other two
-//! call in.
+//! The rule names three places that must agree — the duration written in the
+//! source, the run-time `Core\Time\Duration::parse`, and a duration-valued
+//! `nvs.toml` directive — and says the three share one parser so a grammar
+//! change cannot land in one and miss the others. Exactly one of the three is
+//! lexical, so exactly one crate is forced: the lexer cannot reach `nvs-stdlib`
+//! without the front end depending on the runtime heap, while `nvs-stdlib`
+//! reaching *here* is an edge
+//! `rule:tooling/reflection-and-source-parsing-are-core-features` already owes
+//! for `Core\Ast`. So this is `nvs-syntax`'s, and the other two call in.
 //!
 //! # What it produces
 //!
@@ -26,7 +26,7 @@
 //! `Duration`'s range is a compile error, not a wrap", and the same throw at
 //! run time.
 //!
-//! No sign is accepted anywhere (§ 1), so every value this produces is
+//! No sign is accepted anywhere, so every value this produces is
 //! non-negative; a backwards step is `->minus(7d)` or `->negated()`.
 
 use std::fmt::{self, Write as _};

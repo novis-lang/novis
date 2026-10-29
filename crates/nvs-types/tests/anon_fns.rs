@@ -28,8 +28,9 @@ fn an_anon_fn_parameter_shadows_an_outer_local_rather_than_capturing_it() {
     assert!(captures.is_empty(), "{captures:?}");
 }
 
-/// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "an anonymous function captures `$this` only where the body uses it"
-/// falls out of § 2's capture rule with no code of its own: `$this` is an
+/// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s
+/// "an anonymous function captures `$this` only where the body uses it" falls
+/// out of `rule:types/implicit-capture` with no code of its own: `$this` is an
 /// ordinary name in the enclosing scope.
 #[test]
 fn an_anon_fn_that_names_this_captures_it_like_any_other_binding() {

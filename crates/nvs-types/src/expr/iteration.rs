@@ -465,7 +465,7 @@ fn report_untainted_outside_key(declared: TypeId, span: Span, env: &mut Env<'_>)
     );
 }
 
-/// `rule:types/callable-values`/§ 3: a bare string or `[$obj, 'method']`-shaped array
+/// `rule:types/callable-values`: a bare string or `[$obj, 'method']`-shaped array
 /// literal reaching a `callable`-typed position gets a targeted diagnostic
 /// naming the method-reference replacement, rather than the
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for

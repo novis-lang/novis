@@ -192,7 +192,7 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
     // deliberately not the thing that refuses: `fields` stays `array<mixed>`,
     // which a `secret string` element satisfies, so nothing below the call
     // site can tell. Both halves of the bullet are here — the bag that carries
-    // the qualifier on its own type, and § 4's named case of the value written
+    // the qualifier on its own type, and the rule's named case of the value written
     // inside the literal at the call.
     let bag = check_in_method(
         "secret string $token = \"literal\";\n\

@@ -117,7 +117,8 @@ fn a_yield_outside_any_generator_is_diagnosed() {
     );
 }
 
-/// `rule:iteration/one-way-only` rejects `yield from`, and § 1 leaves a cursor no key.
+/// `rule:iteration/one-way-only` rejects `yield from`, and `rule:iteration/two-interfaces` leaves a
+/// cursor no key.
 #[test]
 fn yield_from_and_a_keyed_yield_are_both_refused() {
     for body in ["yield from G::g();", "yield 1 => 2;"] {

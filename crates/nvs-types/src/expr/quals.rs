@@ -65,8 +65,9 @@
 //! public fields is where the qualifier is in practice.
 //!
 //! The last has no member behind it at all: [`reject_secret_output`] is
-//! § 4's terminal-output bullet, asked at `echo` and `print`, where the
-//! operand is a statement's rather than a call's — and where the qualifier
+//! `rule:security/secret-sinks-refuse`'s terminal-output bullet, asked at `echo`
+//! and `print`, where the operand is a statement's rather than a call's — and
+//! where the qualifier
 //! has usually arrived by the spreading described above rather than being
 //! written on the operand itself.
 //!
@@ -590,13 +591,13 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 /// classified `qual` accept an argument carrying `tainted`?
 ///
 /// * A [`Qual::Sink`] never does — that is the whole of `rule:security/sink-predicate` — and
-///   neither does an unclassified parameter, which is § 2's flipped default
-///   and every parameter of a signature that is not a `Core` row
-///   ([`MethodSig::param_quals`]).
+///   neither does an unclassified parameter, which is the flipped default of
+///   `rule:security/unclassified-parameter-refuses-tainted` and every parameter
+///   of a signature that is not a `Core` row ([`MethodSig::param_quals`]).
 /// * [`Qual::Neutral`] and [`Qual::Launder`] always do, for one reason:
 ///   neither puts a byte of the argument into the answer, so there is nothing
-///   for the qualifier to be carried into. `Launder` is not named in § 2's own
-///   sentence and follows from its definition — a member that removes the
+///   for the qualifier to be carried into. `Launder` is not named in that rule's
+///   own sentence and follows from its definition — a member that removes the
 ///   qualifier and refused to be handed one would launder nothing.
 /// * [`Qual::Contagious`] does **only where the result can carry the qualifier
 ///   back out**, which is what `tainted_result` answering something different
@@ -791,7 +792,7 @@ pub(crate) fn reject_secret_markup_conversion(
 /// trusted markup this way, closing "compute the escape-defeating payload at
 /// runtime, then cast it." Scoped to a conversion whose target actually
 /// resolves to `Core\Html\Markup`; every other target is untouched. The rest
-/// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
+/// of that rule (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
 /// waits on `Core\Html` actually existing as a stdlib class.
 ///
 /// The help follows the operand's type `inner_ty`. An operand that is already
@@ -903,15 +904,15 @@ pub(crate) fn reject_secret_throwable_message(
 /// as a *type*, which is why it is checked here at all: both members declare
 /// `mixed ...$values`/`mixed $value`, a parameter a `secret string`
 /// satisfies, so the qualifier survives nowhere below this point. That is the
-/// same mechanism split § 4 already makes for `Core\Log::write`, and its
-/// *Context* is that argument's one home.
+/// same mechanism split `rule:security/secret-sinks-refuse` already makes for
+/// `Core\Log::write`, and that rule is that argument's one home.
 ///
 /// **`render` is refused on the same terms as `dump`, and not as an
 /// extension of the item that added this.** `rule:errors/record-transformations`'s closing paragraph
 /// makes the renderings non-bypassable — there is no `dumpRaw` and no
 /// rendering selected by an argument — so a member that answers the record's
 /// text as a `Core\Cli\Text` carrier is the same disclosure one `echo` later,
-/// and § 4's terminal bullet refuses that value with **no `Core\Cli\Text`
+/// and its terminal bullet refuses that value with **no `Core\Cli\Text`
 /// bypass** in any case. Refusing only `dump` would leave
 /// `echo Core\Debug::render($secret)` as the way round both bullets.
 ///
@@ -1134,8 +1135,8 @@ pub(crate) fn reject_secret_element_write(
 ///
 /// The way out is written at the field rather than at the call —
 /// `Core\Secret::reveal(..., "reason")` on the one value that must travel — so
-/// the rest of the document stays covered by the rule. That is § 4's own
-/// sentence, and it is why this help does not read like
+/// the rest of the document stays covered by the rule. That is
+/// `rule:security/secret-sinks-refuse`'s own sentence, and it is why this help does not read like
 /// [`reject_secret_debug_argument`]'s.
 pub(crate) fn reject_secret_encoded_argument(
     qname: &QName,
@@ -1535,12 +1536,12 @@ fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
 ///
 /// A call-site rule for [`reject_secret_encoded_argument`]'s reason and one
 /// more that only this sink has: `fields` is declared `array<mixed>` **by
-/// design**, and § 4 says so in the bullet itself, so the parameter type is
+/// design**, and that rule says so in the bullet itself, so the parameter type is
 /// not a thing to be fixed later — the written argument is where the qualifier
 /// is, and nowhere below is. [`is_fields_argument`] owns why the other two
 /// parameters are left to their own declared types.
 ///
-/// **The element half is read off the written literal**, which is what § 4's
+/// **The element half is read off the written literal**, which is what the rule's
 /// "including inside a `fields` array literal" asks for and what no type could
 /// answer: a literal checked against an `array<mixed>` expectation *is* that
 /// expectation ([`check_array_literal`](super::literals::check_array_literal)
@@ -1634,7 +1635,7 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
 /// `secret bytes` is the one operand both would answer, and confidentiality
 /// is the half to act on.
 ///
-/// This is the one sink of § 4's list that is reached by a *statement* rather
+/// This is the one sink of that rule's list that is reached by a *statement* rather
 /// than by a member, which is why it is checked here instead of falling out
 /// of a parameter type: `Core\Cli::write` declares plain `string` and is
 /// already refused by the assignability rule, and there is no signature
@@ -1735,10 +1736,11 @@ pub(crate) fn reject_secret_boundary_argument(
     }
 }
 
-/// § 4's refusal itself, with the carrier named by the caller.
+/// `rule:security/secret-sinks-refuse`'s refusal itself, with the carrier named
+/// by the caller.
 ///
-/// The sentence around `carrier` is the same for every caller on purpose: § 4
-/// refuses the value **at the graph copy**, not at either carrier's own
+/// The sentence around `carrier` is the same for every caller on purpose: the
+/// rule refuses the value **at the graph copy**, not at either carrier's own
 /// surface, so a reader who has seen the message once at
 /// `Core\Serialize::encode` recognizes it unchanged at `spawn script`. Only the
 /// middle clause — where the copy goes and why the qualifier cannot follow it —
@@ -2058,8 +2060,8 @@ pub(crate) fn reject_secret_session_argument(
 ///
 /// **The topic is not asked about**, and that is not an omission: it is a
 /// [`Qual::Sink`] parameter, so a qualified name is already an ordinary
-/// mismatch there — § 4's own `tainted` refusal — and asking a second time
-/// would report one error as two.
+/// mismatch there — `rule:core-classes/topic`'s own `tainted` refusal — and asking a second
+/// time would report one error as two.
 ///
 /// The value is found through its [`ArgSlot`] rather than by position, for
 /// [`super::isolate::check_core_isolate_call`]'s reason: `value:` fills the

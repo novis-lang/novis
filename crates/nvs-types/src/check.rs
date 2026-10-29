@@ -78,9 +78,10 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// the same reason `nvs_hir::resolve_program` hands its autoload map back:
 /// `nvs-ir` needs each case's constant value to lower `rule:types/enum-case-type`'s
 /// enum-case membership test, and [`crate::enums::build_enum_table`] reports
-/// `rule:enums/declaration`/§ 2's declaration errors, so a caller that rebuilt the table
-/// for itself would report every one of them twice. A caller with no use for
-/// it drops it, exactly as it may drop `exprs`.
+/// `rule:enums/declaration`'s and `rule:enums/one-backing-type`'s declaration
+/// errors, so a caller that rebuilt the table for itself would report every one
+/// of them twice. A caller with no use for it drops it, exactly as it may drop
+/// `exprs`.
 pub fn check_program(
     files: &[crate::ProgramFile<'_>],
     module: &Module,
@@ -180,17 +181,20 @@ pub fn check_program_loaded(
     // declaring class to disambiguate it, so a counter that restarted per
     // file would give two files' first anonymous functions the same synthesized class.
     let mut anon_fn_seq = 0;
-    // `rule:routing/table-is-opt-in`'s rows accumulate across the files rather than per file:
-    // `crate::routes::check_table` reports collisions between declarations,
-    // and § 5's scan is what brings two files' routes into one program.
+    // `rule:routing/table-is-opt-in`'s rows accumulate across the files rather
+    // than per file: `crate::routes::check_table` reports collisions between
+    // declarations, and the table's scan is what brings two files' routes into
+    // one program.
     let mut routes = crate::routes::RouteTable::default();
-    // `rule:tooling/commands-are-compiled`'s rows, accumulated for exactly that reason: a duplicate
-    // command name is a collision between two declarations, and § 6's scan is
-    // the same one that brings two files' routes into one program.
+    // `rule:tooling/commands-are-compiled`'s rows, accumulated for exactly that
+    // reason: a duplicate command name is a collision between two declarations,
+    // and the command table's scan is the same one that brings two files'
+    // routes into one program.
     let mut commands = crate::commands::CommandTable::default();
-    // § 4's links accumulate beside the rows and are resolved after the loop,
-    // never inside it: a `Core\Router::url` in the entry file routinely names a
-    // route § 5's scan finds in a later one. See `crate::links`.
+    // `rule:routing/link-target-and-params-are-checked`'s links accumulate
+    // beside the rows and are resolved after the loop, never inside it: a
+    // `Core\Router::url` in the entry file routinely names a route the scan
+    // finds in a later one. See `crate::links`.
     let mut links = Vec::new();
     // `rule:core-classes/derive-property-list`'s field-type question, accumulated for the same reason and
     // resolved in the same place — see `crate::derive::resolve_field_types`.
@@ -287,15 +291,16 @@ pub fn check_program_loaded(
     // runs, for the same reason: they combine each class's constructor with
     // every constructor its ancestors declare.
     record_pipeline_slots(&signatures, &module.graph, interner, exprs);
-    // § 4's fold, which is the second pass over the same table and the reason
+    // The links' fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
     crate::links::resolve(&routes, &links, exprs, diags);
     // `rule:core-classes/derive-property-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.
     crate::derive::resolve_field_types(&codec_sites, &signatures, interner, exprs, diags);
-    // The call-site half of the same deferral: § 9's map asked of the class a
-    // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
+    // The call-site half of the same deferral: `rule:core-classes/db-column-types`'s
+    // map asked of the class a `queryAs<T>` wrote, after every deriving class
+    // has recorded its mapping.
     crate::derive::check_row_sites(&row_sites, &signatures, exprs, diags);
     // The same deferral at the document door: whether the written class
     // participates in the format at all, and a constructor the contract fills
@@ -314,11 +319,12 @@ pub fn check_program_loaded(
     // deferral one more time: the `is` and the literal it answers about need
     // not be in the same file. See `crate::callables`.
     crate::callables::resolve(exprs, interner, &module.graph, &signatures);
-    // § 5's table crosses to `nvs-ir` here rather than being dropped: `rule:routing/api-document-is-generated-from-the-route-table`
-    // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
-    // handler's declared path back out of.
+    // The route table crosses to `nvs-ir` here rather than being dropped:
+    // `rule:routing/api-document-is-generated-from-the-route-table` emits the
+    // OpenAPI document from it, and it is what `nvs-ir` reads a handler's
+    // declared path back out of.
     exprs.record_routes(routes);
-    // § 6's table crosses the same way and at the same point: `Core\Command`'s
+    // The command table crosses the same way and at the same point: `Core\Command`'s
     // dispatch, its usage text and its completions are all generated from it.
     exprs.record_commands(commands);
     record_property_types(&signatures, exprs);

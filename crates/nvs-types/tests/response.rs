@@ -57,8 +57,8 @@ fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
     ));
     assert!(refused(&diags), "{diags:?}");
 
-    // Each of § 4's three landed members, so the roster is asserted rather than
-    // one member standing in for it.
+    // Each of the rule's three landed members, so the roster is asserted rather
+    // than one member standing in for it.
     for call in [
         "Core\\Response::text(\"t\");",
         "Core\\Response::json(1);",
@@ -165,7 +165,7 @@ fn echo_beside_an_event_stream_is_a_diagnostic() {
 /// has said nothing new. `nvs_types::response`'s module doc owns that line.
 #[test]
 fn two_body_writers_on_one_response_is_a_diagnostic() {
-    // Two of § 4's table, disagreeing about the body's type exactly as `echo`
+    // Two of the rule's table, disagreeing about the body's type exactly as `echo`
     // and one of them do.
     let diags = check_src(&handler(
         "    Core\\Response::text(\"t\");\n    Core\\Response::json(1);\n",
@@ -245,12 +245,12 @@ fn page_text_in_a_handler_is_the_echo_writer() {
 
 #[test]
 fn a_handler_that_writes_its_body_one_way_is_accepted() {
-    // `echo` alone is § 4's last bullet — the inline-HTML page, which is the
+    // `echo` alone is the rule's last bullet — the inline-HTML page, which is the
     // shape this rule must not make harder to write.
     let diags = check_src(&handler("    echo \"a\";\n    echo \"b\";\n"));
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // One member alone, and then the same member twice: what § 4's row names is
+    // One member alone, and then the same member twice: what the sixth row names is
     // `echo` beside a typed writer, so a handler writing its whole body through
     // the members is not this diagnostic's business however often it writes.
     let diags = check_src(&handler("    Core\\Response::text(\"a\");\n"));
@@ -260,7 +260,7 @@ fn a_handler_that_writes_its_body_one_way_is_accepted() {
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // A `Core\Response` member that is not one of § 4's body members says
+    // A `Core\Response` member that is not one of the rule's body members says
     // nothing about the body — `isDraining` is a reader, and a reader beside an
     // `echo` is an ordinary handler.
     let diags = check_src(&handler(

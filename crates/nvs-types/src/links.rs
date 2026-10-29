@@ -1,19 +1,18 @@
 //! `rule:routing/link-target-and-params-are-checked`'s link:
 //! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **written
-//! method reference**, `Shop::show`, resolved against § 5's finished table
+//! method reference**, `Shop::show`, resolved against the finished route table
 //! while compiling. A route is named by the method it is declared on, so the
 //! table is reversed by [`crate::routes::Route::handler`].
 //!
 //! Two of the four refusals here are that rule's — a method with no route, and
-//! a capture no key supplies. The other two are
-//! `rule:routing/the-servers-match-dispatches-nothing`'s,
-//! and they are the two halves of one `$params` entry. § 6's is about the
-//! **key**, and it exists because that section gives every *other* key a
+//! a capture no key supplies. The other two are the two halves of one
+//! `$params` entry. `rule:routing/a-leftover-link-key-is-a-query-string`'s is
+//! about the **key**, and it exists because that rule gives every *other* key a
 //! meaning: a key covering no capture becomes the link's query string, so a key
-//! covering nothing at all had to stop being one ([`declared`]). § 5's is about
-//! the **value**, and it exists because that section narrows a capture to a
-//! closed set: a value outside it is a link to a path the router answers `404`
-//! to ([`within_set`]).
+//! covering nothing at all had to stop being one ([`declared`]).
+//! `rule:routing/a-capture-narrows-to-a-closed-set`'s is about the **value**, and
+//! it exists because that rule narrows a capture to a closed set: a value
+//! outside it is a link to a path the router answers `404` to ([`within_set`]).
 //!
 //! # Why this is two passes and not one
 //!
@@ -24,8 +23,9 @@
 //! retrieval asks about a declaration the attribute table already holds whole,
 //! and an enumeration asks about a class graph that is complete before the walk
 //! begins. A link asks about the *route table*, which is filled by the same
-//! walk: a `url` call in the entry file routinely names a route § 5's scan
-//! finds in a file the walk reaches later, so a lookup made at the call site
+//! walk: a `url` call in the entry file routinely names a route the program
+//! enumeration's scan (`rule:routing/table-is-opt-in`) finds in a file the walk
+//! reaches later, so a lookup made at the call site
 //! would answer "no such route" for a program that has one.
 //!
 //! So [`record_site`] only writes down what it saw — the call's span, the
@@ -38,7 +38,7 @@
 //! [`crate::expr::calls`] has already recorded [`ExprInfo::Call`] against the
 //! same span. [`resolve`] records [`ExprInfo::RouteLink`] over it, which wins
 //! the lookup ([`crate::expr_table::ExprTypeTable::record`]), so the two states
-//! a consumer can see are exactly § 4's two: a resolved link, or an ordinary
+//! a consumer can see are exactly the link rule's two: a resolved link, or an ordinary
 //! call to a member whose body answers at run time. That is why a reference
 //! **passed as a value** needs no handling here at all — nothing is recorded,
 //! the `Call` stands, and `nvs_stdlib::router`'s own body answers it.
@@ -123,7 +123,8 @@ pub(crate) struct LinkSite {
     settings_at: Option<usize>,
     /// Argument 1's literal string keys, in written order, or `None` where it
     /// is not an array literal — in which case there is nothing to check
-    /// coverage against and § 4 asks for nothing.
+    /// coverage against and `rule:routing/link-target-and-params-are-checked`
+    /// asks for nothing.
     args: Option<Vec<LinkArg>>,
 }
 
@@ -163,7 +164,8 @@ struct CaseArg {
     value: String,
 }
 
-/// Whether `owner::member` is one of § 4's link builders — the same nominal
+/// Whether `owner::member` is one of
+/// `rule:routing/link-target-and-params-are-checked`'s link builders — the same nominal
 /// test [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
 /// rather than against what the call site spelled.
 ///
@@ -192,7 +194,8 @@ pub fn is_match_is(owner: &QName, member: &str) -> bool {
     owner.to_string() == MATCH_OWNER && member == IS
 }
 
-/// Records one link site, or nothing where § 4 leaves the call to run time.
+/// Records one link site, or nothing where
+/// `rule:routing/link-target-and-params-are-checked` leaves the call to run time.
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table
 /// and is made in [`resolve`], and everything decided here — a reference passed
@@ -284,9 +287,10 @@ fn written_at(param: usize, list: &[Arg], slots: &[ArgSlot]) -> Option<usize> {
 /// right to report it as a capture with nothing supplying it.
 ///
 /// A **value** that does not fold is kept rather than dropped, and it is why
-/// this reads entries and not keys: the key is still a key § 6 has a question
-/// about, and only the § 5 question below is the one a computed value has no
-/// answer to.
+/// this reads entries and not keys: the key is still a key
+/// `rule:routing/a-leftover-link-key-is-a-query-string` has a question about,
+/// and only the `rule:routing/a-capture-narrows-to-a-closed-set` question below
+/// is the one a computed value has no answer to.
 fn literal_args(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
     let ExprKind::ArrayLiteral(items) = &expr.kind else {
         return None;
@@ -387,8 +391,9 @@ fn folded_as(expr: &Expr, ty: crate::ty::Ty, env: &mut Env<'_>) -> Option<ConstA
     crate::defaults::literal_default(expr, declared, env)
 }
 
-/// § 4's two compile errors and `rule:routing/a-leftover-link-key-is-a-query-string`'s one, and the fold that follows
-/// when none of them applies.
+/// `rule:routing/link-target-and-params-are-checked`'s compile errors and
+/// `rule:routing/a-leftover-link-key-is-a-query-string`'s one, and the fold that
+/// follows when none of them applies.
 ///
 /// Run once, after every file has been walked, so `routes` is the whole
 /// program's table and a name declared in any file resolves from any other.
@@ -420,12 +425,12 @@ pub(crate) fn resolve(
             continue;
         }
         let Some(pieces) = crate::routes::link_pieces(&row.path) else {
-            // Unreachable: a row exists only for a path § 2's grammar admitted.
+            // Unreachable: a row exists only for a path the path grammar admitted.
             continue;
         };
         // Short-circuiting on purpose: a misspelled key is usually both a
         // capture with nothing supplying it and a key with nothing to be, and
-        // naming the capture is the half that says what to write. § 5's
+        // naming the capture is the half that says what to write. The closed-set
         // question about a *value* comes last for the same reason — it is only
         // a question once the key it is written under names something.
         if let Some(args) = &site.args
@@ -527,9 +532,10 @@ fn spellings(pieces: &[UrlPiece], row: &crate::routes::Route) -> Vec<EnumSpellin
 /// A key names one of the path's captures — any of the three forms, including
 /// the `{name?}` [`covered`] does not require — or one of the route's declared
 /// `#[Query]` parameters ([`crate::routes::Route::query`]). A key that is
-/// neither is not inert: § 6 turns every non-capture key into the link's query
-/// string, so a typo ships as `?typo=…` rather than being dropped, and the
-/// rule is what makes that turn safe to make at all.
+/// neither is not inert: `rule:routing/a-leftover-link-key-is-a-query-string`
+/// turns every non-capture key into the link's query string, so a typo ships as
+/// `?typo=…` rather than being dropped, and the rule is what makes that turn
+/// safe to make at all.
 ///
 /// The comparison is exact and case-sensitive
 /// (`rule:classes/names-resolve-case-sensitively`),
@@ -581,8 +587,8 @@ fn declared(
     false
 }
 
-/// § 4's second compile error: every capture that must be substituted has a key
-/// supplying it.
+/// `rule:routing/link-target-and-params-are-checked`'s capture compile error:
+/// every capture that must be substituted has a key supplying it.
 ///
 /// A `{name?}` is the one form left out — its whole segment is dropped where
 /// the key is absent, which is what makes it optional at all — so what is
@@ -642,15 +648,17 @@ fn covered(
 /// `rule:routing/a-capture-narrows-to-a-closed-set`'s compile error: a literal value the parameter it supplies
 /// cannot hold.
 ///
-/// § 5 narrows a capture to a closed set with a *type*, and a segment outside
-/// that set fails the conversion and falls through to a `404` — so a link built
-/// out of one is a link to a route that will not match, and the table can say
-/// so before the program runs. That is the same laundering argument § 4 makes
-/// about the path: a value is checked where it is written, because the sink it
-/// reaches cannot check it.
+/// That rule narrows a capture to a closed set with a *type*, and a segment
+/// outside that set fails the conversion and falls through to a `404` — so a link
+/// built out of one is a link to a route that will not match, and the table can
+/// say so before the program runs. That is the same laundering argument
+/// `rule:routing/link-target-and-params-are-checked` makes about the path: a
+/// value is checked where it is written, because the sink it reaches cannot
+/// check it.
 ///
 /// **A `#[Query]` parameter's set is checked too**, and by the same walk, since
-/// § 3 gives a query value the same type list a capture has: a value outside it
+/// `rule:routing/a-query-parameter-is-declared-like-a-capture` gives a query
+/// value the same type list a capture has: a value outside it
 /// is the handler's own `400` rather than a `404`, which is a different answer
 /// to the same dead link. What is *not* checked is a value that did not fold
 /// ([`LinkArg::value`], [`LinkArg::case`]) and a parameter whose type names no

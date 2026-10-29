@@ -4,28 +4,33 @@
 //!
 //! The table now has rows, and the two errors that are questions about the
 //! whole enumeration — a route declared twice and a `name` claimed twice — are
-//! asserted here too, alongside § 2's path grammar and § 3's three questions
+//! asserted here too, alongside `rule:routing/path-grammar` and
+//! `rule:security/route-capture-is-laundered-by-its-type`'s three questions
 //! about the method an attribute is attached to. Those enumeration questions
 //! are asked over **two files** through `common::check_program_table`, which is
 //! the only shape that can tell "the program's table" apart from "this file's".
 //!
-//! `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` is here too, and it is asserted from both ends: the
-//! type list it shares with a capture, and § 6's `$params` key that names
-//! neither one nor the other — the refusal the marker exists to make writable.
+//! `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` is
+//! here too, and it is asserted from both ends: the type list it shares with a
+//! capture, and `rule:routing/a-leftover-link-key-is-a-query-string`'s `$params`
+//! key that names neither one nor the other — the refusal the marker exists to
+//! make writable.
 //!
-//! `rule:security/access-is-checked-for-presence-not-meaning`'s `#[Access]` is asserted here from all three ends: the payload —
-//! the decision is required, and it is a name rather than a value, wherever the
-//! attribute is attached — § 1's *presence* rule, and § 1a's one-per-method
-//! rule. Because presence is landed, every fixture above goes through
-//! `with_access`, which supplies the one line those fixtures do not vary.
+//! `#[Access]` is asserted here from all three ends: the payload — the decision
+//! is required, and it is a name rather than a value, wherever the attribute is
+//! attached — `rule:attributes/access-is-a-required-sibling`'s *presence* rule,
+//! and `rule:attributes/access-payload`'s one-per-method rule. Because presence
+//! is landed, every fixture above goes through `with_access`, which supplies the
+//! one line those fixtures do not vary.
 //!
 //! The decision itself is asserted on the row rather than only as a refusal:
-//! `rule:security/access-is-checked-for-presence-not-meaning` leaves enforcement to the dispatcher, so what the row carries
-//! is the name the declaration resolved to.
+//! `rule:security/access-is-checked-for-presence-not-meaning` leaves enforcement
+//! to the dispatcher, so what the row carries is the name the declaration
+//! resolved to.
 //!
-//! `rule:security/access-is-checked-for-presence-not-meaning` is asserted here whole: § 1's presence rule, § 1a's payload and
-//! one-per-method rules, and § 4's opt-out held to a method that has something
-//! to opt out of.
+//! The access rules are asserted here whole: the presence rule, the payload and
+//! one-per-method rules, and `rule:security/csrf-is-on-by-default`'s opt-out held
+//! to a method that has something to opt out of.
 
 mod common;
 
@@ -40,7 +45,8 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
     diags.iter().any(|d| d.code == Some(want))
 }
 
-/// § 1's own example, reduced to one controller method. The placing import is
+/// `rule:routing/route-attribute`'s own example, reduced to one controller
+/// method. The placing import is
 /// per *name* — `use Core\Route;` aliases `Route`, and it is not the
 /// `use Core\Router;` that reaches the member reversing the table.
 fn route_src(attributes: &str) -> String {
@@ -50,13 +56,14 @@ fn route_src(attributes: &str) -> String {
     )
 }
 
-/// `rule:attributes/access-is-a-required-sibling`'s decision, supplied for every fixture here that is about
-/// something else.
+/// `rule:attributes/access-is-a-required-sibling`'s decision, supplied for every
+/// fixture here that is about something else.
 ///
-/// § 1 makes `#[Access]` a required sibling of `#[Route]`, so without this each
-/// fixture below would carry one line it does not vary and one error it is not
-/// asking about. `Core\Audience::Public` is the case § 1a names for a route
-/// that is genuinely open. The presence rule itself is asserted by
+/// That rule makes `#[Access]` a required sibling of `#[Route]`, so without this
+/// each fixture below would carry one line it does not vary and one error it is
+/// not asking about. `Core\Audience::Public` is the case
+/// `rule:attributes/access-payload` names for a route that is genuinely open. The
+/// presence rule itself is asserted by
 /// `a_route_without_a_sibling_access_does_not_compile`, which is the one test
 /// here that does not go through this.
 fn with_access(members: &str) -> String {
@@ -84,8 +91,9 @@ const SLUG: &str = "class Slug implements Parses {\n  \
 fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // Fully qualified needs no import at all. Before the name joined
     // `nvs_types::derive::ATTRIBUTES` this was `E0726` — `Core\Route` is not a
-    // `type` alias and was never going to be one, because § 1 builds a table
-    // from it and a userland alias must not contribute a route.
+    // `type` alias and was never going to be one, because
+    // `rule:routing/route-attribute` builds a table from it and a userland alias
+    // must not contribute a route.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
          #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
@@ -111,10 +119,11 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
 
 #[test]
 fn the_attribute_repeats_so_one_method_serves_two_verbs() {
-    // § 1: no `methods: array<Method>` field and no union — `rule:attributes/repeatable`'s
-    // repeatability is what already covers it, so two attributes on one method
-    // are two payloads each checked on its own, and two rows of the table.
-    // Two *verbs*, because the rows are what § 3's duplicate-route error is
+    // No `methods: array<Method>` field and no union —
+    // `rule:attributes/repeatable`'s repeatability is what already covers it, so
+    // two attributes on one method are two payloads each checked on its own, and
+    // two rows of the table. Two *verbs*, because the rows are what
+    // `rule:routing/routes-are-compiled-not-registered`'s duplicate-route error is
     // over and one path served twice by the same verb is that error.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
@@ -125,10 +134,10 @@ fn the_attribute_repeats_so_one_method_serves_two_verbs() {
 }
 
 #[test]
-fn only_the_three_options_section_1_names_are_admitted() {
+fn only_the_three_route_options_are_admitted() {
     // `methods` is the field a reader arriving from another framework writes,
-    // and `route` is the same mistake one step along: the roster is what § 1
-    // writes and nothing else, so a plausible field is still a typo.
+    // and `route` is the same mistake one step along: the roster is what
+    // `rule:routing/route-attribute` writes and nothing else, so a plausible field is still a typo.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/health\", methods: \"GET\")]\n  \
          public function health(): string { return \"\"; }\n",
@@ -204,8 +213,10 @@ fn a_path_is_a_string_and_is_written_once() {
 
 #[test]
 fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
-    // § 1's `method` is an enum case (`rule:core-api/shape-rules` R11), which `rule:attributes/payload-is-a-compile-time-constant` admits
-    // in a payload — so the fixture's own spelling passes the payload walk.
+    // `rule:routing/route-attribute`'s `method` is an enum case
+    // (`rule:core-api/shape-rules` R11), which
+    // `rule:attributes/payload-is-a-compile-time-constant` admits in a payload —
+    // so the fixture's own spelling passes the payload walk.
     // `Core\Http\Method` is `nvs_stdlib::router::METHOD`, seeded into the enum
     // table like any other `Core` enum, so the roster row interns to that type
     // and the case is placed at it rather than at nothing.
@@ -233,9 +244,9 @@ fn a_case_of_another_enum_is_refused_at_the_method_option() {
 
 #[test]
 fn a_row_needs_a_path_and_a_verb_and_says_which_is_missing() {
-    // § 1 marks only `name` optional. The empty attribute is the shape the
-    // userland alias it replaces would have refused, and it is refused by the
-    // pass that would have to build a row out of it.
+    // `rule:routing/route-attribute` requires `path` and `method`. The empty
+    // attribute is the shape the userland alias it replaces would have refused,
+    // and it is refused by the pass that would have to build a row out of it.
     let diags = check_src(&route_src(
         "  #[Route]\n  public function health(): string { return \"\"; }\n",
     ));
@@ -262,8 +273,9 @@ fn a_row_needs_a_path_and_a_verb_and_says_which_is_missing() {
 
 #[test]
 fn one_route_shape_is_served_once_per_verb() {
-    // § 2 matches by shape, so two captures differing only in name are the one
-    // route both would match — the pair the written text would call different.
+    // A path matches by shape (`rule:routing/precedence-is-structural`), so two
+    // captures differing only in name are the one route both would match — the
+    // pair the written text would call different.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
@@ -329,7 +341,7 @@ fn slotted_is_carried_to_the_route_table() {
 
 #[test]
 fn the_collected_table_crosses_on_the_expression_table() {
-    // § 5's rows are collected here and reversed in `nvs-ir`, so what makes
+    // The table's rows are collected here and reversed in `nvs-ir`, so what makes
     // them reachable at all is `ExprTypeTable::routes` — the channel every
     // other whole-program fact crosses by. Asserted through the table rather
     // than through a `url` call, because nothing reverses it yet.
@@ -345,14 +357,15 @@ fn the_collected_table_crosses_on_the_expression_table() {
 
     let table = exprs.routes();
     assert_eq!(table.rows().len(), 3);
-    // Load order, and declaration order within a file — the order § 3's
-    // duplicate errors are reported in, so a consumer walking the rows sees
+    // Load order, and declaration order within a file — the order
+    // `rule:routing/routes-are-compiled-not-registered`'s duplicate errors are
+    // reported in, so a consumer walking the rows sees
     // the same program the diagnostics described.
     let paths: Vec<&str> = table.rows().iter().map(|row| row.path.as_str()).collect();
     assert_eq!(paths, ["/users", "/users/{id}", "/health"]);
 
-    // § 4 reverses the table by the method a route is declared on, which is
-    // the one lookup a row is found by.
+    // `rule:routing/link-target-and-params-are-checked` reverses the table by the
+    // method a route is declared on, which is the one lookup a row is found by.
     let show = table.handled_by("Users::show").expect("the method's route");
     assert_eq!(show.path, "/users/{id}");
     assert_eq!(show.verb, "Get");
@@ -534,9 +547,10 @@ fn every_route_on_one_method_becomes_a_row_and_they_share_its_path() {
 
 #[test]
 fn a_path_begins_at_the_root_and_a_capture_is_a_whole_segment() {
-    // § 2: everything that is not a capture is a fixed segment compared byte
-    // for byte, and a capture is a *whole* segment — there is no escape and no
-    // partial form, so `u{id}` is one thing or the other and is neither.
+    // `rule:routing/path-grammar`: everything that is not a capture is a fixed
+    // segment compared byte for byte, and a capture is a *whole* segment — there
+    // is no escape and no partial form, so `u{id}` is one thing or the other and
+    // is neither.
     for path in [
         "users",
         "/users/u{id}",
@@ -558,7 +572,7 @@ fn a_path_begins_at_the_root_and_a_capture_is_a_whole_segment() {
 
 #[test]
 fn a_capture_that_may_absorb_the_end_of_a_path_is_written_last() {
-    // § 2 permits `{name?}` and `{name...}` in the last position only, and
+    // The path grammar permits `{name?}` and `{name...}` in the last position only, and
     // both "at most once" and "never in one path together" fall out of that
     // rather than needing one of their own: one segment is last.
     for path in [
@@ -581,8 +595,8 @@ fn a_capture_that_may_absorb_the_end_of_a_path_is_written_last() {
 
 #[test]
 fn a_capture_arrives_as_the_parameter_it_is_named_after() {
-    // § 3: the comparison is exact, per `rule:core-api/identifier-casing`, so `{userId}` and `$userid`
-    // are two names and the capture has nowhere to arrive.
+    // The comparison is exact, per `rule:core-api/identifier-casing`, so
+    // `{userId}` and `$userid` are two names and the capture has nowhere to arrive.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $userid): string { return \"\"; }\n",
@@ -600,7 +614,7 @@ fn a_capture_arrives_as_the_parameter_it_is_named_after() {
 
 #[test]
 fn a_captures_type_is_one_a_segment_converts_to() {
-    // § 3's roster is `nvs_types::commands::converts_from_string` and there is
+    // The capture roster is `nvs_types::commands::converts_from_string` and there is
     // no second copy of it here, so an `array<int>` is refused at a capture for
     // the reason it is refused at an `#[Option]`.
     let diags = check_src(&route_src(
@@ -613,7 +627,7 @@ fn a_captures_type_is_one_a_segment_converts_to() {
     );
 
     // A catch-all is the one capture that roster does not answer for: nothing
-    // about it was checked, so § 3 hands it over as one `tainted string` and a
+    // about it was checked, so it is handed over as one `tainted string` and a
     // `uint` is not a type it can arrive at, however well `uint` converts.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/files/{rest...}\", method: Core\\Http\\Method::Get)]\n  \
@@ -633,8 +647,9 @@ fn a_captures_type_is_one_a_segment_converts_to() {
 
 #[test]
 fn an_optional_capture_needs_a_default_to_be_absent_at() {
-    // § 2: `{page?}` matches one whole segment or none, and the default is what
-    // makes the absent case well-typed rather than nullable by accident.
+    // `rule:routing/path-grammar`: `{page?}` matches one whole segment or none,
+    // and the default is what makes the absent case well-typed rather than
+    // nullable by accident.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function page(uint $page): string { return \"\"; }\n",
@@ -653,7 +668,7 @@ fn an_optional_capture_needs_a_default_to_be_absent_at() {
 
 #[test]
 fn a_shape_keeps_the_capture_form_it_erases_the_name_of() {
-    // § 2's precedence is structural — a `{name}` beats a `{name?}` — so the
+    // `rule:routing/precedence-is-structural` — a `{name}` beats a `{name?}` — so the
     // two are two nodes of the trie and the pair has an answer that does not
     // depend on declaration order. A shape erasing the form would report them
     // as the duplicate they are not.
@@ -714,11 +729,11 @@ fn count(diags: &Diagnostics, want: Code) -> usize {
 
 #[test]
 fn a_route_table_is_built_from_the_program_enumeration() {
-    // § 5: the table is the *program*'s, filled by the walk over every file
-    // the entry reaches, so a link written in one file resolves against a row
-    // declared in another. Asserted over two files rather than one, because a
-    // single source cannot tell "the table is the program's" apart from "the
-    // table is this file's".
+    // `rule:routing/routes-are-compiled-not-registered`: the table is the
+    // *program*'s, filled by the walk over every file the entry reaches, so a
+    // link written in one file resolves against a row declared in another.
+    // Asserted over two files rather than one, because a single source cannot
+    // tell "the table is the program's" apart from "the table is this file's".
     let (diags, exprs) = check_program_table(&[
         (
             "table-main.nvs",
@@ -737,8 +752,9 @@ fn a_route_table_is_built_from_the_program_enumeration() {
         ),
     ]);
     // The link in the entry file names a route declared in the file it
-    // requires: no `E0754`, which is the whole-program half of § 4 asserted
-    // from the side that would fail if the walk stopped at the entry.
+    // requires: no `E0754`, which is the whole-program half of
+    // `rule:routing/link-target-and-params-are-checked` asserted from the side
+    // that would fail if the walk stopped at the entry.
     assert!(!diags.has_errors(), "{diags:?}");
 
     let table = exprs.routes();
@@ -754,7 +770,8 @@ fn a_route_table_is_built_from_the_program_enumeration() {
 
 #[test]
 fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
-    // § 3: a capture is typed by the parameter it names, so the roster of
+    // `rule:security/route-capture-is-laundered-by-its-type`: a capture is typed
+    // by the parameter it names, so the roster of
     // types a segment converts to is asked of the *declaration* rather than of
     // the path — the three spellings below are one path checked three ways,
     // and a `bool`, which no segment converts to, is `E0752`.
@@ -794,7 +811,7 @@ fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
 
 #[test]
 fn a_duplicate_route_is_a_diagnostic() {
-    // § 3's duplicate is a question about the whole enumeration, so two
+    // A duplicate route is a question about the whole enumeration, so two
     // classes in two *files* collide exactly as two methods of one class do —
     // the case one written in a single source cannot make.
     let (diags, _) = check_program_table(&[
@@ -820,7 +837,7 @@ fn a_duplicate_route_is_a_diagnostic() {
 
 #[test]
 fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
-    // § 3: every capture has somewhere to arrive, so a method declaring no
+    // Every capture has somewhere to arrive, so a method declaring no
     // parameters at all is the shortest way to have nowhere.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
@@ -847,7 +864,8 @@ fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
 
 #[test]
 fn a_link_to_a_method_with_no_route_is_a_diagnostic() {
-    // § 4's first refusal, asked here rather than only in the reject case,
+    // A link refusal of `rule:routing/link-target-and-params-are-checked`, asked
+    // here rather than only in the reject case,
     // because it is the one link error that fires with no `$params` question
     // in front of it. `show` is an instance method and the link is written
     // outside the class: a link calls nothing, so it needs no object.
@@ -909,7 +927,8 @@ fn match_is_over_a_method_with_no_route_is_a_diagnostic() {
 fn a_reference_passed_as_a_value_is_left_to_run_time() {
     // A reference held in a variable is not read here: nothing is checked, and
     // the member's own body answers at run time. The pair with the test above
-    // is what keeps § 4's written/value split from being a claim about one half.
+    // is what keeps `rule:routing/link-target-and-params-are-checked`'s
+    // written/value split from being a claim about one half.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
          #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
@@ -954,8 +973,9 @@ fn a_link_with_no_params_is_an_empty_params_array() {
 fn a_named_link_argument_is_folded_like_a_positional_one() {
     // `rule:core-api/parameters-are-callable-by-name`: `$route` and `$params`
     // are filled by the names the registry publishes as surely as by position, and
-    // the call's own argument mapping is what says so — so § 4's refusals are
-    // the same refusals when the link is written that way.
+    // the call's own argument mapping is what says so — so
+    // `rule:routing/link-target-and-params-are-checked`'s refusals are the same
+    // refusals when the link is written that way.
     let src = |link: &str| {
         with_access(&format!(
             "<?nvs\nclass Users {{\n  \
@@ -1008,7 +1028,7 @@ fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
     }
 
     // The other side of the same bound: the identical capture, last, is the
-    // form § 4 admits.
+    // form that rule admits.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/posts/comments/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $page = 1): string { return \"\"; }\n",
@@ -1041,11 +1061,14 @@ fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
 
 #[test]
 fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
-    // `rule:routing/a-query-parameter-is-declared-like-a-capture` is a closed list, so the refusal is written from the first
-    // type *outside* it rather than from an implausible one: a `float`
-    // converts from a segment in every language that guesses, and § 3 does not
-    // guess (`rule:errors/ambiguous-input-refused`). A nullable is the other near miss — `?uint` is not
-    // `uint`, and an absent segment is § 4's question rather than this one.
+    // `rule:routing/a-query-parameter-is-declared-like-a-capture` is a closed
+    // list, so the refusal is written from the first type *outside* it rather
+    // than from an implausible one: a `float` converts from a segment in every
+    // language that guesses, and the list does not guess
+    // (`rule:errors/ambiguous-input-refused`). A nullable is the other near miss —
+    // `?uint` is not `uint`, and an absent segment is
+    // `rule:routing/a-trailing-segment-may-be-absent`'s question rather than this
+    // one.
     //
     for ty in ["float", "?uint", "array<int>"] {
         let diags = check_src(&route_src(&format!(
@@ -1065,9 +1088,9 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     assert!(!diags.has_errors(), "{diags:?}");
 
     // The `#[Query]` half of the same rule, and the reason this test is named
-    // for both: § 3 gives a query parameter the *same* list, so the same three
-    // types are refused at the same code. The route below declares no capture
-    // at all, which is what makes this the attribute's question rather than the
+    // for both: the query rule gives a query parameter the *same* list, so the
+    // same three types are refused at the same code. The route below declares no
+    // capture at all, which is what makes this the attribute's question rather than the
     // path's.
     for ty in ["float", "?uint", "array<int>"] {
         let diags = check_src(&route_src(&format!(
@@ -1080,7 +1103,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
         );
     }
 
-    // § 3's own example, spelled bare: the name is matched nominally after the
+    // The query rule's own example, spelled bare: the name is matched nominally after the
     // `use` that places it, exactly as `#[Route]` is, and both of its declared
     // types are on the list.
     let diags = check_src(&with_access(
@@ -1143,14 +1166,16 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
     );
 }
 
-/// `rule:attributes/access-is-a-required-sibling`'s own pairing with a payload left to vary: the attribute on the
-/// same method as the `#[Route]` it is the sibling of, over an unsafe verb so
-/// that § 4's `csrf` opt-out has something to opt out of.
+/// `rule:attributes/access-is-a-required-sibling`'s own pairing with a payload
+/// left to vary: the attribute on the same method as the `#[Route]` it is the
+/// sibling of, over an unsafe verb so that `rule:security/csrf-is-on-by-default`'s
+/// `csrf` opt-out has something to opt out of.
 ///
 /// The decisions are a userland enum and a userland class constant, which is
-/// what § 1a says every application writes. `Core\Audience::Public` — the one
-/// decision `Core` names, and the fixture `with_access` supplies — is the other
-/// half, and it resolves like any other name.
+/// what `rule:attributes/access-payload` says every application writes.
+/// `Core\Audience::Public` — the one decision `Core` names, and the fixture
+/// `with_access` supplies — is the other half, and it resolves like any other
+/// name.
 fn access_src(payload: &str) -> String {
     format!(
         "<?nvs\nenum Role {{ Admin, Owner }}\nclass Policy {{\n  \
@@ -1163,17 +1188,19 @@ fn access_src(payload: &str) -> String {
 
 #[test]
 fn an_access_decision_is_required_and_is_a_name() {
-    // § 1a marks only `csrf` optional. An enum case is what the section's own
-    // examples write, and a class constant is the other half of its narrowing —
-    // one syntactic form, so the check asks one question rather than two.
+    // `rule:attributes/access-payload` marks only `csrf` optional. An enum case
+    // is what the rule's own examples write, and a class constant is the other
+    // half of its narrowing — one syntactic form, so the check asks one question
+    // rather than two.
     let diags = check_src(&access_src("allow: Role::Admin"));
     assert!(!diags.has_errors(), "{diags:?}");
     let diags = check_src(&access_src("allow: Policy::ADMIN"));
     assert!(!diags.has_errors(), "{diags:?}");
 
     // A payload carrying only the opt-out declares nothing to opt out of: the
-    // attribute is there and the decision is not, which is § 3's omission one
-    // step along rather than a different mistake.
+    // attribute is there and the decision is not, which is the omission
+    // `rule:attributes/access-is-a-required-sibling` refuses, one step along
+    // rather than a different mistake.
     let diags = check_src(&access_src("csrf: false"));
     assert!(reported(&diags, code::E_ACCESS_INCOMPLETE), "{diags:?}");
     assert_eq!(diags.error_count(), 1, "{diags:?}");
@@ -1195,7 +1222,8 @@ fn an_access_decision_is_required_and_is_a_name() {
 
 #[test]
 fn csrf_false_on_a_route_with_nothing_to_opt_out_of_does_not_compile() {
-    // §§ 1a and 4: the write check covers the four unsafe verbs and the upgrade
+    // `rule:attributes/access-payload` and `rule:security/csrf-is-on-by-default`:
+    // the write check covers the four unsafe verbs and the upgrade
     // check covers `Get`, so beside a `Head` the opt-out turns nothing off and
     // is refused rather than ignored.
     let safe = "<?nvs\nclass Users {\n  \
@@ -1209,8 +1237,8 @@ fn csrf_false_on_a_route_with_nothing_to_opt_out_of_does_not_compile() {
     );
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 
-    // The same payload over an unsafe verb is § 4's whole point — `access_src`
-    // writes `Post` for exactly this reason.
+    // The same payload over an unsafe verb is the opt-out's whole point —
+    // `access_src` writes `Post` for exactly this reason.
     let diags = check_src(&access_src("allow: Role::Admin, csrf: false"));
     assert!(!diags.has_errors(), "{diags:?}");
 
@@ -1243,7 +1271,8 @@ fn csrf_false_on_a_route_with_nothing_to_opt_out_of_does_not_compile() {
 
 #[test]
 fn a_second_access_on_one_method_is_refused_naming_both() {
-    // § 1a's last rule, over `rule:attributes/repeatable`'s general repeatability: two
+    // `rule:attributes/access-payload`'s last rule, over
+    // `rule:attributes/repeatable`'s general repeatability: two
     // decisions are two readings — every one of them, or any one of them — and
     // the compiler refuses to pick one silently.
     let two = |members: &str| {
@@ -1279,7 +1308,8 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     assert_eq!(diags.error_count(), 2, "{diags:?}");
 
     // The rule is per method, not per class: two methods each declaring one
-    // decision is the ordinary program § 1 asks for.
+    // decision is the ordinary program `rule:attributes/access-is-a-required-sibling`
+    // asks for.
     let diags = check_src(&two(&format!(
         "{route_one}{route_two}",
         route_one = "  #[Core\\Route(path: \"/admin\", method: Core\\Http\\Method::Get)]\n  \
@@ -1313,8 +1343,9 @@ fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
         Some("Role::Admin")
     );
 
-    // A class constant is the other half of § 1a's narrowing and rides
-    // identically, because § 2 never asks which of the two forms a name is.
+    // A class constant is the other half of `rule:attributes/access-payload`'s
+    // narrowing and rides identically, because the compiler never asks which of
+    // the two forms a name is.
     let (diags, exprs) = check_src_table(&access_src("allow: Policy::ADMIN"));
     assert!(!diags.has_errors(), "{diags:?}");
     assert_eq!(
@@ -1350,10 +1381,12 @@ fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
 
 #[test]
 fn an_empty_decision_is_refused_wherever_the_attribute_is_written() {
-    // The payload walk is `rule:attributes/attach-sites-and-forms`'s per-attach-site one, so an `#[Access]`
-    // declaring nothing is refused with no `#[Route]` in front of it. The two
-    // halves of § 1 are separable that way round: this is the attribute failing
-    // on its own terms, not a route missing its sibling.
+    // The payload walk is `rule:attributes/attach-sites-and-forms`'s
+    // per-attach-site one, so an `#[Access]` declaring nothing is refused with no
+    // `#[Route]` in front of it. The two halves of
+    // `rule:attributes/access-is-a-required-sibling` are separable that way
+    // round: this is the attribute failing on its own terms, not a route missing
+    // its sibling.
     let diags = check_src(
         "<?nvs\nclass Users {\n  #[Core\\Access]\n  \
          public function admin(): string { return \"\"; }\n}\n",
@@ -1362,14 +1395,15 @@ fn an_empty_decision_is_refused_wherever_the_attribute_is_written() {
 }
 
 #[test]
-fn only_the_two_options_section_1a_names_are_admitted() {
+fn only_the_two_access_options_are_admitted() {
     // `role` is the field a reader writes when they read the attribute as
-    // naming who is allowed rather than what the decision is. § 2 refuses to
-    // grow a roster of those, so a plausible field is still a typo.
+    // naming who is allowed rather than what the decision is.
+    // `rule:security/access-is-checked-for-presence-not-meaning` refuses to grow a
+    // roster of those, so a plausible field is still a typo.
     let diags = check_src(&access_src("allow: Role::Admin, role: Role::Owner"));
     assert!(reported(&diags, code::E_UNKNOWN_OPTION), "{diags:?}");
 
-    // `csrf` is § 4's opt-out and the roster does place it at a type — the
+    // `csrf` is the CSRF opt-out and the roster does place it at a type — the
     // half `allow` gives up by being `mixed`, kept here because a `bool` says
     // everything a per-route opt-out means.
     let diags = check_src(&access_src("allow: Role::Admin, csrf: false"));
@@ -1385,7 +1419,8 @@ fn only_the_two_options_section_1a_names_are_admitted() {
 
 #[test]
 fn a_route_without_a_sibling_access_does_not_compile() {
-    // § 1: two attributes rather than one field is the whole mechanism, so the
+    // `rule:attributes/access-is-a-required-sibling`: two attributes rather than
+    // one field is the whole mechanism, so the
     // fixture is every other test in this file with the decision taken away —
     // `route_src` supplies it, and this is what happens where nothing does.
     let bare = "<?nvs\nclass Users {\n  \
@@ -1395,8 +1430,9 @@ fn a_route_without_a_sibling_access_does_not_compile() {
     assert!(reported(&diags, code::E_ROUTE_WITHOUT_ACCESS), "{diags:?}");
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 
-    // § 3: what closes it is the decision *written*. `Core\Audience::Public` is
-    // the case § 1a puts in `Core` for exactly this, so the fix for the error
+    // An omission is not a default: what closes it is the decision *written*.
+    // `Core\Audience::Public` is the case `rule:attributes/access-payload` puts in
+    // `Core` for exactly this, so the fix for the error
     // is a name that already resolves rather than one an application has to
     // invent before it can compile a public route.
     let diags = check_src(&with_access(bare));
@@ -1408,9 +1444,9 @@ fn a_route_without_a_sibling_access_does_not_compile() {
         check_src("<?nvs\nclass Users {\n  public function index(): string { return \"\"; }\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // The sibling is found by name resolution and not by text, so § 1a's own
-    // spelling — both names placed by a `use` — is the same attribute the
-    // fully-qualified fixtures write.
+    // The sibling is found by name resolution and not by text, so the payload
+    // rule's own spelling — both names placed by a `use` — is the same attribute
+    // the fully-qualified fixtures write.
     let diags = check_src(
         "<?nvs\nuse Core\\Access;\nuse Core\\Audience;\nclass Users {\n  \
          #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
@@ -1433,7 +1469,7 @@ fn a_query_marker_outside_a_route_method_is_refused() {
     assert!(reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 
-    // The same parameter under a route is § 3's ordinary case, which is what
+    // The same parameter under a route is the ordinary case, which is what
     // makes the refusal above about the *sibling* and not about the marker.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \

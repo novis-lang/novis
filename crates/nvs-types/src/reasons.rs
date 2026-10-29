@@ -1,5 +1,6 @@
-//! `rule:core-classes/html-to-source`'s second sentence: the `Core` members whose written **reason** has to be
-//! in the source, and the hook that refuses one that is not.
+//! `rule:core-classes/html-to-source`'s second sentence: the `Core` members whose
+//! written **reason** has to be in the source, and the hook that refuses one that
+//! is not.
 //!
 //! The sibling of [`crate::intrinsics`], [`crate::links`], [`crate::retrieval`]
 //! and [`crate::program`] — a `Core` call the compiler knows by name — reached
@@ -10,13 +11,14 @@
 //! # What is decided here
 //!
 //! * **It is the one pass that refuses an argument for being dynamic**, which
-//!   is exactly what [`crate::intrinsics`] § 4 forbids itself. The two look
-//!   alike and are opposites: an intrinsic reads a literal where there is one
-//!   and says nothing where there is not, because the runtime would still have
-//!   accepted it. A reason is the other case — the runtime accepts *any*
-//!   string, and the whole content of § 3 is that a human wrote this one — so
-//!   the rule cannot be one the runtime also makes, and lives here rather than
-//!   on that roster.
+//!   is exactly what [`crate::intrinsics`] forbids itself under
+//!   `rule:expressions/preparation-preserves-behaviour`. The two look alike and
+//!   are opposites: an intrinsic reads a literal where there is one and says
+//!   nothing where there is not, because the runtime would still have accepted
+//!   it. A reason is the other case — the runtime accepts *any* string, and the
+//!   whole content of the rule above is that a human wrote this one — so the
+//!   rule cannot be one the runtime also makes, and lives here rather than on
+//!   that roster.
 //! * **A `const` is written in the code.** The test is that the argument *folds*,
 //!   through the decoders every other compile-time read of a string uses, so
 //!   `const string WHY = "…";` passes and `$why` does not — see [`folded_str`],

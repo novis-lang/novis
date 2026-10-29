@@ -3725,7 +3725,7 @@ impl Emitter<'_, '_> {
     /// [`nvs_runtime::Value`] passed by address.
     ///
     /// Not the bare pointer a [`Self::emit_field_get`] receiver is, and the
-    /// difference is the whole erased half of § 4: this access may reach a
+    /// difference is the whole erased half of that rule: this access may reach a
     /// `mixed`, whose tag no pass before it proved (`ReceiverProof::Erased`
     /// in `nvs_ir::lower::expr`). The runtime therefore has to *see* the tag —
     /// checking it where it already checks the name — so a `mixed` holding an

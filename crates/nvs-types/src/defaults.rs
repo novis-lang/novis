@@ -235,8 +235,9 @@ pub enum ConstArg {
     /// An `rule:types/anonymous-object`
     /// shape value, its fields in the order they were written.
     ///
-    /// Produced only by [`crate::attributes`], for `rule:attributes/retrieval-folds-while-checking`'s fold: a
-    /// retrieval's answer *is* an attribute's payload object, and § 5 replaces the call
+    /// Produced only by [`crate::attributes`], for
+    /// `rule:attributes/retrieval-folds-while-checking`'s fold: a retrieval's
+    /// answer *is* an attribute's payload object, and the fold replaces the call
     /// with that value rather than looking one up. There is no written
     /// position that reaches this — an anonymous object is an expression with a
     /// lowering of its own, so nothing else needs a constant form of one.
@@ -519,8 +520,9 @@ fn report_static_in_constant_expression(span: Span, env: &mut Env<'_>) {
 }
 
 /// `Mode::Fast`, `Limits::MAX` or `Foo::class` as the value each already
-/// resolved to elsewhere — `rule:attributes/payload-is-a-compile-time-constant`'s three *named* constants, folded for
-/// the § 5 payload that has to compile one in.
+/// resolved to elsewhere — `rule:attributes/payload-is-a-compile-time-constant`'s
+/// three *named* constants, folded for the payload
+/// `rule:attributes/retrieval-folds-while-checking` has to compile one in.
 ///
 /// [`const_reference_default`] is the sibling, and which table each reads is
 /// the whole of the difference. That one runs while signatures are still being

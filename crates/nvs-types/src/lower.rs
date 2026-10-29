@@ -675,9 +675,10 @@ fn report_expansion_has_no_member(
 /// [`crate::expr::members::infer_class_const`] applies to the same question on
 /// the expression side.
 ///
-/// Both of § 2's mistakes are diagnosed at the *use*, not the declaration: a
-/// value with no single-value type to fold to is `E_SINGLE_VALUE_TYPE_NOT_CONST`, and a
-/// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as the error
+/// Both mistakes the fold can meet are diagnosed at the *use*, not the
+/// declaration: a value with no single-value type to fold to is
+/// `E_SINGLE_VALUE_TYPE_NOT_CONST`, and a name nothing declares is
+/// `E_UNKNOWN_MEMBER`. Each recovers as the error
 /// type, since neither leaves a type that could honestly be meant, and no
 /// later use of it reports again (`rule:types/one-mistake-reports-once`).
 fn lower_class_const_type(

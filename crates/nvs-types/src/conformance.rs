@@ -34,8 +34,8 @@
 //!   member at a time.** Delegation answers a member from a property's own
 //!   type, so a synthesized forward discharges the obligation exactly as a
 //!   written body does — but only for the members that actually get one.
-//!   The exemption is per-member rather than whole-class because § 4's own
-//!   first bullet is checked here: [`check_delegate_field`] asks whether
+//!   The exemption is per-member rather than whole-class because the rule's
+//!   field requirement is checked here: [`check_delegate_field`] asks whether
 //!   `$field` is a declared property of a non-nullable type that satisfies
 //!   the interface (`E0720`), so a member no forward covers can be told from
 //!   one whose field could not have answered it. [`resolve_delegations`] is
@@ -1568,9 +1568,9 @@ fn collect_obligations(
 /// The obligation set is [`collect_obligations`]', asked of the *interface*
 /// rather than of the class: every bodiless, non-`interface_private` member it
 /// and its own ancestors declare. A member the class already answers with a
-/// body is skipped, which is § 4's "a class may still write its own method
-/// with the same name as a delegated one — that is an ordinary override" — and
-/// the same subtraction covers an inherited body and an `rule:classes/interface-default-methods` interface
+/// body is skipped, which is the rule's "a class may still write the member by
+/// hand, which is an ordinary override" — and the same subtraction covers an
+/// inherited body and an `rule:classes/interface-default-methods` interface
 /// default, both of which `resolve_method` finds and neither of which a
 /// forward should displace.
 ///
@@ -1618,10 +1618,11 @@ fn resolve_delegations(
         own_obligations(&interface, env, &mut owed);
         seen.insert(interface.clone());
         collect_obligations(&interface, env, &mut seen, &mut owed);
-        // § 4 bullet 1, asked once per clause rather than once per member:
-        // a field that cannot answer the interface at all cannot answer any
-        // of it, so every member it owes is marked covered and the author
-        // reads one diagnostic about the field instead of one per member.
+        // The delegation rule's field requirement, asked once per clause rather
+        // than once per member: a field that cannot answer the interface at all
+        // cannot answer any of it, so every member it owes is marked covered and
+        // the author reads one diagnostic about the field instead of one per
+        // member.
         if !check_delegate_field(qname, &field, field_span, &interface, env) {
             covered.extend(owed.into_iter().map(|(_, method)| method));
             continue;
@@ -1694,8 +1695,8 @@ fn resolve_delegations(
 /// to dispatch on, and a type that does not reach `interface` names no member
 /// for the call to land on. The judgement is
 /// [`nvs_hir::implements_interface`]'s, which is reflexive — a field declared
-/// *as* the interface satisfies it in zero steps, and that is the spelling
-/// § 4's own worked example uses.
+/// *as* the interface satisfies it in zero steps, and that is the most direct
+/// way to write a delegate field.
 fn check_delegate_field(
     qname: &QName,
     field: &str,

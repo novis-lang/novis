@@ -1,8 +1,9 @@
-//! Statements: every control-flow form, `echo`, `unset`, `rule:types/grammar`.1's
-//! typed local declaration and § 3.3's destructuring — and the three places
-//! the parser has to guess and take it back.
+//! Statements: every control-flow form, `echo`, `unset`, `rule:types/grammar`'s
+//! typed local declaration and `rule:expressions/bracket-destructuring` — and
+//! the three places the parser has to guess and take it back.
 //!
-//! `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `foreach` with `rule:types/grammar`.2's mandatory typed bindings, `switch`, `break`/`continue`,
+//! `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `foreach` with `rule:types/grammar`'s
+//! mandatory typed bindings, `switch`, `break`/`continue`,
 //! `try`/`catch`/`finally`, and the statement-shaped rejects (`global`,
 //! `goto`, function-scope `static`) are all here, as is `rule:types/var-inference`'s `var $x =
 //! e;`.
@@ -473,11 +474,13 @@ impl<'src, 'd> Parser<'src, 'd> {
         list
     }
 
-    /// `rule:iteration/for-init-clause`: a `for` header's init clause is either one `rule:types/grammar`.1 typed local declaration or an expression list, never both. Both
-    /// shapes are a comma-separated run of items, so the clause is parsed as
-    /// one — each item through [`Self::try_parse_for_decl`] — and a run that
-    /// turns out to hold two declarations or one of each is § 3's diagnostic
-    /// rather than a parse error about a semicolon. The condition and step
+    /// `rule:iteration/for-init-clause`: a `for` header's init clause is either
+    /// one typed local declaration (`rule:types/grammar`) or an expression list,
+    /// never both. Both shapes are a comma-separated run of items, so the clause
+    /// is parsed as one — each item through [`Self::try_parse_for_decl`] — and a
+    /// run that turns out to hold two declarations or one of each is
+    /// `rule:iteration/for-init-refusals`'s diagnostic rather than a parse error
+    /// about a semicolon. The condition and step
     /// clauses are unchanged.
     pub(super) fn parse_for_init(&mut self) -> ForInit {
         let mut decl: Option<Stmt> = None;
@@ -489,9 +492,9 @@ impl<'src, 'd> Parser<'src, 'd> {
         loop {
             let item = self.peek().span;
             match self.try_parse_for_decl() {
-                // `rule:iteration/for-init-refusals`: one diagnostic per header, at the item that
-                // first breaks § 1's rule. A second one would only describe
-                // the same header again.
+                // `rule:iteration/for-init-refusals`: one diagnostic per header, at
+                // the item that first breaks `rule:iteration/for-init-clause`. A
+                // second one would only describe the same header again.
                 Some(second) if decl.is_some() => {
                     if !reported {
                         reported = true;
@@ -510,7 +513,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 // The declaration is kept even when it arrived after an
                 // expression, so a rejected header still declares its counter
-                // and § 3's one diagnostic is not followed by an `E0301` for
+                // and the refusal's one diagnostic is not followed by an `E0301` for
                 // every use of it — the cascade this rule exists to delete.
                 Some(first) => {
                     if !exprs.is_empty() {

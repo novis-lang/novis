@@ -222,10 +222,11 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// a ternary's *else* branch parses at.
     ///
     /// That branch trails, so parsing it at the ordinary level would let it
-    /// swallow a `catch` belonging to whatever guards the ternary. § 2's third
-    /// row reads `f() catch (A) => $y ?: 1 catch (B) => 2` as two arms of one
-    /// guard, and by the same rule `$c ? $a : $b catch (E) => 0` guards the
-    /// whole ternary rather than only `$b`. The *then* branch is delimited by
+    /// swallow a `catch` belonging to whatever guards the ternary.
+    /// `rule:expressions/catch-expression-precedence`'s third row reads
+    /// `f() catch (A) => $y ?: 1 catch (B) => 2` as two arms of one guard, and by
+    /// the same rule `$c ? $a : $b catch (E) => 0` guards the whole ternary
+    /// rather than only `$b`. The *then* branch is delimited by
     /// its own `:` and cannot trail, so a `catch` written there is ordinary
     /// and parses at the full level.
     fn parse_ternary_else(&mut self) -> Expr {
@@ -1296,7 +1297,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// parser cannot see. So the spelling is no longer what is rejected — the
     /// missing check is — and `E0235` is reported by `nvs_types`, at the same
     /// span, for every operand that is not a key. Both spellings reach it the
-    /// same way: `->{$k}` is `->$k` written the other way round, and § 4's
+    /// same way: `->{$k}` is `->$k` written the other way round, and the rule's
     /// three neighbours that keep the refusal are distinguished by what they
     /// are (a call, an `unset`, an unsatisfiable receiver), never by which of
     /// the two brackets wrote them.
@@ -2228,8 +2229,8 @@ impl<'src, 'd> Parser<'src, 'd> {
         Some(saw_by_ref)
     }
 
-    /// `rule:types/implicit-capture`/§ 6: an anonymous function has no `use` clause, ever; capture by
-    /// reference specifically has no replacement syntax at all.
+    /// `rule:types/implicit-capture`: an anonymous function has no `use` clause,
+    /// ever; capture by reference specifically has no replacement syntax at all.
     pub(super) fn report_use_clause(&mut self, span: Span, by_ref: bool) {
         if by_ref {
             self.diags.report(
@@ -2255,10 +2256,10 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }` — the
-    /// one anonymous function syntax (`rule:types/anonymous-function`). `name` is an optional self-name
-    /// for recursion (§ 3); a stray `use (...)` clause is still accepted
-    /// for recovery and diagnosed the same way the rejected `function`
-    /// expression's is.
+    /// one anonymous function syntax (`rule:types/anonymous-function`). `name` is
+    /// an optional self-name for recursion (`rule:types/anonymous-function-self-name`);
+    /// a stray `use (...)` clause is still accepted for recovery and diagnosed the
+    /// same way the rejected `function` expression's is.
     pub(super) fn parse_fn_expr(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {

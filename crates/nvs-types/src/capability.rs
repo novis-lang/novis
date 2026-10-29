@@ -8,7 +8,8 @@
 //!
 //! # Why a misspelling cannot be left to run time
 //!
-//! `has` answers a `bool`, and a name outside § 8's roster answers `false` —
+//! `has` answers a `bool`, and a name outside the roster
+//! (`rule:security/capability-roster-is-closed`) answers `false` —
 //! the only safe answer, since nothing grants a capability that does not exist.
 //! But *not granted* is what a correct spelling answers too, on every
 //! deployment that did not grant it. So `Core\Cap::has("fs.delete")` is a

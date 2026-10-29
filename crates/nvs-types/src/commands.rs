@@ -182,8 +182,10 @@ pub enum ArgConv {
     /// library carries, and it is on this arm by the same predicate a user
     /// class reaches it by rather than by being named.
     Parses(String),
-    /// § 3's set of allowed values: the word each member admits, in the order
-    /// the union declares them, and a usage error for anything else.
+    /// The conversion roster's set of allowed values
+    /// (`rule:security/route-capture-is-laundered-by-its-type`): the word each
+    /// member admits, in the order the union declares them, and a usage error
+    /// for anything else.
     ///
     /// The same set `nvs_runtime::routes::CaptureConv::OneOf` narrows a segment to,
     /// computed by the same [`crate::routes::closed_set`] — a word a command
@@ -279,12 +281,13 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // admits a class with — two readings of one contract, so they cannot
         // come to disagree about which classes `rule:tooling/commands-are-compiled` means.
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
-        // § 3's two unions, told apart by what they are made of. A union of
-        // single-value types is the words its members admit, by the same computation
-        // the route table's captures use; a union of *enum cases* is
-        // [`subset_of`], which that function answers `None` for because the two
-        // callers spell a case differently and `crate::routes::enum_capture` is
-        // the route's answer to the same question.
+        // The conversion roster's two unions, told apart by what they are made
+        // of. A union of single-value types is the words its members admit, by
+        // the same computation the route table's captures use; a union of *enum
+        // cases* is [`subset_of`], which that function answers `None` for because
+        // the two callers spell a case differently and
+        // `crate::routes::enum_capture` is the route's answer to the same
+        // question.
         Ty::Union(_) => {
             crate::routes::closed_set(ty, env).map_or_else(|| subset_of(ty, env), ArgConv::OneOf)
         }
@@ -329,7 +332,7 @@ fn cases_of(name: &QName, env: &Env<'_>) -> ArgConv {
 }
 
 /// The cases `ty` admits of one enum, as the row [`ArgConv::Enum`] carries them
-/// — § 3's `Log::Level::Warn|Log::Level::Error`, and the lone case that is the
+/// — a union such as `Log::Level::Warn|Log::Level::Error`, and the lone case that is the
 /// same subset written with one member.
 ///
 /// A **filter over [`cases_of`]** rather than a second reading of the roster:
@@ -956,16 +959,17 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, positional: bool, 
     );
 }
 
-/// `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster, which `rule:tooling/commands-are-compiled` takes unchanged, plus the one
-/// row `rule:tooling/commands-are-compiled` adds: a `bool` `#[Option]` is a flag, so it is given by being
-/// written rather than by carrying text.
+/// `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster,
+/// which `rule:tooling/commands-are-compiled` takes unchanged, plus the one row
+/// `rule:tooling/commands-are-compiled` adds: a `bool` `#[Option]` is a flag, so
+/// it is given by being written rather than by carrying text.
 ///
 /// The one home for "what an argument's text may become", so the route table's
 /// own pass reads this rather than growing a second list that agrees with it
 /// today.
 ///
-/// A `float` is deliberately absent where `decimal` is not: § 3 names one and
-/// not the other, and an argument that quietly rounds is the class of bug
+/// A `float` is deliberately absent where `decimal` is not: the roster names one
+/// and not the other, and an argument that quietly rounds is the class of bug
 /// `rule:types/decimal` exists to make unwritable.
 pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
     match env.interner.get(ty) {
@@ -991,13 +995,13 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // `Core\Uuid` is admitted for what it declares, and so is any class
         // that declares the same thing.
         Ty::Class(name, _) => reaches_parses(name, env),
-        // § 3 admits a union of `string` or `int` single-value types and a subset of
-        // **one** enum's cases, and nothing wider: a `string|int` would make the
-        // conversion itself ambiguous, which is the question `rule:errors/ambiguous-input-refused` refuses
-        // to answer by guessing, and cases of two different enums leave no enum
-        // for an admitted word to be a case of — `crate::routes::admitted_cases`
-        // is the one home of that test, and [`conversion_of`] reads the same
-        // answer to build the row.
+        // The roster admits a union of `string` or `int` single-value types and a
+        // subset of **one** enum's cases, and nothing wider: a `string|int` would
+        // make the conversion itself ambiguous, which is the question
+        // `rule:errors/ambiguous-input-refused` refuses to answer by guessing,
+        // and cases of two different enums leave no enum for an admitted word to
+        // be a case of — `crate::routes::admitted_cases` is the one home of that
+        // test, and [`conversion_of`] reads the same answer to build the row.
         Ty::Union(members) => {
             members.iter().all(|member| {
                 matches!(

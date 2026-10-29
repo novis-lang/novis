@@ -599,8 +599,9 @@ fn match_expression() {
 
 #[test]
 fn function_expression_with_use_by_ref_is_rejected() {
-    // `rule:types/anonymous-function`/§ 2: anonymous `function` expressions don't exist at all, and a
-    // `use (&$y)` clause gets its own, more specific diagnostic on top.
+    // `rule:types/anonymous-function` and `rule:types/implicit-capture`: anonymous
+    // `function` expressions don't exist at all, and a `use (&$y)` clause gets
+    // its own, more specific diagnostic on top.
     let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
     assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
@@ -902,7 +903,7 @@ fn await_is_a_prefix_expression_over_the_handle() {
     };
     assert!(matches!(inner.kind, ExprKind::PropertyAccess { .. }));
 
-    // The inline spelling § 2 calls out: a spawn awaited where it is written.
+    // The inline spelling: a spawn awaited where it is written.
     let e = parse_ok("await spawn script 'jobs/report.nvs'");
     let ExprKind::Await(inner) = e.kind else {
         panic!("expected await: {e:?}");
@@ -1063,7 +1064,8 @@ fn dollar_brace_expr_is_variable_variable() {
 }
 
 // --- `rule:expressions/catch-expression`'s expression `catch` ------------------------------------------
-// § 2's table, one test a row. These pin how the parser groups each row.
+// `rule:expressions/catch-expression-precedence`'s table, one test a row. These
+// pin how the parser groups each row.
 
 #[test]
 fn catch_is_tighter_than_assignment_and_looser_than_the_ternary_level() {
@@ -1106,8 +1108,9 @@ fn a_guard_covers_a_whole_coalesce_chain() {
 
 #[test]
 fn an_expression_catch_is_arms_on_one_guarded_expression() {
-    // § 1: arms are clauses of one guard, not guards of each other. The `?:`
-    // is the first arm's whole body and the `B` arm does not guard it.
+    // `rule:expressions/catch-expression`: arms are clauses of one guard, not
+    // guards of each other. The `?:` is the first arm's whole body and the `B`
+    // arm does not guard it.
     let e = parse_ok("1 catch (A $e) => $y ?: 2 catch (B) => 3");
     let ExprKind::Catch { guarded, arms } = e.kind else {
         panic!("expected a top-level `catch`: {e:?}");
@@ -1120,10 +1123,11 @@ fn an_expression_catch_is_arms_on_one_guarded_expression() {
     assert!(matches!(arms[1].body.kind, ExprKind::Int(_)));
 }
 
-/// § 3's refusal, and the reason it is a code of its own: a reader who writes
-/// `return` here is told the block form exists rather than which token was
-/// expected. The keyword is consumed and what follows it becomes the arm's
-/// body, so the file reports the rest of its problems in the same run.
+/// `rule:expressions/catch-arm-is-an-expression`'s refusal, and the reason it
+/// is a code of its own: a reader who writes `return` here is told the block
+/// form exists rather than which token was expected. The keyword is consumed
+/// and what follows it becomes the arm's body, so the file reports the rest of
+/// its problems in the same run.
 #[test]
 fn a_statement_keyword_in_a_catch_arm_is_e0126() {
     for (src, body_is_int) in [
@@ -1148,8 +1152,9 @@ fn a_statement_keyword_in_a_catch_arm_is_e0126() {
 
 #[test]
 fn a_throw_arm_is_an_expression_and_parses() {
-    // § 3: `throw expr` is already an expression, so the arm admits it with no
-    // rule of its own — where `return` is E0126.
+    // `rule:expressions/catch-arm-is-an-expression`: `throw expr` is already an
+    // expression, so the arm admits it with no rule of its own — where `return`
+    // is E0126.
     let e = parse_ok(r#"1 catch (IOError $e) => throw new IOError("no")"#);
     let ExprKind::Catch { arms, .. } = e.kind else {
         panic!("expected a top-level `catch`: {e:?}");

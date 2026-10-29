@@ -1,12 +1,12 @@
-//! `rule:programs/implementing`: `Core\Program::implementing<T>()`, answered here rather than at run
-//! time.
+//! `rule:programs/implementing`: `Core\Program::implementing<T>()`, answered
+//! here rather than at run time.
 //!
 //! The sibling of [`crate::retrieval`], and the same pass shape for the same
 //! reason: the question has an answer before the program starts, so the call
 //! is **replaced** with it. What differs is that the answer is not a constant.
-//! § 3 expands the call "to an array literal of `new` expressions — one per
+//! The rule expands the call to an array literal of `new` expressions — one per
 //! non-abstract class in the program implementing `T`, sorted by
-//! fully-qualified name", and a `new` allocates. So this records
+//! fully-qualified name — and a `new` allocates. So this records
 //! [`ExprInfo::ProgramInstances`] — the list — where retrieval records
 //! [`crate::expr_table::ExprInfo::CoreConst`], and `nvs-ir` emits the `new`s
 //! and the array. The instances are therefore per-request like any other
@@ -17,9 +17,9 @@
 //!
 //! Nothing here walks a directory. `nvs_hir::AutoloadMap::enumerate` names
 //! every file the autoload roots declare a name in, `nvs_hir::requires` loads
-//! them — and *only* for a program that writes this call, which is § 3's
-//! "a program containing no `implementing<T>()` call never performs the scan"
-//! — and `nvs_hir::implementors` filters the resulting class graph. By the
+//! them — and *only* for a program that writes this call, which is the rule's
+//! opt-in: a program that calls no discovery member performs no scan at all —
+//! and `nvs_hir::implementors` filters the resulting class graph. By the
 //! time this pass runs, `Env::graph` holds every declaration the answer is
 //! drawn from, so the whole of this module is a lookup and two refusals.
 //!
@@ -510,7 +510,8 @@ fn selector_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Op
 }
 
 /// Each class's resolved `constructor` call, or `None` after reporting
-/// `E0744` — § 3's second refusal, shared by both enumerations.
+/// `E0744` — `rule:programs/implementing`'s second refusal, shared by both
+/// enumerations.
 ///
 /// The entry is the one a written `new C()` records ([`ExprInfo::New`]'s
 /// `ctor`): the constructor's signature plus the slots an empty argument list
@@ -530,8 +531,9 @@ fn constructors_of(
     let mut hidden = false;
     for class in classes {
         // A class declaring no `constructor` at all is the common case and the
-        // one § 3 is written for; `ExprInfo::New`'s own `ctor` is `None` there
-        // too, and `nvs-ir` allocates without calling anything.
+        // one `rule:programs/implementing` is written for; `ExprInfo::New`'s own
+        // `ctor` is `None` there too, and `nvs-ir` allocates without calling
+        // anything.
         let Some((owner, sig)) = resolve_method(class, "constructor", env.signatures, env.graph)
         else {
             ctors.push(None);
@@ -738,7 +740,7 @@ mod tests {
         }
     }
 
-    /// § 3's second refusal, and the bound it rests on asserted from both
+    /// `rule:programs/implementing`'s second refusal, and the bound it rests on asserted from both
     /// sides: what the expansion cannot write is `new Needy(8080)`, so the
     /// test is `required() > 0` rather than "declares a constructor" — the
     /// same class with the same parameter *defaulted* is enumerated and

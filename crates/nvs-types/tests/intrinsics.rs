@@ -2,10 +2,12 @@
 //! members whose literal argument the checker reads, and what it says about
 //! one it cannot.
 //!
-//! What is asserted here is that § 1's list is *complete* as much as its contents — a member
-//! one row away from an intrinsic folds nothing however literal its argument
-//! is — and § 4's soundness rule, which is the reason a refusal here is only
-//! ever one the runtime would also have made: `nvs_stdlib::format` parses the
+//! What is asserted here is that `rule:expressions/intrinsic-list-is-closed`'s
+//! list is *complete* as much as its contents — a member one row away from an
+//! intrinsic folds nothing however literal its argument is — and
+//! `rule:expressions/preparation-preserves-behaviour`'s soundness rule, which
+//! is the reason a refusal here is only ever one the runtime would also have
+//! made: `nvs_stdlib::format` parses the
 //! template for both, so a template this file pins as a compile error is one
 //! `Core\Str::format` would have thrown on.
 
@@ -47,7 +49,7 @@ fn check_call_table(body: &str) -> (Diagnostics, ExprTypeTable) {
 #[test]
 fn a_member_outside_the_intrinsic_list_is_never_folded() {
     // `%q` is not a conversion `Core\Str::format`'s grammar allows, so this is
-    // a literal that *would* be refused had the member been on § 1's list.
+    // a literal that *would* be refused had the member been on the closed list.
     // Every member below takes a `string` at the same position and is not one,
     // which is the whole of what "closed list" means: being pattern-shaped, or
     // being spelled `format`, or living in a class one of whose siblings is an
@@ -65,9 +67,10 @@ fn a_member_outside_the_intrinsic_list_is_never_folded() {
 
 #[test]
 fn a_literal_format_template_checks_its_placeholder_count_and_types() {
-    // The count, in both directions — § 1 names this member's placeholder
-    // check separately because it is PHP's `printf` bug family, and both
-    // halves of it are the runtime's own refusals answered earlier.
+    // The count, in both directions — `rule:expressions/intrinsic-constant-arguments`
+    // names this member's placeholder check separately because it is PHP's
+    // `printf` bug family, and both halves of it are the runtime's own refusals
+    // answered earlier.
     let missing = check_call("    echo Core\\Str::format(\"%s %s\", \"one\");\n");
     assert!(
         reported(&missing, code::E_FORMAT_TEMPLATE_MISMATCH),
@@ -98,7 +101,7 @@ fn a_literal_format_template_checks_its_placeholder_count_and_types() {
 
     // And the shapes that must stay silent. `%1$s` numbers its arguments, so
     // reading one twice reads them all; `%%` is not a placeholder; and a
-    // computed template is § 2's "nothing is refused for being dynamic".
+    // computed template is "nothing is refused for being dynamic".
     //
     // The positional template is single-quoted because a Novis `"…"` would
     // interpolate `$s` — the one place this grammar and the language's own
@@ -114,9 +117,10 @@ fn a_literal_format_template_checks_its_placeholder_count_and_types() {
     );
 }
 
-/// § 3's exact offset. Asserted as the *text* the primary label covers rather
-/// than as a column, so the case says what a reader would see underlined and
-/// survives the wrapper above it changing length.
+/// The exact offset `rule:expressions/intrinsic-constant-arguments` asks for.
+/// Asserted as the *text* the primary label covers rather than as a column, so
+/// the case says what a reader would see underlined and survives the wrapper
+/// above it changing length.
 #[test]
 fn a_refused_placeholder_underlines_its_own_offset() {
     for (literal, want) in [
@@ -232,10 +236,11 @@ fn a_named_argument_is_read_at_the_parameter_it_fills() {
 
 #[test]
 fn a_literal_date_format_is_validated_while_checking() {
-    // § 1's rows 3 and 4 — the two members reading `nvs_stdlib::cldr`'s
-    // letters, and the only two rows whose written argument positions differ:
-    // `$d->format(…)`'s pattern is written argument 0, while `Core\Time::parse`
-    // puts the text being parsed first (`rule:core-api/shape-rules` R1) and its pattern second.
+    // The closed list's two date-pattern rows — the two members reading
+    // `nvs_stdlib::cldr`'s letters, and the only two rows whose written
+    // argument positions differ: `$d->format(…)`'s pattern is written argument
+    // 0, while `Core\Time::parse` puts the text being parsed first
+    // (`rule:core-api/shape-rules` R1) and its pattern second.
     // `j` — which CLDR reserves for a skeleton's preference between `h` and
     // `H` rather than giving it a field — is a real letter this closed subset
     // does not carry, which is exactly the case the module's own refusal names.
@@ -277,7 +282,7 @@ fn a_literal_date_format_is_validated_while_checking() {
 
     // And what stays silent: the two `Core\Time` patterns, the zonal one at the
     // member that has no zone argument to disagree with, and a computed
-    // pattern, which is § 2's rule again.
+    // pattern, which is not read because nothing is refused for being dynamic.
     let fine = check_call(
         "    string $p = \"yyyy-YY\";\n    \
          Core\\Time\\DateTime $d = Core\\Time::now()->in(Core\\Time\\Zone::UTC);\n    \
@@ -296,10 +301,12 @@ fn a_literal_date_format_is_validated_while_checking() {
 
 #[test]
 fn a_written_regex_pattern_is_prepared_while_checking() {
-    // § 1's row 1, over `rule:core-classes/regex-two-tiers`'s two engines — the pattern is offered to
-    // both while checking, exactly as `Core\Regex::compile`'s first call would
-    // have offered it. *Prepared* is the name this check has always had and is
-    // § 3's second effect; today the fold stops after validating, which is gap
+    // The closed list's regex row, over `rule:core-classes/regex-two-tiers`'s
+    // two engines — the pattern is offered to both while checking, exactly as
+    // `Core\Regex::compile`'s first call would have offered it. *Prepared* is
+    // the name this check has always had and is the preparation
+    // `rule:expressions/intrinsic-constant-arguments` describes; today the fold
+    // stops after validating, which is gap
     // 2 in `intrinsics.rs` and is a channel to `nvs-ir` rather than a second
     // parser.
     let unclosed = check_call("    Core\\Regex\\Pattern $p = Core\\Regex::compile(\"(a\");\n");
@@ -322,7 +329,7 @@ fn a_written_regex_pattern_is_prepared_while_checking() {
 
     // And what stays silent: a pattern the linear engine takes, one only the
     // backtracking tier can express — a lookbehind — and a computed one, which
-    // is § 2's rule. A pattern reaching the second tier is not a refusal
+    // is not read at all. A pattern reaching the second tier is not a refusal
     // here, because it is not one at run time either.
     let fine = check_call(
         "    string $t = \"(a\";\n    \
@@ -338,11 +345,12 @@ fn a_written_regex_pattern_is_prepared_while_checking() {
 
 #[test]
 fn a_written_patterns_tier_is_settled_while_checking() {
-    // `rule:core-classes/regex-compile-time-tiering`'s second effect, and the half the test above deliberately
-    // stops short of: *prepared* is not enough on its own, because a fold that
-    // throws the automaton away leaves the first call to re-decide which
-    // engine runs — and the tier is what decides whether § 2's step budget is
-    // in play at all. So the fold writes it down and `nvs-ir` reads it back.
+    // `rule:core-classes/regex-compile-time-tiering`'s second effect, and the
+    // half the test above deliberately stops short of: *prepared* is not enough
+    // on its own, because a fold that throws the automaton away leaves the
+    // first call to re-decide which engine runs — and the tier is what decides
+    // whether `rule:core-classes/regex-two-tiers`'s step budget is in play at
+    // all. So the fold writes it down and `nvs-ir` reads it back.
     //
     // The three patterns are the previous test's, on purpose: the same source
     // that must produce no diagnostic must produce exactly these tiers, so a
@@ -360,7 +368,7 @@ fn a_written_patterns_tier_is_settled_while_checking() {
     );
 
     // One of each, and — the third pattern — nothing at all for the computed
-    // one. § 2's rule that nothing is refused for being dynamic is also a rule
+    // one. The rule that nothing is refused for being dynamic is also a rule
     // about what is *recorded*: a site whose pattern the fold never read has
     // no tier to offer, rather than a guessed one.
     let linear = exprs.regex_tiers().filter(|t| *t == Tier::Linear).count();
@@ -519,9 +527,9 @@ fn tier_of(literal: &str) -> &'static str {
 /// sits at is the parser's own and not a guess made by scanning text: a
 /// `StaticCall`'s children are its class expression and then its arguments in
 /// order, a written member name being a name rather than a node. An argument
-/// that is not a plain `Str` is left alone — § 2 of
-/// `rule:core-classes/regex-compile-time-tiering` refuses nothing for being dynamic,
-/// and a pattern assembled at run time has no tier to record.
+/// that is not a plain `Str` is left alone — nothing is refused for being
+/// dynamic (`rule:expressions/intrinsic-constant-arguments`), and a pattern
+/// assembled at run time has no tier to record.
 fn patterns_of(body: &str, case: &Path, into: &mut BTreeMap<String, &'static str>) -> usize {
     let mut map = nvs_diagnostics::SourceMap::new();
     let file = map.add(case.display().to_string(), body);
@@ -686,10 +694,11 @@ fn every_written_regex_pattern_in_the_suite_has_its_tier_recorded() {
 
 #[test]
 fn a_regex_pattern_argument_refuses_a_tainted_operand() {
-    // `rule:security/regex-pattern-is-a-sink` over `rule:security/launderers-are-sink-named`. A pattern is a sink because an
+    // `rule:security/regex-pattern-is-a-sink` over
+    // `rule:security/launderers-are-sink-named`. A pattern is a sink because an
     // attacker-authored one is two vectors at once: a denial-of-service one,
     // and a logic-injection one that turns a validation check into an
-    // approval by matching everything. § 4 states outright that there is no
+    // approval by matching everything. The sink rule states outright that there is no
     // laundering function for an arbitrary pattern, so the refusal is the
     // whole of the rule and there is nothing to reach for after it.
     //
@@ -716,11 +725,12 @@ fn a_regex_pattern_argument_refuses_a_tainted_operand() {
         "a tainted pattern reached Core\\Regex::matches: {inline:?}"
     );
 
-    // § 4's second sentence, and the half a refusal alone would get wrong: the
-    // *subject* may be tainted. `matches` answers a `bool`, which carries no
+    // The sink rule's other half, and the one a refusal alone would get wrong:
+    // the *subject* may be tainted. `matches` answers a `bool`, which carries no
     // byte of its subject, while `replace` is contagious and hands the
-    // qualifier on — `rule:security/taint-propagation`'s rule that a substring matched out of a
-    // tainted subject is tainted, spelled as the mark on the row.
+    // qualifier on — `rule:security/taint-propagation`'s rule that a substring
+    // matched out of a tainted subject is tainted, spelled as the mark on the
+    // row.
     let subject = check_call(
         "    tainted string $s = \"input\" as tainted string;\n    \
          bool $b = Core\\Regex::matches($s, '[a-z]+');\n    \
@@ -731,11 +741,12 @@ fn a_regex_pattern_argument_refuses_a_tainted_operand() {
         "a tainted subject was refused: {subject:?}"
     );
 
-    // And the one route that does exist, which is not an exception to § 4:
-    // `quote` escapes every metacharacter, so what comes back is a pattern
+    // And the one route that does exist, which is not an exception to the sink
+    // rule: `quote` escapes every metacharacter, so what comes back is a pattern
     // matching the tainted text *literally* rather than a pattern the tainted
-    // text authored. That is `rule:security/launderers-are-sink-named`'s sink-named launderer exactly, and
-    // it is why `Core\Taint::assertTrusted` is not the only way out.
+    // text authored. That is `rule:security/launderers-are-sink-named`'s
+    // sink-named launderer exactly, and it is why `Core\Taint::assertTrusted`
+    // is not the only way out.
     let quoted = check_call(
         "    tainted string $t = \"a.b\" as tainted string;\n    \
          string $q = Core\\Regex::quote($t);\n",
@@ -748,10 +759,10 @@ fn a_regex_pattern_argument_refuses_a_tainted_operand() {
 
 #[test]
 fn a_written_uri_is_validated_while_checking() {
-    // § 1's row 2. Both of `Core\Uri::parse`'s throwing steps are folded, so
-    // the two texts it refuses are two compile errors here: a byte RFC 3986
-    // § 4.1 does not admit, and a run of digits the grammar takes for a port
-    // and § 3.2.3's prose does not.
+    // The closed list's URI row. Both of `Core\Uri::parse`'s throwing steps
+    // are folded, so the two texts it refuses are two compile errors here: a
+    // byte RFC 3986 § 4.1 does not admit, and a run of digits the grammar takes
+    // for a port and the prose of RFC 3986 § 3.2.3 does not.
     let byte = check_call("    Core\\Uri $u = Core\\Uri::parse(\"http://exa mple.test/\");\n");
     assert!(
         reported(&byte, code::E_INTRINSIC_LITERAL_MALFORMED),
@@ -766,7 +777,7 @@ fn a_written_uri_is_validated_while_checking() {
 
     // And what stays silent. A *reference* is what this member takes, so a
     // relative one with no scheme is not a refusal; neither is a percent
-    // escape the grammar reads; and a computed text is § 2's rule.
+    // escape the grammar reads; and a computed text is never read at all.
     let fine = check_call(
         "    string $t = \"http://exa mple.test/\";\n    \
          Core\\Uri $absolute = Core\\Uri::parse(\"https://example.test:8443/a/b?q=1#top\");\n    \
@@ -781,8 +792,9 @@ fn a_written_uri_is_validated_while_checking() {
 
 #[test]
 fn a_literal_duration_is_validated_while_checking() {
-    // § 1's row 4, and the one grammar whose parser was already shared by
-    // three callers before this pass was a fourth: `rule:types/duration` puts it in
+    // The closed list's duration row, and the one grammar whose parser was
+    // already shared by three callers before this pass was a fourth:
+    // `rule:types/duration` puts it in
     // `nvs-syntax` so the lexer's `1h30m`, `Core\Time\Duration::parse` and an
     // `nvs.toml` directive cannot drift apart. So each refusal below is
     // literally the diagnostic the *lexer* gives the same text.
@@ -818,8 +830,8 @@ fn a_literal_duration_is_validated_while_checking() {
         "a duration wider than the type holds: {wide:?}"
     );
 
-    // And what stays silent: the two spellings § 1 of `rule:types/duration` opens with, the
-    // sub-second units, and a computed text, which is § 2's rule.
+    // And what stays silent: the two spellings `rule:types/duration` opens with,
+    // the sub-second units, and a computed text, which is never read at all.
     let fine = check_call(
         "    string $t = \"30m1h\";\n    \
          Core\\Time\\Duration $simple = Core\\Time\\Duration::parse(\"30s\");\n    \
@@ -852,8 +864,8 @@ fn a_tainted_value_at_a_query_text_parameter_is_a_diagnostic() {
     // `rule:security/sink-predicate` is the whole injection story for `rule:core-classes/db-one-api`, and this is its
     // first half: the statement text is the sink, so a `tainted` value cannot
     // reach it at all. There is no escaping function to reach for after the
-    // refusal — § 1 says an escaper would be a second, weaker answer to a
-    // question the bound parameters already answer.
+    // refusal — `rule:core-classes/db-one-api` says an escaper would be a
+    // second, weaker answer to a question the bound parameters already answer.
     let queried = check_call(
         "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
          tainted string $t = \"select id from t\" as tainted string;\n    \
@@ -879,7 +891,7 @@ fn a_tainted_value_at_a_query_text_parameter_is_a_diagnostic() {
 
 #[test]
 fn the_same_tainted_value_at_a_bound_parameter_compiles() {
-    // § 4's second half, and the one a refusal alone would get wrong: a bound
+    // The sink rule's second half, and the one a refusal alone would get wrong: a bound
     // parameter accepts `tainted` **freely**. It is the same value at the same
     // call — the pair is what makes the rule a boundary rather than a ban, and
     // it is why the API needs no `escape`.
@@ -915,7 +927,8 @@ fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
 
     // And the half `check_shape_field` exists for. A sink with a launderer
     // leaves a reader somewhere to go and this one does not, so the diagnostic
-    // names § 3's only way through, in the spelling that would compile.
+    // names `rule:core-classes/db-capabilities`' only way through, in the
+    // spelling that would compile.
     assert!(
         refused.iter().any(|diag| diag
             .notes
@@ -924,7 +937,7 @@ fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
         "the refusal named no way through: {refused:?}"
     );
 
-    // The pair that makes it a boundary rather than a ban, and § 3's own
+    // The pair that makes it a boundary rather than a ban, and that rule's own
     // sentence: `database` and `user` are length-prefixed protocol fields
     // rather than parsed text, so they accept `tainted` freely. Same value,
     // one key over.
@@ -942,7 +955,7 @@ fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
 
 /// A connection to write a query against, as a string literal. `connect` is `Core\Db`'s entry
 /// point and its return type is what puts `Core\Db\Connection` on `$db`, which
-/// is the class § 1's rows are matched nominally against.
+/// is the class the closed list's rows are matched nominally against.
 fn query(sql: &str, params: &str) -> Diagnostics {
     check_call(&format!(
         "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
@@ -968,8 +981,8 @@ fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
     );
 
     // The shapes that must stay silent. A count that agrees is a call the
-    // runtime accepts, and a params array this pass cannot read whole is § 2's
-    // rule: nothing is refused for being dynamic.
+    // runtime accepts, and a params array this pass cannot read whole is left
+    // alone: nothing is refused for being dynamic.
     let fine = query("\"select id from t where a = ? and b = ?\"", "[1, 2]");
     assert!(
         !fine.has_errors(),
@@ -985,7 +998,8 @@ fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
         "a computed params array was read anyway: {dynamic:?}"
     );
 
-    // § 5's `??` escape, which is the one piece of syntax the rewriter adds to
+    // `rule:core-classes/db-parameters`' `??` escape, which is the one piece of
+    // syntax the rewriter adds to
     // SQL: a literal question mark is not a placeholder, so this binds one
     // argument and not two. It is here because it is exactly the shape a second
     // reader of the same grammar would get wrong.
@@ -1008,7 +1022,7 @@ fn an_unterminated_literal_in_a_query_is_a_diagnostic() {
     );
 
     // A fact about the text alone, so a params array this pass cannot read
-    // whole does not buy silence the way § 2 buys it for the pairing.
+    // whole does not buy silence the way it does for the pairing.
     let dynamic = check_call(
         "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
          array<mixed> $p = [1];\n    \
@@ -1031,7 +1045,7 @@ fn an_unterminated_literal_in_a_query_is_a_diagnostic() {
 
 #[test]
 fn a_two_statement_written_query_is_a_diagnostic() {
-    // § 1's "every statement is prepared", read as the one question about
+    // `rule:core-classes/db-one-api`'s prepared statements, read as the one question about
     // statement count that needs no vendor's grammar: a prepared statement is
     // one command on every backend, so a text holding two never runs.
     let two = query("\"update t set a = 1; drop table t\"", "[]");
@@ -1068,8 +1082,9 @@ fn a_two_statement_written_query_is_a_diagnostic() {
 
 #[test]
 fn mixed_placeholder_styles_on_a_literal_are_a_diagnostic() {
-    // § 5's two spellings, and § 10's "positional-vs-named consistency": one
-    // statement uses one of them. Both directions, because the rewriter refuses
+    // `rule:core-classes/db-parameters`' two spellings, and
+    // `rule:core-classes/db-compile-time-query-checking`'s "positional-versus-named
+    // consistency": one statement uses one of them. Both directions, because the rewriter refuses
     // at whichever marker disagrees with the array it was handed.
     let named_in_a_list = query("\"select id from t where a = ? and b = :b\"", "[1, 2]");
     assert!(
@@ -1086,7 +1101,7 @@ fn mixed_placeholder_styles_on_a_literal_are_a_diagnostic() {
     );
 
     // A name no argument binds is the same clause read the other way, and a
-    // repeated `:name` is § 5's one value bound once — the thing the positional
+    // repeated `:name` is one value bound once — the thing the positional
     // form cannot express, so it must not be counted twice.
     let unbound = query(
         "\"select id from t where a = :a and b = :c\"",
@@ -1169,9 +1184,11 @@ fn an_open_host_matching_no_grant_is_a_diagnostic() {
 
 #[test]
 fn an_open_host_says_nothing_where_a_half_of_the_question_is_missing() {
-    // Two ways for § 10's question to be unanswerable at check time, and both
-    // have to leave the call alone rather than deny it — a refusal here is one
-    // the runtime would not have made, which is what `rule:expressions/preparation-preserves-behaviour` forbids.
+    // Two ways for the host question of
+    // `rule:core-classes/db-compile-time-query-checking` to be unanswerable at
+    // check time, and both have to leave the call alone rather than deny it — a
+    // refusal here is one the runtime would not have made, which is what
+    // `rule:expressions/preparation-preserves-behaviour` forbids.
     //
     // First: no configuration was read at all, which is every other fixture in
     // this file and every `nvs check` outside a project root. Absent is not
@@ -1182,7 +1199,7 @@ fn an_open_host_says_nothing_where_a_half_of_the_question_is_missing() {
         "an unconfigured check denied a host: {unconfigured:?}"
     );
 
-    // Second: the host is not a literal. § 2's rule, unchanged by the field
+    // Second: the host is not a literal. The constant-argument rule, unchanged by the field
     // address — nothing is refused for being dynamic, and this one is decided
     // at the door with the value in hand.
     let caps = granting("db.granted.test");
@@ -1323,7 +1340,7 @@ fn delete_has_no_static_half_and_is_refused_at_the_door() {
 fn a_written_metrics_name_outside_the_grammar_is_a_compile_error() {
     // `rule:observability/metrics-three-members`'s `[a-z][a-z0-9_]*`, read out
     // of the literal that wrote it. Asked of all three verbs, because the
-    // grammar belongs to the series: a row missing from § 1's table leaves one
+    // grammar belongs to the series: a row missing from the closed list leaves one
     // verb accepting the name the other two refuse, which is invisible from any
     // single line. Each name is refused for a different clause — a capital, a
     // separator the grammar has no place for, and a leading `_`.

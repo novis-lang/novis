@@ -79,10 +79,11 @@
 //!   module's own docs for why it sits below this crate rather than in it.
 //! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: `rule:classes/lateinit`'s
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
-//!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
-//!   parameter, and `readonly`) and excludes it from `ctor_init`'s
-//!   constructor-must-assign obligation; this module adds § 3's one
-//!   compile-time bonus check, a third flow-analysis pass — sibling to
+//!   where it may appear (`rule:classes/lateinit-restrictions`: refusing a
+//!   scalar/enum type, `?T`, a promoted parameter, and `readonly`) and excludes
+//!   it from `ctor_init`'s constructor-must-assign obligation; this module adds
+//!   `rule:classes/lateinit-read-before-write`'s one compile-time bonus check,
+//!   a third flow-analysis pass — sibling to
 //!   `ctor_init`'s, but over every method body rather than only the
 //!   constructor.
 //!
@@ -388,14 +389,15 @@ pub(crate) struct Ctx<'a> {
 /// with.
 ///
 /// Carries the signature itself rather than a `TypeId` for the anonymous function,
-/// because there is none to carry: § 4 gives every anonymous function the one opaque
-/// `callable`, so the recursive call's own types can only come from what the
-/// literal declared. A literal that declared no return type gets `mixed` here —
-/// its body is mid-check, so its inferred type is not a fact yet, and `mixed`
-/// is the same answer every other call through a `callable` gives.
+/// because there is none to carry: `rule:types/callable-is-the-only-function-type`
+/// gives every anonymous function the one opaque `callable`, so the recursive
+/// call's own types can only come from what the literal declared. A literal
+/// that declared no return type gets `mixed` here — its body is mid-check, so
+/// its inferred type is not a fact yet, and `mixed` is the same answer every
+/// other call through a `callable` gives.
 pub(crate) struct FnSelf {
     /// The name as written, which a callee spelling must equal exactly:
-    /// § 3's name is lexical and is not resolved through the namespace or the
+    /// the self-name is lexical and is not resolved through the namespace or the
     /// `use` table.
     pub name: String,
     /// The literal's own parameter types, in written order — what
@@ -498,7 +500,7 @@ pub(crate) struct Env<'a> {
     ///
     /// Here rather than a local of [`crate::check::check_program`]'s loop
     /// because both of the errors [`crate::routes::check_table`] reports are
-    /// collisions *between* declarations, and § 5's scan is what puts the two
+    /// collisions *between* declarations, and the table's scan is what puts the two
     /// colliding files in the same program in the first place. The pass that
     /// only collects signatures hands it a scratch table, exactly as it does
     /// [`Self::exprs`].
@@ -575,7 +577,7 @@ pub(crate) struct Env<'a> {
     /// declares no name of its own.
     ///
     /// Saved and restored across an anonymous function's body exactly as [`Self::exit_targets`]
-    /// is, and for the same reason: § 3's name reaches one body and no other,
+    /// is, and for the same reason: the self-name reaches one body and no other,
     /// which is the reach `nvs_ir::lower::anon_fn`'s `FN_SELF` receiver has.
     /// [`crate::expr::calls::check_anon_fn`] owns what it resolves to.
     pub fn_self: Option<FnSelf>,

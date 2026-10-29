@@ -27,8 +27,8 @@
 //! than `E_UNKNOWN_MEMBER`, and record the same entry carrying the written
 //! name alone — which is what `rule:classes/no-dynamic-properties`'s runtime-checked fallback is
 //! keyed on, and it throws now rather than being deferred. A `mixed` is there
-//! for `rule:types/conversion`'s reason rather than § 4's: it is the one unchecked
-//! position, so even "is this an object at all" is deferred to that throw.
+//! for `rule:types/conversion`'s reason rather than `rule:types/arithmetic`'s: it
+//! is the one unchecked position, so even "is this an object at all" is deferred to that throw.
 //! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
 //! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written
 //! (`rule:types/a-declared-type-answers-before-the-program-runs`). `unset()`'s operand is narrowed to one shape by
@@ -156,7 +156,7 @@ pub(crate) fn infer_class_const(
             // `rule:types/enum-case-type`: the case's own narrowed type where the position
             // names it, the whole enum everywhere else — the placement rule
             // `crate::expr::literals` applies to a `string`/`int` literal,
-            // reached here because § 3's atom is a *case*, not a literal of
+            // reached here because that rule's atom is a *case*, not a literal of
             // its backing value. `ExprInfo::EnumCase` is recorded either way,
             // so `nvs-ir` sees the same integer constant it always did.
             let placed = placed_literal(
@@ -1276,7 +1276,7 @@ fn collect_public_properties(
 /// be a `property<T>` — the only door into which is `as`, so the set of names
 /// it can hold was checked where it was written — and the receiver must
 /// *satisfy* `T`, since a key promises its names against `T`'s roster and a
-/// receiver that is not a `T` was never asked about them. § 4's three
+/// receiver that is not a `T` was never asked about them. The rule's three
 /// neighbours are exactly the ways those fail: a `mixed` or shape-typed
 /// receiver has no `T` to check against, a call is refused at its own site
 /// ([`super::calls::check_member_name`]), and an `unset` is refused below for
@@ -1371,7 +1371,8 @@ fn check_keyed_property(
 ///
 /// The code and the headline are `rule:classes/no-dynamic-properties`'s — what a computed name cannot
 /// do is unchanged — and only the *place* moved, from `nvs_syntax`'s parser to
-/// here, because § 4 made the operand's type the question and a parser sees no
+/// here, because `rule:types/property-key-access` made the operand's type the
+/// question and a parser sees no
 /// types. The help differs by site, which is why it is the caller's: only a
 /// property access has a `property<T>` to suggest.
 pub(crate) fn report_computed_member_name(span: Span, help: &str, env: &mut Env<'_>) {
@@ -1908,7 +1909,8 @@ fn is_mutable_property(object: &Expr, env: &Env<'_>) -> bool {
 /// `rule:classes/property-observer-pipeline`'s second step for a property access on `qname`, or `None` when
 /// that class implements no `PropertyObserver`.
 ///
-/// § 4 is what makes this a compile-time question at all: whether a class
+/// `rule:classes/property-observer-costs-nothing-when-unused` is what makes this
+/// a compile-time question at all: whether a class
 /// implements the interface is read off its declaration, so a class that never
 /// asked for the mechanism pays nothing and emits nothing — there is no
 /// runtime probe here and no branch below one.
@@ -1996,9 +1998,10 @@ pub(crate) fn record_promoted_pipelines(
 ///   a *type* rather than by a spelling since `rule:types/property-key-access`, and it is
 ///   [`check_keyed_property`] that decides: an operand that is not a
 ///   `property<T>` the receiver satisfies is `E0235` here, and one that is
-///   records [`ExprInfo::KeyedProperty`] carrying § 5's union. That arm is
+///   records [`ExprInfo::KeyedProperty`] carrying that rule's union. That arm is
 ///   recorded even where `T` declares no public property at all — no value of
-///   such a key can exist, since § 2's every conversion into one throws, but
+///   such a key can exist, since every conversion into one throws
+///   (`rule:types/property-key`), but
 ///   "unreachable at run time" is not "never lowered" and this proof is about
 ///   the second. `rule:classes/no-dynamic-properties` owns why every other operand is refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
@@ -2055,13 +2058,14 @@ pub(crate) fn check_property_member(
     // `E_UNKNOWN_MEMBER` below — nothing is diagnosed here, and the access
     // answers `mixed`.
     //
-    // All four record an `ExprInfo::ShapeProperty`, because § 4 keys the
-    // fetch on the **name** in every one of them and the name is the only
+    // All four record an `ExprInfo::ShapeProperty`, because
+    // `rule:types/erased-member-access` keys the fetch on the **name** in every
+    // one of them and the name is the only
     // thing an erased access has. What differs is what rides along: a field
     // the receiver's own shape lists contributes its slot as the hint the
     // runtime tries first and its declared type as the result; an erased one
     // hints slot 0 and answers `mixed`, leaving `nvs_runtime::ClassDesc::
-    // field_slot`'s by-name search — and § 4's catchable missing-name throw —
+    // field_slot`'s by-name search — and that rule's catchable missing-name throw —
     // as the whole of the resolution. The `guarded` bit rides along on all
     // four and says whether that throw is the answer at all here.
     //
@@ -2081,9 +2085,10 @@ pub(crate) fn check_property_member(
             // this list by name and every producer of a shape value lays its
             // slots out in that same order, so the position resolved here is
             // right exactly where this shape is the value's own exact type.
-            // Through a *widened view* — § 3's width subtyping, which is the
-            // one way a value's shape and its receiver's differ — it is not,
-            // which is why § 4 keys the fetch on the **name** and this records
+            // Through a *widened view* — `rule:types/shape-type`'s width
+            // subtyping, which is the one way a value's shape and its receiver's
+            // differ — it is not, which is why `rule:types/erased-member-access`
+            // keys the fetch on the **name** and this records
             // one; the slot rides along as the hint the runtime tries first
             // (`nvs_ir::InstKind::SlotGet`).
             //

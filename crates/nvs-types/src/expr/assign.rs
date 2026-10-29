@@ -2,12 +2,13 @@
 //! relation, and the three positions that apply it.
 //!
 //! [`is_assignable`] is the relation itself, and the one place `rule:types/unions-and-mixed`'s
-//! table is written down. It carries two amendments from `rule:types/object-top`: every class
-//! or shape type is `<: object` (§ 1), and a shape target is checked
-//! structurally by width subtyping plus ordinary field assignability (§ 3,
-//! [`shape_satisfied`]) rather than nominally — Novis's one deliberate exception
-//! to otherwise fully nominal typing. **`array<T>` is covariant in its element
-//! type**, and it is the only generic name in the language that is;
+//! table is written down. It carries two amendments: every class or shape type is
+//! `<: object` (`rule:types/object-top`), and a shape target is checked
+//! structurally by width subtyping plus ordinary field assignability
+//! (`rule:types/shape-type`, [`shape_satisfied`]) rather than nominally — Novis's
+//! one deliberate exception to otherwise fully nominal typing. **`array<T>` is
+//! covariant in its element type**, and it is the only generic name in the
+//! language that is;
 //! [`is_assignable`]'s own doc comment owns that rule and why `rule:types/arrays`'s
 //! copy-on-write value semantics make it sound where an aliasing language
 //! could not. A qualifier widens but never narrows across it — see
@@ -50,7 +51,8 @@ use super::*;
 /// rows and why the reverse direction needs no rule to refuse it. `rule:types/conversion`'s own amendment is the last: `int`/`uint` widen into a `float`
 /// position, that being the one implicit conversion the language has, and a
 /// union source is therefore satisfied member-wise against any target —
-/// which is how § 4's `int|float` quotient reaches a declared `float`.
+/// which is how `rule:types/arithmetic`'s `int|float` quotient reaches a
+/// declared `float`.
 ///
 /// Takes the interner by `&mut` for that one step: asking whether `from`
 /// widens to `to` means naming the type it widens *to*, and naming a type in
@@ -233,8 +235,8 @@ fn assignable(
     // idempotent, so the recursion is one level deep.
     //
     // The reverse direction — `string → "a"` — needs no rule to refuse it:
-    // nothing below widens a base type *down*, and § 4's last three rows make
-    // that direction a checked `as`, never an assignment.
+    // nothing below widens a base type *down*, and the same rule's last three
+    // rows make that direction a checked `as`, never an assignment.
     let widened = interner.single_value_base(from);
     if widened != from && assignable(widened, to, widen, interner, graph, signatures) {
         return true;
@@ -1568,7 +1570,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
 /// The question is asked of the **set** rather than of one resolved property
 /// because *which* name the key holds is exactly what the access does not know
 /// (`rule:types/property-key-access`). One `readonly` member is therefore enough to refuse: the
-/// write might name it. § 5 also decides that this is compile-time rather than
+/// write might name it. The same rule decides that this is compile-time rather than
 /// a `readonly` bit on `ClassDesc` and a throw the program has to reach —
 /// where a request-controlled name selects the field to write, the earlier
 /// report is the direction security points in.

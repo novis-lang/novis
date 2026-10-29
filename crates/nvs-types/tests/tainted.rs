@@ -377,8 +377,8 @@ fn a_computed_to_source_reason_is_refused_at_the_call() {
         "{joined:?}"
     );
 
-    // The other half of § 3's sentence is *not* this pass's, asserted here so
-    // that widening it fails a test rather than a conformance case: an empty
+    // The other half of that second sentence is *not* this pass's, asserted
+    // here so that widening it fails a test rather than a conformance case: an empty
     // literal is written text, and `to-source-refuses-an-empty-reason-….nvst`
     // pins the body's throw over it.
     let empty = check_in_method(

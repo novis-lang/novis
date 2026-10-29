@@ -324,7 +324,7 @@ pub enum ArgSlot {
 /// The two labels `rule:classes/property-observer-pipeline`'s observer step dispatches through, recorded on
 /// a property access whose receiver's class implements `PropertyObserver`.
 ///
-/// § 3 makes the observer a *second* step over every read and write of every
+/// The pipeline makes the observer a *second* step over every read and write of every
 /// declared property, hooked or not, so it hangs off the access rather than
 /// off the property: one entry answers both `ExprInfo::Property` and
 /// `ExprInfo::HookedProperty`, and the consumer picks the half its direction
@@ -339,7 +339,7 @@ pub enum ArgSlot {
 /// implements the interface and declares neither body is refused there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObserverCalls {
-    /// `onPropertyGet`'s fallback label — the read half of § 3's pipeline.
+    /// `onPropertyGet`'s fallback label — the read half of the pipeline.
     pub get: Option<String>,
     /// `onPropertySet`'s fallback label — the write half.
     pub set: Option<String>,
@@ -377,24 +377,25 @@ pub struct PathNode {
 /// its own leading `/`: concatenating them left to right rebuilds the route's
 /// declared path with every capture substituted.
 ///
-/// The route's `path` is **not** carried beside this. § 2's grammar is read
-/// once, by [`crate::routes::link_pieces`], and what crosses to `nvs-ir` is its
-/// answer: a fold and its runtime path are one implementation, and a template
-/// the runtime re-parsed would be a second copy of § 2's grammar.
+/// The route's `path` is **not** carried beside this.
+/// `rule:routing/path-grammar` is read once, by [`crate::routes::link_pieces`],
+/// and what crosses to `nvs-ir` is its answer: a fold and its runtime path are
+/// one implementation, and a template the runtime re-parsed would be a second
+/// copy of the path grammar.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UrlPiece {
     /// A fixed segment, `/` included — compared byte for byte at match time
     /// (`rule:classes/names-resolve-case-sensitively`),
     /// so it is copied out exactly as declared.
     Literal(String),
-    /// `{name}`: `/` and then `$params[name]`, percent-encoded — § 4's launder
-    /// for the URL-path sink.
+    /// `{name}`: `/` and then `$params[name]`, percent-encoded — the link's
+    /// launder for the URL-path sink.
     Required(String),
     /// `{name?}`: [`Self::Required`], or nothing at all — its `/` included —
     /// where `$params` holds no such key.
     Optional(String),
     /// `{name...}`: `/` and then `$params[name]`, whose own `/`s are the one
-    /// thing not percent-encoded, because § 2 gives this form every remaining
+    /// thing not percent-encoded, because the path grammar gives this form every remaining
     /// segment rather than one.
     Rest(String),
 }
@@ -589,7 +590,8 @@ pub enum ExprInfo {
         /// `T` whose constructor is not compatible with it (`E0794`).
         ctor: Option<ResolvedCall>,
         /// The expression's own result type — always `Ty::Class(bound)`, which
-        /// is § 4's "resolves against `T`" as a consumer sees it.
+        /// is `rule:types/class-reference-sites`' "resolves against `T`" as a
+        /// consumer sees it.
         ty: TypeId,
     },
     /// `$cls::f` over a `class<T>` class side — `rule:types/class-reference-sites`'s second
@@ -774,14 +776,14 @@ pub enum ExprInfo {
     /// actually needs — no layout table is consulted at all.
     ///
     /// A name the shape does *not* list, and a plain `object` receiver, are
-    /// § 4's fully **erased** half and record this same variant — the name is
-    /// all an erased access has, and the name is what the fetch is keyed on
-    /// either way. Both carry `slot: 0` and a `ty` of `mixed`: there is no
-    /// static layout to hint from, so the runtime's by-name search answers or
-    /// § 4's catchable missing-name throw fires. A consumer therefore cannot
-    /// read `slot` as a proven offset or `ty` as a proven type — only the
-    /// *shape-listed* case is either, which is why neither is worth
-    /// distinguishing at the consumer.
+    /// `rule:types/erased-member-access`'s fully **erased** half and record
+    /// this same variant — the name is all an erased access has, and the name
+    /// is what the fetch is keyed on either way. Both carry `slot: 0` and a
+    /// `ty` of `mixed`: there is no static layout to hint from, so the runtime's
+    /// by-name search answers or the erased access's catchable missing-name
+    /// throw fires. A consumer therefore cannot read `slot` as a proven offset
+    /// or `ty` as a proven type — only the *shape-listed* case is either, which
+    /// is why neither is worth distinguishing at the consumer.
     ShapeProperty {
         /// The field's own name, `$`-sigil not included. What the runtime
         /// fetch is keyed on: `rule:types/erased-member-access` makes the read name-keyed, because
@@ -912,9 +914,10 @@ pub enum ExprInfo {
     /// whole message, the way [`Self::EnumCase`] carries a value the AST
     /// alone does not hold.
     ///
-    /// Recorded for a `secret` operand on **either** side, per § 5's own
-    /// reading: where exactly one is `secret`, § 2 has already poisoned the
-    /// value that reached the other, so the pair is `secret`.
+    /// Recorded for a `secret` operand on **either** side, per the constant-time
+    /// rule's own reading: where exactly one is `secret`,
+    /// `rule:security/secret-propagation` has already poisoned the value that
+    /// reached the other, so the pair is `secret`.
     SecretEquality,
     /// `$a + $b` over two sink carriers of the same kind, keyed by the `+`
     /// expression's own span —
@@ -1137,17 +1140,17 @@ pub enum ExprInfo {
     ClassNameOf,
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
     /// written-out string —
-    /// `rule:types/property-key`'s `string` and `property<U>` rows, with `T`'s public roster already
-    /// resolved.
+    /// `rule:types/property-key`'s `string` and `property<U>` rows, with `T`'s
+    /// public roster already resolved.
     ///
     /// Recorded because the roster is the one thing the erasure loses. A key's
     /// values are `T`'s public declared property names; `property<T>` erases to
     /// [`nvs_ir`'s `Ty::Str`](/crates/nvs-ir/src/ty.rs) because a key
     /// *is* a name, and `nvs-ir` holds no class table to re-derive the set
-    /// from. So the set travels here and § 2's two checked rows lower to the
-    /// same compile-time-known membership chain `rule:types/enum-case-type`'s set of allowed values
-    /// already does — one `BinOp::Eq` per name, and a throw where every one of
-    /// them missed.
+    /// from. So the set travels here and those two checked rows lower to the
+    /// same compile-time-known membership chain `rule:types/enum-case-type`'s
+    /// set of allowed values already does — one `BinOp::Eq` per name, and a
+    /// throw where every one of them missed.
     ///
     /// Keyed by the **annotation's** span rather than by the conversion
     /// expression's, the way [`ExprTypeTable::declared_ty`] already is and for
@@ -1158,7 +1161,7 @@ pub enum ExprInfo {
     /// declared type and this entry share the span without either shadowing the
     /// other.
     ///
-    /// A **written-out** operand records nothing at all: § 2 decides `"email"
+    /// A **written-out** operand records nothing at all: the checker decides `"email"
     /// as property<User>` where it is written, so it pays nothing at run time
     /// and there is no set for it to be tested against.
     PropertyKey {
@@ -1202,9 +1205,9 @@ pub enum ExprInfo {
     /// of this table and has no fallback for a span with no entry. Keyed by the
     /// access expression's own span, like every other property entry.
     ///
-    /// **Both directions lower to `rule:types/erased-member-access`'s erased access** — § 5's own
-    /// decision, recorded in that section: the name is resolved against the
-    /// receiver's concrete descriptor at run time, so nothing here carries a
+    /// **Both directions lower to `rule:types/erased-member-access`'s erased
+    /// access** — `rule:types/property-key-access`'s own decision: the name is
+    /// resolved against the receiver's concrete descriptor at run time, so nothing here carries a
     /// slot to hint with. A key names one of `T`'s public properties and the
     /// receiver satisfies `T`, but *which* name it holds is exactly what is not
     /// known until the access runs. That is why the alternative — a closed-set
@@ -1214,7 +1217,7 @@ pub enum ExprInfo {
         /// The class the key is bounded by, rendered: `T` of the operand's
         /// `property<T>`, which the receiver was checked to satisfy.
         class: String,
-        /// § 5's union of `T`'s public declared property types — what a read
+        /// The union of `T`'s public declared property types — what a read
         /// answers, and what a write must satisfy at least one member of.
         /// [`crate::ty::TypeInterner::mixed`] where `T` declares no
         /// public property at all, a class whose keys have no value.
@@ -1224,7 +1227,7 @@ pub enum ExprInfo {
     /// `rule:programs/implementing`'s enumeration, already answered.
     ///
     /// The sibling of [`ExprInfo::CoreConst`] for a fold whose answer is not a
-    /// constant: § 3 expands the call "to an array literal of `new`
+    /// constant: the rule expands the call "to an array literal of `new`
     /// expressions", and a `new` allocates. So what is recorded is the *list*
     /// rather than a value, and `nvs-ir` emits one `InstKind::New` per entry
     /// into one `InstKind::ArrayNew` — exactly the instructions the array
@@ -1299,12 +1302,12 @@ pub enum ExprInfo {
     /// Recorded *over* the [`ExprInfo::Call`] the same span already carries,
     /// rather than instead of it, and that is the difference from
     /// [`ExprInfo::ProgramInstances`]: the fold cannot run where the call is
-    /// typed, because the route it names may be declared in a file § 5's scan
-    /// has not reached yet. So [`crate::links`] records the site during the
+    /// typed, because the route it names may be declared in a file the table's
+    /// scan has not reached yet. So [`crate::links`] records the site during the
     /// walk and resolves it against the finished table afterwards, and the
     /// later recording wins the span (see [`ExprTypeTable::record`]). A
     /// *computed* name records nothing here and keeps its `Call`, which is how
-    /// § 4's "a computed `$name` throws" stays true.
+    /// the link rule's "a computed `$name` throws" stays true.
     RouteLink {
         /// The resolved call this link is recorded over, copied out of the
         /// `Call` entry it takes the span from. Lowering reads the link and not
@@ -1313,7 +1316,8 @@ pub enum ExprInfo {
         /// variant does not widen every entry; it spends one copy of the call
         /// per resolved link, per compile.
         call: Box<ResolvedCall>,
-        /// The named route's declared path, already split by § 2's grammar.
+        /// The named route's declared path, already split by
+        /// `rule:routing/path-grammar`.
         pieces: Vec<UrlPiece>,
         /// `true` for `urlAbsolute`, which prepends `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured
         /// origin in front of everything `url` builds.
@@ -1332,7 +1336,7 @@ pub enum ExprInfo {
         /// every other link, which is most of them.
         ///
         /// Here rather than inside a [`UrlPiece`] because it is not a property
-        /// of the *path*: [`crate::routes::link_pieces`] reads § 2's grammar and
+        /// of the *path*: [`crate::routes::link_pieces`] reads the path grammar and
         /// the spelling comes off the handler's signature, so joining the two in
         /// one variant would make the only reading of that grammar answer a
         /// second question. [`crate::links`]' `spellings` is where they meet.
@@ -1370,7 +1374,8 @@ pub enum ExprInfo {
     ///
     /// Recorded rather than re-derived for [`ExprInfo::TypeTest`]'s reason
     /// twice over. The capture set is "exactly the outer variables its body
-    /// reads" (§ 2), which is a fact only the checker's own scope walk knows;
+    /// reads" (`rule:types/implicit-capture`), which is a fact only the
+    /// checker's own scope walk knows;
     /// and an expression body's return type is inferred from that body, which
     /// is the checker's job by definition.
     AnonFn {
@@ -1380,9 +1385,11 @@ pub enum ExprInfo {
         class: String,
         /// Every outer binding the body reads or writes, in first-touch
         /// order — the field order of the class above. `$this` appears here
-        /// under the name `this`, which is `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "an anonymous function binds
-        /// `$this` only where the body uses it" falling straight out of § 2's
-        /// capture rule rather than needing a rule of its own.
+        /// under the name `this`, which is
+        /// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s
+        /// "an anonymous function binds `$this` only where the body uses it"
+        /// falling straight out of `rule:types/implicit-capture` rather than
+        /// needing a rule of its own.
         captures: Vec<(String, TypeId)>,
         /// The value the body produces — the declared return type, or, for an
         /// expression body with none written, the type inferred from that
@@ -2152,7 +2159,8 @@ impl ExprTypeTable {
     /// One table per format rather than one keyed by both, because the two are
     /// read by different consumers for different reasons — the JSON half by
     /// `nvs_ir::lower::lower_file`, the row half by the driver work — and a
-    /// class carrying both attributes has two independent contracts (§ 3).
+    /// class carrying both attributes has two independent contracts, one per
+    /// format's own `Field` attribute.
     pub(crate) fn record_codec(
         &mut self,
         format: crate::derive::Format,
@@ -2246,20 +2254,20 @@ impl ExprTypeTable {
     /// reaches the call.
     ///
     /// A `Vec` and not a map: the key a consumer joins on is the snapshot's
-    /// *text*, which is not unique by design — § 14's workflow starts every
+    /// *text*, which is not unique by design — the updater's workflow starts every
     /// snapshot at `""` — so the table keeps every row and the runner is the
     /// one place that decides an ambiguous join is not rewritable.
     pub(crate) fn record_inline_snapshot(&mut self, row: crate::testing::InlineSnapshot) {
         self.inline_snapshots.push(row);
     }
 
-    /// How many § 14 rows have been recorded so far — the mark
+    /// How many inline-snapshot rows have been recorded so far — the mark
     /// [`Self::own_inline_snapshots`] stamps from.
     pub(crate) fn inline_snapshot_mark(&self) -> usize {
         self.inline_snapshots.len()
     }
 
-    /// Names `label` as the owner of every § 14 row recorded at or after
+    /// Names `label` as the owner of every inline-snapshot row recorded at or after
     /// `mark` — `crate::check::check_method`'s one call, made once the body
     /// has been walked.
     ///
@@ -2403,9 +2411,11 @@ impl ExprTypeTable {
         self.properties.remove(label);
     }
 
-    /// Records `rule:routing/table-is-opt-in`'s finished route table — every `#[Route]` in the
-    /// program, collected across its files and already held to §§ 1-3's
-    /// compile errors by [`crate::routes::check_table`].
+    /// Records `rule:routing/table-is-opt-in`'s finished route table — every
+    /// `#[Route]` in the program, collected across its files and already held to
+    /// the compile errors of `rule:routing/route-attribute`,
+    /// `rule:routing/path-grammar` and their siblings by
+    /// [`crate::routes::check_table`].
     ///
     /// Written once, at the end of [`crate::check::check_program`], rather than
     /// row by row as the walk reaches each class: the two errors that are
@@ -2440,8 +2450,8 @@ impl ExprTypeTable {
     ///
     /// A **computed** name is not one of these, and cannot be: it records no
     /// [`ExprInfo::RouteLink`] at all (that variant's doc owns why), so its
-    /// origin is still a throw at the call. Which is § 3's own wording — the
-    /// check is over a literal call — rather than a limit of this walk.
+    /// origin is still a throw at the call. Which is the rule's own wording —
+    /// the check is over a literal call — rather than a limit of this walk.
     #[must_use]
     pub fn links_absolutely(&self) -> bool {
         self.entries
@@ -2449,9 +2459,10 @@ impl ExprTypeTable {
             .any(|info| matches!(info, ExprInfo::RouteLink { absolute: true, .. }))
     }
 
-    /// Records `rule:tooling/commands-are-compiled`'s finished command table — every `#[Command]` in
-    /// the program, collected across its files and already held to § 6's
-    /// duplicate-name error by [`crate::commands::check_table`].
+    /// Records `rule:tooling/commands-are-compiled`'s finished command table —
+    /// every `#[Command]` in the program, collected across its files and already
+    /// held to that rule's duplicate-name error by
+    /// [`crate::commands::check_table`].
     ///
     /// [`Self::record_routes`]'s arrangement, for its reason: the error that is
     /// a question about the whole enumeration is reported over the collected
@@ -2651,15 +2662,16 @@ impl ExprTypeTable {
     }
 
     /// Records what [`crate::intrinsics`]'s fold prepared out of the literal a
-    /// call at `call` was written with — § 3's second effect settled while
-    /// checking, rather than left for the first call to discover.
+    /// call at `call` was written with — the preparation of
+    /// `rule:expressions/intrinsic-constant-arguments` settled while checking,
+    /// rather than left for the first call to discover.
     ///
     /// [`Self::record_require_target`]'s reason for riding here, with one
     /// addition of its own: what preparation answers is a property of the text
     /// and not of the machine, so recording it once is not a cache that can go
     /// stale between this run and the run that reads it. `nvs-ir` is the only
     /// consumer, and a call with no entry is one whose argument was not a
-    /// literal — § 2's rule that nothing is refused for being dynamic applies
+    /// literal — the rule that nothing is refused for being dynamic applies
     /// to what is *recorded* just as it does to what is refused.
     ///
     /// **Filed under the call, and naming the literal.** The address is the

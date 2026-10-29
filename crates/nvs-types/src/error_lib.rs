@@ -165,8 +165,8 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     interner.make_union([code, null])
                 }
                 // `Core\Db\DbError::$constraint` — the same `?string` as
-                // `sqlState`, and absent far more often: § 8's kinds are
-                // conditions, and only some of them — a unique, foreign-key,
+                // `sqlState`, and absent far more often: `rule:core-classes/db-error`'s
+                // kinds are conditions, and only some of them — a unique, foreign-key,
                 // not-null or check violation — have a constraint to name at
                 // all. A syntax error or a permission answers `null` on every
                 // driver there will ever be.
@@ -176,11 +176,12 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     interner.make_union([text, null])
                 }
                 // `Core\Db\DbError::$sql` — the statement that was refused, and
-                // a plain `string` rather than a `tainted` one because § 8 only
-                // allows the text on the error at all on the grounds that it is
-                // developer-authored; a bound value, which is where the
-                // request's own bytes are, never joins it. `?string` for the
-                // member that has no caller-written statement to name — § 7's
+                // a plain `string` rather than a `tainted` one because
+                // `rule:core-classes/db-error` only allows the text on the error at
+                // all on the grounds that it is developer-authored; a bound value,
+                // which is where the request's own bytes are, never joins it.
+                // `?string` for the member that has no caller-written statement to
+                // name — a transaction's (`rule:core-classes/db-transactions`)
                 // `BEGIN` and `COMMIT` are the runtime's own.
                 "sql" => {
                     let text = interner.string();

@@ -340,8 +340,9 @@ class Handle {
     assert!(!diags.has_errors(), "{diags:?}");
 
     // And they disagree the other way round on `bytes`, which is a `BLOB`
-    // column and has no JSON spelling at all (`rule:types/bytes`). `decimal` and § 9's
-    // date and time classes are columns too.
+    // column and has no JSON spelling at all (`rule:types/bytes`). `decimal` and
+    // the date and time classes of `rule:core-classes/db-column-types` are
+    // columns too.
     let scalars = "<?nvs
 #[Core\\{0}\\Derive]
 class Row {

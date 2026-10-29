@@ -44,9 +44,9 @@ pub enum Ty {
     Uint,
     /// `float`
     Float,
-    /// `decimal` — `rule:types/decimal`: a 96-bit signed mantissa and a scale of 0 to
-    /// 28. Distinct from [`Self::Float`] and never assignable to or from it,
-    /// which is what makes § 3's `decimal ⊕ float` compile error expressible.
+    /// `decimal` — `rule:types/decimal`: a 96-bit signed mantissa and a scale of
+    /// 0 to 28. Distinct from [`Self::Float`] and never assignable to or from
+    /// it, which is what makes the `decimal ⊕ float` compile error expressible.
     Decimal,
     /// `string`
     String,
@@ -143,7 +143,7 @@ pub enum Ty {
     /// expression is an ordinary [`Self::Bool`] unless the position names
     /// this type — widens the same way ([`TypeInterner::single_value_base`]), and
     /// erases the same way, to [`Self::Bool`]'s own representation
-    /// (§ 5, `nvs_ir::lower::erase_checked_ty`).
+    /// (`rule:types/single-value-types`, `nvs_ir::lower::erase_checked_ty`).
     True,
     /// `false` — [`Self::True`]'s other half, in every respect.
     False,
@@ -169,19 +169,20 @@ pub enum Ty {
     ///
     /// `i64`, so the value is always one an `int` can hold: a magnitude past
     /// `int`'s range is diagnosed where the atom is lowered rather than
-    /// widened to `uint` here, because `rule:types/single-value-types` gives the atom one base
-    /// type and a second one would make `1`'s meaning depend on its
-    /// neighbours. There is deliberately no `float` counterpart (§ 7).
+    /// widened to `uint` here, because `rule:types/single-value-types` gives the
+    /// atom one base type and a second one would make `1`'s meaning depend on
+    /// its neighbours. The same rule leaves it deliberately without a `float`
+    /// counterpart.
     SingleValueInt(i64),
     /// `Mode::Read` — `rule:types/enum-case-type`: a subtype of the enum inhabited by exactly
     /// one of its cases, carrying the enum's `QName`, its backing type, and
     /// the case's own name.
     ///
     /// Deliberately **not** [`Self::SingleValueInt`] of the case's backing value,
-    /// which is the whole of § 3: folding it that way would let a bare `int`
-    /// satisfy an enum-typed parameter, reopening the hole
-    /// `rule:types/conversion` closed
-    /// by making `int → Mode` a checked conversion. An enum-case type and an
+    /// which is the whole of `rule:types/enum-case-type`: folding it that way
+    /// would let a bare `int` satisfy an enum-typed parameter, reopening the
+    /// hole `rule:types/conversion` closed by making `int → Mode` a checked
+    /// conversion. An enum-case type and an
     /// int single-value type that happen to share a value are never unified by
     /// canonicalisation, because they are not the same `Ty`.
     ///
@@ -189,7 +190,7 @@ pub enum Ty {
     /// part of what the type *is*, and it is what lets this erase to the
     /// enum's existing zero-byte tag at the `nvs-ir` boundary with no
     /// re-resolution. The case *name* rides along rather than its value
-    /// because § 6's diagnostic names `Mode::Read`, and the value is one
+    /// because the subset mismatch (`E0470`) names `Mode::Read`, and the value is one
     /// [`crate::enums::EnumTable::case`] lookup away for anything that needs
     /// it.
     EnumCase(QName, crate::enums::EnumBacking, String),
@@ -277,9 +278,10 @@ pub enum Ty {
     /// type its cases are constants of.
     ///
     /// The backing type rides in the type itself rather than in a side table
-    /// because it *is* part of what the type is: `rule:enums/one-backing-type` gives every enum
-    /// exactly one underlying integer type, and § 6 makes an enum value that
-    /// integer's representation with names attached. Carrying it here is what
+    /// because it *is* part of what the type is: `rule:enums/one-backing-type`
+    /// gives every enum exactly one underlying integer type, and
+    /// `rule:enums/representation` makes an enum value that integer's
+    /// representation with names attached. Carrying it here is what
     /// lets `nvs-ir` lower an enum-typed binding to a machine integer without
     /// re-resolving the declaration (`nvs_ir::lower::erase_checked_ty`). It is
     /// a function of the `QName`, so it never splits one enum into two
@@ -919,7 +921,7 @@ impl TypeInterner {
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
     /// The checker-side counterpart of `nvs_ir::lower::erase_checked_ty`'s
-    /// erasure — § 5 gives a single-value type no representation of its own, so
+    /// erasure — the rule gives a single-value type no representation of its own, so
     /// every question about what a value of one can *do* is a question about
     /// its base. A union is widened member-wise, which is what makes
     /// `"a"|"b"` widen to `string` rather than to itself.
@@ -1287,9 +1289,9 @@ mod tests {
         assert_eq!(i.describe(case), "App\\Mode::Read");
     }
 
-    /// § 3's whole point, at the representation: a case and an int literal of
-    /// its backing value are two `TypeId`s, so nothing can unify them by
-    /// accident.
+    /// `rule:types/enum-case-type`'s whole point, at the representation: a case
+    /// and an int literal of its backing value are two `TypeId`s, so nothing can
+    /// unify them by accident.
     #[test]
     fn an_enum_case_type_never_interns_as_its_backing_value() {
         let mut i = TypeInterner::new();

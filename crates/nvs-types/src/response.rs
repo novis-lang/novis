@@ -1,7 +1,7 @@
 //! `rule:security/response-body-is-one-typed-member`
 //! 's sixth row: one response has one body writer.
 //!
-//! § 4 replaces `Core\Response::write` with five typed members, each owning one
+//! The rule replaces `Core\Response::write` with five typed members, each owning one
 //! body shape and setting its own `Content-Type`, and then makes "`echo` and a
 //! typed writer on the same response" a compile error — "they disagree about
 //! the body's type and its `Content-Type`, and silently letting the last one
@@ -12,10 +12,11 @@
 //! it.
 //!
 //! **Checked where a response is statically certain, which is a `#[Route]`
-//! handler and nothing else.** § 3 binds `echo` by *context*, not by syntax:
-//! the same method body writes a response body under an HTTP request and a
-//! terminal sink under `nvs run`, and which one a given body runs as is a
-//! run-time fact for every body but one. `rule:routing/matched-once-before-the-handler` matches a request to a
+//! handler and nothing else.** `rule:tooling/echo-always-has-a-sink` binds
+//! `echo` by *context*, not by syntax: the same method body writes a response
+//! body under an HTTP request and a terminal sink under `nvs run`, and which one
+//! a given body runs as is a run-time fact for every body but one.
+//! `rule:routing/matched-once-before-the-handler` matches a request to a
 //! `#[Route]` handler and to nothing else, so a handler is a response body by
 //! declaration and the rule has something to be about. Everywhere else is left
 //! alone rather than refused on suspicion: a `#[Command]` method, a `#[Test]`
@@ -28,15 +29,16 @@
 //! (`tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst`).
 //!
 //! **A mount's entry script is the one response this refusal does not reach,
-//! and § 3's default answers it instead.** `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5
-//! run a `.nvs` file's *top-level frame* as the request body, so an entry that
-//! echoes a page and also calls a body member is § 4's sixth row and is not
-//! refused here. That is the bound the scope above costs, and it is held rather
+//! and `rule:tooling/echo-always-has-a-sink`'s default answers it instead.**
+//! `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5 run a
+//! `.nvs` file's *top-level frame* as the request body, so an entry that echoes
+//! a page and also calls a body member is the sixth row and is not refused
+//! here. That is the bound the scope above costs, and it is held rather
 //! than closed: the same file is one compiled unit whether the server ran it or
 //! `nvs run` did, so a static refusal there would refuse the CLI use of every
 //! such file, and the fact that would tell the two apart — a declaration that a
 //! file is an entry — is not one the language has. The entry-script half of
-//! § 4's row is therefore defined behaviour rather than an arbitration: `echo`
+//! the sixth row is therefore defined behaviour rather than an arbitration: `echo`
 //! means `text/html`, and a body member written beside it wins the
 //! `Content-Type` it declared last.
 //!

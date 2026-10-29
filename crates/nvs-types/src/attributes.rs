@@ -2,17 +2,17 @@
 //! a compile-time constant, and the named form's `Name` is a shape-typed
 //! `type` alias the literal is then checked against.
 //!
-//! § 2's rule is one sentence and the reason it is *this* sentence rather than
-//! a taste is in that section: the whole literal is resolved once, at compile
-//! time, into the compiled unit's constant pool — the storage class an enum
-//! case's backing integer and a class constant already use — so there is no
-//! moment at which a variable could be read, a call made or a `new`
-//! constructed. PHP's attributes do have that moment (a real object is built
+//! `rule:attributes/payload-is-a-compile-time-constant` is one sentence, and the
+//! reason it is *this* sentence rather than a taste is in that rule: the whole
+//! literal is resolved once, at compile time, into the compiled unit's constant
+//! pool — the storage class an enum case's backing integer and a class constant
+//! already use — so there is no moment at which a variable could be read, a call
+//! made or a `new` constructed. PHP's attributes do have that moment (a real object is built
 //! the first time `ReflectionAttribute::newInstance()` is called) and Novis's
 //! deliberately do not, so the refusal here is what keeps the two
 //! halves of that decision from disagreeing.
 //!
-//! § 1's rule is what makes the named form sugar rather than a second
+//! `rule:attributes/attach-sites-and-forms` is what makes the named form sugar rather than a second
 //! namespace: `Name` is never a class, never a new kind of attribute and
 //! never anything to instantiate — it is a pre-existing `type` alias whose
 //! right-hand side is a shape, and the payload is then checked against it by
@@ -24,9 +24,10 @@
 //! The member form `Owner::Name` names an alias declared in `Owner`'s body and
 //! is resolved as that type atom is ([`resolve_member_shape_alias`]).
 //!
-//! One consequence of § 2 is checked from here but owned elsewhere: `rule:security/secret-sinks-refuse`
-//! 's sink for a `secret` class constant reaching a payload is
-//! `crate::expr::quals`', where every other sink already lives.
+//! One consequence of the constant payload is checked from here but owned
+//! elsewhere: `rule:security/secret-sinks-refuse`'s sink for a `secret` class
+//! constant reaching a payload is `crate::expr::quals`', where every other sink
+//! already lives.
 //! [`check_value`] calls it at each value it reaches, that walk being the one
 //! place every payload value passes.
 
@@ -256,11 +257,12 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         }
         return;
     };
-    // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are the one exemption to
-    // § 1's "the name is a shape-typed alias", and it is a closed,
-    // `Core`-owned roster rather than an escape hatch: such a name is matched
-    // *nominally*, so what its payload may hold is the recognizing pass's own
-    // option check rather than a shape. § 1's rule is about the userland
+    // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are
+    // the one exemption to `rule:attributes/attach-sites-and-forms`'s "the name
+    // is a shape-typed alias", and it is a closed, `Core`-owned roster rather
+    // than an escape hatch: such a name is matched *nominally*, so what its
+    // payload may hold is the recognizing pass's own option check rather than a
+    // shape. The alias rule is about the userland
     // names, which are the only ones that could ever be aliases. The name is
     // resolved once, here, so that the roster test and the alias lookup below
     // cannot place one `Name` two different ways.
@@ -292,11 +294,12 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         return;
     }
     // Deliberately the ordinary shape-typed position's check, run over an
-    // empty scope: § 2 has just proved there is no variable in this payload,
-    // so no binding can be read and none can be captured. An array literal is
-    // then retyped to its field's array type where every element fits it, the
-    // check a retrieval makes, so a payload accepted here is the payload
-    // `Core\Attributes::get<Name>` finds.
+    // empty scope: the constant-payload check
+    // (`rule:attributes/payload-is-a-compile-time-constant`) has just proved
+    // there is no variable in this payload, so no binding can be read and none
+    // can be captured. An array literal is then retyped to its field's array
+    // type where every element fits it, the check a retrieval makes, so a
+    // payload accepted here is the payload `Core\Attributes::get<Name>` finds.
     let mut live = Live::default();
     let scope = LocalScope::new();
     let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
@@ -547,7 +550,8 @@ pub(crate) fn check_roster(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    // The scope is empty and stays empty: § 2 has just proved this payload
+    // The scope is empty and stays empty: the constant-payload check has just
+    // proved this payload
     // reads no variable, so there is no binding to mark live and none to
     // capture.
     let mut live = Live::default();
@@ -614,8 +618,9 @@ fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
 /// the **ordinary** `E0303` any unresolvable name is — an attribute name is
 /// not a new namespace, so it does not get a "no such attribute" of its own.
 /// A name that resolves to something that is not a shape-typed alias is
-/// `E0726`: a class is the spelling this exists to refuse, § 1 giving an
-/// attribute no kind to instantiate, and a `type Id = int;` is the same
+/// `E0726`: a class is the spelling this exists to refuse,
+/// `rule:attributes/attach-sites-and-forms` giving an attribute no kind to
+/// instantiate, and a `type Id = int;` is the same
 /// mistake one step along. Only a shape is handed back, and then the payload
 /// is checked against it.
 ///
@@ -796,16 +801,17 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         | ExprKind::Duration(_)
         | ExprKind::Str(_)
         // `Class::CONST` — a class constant, and `rule:enums/closed-integer-type`'s enum case with it,
-        // which is the one spelling § 2 names beside a literal.
+        // which is the one spelling `rule:attributes/payload-is-a-compile-time-constant`
+        // names beside a literal.
         | ExprKind::ClassConstAccess { .. }
-        // `Class::class`, which § 2's list already covers: it *is* a class
+        // `Class::class`, which that rule's list already covers: it *is* a class
         // constant, and the only one whose value the compiler resolves rather
         // than reads — `crate::expr::members::check_class_name_const` folds it
         // to the fully qualified name with no runtime step at all. Admitted
         // because `rule:attributes/api-adds-and-cannot-contradict` writes an `errors` entry's `type` as a name,
         // and a name is either this spelling or a magic string; `rule:programs/no-runtime-autoload`'s
         // whole premise is that a name resolves, so the string form would be
-        // the one thing § 2 exists to refuse.
+        // the one thing the constant-payload rule exists to refuse.
         | ExprKind::ClassNameConst { .. }
         | ExprKind::ArrayLiteral(_)
         | ExprKind::AnonObject(_) => true,

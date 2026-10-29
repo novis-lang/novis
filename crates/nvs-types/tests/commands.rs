@@ -4,10 +4,11 @@
 //!
 //! What is asserted here is what the two names *are*: recognized after
 //! `nvs_hir::resolve_ref`, checked against a roster of options rather than
-//! against a shape, held to the two of § 6's three compile errors one parameter
-//! list answers on its own — and collected into the table the third is reported
-//! over, which is `ExprTypeTable::commands` and is the channel § 6's dispatch,
-//! usage text and completions all read.
+//! against a shape, held to the two of the rule's three compile errors one
+//! parameter list answers on its own — and collected into the table the third
+//! is reported over, which is `ExprTypeTable::commands` and is the channel the
+//! dispatch, usage text and completions of
+//! `rule:tooling/command-run-dispatches-and-help-is-generated` all read.
 //!
 //! The marker's own placement is asserted here too: an `#[Option]` is refused
 //! where no `#[Command]` on the same method reads it, which is a question about
@@ -31,7 +32,7 @@ const SLUG: &str = "class Slug implements Parses {\n  \
                     public static function parse(tainted string $s): static \
                     { return new static($s); }\n}\n";
 
-/// § 6's own example, reduced to the two attributes and the one class member
+/// The rule's own example, reduced to the two attributes and the one class member
 /// they attach to. The placing import is per *name* — `use Core\Command;`
 /// aliases `Command`, exactly as `use Core\Test;` aliases `Test` for
 /// `#[Test]`; a `use Core;` aliases only `Core` itself and leaves a bare
@@ -45,7 +46,7 @@ fn a_command_and_an_option_are_matched_nominally_rather_than_as_shapes() {
     // Fully qualified needs no import at all. Before both names joined
     // `nvs_types::derive::ATTRIBUTES` this was `E0726` four times over —
     // `Core\Command` is not a `type` alias and was never going to be one,
-    // because § 6 builds a table from it and a userland alias must not
+    // because the compiler builds a table from it and a userland alias must not
     // contribute a command.
     let diags = check_src(
         "<?nvs\nclass Deploy {\n  #[Core\\Command(name: \"deploy\", about: \"Push it\")]\n  \
@@ -72,7 +73,7 @@ fn a_command_and_an_option_are_matched_nominally_rather_than_as_shapes() {
 
 #[test]
 fn a_bare_option_is_the_whole_attribute_and_carries_no_payload() {
-    // § 6: a parameter is a positional argument unless it carries `#[Option]`.
+    // A parameter is a positional argument unless it carries `#[Option]`.
     // The marker on its own is what most parameters will write, so it has to
     // pass the payload check that an empty field list walks zero times.
     let diags = check_src(&command_src(
@@ -120,7 +121,7 @@ fn an_option_value_is_a_string_and_is_written_once() {
 
 #[test]
 fn two_options_sharing_a_spelling_are_a_diagnostic() {
-    // § 6's second compile error. A short spelling is claimed explicitly, so
+    // The rule's second compile error. A short spelling is claimed explicitly, so
     // two `short: "n"` on one method leave `-n` with two answers and the
     // parser with none.
     let diags = check_src(&command_src(
@@ -163,7 +164,8 @@ fn two_options_sharing_a_spelling_are_a_diagnostic() {
 
 #[test]
 fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
-    // § 6's third compile error, which is `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster
+    // The rule's third compile error, which is
+    // `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster
     // applied unchanged: an argument arrives as text, so a parameter no text
     // can become is an option that could never be given.
     let diags = check_src(&command_src(
@@ -191,7 +193,7 @@ fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
 
     // A parameter carrying no `#[Option]` is a positional argument and is
     // converted the same way — but it is not this refusal's business, because
-    // § 6 gives the marker the meaning and the roster follows the marker.
+    // the marker carries the meaning and the roster follows the marker.
     let diags = check_src(&command_src(
         "  #[Command(name: \"deploy\")]\n  public static function deploy(\n    \
          array<string> $targets,\n  ): void {}\n",
@@ -201,7 +203,7 @@ fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
 
 #[test]
 fn an_option_marker_outside_a_command_method_is_refused() {
-    // § 6 gives `#[Option]` its meaning on a `#[Command]` method's parameter,
+    // `#[Option]` has its meaning only on a `#[Command]` method's parameter,
     // so the same declaration with the `#[Command]` taken away supplies the
     // argument from nowhere. The refusal is the walk over *every* method's
     // doing: the command pass visits only the methods a `#[Command]` marks, so
@@ -249,7 +251,7 @@ fn an_option_marker_outside_a_command_method_is_refused() {
     );
 }
 
-/// § 6's own example, whole, plus a second command that shares nothing with it
+/// The rule's own example, whole, plus a second command that shares nothing with it
 /// — enough for the table to be a table rather than a row.
 const PROGRAM: &str = "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Deploy {\n  \
                        #[Command(name: \"deploy\", about: \"Push the current build\")]\n  \
@@ -261,9 +263,10 @@ const PROGRAM: &str = "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Deplo
 
 #[test]
 fn a_command_table_is_built_from_the_program_enumeration() {
-    // § 6 is `rule:routing/routes-are-compiled-not-registered`'s table with the route swapped for a command, over the
-    // same `rule:programs/implementing` enumeration, so what is asserted is what the route
-    // table's own case asserts: the rows exist, they are in load order, and
+    // The command table is `rule:routing/routes-are-compiled-not-registered`'s
+    // table with the route swapped for a command, over the same
+    // `rule:programs/implementing` enumeration, so what is asserted is what the
+    // route table's own case asserts: the rows exist, they are in load order, and
     // they are reachable through `ExprTypeTable` — the channel every
     // whole-program fact crosses to `nvs-ir` by. Nothing reads them back yet;
     // `Core\Command::run` is a later goal's.
@@ -278,7 +281,7 @@ fn a_command_table_is_built_from_the_program_enumeration() {
     let names: Vec<&str> = table.rows().iter().map(|row| row.name.as_str()).collect();
     assert_eq!(names, ["deploy", "status"]);
 
-    // The name is the one lookup a command is found by — § 6's dispatch reads
+    // The name is the one lookup a command is found by — the dispatch reads
     // exactly this — and `about` is carried because `::help` is generated from
     // the table rather than written by hand.
     let deploy = table.named("deploy").expect("the named command");
@@ -337,7 +340,7 @@ fn a_command_table_is_built_from_the_program_enumeration() {
     );
 
     // Nominal, like every other name on the closed roster: a userland alias
-    // spelled `Command` contributes nothing, which is the whole reason § 6's
+    // spelled `Command` contributes nothing, which is the whole reason the
     // two names sit on `nvs_types::derive::ATTRIBUTES`.
     let (diags, exprs) = check_src_table(
         "<?nvs\ntype Command = {name: string};\nclass Deploy {\n  \
@@ -354,9 +357,9 @@ fn a_command_table_is_built_from_the_program_enumeration() {
 
 #[test]
 fn a_declared_default_crosses_as_the_text_a_command_line_would_have_written() {
-    // § 6 infers nothing from a default — a parameter is positional unless it
+    // Nothing is inferred from a default — a parameter is positional unless it
     // carries `#[Option]` — so what the row says about one is only whether the
-    // command line owes it. `uint $retries = 3` is the section's own example,
+    // command line owes it. `uint $retries = 3` is the rule's own example,
     // and it is the argument `Core\Command::run` fills without being told to.
     let (diags, exprs) = check_src_table(PROGRAM);
     assert!(!diags.has_errors(), "{diags:?}");
@@ -376,7 +379,7 @@ fn a_declared_default_crosses_as_the_text_a_command_line_would_have_written() {
     // spells them: the folded value as text, so the matcher's conversion stays
     // the only place a type is decided. The two refusals that bound this list
     // are elsewhere and each is already a diagnostic — a type with no
-    // conversion from `string` cannot be an `#[Option]` at all (§ 6's third
+    // conversion from `string` cannot be an `#[Option]` at all (the third
     // compile error), and a default that is not a literal of its own declared
     // type is `E_PARAM_DEFAULT_NOT_LITERAL` wherever it is written.
     let (diags, exprs) = check_src_table(
@@ -418,10 +421,10 @@ fn an_enum_default_crosses_as_the_case_name_a_command_line_types() {
 
 #[test]
 fn a_duplicate_command_name_is_a_diagnostic() {
-    // The first of § 6's three compile errors, and the one no declaration can
-    // answer on its own: a command line names one command and expects one
-    // answer, so which of two methods ran would otherwise depend on the order
-    // the files were walked in.
+    // The first of `rule:tooling/commands-are-compiled`'s three compile errors,
+    // and the one no declaration can answer on its own: a command line names
+    // one command and expects one answer, so which of two methods ran would
+    // otherwise depend on the order the files were walked in.
     let diags = check_src(
         "<?nvs\nuse Core\\Command;\nclass Deploy {\n  #[Command(name: \"deploy\")]\n  \
          public static function deploy(): void {}\n}\nclass Ship {\n  \
@@ -456,12 +459,12 @@ fn a_duplicate_command_name_is_a_diagnostic() {
 
 #[test]
 fn a_user_class_implementing_parses_may_be_a_command_argument() {
-    // § 6's conversion roster is `converts_from_string` unchanged, so a class
+    // The command's conversion roster is `converts_from_string` unchanged, so a class
     // reaches a command line the way it reaches a route capture — by
     // implementing `Parses` rather than by being named
     // (`rule:security/route-capture-is-laundered-by-its-type`). Both kinds of
     // argument take it: a positional argument and an `#[Option]` are one type
-    // list read at two spellings, and § 6's third compile error is the same
+    // list read at two spellings, and the third compile error is the same
     // predicate answered the other way.
     let (diags, exprs) = check_src_table(&format!(
         "<?nvs\n{SLUG}class Deploy {{\n  \
@@ -479,7 +482,7 @@ fn a_user_class_implementing_parses_may_be_a_command_argument() {
     assert_eq!(deploy.args[1].conv, ArgConv::Parses("Slug".to_owned()));
 
     // The refusal is the same predicate read the other way: a class that does
-    // not implement the interface has no conversion from text, so § 6's third
+    // not implement the interface has no conversion from text, so the third
     // compile error is where an argument declared at one is reported.
     let diags = check_src(&format!(
         "<?nvs\n{SLUG}class Plain {{}}\nclass Deploy {{\n  \
@@ -491,11 +494,12 @@ fn a_user_class_implementing_parses_may_be_a_command_argument() {
 
 #[test]
 fn a_subset_of_an_enums_cases_converts_by_the_same_words_the_whole_enum_does() {
-    // § 3's union of enum cases, which § 6 admits wherever it admits the enum
-    // itself. The row is `ArgConv::Enum` with the cases the union did not name
-    // dropped — a filter over one roster rather than a second reading of it —
-    // so the word a command line writes and the value it becomes are decided in
-    // one place for `Level` and for a subset of `Level` alike.
+    // `rule:types/enum-case-type`'s union of enum cases, which a command admits
+    // wherever it admits the enum itself. The row is `ArgConv::Enum` with the
+    // cases the union did not name dropped — a filter over one roster rather
+    // than a second reading of it — so the word a command line writes and the
+    // value it becomes are decided in one place for `Level` and for a subset of
+    // `Level` alike.
     let src = |declared: &str| {
         format!(
             "<?nvs\nenum Level: uint {{\n  Quiet = 1,\n  Warn = 10,\n  Error = 20,\n}}\n\
@@ -555,7 +559,7 @@ fn a_subset_of_an_enums_cases_converts_by_the_same_words_the_whole_enum_does() {
 
 #[test]
 fn an_option_declared_at_cases_of_two_enums_is_a_diagnostic() {
-    // § 6 admits a subset of *one* enum's cases: a union spanning two leaves no
+    // A command admits a subset of *one* enum's cases: a union spanning two leaves no
     // enum for an admitted word to be a case of, so there is no conversion to
     // choose and it is refused where it is written rather than at the moment
     // the command is run. `nvs_types::routes::admitted_cases` is the one home
@@ -584,7 +588,7 @@ fn an_option_declared_at_cases_of_two_enums_is_a_diagnostic() {
 
 #[test]
 fn a_command_that_names_nothing_is_a_diagnostic() {
-    // § 6 leaves it unwritten and the table pass is what decides it: `name` is
+    // The rule leaves it unwritten and the table pass is what decides it: `name` is
     // the word a command line selects a command by, so a row without one is
     // reachable by nothing — `nvs_types::commands`' module docs own the
     // reasoning, and `rule:routing/route-attribute`'s optional `name` is a different question

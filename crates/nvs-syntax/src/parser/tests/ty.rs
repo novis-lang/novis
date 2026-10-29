@@ -368,7 +368,7 @@ fn union_and_intersection_types() {
 fn decimal_is_a_type_atom_in_every_slot() {
     // `rule:types/decimal`: `decimal` is a scalar type atom, so it parses
     // wherever `float` does and stays distinct from it in the AST --
-    // § 3's `decimal ⊕ float` compile error is only expressible if the
+    // the rule's `decimal ⊕ float` compile error is only expressible if the
     // two never collapse.
     let e = parse_ok("$m as decimal");
     let ExprKind::Conversion { ty, .. } = e.kind else {
@@ -385,7 +385,7 @@ fn decimal_is_a_type_atom_in_every_slot() {
         Some(TypeKind::Atom(TypeAtom::Decimal))
     ));
 
-    // Parameter, return and property slots, plus § 2's compile-time
+    // Parameter, return and property slots, plus a compile-time class
     // constant -- the position a `Core\Decimal` class could never occupy.
     parse_stmt_ok(
         "class Invoice { \

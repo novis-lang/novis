@@ -7,11 +7,11 @@
 //! `#[Test]` is one of [`crate::derive::ATTRIBUTES`]' compiler-recognized
 //! names, which is what makes it matched **nominally** rather than by the
 //! shape it satisfies — so it names no `type` alias for
-//! [`crate::attributes`]'s § 1 rule to check the literal against, and the
-//! payload is checked here instead. A test is marked by an attribute the
-//! compiler acts on, not by a spelling convention, which is the position
-//! `rule:core-api/identifier-casing`
-//! takes everywhere else.
+//! [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` to check
+//! the literal against, and the payload is checked here instead. A test is
+//! marked by an attribute the compiler acts on, not by a spelling convention,
+//! which is the position `rule:core-api/identifier-casing` takes everywhere
+//! else.
 //!
 //! # The option roster is the shape
 //!

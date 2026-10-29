@@ -1,6 +1,8 @@
-//! `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval, asserted where it is *decided*: an attached
-//! attribute list is fixed by its source, so `Core\Attributes::get<T>` is
-//! answered while checking and the call is replaced by that answer.
+//! `rule:attributes/structural-retrieval` and
+//! `rule:attributes/retrieval-folds-while-checking`'s retrieval, asserted where it
+//! is *decided*: an attached attribute list is fixed by its source, so
+//! `Core\Attributes::get<T>` is answered while checking and the call is replaced
+//! by that answer.
 //!
 //! What each fixture below asks is therefore not "what did the program print"
 //! but "what is recorded at the call's own span" — an
@@ -8,7 +10,8 @@
 //! and the whole of what `nvs-ir` finds there. A retrieval that reached a
 //! runtime lookup would record an `ExprInfo::Call` instead, and
 //! `nvs_stdlib::attributes`' two symbols name a body that aborts if it is ever
-//! reached, so the absence of that entry is the no-runtime-lookup half of § 5.
+//! reached, so the absence of that entry is the no-runtime-lookup half of
+//! `rule:attributes/retrieval-folds-while-checking`.
 //!
 //! The refusals share `tests/conformance/reject/`'s
 //! `an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`, which
@@ -33,8 +36,8 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 fn get_with_no_matching_attribute_folds_to_a_constant_null() {
     // Something *is* attached to `$id` and it does not satisfy the retrieved
     // shape — the case a table keyed by "does this declaration carry
-    // attributes" would get wrong, since § 4 matches on shape and never on
-    // presence.
+    // attributes" would get wrong, since `rule:attributes/structural-retrieval`
+    // matches on shape and never on presence.
     let (diags, run) = check_src_declared(
         "<?nvs
 class Row {
@@ -53,7 +56,7 @@ class Row {
                 value: ConstArg::Null
             })
         ),
-        "§ 5 compiles a `null` in where nothing matches, and this recorded {folded:?}"
+        "the fold compiles a `null` in where nothing matches, and this recorded {folded:?}"
     );
 }
 
@@ -76,11 +79,11 @@ class Row {
         value: ConstArg::Shape(fields),
     }) = folded
     else {
-        panic!("§ 5 replaces the call with the payload itself, and this recorded {folded:?}");
+        panic!("the fold replaces the call with the payload itself, and this recorded {folded:?}");
     };
-    // The payload *whole*, not the fields the shape asked for: § 5 compiles in
-    // the attribute's payload object, and `rule:types/shape-type`'s width subtyping is what let it
-    // match while carrying `unique` as well.
+    // The payload *whole*, not the fields the shape asked for: the fold compiles
+    // in the attribute's payload object, and `rule:types/shape-type`'s width
+    // subtyping is what let it match while carrying `unique` as well.
     let names: Vec<&str> = fields.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(names, ["column", "unique"], "{fields:?}");
     assert!(
@@ -112,7 +115,7 @@ class Row {
         diags
             .iter()
             .any(|d| d.notes.iter().any(|note| note.contains("::all<T>"))),
-        "§ 5's refusal names the member that answers every match: {diags:?}"
+        "the fold's refusal names the member that answers every match: {diags:?}"
     );
 
     // The other side of the same bound, over the identical declarations: what
@@ -144,7 +147,8 @@ class Row {
 ";
     // A misspelling of a real property. Left unchecked this folds to the very
     // `null` a correct retrieval of an absent attribute folds to, which is why
-    // § 4 checks the written name here rather than leaving it to a test run.
+    // the retrieval checks the written name here rather than leaving it to a
+    // test run.
     let (diags, _) = check_src_declared(&format!(
         "{row}?{{column: string}} $typo = \
          Core\\Attributes::get<{{column: string}}>(Row::constructor, \"nmae\");\n"
@@ -154,9 +158,10 @@ class Row {
         "{diags:?}"
     );
 
-    // § 4's *Consequences* is the other side of that bound: a member name that
-    // is not a literal has nothing to check, so it is an empty result and not
-    // a diagnostic — the same misspelling, one concatenation apart.
+    // `rule:attributes/structural-retrieval` states the other side of that
+    // bound: a member name that is not a literal has nothing to check, so it is
+    // an empty result and not a diagnostic — the same misspelling, one
+    // concatenation apart.
     let (diags, run) = check_src_declared(&format!(
         "{row}string $computed = \"nm\" . \"ae\";
 ?{{column: string}} $dynamic = \

@@ -153,7 +153,8 @@ impl EnumTable {
 }
 
 /// Resolves every `enum` declaration in every file of the program, reporting
-/// `rule:enums/declaration`/§ 2's declaration-level errors.
+/// `rule:enums/declaration`'s and `rule:enums/one-backing-type`'s
+/// declaration-level errors.
 ///
 /// Runs *before* [`crate::signatures::build_signatures`], because interning an
 /// enum-typed annotation needs the backing type this produces — see

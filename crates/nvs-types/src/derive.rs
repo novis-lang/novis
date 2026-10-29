@@ -774,18 +774,19 @@ pub const QUERY: &str = r"Core\Query";
 
 /// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-is-a-required-sibling`'s required sibling of
 /// `#[Route]`, on the same method, and the only name here whose point is to
-/// make an omission visible: § 3 gives it no implicit default, so a route that
-/// is public because its author decided so and one that is public because its
-/// author forgot are not the same text. Like [`ROUTE`] it names no member of
-/// anything, so a file that spells it bare places it with `use Core\Access;`.
-/// [`crate::routes`] owns the payload, including the two rules of § 1a that a
-/// roster cannot state.
+/// make an omission visible: `rule:security/access-is-checked-for-presence-not-meaning`
+/// gives it no implicit default, so a route that is public because its author
+/// decided so and one that is public because its author forgot are not the same
+/// text. Like [`ROUTE`] it names no member of anything, so a file that spells it
+/// bare places it with `use Core\Access;`. [`crate::routes`] owns the payload,
+/// including the two rules of `rule:attributes/access-payload` that a roster
+/// cannot state.
 pub const ACCESS: &str = r"Core\Access";
 
 /// `#[Api(tags?, errors?, security?, example?, operationId?)]` — `rule:attributes/api-adds-and-cannot-contradict`'s annotation,
 /// on a `#[Route]` method, and the only name here that is *purely* additive:
 /// every field supplies something the route table and the signature cannot
-/// say, and none of them changes what the program does. That is why § 2's rule
+/// say, and none of them changes what the program does. That is why the rule
 /// is stated as "it may add, and it may not contradict" rather than as a shape
 /// — a field that agreed with the code would be a copy, and one that disagrees
 /// is [`nvs_diagnostics::code::E_API_CONTRADICTS_THE_CODE`]. Like [`ROUTE`] it
@@ -2156,17 +2157,18 @@ fn reachable(
 /// is the whole reason the two formats are not one map. `bytes` is a column
 /// type — `BLOB`/`BYTEA` — where `rule:types/bytes` leaves it no JSON spelling at all;
 /// and a **nested class is not**, because a row is a flat list of columns and
-/// § 9 maps none of them to an object. The classes it does map are that
-/// section's own value types, [`DB_COLUMN_CLASSES`].
+/// the type map maps none of them to an object. The classes it does map are
+/// that rule's own value types, [`DB_COLUMN_CLASSES`].
 ///
 /// Takes no signature or codec table for that second reason: nothing here is
 /// a question about the rest of the program, so the answer cannot depend on
 /// which file declared what first.
 fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(ty) {
-        // § 9's scalar rows, plus `rule:types/single-value-types`'s three singleton refinements of
-        // them. `tainted` is not a distinction a column makes — § 6 makes
-        // every text column tainted on the way out.
+        // The type map's scalar rows, plus `rule:types/single-value-types`'s three
+        // singleton refinements of them. `tainted` is not a distinction a column
+        // makes — `rule:core-classes/db-column-types` makes every text column
+        // tainted on the way out.
         Ty::Null
         | Ty::Bool
         | Ty::Int
@@ -2186,7 +2188,7 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         // `rule:core-classes/derive-property-list`'s enum, unchanged by the format: what travels is the
         // backing value, range-checked on the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
-        // § 9's `array<T>` rows — a PostgreSQL array and a MySQL `SET`. One
+        // The type map's `array<T>` rows — a PostgreSQL array and a MySQL `SET`. One
         // dimension only: `array<array<T>>` is a column type no driver of the
         // five reads back, and `nvs_stdlib::CodecField::element` has no room
         // to describe it either.
@@ -2209,7 +2211,7 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
 /// reads back as.
 ///
 /// A closed list rather than a `Core\` prefix test, because the point of the
-/// map is that a type absent from it is absent *on purpose* — § 9 says so of
+/// map is that a type absent from it is absent *on purpose* — the rule says so of
 /// `interval`, which is deliberately not a `Duration` since it carries months.
 /// A `Core` class that gains a column form gains a row here and an entry in
 /// the driver's reader in the same change.
@@ -2485,7 +2487,7 @@ fn check_unique_key(
 const ENCODE: &str = "toJson";
 /// The decoding half of [`ENCODE`] — `static fromJson(mixed $value): static`.
 const DECODE: &str = "fromJson";
-/// The one member § 6's `Core\Db\Codec` declares —
+/// The one member `Core\Db\Codec` declares —
 /// `static fromRow(Db\Row $row): static`. There is no encoding half at all:
 /// `rule:core-classes/derive-generates-what-is-missing` makes the row format one-directional, so this is the whole of
 /// what a `#[Db\Derive]` generates and the whole of what a class can write
@@ -2494,7 +2496,8 @@ const DB_DECODE: &str = "fromRow";
 
 /// Whether `decl` writes a method named `want` **itself**.
 ///
-/// Own members only: § 7 is about a class that hand-writes a half, and an
+/// Own members only: `rule:core-classes/derive-generates-what-is-missing` is
+/// about a class that hand-writes a half, and an
 /// inherited `toJson` is the base class's declaration, whose own derive
 /// question was already asked where it was written.
 fn declares_method(decl: &ClassDecl, want: &str, env: &Env<'_>) -> bool {
@@ -2508,7 +2511,7 @@ fn declares_method(decl: &ClassDecl, want: &str, env: &Env<'_>) -> bool {
 /// none of them is it.
 ///
 /// Both a "does this class carry it" test and the site it matched at, because
-/// the two refusals § 7 reaches put their primary span on the attribute
+/// the two refusals that rule reaches put their primary span on the attribute
 /// rather than on any member — a class with no property has no member to
 /// point at, and the attribute is the thing to delete either way.
 fn attribute_span(
@@ -2535,13 +2538,14 @@ enum FieldOutcome {
     Kept(Box<DerivedField>),
     /// `rule:core-classes/derive-property-list`'s `#[Json\Field(skip: true)]`.
     Skipped,
-    /// Refused by § 2 or § 6, with the diagnostic already reported.
+    /// Refused, with the diagnostic already reported: by
+    /// `rule:core-classes/derive-property-list` or `rule:security/derived-codec-qualifiers`.
     Refused,
 }
 
 /// One declaration, as `rule:core-classes/derive-property-list`'s field list reads it.
 ///
-/// A view rather than an enum over the two AST nodes, because § 2 asks a
+/// A view rather than an enum over the two AST nodes, because the rule asks a
 /// property and a promoted constructor parameter exactly the same four
 /// questions — what it is called, what it is declared, what modifiers it
 /// carries and what attributes are on it — and every difference between
@@ -2557,8 +2561,8 @@ struct FieldDecl<'a> {
     /// The declared type, `None` only where the parser already reported its
     /// absence.
     ty: Option<&'a nvs_syntax::ast::Type>,
-    /// The name, `$`-sigil included — and the span every § 2 refusal points
-    /// at.
+    /// The name, `$`-sigil included — and the span every refusal of
+    /// `rule:core-classes/derive-property-list` points at.
     name: Span,
 }
 
@@ -2657,7 +2661,8 @@ fn codec_field(
     } else {
         declared
     };
-    // § 2's codec-reachable test, asked of the null-stripped type and asked
+    // `rule:core-classes/derive-property-list`'s codec-reachable test, asked of
+    // the null-stripped type and asked
     // after the walk — `?T` is reachable exactly when `T` is, and "another
     // class that itself has a codec" is a question about the whole program.
     env.codec_sites.push(CodecFieldSite {
@@ -2695,7 +2700,8 @@ fn codec_field(
 /// drop the rest of the wire contract.
 ///
 /// A promoted parameter matches itself here, at its own position and its own
-/// type, so neither refusal below can fire for one — which is § 2's "for a
+/// type, so neither refusal below can fire for one — which is
+/// `rule:core-classes/derive-property-list`'s "for a
 /// class written with promoted parameters the two lists are literally the same
 /// declaration" costing nothing, rather than being a case this pass skips.
 ///

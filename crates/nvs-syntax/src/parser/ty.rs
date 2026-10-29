@@ -33,9 +33,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// of its problems in the same run.
     ///
     /// `help` is the caller's: the block form's fix is another clause and
-    /// `rule:expressions/catch-expression`'s is another arm. The message above it is shared, since § 1 makes
-    /// an arm a clause of one guard and "a `catch` clause names one class" is
-    /// true of both.
+    /// `rule:expressions/catch-expression`'s is another arm. The message above it
+    /// is shared, since that rule makes an arm a clause of one guard and "a
+    /// `catch` clause names one class" is true of both.
     pub(super) fn parse_caught_type(&mut self, help: &str) -> Type {
         match self.parse_type() {
             Type {
@@ -230,12 +230,13 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// deciding token is one further ahead: an intersection member is always
     /// another type atom, never a bare `$name`.
     ///
-    /// `rule:statements/ampersand-is-not-a-by-reference-marker` retires that marker but keeps it *recognizable*, so this
-    /// survives the removal rather than being deleted with it: the site one
-    /// level up names the exact fix (E0237, `Parser::report_by_reference_marker`),
-    /// which it can only do if the type parser leaves the `&` alone instead
-    /// of consuming it and then failing on `$x` as a malformed intersection
-    /// member. The rule's own § 3 is the home of that correction.
+    /// `rule:statements/ampersand-is-not-a-by-reference-marker` retires that
+    /// marker but keeps it *recognizable*, so this survives the removal rather
+    /// than being deleted with it: the site one level up names the exact fix
+    /// (E0237, `Parser::report_by_reference_marker`), which it can only do if the
+    /// type parser leaves the `&` alone instead of consuming it and then failing
+    /// on `$x` as a malformed intersection member. That rule is the home of that
+    /// correction.
     pub(super) fn at_intersection_amp(&mut self) -> bool {
         self.at(TokenKind::Amp) && Self::token_starts_type(self.peek_at(1).kind)
     }

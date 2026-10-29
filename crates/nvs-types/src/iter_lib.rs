@@ -143,10 +143,11 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         .collect(),
     );
 
-    // `rule:classes/property-observer`'s pair, written exactly as that section spells it. `$value`
-    // is `mixed` because one observer sees properties of every type, which is
-    // the boundary shape `rule:types/conversion` reserves `mixed` for; both return `void`
-    // because an observer reports and does not decide (§ 3).
+    // `rule:classes/property-observer`'s pair, written exactly as that rule
+    // spells it. `$value` is `mixed` because one observer sees properties of
+    // every type, which is the boundary shape `rule:types/conversion` reserves
+    // `mixed` for; both return `void` because an observer reports and does not
+    // decide.
     let void_ty = interner.void();
     let mixed_ty = interner.mixed();
     table.seed_class(

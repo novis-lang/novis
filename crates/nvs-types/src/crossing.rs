@@ -63,10 +63,11 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
                         })
                         .collect(),
                 );
-                // `rule:attributes/access-payload`'s opt-out, carried across rather than derived a
-                // second time: the verb's half of § 4 is `Route::new`'s and the
-                // declaration's half is the compiler's, so this is the one
-                // place the two meet.
+                // `rule:attributes/access-payload`'s opt-out, carried across rather
+                // than derived a second time: the verb's half of
+                // `rule:security/csrf-is-on-by-default` is `Route::new`'s and the
+                // declaration's half is the compiler's, so this is the one place
+                // the two meet.
                 let route = if row.csrf {
                     route
                 } else {
@@ -111,11 +112,12 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
     }
 }
 
-/// Which conversion § 5's declared type is, as the matcher spells it.
+/// Which conversion a capture's declared type is, as the matcher spells it
+/// (`rule:routing/a-capture-narrows-to-a-closed-set`).
 ///
 /// A closed set of *values* takes precedence over the type that describes it —
 /// a union of string literals renders as a type nothing would convert, and its
-/// admitted set is the whole of what § 5 narrows with. Everything the runtime
+/// admitted set is the whole of what the capture narrows with. Everything the runtime
 /// has no arm for is `Unconverted` rather than silently `Text`, so the gap is
 /// one an arm closes rather than a behaviour somebody has to notice. A class
 /// implementing `Parses` is its own arm and carries its own name, so the

@@ -437,7 +437,8 @@ impl Narrowing {
 /// [`subject`] decides whether that operand is something a test narrows.
 ///
 /// `==`/`!=` are the whole of it, because
-/// `rule:expressions/one-equality-operator` leaves one spelling and its § 3 makes it a tag test rather than PHP's
+/// `rule:expressions/one-equality-operator` leaves one spelling and
+/// `rule:expressions/equality-semantics` makes it a tag test rather than PHP's
 /// truthy-table question — `0 == null` was *true* in PHP, which is why this
 /// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
 /// still not a null test: `rule:enums/truthiness` makes it one for a nullable object,
@@ -742,7 +743,7 @@ fn type_test(cond: &Expr) -> Option<(&Expr, Span, bool)> {
 /// question about the namespace and the imports of the site that wrote it, and
 /// this walk carries neither. The residue is `rule:types/enum-case-type`'s `Ty::EnumCase` and
 /// not the whole enum — that is the point of the guard — and it costs nothing
-/// below the checker for § 5's reason, a case being its backing integer in
+/// below the checker for that rule's reason, a case being its backing integer in
 /// every representation. The roster is closed at those three: anything else
 /// records no [`ExprInfo`] this can read and narrows nothing.
 ///
@@ -1592,8 +1593,9 @@ pub(crate) fn check_stmt(
             step,
             body,
         } => {
-            // `rule:iteration/for-init-clause` and `rule:iteration/for-counter-scope`: the counter is declared here and is
-            // function-scoped, so § 1's declare-once rule applies to it
+            // `rule:iteration/for-init-clause` and `rule:iteration/for-counter-scope`:
+            // the counter is declared here and is function-scoped, so
+            // `rule:types/declaration`'s declare-once rule applies to it
             // through the same arm — a second `for (int $i = 0; …)` below is
             // the re-declaration diagnostic that arm already reports, and the
             // binding stays live after the loop.
@@ -1709,9 +1711,10 @@ pub(crate) fn check_stmt(
             for (i, case) in cases.iter().enumerate() {
                 let mut narrowed = Narrowing::default();
                 if let Some(c) = &case.cond {
-                    // `rule:expressions/switch-match-equality`: a `case` label is compared against the
-                    // subject by the one equality rule, so a label whose type
-                    // is disjoint from the subject's is § 2's refusal written
+                    // `rule:expressions/switch-match-equality`: a `case` label is
+                    // compared against the subject by the one equality rule, so a
+                    // label whose type is disjoint from the subject's is
+                    // `rule:expressions/disjoint-comparison-refused` written
                     // without the operator.
                     let label_ty = check_expr(c, None, live, scope, ctx, env);
                     crate::expr::reject_disjoint_equality(subject_ty, label_ty, c.span, env);

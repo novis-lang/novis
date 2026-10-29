@@ -933,9 +933,10 @@ fn merge_shape_arms(
             ty,
             required,
             // The first arm that declares the name, which is the slot's own
-            // declaration order: § 3 merges the *type* of a name two arms
-            // share and nothing merges a classification, because a name
-            // classified two ways would be one ABI slot with two rules. No
+            // declaration order: `rule:core-api/shape-flattens-at-the-abi` merges
+            // the *type* of a name two arms share and nothing merges a
+            // classification, because a name classified two ways would be one
+            // ABI slot with two rules. No
             // registry row writes one, and `SETTINGS`' shared `driver`,
             // `timeZone` and `timeout` classify nothing at all.
             qual: qual_of(&declared[0].ty),
@@ -948,7 +949,8 @@ fn merge_shape_arms(
 }
 
 /// One arm's own fields, lowered — `rule:core-api/shape-arms-are-disjoint`'s half of
-/// [`crate::ty::CoreShape`], where [`merge_shape_arms`] builds § 3's.
+/// [`crate::ty::CoreShape`], where [`merge_shape_arms`] builds the merged list
+/// `rule:core-api/shape-flattens-at-the-abi` describes.
 ///
 /// A field is required of its arm exactly where it declares no default, which
 /// is `CoreField::default` read the way [`merge_shape_arms`] reads it. The
@@ -1452,7 +1454,7 @@ mod tests {
     /// Asked as a **pair of sets** rather than of the two rows, for
     /// `reveal_and_the_password_helpers_are_the_only_launderers_of_secret`'s
     /// reason. A member that promises `tainted` is invisible from any row but
-    /// its own, and the whole content of § 5 is that a *third* signature
+    /// its own, and the whole content of the rule is that a *third* signature
     /// verifier cannot quietly join the laundering side: a row that wanted to
     /// would have to write `Qual::Launder`, and one that wanted to drop the
     /// promise would have to stop writing `CoreTy::TaintedStr`. Both edits
@@ -1488,7 +1490,7 @@ mod tests {
     /// and a cookie are what a client sent. `headers` puts the qualifier two
     /// levels down, a repeated field name being a list of values under one key
     /// and neither array able to carry it. `query` is the one member of that
-    /// class deliberately *absent*: it answers `mixed`, because § 9's bracket
+    /// class deliberately *absent*: it answers `mixed`, because the bracket
     /// convention makes a value a `string` or a nested array and there is no
     /// tainted array to hold it, which `nvs_stdlib::request`'s module doc names
     /// as the hole it is. `body` is the thirteenth and the widest of them: the
@@ -2062,7 +2064,7 @@ mod tests {
     /// the whole registry, the only parameter that admits a `tainted` URL is
     /// the launderer's.
     ///
-    /// § 1 makes the URL parameter of every outbound member a sink, so a
+    /// The rule makes the URL parameter of every outbound member a sink, so a
     /// `tainted` operand is a diagnostic there exactly as at `Core\Db`'s query
     /// text. Asserted over every `$url` in `CLASSES` because that is the shape
     /// the rule actually has: a *second* member accepting an outbound URL is
@@ -2106,9 +2108,11 @@ mod tests {
         assert_eq!(
             admitting,
             BTreeSet::from([(r"Core\Http", "allowUrl")]),
-            "an outbound URL is a sink (`rule:security/outbound-url-is-a-sink`) and `Core\\Http::allowUrl` is the one door \
-             through it (§ 2) — a second member admitting a tainted URL is a second door, and the \
-             policy is only worth what the narrowest of them enforces"
+            "an outbound URL is a sink (`rule:security/outbound-url-is-a-sink`) and \
+             `Core\\Http::allowUrl` is the one door through it \
+             (`rule:http-server/allow-url-pins-the-address`) — a second member admitting a \
+             tainted URL is a second door, and the policy is only worth what the narrowest of \
+             them enforces"
         );
     }
 
@@ -2189,7 +2193,7 @@ mod tests {
     /// `Core\Time\Duration` — a `?Duration` would describe as
     /// `null|Core\Time\Duration` and fail here, and it is the one edit that
     /// would make `{ deadline: null }` compile — and every bound is left out by
-    /// omitting it, which § 5 makes inherit `[http.client]`'s own figure rather
+    /// omitting it, which the rule makes inherit `[http.client]`'s own figure rather
     /// than remove the bound. A default of `0` or `-1` would be the unbounded
     /// spelling arriving as a *default*, which no call site would show.
     ///
@@ -2221,8 +2225,8 @@ mod tests {
             for option in *options {
                 assert!(
                     !matches!(option.ty, CoreTy::Nullable(_)),
-                    "{}::{}'s `{}` is nullable, and `null` at a bound is the spelling § 5 has \
-                     none of",
+                    "{}::{}'s `{}` is nullable, and `null` at a bound is the unbounded wait \
+                     `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for",
                     client.name,
                     method.name,
                     option.name
@@ -2260,8 +2264,8 @@ mod tests {
                 want.sort_unstable();
                 want
             },
-            "every bound § 5 names is one this test read; a renamed one would empty the check \
-             rather than fail it"
+            "every bound the unbounded-wait rule names is one this test read; a renamed one \
+             would empty the check rather than fail it"
         );
     }
 
@@ -2418,7 +2422,8 @@ mod tests {
             .iter()
             .find(|(class, member, _)| *class == r"Core\Process" && *member == "run")
             .expect("Core\\Process::run starts a program, so it carries a capability row");
-        // `Some`, not just any row: § 7's table now also carries `None` for a
+        // `Some`, not just any row: `rule:testing/capability-completeness-test`'s
+        // table now also carries `None` for a
         // member of a door-bearing class that reaches nothing, so "is on the
         // table" stopped being the same claim as "is declared as an effect".
         let cap = cap.expect("starting a program is an effect, so its row names a capability");
@@ -2475,7 +2480,7 @@ mod tests {
         );
     }
 
-    /// § 9's three collections are the only `Core` classes that say anything
+    /// The three `Core` collections are the only `Core` classes that say anything
     /// about a hierarchy, and what they say is exactly what a `foreach` asks.
     /// A map yields its **keys**, so the element comes back as `K` and stays a
     /// variable until a receiver fixes it — `crate::expr::iteration` is what

@@ -544,7 +544,7 @@ pub(crate) fn infer_static_call(
     // `rule:types/class-reference-sites`'s second site: a `class<T>` class side resolves the member
     // on `T`'s roster, the only one this site can see. The value may hold any
     // implementor, so what is checked here is `T`'s declaration and what finds
-    // the override at run time is § 4's `InstKind::CallVirtual`.
+    // the override at run time is that rule's `InstKind::CallVirtual`.
     let class_ref_arg = class_ref_argument(class_ty, env.interner);
     let class_ref = class_ref_arg.and_then(|inner| class_qname_of(inner, env.interner));
     // Kept as a flag because the name itself is consumed by the resolution
@@ -919,13 +919,14 @@ pub(crate) fn infer_static_call(
         crate::program::expand(expr, &written, live, scope, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
-    // `rule:routing/link-target-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
-    // a name written in the code asks for may be declared in a file § 5's scan has not
-    // reached, so the site is only recorded and the lookup happens after the
-    // whole walk. The `ExprInfo::Call` recorded below deliberately stands until
-    // then — `crate::links` records over it, and a computed name keeps it. The
-    // site is taken ahead of that record because it reads the call's own
-    // argument mapping, which `resolved_call` takes by value.
+    // `rule:routing/link-target-and-params-are-checked`'s link, and the one fold that is *not*
+    // made here: the route a name written in the code asks for may be declared in a file the
+    // route scan (`rule:routing/table-is-opt-in`) has not reached, so the site is only
+    // recorded and the lookup happens after the whole walk. The `ExprInfo::Call`
+    // recorded below deliberately stands until then — `crate::links` records over
+    // it, and a computed name keeps it. The site is taken ahead of that record
+    // because it reads the call's own argument mapping, which `resolved_call`
+    // takes by value.
     if let Some((qname, name, _)) = &resolved
         && crate::links::is_link(qname, name)
     {
@@ -1219,8 +1220,9 @@ pub(crate) fn infer_new(
         // the declaration this site checked against and the run-time lookup's
         // fallback — and the class actually allocated stays the operand, which
         // `nvs-ir` lowers to the descriptor `InstKind::NewDynamic` takes. The
-        // constructor is resolved identically for both: § 5's `E0794` above is
-        // what makes `T`'s signature sound to check a dynamic call against.
+        // constructor is resolved identically for both:
+        // `rule:classes/constructor-compatibility`'s `E0794` above is what makes
+        // `T`'s signature sound to check a dynamic call against.
         let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
             resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
         });
@@ -1266,8 +1268,8 @@ pub(crate) fn infer_new(
 /// exemption is the point rather than a corner: `rule:types/class-reference-sites` types that site
 /// as `T`, and a class reference exists to hold a concrete implementor of an
 /// `abstract` base or an interface. The descriptor is checked to be one where
-/// the conversion stands (§ 2), which is the only place the question has an
-/// answer.
+/// the conversion stands (`rule:types/class-reference`), which is the only place
+/// the question has an answer.
 fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, env: &mut Env<'_>) {
     if matches!(target, NewTarget::StaticTy | NewTarget::Expr(_)) {
         return;
@@ -1303,8 +1305,8 @@ fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, 
 /// `T`, so an implementor whose constructor is not compatible with `T`'s makes
 /// that check a promise the program cannot keep (`E0794`).
 ///
-/// **Refused at the `new` and never at the declaration**, which is § 5's own
-/// argument: a subclass nothing ever instantiates through a class reference is
+/// **Refused at the `new` and never at the declaration**, which is that rule's
+/// own argument: a subclass nothing ever instantiates through a class reference is
 /// nobody's problem, and refusing it where it is written would make an
 /// unrelated file's `new` the reason a class cannot be written.
 ///
@@ -2349,7 +2351,7 @@ fn unresolved_call(
 /// because the answer differs by site. A property access admits a
 /// `property<T>` its receiver satisfies
 /// ([`super::members::check_property_member`]); a call refuses every operand,
-/// § 4's first neighbour.
+/// which is the first neighbour that rule names.
 pub(crate) fn check_member_name(
     member: &MemberName,
     live: &mut Live,
@@ -2755,7 +2757,8 @@ pub(crate) fn check_new_target(
 ///   with it.
 /// * Every outer binding is offered to that scope as a *capture* rather than
 ///   as a local ([`Captures`]), which is what makes the recorded capture set
-///   "exactly the outer variables its body reads" (§ 2) rather than the whole
+///   "exactly the outer variables its body reads" (`rule:types/implicit-capture`)
+///   rather than the whole
 ///   enclosing frame. `$this` is in that set like any other name, which is
 ///   `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
 /// * The anonymous function's own [`ExprInfo::AnonFn`] entry is recorded — the
@@ -2800,7 +2803,7 @@ pub(crate) fn check_new_target(
 /// `fact` anywhere else stays `nvs_hir::members`' `E0319`, an unknown
 /// constant.
 ///
-/// That is § 3's own wording made concrete: the name is "not a capture, not a
+/// That is the rule's own wording made concrete: the name is "not a capture, not a
 /// second declared name reachable from anywhere else, and not a runtime slot
 /// … it resolves the same way a method resolves `self::`". A local would be
 /// all three of the things it says the name is not — [`LocalScope`] would
@@ -2815,7 +2818,8 @@ pub(crate) fn check_new_target(
 /// save-and-replace below rather than a stack.
 ///
 /// **The call is checked against this function's own signature**, which is the
-/// one place this differs from `$f(...)`. § 4's opacity is a property of the
+/// one place this differs from `$f(...)`. The opacity
+/// `rule:types/callable-is-the-only-function-type` gives is a property of the
 /// `callable` *type*, and the self-name is not a value of it: the function being
 /// checked is right here, so both halves of its signature are facts the checker
 /// holds. So [`FnSelf`] carries the parameter list
@@ -3083,11 +3087,12 @@ fn report_variadic_or_default_parameter(param: &nvs_syntax::ast::Param, env: &mu
 /// A by-reference parameter is a contract between a *call site* and a
 /// declaration — the site stages the cell, hands over its address and copies
 /// back afterwards (`nvs_ir::lower::call`). An anonymous function's type is `callable` and
-/// nothing else (§ 4), carrying no parameter list for a site to read, so there
-/// is no site that could know to stage anything; and § 2's by-value capture
-/// lets an anonymous function outlive every frame in scope where it was written, so even
-/// naming one would not make the cell outlast it. The by-reference half of § 2
-/// was removed for the same reason it is refused here.
+/// nothing else, carrying no parameter list for a site to read, so there is no
+/// site that could know to stage anything; and the by-value capture of
+/// `rule:types/implicit-capture` lets an anonymous function outlive every frame
+/// in scope where it was written, so even naming one would not make the cell
+/// outlast it. That rule's by-reference capture was removed for the same reason
+/// it is refused here.
 ///
 /// Reported once per by-reference parameter, and the parameter is then bound
 /// as an ordinary one so the body checks against its declared type instead of

@@ -226,8 +226,8 @@ fn map_binds_its_result_from_a_method_ref() {
 }
 
 /// The rule that makes a bag its own type rather than an `rule:types/object-top` shape:
-/// a field the member does not declare is an error, where § 3's width
-/// subtyping would have accepted it silently. The help names the real
+/// a field the member does not declare is an error, where `rule:types/shape-type`'s
+/// width subtyping would have accepted it silently. The help names the real
 /// options, which is the whole value of catching the typo here.
 #[test]
 fn an_unknown_option_is_diagnosed_and_the_real_ones_are_named() {
@@ -524,7 +524,7 @@ fn task_all_no_longer_refuses_a_field_that_is_not_a_literal() {
 ///
 /// `timeout` is the spelling a developer arrives with, so it is asked twice —
 /// as an option name, which is not one, and as a member, which does not exist.
-/// `race` is asked because § 3 defers it under a *different* future spelling,
+/// `race` is asked because the rule defers it under a *different* future spelling,
 /// and a `race` that quietly existed would be the thing that decision rejected.
 #[test]
 fn a_limit_and_deadline_options_shape_is_the_only_spelling() {
@@ -593,10 +593,10 @@ fn a_host_on_a_sqlite_settings_object_is_a_compile_error() {
     );
 }
 
-/// The other half of § 2's rule, and the half a key-only reading would miss:
-/// which arm a literal selects is decided by its values as well as its keys, so
-/// a server-shaped literal that names the SQLite driver is refused rather than
-/// being accepted by the arm whose keys it wrote.
+/// The other half of `rule:core-api/shape-arms-are-disjoint`, and the half a
+/// key-only reading would miss: which arm a literal selects is decided by its
+/// values as well as its keys, so a server-shaped literal that names the SQLite
+/// driver is refused rather than being accepted by the arm whose keys it wrote.
 ///
 /// It is the `driver` value that is reported, because that is the one field the
 /// two arms declare differently — `rule:core-api/shape-arms-are-disjoint`'s disjointness, arriving at a

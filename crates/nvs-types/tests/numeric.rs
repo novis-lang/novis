@@ -149,7 +149,7 @@ fn a_mixed_numeric_pair_widens_the_narrower_operand() {
 
 /// The comparison rows widen the same pairs the arithmetic rows do — and one
 /// more, since `int` against `uint` is exact in the mathematical integers and
-/// is the pair § 4 refuses to *add*. What they produce is `bool`, never the
+/// is the pair `rule:types/arithmetic` refuses to *add*. What they produce is `bool`, never the
 /// widened operand type, which is the half a table keyed on the operands
 /// alone would get wrong.
 #[test]
@@ -211,10 +211,11 @@ fn an_integer_division_is_a_union_widened_at_its_binding() {
     );
 }
 
-/// `rule:types/arithmetic`'s arithmetic rows are the numeric types, and the table is as
-/// closed at the operand end as its ordering row is. Everything else PHP adds
-/// it adds by converting first, which § 2 never does by itself — so each of
-/// these is a diagnostic where it is written rather than an answer below it.
+/// `rule:types/arithmetic`'s arithmetic rows are the numeric types, and the table
+/// is as closed at the operand end as its ordering row is. Everything else PHP
+/// adds it adds by converting first, which `rule:types/conversion` never does by
+/// itself — so each of these is a diagnostic where it is written rather than an
+/// answer below it.
 ///
 /// `bool` is the row this asserts twice, because it was the one that did not
 /// merely refuse to lower: `nvs_ir::ty::Ty::Bool` is `nvs-codegen`'s

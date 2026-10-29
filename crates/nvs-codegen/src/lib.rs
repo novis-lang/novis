@@ -470,8 +470,9 @@ impl Drop for JitPages {
 /// the right way round.
 pub trait Placed: Send + Sync {
     /// Where this owner placed the function `symbol` names, or [`None`] if the
-    /// payload defines no such function — which § 3 makes a skipped method row
-    /// rather than an error, exactly as the JIT path skips an undefined one.
+    /// payload defines no such function — which the loader treats as a skipped
+    /// method row rather than an error, exactly as the JIT path skips an
+    /// undefined one.
     fn address_of(&self, symbol: &str) -> Option<*const u8>;
 }
 
@@ -904,9 +905,9 @@ impl Unit {
     /// reason it is not optional:
     ///
     /// 1. *Behaviour.* A runtime helper's failure carries a message and a
-    ///    § 10 class name; the installed class is the anchor that resolves
-    ///    the name to a catchable object with a backtrace
-    ///    ([`nvs_runtime::Ctx::set_runtime_error_class`]).
+    ///    class name from `rule:errors/throwable-hierarchy`; the installed class
+    ///    is the anchor that resolves the name to a catchable object with a
+    ///    backtrace ([`nvs_runtime::Ctx::set_runtime_error_class`]).
     /// 2. *Safety.* Compiled code bakes each descriptor's address in as a
     ///    constant (see [`Classes`]), so an exception object still sitting on
     ///    the context points into this table and nothing else keeps it alive.
@@ -1125,12 +1126,14 @@ pub fn clif(program: &Program) -> Result<String, CodegenError> {
 /// nothing else — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 /// 's answer to where a warm cache hit's descriptors come from.
 ///
-/// A cached payload leaves every `nvs_class_desc_*` undefined (§ 2) and its
-/// loader resolves one against "the `ClassDesc` this process allocated" (§ 3) —
+/// A cached payload leaves every `nvs_class_desc_*` undefined and its loader
+/// resolves one against the `ClassDesc` this process built
+/// (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`) —
 /// but a run that skipped codegen allocated none, and no payload carries one.
-/// § 2 closes that the only way that needs neither a format change nor a
-/// serialized runtime type: **what a warm hit skips is codegen, not the front
-/// end**, so the `nvs_ir::Program` the front end has just lowered is walked for
+/// `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end` closes that the
+/// only way that needs neither a format change nor a serialized runtime type:
+/// **what a warm hit skips is codegen, not the front end**, so the
+/// `nvs_ir::Program` the front end has just lowered is walked for
 /// its classes exactly as [`compile`] walks it, and what falls out are the same
 /// descriptors, in the same order, that a cold compile of the same source would
 /// have allocated. A hit already means "the same source and the same
@@ -1139,7 +1142,7 @@ pub fn clif(program: &Program) -> Result<String, CodegenError> {
 ///
 /// A method table is deliberately **not** built here. A
 /// [`nvs_runtime::MethodRow`] holds a compiled function's address and there is
-/// none until the payload has been placed, so § 3's order is build, place,
+/// none until the payload has been placed, so the loader's order is build, place,
 /// relocate, protect, then bind — this type is the first of those steps and
 /// [`Self::bind`] is the last, the loader's counterpart to
 /// [`UnitBuilder::bind_method_tables`].
@@ -1236,7 +1239,7 @@ impl Descriptors {
         self.by_symbol.get(symbol).copied()
     }
 
-    /// § 3's last step: hands every descriptor built here the addresses the
+    /// The loader's last step: hands every descriptor built here the addresses the
     /// *loader* placed this unit's methods at, so a `CallVirtual` reaching one
     /// of these classes dispatches to the payload's own code.
     ///
@@ -1566,9 +1569,10 @@ impl Classes {
         for class in classes {
             out.define(class, &by_label);
         }
-        // `rule:core-classes/derive-property-list`'s nested field names a class that may be defined after
-        // the one holding it — or be that same class, since § 2 makes
-        // recursion the data's problem rather than the table's — so the codec
+        // `rule:core-classes/derive-property-list`'s nested field names a class
+        // that may be defined after the one holding it — or be that same class,
+        // since that rule makes recursion the data's problem rather than the
+        // table's — so the codec
         // is joined only once every descriptor above exists, and the contracts
         // go ahead of that join: a codec field naming an inline shape resolves
         // to a table that has to exist before the join reads it, where one
@@ -1791,7 +1795,7 @@ impl Classes {
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
         // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
         // "unchecked". Every class with a layout carries one entry per slot,
-        // because § 4's erased receiver reaches any class at all; the guard
+        // because that rule's erased receiver reaches any class at all; the guard
         // below is for the synthesized ones that carry none (an anonymous
         // function's environment, a generator's state).
         if class.field_reprs.len() == class.fields.len() && !class.field_reprs.is_empty() {

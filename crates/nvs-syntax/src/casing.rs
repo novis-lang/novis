@@ -35,8 +35,7 @@
 //! walks. It deliberately does not reach a parameter
 //! (`rule:core-api/a-parameter-is-not-a-member`: visibility is
 //! what promotes one to a property, so requiring it everywhere would delete
-//! the distinction) or an `enum` body (§ 3 of
-//! `rule:enums/closed-integer-type` already
+//! the distinction) or an `enum` body (`rule:enums/no-class-machinery` already
 //! rejects every non-`case` member there, and two diagnostics for one
 //! mistake is worse than one).
 //!

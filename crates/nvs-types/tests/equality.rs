@@ -1,6 +1,6 @@
-//! `rule:expressions/disjoint-comparison-refused`: two statically disjoint operands do not compile — and its
-//! § 6, which makes a `switch` label and a `match` arm the same check against
-//! their subject.
+//! `rule:expressions/disjoint-comparison-refused`: two statically disjoint
+//! operands do not compile — and `rule:expressions/switch-match-equality`, which
+//! makes a `switch` label and a `match` arm the same check against their subject.
 //!
 //! The acceptances here carry as much weight as the refusals. The rule is
 //! *disjointness*, not identity of types, so every shape ordinary code already
@@ -120,7 +120,8 @@ fn a_non_nullable_type_against_null_does_not_compile() {
 // compiles *and runs* every pairing among the four, which is the stronger
 // assertion and the one home for the fact.
 
-/// A `mixed` operand is § 5's runtime case, never § 2's compile error.
+/// A `mixed` operand is `rule:expressions/mixed-equality`'s runtime case, never
+/// a disjoint comparison's compile error.
 #[test]
 fn a_mixed_operand_compares_against_anything() {
     let diags = check_src(
@@ -143,8 +144,9 @@ fn a_union_compares_against_any_type_one_member_holds() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// `rule:expressions/switch-match-equality`: a `case` label is compared against the subject by the one
-/// equality rule, so a disjoint label is § 2's refusal without the operator.
+/// `rule:expressions/switch-match-equality`: a `case` label is compared against
+/// the subject by the one equality rule, so a disjoint label is
+/// `rule:expressions/disjoint-comparison-refused` without the operator.
 #[test]
 fn a_disjoint_switch_label_does_not_compile() {
     let diags = check_src(
@@ -164,8 +166,9 @@ fn a_disjoint_match_arm_does_not_compile() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// § 6's exception, and the shape `examples/match.nvs` is written in: every
-/// arm of a `match (true)` is a `bool` tested against a `bool`.
+/// `rule:expressions/switch-match-equality`'s exception, and the shape
+/// `examples/match.nvs` is written in: every arm of a `match (true)` is a `bool`
+/// tested against a `bool`.
 #[test]
 fn a_match_over_true_is_unaffected() {
     let diags = check_src(

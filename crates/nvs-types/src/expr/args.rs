@@ -702,9 +702,10 @@ pub(crate) fn carries_contagion(
 /// one rule a bag never reaches is the missing-required-key refusal below,
 /// because a bag's every field is optional.
 ///
-/// **Two passes, because § 2's arm cannot be chosen before the values are
-/// typed.** The first checks each written value against its *merged* slot —
-/// the union of what the arms declare for that key — so a value any arm would
+/// **Two passes, because the arm `rule:core-api/shape-arms-are-disjoint` selects
+/// cannot be chosen before the values are typed.** The first checks each written
+/// value against its *merged* slot — the union of what the arms declare for that
+/// key — so a value any arm would
 /// accept is not refused before its arm is known, and reports the two mistakes
 /// the merge does settle: a key no arm declares at all, and a key written
 /// twice. [`select_arm`] then picks the arm, and [`report_against_arm`] holds
@@ -1013,8 +1014,9 @@ struct WrittenKey<'src> {
 /// of this form" rather than with the four keys the server arm would want. A
 /// wrong *value* counts the same as a wrong key deliberately: weighting the
 /// discriminant would be a second, weaker spelling of the disjointness the
-/// types already carry, which is the same argument § 2 makes against naming a
-/// discriminant field at all.
+/// types already carry, which is the same argument
+/// `rule:core-api/shape-arms-are-disjoint` makes against naming a discriminant
+/// field at all.
 fn select_arm(
     shape: &crate::ty::CoreShape,
     written: &[WrittenKey<'_>],
@@ -1065,11 +1067,12 @@ fn select_arm(
 /// to another arm is still not a key of *this* call, so it is the
 /// `E_UNKNOWN_OPTION` the merged pass reports for a key no arm declares, with
 /// the selected arm's keys named instead of the merged list's. A missing
-/// required key is an `E_ARITY_MISMATCH` because § 3 flattens each key into one
-/// ABI argument, so a literal short of one is a call one argument short. A
-/// value the arm refuses is the ordinary [`report_mismatch`], naming the type
-/// that arm declares — which is how `driver: Driver::Sqlite` written against
-/// the server arm reads as the four cases it is not.
+/// required key is an `E_ARITY_MISMATCH` because each key flattens into one ABI
+/// argument (`rule:core-api/shape-flattens-at-the-abi`), so a literal short of
+/// one is a call one argument short. A value the arm refuses is the ordinary
+/// [`report_mismatch`], naming the type that arm declares — which is how
+/// `driver: Driver::Sqlite` written against the server arm reads as the four
+/// cases it is not.
 fn report_against_arm(
     value: &Expr,
     shape: &crate::ty::CoreShape,

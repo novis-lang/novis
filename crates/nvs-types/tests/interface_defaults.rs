@@ -1,4 +1,5 @@
-//! `rule:classes/no-traits`'s interface method bodies — a `public` default and a `private` helper, and who can see each.
+//! `rule:classes/no-traits`'s interface method bodies — a `public` default and a
+//! `private` helper, and who can see each.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -9,13 +10,14 @@ use common::*;
 use nvs_diagnostics::code;
 
 // ------------------------------------------------------------------
-// `rule:classes/interface-default-methods` and `rule:classes/interface-private-methods` -- interface default/private methods.
+// `rule:classes/interface-default-methods` and
+// `rule:classes/interface-private-methods` -- interface default/private methods.
 // ------------------------------------------------------------------
 
-/// § 2's own worked example: `Person` never declares `greet()` itself,
-/// but inherits it from `Greets` exactly like an ordinary inherited
-/// method — the same `resolve_method` ancestor walk `extends` already
-/// used, now also walking `implements`.
+/// `rule:classes/interface-default-methods`, worked through: `Person` never
+/// declares `greet()` itself, but inherits it from `Greets` exactly like an
+/// ordinary inherited method — the same `resolve_method` ancestor walk
+/// `extends` already used, now also walking `implements`.
 #[test]
 fn a_default_interface_method_is_inherited_and_callable() {
     let diags = check_src(
@@ -64,9 +66,9 @@ fn a_class_can_override_a_default_interface_method() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// § 2: `$this` inside an interface's own default method body is typed as
-/// that interface, not whatever concrete class ends up implementing it —
-/// so a member only the *implementing* class declares is not reachable
+/// `rule:classes/interface-default-methods`: `$this` inside an interface's own
+/// default method body is typed as that interface, not whatever concrete class
+/// ends up implementing it — so a member only the *implementing* class declares is not reachable
 /// through `$this` from inside the interface's own body, even though the
 /// same call would resolve fine from inside the implementing class.
 #[test]
@@ -86,10 +88,11 @@ fn this_inside_a_default_method_body_does_not_see_the_implementing_class() {
     );
 }
 
-/// § 3: a `private` interface method is callable from another method of
-/// the *same* interface (here, a second default method), and the default
-/// method that calls it is itself inherited and externally callable —
-/// privacy only closes the helper itself, not the contract around it.
+/// `rule:classes/interface-private-methods`: a `private` interface method is
+/// callable from another method of the *same* interface (here, a second
+/// default method), and the default method that calls it is itself inherited
+/// and externally callable — privacy only closes the helper itself, not the
+/// contract around it.
 #[test]
 fn a_private_interface_method_is_visible_from_its_own_interfaces_default_method() {
     let diags = check_src(
@@ -109,9 +112,10 @@ fn a_private_interface_method_is_visible_from_its_own_interfaces_default_method(
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// § 3's own diagnostic: an implementing class reaching for the private
-/// helper directly via `$this->` is `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`
-/// — it was never part of the interface's contract.
+/// `rule:classes/interface-private-methods`'s diagnostic: an implementing class
+/// reaching for the private helper directly via `$this->` is
+/// `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE` — it was never part of the
+/// interface's contract.
 #[test]
 fn a_private_interface_method_is_not_visible_through_this_from_an_implementing_class() {
     let diags = check_src(
@@ -133,9 +137,10 @@ fn a_private_interface_method_is_not_visible_through_this_from_an_implementing_c
 }
 
 /// The same refusal applies through an explicit qualified call
-/// (`InterfaceName::method()`, § 5's grammar for reaching a specific
-/// default explicitly) — a private helper stays invisible outside its own
-/// interface regardless of which call form reaches for it.
+/// (`InterfaceName::method()`, `rule:classes/member-conflict-is-an-error`'s
+/// grammar for reaching a specific default explicitly) — a private helper stays
+/// invisible outside its own interface regardless of which call form reaches
+/// for it.
 #[test]
 fn a_private_interface_method_is_not_visible_via_a_qualified_call_from_outside() {
     let diags = check_src(

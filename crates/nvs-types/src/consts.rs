@@ -1,8 +1,9 @@
 //! Every declared class's **class constants**, folded to the compile-time
-//! values `rule:types/constant-in-type-position` needs — the fourth thing this crate resolves once and publishes,
-//! alongside [`crate::enums`], `crate::expr_table` and `crate::layout`.
+//! values `rule:types/constant-in-type-position` needs — the fourth thing this
+//! crate resolves once and publishes, alongside [`crate::enums`],
+//! `crate::expr_table` and `crate::layout`.
 //!
-//! § 2 makes `Foo::TYPE_A` in *type* position sugar for the constant's own
+//! The rule makes `Foo::TYPE_A` in *type* position sugar for the constant's own
 //! single-value type, "exactly as long as that value is a `string` or `int`
 //! compile-time constant". That is a question about the *value*, so it has to
 //! be answered before the first annotation is interned — which is why this is
@@ -15,14 +16,15 @@
 //! [`crate::signatures::ConstSig`]'s, not this table's, and the split is the
 //! ordering above rather than a preference: interning an annotation needs an
 //! interner, and this pass runs before the first annotation is interned. This
-//! holds values, and a value is all § 2 asks for.
+//! holds values, and a value is all the rule asks for.
 //!
 //! **A second reader asks for the value and not the type**, which is why the
-//! fold is one row wider than § 2's own single-value types. [`crate::defaults`]
-//! resolves `public bool $on = Config::DEBUG;` through here — `rule:attributes/payload-is-a-compile-time-constant`'s
-//! constant set at a property default — and a `bool` or a `float` is as much
-//! a compile-time constant there as an `int` is, while neither is a *literal
-//! type* § 2 could make an annotation out of. So both are folded and both are
+//! fold is one row wider than the rule's own single-value types.
+//! [`crate::defaults`] resolves `public bool $on = Config::DEBUG;` through here —
+//! `rule:attributes/payload-is-a-compile-time-constant`'s constant set at a
+//! property default — and a `bool` or a `float` is as much a compile-time
+//! constant there as an `int` is, while neither is a *literal type* the rule
+//! could make an annotation out of. So both are folded and both are
 //! [`crate::lower`]'s `E_SINGLE_VALUE_TYPE_NOT_CONST` in type position, which is
 //! exactly what they were when they were [`ConstValue::Ineligible`].
 //!

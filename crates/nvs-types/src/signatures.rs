@@ -874,7 +874,7 @@ impl SignatureTable {
     /// [`ClassSignature::implements`] half of [`seed_class`](Self::seed_class),
     /// which [`resolve_iteration_element`] and [`resolve_interface_args`] read.
     ///
-    /// Separate from `seed_class` because only `Core`'s § 9 collections have
+    /// Separate from `seed_class` because only `Core`'s iterable classes have
     /// anything to say here (`nvs_stdlib::registry::ITERABLES`), and threading
     /// an empty vector through every other seeded class would say nothing four
     /// hundred times.
@@ -2010,9 +2010,10 @@ fn resolve_property_rec(
 /// [`ConstSig::ty`] owns why this is a fallback rather than a diagnostic — an
 /// unannotated `const` parses, so a read of one still has to answer something,
 /// and the value's own type is the closest thing to a declaration the source
-/// contains. A `string` constant answers `string` rather than `rule:types/single-value-types`'s
-/// single-value type: § 2's single-value-type fold is what a use in *type* position
-/// gets, and a read is an ordinary expression.
+/// contains. A `string` constant answers `string` rather than
+/// `rule:types/single-value-types`'s single-value type:
+/// `rule:types/constant-in-type-position`'s fold is what a use in *type*
+/// position gets, and a read is an ordinary expression.
 fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {
     let (consts, graph) = (env.consts, env.graph);
     match consts.get(qname, name, graph) {

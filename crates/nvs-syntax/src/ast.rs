@@ -9,19 +9,20 @@
 //! operator). [`Block`]/[`Stmt`]/[`StmtKind`] cover every
 //! control-flow statement (`if`, `while`, `do`/`while`, `for`, `foreach`'s
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
-//! `finally`), `echo`, `unset`, `rule:types/grammar`.1's typed local declaration,
-//! § 3.3's destructuring statement, and the statement-shaped rejects
-//! (`global`, `goto`, function-scope `static`). Classes, interfaces and
+//! `finally`), `echo`, `unset`, `rule:types/grammar`'s typed local declaration,
+//! `rule:expressions/bracket-destructuring`'s destructuring statement, and the
+//! statement-shaped rejects (`global`, `goto`, function-scope `static`). Classes, interfaces and
 //! enums ([`ClassDecl`]/[`InterfaceDecl`]/[`EnumDecl`]), their members
 //! ([`ClassMember`]: properties with PHP 8.4's hooks, consts, methods),
 //! attributes ([`AttributeGroup`]), and the file-scope declarations that sit
 //! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) complete
 //! the tree. There is no `trait` declaration and no class-body
-//! `use Trait, ...;` — `rule:classes/no-traits` replaces both with an `interface` method that
-//! carries a body (§§ 2-3) and `by $field` delegation on an
-//! [`ImplementsClause`] (§ 4); `trait`/class-body `use`/`insteadof` are all
-//! parse-time-rejected instead (`E_TRAIT_NOT_SUPPORTED`), with no AST node
-//! left to carry them.
+//! `use Trait, ...;` — `rule:classes/no-traits` replaces both with an
+//! `interface` method that carries a body (`rule:classes/interface-default-methods`,
+//! `rule:classes/interface-private-methods`) and `by $field` delegation on an
+//! [`ImplementsClause`] (`rule:classes/delegation-by-property`);
+//! `trait`/class-body `use`/`insteadof` are all parse-time-rejected instead
+//! (`E_TRAIT_NOT_SUPPORTED`), with no AST node left to carry them.
 //!
 //! # Conventions
 //!
@@ -101,10 +102,10 @@ pub enum TypeAtom {
     Uint,
     /// `float`
     Float,
-    /// `decimal` — `rule:types/decimal`: a scalar, not a class, and never a spelling
-    /// of `float`. It is its own atom for the same reason `uint` is: § 3 makes
-    /// `decimal ⊕ float` a compile error, which is only expressible if the two
-    /// never collapse to one type.
+    /// `decimal` — `rule:types/decimal`: a scalar, not a class, and never a
+    /// spelling of `float`. It is its own atom for the same reason `uint` is: the
+    /// rule makes `decimal ⊕ float` a compile error, which is only expressible if
+    /// the two never collapse to one type.
     Decimal,
     /// `string`
     String,
@@ -203,17 +204,18 @@ pub enum TypeAtom {
     /// a type has nothing to interpolate from.
     SingleValueString(Span),
     /// `1`, `-1` — the type inhabited by exactly that one integer,
-    /// `rule:types/single-value-types`. The span covers a leading `-` when one was written.
-    /// There is deliberately no `float` counterpart (§ 7).
+    /// `rule:types/single-value-types`. The span covers a leading `-` when one
+    /// was written. The same rule leaves it deliberately without a `float`
+    /// counterpart.
     SingleValueInt(Span),
     /// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`. The [`Name`] is the
     /// class or enum, the [`Span`] the member identifier after `::`.
     ///
     /// One atom, two meanings, and the parser cannot tell them apart: a
-    /// *class constant* folds to its own single-value type (§ 2) while an *enum
-    /// case* stays a narrowed subtype of its enum (§ 3), which needs the name
-    /// resolved. That is the same division of labour [`Self::Name`] already
-    /// has, for the same reason.
+    /// *class constant* folds to its own single-value type while an *enum case*
+    /// stays a narrowed subtype of its enum, which needs the name resolved. That
+    /// is the same division of labour [`Self::Name`] already has, for the same
+    /// reason.
     Member(Name, Span),
     /// `Order::Status::Paid` in type position — a case of an enum a class or
     /// interface owns (`rule:enums/class-scoped-enum`, `rule:types/enum-case-type`).

@@ -81,9 +81,10 @@ fn a_literal_with_a_scale_past_28_is_diagnosed() {
     );
 }
 
-/// An integer literal placed at `decimal` is exact in 96 bits (§ 4's first
-/// conversion row), so it is checked against *that* bound rather than `int`'s
-/// 64-bit one — a value too large for `uint` is still a fine `decimal`.
+/// An integer literal placed at `decimal` is exact in 96 bits (the
+/// `int` / `uint` → `decimal` row of `rule:types/conversion`), so it is checked
+/// against *that* bound rather than `int`'s 64-bit one — a value too large for
+/// `uint` is still a fine `decimal`.
 #[test]
 fn an_integer_literal_placed_at_decimal_gets_the_96_bit_bound() {
     let diags = check_in_method("decimal $d = 99999999999999999999999999;\n");

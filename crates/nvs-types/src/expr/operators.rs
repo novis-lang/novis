@@ -16,15 +16,16 @@
 //!
 //! Two more refusals are about which operands may *meet* rather than what they
 //! produce. `rule:expressions/disjoint-comparison-refused` refuses `==`/`!=` between two statically **disjoint**
-//! types ([`reject_disjoint_equality`]), and its § 6 points a `switch` label
-//! and a `match` arm at the same check; `rule:types/array-combination` refuses `+`/`+=` with an
-//! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
+//! types ([`reject_disjoint_equality`]), and `rule:expressions/switch-match-equality`
+//! points a `switch` label and a `match` arm at the same check;
+//! `rule:types/array-combination` refuses `+`/`+=` with an array operand
+//! ([`reject_array_combination`]), naming `Core\Arr::underlay`.
 //!
 //! `++`/`--` is the same table read as `± 1`, so its target has to be one of
-//! § 4's numeric types ([`reject_increment_on_non_numeric`]). **PHP's string
-//! increment does not exist** — `$s++` walking `"a"`→`"b"`→`"aa"` is a
-//! divergence taken deliberately, and this is its home: `rule:types/conversion` fixes a
-//! binding's type at its declaration and § 4's table has no row producing
+//! `rule:types/arithmetic`'s numeric types ([`reject_increment_on_non_numeric`]).
+//! **PHP's string increment does not exist** — `$s++` walking `"a"`→`"b"`→`"aa"`
+//! is a divergence taken deliberately, and this is its home: `rule:types/conversion`
+//! fixes a binding's type at its declaration and the arithmetic table has no row producing
 //! `"b"` from a `string` and a `1`, so there is no arithmetic here to lower
 //! and no type the result could take. Code that wants the next spreadsheet
 //! column asks for it by name. The cost is one refused shape in ported code,
@@ -36,13 +37,14 @@
 //! already names a value the target's closed set does not contain), plus
 //! `rule:expressions/nullable-conversion-availability`'s target rule for `as ?T`
 //! ([`check_class_target_conversion`]: every class target is refused, with no
-//! exceptions — § 3a's `tryParse` is the member that answers instead), plus
-//! the table's own completeness ([`reject_unconvertible`]: § 2 is a *closed* list
-//! of rows, so a pair naming none of them has nothing to produce and nothing
-//! to throw, and a class target is decided by whether the two types share a
-//! value at all — [`reject_unrelated_class_conversion`]); what a
-//! conversion does to a qualifier is [`super::quals`], and what its target type
-//! may be spelled as is [`crate::lower`].
+//! exceptions — `rule:expressions/try-parse`'s `tryParse` is the member that
+//! answers instead), plus the table's own completeness ([`reject_unconvertible`]:
+//! `rule:types/conversion` is a *closed* list of rows, so a pair naming none of
+//! them has nothing to produce and nothing to throw, and a class target is
+//! decided by whether the two types share a value at all —
+//! [`reject_unrelated_class_conversion`]); what a conversion does to a qualifier
+//! is [`super::quals`], and what its target type may be spelled as is
+//! [`crate::lower`].
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -57,22 +59,22 @@ use super::*;
 /// `rule:types/numeric-literal-placement`: `expr as T` is itself a placing position, so a numeric
 /// *literal* written directly under one takes `T` as its target rather than
 /// being typed first and converted afterwards. Without this, `19.99 as decimal`
-/// would round-trip through an `f64` and lose everything past ~17 digits — § 4's
-/// `float → decimal` row — making a wider literal unwritable anywhere that lacks
-/// an annotation. Restricted to a literal operand on purpose: any other operand
-/// already has a type of its own, and handing it an expectation would silently
-/// change what `as` converts *from*. [`super::infer`] rather than
-/// [`check_expr`], because a placement is not an assignment: `1 as string` still
-/// places the literal at `string` and still converts, so the conformance check
-/// [`check_expr`] would run here would reject every conversion that does any
-/// work.
+/// would round-trip through an `f64` and lose everything past ~17 digits —
+/// `rule:types/conversion`'s `float → decimal` row — making a wider literal
+/// unwritable anywhere that lacks an annotation. Restricted to a literal operand
+/// on purpose: any other operand already has a type of its own, and handing it
+/// an expectation would silently change what `as` converts *from*.
+/// [`super::infer`] rather than [`check_expr`], because a placement is not an
+/// assignment: `1 as string` still places the literal at `string` and still
+/// converts, so the conformance check [`check_expr`] would run here would reject
+/// every conversion that does any work.
 ///
 /// `rule:types/single-value-types` adds the string literal to that same branch, for the same
 /// reason one step further on: `"a" as "a"|"b"` is a conversion the target
 /// *statically satisfies*, and without the placement the operand would be a
 /// plain `string` converting into the set at run time. What the placement
 /// cannot satisfy, [`reject_impossible_literal_conversion`] refuses outright —
-/// § 6's two diagnostics, and the only pair of conversions the operand's own
+/// that rule's two diagnostics, and the only pair of conversions the operand's own
 /// type can prove nothing will ever come of.
 ///
 /// A `legacy` conversion is PHP's `(T)expr`, which the parser has already
@@ -144,7 +146,7 @@ pub(crate) fn infer_conversion(
 /// compile-time yes when `Dog` is an `Animal` and a compile-time refusal when it
 /// is not, so there is no run-time check for the program to reach and no throw
 /// for it to handle. This is the ordinary shape a factory takes, which is why
-/// § 2 singles it out: the common case pays nothing at run time.
+/// that rule singles it out: the common case pays nothing at run time.
 ///
 /// **Two operand shapes.** `::class` goes through the file's imports and
 /// namespace ([`super::members::check_class_name_const`], which also reports a
@@ -153,7 +155,7 @@ pub(crate) fn infer_conversion(
 /// loaded its class through `autoload` by the same reading, so a name that is
 /// still undeclared here is one nothing can load: [`code::E_UNDEFINED_CLASS`],
 /// the code `Bogus::class` gets. Every other operand — a class constant, a
-/// concatenation, a variable — is the § 2 row proper, checked where the value
+/// concatenation, a variable — is that rule's row proper, checked where the value
 /// arrives against the classes the program loaded.
 ///
 /// The refusal of a class outside `T` is [`code::E_NO_CONVERSION`], the code
@@ -173,8 +175,9 @@ fn reject_impossible_class_reference_conversion(
     ) {
         return;
     }
-    // Under `as ?class<T>` as well, and by the same sentence: `rule:expressions/nullable-conversion-availability`
-    // makes the sugar answer `null` where the checked form throws, and § 2's
+    // Under `as ?class<T>` as well, and by the same sentence:
+    // `rule:expressions/nullable-conversion-availability` makes the sugar answer
+    // `null` where the checked form throws, and `rule:types/class-reference`'s
     // written-out operand never throws — it is decided here — so a name
     // outside `T`'s hierarchy has no run-time failure for the `?` to convert
     // into a `null` and is the same refusal. The target reaches here as
@@ -264,18 +267,18 @@ fn written_class_name_text(text: Span, target: &QName, env: &mut Env<'_>) -> Opt
 ///
 /// [`reject_impossible_class_reference_conversion`]'s shape one type over: a
 /// plain string literal is decided where it is written, since a property name
-/// is written as text and § 2's door is the `string` row itself. A computed
+/// is written as text and the rule's door is the `string` row itself. A computed
 /// operand is that row proper, checked where the value arrives, and reaches
 /// nothing here.
 ///
 /// A name outside the set and a name naming a `private` property are one
-/// failure with one message, which is § 2's sentence: visibility is decided at
+/// failure with one message, which is the rule's sentence: visibility is decided at
 /// the conversion, once. Under `as ?property<T>` as well, for
 /// `rule:expressions/nullable-conversion-availability`'s
 /// reason the sibling states — the sugar answers `null` where the checked form
 /// throws, and an operand decided here never had a throw to convert.
 ///
-/// **Every other operand is § 2's `string` row proper, and this is where its
+/// **Every other operand is the rule's `string` row proper, and this is where its
 /// run-time test is prepared.** The roster resolved here is the whole content
 /// of that test, and it is the one thing erasure loses — see
 /// [`ExprInfo::PropertyKey`], which is what carries it to `nvs-ir` and why the
@@ -311,8 +314,8 @@ fn check_property_key_conversion(
     // The editor offers these names inside the operand, written out or not.
     super::members::record_property_keys(&qname, env);
     let ExprKind::Str(text) = &inner.kind else {
-        // § 2's `string` and `property<U>` rows: the name arrives when the
-        // statement runs, so the set it must be one of travels to the lowering
+        // `rule:types/property-key`'s `string` and `property<U>` rows: the name
+        // arrives when the statement runs, so the set it must be one of travels to the lowering
         // instead of being decided here. An empty roster is recorded like any
         // other, refused above though it is: `nvs-ir` has no fallback for a
         // conversion whose annotation carries no entry, and a type that cannot
@@ -580,8 +583,9 @@ pub(crate) fn binary_result(
             // changes — it is a `bool` either way — so this records the fact
             // for `nvs-ir` rather than returning a different type. It has to be
             // recorded here because the qualifier does not survive
-            // `nvs_ir::ty::Ty`, which is § 1's promise that a `secret string`
-            // costs no representation; see `ExprInfo::SecretEquality`.
+            // `nvs_ir::ty::Ty`, which is `rule:security/secret-qualifier`'s
+            // promise that a `secret string` costs no representation; see
+            // `ExprInfo::SecretEquality`.
             if carries_secret(lhs, env.interner) || carries_secret(rhs, env.interner) {
                 env.exprs
                     .record(span, crate::expr_table::ExprInfo::SecretEquality);
@@ -615,8 +619,8 @@ pub(crate) fn binary_result(
 /// the operator.
 ///
 /// Only the refusal lives here. What equality *means* at a type that survives
-/// it is § 3, which is `nvs-runtime`'s; the narrowing a null test performs is
-/// [`crate::locals`]'s `narrow`.
+/// it is `rule:expressions/equality-semantics`, which is `nvs-runtime`'s; the
+/// narrowing a null test performs is [`crate::locals`]'s `narrow`.
 pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) {
     if !types_are_disjoint(lhs, rhs, env) {
         return;
@@ -708,9 +712,10 @@ fn disjoint_help(lhs: &Ty, rhs: &Ty) -> &'static str {
 /// Deliberately one-sided: it answers `true` only where disjointness is
 /// provable from the two types alone, and `false` — "these may overlap" — for
 /// everything it does not model. A missed diagnostic costs an author nothing;
-/// a wrong one costs them a program that used to build. `mixed` (§ 5 resolves
-/// it at runtime instead), `iterable`, an intersection, an options bag and a
-/// type variable all take that branch, as does any class name this
+/// a wrong one costs them a program that used to build. `mixed`
+/// (`rule:expressions/mixed-equality` resolves it at runtime instead),
+/// `iterable`, an intersection, an options bag and a type variable all take
+/// that branch, as does any class name this
 /// compilation did not declare.
 ///
 /// [`super::type_test`] reads the same answer as a question about one value —
@@ -774,14 +779,16 @@ enum EqDomain<'a> {
     /// equal to one: an instance is not its own class, and `$cls == "Dog"` is
     /// exactly the string-as-a-class confusion `rule:types/class-reference` exists to keep out
     /// (`Foo::class` stays a `string`, and `as class<T>` is the only door).
-    /// Not parameterised by the argument, because covariance (§ 3) means two
+    /// Not parameterised by the argument, because covariance
+    /// (`rule:types/class-reference-variance`) means two
     /// class references at different arguments can hold the same descriptor.
     ClassRef,
     /// `property<T>` — its own domain, for [`Self::ClassRef`]'s reason applied
     /// to a member name: two keys are equal when they name the same property,
     /// and `$key == "email"` is the string-as-a-member confusion `rule:types/property-key`
     /// keeps out, `as property<T>` being the only door. Not parameterised by
-    /// the argument, because § 3's contravariance means two keys at different
+    /// the argument, because contravariance (`rule:types/property-key-variance`)
+    /// means two keys at different
     /// arguments can hold the same name.
     PropertyKey,
     /// `propertyPath<T>` — `rule:types/property-path`'s own domain, for
@@ -1374,7 +1381,8 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
 ///
 /// **Both operands, never one.** `$m + "x"` and `$m + 1` fall straight through
 /// to [`reject_unrowed_arithmetic_operand`], which refuses any class beside an
-/// arithmetic operator — which is the refusal § 5 wants, since the other side
+/// arithmetic operator — which is the refusal `rule:core-classes/html-auto-escape`
+/// wants, since the other side
 /// would have to be escaped and this operator is not a sink.
 ///
 /// Returns `Some` for the pair and `None` for everything else, so
@@ -1709,7 +1717,7 @@ fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<
 /// values, so the fix is to convert one side and say which. Returns
 /// `Some(mixed)` once diagnosed, `None` for every other pair so the caller's
 /// own table runs unchanged. Comparison is deliberately *not* routed through
-/// here: the same § 3 permits `decimal < 1.5`, because an exact comparison is
+/// here: the same rule permits `decimal < 1.5`, because an exact comparison is
 /// computable even where a common arithmetic type is not.
 pub(crate) fn reject_decimal_float_operands(
     lhs: TypeId,
@@ -2022,7 +2030,8 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
 /// cannot-fail row above it has no counterpart in the plain form at all,
 /// since `as T` is happy to be total.
 ///
-/// § 3's third row — **any** class target, absolutely — is
+/// `rule:expressions/nullable-conversion-availability`'s third row — **any**
+/// class target, absolutely — is
 /// [`check_class_target_conversion`]'s, whose help names `tryParse` rather
 /// than a row. Skipped here so one expression takes one diagnostic.
 fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
@@ -2459,7 +2468,7 @@ enum ConvKind {
     /// `class<T>` — `rule:types/class-reference`, and the one target kind that *is* produced by
     /// rows of its own. Deliberately not [`Self::Object`]: a descriptor is one
     /// pointer like an instance is, but the two rows that reach it check a
-    /// hierarchy at run time and no row of § 2 reaches an instance at all.
+    /// hierarchy at run time and no row of that rule reaches an instance at all.
     ///
     /// Unparameterised, because the table asks only which rows exist. `class<U>
     /// → class<T>` is one row whatever `U` and `T` are — a narrowing, checked
@@ -2474,7 +2483,7 @@ enum ConvKind {
     /// against `T`'s roster at run time.
     ///
     /// Where the operand is written out, the pair is decided at compile time by
-    /// [`check_property_key_conversion`] instead, which is § 2's second
+    /// [`check_property_key_conversion`] instead, which is that rule's second
     /// sentence and the reason a hand-written key costs nothing at run time.
     PropertyKey,
     /// `propertyPath<T>` — `rule:types/property-path`, [`Self::PropertyKey`]'s
@@ -2578,7 +2587,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // A class target never reaches this table — [`reject_unconvertible`]
         // sends it to [`reject_unrelated_class_conversion`] first, because
         // what decides one is whether the two types share a value rather than
-        // which row of § 2 they name.
+        // which row of `rule:types/conversion` they name.
         (_, Object) => true,
         // Either side admits more than one runtime shape, so the row is the
         // operand's tag's and no static pair can be judged. `mixed` is the
@@ -2611,7 +2620,8 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // keeps a member name an ordinary `string` everywhere else.
         (Str | PropertyKey, PropertyKey) => true,
         (_, PropertyKey) => false,
-        // § 2's third row, and the direction that cannot go wrong: a checked
+        // `rule:types/property-key`'s third row, and the direction that cannot
+        // go wrong: a checked
         // name is still a name. Total, so it is written here rather than added
         // to the "anything → `string`" arm below, where it would read as one of
         // the scalars.
@@ -2822,8 +2832,8 @@ pub(crate) fn reject_enum_to_enum_conversion(
 /// one wider atom (`string`, or the `null` an `as ?T` adds) is a member the
 /// operand may well reach. The **operand** is closed only when the expression
 /// itself names a single value ([`conversion_operand_singleton`]), since
-/// `$s as "a"|"b"` over a plain `string` is exactly § 4's checked row and has
-/// to compile.
+/// `$s as "a"|"b"` over a plain `string` is exactly the checked row of
+/// `rule:types/single-value-types` and has to compile.
 ///
 /// This is deliberately not [`types_are_disjoint`]'s business.
 /// `rule:expressions/disjoint-comparison-refused` puts a single-value type in its base type's domain, so `$mode == "z"` stays
@@ -2849,7 +2859,8 @@ fn reject_impossible_literal_conversion(
     if int_literal_reaches_a_case(operand, &accepted, env) {
         return;
     }
-    // § 6: the accepted set is generated from the type, never written per
+    // `rule:types/single-value-types`: the accepted set is generated from the
+    // type, never written per
     // site, so every atom is rendered by the interner that holds it.
     let cases_only = accepted
         .iter()
@@ -2888,7 +2899,8 @@ fn reject_impossible_literal_conversion(
 /// lookup below as the way to the value for anything that needs it.
 ///
 /// This does not fold an int literal into an enum case anywhere else: assigning
-/// `1` to a `Mode` stays refused, which is the hole § 3 keeps shut.
+/// `1` to a `Mode` stays refused, which is the hole that
+/// `rule:types/enum-case-type` keeps shut.
 fn int_literal_reaches_a_case(operand: TypeId, accepted: &[TypeId], env: &Env<'_>) -> bool {
     let Ty::SingleValueInt(value) = *env.interner.get(operand) else {
         return false;
@@ -2939,8 +2951,9 @@ fn closed_set_atoms(to: TypeId, interner: &TypeInterner) -> Option<Vec<TypeId>> 
 /// target's own atoms, so it is in hand with nothing to re-derive. Everything
 /// after it is the failing side of that same placement, where the literal has
 /// widened back to its base and the value it named has to be recovered from
-/// the expression — [`literal_self_type`] for § 1's two literals, and the
-/// recorded [`crate::expr_table::ExprInfo::EnumCase`] for § 3's case. That
+/// the expression — [`literal_self_type`] for `rule:types/single-value-types`'s
+/// two literals, and the recorded [`crate::expr_table::ExprInfo::EnumCase`] for
+/// `rule:types/enum-case-type`'s case. That
 /// record rather than the expression's shape, because `Core\X::SOME_CONST` is
 /// the same `ClassConstAccess` node and may be enum-typed without naming a
 /// case at all.
@@ -3038,11 +3051,12 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 /// The carrier renders — [`require_stringable_object`] says so, and it has to,
 /// because `echo $markup` writing the markup out raw is the whole reason the
 /// type exists. What this refuses is every *other* route to the same bytes.
-/// § 2's own example is the one that matters: `"Hello " . $m` would flatten the
-/// carrier into a `string`, which the HTML sink then escapes, and the program
-/// ships `&amp;amp;` — the bug `rule:security/launderer-answers-a-carrier` removes, with `.` spelling it instead
-/// of `escape`. § 3 refuses `as string` for the same reason in one keystroke
-/// fewer.
+/// `rule:core-classes/html-escape-answers-markup`'s own example is the one that
+/// matters: `"Hello " . $m` would flatten the carrier into a `string`, which the
+/// HTML sink then escapes, and the program ships `&amp;amp;` — the bug
+/// `rule:security/launderer-answers-a-carrier` removes, with `.` spelling it
+/// instead of `escape`. `rule:core-classes/html-to-source` refuses `as string`
+/// for the same reason in one keystroke fewer.
 ///
 /// **`Core\Cli\Text` is deliberately not refused here**, and the asymmetry is
 /// `rule:security/launderer-answers-a-carrier`'s table rather than an oversight: the terminal's escape is

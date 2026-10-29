@@ -339,11 +339,13 @@ fn a_write_inside_a_loop_body_widens_the_local_after_it() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
-/// `rule:expressions/one-equality-operator` left one spelling, and `nvs_types::locals`' `null_test` reads
-/// it: `!= null`/`== null` is the narrowing test, where while both operator
-/// pairs existed it had to be `!==`/`===` to stay clear of PHP's truthy table.
-/// § 2 is what keeps it a question only a *nullable* binding can be asked —
-/// the same test against a non-nullable one no longer compiles at all.
+/// `rule:expressions/one-equality-operator` left one spelling, and
+/// `nvs_types::locals`' `null_test` reads it: `!= null`/`== null` is the
+/// narrowing test, where while both operator pairs existed it had to be
+/// `!==`/`===` to stay clear of PHP's truthy table.
+/// `rule:expressions/disjoint-comparison-refused` is what keeps it a question
+/// only a *nullable* binding can be asked — the same test against a
+/// non-nullable one no longer compiles at all.
 #[test]
 fn an_equality_null_test_narrows() {
     let diags =
