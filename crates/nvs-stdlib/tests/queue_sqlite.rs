@@ -73,7 +73,7 @@ fn connect(block: &Database) -> SqliteConn {
     nvs_db::sqlite::open(&target).expect("an in-memory database opens")
 }
 
-/// Two connections to one database, with § 2's two tables converged onto it.
+/// Two connections to one database, with the queue's two tables converged onto it.
 ///
 /// The schema is [`queue::migration`]'s and never a copy: what these cases run
 /// their statements against is the DDL `nvs queue migrate` would apply, so a
@@ -119,7 +119,7 @@ fn int(cell: &SqliteValue) -> i64 {
 ///
 /// The insert is this file's own rather than [`queue::INSERT_MYSQL`]'s, because
 /// it is the fixture and not the thing under test: what a case here asserts is
-/// what a claim reads, and a claim reads the columns § 2's schema declares.
+/// what a claim reads, and a claim reads the columns the schema declares.
 fn push(conn: &SqliteConn, run_at: i64, state: i64, attempts: i64, claimed_at: Option<i64>) -> i64 {
     push_on(conn, QUEUE, run_at, state, attempts, claimed_at)
 }
@@ -199,11 +199,12 @@ fn claim(conn: &SqliteConn, now: i64, cutoff: i64) -> Option<Vec<SqliteValue>> {
 /// outright and then finds nothing left to take.
 ///
 /// Both halves matter, and neither is visible on one connection. The refusal is
-/// § 4's mutual exclusion — inside an immediate transaction no second connection
-/// is writing at all, which is why `CLAIM_SQLITE` needs no `skip locked` and has
-/// nowhere to put one. The empty second claim is what makes the exclusion a
-/// *claim* rather than a lock: the row the first connection took is no longer
-/// due, so the second comes back with nothing rather than with the same job.
+/// `rule:concurrency/claiming-is-one-statement`'s mutual exclusion — inside an
+/// immediate transaction no second connection is writing at all, which is why
+/// `CLAIM_SQLITE` needs no `skip locked` and has nowhere to put one. The empty
+/// second claim is what makes the exclusion a *claim* rather than a lock: the
+/// row the first connection took is no longer due, so the second comes back
+/// with nothing rather than with the same job.
 #[test]
 fn two_connections_claiming_one_sqlite_file_never_come_back_with_the_same_job() {
     let (first, second) = two_connections("nvs-stdlib-queue-one-job-two-workers");
@@ -231,7 +232,7 @@ fn two_connections_claiming_one_sqlite_file_never_come_back_with_the_same_job() 
     assert_eq!(
         server.kind,
         nvs_db::DbErrorKind::Deadlock,
-        "§ 8's kind is what makes `{{ retries: n }}` mean something here"
+        "the `DbError` kind is what makes `{{ retries: n }}` mean something here"
     );
     assert_eq!(second.depth(), 0, "a refused begin opened no transaction");
 
@@ -251,7 +252,7 @@ fn two_connections_claiming_one_sqlite_file_never_come_back_with_the_same_job() 
 
 /// `attempts` is answered as the value the row is *about to* have, which is
 /// `CLAIM_MYSQL`'s reason and not PostgreSQL's: the `update` has not run when the
-/// `select` answers, so a claim reading the stored count would stop § 6's ladder
+/// `select` answers, so a claim reading the stored count would stop the retry ladder
 /// one rung short of `max_attempts`.
 ///
 /// Asserted against the column the second half then writes, so a claim that
@@ -384,7 +385,8 @@ fn push_in_two_flagged(
     (id, false)
 }
 
-/// § 2's guarantee on this backend: at most one *pending* job per dedupe key, and
+/// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`'s guarantee on
+/// this backend: at most one *pending* job per dedupe key, and
 /// what enforces it is the pair rather than the unique index catching a second
 /// insert.
 ///
@@ -486,7 +488,7 @@ fn affected(conn: &SqliteConn, sql: &str, params: Vec<SqliteValue>) -> u64 {
         .affected()
 }
 
-/// `DEAD_LETTER_SQLITE`'s pair, taken whole: the copy into § 2's second table and
+/// `DEAD_LETTER_SQLITE`'s pair, taken whole: the copy into the dead-letter table and
 /// the delete that follows it, both keyed on the lease the claim wrote.
 ///
 /// `crates/nvs-cli/src/worker.rs` runs these two in this order, and what holds
@@ -563,7 +565,7 @@ fn a_sqlite_status_reads_the_live_state_and_then_the_dead_letter_ordinal() {
     assert_eq!(
         status(&reader, pushed),
         Some(3),
-        "§ 6 moved the row, and the second arm is what keeps the receipt answerable"
+        "the dead-letter move took the row, and the second arm is what keeps the receipt answerable"
     );
     assert_eq!(
         status(&reader, pushed + 1),
@@ -593,7 +595,7 @@ fn cancel(conn: &SqliteConn, id: i64) -> u64 {
 ///
 /// The key is pushed through `INSERT_SQLITE` so the last assertion can be about
 /// `dedupe_pending`: cancel releases a key with the same `null` the claim writes,
-/// which is § 2's guarantee holding across a state no worker reached.
+/// which is the dedupe guarantee holding across a state no worker reached.
 // covers: Core\Queue::cancel
 #[test]
 fn a_sqlite_cancel_takes_a_pending_job_and_changes_nothing_else() {
@@ -667,7 +669,7 @@ fn counts(conn: &SqliteConn) -> [i64; 6] {
 
 /// `stats` answers one row of six integers on this backend too, and the empty
 /// queue is the half that decides it: `count` over no rows is `0`, and the
-/// `coalesce` is what keeps a `sum` over no rows from answering `null` where § 6
+/// `coalesce` is what keeps a `sum` over no rows from answering `null` where `stats`
 /// means zero.
 ///
 /// The `cast(… as signed)` is MySQL's and inert here, which is a claim only a run
@@ -928,12 +930,12 @@ fn delete_in_two(conn: &SqliteConn, id: i64) -> bool {
     conn.commit().expect("the removal's transaction closes");
     assert!(
         gone + buried <= 1,
-        "§ 6 moves a job, so a receipt is in one of § 2's tables and never in both"
+        "the dead-letter move takes a job, so a receipt is in one of the queue's tables and never in both"
     );
     gone + buried > 0
 }
 
-/// The rows of § 2's two tables that still carry a receipt.
+/// The rows of the queue's two tables that still carry a receipt.
 fn present(conn: &SqliteConn, id: i64) -> (i64, i64) {
     let read = rows(
         conn,
@@ -985,7 +987,11 @@ fn a_sqlite_delete_removes_a_receipt_from_either_table_and_a_claimed_job_from_ne
     let taken = claim(&worker, NOW, NOW - WINDOW).expect("the pending job is due");
     assert_eq!(int(&taken[0]), lost);
     dead_letter(&worker, lost, NOW);
-    assert_eq!(present(&caller, lost), (0, 1), "§ 6 moved it");
+    assert_eq!(
+        present(&caller, lost),
+        (0, 1),
+        "the dead-letter move took it"
+    );
     assert!(
         delete_in_two(&caller, lost),
         "the second arm is what keeps a receipt removable across that move"
@@ -1023,7 +1029,7 @@ fn purge(
     )
 }
 
-/// The ids left in one of § 2's tables, oldest first.
+/// The ids left in one of the queue's two tables, oldest first.
 fn remaining(conn: &SqliteConn, table: &str) -> Vec<i64> {
     rows(
         conn,
@@ -1127,7 +1133,7 @@ fn purge_dead(conn: &SqliteConn, tag: Option<&str>, before: Option<i64>, limit: 
 /// One dead-lettered row, tagged as the enqueue would have tagged it.
 ///
 /// The tag is written onto the job before the move rather than into the dead
-/// table afterwards, because that is § 6's own claim: a group tagged at enqueue
+/// table afterwards, because that is the dead-letter move's own claim: a group tagged at enqueue
 /// is still that group once its work was lost, and the move's `select` is what
 /// has to carry the column for a purge to be able to ask about it.
 fn buried(conn: &SqliteConn, created_at: i64, tag: Option<&str>) -> i64 {
@@ -1146,7 +1152,7 @@ fn buried(conn: &SqliteConn, created_at: i64, tag: Option<&str>) -> i64 {
 }
 
 /// `purge` over the dead-letter table: the record that work was lost, swept by
-/// the two options § 6 moves the columns for and by the same bound.
+/// the two options the dead-letter move carries the columns for and by the same bound.
 ///
 /// A tag that names no row is the first assertion, because a filter that fell
 /// through to *everything* would pass every other one here.
@@ -1197,8 +1203,9 @@ fn a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_tabl
     );
 }
 
-/// § 6's move, executed: an exhausted job leaves `nvs_jobs` for `nvs_dead_jobs`
-/// carrying the columns § 2's second table declares, rather than being discarded
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s move,
+/// executed: an exhausted job leaves `nvs_jobs` for `nvs_dead_jobs` carrying the
+/// columns the dead-letter table declares, rather than being discarded
 /// or left claimed forever.
 ///
 /// **The copy runs before the delete on this backend**, which is
@@ -1206,7 +1213,7 @@ fn a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_tabl
 /// read while they still exist; what holds the two halves as one moment is the
 /// immediate transaction rather than anything in the text.
 ///
-/// **Asserted from both sides**, because § 6's property is not that the row
+/// **Asserted from both sides**, because the rule's property is not that the row
 /// appears in the other table but that it is not discarded: a move that deleted
 /// without copying would satisfy a case that only looked at where the job went.
 /// The fixture spends two of three attempts and the claim spends the third, so
@@ -1256,7 +1263,7 @@ fn a_sqlite_dead_letter_move_carries_the_row_whole_into_the_other_table() {
                 "the last attempt threw",
             )),
         ]],
-        "carrying its own columns and the array § 6 asks for"
+        "carrying its own columns and the `errors` array"
     );
 }
 
@@ -1264,7 +1271,7 @@ fn a_sqlite_dead_letter_move_carries_the_row_whole_into_the_other_table() {
 ///
 /// Read as the column rather than as a count, because both of its values are an
 /// assertion here: the key that is on the row and the null that is not are the
-/// two halves § 2's guarantee is made of.
+/// two halves the dedupe guarantee is made of.
 fn pending_key(conn: &SqliteConn, id: i64) -> Option<String> {
     let read = rows(
         conn,
@@ -1278,7 +1285,7 @@ fn pending_key(conn: &SqliteConn, id: i64) -> Option<String> {
     }
 }
 
-/// § 6's ladder putting a job back: the row returns to `Pending` at the instant
+/// The retry ladder putting a job back: the row returns to `Pending` at the instant
 /// the caller chose, and the dedupe key the claim took off it comes back with it.
 ///
 /// **`dedupe_pending = dedupe_key` is the half nothing else here states.**
@@ -1342,7 +1349,7 @@ fn a_sqlite_retry_puts_the_dedupe_key_back_on_the_row_it_released() {
     );
 }
 
-/// § 2's roster, sorted: the queue names a worker idling at `now` would claim
+/// The roster, sorted: the queue names a worker idling at `now` would claim
 /// against.
 ///
 /// The roster names no order, and what a case asks of it is a set, so the
@@ -1364,7 +1371,8 @@ fn roster(conn: &SqliteConn, now: i64, cutoff: i64) -> Vec<String> {
     named
 }
 
-/// § 2's unanswered question — which queues hold work — asked of the table,
+/// `rule:core-classes/queue-storage-is-a-table`'s unanswered question — which
+/// queues hold work — asked of the table,
 /// because the config block names none.
 ///
 /// **Both arms, and both of their bounds on either side.** A pending job due one

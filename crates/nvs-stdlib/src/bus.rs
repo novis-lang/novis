@@ -1,10 +1,9 @@
-//! The hand-off between cores —
-//! `rule:core-classes/topic`'s "a
-//! publish from a connection on core 3 reaches subscribers on core 0", as the
-//! one place the thread-per-core design is crossed on purpose.
+//! The hand-off between cores: a publish on one core reaches the subscribers
+//! on every other, which `rule:core-classes/topic` names the one place the
+//! thread-per-core design is crossed on purpose.
 //!
 //! [`crate::topic`] owns the bus a program sees: the per-core subscriber table,
-//! § 4's three members, and the copy each subscriber is handed. This module is
+//! `Core\Topic`'s three members, and the copy each subscriber is handed. This module is
 //! the transport underneath it and knows nothing about either. What crosses a
 //! core boundary here is a topic's **name** and the **bytes**
 //! `rule:classes/graph-copy`'s
@@ -17,10 +16,10 @@
 //!
 //! # Decision: a registry of mailboxes, not one shared subscriber table
 //!
-//! § 4 says the crossing is "a bounded message hand-off rather than shared
-//! state", and this is that sentence as a structure. The **subscriber table
-//! stays per core** and is never read from another one; what is shared is a
-//! `Vec` of mailboxes, one per core that has touched the bus, each holding a
+//! `rule:core-classes/topic` says the crossing is "a bounded message hand-off
+//! rather than shared state", and this is that sentence as a structure. The
+//! **subscriber table stays per core** and is never read from another one;
+//! what is shared is a `Vec` of mailboxes, one per core that has touched the bus, each holding a
 //! queue of envelopes and the count of live subscribers its own core last saw
 //! per topic. A publish reads the counts, queues one envelope per interested
 //! core, and returns; the interested core decodes and fans out on its own
@@ -28,8 +27,8 @@
 //!
 //! The alternative — one process-wide table of every subscriber — puts a lock
 //! in front of the queue every `receive()` drains, and makes a delivery an
-//! allocation one core made and another releases. That is the shared state § 4
-//! declines, and it is why the count a publisher answers with is read here
+//! allocation one core made and another releases. That is the shared state the
+//! rule declines, and it is why the count a publisher answers with is read here
 //! rather than the queues themselves.
 //!
 //! # Decision: a core registers itself, and its entry goes when the thread does
@@ -40,18 +39,18 @@
 //! the registry is O(live cores) rather than O(threads ever started), which
 //! [AGENTS.md](/AGENTS.md)'s memory rule calls the difference between a bound
 //! and a leak. It also means `nvs-server` needs no edge to this crate to make
-//! § 4 whole across its cores: the connection isolates already running on each
-//! one are what put it there.
+//! a publish reach every one of its cores: the connection isolates already
+//! running on each one are what put it there.
 //!
 //! # Decision: the queue is bounded, and an overflow is refused rather than waited on
 //!
-//! § 4's security rule is that a publisher is never blocked and no queue
+//! `rule:core-classes/topic` says a publisher is never blocked and no queue
 //! grows without bound. A mailbox therefore holds [`MAILBOX_CAP`] envelopes and
 //! refuses the next one, and a refused envelope's subscribers are **not**
 //! counted — so a publish answers what it actually queued. A core cannot reach
 //! that cap while it is running, because it drains its whole mailbox at every
 //! `receive()`; reaching it means that core has not run at all for a very long
-//! time, and § 4's answer for a subscriber in that state is to close it — which
+//! time, and the rule's answer for a subscriber in that state is to close it — which
 //! is the *per-subscriber* bound, one layer up: [`nvs_runtime::Inbox`] holds it
 //! and `crate::topic`'s fan-out raises it. The two refusals are the same rule at
 //! two granularities, and this one is deliberately the blunter: a mailbox is a
@@ -445,8 +444,9 @@ mod tests {
     }
 
     /// A mailbox that nobody drains stops taking envelopes rather than growing,
-    /// and the subscribers behind a refused one are not counted — § 4's
-    /// "no queue grows without bound", asserted on both sides of the cap.
+    /// and the subscribers behind a refused one are not counted —
+    /// `rule:core-classes/topic`'s "no queue grows without bound", asserted on
+    /// both sides of the cap.
     #[test]
     fn a_full_mailbox_refuses_the_next_envelope_and_counts_nobody_for_it() {
         let (ready, listening) = std::sync::mpsc::channel();

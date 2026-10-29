@@ -1,17 +1,17 @@
 //! `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background
 //! job, over the `[db.<name>]` block a `[queue] connection` names.
 //!
-//! **A job is a row, and that is the whole design.** § 3 states the property everything else is
-//! arranged around: `push` runs on the queue's *own* connection, so an enqueue inside
-//! `Core\Db::connect("main")->transaction(…)` — where `[queue] connection = "main"` — commits with the
-//! write that caused it or with neither. There is no outbox and no window in which the order exists
-//! and the receipt job does not. That property is not implemented here so much as *not broken* here:
-//! [`nvs_runtime::Ctx::memoized_connection`] already answers with the connection the request opened
-//! under that name, an open `BEGIN` is that connection's state, and so the insert below is inside the
-//! transaction without either half knowing about the other. Reaching the connection any other way —
-//! a second handshake, a dedicated pool of the queue's own — would silently take the property away,
-//! which is why [`db::open_named`](crate::db::open_named) is shared with `Core\Db::connect` rather
-//! than reimplemented.
+//! **A job is a row, and that is the whole design.** Enqueue committing with your write is the
+//! property everything else is arranged around: `push` runs on the queue's *own* connection, so an
+//! enqueue inside `Core\Db::connect("main")->transaction(…)` — where `[queue] connection = "main"`
+//! — commits with the write that caused it or with neither. There is no outbox and no window in
+//! which the order exists and the receipt job does not. That property is not implemented here so
+//! much as *not broken* here: [`nvs_runtime::Ctx::memoized_connection`] already answers with the
+//! connection the request opened under that name, an open `BEGIN` is that connection's state, and
+//! so the insert below is inside the transaction without either half knowing about the other.
+//! Reaching the connection any other way — a second handshake, a dedicated pool of the queue's own
+//! — would silently take the property away, which is why [`db::open_named`](crate::db::open_named)
+//! is shared with `Core\Db::connect` rather than reimplemented.
 //!
 //! **The connection is the operator's and never the program's, so `push` asks for no capability.**
 //! `Core\Db::connect` needs `db.connect` for its name because the *program* writes that name and a
@@ -20,30 +20,31 @@
 //! boot ([`nvs_config::queue::queue_for`]), and `$queue` is a column value rather than a block. There
 //! is no name for a capability to be about, so `rule:concurrency/queue-four-members` states none and this module invents one.
 //!
-//! **The schema is this module's, and `nvs queue migrate` reads it.** § 2 makes the runtime own one
-//! jobs table and one dead-letter table, created by an explicit operator command — DDL is an
-//! injection sink and never issued from a request — so `push` writes into a table it does not create.
-//! [`schema`] is that command's whole schema — one `nvs_db::Schema` value, written in no dialect at
-//! all, and the one home for what those tables' columns are; `nvs-cli`'s `queue` module converges a
-//! database onto it and decides nothing about it. Two choices in it are worth their
-//! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
-//! supports all five of `rule:core-classes/db-one-api`'s backends and five timestamp dialects is exactly the cost a
-//! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue::State` already is at
-//! runtime (`rule:enums/closed-integer-type`), so the enum and the column
-//! are one representation and not two.
+//! **The schema is this module's, and `nvs queue migrate` reads it.**
+//! `rule:core-classes/queue-storage-is-a-table` makes the runtime own one jobs table and one
+//! dead-letter table, created by an explicit operator command — DDL is an injection sink and never
+//! issued from a request — so `push` writes into a table it does not create. [`schema`] is that
+//! command's whole schema — one `nvs_db::Schema` value, written in no dialect at all, and the one
+//! home for what those tables' columns are; `nvs-cli`'s `queue` module converges a database onto it
+//! and decides nothing about it. Two choices in it are worth their sentence: every instant is a
+//! `bigint` of epoch milliseconds rather than a timestamp, because the queue supports all five of
+//! `rule:core-classes/db-one-api`'s backends and five timestamp dialects is exactly the cost a
+//! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue::State` already is
+//! at runtime (`rule:enums/closed-integer-type`), so the enum and the column are one representation
+//! and not two.
 //!
 //! **Every text this module sends has been parsed by a real server of both framed drivers.**
 //! [`runs`] is the roster of drivers a statement exists for, and it is narrower than [`crate::db`]
 //! § *Every driver reaches every member, and all five are pooled* on purpose: each of the three it
-//! names reaches § 2's schema, § 4's claim and § 6's move as [`Split`]s, § 5's three readers as
-//! ordinary second spellings, and [`queue_connection`] as the seam that borrows the connection as
-//! whichever dialect it speaks. What says those texts are ones a *server* accepts rather than ones
-//! this module agrees with itself about is `crates/nvs-stdlib/tests/queue.rs`: § 2's schema, § 4's
-//! claim with its `skip locked`, § 6's two write-backs and its move, and § 5's readers all run
-//! against a real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written
-//! from — down to the two constructs nothing else in the roster spells, an `update` whose whole
-//! answer is the affected count and `count(case when … then 1 end)` beside the `cast(… as signed)`
-//! over the `sum` MySQL answers as a `decimal`.
+//! names reaches the schema, the claim and the dead-letter move as [`Split`]s, `status`, `cancel`
+//! and `stats` as ordinary second spellings, and [`queue_connection`] as the seam that borrows the
+//! connection as whichever dialect it speaks. What says those texts are ones a *server* accepts
+//! rather than ones this module agrees with itself about is `crates/nvs-stdlib/tests/queue.rs`: the
+//! schema, the claim with its `skip locked`, the two write-backs and the move, and the three
+//! readers all run against a real MySQL and a real MariaDB there, beside the PostgreSQL cases they
+//! were written from — down to the two constructs nothing else in the roster spells, an `update`
+//! whose whole answer is the affected count and `count(case when … then 1 end)` beside the `cast(…
+//! as signed)` over the `sum` MySQL answers as a `decimal`.
 //!
 //! **A `secret` never reaches the row, and nothing here is what refuses it.** [`payload_of`] encodes
 //! `$args` with the encoder `Core\Json::encode` uses, so a durable row a worker process decodes
@@ -108,7 +109,8 @@ const DELETE_OF: &str = r"Core\Queue::delete";
 /// `purge`'s, which names the same denial for the queue the call itself wrote.
 const PURGE_OF: &str = r"Core\Queue::purge";
 
-/// The table § 2's `nvs queue migrate` creates and this module writes into.
+/// The jobs table `nvs queue migrate` creates and this module writes into
+/// (`rule:core-classes/queue-storage-is-a-table`).
 ///
 /// Unqualified on purpose: the block's own `search_path` — the operator's, in root-owned
 /// configuration — decides which schema it lands in, exactly as it decides for every statement the
@@ -116,7 +118,8 @@ const PURGE_OF: &str = r"Core\Queue::purge";
 /// [`nvs_config::db`] has already given.
 const JOBS_TABLE: &str = "nvs_jobs";
 
-/// § 6's dead-letter table, unqualified for [`JOBS_TABLE`]'s reason.
+/// The dead-letter table of `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`,
+/// unqualified for [`JOBS_TABLE`]'s reason.
 ///
 /// **Three of its columns are all this module reads, and [`schema`] is where every one of them is
 /// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
@@ -124,7 +127,7 @@ const JOBS_TABLE: &str = "nvs_jobs";
 /// that pair is the whole of what [`STATUS_POSTGRES`] asks of the table. [`COUNTS_POSTGRES`] reads the `queue`
 /// and the `attempts` the row arrived carrying, which is how a buried job's own attempts are
 /// counted where the row now is instead of being lost between the two tables. What else the row
-/// carries — § 6's payload, every attempt's error and its timing — is decided by [`schema`] and not
+/// carries — the payload, every attempt's error and its timing — is decided by [`schema`] and not
 /// by the worker that will write one: a column has to exist before anything can move a row into it,
 /// so the schema is the earlier of the two decisions and the only one there is room for.
 const DEAD_TABLE: &str = "nvs_dead_jobs";
@@ -149,8 +152,8 @@ const PENDING: i16 = 0;
 /// One statement of [`schema`]'s DDL, under the name an operator sees it by.
 ///
 /// A **label** rather than a table name, because a dialect may build a table's indexes as statements
-/// of their own, and the question an operator reading `nvs queue migrate` has is which of § 2's
-/// *two* tables a statement belongs to. So the label is that table's role in
+/// of their own, and the question an operator reading `nvs queue migrate` has is which of the
+/// queue's *two* tables a statement belongs to. So the label is that table's role in
 /// `rule:core-classes/queue-storage-is-a-table` — `jobs` or
 /// `dead_letter` — and what those tables are actually called stays [`JOBS_TABLE`]'s and
 /// [`DEAD_TABLE`]'s business for the reason those two constants give.
@@ -160,7 +163,7 @@ const PENDING: i16 = 0;
 /// would be exactly the transcription of the value that the value exists to make unnecessary.
 #[derive(Debug)]
 pub struct Migration {
-    /// Which of § 2's two tables this statement builds.
+    /// Which of the queue's two tables this statement builds.
     pub label: &'static str,
     /// The statement, carrying no separator: a driver is handed one statement at a time, and the
     /// `;` belongs to whatever is printing them for a human instead.
@@ -182,8 +185,8 @@ pub struct Migration {
 /// being computed against the database as it is rather than by a construct that pretends a second
 /// run is the first.
 ///
-/// Every statement the emitter writes names one of § 2's two tables, which is what makes the label
-/// total; `every_statement_of_the_schema_names_one_of_the_two_tables` is that assertion.
+/// Every statement the emitter writes names one of the queue's two tables, which is what makes the
+/// label total; `every_statement_of_the_schema_names_one_of_the_two_tables` is that assertion.
 #[must_use]
 pub fn migration(driver: nvs_db::Driver) -> Vec<Migration> {
     nvs_db::ddl::create_schema(&schema(), nvs_db::Dialect::of(driver))
@@ -199,7 +202,7 @@ pub fn migration(driver: nvs_db::Driver) -> Vec<Migration> {
         .collect()
 }
 
-/// How wide every indexed text column of § 2's schema is.
+/// How wide every indexed text column of the queue's schema is.
 ///
 /// One number rather than one per column, because two of the columns that carry it hold the *same
 /// value*:
@@ -242,17 +245,18 @@ const KEY_WIDTH: u32 = 255;
 ///
 /// - **Every instant is a `bigint` of epoch milliseconds** and never a timestamp — this module's own
 ///   doc owns why, and it is the one-value argument above applied to the type map.
-/// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
-///   `[queue] visibility` measured from it, so the bound stays in configuration where
-///   `rule:config/the-config-is-an-immutable-snapshot`'s reload can move
-///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
+/// - **`claimed_at` is when the claim was taken, not when it expires.** The visibility timeout of
+///   `rule:concurrency/claiming-is-one-statement` is `[queue] visibility` measured from it, so the
+///   bound stays in configuration where `rule:config/the-config-is-an-immutable-snapshot`'s reload
+///   can move it; a stored deadline would freeze the superseded bound onto every job already
+///   claimed.
 /// - **`errors` is on both tables, and the jobs row is where the array accumulates.** It is the
 ///   JSON array `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for — one
 ///   entry per failed attempt, carrying when the attempt ran and what it threw — and
 ///   [`dead_errors`] is the one place an entry is appended. [`RETRY_POSTGRES`] writes the grown
 ///   array back beside the count and the dead-letter move copies what is already on the row, so a
 ///   job arrives in [`DEAD_TABLE`] carrying every attempt rather than its last. That costs a row
-///   rewritten once per attempt on the table § 4's claim contends over, which is the rule's promise
+///   rewritten once per attempt on the table the claim contends over, which is the rule's promise
 ///   being paid for rather than a depth this schema chose; that rule owns it, together with the
 ///   bound — attempts are finite and an entry's message is capped at
 ///   [`MESSAGE_CAP`], so the column holds at most attempts × that cap. The dead-letter row is
@@ -493,13 +497,14 @@ pub fn schema_shortfall(live: &nvs_db::Schema) -> Vec<String> {
 
 /// `rule:concurrency/queue-four-members`'s `push`, as one statement.
 ///
-/// **One statement rather than a check and an insert**, because two would be two moments and § 3's
-/// property is about there being one. The `existing` arm is `key`'s dedupe, read off the
-/// `dedupe_pending` column this same statement writes, and it costs nothing at all when `$1` is
-/// `null`: `dedupe_pending = null` is never true, so the arm is empty and the `not exists` guard
-/// admits the insert. That is why there is no second spelling of this statement for the commoner
-/// call that passes no key — a branch here would be a second SQL text for § 1's statement cache to
-/// hold and a second thing to keep right.
+/// **One statement rather than a check and an insert**, because two would be two moments and
+/// `rule:concurrency/enqueue-commits-with-your-write` is about there being one. The `existing` arm
+/// is `key`'s dedupe, read off the `dedupe_pending` column this same statement writes, and it costs
+/// nothing at all when `$1` is `null`: `dedupe_pending = null` is never true, so the arm is empty
+/// and the `not exists` guard admits the insert. That is why there is no second spelling of this
+/// statement for the commoner call that passes no key — a branch here would be a second SQL text
+/// for the statement cache (`rule:core-classes/db-one-api`) to hold and a second thing to keep
+/// right.
 ///
 /// **`$1` is written into two columns and bound once.** `dedupe_key` is what the job was pushed
 /// under and stays on the row for as long as the row does; `dedupe_pending` is
@@ -544,7 +549,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// **`for update skip locked` is the whole of the mutual exclusion**, and it is why a fleet needs no
 /// protocol of ours: two workers running this against one server cannot come back with the same row,
 /// because the second one's lock attempt steps over what the first is holding instead of queueing
-/// behind it. § 4 names the other backends' spellings — `readpast`, and SQLite's immediate
+/// behind it. The rule names the other backends' spellings — `readpast`, and SQLite's immediate
 /// transaction — and each brings its own text, for the reason [`Split`]'s doc gives.
 ///
 /// **The `update` is in the same statement as the `select`**, as a CTE, because two statements would
@@ -552,18 +557,19 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// arrive, and the row it found would be free in between. That is [`INSERT_POSTGRES`]'s reasoning applied to
 /// the read side.
 ///
-/// **Two arms, and the second is § 4's visibility timeout.** A pending row is claimable once its
-/// `run_at` has passed; a claimed one is claimable again when nothing has finished it within
+/// **Two arms, and the second is the claim's visibility timeout.** A pending row is claimable once
+/// its `run_at` has passed; a claimed one is claimable again when nothing has finished it within
 /// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
 /// computed by the caller — rather than a bound written into this text, because [`schema`]'s
 /// `claimed_at` records when the claim was *taken* precisely so that
-/// `rule:config/the-config-is-an-immutable-snapshot`'s reload can move the
-/// bound under jobs that are already claimed.
+/// `rule:config/the-config-is-an-immutable-snapshot`'s reload can move the bound under jobs that
+/// are already claimed.
 ///
-/// **`attempts` is incremented by the claim and not by the failure that follows it.** § 6's bound
-/// has to hold for the worker that dies reporting nothing at all, and an attempt counted only when a
-/// job reports its own failure retries forever on exactly the failure mode the timeout above exists
-/// for. It is also what makes [`COUNTS_POSTGRES`]'s third counter answer during an attempt rather than after
+/// **`attempts` is incremented by the claim and not by the failure that follows it.** The bound
+/// on attempts (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) has to hold for
+/// the worker that dies reporting nothing at all, and an attempt counted only when a job reports
+/// its own failure retries forever on exactly the failure mode the timeout above exists for. It is
+/// also what makes [`COUNTS_POSTGRES`]'s third counter answer during an attempt rather than after
 /// it.
 ///
 /// **Keyed on one queue**, as every other statement here is and as [`schema`]'s `nvs_jobs_due` index
@@ -591,12 +597,12 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// without reading the pair back.
 ///
 /// `pub` because the worker that claims with it lives in `nvs-cli` — the crate that owns the
-/// scheduler a worker is a task on — and § 2's schema has one home, which is here beside the
+/// scheduler a worker is a task on — and the queue's schema has one home, which is here beside the
 /// `insert` that writes the columns this reads back.
 ///
-/// **PostgreSQL's dialect, and [`CLAIM_MYSQL`] is § 4's claim where a data-modifying CTE cannot be
-/// had** — the same two arms, the same lock, and the same columns in the same order, taken by two
-/// statements inside one transaction rather than by one.
+/// **PostgreSQL's dialect, and [`CLAIM_MYSQL`] is the same claim where a data-modifying CTE cannot
+/// be had** — the same two arms, the same lock, and the same columns in the same order, taken by
+/// two statements inside one transaction rather than by one.
 pub const CLAIM_POSTGRES: &str = "with pending as (\
      select id, run_at from nvs_jobs \
      where queue = $1::text and state = 0 and run_at <= $2::bigint \
@@ -618,12 +624,13 @@ pub const CLAIM_POSTGRES: &str = "with pending as (\
 /// `rule:core-classes/queue-storage-is-a-table`'s unanswered question — *which* queues a worker asks about — answered by the table
 /// rather than by a key.
 ///
-/// **§ 2's block names no roster and this module does not invent one.** `connection`, `workers`,
-/// `max_attempts` and `visibility` are the whole of what an operator writes, so a worker's queues
-/// cannot come from configuration without adding a fifth key that rule would then have to mean. The
-/// honest reading of a block that says nothing is *every queue*, and a queue exists exactly when a
-/// row names it: `push` writes the name as a column value and no queue is declared anywhere else,
-/// which is what makes the table the only place the roster could be read from.
+/// **The `[queue]` block names no roster and this module does not invent one.** `connection`,
+/// `workers`, `max_attempts` and `visibility` are the whole of what an operator writes, so a
+/// worker's queues cannot come from configuration without adding a fifth key that rule would then
+/// have to mean. The honest reading of a block that says nothing is *every queue*, and a queue
+/// exists exactly when a row names it: `push` writes the name as a column value and no queue is
+/// declared anywhere else, which is what makes the table the only place the roster could be read
+/// from.
 ///
 /// **The two arms are [`CLAIM_POSTGRES`]'s, so the roster is due work and not every name the table has ever
 /// held.** A queue whose rows are all finished, cancelled or claimed-and-still-within-visibility
@@ -656,11 +663,11 @@ pub const QUEUES_POSTGRES: &str = "with recursive pending (queue) as (\
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back for an attempt that returned, and [`CLAIM_POSTGRES`]'s other half.
 ///
 /// **Keyed on the lease and not only on the id.** `claimed_at` is the instant the worker's own
-/// claim wrote, so a write-back whose row has since been handed to another worker by § 4's
-/// visibility timeout matches nothing and changes nothing — which is the only reading of
-/// at-least-once that does not let a slow worker's late acknowledgement cancel the attempt that
-/// replaced it. A statement matching no row is therefore an ordinary outcome here rather than an
-/// error, and the affected count is what says which happened.
+/// claim wrote, so a write-back whose row has since been handed to another worker by the claim's
+/// visibility timeout (`rule:concurrency/claiming-is-one-statement`) matches nothing and changes
+/// nothing — which is the only reading of at-least-once that does not let a slow worker's late
+/// acknowledgement cancel the attempt that replaced it. A statement matching no row is therefore an
+/// ordinary outcome here rather than an error, and the affected count is what says which happened.
 ///
 /// `claimed_at` is cleared with the state for the same reason [`CLAIM_POSTGRES`] sets it: it means *this
 /// claim*, and a finished job holds none. `dedupe_pending` is cleared beside it, and it costs
@@ -671,8 +678,8 @@ pub const QUEUES_POSTGRES: &str = "with recursive pending (queue) as (\
 /// The `2` is `Core\Queue::State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
 /// to the enum by `queue_statements_agree_with_the_state_enum`, in both dialects.
 ///
-/// `pub` for [`CLAIM_POSTGRES`]'s reason: the worker that writes it lives in `nvs-cli`, and § 2's
-/// schema has one home.
+/// `pub` for [`CLAIM_POSTGRES`]'s reason: the worker that writes it lives in `nvs-cli`, and the
+/// queue's schema has one home.
 ///
 /// **PostgreSQL's dialect, and [`SUCCEEDED_MYSQL`] is the other one**, binding the same two values
 /// in the same order.
@@ -680,12 +687,13 @@ pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at 
     dedupe_pending = null \
     where id = $1::bigint and claimed_at = $2::bigint";
 
-/// § 6's other write-back: the attempt did not return, and the job is armed for the next one.
+/// The other write-back of `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`: the
+/// attempt did not return, and the job is armed for the next one.
 ///
 /// Back to `Pending` — the `0` is that ordinal — with `run_at` pushed out to what [`retry_at`]
 /// computed, which is why the delay is a bound parameter rather than arithmetic in the statement:
-/// § 6's ladder is exponential *and jittered*, and neither the previous rungs nor the jitter is
-/// something SQL should be deciding on a row it is already updating.
+/// the backoff ladder is exponential *and jittered*, and neither the previous rungs nor the jitter
+/// is something SQL should be deciding on a row it is already updating.
 ///
 /// Keyed on the lease exactly as [`SUCCEEDED_POSTGRES`] is, and for the same reason.
 ///
@@ -709,8 +717,9 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
     errors = $4::text, claimed_at = null, dedupe_pending = dedupe_key \
     where id = $1::bigint and claimed_at = $2::bigint";
 
-/// § 6's third write-back and the floor under the other two: the attempt was the job's last, so the
-/// row leaves [`JOBS_TABLE`] for [`DEAD_TABLE`] instead of being armed again.
+/// The third write-back, the dead-letter move, and the floor under the other two: the attempt was
+/// the job's last, so the row leaves [`JOBS_TABLE`] for [`DEAD_TABLE`] instead of being armed
+/// again.
 ///
 /// **One statement, because the move is one moment.** The `delete` is a data-modifying CTE whose
 /// `returning` list is what the `insert` selects from, so there is no instant in which the job is in
@@ -719,7 +728,7 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
 /// statements and keep right on every path out of them.
 ///
 /// **Keyed on the lease exactly as [`SUCCEEDED_POSTGRES`] and [`RETRY_POSTGRES`] are**, and for the
-/// same reason: a worker that overran § 4's visibility window matches no row here, so it cannot
+/// same reason: a worker that overran the visibility window matches no row here, so it cannot
 /// dead-letter a job the claim that replaced it is still running.
 ///
 /// The columns are listed rather than `select *`-ed because the two tables are deliberately not one
@@ -731,7 +740,7 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
 /// what appends that entry to what the claim answered with. Copying the column and appending in SQL
 /// would need a JSON function in four dialects to say what one bound text says in all of them.
 ///
-/// **PostgreSQL's dialect, and [`DEAD_LETTER_MYSQL`] is § 6's move where a `delete … returning`
+/// **PostgreSQL's dialect, and [`DEAD_LETTER_MYSQL`] is the same move where a `delete … returning`
 /// cannot be had** — the same two tables and the same lease, copied and then removed inside one
 /// transaction rather than removed and then copied inside one statement.
 pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
@@ -766,9 +775,9 @@ pub struct Split {
     /// **Something has to carry the pair's meaning across the gap between two round trips that a
     /// single statement did not have, and which mechanism that is belongs to the dialect.** Where
     /// the backend has row locks and concurrent writers to need them from, this statement takes
-    /// them and § 4's mutual exclusion rests on its `for update skip locked` ([`CLAIM_MYSQL`]).
-    /// Where the backend has one writer, the transaction around the pair is already the exclusion
-    /// and this statement carries no clause at all ([`CLAIM_SQLITE`]).
+    /// them and the claim's mutual exclusion rests on its `for update skip locked`
+    /// ([`CLAIM_MYSQL`]). Where the backend has one writer, the transaction around the pair is
+    /// already the exclusion and this statement carries no clause at all ([`CLAIM_SQLITE`]).
     pub first: &'static str,
     /// The statement run second, in the same transaction.
     ///
@@ -865,8 +874,9 @@ pub const INSERT_SQLITE: Split = Split {
 /// "what id did that insert take" is a row the insert itself returns: `scope_identity()` is another
 /// statement on a connection this member is already holding inside a transaction, and an identity
 /// read that is a statement apart from its insert is a thing a session has to keep right forever.
-/// Every bound value is declared `nvarchar` (`nvs_db::tds`'s § 5), so each one the column table
-/// types as a number is cast where it is written — the same job [`INSERT_POSTGRES`]'s `::` casts do.
+/// Every bound value is declared `nvarchar` (`nvs_db::tds::rpc`'s parameter encoding), so each one
+/// the column table types as a number is cast where it is written — the same job
+/// [`INSERT_POSTGRES`]'s `::` casts do.
 pub const INSERT_SQLSERVER: Split = Split {
     first: "select top 1 id from nvs_jobs with (updlock, holdlock) where dedupe_pending = @p1",
     then: "insert into nvs_jobs \
@@ -887,7 +897,7 @@ pub const INSERT_SQLSERVER: Split = Split {
 /// `attempts + 1 as attempts` is what makes that true across the split: PostgreSQL's `returning`
 /// runs after its own `update` and so reads the incremented value, while here the `update` has not
 /// run yet, so the column is read as the value it is about to have. A claim answering the
-/// pre-increment count would stop § 6's ladder one rung short of `max_attempts`.
+/// pre-increment count would stop the backoff ladder one rung short of `max_attempts`.
 ///
 /// **`skip locked` is on the `select` and the mutual exclusion is unchanged**: the same row lock,
 /// asked for by the same clause, held now by an explicit transaction instead of by a single
@@ -1009,12 +1019,12 @@ pub const CLAIM_SQLSERVER: &str = "with due as (\
 ///
 /// **The copy runs before the delete, which is the reverse of PostgreSQL's order**, and it is the
 /// only order there is once the `delete` cannot answer with what it removed: the columns have to be
-/// read while they still exist. § 6's property is unchanged — the row is in both tables or in
+/// read while they still exist. The move's property is unchanged — the row is in both tables or in
 /// neither — and here it is the transaction that holds it where one statement held it by
 /// construction.
 ///
 /// **Both halves are keyed on the lease**, exactly as [`DEAD_LETTER_POSTGRES`] is and for its
-/// reason: a worker that overran § 4's visibility window matches no row in either half, so it can
+/// reason: a worker that overran the visibility window matches no row in either half, so it can
 /// neither copy nor delete a job the claim that replaced it is still running. Keying only the copy
 /// would take a row out from under its new owner.
 ///
@@ -1122,7 +1132,7 @@ pub const QUEUES_SQLSERVER: &str = "with pending (queue) as (\
 ///
 /// **The lease keying survives the transcription intact**, which is the whole of what makes this
 /// the same write-back rather than a weaker one: `id` and `claimed_at` are bound here in the order
-/// they are `$1` and `$2` there, so a worker that overran § 4's visibility window matches no row in
+/// they are `$1` and `$2` there, so a worker that overran the visibility window matches no row in
 /// either dialect and cannot cancel the attempt that replaced it.
 ///
 /// A statement matching no row therefore stays an ordinary outcome rather than an error, and the
@@ -1157,9 +1167,9 @@ pub const SUCCEEDED_SQLSERVER: &str = "update nvs_jobs set state = 2, claimed_at
 /// the caller is where the two orders are reconciled anyway — once, beside the connection it
 /// already had to branch on.
 ///
-/// The delay stays a bound value for [`RETRY_POSTGRES`]'s reason: § 6's ladder is exponential and
-/// jittered, and neither is something SQL should be deciding on a row it is already updating. The
-/// `0` is `Core\Queue::State::Pending`'s ordinal, held to the enum beside its twin by
+/// The delay stays a bound value for [`RETRY_POSTGRES`]'s reason: the backoff ladder is exponential
+/// and jittered, and neither is something SQL should be deciding on a row it is already updating.
+/// The `0` is `Core\Queue::State::Pending`'s ordinal, held to the enum beside its twin by
 /// `queue_statements_agree_with_the_state_enum`.
 pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, errors = ?, \
     claimed_at = null, dedupe_pending = dedupe_key \
@@ -1247,17 +1257,18 @@ fn capped(message: &str) -> std::borrow::Cow<'_, str> {
 /// — past `[queue] max_attempts`'s own default, so an ordinary job never meets it at all.
 const RETRY_CAP_MS: i64 = 300_000;
 
-/// When a job whose attempt failed becomes due again: § 6's exponential backoff, jittered and
-/// capped, over the base `push` recorded on the row.
+/// When a job whose attempt failed becomes due again: the exponential backoff, jittered and capped,
+/// of `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, over the base `push`
+/// recorded on the row.
 ///
 /// **Exponential in the attempts already made**, so the base is the *first* retry's delay and each
 /// one after it doubles until [`RETRY_CAP_MS`]. `attempts` is the column [`CLAIM_POSTGRES`] returns, which
 /// the claim itself has already incremented, so the first failed attempt arrives here as `1` and
 /// waits one base.
 ///
-/// **Jittered by the job's own id rather than by a clock or a random source.** § 6 asks for jitter
-/// because the failure that matters is the shared one — a hundred jobs against an endpoint that
-/// went down retry at the instant it comes back, and land on it together. Spreading them needs
+/// **Jittered by the job's own id rather than by a clock or a random source.** The rule asks for
+/// jitter because the failure that matters is the shared one — a hundred jobs against an endpoint
+/// that went down retry at the instant it comes back, and land on it together. Spreading them needs
 /// their delays to *differ*, not to be unpredictable, and the id is the one thing they do not
 /// share; deriving the spread from it keeps this a pure function, which is what lets
 /// `a_retry_is_exponential_jittered_and_capped` assert the ladder rather than sample it. The result
@@ -1296,13 +1307,16 @@ fn jitter(id: i64, attempts: i64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `status`, as one statement over both of § 2's tables.
+/// `rule:concurrency/queue-four-members`'s `status`, as one statement over both of the queue's
+/// tables.
 ///
-/// **Two tables and not one**, because § 6 *moves* a job that has exhausted its attempts into the
-/// dead-letter table rather than deleting it, and a caller asking what became of its job is owed
-/// `Dead` rather than a refusal. The `union all` is [`INSERT_POSTGRES`]'s shape for [`INSERT_POSTGRES`]'s reason: two
-/// statements would be two moments, and one is what makes the answer a fact about a single instant.
-/// A job cannot be in both arms at once, because moving it is one transaction of the worker's.
+/// **Two tables and not one**, because
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` *moves* a job that has
+/// exhausted its attempts into the dead-letter table rather than deleting it, and a caller asking
+/// what became of its job is owed `Dead` rather than a refusal. The `union all` is
+/// [`INSERT_POSTGRES`]'s shape for [`INSERT_POSTGRES`]'s reason: two statements would be two
+/// moments, and one is what makes the answer a fact about a single instant. A job cannot be in both
+/// arms at once, because moving it is one transaction of the worker's.
 ///
 /// The `3` in the second arm is `Core\Queue::State::Dead`'s ordinal, written as a literal because no
 /// `const` can reach inside a SQL string; `queue_statements_agree_with_the_state_enum` is what holds
@@ -1324,10 +1338,10 @@ pub const STATUS_POSTGRES: &str = "select state from nvs_jobs \
 /// [`STATUS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`INSERT_MYSQL`]'s
 /// reason.
 ///
-/// **Not a [`Split`], and that is the difference between this member and § 4's three**: nothing
-/// here rests on a construct MySQL lacks — a `union all` of two `select`s is the same statement in
-/// both dialects — so what changes is the placeholder spelling and the casts PostgreSQL needs to
-/// type a text-format parameter at all.
+/// **Not a [`Split`], and that is the difference between this member and the push, the claim and
+/// the move**: nothing here rests on a construct MySQL lacks — a `union all` of two `select`s is
+/// the same statement in both dialects — so what changes is the placeholder spelling and the casts
+/// PostgreSQL needs to type a text-format parameter at all.
 ///
 /// **Four placeholders where PostgreSQL has two.** `$1` can be named as often as a statement likes
 /// and a `?` cannot, so the id and the queue each go out twice: the same two values bound twice,
@@ -1347,8 +1361,8 @@ pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
 /// **Its four placeholders stay four**, because a `?` is bound by the position it occupies here as
 /// well: the id and the queue each go out twice, and [`counted_row`] doubles that pair once for every
 /// backend that spells a parameter this way. The `limit` binds to the compound rather than to its
-/// second arm, which is what makes the member's one answer one row — § 6 moves a job, so the two
-/// arms never hold it at the same moment anyway.
+/// second arm, which is what makes the member's one answer one row — a dead-lettered job is moved,
+/// so the two arms never hold it at the same moment anyway.
 pub const STATUS_SQLITE: &str = STATUS_MYSQL;
 
 /// The same reader in T-SQL, with the bound of the union outside it.
@@ -1419,7 +1433,7 @@ pub const CANCEL_SQLSERVER: &str = "update nvs_jobs set state = 4, dedupe_pendin
     where id = cast(@p1 as bigint) and queue = @p2 and state = 0";
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete`, as one statement over both
-/// of § 2's tables.
+/// of the queue's tables.
 ///
 /// **`and state <> 1` is the member's whole refusal, and it is in the `where` rather than in a check
 /// above it.** A claimed job is not removable at all — a worker holds a lease on that row and there
@@ -1436,11 +1450,11 @@ pub const CANCEL_SQLSERVER: &str = "update nvs_jobs set state = 4, dedupe_pendin
 /// something else had already removed.
 ///
 /// **Both tables in one statement, as [`STATUS_POSTGRES`] reads both**, because a `Queue\Id` names a
-/// job across the move § 6 makes and a member that stopped working the moment a job exhausted its
+/// job across the dead-letter move and a member that stopped working the moment a job exhausted its
 /// attempts would be a receipt that expires without saying so. Running the two arms together costs
-/// nothing: § 6 *moves* a row, so an id is in one of the tables and never in both, and a
-/// data-modifying CTE runs whatever the outer `select` reads — which is what makes this one moment
-/// rather than an attempt and a second attempt.
+/// nothing: the move takes a row out of one table into the other, so an id is in one of the tables
+/// and never in both, and a data-modifying CTE runs whatever the outer `select` reads — which is
+/// what makes this one moment rather than an attempt and a second attempt.
 ///
 /// **The dead-letter arm names no state**, and not because a dead job is exempt from the rule above:
 /// [`DEAD_TABLE`] has no `state` column at all, since being in that table is what `Dead` *is*. That
@@ -1463,16 +1477,16 @@ pub const DELETE_POSTGRES: &str = "with gone as (\
 /// reason.
 ///
 /// **A multi-table delete and not a [`Split`]**, which is this dialect's answer to the
-/// data-modifying CTE it does not have: `delete j, d from …` names both of § 2's tables as targets
-/// of one statement, so the two arms are decided in one moment exactly as
+/// data-modifying CTE it does not have: `delete j, d from …` names both of the queue's tables as
+/// targets of one statement, so the two arms are decided in one moment exactly as
 /// [`DELETE_POSTGRES`]'s are. A pair of ordinary deletes would be two moments needing a transaction
 /// to mean what one statement means by itself, and the second of them could remove a job that the
-/// first had just refused as claimed — § 6 moves an exhausted job while a caller stands between the
-/// two round trips, and the one row this member exists to leave alone is gone.
+/// first had just refused as claimed — a worker moves an exhausted job while a caller stands
+/// between the two round trips, and the one row this member exists to leave alone is gone.
 ///
 /// **The receipt arrives as a one-row derived table, and that is what makes the two arms
 /// independent.** A multi-table delete removes out of whatever its join produced, so driving it from
-/// `nvs_jobs` would answer nothing at all for a job § 6 had already moved: there would be no left
+/// `nvs_jobs` would answer nothing at all for a job already dead-lettered: there would be no left
 /// side to hang the dead-letter row on. `r` is a row that exists whatever the tables hold, and the
 /// two `left join`s attach whichever one holds the receipt.
 ///
@@ -1502,16 +1516,16 @@ pub const DELETE_MYSQL: &str = "delete j, d \
 /// **This is the one [`Split`] whose second statement is not keyed on the first's row.** A claim, a
 /// push and a dead-letter move each read something the next statement then acts on; here both texts
 /// are the member's own arms, so [`Split::then`] runs whatever [`Split::first`] answered and the
-/// member's `bool` is either arm having removed a row. At most one of them can: § 6 *moves* a job,
-/// so an id is in one of § 2's tables and never in both, which is the same fact
+/// member's `bool` is either arm having removed a row. At most one of them can: a dead-lettered
+/// job is *moved*, so an id is in one of the two tables and never in both, which is the same fact
 /// [`DELETE_POSTGRES`]'s `union all` rests on.
 ///
-/// **The transaction is load-bearing even so, and § 6 is what makes it so.** The first arm refuses a
-/// claimed job; the dead-letter table has no state to refuse anything by. Run as two moments, a
-/// worker that exhausts that job's attempts between them moves the row it just refused into the
-/// second arm's reach, and the one row this member exists to leave alone is removed by the call that
-/// had already declined to remove it. That is [`DELETE_MYSQL`]'s argument for a multi-table delete,
-/// reaching the same property with the mechanism this backend does have.
+/// **The transaction is load-bearing even so, and the dead-letter move is what makes it so.** The
+/// first arm refuses a claimed job; the dead-letter table has no state to refuse anything by. Run
+/// as two moments, a worker that exhausts that job's attempts between them moves the row it just
+/// refused into the second arm's reach, and the one row this member exists to leave alone is
+/// removed by the call that had already declined to remove it. That is [`DELETE_MYSQL`]'s argument
+/// for a multi-table delete, reaching the same property with the mechanism this backend does have.
 ///
 /// **The answer is the two affected counts and not a `returning`**, for [`CANCEL_SQLITE`]'s reason:
 /// [`Counted::touched`] reads a count as the same fact a returned row states, and a text that
@@ -1552,9 +1566,9 @@ pub const DELETE_SQLSERVER: Split = Split {
 /// **`order by id` and not `order by created_at`**, though the age is what the caller thinks in.
 /// `id` is [`schema`]'s identity column, so rows are numbered in the order they were enqueued and
 /// that is `created_at`'s order without a sort — over the one table in the runtime that grows
-/// without bound, a sort is the whole cost of the call. Ordering at all is what makes § 4's
-/// `while (purge(…) > 0) {}` drain from the oldest end rather than from wherever the scan happened
-/// to start.
+/// without bound, a sort is the whole cost of the call. Ordering at all is what makes the
+/// caller's `while (purge(…) > 0) {}` loop drain from the oldest end rather than from wherever the
+/// scan happened to start.
 ///
 /// **The default set is two literals here rather than a set the member binds.** A `purge` naming no
 /// state removes what has finished — `Succeeded` and `Cancelled` — and writing that as `state in (2,
@@ -1571,15 +1585,16 @@ pub const DELETE_SQLSERVER: Split = Split {
 /// the alternative, and it is worse in the only case that matters.
 ///
 /// **`before` reads `created_at`, which is the job's age.** It is the one instant every row in
-/// either of § 2's tables carries and nothing afterwards rewrites: `run_at` moves with § 6's retry
-/// ladder, so a sweep keyed on it would remove a row for a reason the caller never named, and
+/// either of the queue's tables carries and nothing afterwards rewrites: `run_at` moves with the
+/// retry ladder, so a sweep keyed on it would remove a row for a reason the caller never named, and
 /// `failed_at` is on [`DEAD_TABLE`] alone, so `before` would ask a different question depending on
 /// which of the two statements ran.
 ///
-/// **`limit` is the one option with no null arm.** § 4's default is a number rather than an absence,
-/// so the member always binds one and there is nothing here to branch on; the other two are absent
-/// far more often than they are named, and `$n is null or …` is how a single text serves both
-/// without a second spelling for § 1's statement cache to hold.
+/// **`limit` is the one option with no null arm.** Its default is a number rather than an absence
+/// (`rule:concurrency/queue-deletion-is-explicit-and-bounded`), so the member always binds one and
+/// there is nothing here to branch on; the other two are absent far more often than they are named,
+/// and `$n is null or …` is how a single text serves both without a second spelling for the
+/// statement cache to hold.
 ///
 /// **Public for the reason the statements a worker sends are**: nothing outside this module runs a
 /// `purge`, and `crates/nvs-stdlib/tests/queue.rs` sends both spellings to a real server, where a
@@ -1600,9 +1615,9 @@ pub const PURGE_POSTGRES: &str = "delete from nvs_jobs where id in (\
 /// has no `state` column at all, since being in that table is what `Dead` *is*. That is the same
 /// reading [`DELETE_POSTGRES`]'s dead-letter arm and [`STATUS_POSTGRES`]'s literal `3` make.
 ///
-/// **The tag and the age are asked of this table in the same words**, because § 6 moves a row
-/// carrying both columns: a group tagged at enqueue is still that group after the job exhausted its
-/// attempts, which is what makes a purge of a batch's dead rows expressible at all.
+/// **The tag and the age are asked of this table in the same words**, because the dead-letter
+/// move carries both columns: a group tagged at enqueue is still that group after the job exhausted
+/// its attempts, which is what makes a purge of a batch's dead rows expressible at all.
 pub const PURGE_DEAD_POSTGRES: &str = "delete from nvs_dead_jobs where id in (\
      select id from nvs_dead_jobs \
      where queue = $1::text \
@@ -1717,13 +1732,14 @@ pub const PURGE_DEAD_SQLSERVER: &str = "delete from nvs_dead_jobs where id in (\
 /// **One row and not five**, which is the whole reason `stats` answers a record instead of
 /// answering a number five times: an aggregate with no `group by` is exactly one row however empty
 /// the table is, so the counters describe one instant rather than five of them with a worker's
-/// claim free to land in between. That is [`STATUS_POSTGRES`]'s reading of § 2 applied to a whole queue.
+/// claim free to land in between. That is [`STATUS_POSTGRES`]'s one-instant reading applied to a
+/// whole queue.
 ///
 /// **The `0` and the `1` are [`STATE`]'s `Pending` and `Claimed` ordinals**, literals for
 /// [`PENDING`]'s reason — no `const` reaches inside a SQL string — and held to the enum by
 /// `queue_statements_agree_with_the_state_enum`. The two counters that read [`DEAD_TABLE`] are
 /// scalar subqueries rather than arms of the aggregate because they read the rows of the *other*
-/// table: § 6 moves an exhausted job there carrying the attempts it used, so the depth and those
+/// table: an exhausted job is moved there carrying the attempts it used, so the depth and those
 /// attempts are counted where the row now is while the aggregate's own `attempts` sums
 /// [`JOBS_TABLE`] alone. Every attempt the queue has ever made is therefore in exactly one of the
 /// two sums, and a caller wanting the total adds them rather than reading one that spans both.
@@ -1731,7 +1747,7 @@ pub const PURGE_DEAD_SQLSERVER: &str = "delete from nvs_dead_jobs where id in (\
 /// **The sixth column counts the jobs `push` wrote outside the caller's transaction**
 /// (`rule:concurrency/foreign-connection-enqueue-is-counted`). `count` over the column skips its
 /// `null`s, so the same `count(non_transactional)` is the counter in every dialect, and it counts
-/// [`JOBS_TABLE`] alone: § 6's move does not carry the column.
+/// [`JOBS_TABLE`] alone: the dead-letter move does not carry the column.
 ///
 /// Every column is cast to `bigint` so all six decode the same way whatever widths `nvs queue
 /// migrate` gives their columns, and `filter` is PostgreSQL's spelling of the filtered count the
@@ -1750,12 +1766,13 @@ const COUNTS_POSTGRES: &str = "select \
 /// **`count(case when … then 1 end)` is the aggregate filter PostgreSQL spells `filter (where …)`**,
 /// and it counts rather than sums for the empty queue: `count` ignores the `null` the `case` falls
 /// through to and answers `0` over no rows at all, where a `sum` of ones would answer `null` and
-/// § 6 means zero. That is the same reading [`COUNTS_POSTGRES`]'s `coalesce` makes of each of its
-/// two sums.
+/// the counter means zero. That is the same reading [`COUNTS_POSTGRES`]'s `coalesce` makes of each
+/// of its two sums.
 ///
-/// **The sums are cast and the counts are not**, which is § 9 rather than an inconsistency: MySQL
-/// answers `sum` over an integer column as a `decimal`, so the cast is what keeps all five columns
-/// one type for one reader, while `count` is already a `bigint`.
+/// **The sums are cast and the counts are not**, which is `rule:core-classes/db-column-types`
+/// rather than an inconsistency: MySQL answers `sum` over an integer column as a `decimal`, so the
+/// cast is what keeps all five columns one type for one reader, while `count` is already a
+/// `bigint`.
 ///
 /// **The queue is bound three times**, where [`COUNTS_POSTGRES`] names `$1` three times and binds
 /// it once: the two dead-letter subqueries and the aggregate's own `where` are three `?` positions
@@ -2037,9 +2054,9 @@ const DEFAULT_PURGE_LIMIT: u64 = 1_000;
 ///
 /// `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
 /// because that is what it is made of: a job is a row in one of these connections,
-/// which is the whole of why § 3's enqueue can commit with the write that caused
-/// it. All four of § 1's members are landed, and [`crate::queue`]'s known gaps say
-/// what that surface still owes around them.
+/// which is the whole of why an enqueue can commit with the write that caused it
+/// (`rule:concurrency/enqueue-commits-with-your-write`). All four of its members are landed, and
+/// [`crate::queue`]'s known gaps say what that surface still owes around them.
 // rank: 1730
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -2176,8 +2193,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&PUSH_DOC),
         },
         // The receipt in, a state out, and nothing between them that a program has to
-        // spell: § 6's at-least-once delivery is why this is a state to be read rather
-        // than a completion to be handed, and [`STATE`] is where that reading lives.
+        // spell: at-least-once delivery (`rule:concurrency/delivery-is-at-least-once`) is
+        // why this is a state to be read rather than a completion to be handed, and
+        // [`STATE`] is where that reading lives.
         CoreMethod {
             name: "status",
             names: &["job"],
@@ -2189,10 +2207,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_queue_status",
             doc: Some(&STATUS_DOC),
         },
-        // The same receipt, and an answer that is a `bool` although § 1 annotates no
-        // return at all: what a caller of this member needs to know is whether it got
-        // there first, and there is no other way for it to find out. [`CANCEL_POSTGRES`] owns
-        // why that race is the ordinary case rather than an unlucky one.
+        // The same receipt, and an answer that is a `bool`: what a caller of this member needs to
+        // know is whether it got there first, and there is no other way for it to find out.
+        // [`CANCEL_POSTGRES`] owns why that race is the ordinary case rather than an unlucky one.
         CoreMethod {
             name: "cancel",
             names: &["job"],
@@ -2203,7 +2220,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&CANCEL_DOC),
         },
         // The one member of the four asked about a *queue* rather than about a job,
-        // because what § 6 wants watched is a population and not a row. It answers a
+        // because what wants watching is a population and not a row. It answers a
         // class for the reason [`STATS`] gives, which is the same rule [`ID`] rests
         // on read the other way round.
         CoreMethod {
@@ -2651,7 +2668,8 @@ const STATS_NON_TRANSACTIONAL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// § 1's receipt: the row `push` wrote, and the queue it is in.
+/// `push`'s receipt (`rule:concurrency/queue-four-members`): the row `push` wrote, and the queue it
+/// is in.
 ///
 /// A class rather than a bare `uint` because the three members that take one — `cancel`, `delete`
 /// and `status` — have to know the queue as well, and a caller holding an integer would have to
@@ -2680,16 +2698,16 @@ const ID_CARD: ClassDoc = ClassDoc {
             methods of its own.",
 };
 
-/// § 1's `stats`, as the record it answers with — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
+/// `stats`, as the record it answers with — `rule:concurrency/queue-four-members` and
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
 ///
-/// **The counters are members rather than a shape's fields**, which is where this departs from
-/// § 1's originally unannotated `::stats(string $queue)` and has to: a `Core`-owned instance has no
-/// property a program can reach ([`CoreTy::Instance`] is the home of that rule), so `$stats->pending`
-/// would resolve a class, find no member, and reach `nvs-ir` with nothing to call. The other answer
-/// — a shape returned by value — needs a spelling this registry has not got, and
-/// `rule:core-api/shape-parameter` is why that is not worth waiting for: a shape is only ever a
-/// whole parameter. `Core\Db\Write` is the same shape for the same
-/// reason, and `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
+/// **The counters are members rather than a shape's fields**, and they have to be: a
+/// `Core`-owned instance has no property a program can reach ([`CoreTy::Instance`] is the home of
+/// that rule), so `$stats->pending` would resolve a class, find no member, and reach `nvs-ir` with
+/// nothing to call. The other answer — a shape returned by value — needs a spelling this registry
+/// has not got, and `rule:core-api/shape-parameter` is why that is not worth waiting for: a shape
+/// is only ever a whole parameter. `Core\Db\Write` is the same shape for the same reason, and
+/// `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
 ///
 /// **Six counters, because a queue is watched as two populations and one risk**: what is waiting,
 /// what is held and what the live jobs have attempted, then how deep the dead-letter table is and
@@ -2776,9 +2794,12 @@ pub(crate) const STATS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, as § 1's `Core\Queue::State`.
+/// `rule:concurrency/claiming-is-one-statement` and
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, as
+/// `Core\Queue::State`.
 ///
-/// **§ 1 is the home of the roster and of why there is no `Failed`**; this is the home of what a
+/// **`rule:concurrency/a-job-between-attempts-is-pending` is the home of the roster and of why
+/// there is no `Failed`**; this is the home of what a
 /// case *is* here, which is a stored number. Each case is a resting state of a row rather than an
 /// event: a job whose `runAt` has not come round is `Pending`, because waiting for a worker and
 /// waiting for a clock are one thing to everything that reads this column, and a case separating
@@ -2787,7 +2808,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
 /// reads `Pending`, so a job leaves the queue by changing one column.
 ///
 /// **The values are declaration ordinals and mean nothing else**, as they are for every enum here
-/// ([`CoreEnum::cases`]' rule) — but these ones are additionally *stored*: § 2's jobs table writes
+/// ([`CoreEnum::cases`]' rule) — but these ones are additionally *stored*: the jobs table writes
 /// this ordinal in its `state` column, so the enum and the column are one representation and not
 /// two, and each case's number is part of the schema `nvs queue migrate` will create. Renumbering
 /// one is therefore a migration and not an edit. `queue_statements_agree_with_the_state_enum` pins
@@ -2902,8 +2923,9 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 /// The base delay a `push` that wrote no `{ backoff: … }` agreed to, in milliseconds.
 ///
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for exponential backoff
-/// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
-/// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
+/// with jitter and a cap and names no number, and the `[queue]` block has no key for one — the
+/// base is a property of the *job*, which is why `rule:concurrency/queue-four-members` puts it on
+/// `push`'s options shape beside
 /// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not
 /// nothing: [`schema`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
 /// once", and a job whose first attempt failed against a database or an endpoint would otherwise
@@ -3198,9 +3220,9 @@ fn limits_recorded(config: Option<&nvs_config::Request>) -> Option<String> {
 /// under what the enqueuing context had narrowed itself to, so a column this cannot read is a
 /// narrowing that would be silently dropped — and a dropped narrowing runs the job at the
 /// deployment's own ceiling, handing it the authority the request meant to give up. The caller
-/// reports it as a failed attempt instead, which § 6's ladder already bounds. A column that is
-/// *null* is a different answer: that context narrowed that half of nothing, and the ceiling is
-/// where it belongs.
+/// reports it as a failed attempt instead, which the bound on attempts already covers. A column
+/// that is *null* is a different answer: that context narrowed that half of nothing, and the
+/// ceiling is where it belongs.
 ///
 /// **A key outside [`RECORDED_LIMITS`] is refused for the same reason**, rather than skipped: the
 /// enqueue writes those keys and no others, so a key here is a value some other writer put on the
@@ -3293,7 +3315,7 @@ fn payload_of(ctx: &mut nvs_runtime::Ctx, args: &[Value]) -> Result<Option<Strin
 /// [`crate::json::DEFAULT_MAX_DEPTH`], the same one the encoder refused past.
 ///
 /// `pub` because the worker that runs a claimed job lives in `nvs-cli` — the crate that owns the
-/// scheduler a worker is a task on — while § 3's payload encoding is this module's, and a column's
+/// scheduler a worker is a task on — while the payload's encoding is this module's, and a column's
 /// two halves belong beside each other.
 #[must_use]
 pub fn payload(text: &str) -> Option<Value> {
@@ -3303,7 +3325,7 @@ pub fn payload(text: &str) -> Option<Value> {
 
 /// The `[queue]` block this deployment resolved at boot, and the bounds it carries.
 ///
-/// One reading of § 2's block for every member that needs it, for the reason
+/// One reading of the `[queue]` block for every member that needs it, for the reason
 /// [`crate::db::open_named`] is one reading of `[db.<name>]`: what `[queue] connection` names is a
 /// single question, and a second answer to it here would be a second place for it to be answered
 /// differently.
@@ -3383,10 +3405,10 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
 /// Whether `Core\Queue`'s four members run over a driver at all, which is this module's roster and
 /// not `nvs-db`'s.
 ///
-/// **It answers `true` for every driver, and that is a claim rather than a constant.** § 4 has a
-/// text in each of the four dialects ([`texts`]) and [`queue_connection`] has an arm that sends
-/// each of them, so there is no backend `Core\Queue` opens a connection to and then refuses; the
-/// wider question — can a statement be sent at all — is
+/// **It answers `true` for every driver, and that is a claim rather than a constant.** Every
+/// statement the queue sends has a text in each of the four dialects ([`texts`]) and
+/// [`queue_connection`] has an arm that sends each of them, so there is no backend `Core\Queue`
+/// opens a connection to and then refuses; the wider question — can a statement be sent at all — is
 /// `rule:core-classes/db-drivers-are-an-enum`'s and is answered one crate down.
 ///
 /// **A predicate and not a `bool` constant**, because the roster is what a reader that cannot hold
@@ -3408,13 +3430,13 @@ pub fn runs(driver: nvs_db::Driver) -> bool {
 /// The queue's connection, as the send path the member's statements go out over.
 ///
 /// **Four arms where the module has four dialects**, and one of them is a *binding* rather than a
-/// spelling: § 4's statements are PostgreSQL's single texts, MySQL's — some of them [`Split`]s —
-/// and T-SQL's, and SQLite runs the second set, [`STATUS_SQLITE`] and its siblings being those
-/// constants aliased. What it does not share is how a value reaches the statement, and [`Sent`] is
-/// where that is argued. The MySQL and MariaDB arm is [`crate::db::Framed`] for the opposite
-/// reason, and that type's doc owns why a driver difference that is only the type of the borrow is
-/// flattened at the call sites. [`runs`] is the same roster as a predicate, for the readers that
-/// need to ask without holding a connection.
+/// spelling: the queue's statements are PostgreSQL's single texts, MySQL's — some of them
+/// [`Split`]s — and T-SQL's, and SQLite runs the second set, [`STATUS_SQLITE`] and its siblings
+/// being those constants aliased. What it does not share is how a value reaches the statement, and
+/// [`Sent`] is where that is argued. The MySQL and MariaDB arm is [`crate::db::Framed`] for the
+/// opposite reason, and that type's doc owns why a driver difference that is only the type of the
+/// borrow is flattened at the call sites. [`runs`] is the same roster as a predicate, for the
+/// readers that need to ask without holding a connection.
 ///
 /// Every driver is spelled rather than left to a `_`, so a sixth arrives as a build failure here
 /// instead of as a refusal written wherever the last session happened to leave one.
@@ -3453,7 +3475,8 @@ fn queue_connection<'a>(
 /// The queue's connection, borrowed as the driver whose dialect the member holds.
 ///
 /// [`crate::db`]'s `filed_connection` one module over, and separate rather than shared because that
-/// one narrows to § 7's three commands and this one to § 4's statements — the same downcast asked
+/// one narrows to the three transaction commands (`rule:core-classes/db-transactions`) and this one
+/// to the queue's statements — the same downcast asked
 /// two different questions.
 enum Queued<'a> {
     /// [`INSERT_POSTGRES`], [`CLAIM_POSTGRES`] and [`DEAD_LETTER_POSTGRES`], each answering in one
@@ -3467,9 +3490,9 @@ enum Queued<'a> {
     /// [`nvs_db::SqliteValue`]s rather than encoded octets ([`Sent`]). The [`Split`]s among them run
     /// inside the immediate transaction `rule:concurrency/claiming-is-one-statement` names.
     Sqlite(&'a mut nvs_db::SqliteConn),
-    /// [`INSERT_SQLSERVER`], [`STATUS_SQLSERVER`] and the rest of § 4's T-SQL, binding the array
-    /// PostgreSQL binds: a `@pN` carries its own number, so a value the text reads twice goes out
-    /// once, where a `?` is a position and cannot. What this dialect has instead of a
+    /// [`INSERT_SQLSERVER`], [`STATUS_SQLSERVER`] and the rest of the queue's T-SQL, binding the
+    /// array PostgreSQL binds: a `@pN` carries its own number, so a value the text reads twice goes
+    /// out once, where a `?` is a position and cannot. What this dialect has instead of a
     /// data-modifying common table expression is a transaction, so the two [`Split`]s among its
     /// texts — the enqueue's dedupe read and [`DELETE_SQLSERVER`] — run inside one.
     SqlServer(&'a mut nvs_db::TdsConn),
@@ -3484,11 +3507,12 @@ nvs_runtime::nvs_helper! {
     /// and its grant, and for the same reason: a refusal about the caller's own arguments should
     /// not depend on whether a database was reachable.
     ///
-    /// **The connection is reached through the memo first**, which is the whole of § 3. If this
-    /// request has already opened `[queue] connection` — because it is the application's own
-    /// database, which § 2 calls the recommended configuration — then this insert runs on that
-    /// connection, inside whatever transaction it is in, and commits with it. If it has not, the
-    /// insert is its own committed statement, and § 3 says exactly that.
+    /// **The connection is reached through the memo first**, which is the whole of
+    /// `rule:concurrency/enqueue-commits-with-your-write`. If this request has already opened
+    /// `[queue] connection` — because it is the application's own database, which
+    /// `rule:core-classes/queue-storage-is-a-table` calls the recommended configuration — then this
+    /// insert runs on that connection, inside whatever transaction it is in, and commits with it.
+    /// If it has not, the insert is its own committed statement, and the rule says exactly that.
     ///
     /// **What it spends:** one statement, plus the connection if the request had not already opened
     /// one — which is then held for the rest of the request like any other, and pooled after it.
@@ -3539,9 +3563,10 @@ nvs_runtime::nvs_helper! {
         let granted = grants_of(ctx, args)?;
         let limited = limits_of(ctx, args)?;
 
-        // Shared, and that is § 3 rather than an economy: `{ shared: false }` would open a second
-        // connection, outside whatever transaction the request has open on the first, and the
-        // enqueue would commit on its own. The memo is what makes the property hold.
+        // Shared, and that is `rule:concurrency/enqueue-commits-with-your-write` rather than an
+        // economy: `{ shared: false }` would open a second connection, outside whatever
+        // transaction the request has open on the first, and the enqueue would commit on its
+        // own. The memo is what makes the property hold.
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
         // `rule:concurrency/foreign-connection-enqueue-is-counted`: no level open on the queue's
         // connection and one open on another means the job commits now and the caller's write
@@ -3715,8 +3740,8 @@ fn insert_refused(block: &str, refused: &dyn std::fmt::Display) -> Fault {
     )
 }
 
-/// [`INSERT_POSTGRES`]: § 1's enqueue as the one statement that dedupes and inserts, and the id it
-/// answers with.
+/// [`INSERT_POSTGRES`]: `push`'s enqueue as the one statement that dedupes and inserts, and the id
+/// it answers with.
 ///
 /// # Errors
 ///
@@ -3772,9 +3797,10 @@ fn push_in_one(
 /// the same case because it is a planner's arm inside a single statement rather than a lock taken
 /// across two.
 ///
-/// **A keyed push holds § 3's property with a transaction where PostgreSQL held it by
-/// construction**, which is what [`Split`] means. Where the request already has one open on this
-/// connection — § 2's recommended configuration, and the whole point of the memo — `begin` is a
+/// **A keyed push holds `rule:concurrency/enqueue-commits-with-your-write` with a transaction where
+/// PostgreSQL held it by construction**, which is what [`Split`] means. Where the request already
+/// has one open on this connection — the recommended configuration of
+/// `rule:core-classes/queue-storage-is-a-table`, and the whole point of the memo — `begin` is a
 /// `SAVEPOINT` and `commit` its release, so the enqueue still commits with the write that caused
 /// it and never on its own.
 ///
@@ -4174,7 +4200,8 @@ fn deduped(
     }
 }
 
-/// [`Split::then`]: the insert itself, and § 4's `lastId` off the write's own OK packet.
+/// [`Split::then`]: the insert itself, and `rule:core-classes/db-statement-members`'s `lastId` off
+/// the write's own OK packet.
 ///
 /// # Errors
 ///
@@ -4208,18 +4235,19 @@ fn inserted(
     })
 }
 
-/// `rule:observability/a-query-is-a-trace-event`'s events one member is holding until the connection lets the context go, and
-/// what is reading them.
+/// `rule:observability/a-query-is-a-trace-event`'s events one member is holding until the
+/// connection lets the context go, and what is reading them.
 ///
 /// **A member's statements are a list here where `Core\Db`'s are one**, which is what a [`Split`]
 /// costs the trace: an enqueue on MySQL is up to four statements — the transaction's two commands
-/// and the pair itself — and § 11 describes statements rather than members, so each of them files
-/// its own event. The two fields travel together everywhere because neither is usable without the
-/// other: a span nothing is reading is never taken, and a taken span cannot be filed until the
+/// and the pair itself — and that rule describes statements rather than members, so each of them
+/// files its own event. The two fields travel together everywhere because neither is usable without
+/// the other: a span nothing is reading is never taken, and a taken span cannot be filed until the
 /// rows have let go of `ctx`.
 struct Spans {
-    /// What § 11 and `rule:observability/trace-events-carry-a-kind`'s trace are asking for, read before the first statement goes out —
-    /// [`crate::db::QueryWatch`] owns why it cannot be read at the point the event is filed.
+    /// What the `query` event and `rule:observability/trace-events-carry-a-kind`'s trace are asking
+    /// for, read before the first statement goes out — [`crate::db::QueryWatch`] owns why it cannot
+    /// be read at the point the event is filed.
     watch: crate::db::QueryWatch,
     /// One entry per statement that ran, in the order they ran.
     taken: Vec<crate::db::Taken>,
@@ -4241,8 +4269,9 @@ impl Spans {
         }
     }
 
-    /// The same, for § 7's three commands, which have no rows to hang a span on and so carry the
-    /// block name here — `crate::db`'s `file_span` is this rule for a caller holding a `Value`.
+    /// The same, for the three transaction commands, which have no rows to hang a span on and so
+    /// carry the block name here — `crate::db`'s `file_span` is this rule for a caller holding a
+    /// `Value`.
     fn named(&mut self, block: &str, mut span: nvs_db::QuerySpan) {
         span.name(block);
         self.note(&span);
@@ -4257,12 +4286,13 @@ impl Spans {
     }
 }
 
-/// What one of § 1's three reading members got back: its row, as the integers § 2's schema
+/// What one of the three reading members got back: its row, as the integers the queue's schema
 /// declares, and what the server said the statement touched.
 ///
 /// **All three read integers and nothing else** — a state ordinal, a cancel's yes-or-no, four
 /// counters — which is what lets [`counted_row`] answer for every one of them over both dialects.
-/// A reader that decoded § 9's whole type map would be `Core\Db`'s, and that class has one.
+/// A reader that decoded the whole type map (`rule:core-classes/db-column-types`) would be
+/// `Core\Db`'s, and that class has one.
 struct Counted {
     /// The first row's requested columns, or `None` for a statement that answered no row at all.
     /// The inner `Option` is "that column was an integer", judged after the drain rather than
@@ -4306,7 +4336,7 @@ impl Counted {
 #[expect(
     clippy::too_many_arguments,
     reason = "a text and its own binding per send path, plus the row width, the block, the \
-              member's own refusal and § 11's spans"
+              member's own refusal and the query spans"
 )]
 fn counted_row(
     queued: Queued<'_>,
@@ -4397,8 +4427,8 @@ fn counted_row(
                         nvs_db::mysql::scalar(column, body).map_err(|failed| refused(&failed))?;
                     read.push(match scalar {
                         nvs_db::MySqlScalar::Int(number) => Some(number),
-                        // § 9's `uint` row: MySQL answers `count` as `bigint unsigned`, so the
-                        // two counters that are not cast land here rather than above.
+                        // The type map's `uint` row: MySQL answers `count` as `bigint unsigned`, so
+                        // the two counters that are not cast land here rather than above.
                         nvs_db::MySqlScalar::UInt(number) => i64::try_from(number).ok(),
                         _ => None,
                     });
@@ -4412,7 +4442,7 @@ fn counted_row(
     }
 }
 
-/// § 4's statements as SQL Server takes them: one text, or the pair a dialect with no
+/// The queue's statements as SQL Server takes them: one text, or the pair a dialect with no
 /// data-modifying common table expression writes instead.
 ///
 /// **No binding of its own**, where [`Sent`] carries one: this driver's markers are numbered, so
@@ -4533,7 +4563,8 @@ fn tds_statement(
     Ok(Counted { row, affected })
 }
 
-/// § 4's statements as SQLite takes them: the text, and the values typed rather than rendered.
+/// The queue's statements as SQLite takes them: the text, and the values typed rather than
+/// rendered.
 ///
 /// **A form of its own and not a third `&[Option<&[u8]>]`**, because this driver binds a *value*
 /// where the others bind a rendering of one — `nvs_db::SqliteConn::query` takes owned
@@ -4543,10 +4574,10 @@ fn tds_statement(
 /// A receipt's id as the storage class SQLite holds it in.
 ///
 /// **Saturating rather than refusing**, where `crates/nvs-db/src/sqlite.rs`'s `encode` refuses: that
-/// one is answering for a value a program wrote, and this is § 2's `integer primary key`, which this
-/// backend cannot have issued past [`i64::MAX`]. A receipt that large names no row, so the statement
-/// it goes into answers nothing — which is the member's own *no such job* answer rather than a
-/// second wording of it.
+/// one is answering for a value a program wrote, and this is the jobs table's `integer primary
+/// key`, which this backend cannot have issued past [`i64::MAX`]. A receipt that large names no
+/// row, so the statement it goes into answers nothing — which is the member's own *no such job*
+/// answer rather than a second wording of it.
 fn sqlite_id(id: u64) -> nvs_db::SqliteValue {
     nvs_db::SqliteValue::Int(i64::try_from(id).unwrap_or(i64::MAX))
 }
@@ -4622,7 +4653,8 @@ fn sqlite_counted(
     }
 }
 
-/// One SQLite statement, drained, with § 11's span opened here rather than by the driver.
+/// One SQLite statement, drained, with its `query` span
+/// (`rule:observability/a-query-is-a-trace-event`) opened here rather than by the driver.
 ///
 /// **The count is a write's and never a read's.** `nvs_db::SqliteRows::affected` answers what the
 /// last data-changing statement on this *connection* reported, so a `select` would read whatever
@@ -4682,13 +4714,15 @@ nvs_runtime::nvs_helper! {
     /// member taking a bare id would have to be told the queue beside it or search every one, and
     /// the first is what [`ID`] exists to spare the caller.
     ///
-    /// **One statement over both of § 2's tables**, so the answer describes one instant.
-    /// [`STATUS_POSTGRES`] owns why that is two arms rather than two queries, and the reading it rests on is
-    /// § 6's: a job that ran out of attempts is moved rather than deleted, so there is a row to
-    /// answer from until an operator removes one.
+    /// **One statement over both of the queue's tables**, so the answer describes one instant.
+    /// [`STATUS_POSTGRES`] owns why that is two arms rather than two queries, and the reading it
+    /// rests on is `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s: a job that
+    /// ran out of attempts is moved rather than deleted, so there is a row to answer from until an
+    /// operator removes one.
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
-    /// holds for the rest of it. [`nvs_core_queue_push`]'s reading of § 3 applies unchanged in the
+    /// holds for the rest of it. [`nvs_core_queue_push`]'s reading of
+    /// `rule:concurrency/enqueue-commits-with-your-write` applies unchanged in the
     /// other direction — a `status` inside a transaction on that connection sees that
     /// transaction's own enqueues, because it is the same connection and not a second one.
     fn nvs_core_queue_status(ctx, args: [1]) {
@@ -4743,7 +4777,8 @@ nvs_runtime::nvs_helper! {
             &mut spans,
         )?;
         // Filed as `push` files it, and before the answer is judged for the same reason: the
-        // statement ran either way, and a trace showing it is what § 11 asks for.
+        // statement ran either way, and a trace showing it is what
+        // `rule:observability/a-query-is-a-trace-event` asks for.
         spans.file(ctx);
         let ordinal = counted
             .row
@@ -4790,13 +4825,13 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Queue::cancel(Queue\Id $job): bool` — `rule:concurrency/queue-four-members`.
     ///
-    /// **It answers a `bool` although § 1 annotates no return**, and that is a decision rather than
-    /// a liberty: the member's own semantics are a race it can lose — § 4 lets a worker claim the
-    /// job at any moment, and it is the *ordinary* outcome for a job cancelled late, not an unlucky
-    /// one — so a caller has no other way to learn whether the work is still going to happen. A
-    /// `void` spelling would make "cancelled" and "too late" look identical at the call site, and
-    /// throwing for the second would make the commonest race an exception. `rule:concurrency/queue-four-members` carries the
-    /// annotation now, so there is one home for it.
+    /// **It answers a `bool`**, and that is a decision rather than a liberty: the member's own
+    /// semantics are a race it can lose (`rule:concurrency/cancel-is-a-race-it-can-lose`) — a
+    /// worker may claim the job at any moment, and it is the *ordinary* outcome for a job cancelled
+    /// late, not an unlucky one — so a caller has no other way to learn whether the work is still
+    /// going to happen. A `void` spelling would make "cancelled" and "too late" look identical at
+    /// the call site, and throwing for the second would make the commonest race an exception.
+    /// `rule:concurrency/queue-four-members` carries the annotation, so there is one home for it.
     ///
     /// **The state test is in [`CANCEL_POSTGRES`] and not here**, which is why nothing in this body reads
     /// the job's state first. The whole member is one statement for the reason `push` is: two would
@@ -4804,7 +4839,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
     /// holds for the rest of it — so a cancel inside a transaction on that connection is undone
-    /// with it if that transaction rolls back, exactly as § 3's enqueue commits with it.
+    /// with it if that transaction rolls back, exactly as an enqueue commits with it
+    /// (`rule:concurrency/enqueue-commits-with-your-write`).
     fn nvs_core_queue_cancel(ctx, args: [1]) {
         let (id, queue) = job_of(args[0], CANCEL_OF)?;
         let block = configured_queue(ctx, CANCEL_OF)?.connection;
@@ -4844,7 +4880,8 @@ nvs_runtime::nvs_helper! {
             &mut spans,
         )?;
         // As `push`: taken while the rows still lend the span out, filed once they have let the
-        // context go. A cancel that lost § 4's race is a statement like any other and files one.
+        // context go. A cancel that lost the race to a claim is a statement like any other and
+        // files one.
         spans.file(ctx);
         Ok(Value::bool(counted.touched()))
     }
@@ -4874,12 +4911,13 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Both tables in one statement, and the claimed row refused inside it.** [`DELETE_POSTGRES`]
     /// owns why the two arms are one moment rather than two, and why the state test is in the text
-    /// instead of in a read above it: a job § 6 moved between the two round trips of a
+    /// instead of in a read above it: a job dead-lettered between the two round trips of a
     /// read-then-delete is exactly the row this member exists to leave alone.
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
     /// holds for the rest of it — so a delete inside a transaction on that connection is undone
-    /// with it if that transaction rolls back, exactly as § 3's enqueue commits with it.
+    /// with it if that transaction rolls back, exactly as an enqueue commits with it
+    /// (`rule:concurrency/enqueue-commits-with-your-write`).
     fn nvs_core_queue_delete(ctx, args: [1]) {
         let (id, queue) = job_of(args[0], DELETE_OF)?;
         nvs_runtime::capability::require(
@@ -4941,10 +4979,11 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Which of § 6's two tables a `purge`'s `{ state: … }` selects, and the ordinal that table's
+/// Which of the queue's two tables a `purge`'s `{ state: … }` selects, and the ordinal that table's
 /// statement binds for it.
 ///
-/// A call names at most one state, and § 6 puts a dead-lettered job in a table of its own — so the
+/// A call names at most one state, and a dead-lettered job is in a table of its own
+/// (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) — so the
 /// table and the ordinal are one answer rather than two the member would have to keep agreeing
 /// about.
 #[derive(Clone, Copy)]
@@ -5089,14 +5128,15 @@ nvs_runtime::nvs_helper! {
     /// ungranted caller cannot read the difference between a deployment that configured no queue
     /// and one that configured a queue it may not sweep.
     ///
-    /// **One statement per call, and which one is [`purge_state_of`]'s whole answer.** § 6 puts a
-    /// dead-lettered job in another table, so `state: Dead` is a different text rather than another
-    /// arm of the same one; every other selection is [`PURGE_POSTGRES`] with the ordinal the call
-    /// named, or without one for the default set that statement writes as two literals.
+    /// **One statement per call, and which one is [`purge_state_of`]'s whole answer.** A
+    /// dead-lettered job is in another table, so `state: Dead` is a different text rather than
+    /// another arm of the same one; every other selection is [`PURGE_POSTGRES`] with the ordinal
+    /// the call named, or without one for the default set that statement writes as two literals.
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
     /// holds for the rest of it — so a purge inside a transaction on that connection is undone with
-    /// it if that transaction rolls back, exactly as § 3's enqueue commits with it. Nothing is held
+    /// it if that transaction rolls back, exactly as an enqueue commits with it
+    /// (`rule:concurrency/enqueue-commits-with-your-write`). Nothing is held
     /// between calls and no row is read: the count is the statement's own completion, and how many
     /// rows it may remove is [`DEFAULT_PURGE_LIMIT`] until a caller writes its own bound.
     fn nvs_core_queue_purge(ctx, args: [5]) {
@@ -5214,11 +5254,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::stats(string $queue): Queue\Stats` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
+    /// `Core\Queue::stats(string $queue): Queue\Stats` — `rule:concurrency/queue-four-members` and
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
-    /// **Asked about a queue and not about a job**, which is what makes it the odd member of § 1's
-    /// four: the other three take the receipt [`ID`] is, because they are about one row, and this
-    /// one is about a population an operator watches.
+    /// **Asked about a queue and not about a job**, which is what makes it the odd member of the
+    /// first four: the other three take the receipt [`ID`] is, because they are about one row, and
+    /// this one is about a population an operator watches.
     ///
     /// **One statement, so the counters are one fact.** [`COUNTS_POSTGRES`] owns why an aggregate with
     /// no `group by` is the shape, and why what the dead-letter table answers is two scalar
@@ -5228,8 +5269,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
     /// holds for the rest of it, plus one six-slot record. [`nvs_core_queue_push`]'s reading of
-    /// § 3 applies in the other direction — a `stats` inside a transaction on that connection
-    /// counts that transaction's own enqueues, because it is the same connection and not a second.
+    /// `rule:concurrency/enqueue-commits-with-your-write` applies in the other direction — a
+    /// `stats` inside a transaction on that connection counts that transaction's own enqueues,
+    /// because it is the same connection and not a second.
     fn nvs_core_queue_stats(ctx, args: [1]) {
         // Unreachable from source: the row types this parameter `string`, so a non-text argument is
         // refused at `E0401` first — [`nvs_core_queue_push`]'s guard states the same judgement.
@@ -5371,8 +5413,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$stats->deadLettered(): uint` — § 6's dead-letter depth, the counter that section names
-    /// outright as the one an unwatched deployment loses work behind.
+    /// `$stats->deadLettered(): uint` — the dead-letter depth, the counter
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` names outright as the one
+    /// an unwatched deployment loses work behind.
     fn nvs_core_queue_stats_dead_lettered(_ctx, args: [1]) {
         counter(args, "deadLettered", STATS_DEAD_AT)
     }
@@ -5472,7 +5515,7 @@ mod tests {
         }
     }
 
-    /// Everything one dialect's DDL says about one of § 2's two tables, joined into one text.
+    /// Everything one dialect's DDL says about one of the queue's two tables, joined into one text.
     ///
     /// **A table's share of an emission, not a statement**, because how many statements a table
     /// takes is itself the thing the dialects disagree about: MySQL declares an index inside the
@@ -5523,7 +5566,9 @@ mod tests {
         );
         let parsed: serde_json::Value =
             serde_json::from_str(&written).expect("`dead_errors` writes a JSON document");
-        let entries = parsed.as_array().expect("§ 6's `errors` is an array");
+        let entries = parsed
+            .as_array()
+            .expect("a dead-lettered job's `errors` is an array");
         assert_eq!(
             entries.len(),
             1,
@@ -5551,7 +5596,9 @@ mod tests {
         let second = dead_errors(Some(&first), 2, "LogicError", "the second");
         let parsed: serde_json::Value =
             serde_json::from_str(&second).expect("`dead_errors` writes a JSON document");
-        let entries = parsed.as_array().expect("§ 6's `errors` is an array");
+        let entries = parsed
+            .as_array()
+            .expect("a dead-lettered job's `errors` is an array");
         assert_eq!(
             entries.len(),
             2,
@@ -5593,19 +5640,19 @@ mod tests {
     }
 
     /// [`migration`] and [`crate::db::rendering_for`] answer about one roster each, and this is the
-    /// assertion that the queue's is inside `Core\Db`'s: § 2's schema is only ever sent over a
-    /// driver a statement can be bound for.
+    /// assertion that the queue's is inside `Core\Db`'s: the queue's schema is only ever sent over
+    /// a driver a statement can be bound for.
     ///
     /// **Asked as containment rather than as a list**, because a list here would be the third copy
     /// of the same roster and would go stale silently — a driver gaining a `Dialect` in `nvs-db`
     /// while this file kept its own answer is precisely the drift that would print PostgreSQL's DDL
     /// for a server that cannot run it.
     ///
-    /// **One direction and not two**: `Core\Db` binds for all five drivers and § 2's schema is one
-    /// value emitted in every dialect, so what is left to hold is the pairing itself — a driver
-    /// whose rewriter disagreed with the dialect its schema is emitted in would send the right
-    /// columns in the wrong SQL. [`no_dialect`] is where an operator is told that a driver runs no
-    /// statement yet, which is a different question from having a schema.
+    /// **One direction and not two**: `Core\Db` binds for all five drivers and the queue's schema
+    /// is one value emitted in every dialect, so what is left to hold is the pairing itself — a
+    /// driver whose rewriter disagreed with the dialect its schema is emitted in would send the
+    /// right columns in the wrong SQL. [`no_dialect`] is where an operator is told that a driver
+    /// runs no statement yet, which is a different question from having a schema.
     #[test]
     fn the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one() {
         for driver in nvs_db::Driver::ALL {
@@ -5616,7 +5663,7 @@ mod tests {
             assert_eq!(
                 crate::db::rendering_for(driver).0,
                 nvs_db::Dialect::of(driver),
-                "{driver:?} has § 2's schema, so `Core\\Db` owes it a statement in the dialect \
+                "{driver:?} has the queue's schema, so `Core\\Db` owes it a statement in the dialect \
                  that schema is written in"
             );
         }
@@ -5644,8 +5691,9 @@ mod tests {
     #[test]
     fn the_ddl_creates_every_column_the_statements_name() {
         // `INSERT_POSTGRES`'s parenthesised column list is the widest claim any statement makes about
-        // `nvs_jobs`, and § 6's move is the same for `nvs_dead_jobs`: every other statement reads a
-        // subset of one of the two. Both are cut once and asked of each dialect in turn.
+        // `nvs_jobs`, and the dead-letter move is the same for `nvs_dead_jobs`: every other
+        // statement reads a subset of one of the two. Both are cut once and asked of each dialect
+        // in turn.
         let written = |statement: &'static str, table: &str| {
             statement
                 .split_once(&format!("insert into {table} ("))
@@ -5693,7 +5741,7 @@ mod tests {
                 );
             }
             // `CLAIM_POSTGRES` is the one statement that reads a column no `INSERT_POSTGRES` writes: a claim's own
-            // instant, which is where § 4's visibility timeout is measured from.
+            // instant, which is where the visibility timeout is measured from.
             assert!(
                 jobs.contains(&format!("{} ", declared("claimed_at", driver))),
                 "{dialect}: the `jobs` DDL creates `claimed_at`, which `CLAIM_POSTGRES` writes and reads back"
@@ -5736,20 +5784,20 @@ mod tests {
             }
         }
 
-        // § 4's mutual exclusion is the database's in both dialects, and asked of each because the
-        // clause moved: PostgreSQL's sits inside the CTE its `update` reads, MySQL's on the `select`
-        // half of a `Split`, and a claim that lost it in either would take a row a second worker is
-        // already running.
+        // The claim's mutual exclusion is the database's in both dialects, and asked of each
+        // because the clause moved: PostgreSQL's sits inside the CTE its `update` reads, MySQL's on
+        // the `select` half of a `Split`, and a claim that lost it in either would take a row a
+        // second worker is already running.
         for (dialect, claim) in [("postgres", CLAIM_POSTGRES), ("mysql", CLAIM_MYSQL.first)] {
             assert!(
                 claim.contains("for update skip locked"),
-                "{dialect}: this is the spelling that asks the server for § 4's exclusion"
+                "{dialect}: this is the spelling that asks the server for the claim's exclusion"
             );
         }
         // The roster is read off the same table and the same column a claim is then keyed on, which
-        // is the whole of why § 2 needs no fifth key to name a worker's queues. Asked of every
-        // dialect, because each spells it itself, so nothing but this would notice one of the texts
-        // reading a different column.
+        // is the whole of why the `[queue]` block needs no fifth key to name a worker's queues.
+        // Asked of every dialect, because each spells it itself, so nothing but this would notice
+        // one of the texts reading a different column.
         for (dialect, roster) in [
             ("postgres", QUEUES_POSTGRES),
             ("mysql", QUEUES_MYSQL),
@@ -5927,7 +5975,7 @@ mod tests {
     /// A worker reads a claimed job's columns **by ordinal**, so the dialects owe each other more
     /// than a column set here: the same names in the same order. Nothing else would notice them
     /// diverging — a claim that swapped `attempts` and `max_attempts` still runs, still answers as
-    /// many values, and puts § 6's ladder on the wrong number.
+    /// many values, and puts the backoff ladder on the wrong number.
     ///
     /// The alias is stripped rather than matched, because `attempts + 1 as attempts` is exactly the
     /// difference the split forces ([`CLAIM_MYSQL`]'s doc owns why) and it is not a difference in
@@ -6012,7 +6060,8 @@ mod tests {
     /// containment check below says and what a fixed expectation could not.
     #[test]
     fn a_retry_is_exponential_jittered_and_capped() {
-        // The three properties § 6 names, each asserted over the whole ladder rather than on one
+        // The three properties `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+        // names, each asserted over the whole ladder rather than on one
         // rung: a delay read off a single call would pass for a function that had lost the shift.
         for attempt in 1..=12_i64 {
             let full = 1_000_i64
@@ -6107,7 +6156,8 @@ mod tests {
         );
     }
 
-    /// § 4's bound, asserted where a machine with no containers still sees it.
+    /// `purge`'s bound (`rule:concurrency/queue-deletion-is-explicit-and-bounded`), asserted where
+    /// a machine with no containers still sees it.
     ///
     /// A server case asserts the bound a call *named*; this asserts that there is no way to send
     /// one of these without a bound at all, which is what
@@ -6158,7 +6208,7 @@ mod tests {
     /// [`STATE`] arrives here as a selection nobody classified, and this is what says so. Each case
     /// is either refused before a statement is chosen at all, or lands on a text carrying the
     /// refusal itself — [`PURGE_POSTGRES`]'s `state <> 1`, or [`DEAD_TABLE`], where a claimed row
-    /// cannot be at all: § 6 moves a job there only once it has stopped being attempted.
+    /// cannot be at all: a job is moved there only once it has stopped being attempted.
     #[test]
     fn purge_has_no_option_that_reaches_a_claimed_row() {
         for (case, ordinal) in STATE.cases {
@@ -6253,8 +6303,8 @@ mod tests {
         }
     }
 
-    /// § 6's other table, asserted as the member's own routing: one case reads it, and it is the
-    /// one being in that table *is*.
+    /// The dead-letter table, asserted as the member's own routing: one case reads it, and it is
+    /// the one being in that table *is*.
     ///
     /// What the statements' texts can say is that [`PURGE_DEAD_POSTGRES`] names [`DEAD_TABLE`] and
     /// no ordinal; what they cannot say is which call arrives there. A selection sending `Pending`
@@ -6280,7 +6330,7 @@ mod tests {
                         table == DEAD_TABLE
                             && sql.contains(DEAD_TABLE)
                             && !sql.contains(&format!("{JOBS_TABLE} ")),
-                        "{dialect}: `Dead` removes from the table § 6 moved the row into, and \
+                        "{dialect}: `Dead` removes from the table the dead-letter move put the row into, and \
                          from that one alone: {sql}"
                     );
                 }
@@ -6297,7 +6347,7 @@ mod tests {
         );
     }
 
-    /// § 4's bound and § 1's answer, asserted on the registry row rather than on a text.
+    /// `purge`'s default bound and its count, asserted on the registry row rather than on a text.
     ///
     /// [`every_purge_is_bounded_and_takes_the_oldest_rows_first`] holds that no statement can be
     /// *sent* without a bound; this holds that no call can be *written* without one, which is a
@@ -6503,7 +6553,7 @@ mod tests {
             );
             assert!(
                 status.contains(JOBS_TABLE) && status.contains(DEAD_TABLE),
-                "{dialect}: `status` reads both of § 2's tables"
+                "{dialect}: `status` reads both of the queue's tables"
             );
         }
         assert_eq!(
@@ -6542,7 +6592,7 @@ mod tests {
                 && DELETE_MYSQL.contains(DEAD_TABLE)
                 && DELETE_SQLITE.first.contains(JOBS_TABLE)
                 && DELETE_SQLITE.then.contains(DEAD_TABLE),
-            "a receipt names a job across § 6's move, so every delete reaches both of § 2's tables"
+            "a receipt names a job across the dead-letter move, so every delete reaches both of the queue's tables"
         );
         assert!(
             !DELETE_SQLITE.then.contains("state"),
@@ -6588,7 +6638,7 @@ mod tests {
             );
             assert!(
                 purge.contains(DEAD_TABLE) && !purge.contains(JOBS_TABLE),
-                "{dialect}: `State::Dead` selects the table § 6 moved the row into, and only that \
+                "{dialect}: `State::Dead` selects the table the dead-letter move put the row into, and only that \
                  one"
             );
         }
@@ -6669,7 +6719,7 @@ mod tests {
         ] {
             assert!(
                 counts.contains(JOBS_TABLE) && counts.contains(DEAD_TABLE),
-                "{dialect}: `stats` reads both of § 2's tables, taking the depth from the second"
+                "{dialect}: `stats` reads both of the queue's tables, taking the depth from the second"
             );
         }
     }
@@ -6853,9 +6903,10 @@ mod tests {
         }
     }
 
-    /// The counter § 6 leaves a queue without: a job's attempts leave [`JOBS_TABLE`] with the row
-    /// that exhausted them, so a deployment reading `attempts` alone watches the number *fall* as
-    /// work is given up on. The fifth counter is where those attempts are counted instead.
+    /// The counter the dead-letter move would leave a queue without: a job's attempts leave
+    /// [`JOBS_TABLE`] with the row that exhausted them, so a deployment reading `attempts` alone
+    /// watches the number *fall* as work is given up on. The fifth counter is where those attempts
+    /// are counted instead.
     ///
     /// **Asserted on the statement and on the record together**, because either half alone reads
     /// as done: a record with a fifth member whose column nothing selects answers whatever the row
@@ -6904,7 +6955,7 @@ mod tests {
             assert!(
                 counts.contains(summed),
                 "{dialect}: `stats` sums no attempts over `{DEAD_TABLE}`, so a job's attempts are \
-                 lost the moment § 6 moves it"
+                 lost the moment the dead-letter move takes it"
             );
             assert_eq!(
                 counts.matches(DEAD_TABLE).count(),
@@ -7354,7 +7405,7 @@ mod tests {
     }
 
     /// [`migration`]'s label is total, and it is only total because every statement the emitter
-    /// writes names one of § 2's two tables.
+    /// writes names one of the queue's two tables.
     ///
     /// The label is what `nvs queue migrate` prints and what an operator reads a refusal against, so
     /// a statement filed under the wrong table names the wrong half of the schema. Asked of every
@@ -7373,7 +7424,7 @@ mod tests {
                 let dead = step.sql.contains(DEAD_TABLE);
                 assert!(
                     dead || step.sql.contains(JOBS_TABLE),
-                    "{}: `{}` names neither of § 2's two tables",
+                    "{}: `{}` names neither of the queue's two tables",
                     driver.display_name(),
                     step.sql
                 );
@@ -7411,7 +7462,7 @@ mod tests {
             .tables()
             .iter()
             .find(|table| table.name().as_str() == JOBS_TABLE)
-            .expect("§ 2 declares the table a push writes");
+            .expect("the schema declares the table a push writes");
         for name in ["grants", "limits"] {
             let column = jobs
                 .columns()

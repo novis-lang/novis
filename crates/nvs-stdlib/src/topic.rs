@@ -1,14 +1,15 @@
 //! `Core\Topic` — `rule:core-classes/topic`'s bus, as the only way two connections meet.
 //!
-//! § 3 gives a connection one wait over two sources; this is the second one.
-//! A connection joins a topic by name, a publish copies a value to everyone who
-//! joined it, and the value arrives as the `Core\Socket\Message` whose `topic`
-//! is non-`null` — so a program that already writes § 3's loop needs no second
-//! control-flow style to receive from the bus.
+//! `rule:concurrency/receive-is-the-one-wait` gives a connection one wait over
+//! two sources; this is the second one. A connection joins a topic by name, a
+//! publish copies a value to everyone who joined it, and the value arrives as
+//! the `Core\Socket\Message` whose `topic` is non-`null` — so a program that
+//! already writes `rule:concurrency/a-connection-is-a-loop`'s loop needs no
+//! second control-flow style to receive from the bus.
 //!
 //! # What is here, and what is not
 //!
-//! § 4's three rows, the table behind them, and both halves of the crossing
+//! The class's three rows, the table behind them, and both halves of the crossing
 //! between cores: the publish that hands an encoded value to every other core
 //! listening, and the drain that reads it back and fans it out where it
 //! landed. The transport underneath is [`crate::bus`] — this module is what
@@ -27,10 +28,11 @@
 //!
 //! One `thread_local!` map from a topic's name to the subscribers on **this**
 //! core, as a representation rather than a rule: the runtime is
-//! thread-per-core, so a table another core could reach would need a lock. § 4's "across every core" is the *publish*'s promise and
-//! it is kept by a hand-off between cores rather than by one shared map — a
-//! bounded message hand-off is what that section says it is, and a shared map
-//! with a lock in front of it is the shared state it says it is not.
+//! thread-per-core, so a table another core could reach would need a lock. The
+//! rule's "across every core" is the *publish*'s promise, and it is kept by a
+//! hand-off between cores rather than by one shared map — a bounded message
+//! hand-off is what the rule says the bus is, and a shared map with a lock in
+//! front of it is the shared state it says the bus is not.
 //!
 //! What the table holds per subscriber is a [`Weak`] onto that connection's
 //! [`nvs_runtime::Inbox`], whose only strong reference is the connection's own
@@ -38,7 +40,8 @@
 //! to: the isolate's `Ctx` drops, the last strong reference goes with it, and
 //! the entry is dead the next time that topic is walked. That is the property
 //! worth the indirection, because a connection that ended at a `[limits]`
-//! ceiling or a fatal error (§ 1) runs no more of its own code and could not
+//! ceiling or a fatal error (`rule:concurrency/a-connection-is-a-root-isolate`)
+//! runs no more of its own code and could not
 //! have unsubscribed itself. The alternative — an owned handle plus a
 //! teardown hook — is a table that is O(connections served) whenever the hook
 //! does not run, which [AGENTS.md](/AGENTS.md)'s memory rule calls a leak
@@ -104,28 +107,28 @@
 //! because a subscription with no queue behind it is an entry no `receive()`
 //! could ever drain. `publish` asks nothing about its host: it hands a value
 //! to whoever joined, and the commonest reason to have a bus at all is an
-//! ordinary HTTP request telling the connections that something changed. § 4
-//! writes its example publish from inside a connection, but nothing in it
-//! makes that the rule, and a refusal here would make an application hold a
-//! connection open for the sole purpose of being allowed to speak.
+//! ordinary HTTP request telling the connections that something changed. A
+//! chat loop publishes from inside a connection, but nothing in
+//! `rule:core-classes/topic` makes that a requirement, and a refusal here
+//! would make an application hold a connection open for the sole purpose of
+//! being allowed to speak.
 //!
 //! A connection that joined a topic it also publishes to **is** delivered to,
 //! like every other subscriber. The table is keyed by name and holds
 //! connections rather than everybody-but-one, so an exclusion would have to be
 //! computed per publish, and it would make the count answer something other
-//! than "subscribers". § 3's own loop is written that way: the sender sees
+//! than "subscribers". A chat loop relies on exactly that: the sender sees
 //! their own message, which is what every chat does.
 //!
 //! # Decision: the copy is made before the walk, and whether or not anyone joined
 //!
-//! `rule:classes/graph-copy`'s
-//! graph copy does two jobs here and only one of them scales with the
-//! audience. It gives each subscriber a value that shares nothing with the
-//! publisher or with any other subscriber, which is § 4's rule and is one copy
-//! per subscriber; and it is what **refuses** a value with no meaning on the
-//! other side — a resource, or a `secret`, which
-//! `rule:security/secret-qualifier` says
-//! may never be published.
+//! `rule:classes/graph-copy`'s graph copy does two jobs here and only one of
+//! them scales with the audience. It gives each subscriber a value that shares
+//! nothing with the publisher or with any other subscriber, which is
+//! `rule:core-classes/topic` and is one copy per subscriber; and it is what
+//! **refuses** a value with no meaning on the other side — a resource, or a
+//! `secret`, which `rule:security/secret-qualifier` says may never be
+//! published.
 //!
 //! A refusal that only happened once somebody had joined would be a rule that
 //! held or did not by timing, and it would be unreachable from the conformance
@@ -153,11 +156,11 @@
 //! reported for the topic, which it refreshes whenever it joins, leaves or
 //! walks that row. A remote connection that ended without unsubscribing is
 //! therefore counted until its own core next looks at that name — an
-//! over-count of the same kind § 4's row already carries locally, where a
+//! over-count of the same kind `publish` already carries locally, where a
 //! subscriber counted at the queue may never live to read it. Making it exact
 //! would mean waiting for the other core to answer before `publish` returns,
 //! which is the publisher blocking on a subscriber, and that is the one thing
-//! § 4 says may not happen.
+//! `rule:core-classes/topic` says may not happen.
 //!
 //! **What it spends:** one encoding per publish somebody elsewhere is
 //! listening to, held once however many cores take it, and nothing at all on a
@@ -166,11 +169,12 @@
 //!
 //! # Decision: a subscriber that has stopped reading is skipped, not waited for
 //!
-//! § 4's security rule, in the fan-out: the walk asks each queue whether it
-//! has room *before* it makes that subscriber's copy, and a full one is marked
-//! and stepped over. So a connection that stopped reading costs a publish one
-//! comparison — not an allocation, not a wait, and not the other nine thousand
-//! nine hundred and ninety-nine subscribers' latency.
+//! `rule:core-classes/topic`'s slow-subscriber guarantee, in the fan-out: the
+//! walk asks each queue whether it has room *before* it makes that
+//! subscriber's copy, and a full one is marked and stepped over. So a
+//! connection that stopped reading costs a publish one comparison — not an
+//! allocation, not a wait, and not the other nine thousand nine hundred and
+//! ninety-nine subscribers' latency.
 //!
 //! **It is not counted, either.** `publish` answers what it queued, and a value
 //! this member declined to copy was never queued for anybody. That keeps the
@@ -194,8 +198,8 @@
 //! check behind the connection refusal would not be.
 //!
 //! `tainted` is refused by the *signature* and not by a body: the name
-//! parameter is a [`CoreTy::Text`] at [`Qual::Sink`], which is § 4's "a name is
-//! built from checked values or it does not compile" — the rule
+//! parameter is a [`CoreTy::Text`] at [`Qual::Sink`], so a name built from
+//! unchecked input does not compile — the rule
 //! `rule:security/metric-label-refuses-tainted` already applies to a
 //! metric label, and for the same reason. A name derived from user input is
 //! how one tenant subscribes to another's stream.
@@ -224,17 +228,18 @@ pub(crate) const NAME: &str = r"Core\Topic";
 ///
 /// A namespace class with no instance members and no slots, because a
 /// subscription is not a value a program holds: the subscriber is the
-/// *connection*, which § 1 makes the isolate, and the isolate is already the
-/// thing `Core\Socket::current()` answers for. A handle here would be a second
-/// name for the same connection, and the first thing it could get wrong is
-/// being used from a different one.
+/// *connection*, which `rule:concurrency/a-connection-is-a-root-isolate`
+/// makes the isolate, and the isolate is already the thing
+/// `Core\Socket::current()` answers for. A handle here would be a second name
+/// for the same connection, and the first thing it could get wrong is being
+/// used from a different one.
 ///
-/// `rule:core-classes/topic`, and ranked beside `Core\Socket`, whose `receive` is the only thing a
-/// topic delivery arrives through: the bus is the *second* of § 3's two
-/// sources, so it is not a facility of its own but the far end of a member
-/// `Core\Socket` already registers. [`crate::topic`] owns why the subscriber table
-/// is per core and holds a weak reference, and why `publish` — § 4's third
-/// row — is not here yet.
+/// Ranked beside `Core\Socket`, whose `receive` is the only thing a topic
+/// delivery arrives through: the bus is the *second* of the two sources
+/// `rule:concurrency/receive-is-the-one-wait` waits on, so it is not a
+/// facility of its own but the far end of a member `Core\Socket` already
+/// registers. [`crate::topic`] owns why the subscriber table is per core and
+/// holds a weak reference.
 // rank: 810
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -243,7 +248,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "subscribe",
             names: &["topic"],
-            // [`Qual::Sink`] is § 4's refusal of a `tainted` name, and the
+            // [`Qual::Sink`] is `rule:core-classes/topic`'s refusal of a
+            // `tainted` name, and the
             // module doc owns why it is the signature's job rather than a
             // body's.
             params: &[CoreTy::Text(Qual::Sink)],
@@ -675,8 +681,8 @@ fn externalize(value: Value) -> Result<Vec<u8>, Fault> {
 /// inherits the wake gap rather than adding one.
 ///
 /// One `decode` **per subscriber**, so each is handed a graph it shares with
-/// nobody, which is § 4's rule and is the same guarantee the local walk's
-/// copy-per-subscriber gives. An envelope naming a class this program cannot
+/// nobody, which is `rule:core-classes/topic` and is the same guarantee the
+/// local walk's copy-per-subscriber gives. An envelope naming a class this program cannot
 /// resolve is dropped rather than thrown: the connection running this drain
 /// did not publish it and has no answer to give. The resolver is the
 /// draining program's own class table.
@@ -753,12 +759,13 @@ nvs_runtime::nvs_helper! {
     /// The name, then the crossing, then the walk. The crossing stands before
     /// the walk and is made once however many joined, which is this module's
     /// third decision; the walk hands that first copy to the first subscriber
-    /// and makes one more for each further one, because § 4 says subscribers
-    /// share nothing with each other or with the publisher.
+    /// and makes one more for each further one, because subscribers share
+    /// nothing with each other or with the publisher.
     ///
     /// The count is what reached a queue, not what a subscriber has read: a
-    /// delivery waits until that connection's own `receive()` drains it (§ 3),
-    /// and this member never blocks on one — on this core or on any other.
+    /// delivery waits until that connection's own `receive()` drains it
+    /// (`rule:concurrency/receive-is-the-one-wait`), and this member never
+    /// blocks on one — on this core or on any other.
     ///
     /// **The walk of the other cores comes last**, and it is asked before the
     /// value is encoded so that a topic nobody joined elsewhere costs no
@@ -770,9 +777,9 @@ nvs_runtime::nvs_helper! {
         let mut first = Some(cross(args[1])?);
         let mut delivered: u64 = 0;
         for inbox in &subscribers {
-            // § 4's bound, asked before the copy is made rather than after:
-            // a subscriber that is already being closed costs this publisher
-            // nothing but the test. `nvs_runtime::peer` owns the rest of it.
+            // The subscriber queue's bound, asked before the copy is made
+            // rather than after: a subscriber that is already being closed
+            // costs this publisher nothing but the test. `nvs_runtime::peer` owns the rest of it.
             if !inbox.has_room() {
                 inbox.note_overflow();
                 continue;
@@ -845,9 +852,9 @@ mod tests {
     ///
     /// What most of these cases need from a socket is only that the context
     /// *has* one, which is the whole of what separates a connection isolate
-    /// from every other kind of context. § 4's slow subscriber needs one thing
-    /// more — the code the peer was closed with — and a handle onto the same
-    /// cell is how a case reads it back after the context took the socket.
+    /// from every other kind of context. The slow-subscriber case needs one
+    /// thing more — the code the peer was closed with — and a handle onto the
+    /// same cell is how a case reads it back after the context took the socket.
     #[derive(Clone, Debug, Default)]
     struct Watched(std::rc::Rc<std::cell::Cell<Option<Closing>>>);
 
@@ -1212,8 +1219,8 @@ mod tests {
     }
 
     /// A connection that publishes to a topic it joined itself is delivered to
-    /// like every other subscriber — this module's second decision, and § 3's
-    /// own loop, where the sender sees their own message.
+    /// like every other subscriber — this module's second decision, and what a
+    /// chat loop relies on, where the sender sees their own message.
     #[test]
     fn a_connection_publishing_to_its_own_topic_is_one_of_the_subscribers() {
         let mut talking = connected();
@@ -1232,8 +1239,8 @@ mod tests {
     ///
     /// The second half is what a publish would otherwise get wrong: a
     /// fan-out over a row with a duplicate in it delivers the same value to
-    /// one connection twice, and § 4's copy makes that two objects rather than
-    /// one noticed twice.
+    /// one connection twice, and the copy per subscriber makes that two objects
+    /// rather than one noticed twice.
     // covers: Core\Topic::subscribe
     #[test]
     fn a_topic_holds_one_entry_per_connection_however_often_it_subscribed() {
@@ -1321,9 +1328,9 @@ mod tests {
     /// orderly end would.
     ///
     /// The close is asserted at the *subscriber's* own `receive()`, which is
-    /// where § 4's rule is performed: the publisher cannot reach another
-    /// isolate's peer, so a case asserting the close on the publish would be
-    /// asserting a design this tree deliberately does not have.
+    /// where `rule:core-classes/topic`'s close is performed: the publisher
+    /// cannot reach another isolate's peer, so a case asserting the close on the
+    /// publish would be asserting a design this tree deliberately does not have.
     #[test]
     fn a_subscriber_that_never_reads_is_closed_and_the_publisher_is_unaffected() {
         let socket = Watched::default();
@@ -1349,11 +1356,12 @@ mod tests {
         assert_eq!(
             nvs_runtime::slow_subscribers_closed(),
             closed_before + 1,
-            "§ 4's metric counts the subscriber once, not once per publish"
+            "the slow-subscriber metric counts the subscriber once, not once per publish"
         );
 
         // The subscriber's own next wait is what performs the close, and it
-        // answers § 3's `null` — the condition its `while` loop ends on.
+        // answers `null` — the condition `rule:concurrency/a-connection-is-a-loop`'s
+        // `while` loop ends on.
         let conn = nvs_runtime::call(crate::socket::nvs_core_socket_current, &mut sleeper, &[])
             .expect("a connection isolate answers `current()`");
         let answered = nvs_runtime::call(
