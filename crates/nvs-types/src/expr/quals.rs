@@ -186,6 +186,28 @@ pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// Whether a value of `ty` may be an array: an array, `mixed`, or a union with
+/// either among its members.
+fn holds_array(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Array(_) | Ty::Mixed => true,
+        Ty::Union(members) => members.iter().any(|&member| holds_array(member, interner)),
+        _ => false,
+    }
+}
+
+/// [`carries_unchecked`] with every array arm left out: whether `ty` is
+/// `mixed`, or a union with `mixed` itself among its members.
+fn unchecked_outside_arrays(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Mixed => true,
+        Ty::Union(members) => members
+            .iter()
+            .any(|&member| unchecked_outside_arrays(member, interner)),
+        _ => false,
+    }
+}
+
 /// [`carries_unchecked`], widened by plain `object` for the two places a
 /// value's *fields* are read at a type the program names: a shape target of
 /// `as` or `is`. An `object` names no class, so its fields are as untyped as
@@ -729,12 +751,24 @@ pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
 /// `secret tainted string`. A target with no text in it — `int`, an enum, a
 /// set of allowed values — is answered unchanged, for the laundering reason
 /// above.
+///
+/// **An array arm adds nothing to a target with no array in it.** `as` never
+/// turns an array into a scalar: `array as string` throws
+/// (`rule:types/conversion`). So the `mixed` inside a union's `array<mixed>`
+/// arm cannot reach a `string` target, and `Core\Config::setting`'s
+/// `?(string|…|array<mixed>)` converts `as string` to a plain `string`. A
+/// target that holds an array still reads every arm.
 pub(crate) fn apply_qualifier_conversion_rule(
     from: TypeId,
     to: TypeId,
     interner: &mut TypeInterner,
 ) -> TypeId {
-    let to = if carries_unchecked(from, interner) || carries_tainted(from, interner) {
+    let unchecked = if holds_array(to, interner) {
+        carries_unchecked(from, interner)
+    } else {
+        unchecked_outside_arrays(from, interner)
+    };
+    let to = if unchecked || carries_tainted(from, interner) {
         tainted_result(to, interner)
     } else {
         to

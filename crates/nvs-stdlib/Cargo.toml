@@ -30,6 +30,10 @@ html5ever.workspace = true
 # capability table names that enum rather than a string this crate would have to
 # compare against the configuration's own.
 nvs-config.workspace = true
+# `rule:config/settings-and-secrets-are-a-programs-own-values`: `Core\Config::setting`
+# builds a value from the `toml::Value` `nvs-config` holds it as. `nvs-config` already
+# links the crate, so this adds nothing to any binary.
+toml.workspace = true
 # `rule:errors/diagnostic-record`: the record model and its renderings live in one crate that both
 # the runtime and the front end can depend on. `Core\Debug::dump` is its first
 # producer -- `crate::debug` builds a record and hands it to the plaintext
@@ -159,11 +163,6 @@ nvs-repo.workspace = true
 # door rather than from `nvs_syntax::walk::of_source`, which is the one
 # `Core\Ast::parse` itself calls, so the two crates are both reached by hand.
 nvs-diagnostics.workspace = true
-# `process.rs`'s capability cases build their granting snapshot out of the TOML
-# an operator would have written, rather than out of the typed tree -- the same
-# reading `nvs_runtime::capability`'s own cases state, and the only thing in
-# this crate that needs a parser for it.
-toml.workspace = true
 # `http/transport.rs`'s client-identity cases need a certificate and the key
 # that goes with it, and no shipped path issues one. The same row `nvs-host`
 # already carries for its own handshake cases, so this adds no crate to any

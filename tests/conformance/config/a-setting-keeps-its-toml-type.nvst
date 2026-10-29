@@ -1,0 +1,42 @@
+--TEST--
+`Core\Config::setting` returns a `[settings]` value with its TOML type, and a table is an array keyed by name — `rule:config/settings-and-secrets-are-a-programs-own-values`
+--FILE nvs.toml--
+[settings]
+title = "Store"
+page_size = 10
+tax = 0.2
+open = true
+sizes = [10, 20, 50]
+
+[settings.api]
+base = "https://api.example.com"
+retries = 3
+--FILE--
+<?nvs
+// Each value keeps the type it has in the file.
+echo Core\Json::encode(Core\Config::setting('title')), "\n";
+echo Core\Json::encode(Core\Config::setting('page_size')), "\n";
+echo Core\Json::encode(Core\Config::setting('tax')), "\n";
+echo Core\Json::encode(Core\Config::setting('open')), "\n";
+echo Core\Json::encode(Core\Config::setting('sizes')), "\n";
+
+// A table is an array with the names as keys, and a dotted name reads one key of it.
+echo Core\Json::encode(Core\Config::setting('api')), "\n";
+echo Core\Json::encode(Core\Config::setting('api.retries')), "\n";
+
+// A setting is not tainted, so `as string` gives a plain `string`.
+string $title = Core\Config::setting('title') as string;
+echo $title, "\n";
+
+// A name no block sets gives `null`.
+echo Core\Json::encode(Core\Config::setting('missing')), "\n";
+--EXPECT--
+"Store"
+10
+0.2
+true
+[10,20,50]
+{"base":"https://api.example.com","retries":3}
+3
+Store
+null

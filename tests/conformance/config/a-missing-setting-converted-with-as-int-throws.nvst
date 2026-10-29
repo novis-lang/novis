@@ -1,0 +1,17 @@
+--TEST--
+`Core\Config::setting` gives `null` for a name no block sets, so `as int` throws, and `as ?int` gives `null` — `rule:config/settings-and-secrets-are-a-programs-own-values`
+--FILE nvs.toml--
+[settings]
+page_size = "ten"
+--FILE--
+<?nvs
+// `as ?int` gives `null` for a missing value.
+echo Core\Json::encode(Core\Config::setting('missing') as ?int), "\n";
+
+// `missing` is not set, so `as int` throws an error and the program stops.
+echo Core\Config::setting('missing') as int, "\n";
+echo "not reached\n";
+--EXPECT--
+null
+--EXPECTF-ERROR--
+%s"msg":"cannot convert this value to `int`"%s"line":6%s

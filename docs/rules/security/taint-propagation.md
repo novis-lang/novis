@@ -30,6 +30,10 @@ and `as ?string` answer `tainted string` and `?tainted string`, `as bytes` answe
 and a `.` or an interpolation with a `mixed` operand is tainted. `$m is string` narrows `$m` to
 `tainted string` on the true edge, and over a `mixed` subject `is tainted {…}` and `is tainted string`
 are admitted. The same holds for an `array<mixed>` operand and for a union with a `mixed` member.
+One exception: a union's `array<mixed>` arm adds nothing to an `as` whose target holds no array,
+because `as` never turns an array into a scalar (`rule:types/conversion`). So
+`Core\Config::setting`'s `?(string|int|float|bool|array<mixed>)` converts `as string` to a plain
+`string`, and `as array<string>` still answers `array<tainted string>`.
 So a member that answers `mixed` or `array<mixed>` accepts `tainted` text where its parameter is
 contagious: `Core\Json::decode` of a `tainted string` answers `mixed`, and the mark is on each
 string read out of it.

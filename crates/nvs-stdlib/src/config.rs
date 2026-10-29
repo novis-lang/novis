@@ -1,8 +1,21 @@
 //! `Core\Config` — `rule:config/ini-set-is-core-config-set`
-//! 's four members, and PHP's `ini_get` family with the free functions taken
+//! 's six members, and PHP's `ini_get` family with the free functions taken
 //! off it (`rule:classes/no-free-functions-or-constants`).
 //!
-//! Every member is four lines long, because none of the rules is here. What a
+//! # A program's own values
+//!
+//! `setting` and `secret` read `[settings]` and `[secrets]`
+//! (`rule:config/settings-and-secrets-are-a-programs-own-values`), and the
+//! other four never see those blocks. `setting` builds the value from its TOML
+//! type, and a table is an array keyed by name. `secret` returns a `?secret
+//! string`, and its name is a [`Qual::Sink`] for `Core\Env::secret`'s reason:
+//! a request that chose the name would choose which credential it reads.
+//! **What it spends:** one lookup in the request's snapshot and one value
+//! built per call, and nothing read from disk.
+//!
+//! # The directives
+//!
+//! Every directive member is four lines long, because none of the rules is here. What a
 //! name resolves to, what a `set` is allowed to do and where the ceiling comes
 //! from all live in `nvs_config::request`, whose module doc is the one home for
 //! them; this module marshals a `string` in and a `string` out and does nothing
@@ -73,6 +86,19 @@ pub const PREPARED_SECRET: i64 = 4;
 /// one. Minted from the same space as [`PREPARED_SECRET`].
 pub const PREPARED_APPLICATION: i64 = 5;
 
+/// What `Core\Config::setting` returns when a block sets the name: each type a
+/// TOML value can have. A union and not `mixed`, because text out of `mixed`
+/// is `tainted` (`rule:security/taint-propagation`), and a setting is the
+/// operator's and not the request's. A table's values are `mixed`, so a
+/// program that wants one of them untainted reads it by its dotted name.
+const SETTING: CoreTy = CoreTy::Union(&[
+    CoreTy::Str,
+    CoreTy::Int,
+    CoreTy::Float,
+    CoreTy::Bool,
+    CoreTy::Array(&CoreTy::Mixed),
+]);
+
 /// `Core\Config`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Reads the settings of `nvs.toml` for the current request. You can change some \
@@ -124,6 +150,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
             symbol: "nvs_core_config_all",
             doc: Some(&ALL_DOC),
+        },
+        CoreMethod {
+            name: "setting",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&SETTING),
+            symbol: "nvs_core_config_setting",
+            doc: Some(&SETTING_DOC),
+        },
+        CoreMethod {
+            name: "secret",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            symbol: "nvs_core_config_secret",
+            doc: Some(&SECRET_DOC),
         },
     ],
     instance: &[],
@@ -208,6 +252,41 @@ const ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Config::setting`'s reference card — `rule:core-api/reference-card`.
+const SETTING_DOC: MethodDoc = MethodDoc {
+    short: "Returns a value your program reads from the `[settings]` block of `nvs.toml`. A value \
+            in the `[app.settings]` block of the application replaces the value in `[settings]`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The name of the value, such as `page_size`. A value in a table, such as \
+               `[settings.api]` with `base = \"...\"`, has the name `api.base`.",
+        shape: &[],
+    }],
+    ret: "The value with the type it has in the file. A TOML string is a `string`, an integer is \
+          an `int`, a float is a `float` and a boolean is a `bool`. A TOML array is an array, and \
+          a table is an array with the names as keys. The result is `null` when no block sets the \
+          name. Use `as` to convert it: `Core\\Config::setting('page_size') as int` throws an \
+          error when the value is missing or is not a whole number.",
+    errors: &[],
+};
+
+/// `Core\Config::secret`'s reference card — `rule:core-api/reference-card`.
+const SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Returns a secret your program reads from the `[secrets]` block of `nvs.toml`, such as \
+            an API key. A secret in the `[app.secrets]` block of the application replaces the one \
+            in `[secrets]`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The name of the secret, such as `api_key`. The block may write the value, or read \
+               it from a file with `api_key_file`. The name cannot come from the request.",
+        shape: &[],
+    }],
+    ret: "The secret as a `?secret string`. Your program cannot print it or write it to a log. You \
+          can send it in an outgoing header, a form field or a database parameter. The result is \
+          `null` when no block sets the name.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -216,6 +295,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_config_set" => (nvs_core_config_set as *const ()).cast(),
         "nvs_core_config_restore" => (nvs_core_config_restore as *const ()).cast(),
         "nvs_core_config_all" => (nvs_core_config_all as *const ()).cast(),
+        "nvs_core_config_setting" => (nvs_core_config_setting as *const ()).cast(),
+        "nvs_core_config_secret" => (nvs_core_config_secret as *const ()).cast(),
         _ => return None,
     })
 }
@@ -321,6 +402,60 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Config::setting(string $name): mixed` — a `[settings]` value
+    /// with its TOML type, or `null` where no block writes it.
+    fn nvs_core_config_setting(ctx, args: [1]) {
+        let name = text(&args[0], "setting")?;
+        Ok(ctx
+            .config()
+            .and_then(|config| config.setting(name))
+            .map_or_else(Value::null, of_toml))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Config::secret(string $name): ?secret string` — a `[secrets]`
+    /// value, or `null` where no block names it. The qualifier is the
+    /// checker's alone: at run time a `secret string` is the same string.
+    fn nvs_core_config_secret(ctx, args: [1]) {
+        let name = text(&args[0], "secret")?;
+        Ok(ctx
+            .config()
+            .and_then(|config| config.secret(name))
+            .map_or_else(Value::null, Value::text))
+    }
+}
+
+/// The Novis value a `[settings]` value is: each scalar its own type, an
+/// array a list, and a table an array keyed by name.
+fn of_toml(value: &toml::Value) -> Value {
+    match value {
+        toml::Value::String(text) => Value::text(text),
+        toml::Value::Integer(int) => Value::int(*int),
+        toml::Value::Float(float) => Value::float(*float),
+        toml::Value::Boolean(flag) => Value::bool(*flag),
+        // `nvs_config::settings::check_file` refuses a date or time at boot,
+        // so this arm is unreachable from a loaded file. Its TOML text is the
+        // value the refusal's help tells the operator to write instead.
+        toml::Value::Datetime(when) => Value::text(&when.to_string()),
+        toml::Value::Array(items) => {
+            let mut out = NvsArray::with_capacity(items.len());
+            for item in items {
+                out.append(of_toml(item));
+            }
+            Value::array(out)
+        }
+        toml::Value::Table(table) => {
+            let mut out = NvsArray::with_capacity(table.len());
+            for (key, item) in table {
+                out.set(NvsStr::new(key.as_bytes()), of_toml(item));
+            }
+            Value::array(out)
+        }
     }
 }
 

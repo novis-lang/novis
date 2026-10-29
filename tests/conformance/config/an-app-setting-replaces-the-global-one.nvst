@@ -1,0 +1,30 @@
+--TEST--
+An `[app.settings]` value replaces the `[settings]` value of the same name for that application, an `[app.secrets]` value replaces the `[secrets]` one, and a key the block does not write keeps the global value — `rule:config/settings-and-secrets-are-a-programs-own-values`
+--FILE nvs.toml--
+[settings]
+title = "Store"
+page_size = 10
+
+[secrets]
+api_key = "global-key"
+
+[[app]]
+root = "."
+
+[app.settings]
+page_size = 50
+
+[app.secrets]
+api_key = "shop-key"
+--FILE--
+<?nvs
+// The application block sets `page_size`, so its value is used.
+echo Core\Config::setting('page_size') as int, "\n";
+// The application block does not set `title`, so the global value is used.
+echo Core\Config::setting('title') as string, "\n";
+// The application secret is used. The program cannot print a secret, so it prints the comparison.
+echo Core\Config::secret('api_key') == 'shop-key' ? "shop" : "global", "\n";
+--EXPECT--
+50
+Store
+shop

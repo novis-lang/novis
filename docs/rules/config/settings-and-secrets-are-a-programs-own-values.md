@@ -43,13 +43,15 @@ its own values: the base file holds the defaults, and a file on that machine ove
 
 | Method | Returns |
 |---|---|
-| `Core\Config::setting(string $name): mixed` | the value with its type, or `null` when no block sets it |
+| `Core\Config::setting(string $name): ?(string\|int\|float\|bool\|array<mixed>)` | the value with its type, or `null` when no block sets it |
 | `Core\Config::secret(string $name): ?secret string` | the secret, or `null` when no block sets it |
 
 A program converts a setting with `as`: `Core\Config::setting('page_size') as int` throws when the
 value is missing or is not a whole number. `secret`'s name is a sink, as `Core\Env::secret`'s is, so
 a request cannot choose which secret it reads. A setting is not `tainted`: the operator wrote it in
-a file only the runtime account or root may change.
+a file only the runtime account or root may change. That is why `setting` returns a union of the
+TOML types and not `mixed`: text out of `mixed` is `tainted` (`rule:security/taint-propagation`).
+A table's values are `mixed`, so a program reads one untainted by its dotted name, `api.base`.
 
 **`get`, `all`, `set` and `restore` never see the four blocks.** `Core\Config::get('secrets.x')`
 returns `null`, and `all` lists no `settings.` or `secrets.` key. Without this, a secret would come

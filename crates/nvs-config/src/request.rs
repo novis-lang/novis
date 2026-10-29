@@ -182,6 +182,31 @@ impl Request {
         }
     }
 
+    /// `Core\Config::setting`: the value `[settings]` writes at `name`, with its TOML type, or
+    /// `None` where no block writes it (`rule:config/settings-and-secrets-are-a-programs-own-values`).
+    ///
+    /// The snapshot is the one the request's application was folded into, so an `[app.settings]`
+    /// value is already over the global one here. A dotted name reads a sub-table's key, as the
+    /// file writes `[settings.api] base`. Nothing a request sets reaches this: the overlay holds
+    /// directives alone.
+    #[must_use]
+    pub fn setting(&self, name: &str) -> Option<&toml::Value> {
+        let block = self.base.table.get(crate::settings::SETTINGS)?.as_table()?;
+        value_at(block, name)
+    }
+
+    /// `Core\Config::secret`: the value `[secrets]` gives `name`, inline or from its file, or `None`
+    /// where no block names it. The value is read from [`Snapshot::secrets`], because the table
+    /// never holds one.
+    #[must_use]
+    pub fn secret(&self, name: &str) -> Option<&str> {
+        let key = format!("{}.{name}", crate::settings::SECRETS);
+        self.base
+            .secrets
+            .get(&key)
+            .map(|secret| secret.value.as_str())
+    }
+
     /// The `[limits]` key `leaf` read in `unit`, as `get` and [`Quantity::parse`](value::Quantity::parse)
     /// would read it.
     ///
