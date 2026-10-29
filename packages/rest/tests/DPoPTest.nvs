@@ -16,6 +16,7 @@ use RuntimeError;
 // Tests for `DPoP` proofs, and for a client that sends them.
 final class DPoPTest
 {
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function aProofHasTheMethodTheUrlAndTheTokenHash(): void
     {
@@ -39,6 +40,7 @@ final class DPoPTest
         Test::assertTrue(($again['jti'] as string) != ($claims['jti'] as string));
     }
 
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function aProofForTheTokenEndpointHasNoTokenHash(): void
     {
@@ -47,6 +49,7 @@ final class DPoPTest
         Test::assertTrue(!Arr::hasKey($claims, 'ath'));
     }
 
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function theThumbprintIsTheSameForTheSameKey(): void
     {
@@ -55,6 +58,7 @@ final class DPoPTest
         Test::assertTrue(DPoP::generate()->thumbprint() != (new DPoP($pair))->thumbprint());
     }
 
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function aNewNonceSendsTheRequestOnceMore(): void
     {
@@ -75,6 +79,7 @@ final class DPoPTest
         Test::assertSame($second['nonce'] as string, 'n-1');
     }
 
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function aDPoPClientSendsAProofWithTheToken(): void
     {
@@ -88,6 +93,7 @@ final class DPoPTest
         Test::assertSame($claims['ath'] as string, Encoding::toBase64Url(Hash::of('at-13', Hash::Digest::Sha256)));
     }
 
+    // covers: Novis\Rest\DPoP
     #[Test]
     public function aNonceWithCharactersAHeaderMayNotHaveThrows(): void
     {

@@ -16,6 +16,7 @@ final class AuthorizationCodeTest
     private const string AUTHORIZE = 'https://login.example.com/oauth/authorize';
     private const string BACK = 'https://shop.example.com/signed-in';
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function startSendsAPkceChallengeAndTheDPoPKey(): void
     {
@@ -50,6 +51,7 @@ final class AuthorizationCodeTest
         return $uri->queryParameter($name) as ?string;
     }
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function checkStateThrowsForAnotherState(): void
     {
@@ -58,6 +60,7 @@ final class AuthorizationCodeTest
         Test::assertThrows(fn(): void => { AuthorizationCode::checkState('', 'abc'); }, RuntimeError::class);
     }
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function exchangeSendsTheCodeAndTheVerifier(): void
     {
@@ -78,6 +81,7 @@ final class AuthorizationCodeTest
         Test::assertTrue(!Str::contains($body, 'client_secret'));
     }
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function aRefreshKeepsTheRefreshTokenAndScopeTheServerDidNotSend(): void
     {
@@ -95,6 +99,7 @@ final class AuthorizationCodeTest
         Test::assertTrue(Str::contains($body, 'refresh_token=rt-8'));
     }
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function aRefreshUsesTheNewRefreshTokenTheServerSent(): void
     {
@@ -106,6 +111,7 @@ final class AuthorizationCodeTest
         Test::assertSame(ClientTest::reveal($fresh->refreshToken ?? ''), 'rt-10');
     }
 
+    // covers: Novis\Rest\AuthorizationCode
     #[Test]
     public function aTokenWithoutARefreshTokenCannotBeRefreshed(): void
     {

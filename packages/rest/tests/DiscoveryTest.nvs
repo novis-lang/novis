@@ -10,6 +10,7 @@ final class DiscoveryTest
 {
     private const string ISSUER = 'https://login.example.com/tenant';
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function theOpenIdDocumentIsReadFirst(): void
     {
@@ -27,6 +28,7 @@ final class DiscoveryTest
         Test::assertSame($found->client('shop', 's3cret')->tokenEndpoint, $found->tokenEndpoint);
     }
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function theOAuthDocumentIsReadWhenThereIsNoOpenIdDocument(): void
     {
@@ -39,6 +41,7 @@ final class DiscoveryTest
         Test::assertSame(Arr::count(Test::sentHttp()), 2);
     }
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function aDocumentForAnotherIssuerThrows(): void
     {
@@ -48,6 +51,7 @@ final class DiscoveryTest
         Test::assertThrows(fn(): void => { Discovery::fetch(DiscoveryTest::ISSUER); }, RuntimeError::class);
     }
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function anEndpointThatIsNotHttpsThrows(): void
     {
@@ -57,6 +61,7 @@ final class DiscoveryTest
         Test::assertThrows(fn(): void => { Discovery::fetch(DiscoveryTest::ISSUER); }, RuntimeError::class);
     }
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function anIssuerThatIsNotHttpsThrowsBeforeAnyRequest(): void
     {
@@ -65,6 +70,7 @@ final class DiscoveryTest
         Test::assertSame(Arr::count(Test::sentHttp()), 0);
     }
 
+    // covers: Novis\Rest\Discovery
     #[Test]
     public function aServerWithoutKeysThrows(): void
     {

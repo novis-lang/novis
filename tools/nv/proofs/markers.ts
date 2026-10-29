@@ -2,8 +2,9 @@
 // case makes. `collect.ts` builds a feature's tests from these.
 
 /** Each tree whose files are scanned for markers, with the file ending scanned there. The example,
- * attack and bench trees are attributed by path, so a marker in one is never read. */
-export const MARKER_ROOTS: readonly [string, string][] = [["tests/conformance", ".nvst"], ["crates", ".rs"]];
+ * attack and bench trees are attributed by path, so a marker in one is never read. A package's
+ * `#[Test]` methods are its tests, so `packages/` is scanned too. */
+export const MARKER_ROOTS: readonly [string, string][] = [["tests/conformance", ".nvst"], ["crates", ".rs"], ["packages", ".nvs"]];
 
 /** Each tree whose cases are scanned for calls. */
 export const CALL_ROOTS: readonly string[] = ["tests/conformance"];
@@ -17,15 +18,16 @@ const CALL_RE = /(?:Core\\)?([A-Za-z_][A-Za-z0-9_\\]*)::([a-zA-Z_][a-zA-Z0-9_]*)
 const names = (text: string) => text.split(",").map((p) => p.trim().replace(/^[`"']+|[`"']+$/g, "")).filter(Boolean);
 
 /** Each feature id a `covers:` marker in `text` names, with the label its test is credited under: the
- * path, and for a Rust file the `#[test] fn` under the marker. */
+ * path, and for a Rust file the `#[test] fn` and for a `.nvs` file the `#[Test]` method under the marker. */
 export function markersIn(path: string, text: string): [string, string][] {
   if (!text.includes("covers:")) return [];
   const out: [string, string][] = [];
+  const fnRe = path.endsWith(".rs") ? /\bfn\s+([a-zA-Z_][a-zA-Z0-9_]*)/ : path.endsWith(".nvs") ? /\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)/ : null;
   for (const m of text.matchAll(COVERS_RE)) {
     let label = path;
-    if (path.endsWith(".rs")) {
+    if (fnRe) {
       const end = m.index! + m[0].length;
-      const fn = /\bfn\s+([a-zA-Z_][a-zA-Z0-9_]*)/.exec(text.slice(end, end + 400));
+      const fn = fnRe.exec(text.slice(end, end + 400));
       if (fn) label = `${label}::${fn[1]}`;
     }
     for (const name of names(m[1]!)) out.push([name, label]);

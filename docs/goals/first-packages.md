@@ -107,6 +107,15 @@ generating a client from an OpenAPI document are out of scope.
 **Its proofs are what `bun nv proofs` lists for it.** If the roster has no entry kind for a package's
 class, stage 4 adds one for `packages/`, in the shape of a built-in component's.
 
+**A package's roster unit is its class, not each method.** The roster kind `package` has one entry
+per type under `packages/<dir>/src/`, at `package/<Namespace-Class>` in the shared example, attack
+and bench trees (`package/Novis-Rest-Client`), anchored at the declaration. It owes what a `Core`
+member does without the Rust test: two tests, three examples, one attack, one bench, `about.md`, and
+a comment above the class as its help. Its tests are the package's `#[Test]` methods with a
+`// covers:` marker, since `packages/` is a marker root. Why: per method would be about thirty
+features and 180 files for a package that is not in the binary, whose page is per class; simplicity
+favours the class. `tools/nv/proofs/roster.ts`'s header is the home.
+
 **Lanes.** Stage 1 (`openapi.rs`) and stage 2 (`bundle.rs`, `build/winres.rs`) touch disjoint files
 and can run in either order or as side goals. Stage 3 creates `packages/rest/` alone. Stage 4 writes
 `tools/nv/proofs/roster.ts` and `docs/reference/tools/35-packages.md`, where every package goal adds a
@@ -191,8 +200,13 @@ would build it.
 `bun nv proofs --id` for each class and returns the paths it owes; writing subagents then write them
 one class after another.
 
-- [ ] Tests against a local OAuth issuer on a loopback listener: each grant, discovery, a DPoP proof's claims, and a refresh. `packages/rest/tests/ClientTest.nvs:1`
-- [ ] The roster kind for a package's class, if one is missing. `tools/nv/proofs/roster.ts:35`
+- [x] Tests against a local OAuth issuer on a loopback listener: each grant, discovery, a DPoP proof's claims, and a refresh. `packages/rest/tests/ClientTest.nvs:1`
+  - [x] `tests/bootstrap.nvs` autoloads `src/`, and `nvs test packages/rest` runs 25 tests green
+  - [x] the issuer is `Core\Test::answerHttp`, so no listener is needed
+- [x] The roster kind for a package's class, if one is missing. `tools/nv/proofs/roster.ts:35`
+  - [x] kind `package` and `packageFeatures` in `roster.ts`, its policy in `collect.ts`
+  - [x] `packages/` is a marker root, and a `.nvs` marker credits its `#[Test]` method
+  - [x] `tools/nv/test/roster-packages.test.ts` passes, and `tsc` is clean
 - [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
 - [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
 
@@ -213,34 +227,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 1: `nvs build --openapi` writes the nearest `package.toml`'s
-`version` as `info.version`. Stage 2: `nvs build --compile` on Windows writes the program's name,
-version and `[bundle] icon` into the copy (`crates/nvs-cli/src/bundle/resource.rs`).
+Stages 1-3 are done: `info.version`, the Windows bundle's resource, and `packages/rest/`, which is
+`Novis\Rest` 0.1.0 with seven classes under `src/`. `Session` is only type-checked, since
+`Core\Session` needs a store.
 
-Stage 3: `packages/rest/` is `Novis\Rest` 0.1.0, requiring `net.connect`, with seven classes under
-`src/`: `Client` (token endpoint, `client_secret_post`, `send`/`get` with a token, one resend on a
-new `DPoP-Nonce`), `Token` (reads a token reply, checks each value's characters before
-`assertTrusted`), `DPoP` (P-256 proofs, `ath`, `nonce`, `thumbprint`), `ClientCredentials` (cached
-in `Core\Cache::memory()` with `putSecret`, keyed on endpoint, client, scope and DPoP thumbprint),
-`AuthorizationCode` (`start` with PKCE S256 and `dpop_jkt`, `checkState`, `exchange`, `refresh`),
-`Discovery` (OpenID then RFC 8414 well-known URL, exact `issuer` match, `https:` endpoints, `keys`)
-and `Session` (tokens via `Core\Session::setSecret`, `load`, `forget`, `current` refreshes). The
-standing decision *`Novis\Rest`'s client authenticates with `client_secret_post`* records the
-choices. `nvs check packages/rest` prints `no errors`. Two scratch tests (since deleted) ran the
-grants, discovery, a DPoP proof and an error reply green; `Session` was only type-checked, since it
-needs a session store. No cargo build was needed: nothing outside `packages/` and docs changed.
+Stage 4's first two items are done. `packages/rest/tests/` has `bootstrap.nvs` and four test
+classes, 25 tests, green under `nvs test packages/rest`: both grants, the cache, a refresh,
+discovery, DPoP claims and the one resend on a new nonce. Every fake server is
+`Core\Test::answerHttp`, and each test carries `// covers: Novis\Rest\<Class>`. The roster has
+kind `package` (standing decision *A package's roster unit is its class*): `bun nv proofs --id
+'Novis\Rest\Client'` lists its tests and owes about, 3 examples, 1 attack and a bench under
+`package/Novis-Rest-Client`.
 
-Expected red: none known. The sweep's `env-secret-proofs` red was stale (rerun: nothing owed), and
+Expected red: `bun nv proofs --gate` (and CI's `proofs`) names the seven `Novis\Rest` classes until
+their proofs land. It is also red, before this goal's change, on every `lang:attributes/*` feature's
+perf: `docs/reference/lang/90-attributes.md` changed since it was last measured; the playbook's first
+bullet says how to re-record. The sweep's `env-secret-proofs` red was stale again (rerun green), and
 nightly run 40662443492 was cancelled by newer pushes.
 
 ### Next
 
-Stage 4. Follow its `**Split:**`. Tests may not live under `src/`, since `nvs pkg pack` packs every
-`.nvs` there: put them under `packages/rest/tests/` with a `bootstrap.nvs` (`nvs test --help` says
-how), using `Core\Test::answerHttp` for the issuer where a loopback listener is not needed. The dry
-run needs a `LICENSE` next to `package.toml`, and a README is worth adding.
-- [ ] Tests: each grant, discovery, a DPoP proof's claims, a refresh. `packages/rest/tests/ClientTest.nvs:1`
-- [ ] The roster kind for a package's class, if one is missing. `tools/nv/proofs/roster.ts:35`
+Stage 4, items 3 and 4. Follow its `**Split:**`: one writing subagent per class, side by side, since
+each writes its own `package/Novis-Rest-<Class>` directories; the session then records perf once.
+An example loads the package with `autoload 'Novis\Rest' from '<relative path>/packages/rest/src';`
+and fakes the server with `Core\Test::answerHttp` (`docs/examples/core/Test/answerHttp/` shows it
+outside a test). `Session` also owes two tests: `Core\Session` needs a store (its examples declare
+`// requires: redis`), so look for a test-side store before writing them, or skip `tests` for it in
+`data/proofs/skip/` with the reason. The dry run needs a `LICENSE` next to `package.toml`, and a
+README is worth adding.
 - [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
 - [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
 

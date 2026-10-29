@@ -1,10 +1,16 @@
-// The roster: every feature Novis ships, read from four live sources and never from a list. A `Core`
+// The roster: every feature Novis ships, read from five live sources and never from a list. A `Core`
 // class member, exception, enum, interface and configuration directive come from the binary's own
 // `nvs meta --json`. A language feature is a `#` heading in a chapter's source,
 // `docs/examples/lang/<chapter>/chapter.md` (`chapters.ts`), and a tool feature is a `#` heading in a
-// chapter under `docs/reference/tools/`. Each feature has one path, `core/Str/length`,
+// chapter under `docs/reference/tools/`. A class of a package this repository publishes is a type
+// declared in a file under `packages/<dir>/src/`. Each feature has one path, `core/Str/length`,
 // that the example, attack and bench trees share; a member of a built-in component's `Novis\` class
-// has one under `novis/`, `novis/Image-Image/open`. `rule:testing/feature-proofs` is what each one owes.
+// has one under `novis/`, `novis/Image-Image/open`, and a package's class one under `package/`,
+// `package/Novis-Rest-Client`. `rule:testing/feature-proofs` is what each one owes.
+//
+// A package's unit is its class, not each method as for a `Core` class: a package is not in the binary,
+// and its class's page is the one place a user reads it. Its help is the comment above the class, and
+// its tests are the package's own `#[Test]` methods that carry a `covers:` marker.
 // A class or enum `nvs meta --json` calls `internal` — a component's engine, and an enum only its
 // signature uses — is no feature, since a program never calls it.
 //
@@ -32,7 +38,10 @@ export const ABOUT = "about.md";
 export const DETAILS = "details.md";
 const TOOLCHAPTERS = "docs/reference/tools";
 
-export type Kind = "member" | "lang" | "exception" | "enum" | "interface" | "tool" | "directive";
+export type Kind = "member" | "lang" | "exception" | "enum" | "interface" | "tool" | "directive" | "package";
+
+/** The packages this repository publishes, one directory each with its `package.toml`. */
+export const PACKAGES = "packages";
 
 /** One shipped feature, and where each of its feature proofs belongs. */
 export interface Entry {
@@ -338,7 +347,64 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
     });
   }
 
-  out.push(...langFeatures(), ...chapterFeatures(TOOLCHAPTERS, "tools"));
+  out.push(...langFeatures(), ...chapterFeatures(TOOLCHAPTERS, "tools"), ...packageFeatures());
+  return out;
+}
+
+/** `namespace Novis\Rest;` in a package's source file. */
+const NAMESPACE_RE = /^namespace\s+([A-Za-z_][A-Za-z0-9_\\]*)\s*;/m;
+/** A top-level `final class Client`, `interface Store` or `enum Grant` declaration. */
+const TYPE_RE = /^(?:(?:final|abstract|readonly)\s+)*(?:class|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+
+/**
+ * Each type declared under `packages/<dir>/src/`, in path order. Its anchor is its declaration, so the
+ * perf ledger keys its figures on the file that implements it. It owes the help proof until a `//`
+ * comment sits directly above the declaration, or above the attributes on it.
+ */
+export function packageFeatures(): Entry[] {
+  const out: Entry[] = [];
+  const dirs = existsSync(abs(PACKAGES)) ? readdirSync(abs(PACKAGES), { withFileTypes: true }) : [];
+  for (const dir of dirs.filter((d) => d.isDirectory()).map((d) => d.name).sort(comparePaths)) {
+    const pkg = read(`${PACKAGES}/${dir}/package.toml`);
+    const name = /^name\s*=\s*['"]([^'"]+)['"]/m.exec(pkg)?.[1];
+    if (!name) continue;
+    const src = `${PACKAGES}/${dir}/src`;
+    for (const path of walk(src, ".nvs").sort(comparePaths)) {
+      const text = read(path);
+      const ns = NAMESPACE_RE.exec(text)?.[1] ?? "";
+      const lines = text.split("\n");
+      for (const m of text.matchAll(TYPE_RE)) {
+        const id = ns ? `${ns}\\${m[1]}` : m[1]!;
+        const line = lineAt(text, m.index!);
+        let above = line - 2;
+        while (above >= 0 && lines[above]!.trimStart().startsWith("#[")) above--;
+        const comment: string[] = [];
+        for (; above >= 0 && lines[above]!.trimStart().startsWith("//"); above--) comment.unshift(lines[above]!.trim().replace(/^\/\/\s?/, ""));
+        out.push({
+          id,
+          kind: "package",
+          group: `package:${name}`,
+          path: `package/${id.replaceAll("\\", "-")}`,
+          anchor: `${path}:${line}`,
+          summary: comment[0] ?? "",
+          help: comment.length ? "" : `\`${id}\` has no comment above its declaration in ${path}: add one that says what the class is for`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** Every file under a repo-relative directory whose name ends `ext`. */
+function walk(dir: string, ext: string): string[] {
+  const out: string[] = [];
+  const visit = (rel: string) => {
+    for (const e of existsSync(abs(rel)) ? readdirSync(abs(rel), { withFileTypes: true }) : []) {
+      if (e.isDirectory()) visit(`${rel}/${e.name}`);
+      else if (e.name.endsWith(ext)) out.push(`${rel}/${e.name}`);
+    }
+  };
+  visit(dir);
   return out;
 }
 

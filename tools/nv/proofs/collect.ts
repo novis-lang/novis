@@ -49,6 +49,8 @@ const POLICY: Record<Kind, Owes> = {
   interface: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 0, about: false, help: false },
   tool: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: true },
   directive: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false },
+  // A package has no Rust side: its tests are its own `#[Test]` methods.
+  package: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true },
 };
 
 const POLICY_FILE = "data/proofs/policy.json";
@@ -427,7 +429,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
     noteKey(anchorKey(e.id));
     const marked = markers.get(e.id) ?? [];
     const p: Proofs = {
-      nvst: sortedSet(marked.filter((f) => f.endsWith(".nvst"))),
+      nvst: sortedSet(marked.filter((f) => f.endsWith(".nvst") || /\.nvs(::|$)/.test(f))),
       rust: sortedSet(marked.filter((f) => f.includes(".rs"))),
       examples: [],
       hostile: [],
