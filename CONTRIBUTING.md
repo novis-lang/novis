@@ -172,6 +172,7 @@ benches/
 tests/              the case trees: conformance, db, hostile, config, fmt, lsp, docker
 examples/           `.nvs` programs the guard tests and the docs compile
 apps/               whole example apps in Novis, each with its own `nvs.toml` and tests
+packages/           the project's own Novis packages, each with its `package.toml`, tests and proofs
 extensions/         the built-in extensions, each a Rust crate compiled to a wasm component
 wit/                the `nvs:ext` WIT world an extension is written against, and its WASI deps
 fuzz/               cargo-fuzz targets

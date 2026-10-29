@@ -14,7 +14,8 @@
 //
 // - `missing`   a row names a path that is not on disk.
 // - `unlisted`  a crate, a bench package or a tracked top-level directory has no row. `--rows` drafts
-//               one for each, from the crate's own `//!` first sentence.
+//               one for each: a crate's from its own `//!` first sentence, and a directory's with
+//               its description left to write.
 // - `unsafe`    the `[audited unsafe]` marker disagrees with the crate's own `[lints]`. The workspace
 //               forbids `unsafe_code`, and a crate that needs it overrides that with its own `deny`
 //               (Cargo.toml § *Lint policy*), so which crates carry the marker is derived.
@@ -142,7 +143,7 @@ function parse(text: string): Row[] | string {
   return rows;
 }
 
-/** Every finding as a kind and its detail, and the packages that owe a row. */
+/** Every finding as a kind and its detail, and the packages and top-level directories (`name/`) that owe a row. */
 async function check(): Promise<{ findings: [string, string][]; owed: string[] }> {
   const rows = parse(read(BLOCK));
   if (typeof rows === "string") return { findings: [["shape", `${BLOCK}: ${rows}`]], owed: [] };
@@ -161,6 +162,7 @@ async function check(): Promise<{ findings: [string, string][]; owed: string[] }
     for (const name of dirs) {
       if (!listed.has(name) && ![...listed].some((p) => p.startsWith(name + "/"))) {
         findings.push(["unlisted", `${name}/  (a tracked top-level directory with no row)`]);
+        owed.push(`${name}/`);
       }
     }
   }
@@ -195,7 +197,10 @@ export async function run(args: string[]): Promise<number> {
 
   if (args.includes("--rows")) {
     if (owed.length === 0) out.push("nothing on disk owes a row");
-    for (const p of owed) out.push(`  ${p.slice(p.lastIndexOf("/") + 1).padEnd(16)}  ${firstSentence(p)}`);
+    for (const p of owed) {
+      if (p.endsWith("/")) out.push(`${p.padEnd(20)}<what this directory holds>`);
+      else out.push(`  ${p.slice(p.lastIndexOf("/") + 1).padEnd(16)}  ${firstSentence(p)}`);
+    }
   } else {
     for (const [kind, detail] of findings) out.push(`  ${kind.padEnd(9)} ${detail}`);
     if (findings.length > 0) {
