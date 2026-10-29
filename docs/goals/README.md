@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [code-rename-and-calls]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -23,7 +23,11 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 1 goal(s). `code-rename-and-calls` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`code-rename-and-calls`](code-rename-and-calls.md) **live** | nvs code rename, calls and reach answer from the editor's own rename, call hierarchy and used-by functions, the rules say so, the agent pointer names them, and the checks below pass. | **1 nvs code rename writes the editor's rename to disk** · 2 nvs code calls and nvs code reach read the call graph, and the agent pointer names all three · 3 the goal is verified once, and every failure is fixed |
 
 The floor holds 3 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
