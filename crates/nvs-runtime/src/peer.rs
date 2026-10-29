@@ -2,7 +2,7 @@
 //! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! socket, as the one thing that crosses from the server into the isolate.
 //!
-//! § 1 moves the socket into the root isolate the upgrade opened. The socket
+//! That rule moves the socket into the root isolate the upgrade opened. The socket
 //! itself is a `nvs_host::NvsTcp` with RFC 6455's framing over it, and neither
 //! of those names exists here: this crate is underneath both, and the isolate's
 //! [`Ctx`](crate::Ctx) is what has to carry the thing. So what crosses is a **trait
@@ -22,11 +22,11 @@
 //! [`PeerSocket::close`] and nothing finer.
 //!
 //! [`PeerSocket::receive`] answering `None` is the peer having closed, which is
-//! the `null` § 3's loop reads as its condition. It is not an error, and an
+//! the `null` `rule:concurrency/a-connection-is-a-loop`'s loop reads as its condition. It is not an error, and an
 //! implementation that reported one for an orderly close would turn every
 //! ordinary disconnect into a throw.
 //!
-//! **A received payload is untrusted input** — § 3 says `tainted`, and
+//! **A received payload is untrusted input**, so it is `tainted`, and
 //! `rule:security/launderers-are-sink-named` is what
 //! that qualifier costs a caller. Nothing here can apply it: a qualifier is a
 //! *signature*'s, so the `Core\Socket` row that hands the payload to a program
@@ -45,15 +45,15 @@
 //! **Who closes is the question this shape answers.** The publisher cannot: the
 //! peer is a field of the *subscriber's* [`Ctx`](crate::Ctx), which is another
 //! isolate's stack frame and may be on another core, and a publisher reaching
-//! into it would be the shared mutable state § 4 declines. The [`Inbox`] is the
+//! into it would be the shared mutable state that rule declines. The [`Inbox`] is the
 //! one object both sides already hold, so the overflow is raised on it and the
 //! subscriber's own next `receive()` obeys — it closes its peer with
-//! [`Closing::SlowSubscriber`]'s code and answers § 3's `null`, which is the
+//! [`Closing::SlowSubscriber`]'s code and answers `null`, which is the
 //! condition the connection loop already ends on. `nvs_stdlib::socket` owns
 //! that half; nothing about the publisher's call changes, which is what "never
 //! blocked" means here.
 //!
-//! [`slow_subscribers_closed`] is § 4's "a metric increments", as a per-core
+//! [`slow_subscribers_closed`] is `rule:core-classes/topic`'s "a metric increments", as a per-core
 //! count. **Known gap:** nothing exports it yet — it is not one of
 //! `rule:observability/default-series`'s series, and giving
 //! it one is `nvs_server::metrics`' edit, in the crate that owns the registry.
@@ -93,7 +93,7 @@ pub enum PeerFrame {
 /// `rule:concurrency/a-connection-is-a-loop`'s **second source**. It lives here rather than in `nvs-stdlib`
 /// for the reason [`PeerSocket`] does: the queue it waits in is the isolate's,
 /// so [`Ctx::deliver`](crate::Ctx::deliver) has to be able to name the type,
-/// and a `Ctx` cannot name a type that crate declares. § 4's bus is what
+/// and a `Ctx` cannot name a type that crate declares. `rule:core-classes/topic`'s bus is what
 /// pushes one — `nvs_stdlib::topic`'s `publish` — and it reaches this queue
 /// through the [`Inbox`] handle the subscriber table holds rather than through
 /// a context it has no way to name.
@@ -106,10 +106,10 @@ pub enum PeerFrame {
 #[derive(Debug)]
 pub struct Delivery {
     /// The topic's name, which is what tells a delivery from a peer frame at
-    /// the one member that answers both (§ 3).
+    /// the one member that answers both (`rule:concurrency/receive-is-the-one-wait`).
     topic: Box<str>,
     /// The published value, already copied across the boundary by the
-    /// publisher — `rule:classes/graph-copy`, as § 4 requires of anything the bus hands a subscriber.
+    /// publisher — `rule:classes/graph-copy`, as `rule:core-classes/topic` requires of anything the bus hands a subscriber.
     value: crate::Value,
 }
 
@@ -145,10 +145,10 @@ impl Delivery {
 /// spends. The number is a *count* rather than a size, because the bytes are
 /// already bounded twice over: a published value is a graph copy the publisher
 /// allocated under its own `[limits] memory`, and the connection holding them
-/// has a memory limit of its own (§ 1). 256 is far more than the gap between a
+/// has a memory limit of its own (`rule:concurrency/a-connection-is-a-root-isolate`). 256 is far more than the gap between a
 /// publish and the `receive()` that drains it — a connection that is running at
 /// all empties its whole queue at every wait — so reaching it means this
-/// subscriber has not run for 256 publishes, which is § 4's "slow subscriber"
+/// subscriber has not run for 256 publishes, which is `rule:core-classes/topic`'s "slow subscriber"
 /// and not a burst.
 pub const INBOX_CAP: usize = 256;
 
@@ -165,7 +165,7 @@ pub const INBOX_CAP: usize = 256;
 pub const TOPIC_CAP: usize = 1024;
 
 thread_local! {
-    /// How many subscribers this core has closed for overflowing — § 4's "a
+    /// How many subscribers this core has closed for overflowing — `rule:core-classes/topic`'s "a
     /// metric increments", read back by [`slow_subscribers_closed`].
     static SLOW_SUBSCRIBERS_CLOSED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
@@ -187,14 +187,14 @@ pub fn slow_subscribers_closed() -> u64 {
 /// [`Ctx::deliver`](crate::Ctx::deliver) fills it and
 /// [`Ctx::take_delivery`](crate::Ctx::take_delivery) drains it, which is all a
 /// connection needs. It is a separate allocation, behind an
-/// [`Rc`](std::rc::Rc), for the *other* owner: § 4's subscriber table has to be
+/// [`Rc`](std::rc::Rc), for the *other* owner: `rule:core-classes/topic`'s subscriber table has to be
 /// able to reach a subscriber's queue from outside that subscriber's own call
 /// stack, and a `Ctx` is a stack frame's — it cannot be named from a table that
 /// outlives any one isolate. So the queue moves out of the context and the
 /// context keeps a handle onto it.
 ///
 /// **The table holds a [`Weak`](std::rc::Weak) and the context the only
-/// strong**, which is what keeps § 4's bookkeeping O(live connections) rather
+/// strong**, which is what keeps that rule's bookkeeping O(live connections) rather
 /// than O(connections served): the isolate ending drops the last strong
 /// reference, and a subscription to a connection that is gone is a dead entry
 /// the next walk of that topic drops. Nothing has to unsubscribe on the way
@@ -221,7 +221,7 @@ pub struct Inbox {
     ///
     /// It is here rather than on the waiting member's own stack because the
     /// queue is the state the wait is over, and this is the only thing a
-    /// publisher already holds a handle onto: § 4's subscriber table reaches a
+    /// publisher already holds a handle onto: `rule:core-classes/topic`'s subscriber table reaches a
     /// subscriber through a [`Weak`](std::rc::Weak) onto *this*, so a wake
     /// hung anywhere else would be one the fan-out could not find.
     ///
@@ -310,7 +310,7 @@ impl Inbox {
     ///
     /// Asked by the fan-out *before* it makes a copy, so that a subscriber
     /// already being closed costs the publisher no allocation at all — which is
-    /// the case § 4 is written for, a fan-out to ten thousand clients where one
+    /// the case `rule:core-classes/topic` is written for, a fan-out to ten thousand clients where one
     /// has stopped reading.
     #[must_use]
     pub fn has_room(&self) -> bool {
@@ -361,7 +361,7 @@ impl Inbox {
         self.topics.set(self.topics.get().saturating_sub(1));
     }
 
-    /// How many deliveries are waiting — § 4's bounded queue reads this, and
+    /// How many deliveries are waiting — `rule:core-classes/topic`'s bounded queue reads this, and
     /// so does a test asserting what a publish reached.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -421,7 +421,7 @@ impl std::fmt::Display for PeerError {
 pub enum Received {
     /// The next frame the peer sent.
     Frame(PeerFrame),
-    /// The peer closed, which is § 3's `null`.
+    /// The peer closed, which is the `null` `Core\Socket::receive()` answers.
     Closed,
     /// An [`Interrupt`] ended the read with something pending on the other
     /// source, and the caller answers from that.
@@ -437,19 +437,19 @@ pub type Interrupt = Box<dyn FnOnce() + Send>;
 ///
 /// **Blocking is the contract.** Both operations may suspend the coroutine they
 /// are called on — the implementation is a synchronous codec over
-/// `nvs_host::NvsStream`, which parks the task rather than the core — and § 3's
+/// `nvs_host::NvsStream`, which parks the task rather than the core — and the rule's
 /// straight-line loop is what that buys. An implementation that answered
 /// "would block" would be handing the caller a state machine to write.
 pub trait PeerSocket: std::fmt::Debug {
     /// The next frame from the peer, suspending until one arrives.
     ///
-    /// `Ok(None)` is the peer having closed, which is § 3's `null`.
+    /// `Ok(None)` is the peer having closed, which is the `null` `Core\Socket::receive()` answers.
     ///
     /// # Errors
     ///
     /// The socket failed, or the peer sent something RFC 6455 does not allow.
     /// Either way this connection is over: the isolate is what a fatal error
-    /// tears down (§ 3), and a caller that saw one may not call again.
+    /// tears down, and a caller that saw one may not call again.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError>;
 
     /// [`Self::receive`], ended early by a fired [`Interrupt`] once `pending`
@@ -487,7 +487,8 @@ pub trait PeerSocket: std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// The socket failed, or the wait `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` expired — § 3's "throws on the
+    /// The socket failed, or the wait `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` expired —
+    /// `rule:concurrency/a-connection-is-a-loop`'s "throws on the
     /// send timeout rather than waiting forever".
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError>;
 
@@ -614,13 +615,12 @@ pub enum Closing {
     /// and be refused again.
     AtCapacity,
     /// `rule:concurrency/a-connection-is-a-root-isolate`: this connection's isolate ended in a failure — a throw
-    /// that reached `rule:errors/escalation-ladder`'s floor, or one of the `[limits]` values § 1 gives
+    /// that reached `rule:errors/escalation-ladder`'s floor, or one of the `[limits]` values the first rule gives
     /// a connection its own budget of. RFC 6455's 1011, *internal error*.
     ///
-    /// **One code for both**, and that is § 1's own wording rather than a
-    /// coarsening of it: what it asks for is that a connection exceeding a
-    /// limit "is closed with a defined code, the same way a request that
-    /// exceeds one is terminated", and a request over its budget and a request
+    /// **One code for both**, and that is not a coarsening: a connection
+    /// exceeding a limit is closed with a defined code, the same way a request
+    /// that exceeds one is terminated, and a request over its budget and a request
     /// that threw past every handler are one status on the HTTP side too. The
     /// distinction that matters to a client is that the server chose the close
     /// — the alternative being the reset it reads when a process is killed for

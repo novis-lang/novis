@@ -23,8 +23,9 @@
 //! [`Fault`], which the host builds from the guest's outcome
 //! (`rule:packaging/a-guest-crash-throws`).
 //!
-//! **A thread-local, not a field of [`Ctx`]**, for [`crate::host`] § 2's
-//! reason: a host is per process and per thread, and `Ctx` is `#[repr(C)]`
+//! **A thread-local, not a field of [`Ctx`]**, for the reason [`crate::host`]'s
+//! module doc gives under *2. A thread-local, not a second opaque pointer in
+//! `Ctx`*: a host is per process and per thread, and `Ctx` is `#[repr(C)]`
 //! with offsets compiled code reads. What is per request — the instances a
 //! request made — is the implementation's to keep.
 //!

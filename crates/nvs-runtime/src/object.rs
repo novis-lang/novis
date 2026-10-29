@@ -378,7 +378,7 @@ pub struct ClassDesc {
     /// A second list rather than a second reading of the first, because the
     /// two formats are only usually the same: `#[Json\Field(name: "userId")]`
     /// and `#[Db\Field(name: "user_id")]` are both legal on one property, and
-    /// § 3's `skip` is per format too. A class carrying one attribute pays one
+    /// `rule:core-classes/derive-property-list`'s `skip` is per format too. A class carrying one attribute pays one
     /// empty `Vec` for the other, which is the footprint `rule:programs/memory-priority`'s ordering
     /// spends to keep the two mappings from having to agree.
     db_codec: Vec<CodecField>,
@@ -417,7 +417,7 @@ pub struct ClassDesc {
     /// `rule:types/erased-member-access`
     /// write can name from source carries one entry per slot.
     ///
-    /// This is the whole of § 4's *"a write's incoming value is checked
+    /// This is the whole of that rule's *"a write's incoming value is checked
     /// against the field's real, concrete declared type"* — see
     /// [`nvs_object_slot_set`], which is its only reader, and this module's
     /// docs § *What a shape write checks* for what a tag does not catch and
@@ -4726,7 +4726,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
 ///
 /// The receiver arrives as a whole [`Value`] by address rather than as a bare
-/// pointer, because § 4's erased half includes a `mixed` — `rule:types/conversion`'s
+/// pointer, because `rule:types/erased-member-access`'s erased half includes a `mixed` — `rule:types/conversion`'s
 /// one unchecked position, whose tag nothing before this proved. The tag is
 /// therefore checked here, where the *name* is already checked, and an
 /// unchecked untag in compiled code (which would dereference an `int` payload)
@@ -5517,7 +5517,7 @@ unsafe fn slot_state(ptr: *mut ObjHeader, slot: Option<usize>) -> SlotState {
 /// implement `PropertyObserver`" from the *declaration*, so where the
 /// receiver's class is known `nvs_ir::lower` emits `onPropertySet` beside the
 /// `FieldSet` itself and nothing reaches this function. An erased receiver has
-/// no such answer to emit from, and § 3 says the observer sees **every** write
+/// no such answer to emit from, and `rule:classes/property-observer` says the observer sees **every** write
 /// — so the question is simply asked later, of the descriptor the value
 /// arrived with, once the store has committed. A class that implements nothing
 /// pays one name comparison against a conformance list `new` already built.
@@ -5549,8 +5549,8 @@ unsafe fn slot_state(ptr: *mut ObjHeader, slot: Option<usize>) -> SlotState {
 ///
 /// [`nvs_object_slot_set`]'s throws, which are its own documentation's, plus
 /// [`Fault::Pending`] when the guard throws, which stops the write, or when
-/// the observer throws: § 3's "a throwing `onPropertySet` still fails the
-/// overall write", even though the store has already happened.
+/// the observer throws, which fails the overall write
+/// (`rule:classes/property-observer-pipeline`) even though the store has already happened.
 ///
 /// **The caller has already asked visibility from its own call site**
 /// ([`Ctx::field_is_visible_from`]), as [`read_erased_property_owned`]'s has,
@@ -5748,7 +5748,7 @@ fn tell_erased_write(
     #[expect(
         unsafe_code,
         reason = "the observer's return is a fresh reference this frame owns, \
-                  and § 3 makes it a `void` nothing reads"
+                  and an observer returns a `void` nothing reads"
     )]
     unsafe {
         answered?.release();

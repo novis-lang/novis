@@ -60,23 +60,24 @@ pub struct Session {
     pub record: Vec<u8>,
     /// Whether anything has changed [`Self::record`] since it was loaded.
     ///
-    /// § 4's "writing only when the record changed" is what keeps a read-only
+    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "writing only when the record changed" is what keeps a read-only
     /// request off the write path: a request that starts a session and reads it
     /// makes one round trip, not two.
     pub dirty: bool,
     /// How [`Self::record`] is sent when the program that opened it ends —
-    /// § 4's write-back, travelling **with the record** rather than being
+    /// that rule's write-back, travelling **with the record** rather than being
     /// reached for at the end.
     ///
     /// It has to travel, because none of the three crates involved can name
-    /// the other two. The store is `nvs-stdlib`'s — § 2's four operations are
+    /// the other two. The store is `nvs-stdlib`'s —
+    /// `rule:http-server/a-session-store-answers-four-operations`'s four operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
     /// (`rule:security/isolate-shares-nothing`), and
     /// `nvs run`'s root task; neither of those crates depends on `nvs-stdlib`,
     /// and `nvs-stdlib` may not depend on either. This crate is the one all of
     /// them already rest on, so the seam is inverted through it exactly as
-    /// [`crate::host`]'s own § 1 inverts the scheduler's, and the pointer is
+    /// [`crate::host`]'s module doc inverts the scheduler's, and the pointer is
     /// filled in by `Core\Session::start`, the only member that opens a record
     /// at all.
     ///
@@ -295,7 +296,8 @@ impl Ctx {
     /// `rule:core-api/session-roster`'s `destroy` is the only caller, and closing rather than
     /// emptying is the honest answer: the record is gone from the store, so a
     /// record left on the request would be a copy of something that no longer
-    /// exists — and § 4's write-back would put it straight back. What a member
+    /// exists — and `rule:http-server/a-session-is-loaded-once-and-written-whole`'s
+    /// write-back would put it straight back. What a member
     /// sees afterwards is exactly what it sees before `start`, which is the
     /// throw that names it.
     pub fn close_session(&mut self) {
@@ -307,7 +309,7 @@ impl Ctx {
     ///
     /// Called by whoever ends a program, and called **unconditionally** by
     /// each of them: a program that started no session, or started one and
-    /// only read it, is the no-op this returns on. That is § 4's "writing only
+    /// only read it, is the no-op this returns on. That is the rule's "writing only
     /// when the record changed" decided in the one place that can see the
     /// flag, rather than a condition every caller would have to restate.
     ///
@@ -320,7 +322,7 @@ impl Ctx {
     /// **Not on a cancelled task.** The send parks on the store, and a task
     /// being torn down may not park ([`crate::HelperFrame`]) — so a caller
     /// that got here through a cancellation skips this and the record is lost.
-    /// That is the same answer a request whose process died gives, and § 4's
+    /// That is the same answer a request whose process died gives, and the rule's
     /// last-write-wins already declines to repair a lost write.
     ///
     /// Sending clears the flag, so a second call sends nothing: the send is
@@ -420,7 +422,8 @@ impl Ctx {
     /// Written **before** the request runs, by whoever resolved it: `nvs run`
     /// from the configuration, and the mount that accepted the request once
     /// there is a server. Nothing on the request path calls this, which is
-    /// what makes § 6's "configured, never sniffed" a property of the shape
+    /// what makes `rule:routing/an-absolute-link-takes-a-configured-origin`'s
+    /// "configured, never sniffed" a property of the shape
     /// rather than of a review.
     pub fn set_origin(&mut self, origin: &str) {
         self.origin = Some(origin.trim_end_matches('/').into());
@@ -486,7 +489,7 @@ impl Ctx {
     }
 
     /// This request's place in a distributed trace — `rule:observability/a-trace-id-exists-for-every-request`, and never
-    /// `None`, because § 2 has an id exist for every request.
+    /// `None`, because that rule has an id exist for every request.
     #[must_use]
     pub fn trace_context(&self) -> &crate::trace_context::TraceContext {
         &self.trace_context
@@ -717,7 +720,7 @@ impl Ctx {
     ///
     /// `None` is the ordinary state and not a failure: every context outside a
     /// test has one, and a test that scripted fewer answers than its subject
-    /// asks questions gets § 4's unattended answer for the rest — the default,
+    /// asks questions gets `rule:tooling/a-prompt-never-blocks`'s unattended answer for the rest — the default,
     /// or `Core\Cli\NotInteractive` — which is what makes "too few answers" a
     /// thing a test can assert rather than a hang.
     pub fn take_scripted_answer(&mut self) -> Option<String> {

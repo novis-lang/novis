@@ -121,8 +121,9 @@ impl Ctx {
     /// a request that has ended.
     ///
     /// Nothing clears it. The socket lives as long as the isolate does and
-    /// closes when this context is dropped, so § 1's "a connection that exceeds
-    /// a limit is closed with a defined code" arrives through the ordinary
+    /// closes when this context is dropped, so a connection that exceeds a
+    /// limit is closed with a defined code ([`crate::peer::Closing::Faulted`])
+    /// through the ordinary
     /// teardown rather than through a second path that has to agree with it.
     /// [`crate::peer`] is the home of the seam itself.
     pub fn set_peer(&mut self, peer: Box<dyn crate::peer::PeerSocket>) {
@@ -147,7 +148,7 @@ impl Ctx {
     }
 
     /// Queues one topic delivery for this connection — `rule:concurrency/a-connection-is-a-loop`'s second
-    /// source. § 4's bus reaches the same queue through the
+    /// source. `rule:core-classes/topic`'s bus reaches the same queue through the
     /// [`crate::peer::Inbox`] handle [`Self::inbox`] answers with, so this is
     /// the seam for a caller holding the *context* rather than the
     /// publisher's own route.
@@ -155,7 +156,8 @@ impl Ctx {
     /// The queue is on the context rather than on the socket because the two
     /// sources are not the same kind of thing: the peer is a descriptor this
     /// isolate owns, and a delivery is a value another task published. Putting
-    /// it here is what lets `Core\Socket::receive()` be the **one** wait § 3
+    /// it here is what lets `Core\Socket::receive()` be the **one** wait
+    /// `rule:concurrency/receive-is-the-one-wait`
     /// specifies without the framing layer learning that topics exist.
     ///
     /// Takes over the value's reference; [`crate::peer::Delivery`] owns that
@@ -166,7 +168,7 @@ impl Ctx {
     /// [`crate::peer::Inbox::wake_on`], and the push fires it. An event
     /// stream's wait registers a plain wake there the same way.
     ///
-    /// **Answers the delivery back when the queue is full** — § 4's bound, and
+    /// **Answers the delivery back when the queue is full** — `rule:core-classes/topic`'s bound, and
     /// [`crate::peer::Inbox::push`] owns why a refusal comes back to the caller
     /// rather than being dropped here.
     #[must_use = "a refused delivery still owns a reference the caller has to release"]
@@ -377,7 +379,8 @@ impl Ctx {
     /// child after `self` is gone: the child holds a bare pointer into this
     /// context's static-property storage and nothing in the type expresses
     /// that. `nvs-host`'s group runner discharges it structurally — the call
-    /// does not return until no child is still running (§ 4), and a parent torn
+    /// does not return until no child is still running
+    /// (`rule:concurrency/nothing-is-still-running-when-a-call-returns`), and a parent torn
     /// down first cancels every child, which the scheduler tears down without
     /// resuming it.
     #[must_use]

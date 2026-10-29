@@ -2,7 +2,8 @@
 //! trait, and one operation shaped like the promise it has to keep.
 //!
 //! Plus [`Host::sleep`], which is the one thing a member can want from a core
-//! that is not a group; § 3 below owns why it is the exception.
+//! that is not a group; *3. What crosses is a group, not a task API* below
+//! owns why it is the exception.
 //!
 //! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! `Core\Task::all` runs its fields as children of the calling task, and that
@@ -58,8 +59,9 @@
 //! running" — is a property of the *sequence*, not of any one call in it. A
 //! seam handing out task ids makes keeping it the caller's diligence again,
 //! which is the exact failure `nvs_host::spawn_child` already refuses on the
-//! parent link: it reads the running task rather than taking a parent, so § 1's
-//! "each is a child of the calling task" is a property of the call. The same
+//! parent link: it reads the running task rather than taking a parent, so
+//! `rule:concurrency/a-child-belongs-to-the-calling-task`'s "a group's callables
+//! run as children of the calling task" is a property of the call. The same
 //! argument applies one level up. A group crosses whole, the host owns the
 //! waiting and the cancelling, and there is no order of seam calls a future
 //! member could get wrong.
@@ -75,13 +77,15 @@
 //! same terms — what does this member wait for that a group cannot express —
 //! rather than a slot to fill.
 //!
-//! [`Outcome`] is § 4's table, every row of it, and the last one is a variant
+//! [`Outcome`] is `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
+//! table, every row of it, and the last one is a variant
 //! for a reason worth stating: "the calling task is cancelled" would be no
 //! return at all if the caller could be unwound where it stands. It cannot.
 //! The caller of a `Core` member is standing on an `extern "C"` frame, a forced
 //! unwind may not cross one ([`crate::HelperFrame`]), so the host resumes the
 //! caller and this call returns [`Outcome::Cancelled`] like anything else. The
-//! member's answer is [`Ctx::cancel`], which is § 5's teardown by
+//! member's answer is [`Ctx::cancel`], which is
+//! `rule:concurrency/cancellation-runs-no-user-code`'s teardown by
 //! `rule:errors/propagation`'s return status: no
 //! `catch` sees it and no script code runs on the way out.
 //!
@@ -115,7 +119,8 @@ use crate::value::Value;
 /// release in that case. A `limit` that never lets the last job start, a
 /// sibling that threw, and an expired deadline all end the group with jobs
 /// still queued, and the host drops them rather than running work whose result
-/// § 4 has already decided it will not return. Anything a job captured that
+/// `rule:concurrency/nothing-is-still-running-when-a-call-returns` has already
+/// decided it will not return. Anything a job captured that
 /// owns a reference — the element `Task::map` closed over, the callable both
 /// members call — must therefore be released by that capture's own [`Drop`] and
 /// not only by the body, or a cancelled group leaks one reference per job it
@@ -133,8 +138,8 @@ pub struct Bounds {
     /// How many children may be running at once, or `None` for all of them.
     pub limit: Option<u32>,
     /// When cancellation is *requested*, or `None` for no deadline of this
-    /// group's own. § 4 is the one home for why that is not when the call
-    /// returns.
+    /// group's own. `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`
+    /// is the one home for why that is not when the call returns.
     pub deadline: Option<Duration>,
 }
 

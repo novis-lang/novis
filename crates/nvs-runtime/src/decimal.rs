@@ -1,6 +1,6 @@
 //! `rule:types/decimal`'s `decimal`
 //! scalar: sign, a 96-bit unsigned mantissa and a scale of 0 to 28, with the
-//! whole of § 3's arithmetic and § 4's conversions.
+//! whole of its arithmetic and `rule:types/conversion`'s `decimal` rows.
 //!
 //! # Where the sixteen bytes go, and why they are a [`crate::Value`]'s
 //!

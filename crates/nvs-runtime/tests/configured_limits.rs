@@ -42,7 +42,7 @@ fn ctx_reading(written: &str) -> Ctx {
 /// request holds is nanoseconds — `Ctx::cpu_limit`'s field doc owns why it is cached rather than
 /// re-derived, and what measures the time against it.
 /// The reading is asserted as the two parts it is split into rather than as `cpu_limit` alone,
-/// because the directive is not the ceiling ordinary execution gets: § 1's slice is carved out of it
+/// because the directive is not the ceiling ordinary execution gets: the limit handler's time reserve is carved out of it
 /// exactly as the memory half is carved out of `[limits] memory`, and the case below is the one that
 /// pins the split.
 #[test]

@@ -26,10 +26,10 @@ impl Ctx {
     /// tier 1.
     ///
     /// **Last registration wins, and there is no unregister but the request
-    /// ending.** § 1 gives the tier one handler, not a chain: a ladder whose
+    /// ending.** The rule gives the tier one handler, not a chain: a ladder whose
     /// first rung ran an unbounded list of handlers out of one reserved slice
     /// would have to decide what a second handler sees after the first
-    /// exhausted it, and "zero retries" is that section's answer to every such
+    /// exhausted it, and "zero retries" is `rule:errors/escalation-ladder`'s answer to every such
     /// question. So a second call releases the first callable here, which is
     /// also what makes this the one place with both the reference and the
     /// request's lifetime in hand.
@@ -122,7 +122,7 @@ impl Ctx {
     ///
     /// **The handler is handed the real exception object**, not a report built
     /// from it, which is the one way this differs from
-    /// [`Self::run_limit_handler`]'s array. § 2 says why: this is the request's
+    /// [`Self::run_limit_handler`]'s array. The rule says why: this is the request's
     /// own root rather than an isolate boundary
     /// `rule:security/isolate-shares-nothing` has to
     /// copy across, so the object the program threw is still the object it
@@ -130,7 +130,7 @@ impl Ctx {
     /// ordinary members. A handler declaring no parameter still runs, for
     /// [`Self::run_limit_handler`]'s reason.
     ///
-    /// **No ceiling moves.** § 2 has no reserved slice — see
+    /// **No ceiling moves.** Tier 2 has no reserved slice — see
     /// [`Self::uncaught_handler`] — so a request that reached the root with its
     /// budget nearly spent runs this handler out of what is left, and a handler
     /// that exhausts it breaches like any other code.
@@ -141,13 +141,14 @@ impl Ctx {
     /// of its own inside [`crate::script`] and would otherwise find itself.
     ///
     /// Whatever the handler leaves behind is dropped, and a throw or a fault of
-    /// its own is abandoned where it stands — § 3's "handler faulted" drops to
-    /// tier 3, and what tier 3 is handed is still the throw that got here. The
+    /// its own is abandoned where it stands — `rule:errors/escalation-ladder`
+    /// retries no tier, so it drops to tier 3
+    /// (`rule:errors/handler-script`), and what tier 3 is handed is still the throw that got here. The
     /// pending status is cleared for that reason: the request reports the
     /// failure that reached the root, never the one its reporter had.
     ///
-    /// **Running does not suppress the tiers below.** § 3 is the shared
-    /// catch-all and the floor beneath it is § 6's record of a request that
+    /// **Running does not suppress the tiers below.** `rule:errors/handler-script` is the shared
+    /// catch-all and the floor beneath it is `rule:errors/log-write`'s record of a request that
     /// died, so an operator's pipeline does not lose one because the
     /// application registered a handler — which is also how tier 1 already
     /// behaves, since every caller of [`Self::run_limit_handler`] records its
@@ -217,18 +218,21 @@ impl Ctx {
     /// Runs the end-of-script queue FIFO, handing each hook `report` — `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/a-hook-observes-and-never-steers`
     /// .
     ///
-    /// **Which endings reach here is not this method's question.** § 3's `FATAL`
+    /// **Which endings reach here is not this method's question.**
+    /// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`'s `FATAL`
     /// and cancellation never fire the queue, and the one place that decides is
     /// `nvs_stdlib::script::run_exit_hooks`, which is also where the report is
     /// built — a `Core` instance is that crate's to lay out. This end owns the
     /// queue and its ordering rules, and nothing else.
     ///
-    /// **Once.** A second call runs nothing, however it is reached: § 2 says the
+    /// **Once.** A second call runs nothing, however it is reached:
+    /// `rule:observability/three-endings-fire-the-exit-queue` says the
     /// queue runs at most once per script, and a drain that reached an ending
     /// twice would be a second ending the report was never fixed for.
     ///
     /// **A hook registered by a hook joins the tail of the same drain**, which
-    /// is why this walks by index instead of taking the vec: § 5 names that
+    /// is why this walks by index instead of taking the vec:
+    /// `rule:observability/a-hook-observes-and-never-steers` names that
     /// case, and a queue drained into a local would silently drop it.
     ///
     /// `report` is **borrowed** — the caller keeps the only reference and every
@@ -237,7 +241,7 @@ impl Ctx {
     ///
     /// Whatever a hook answers is dropped, and a hook that fails is abandoned
     /// where it stands with the queue continuing — [`Self::abandon_exit_hook`]
-    /// is the home of § 5's failure readings.
+    /// is the home of that rule's failure readings.
     #[expect(
         unsafe_code,
         reason = "the queue owns one reference per registration and this is the \
@@ -282,15 +286,15 @@ impl Ctx {
     /// Reports one failed exit hook and answers whether the drain continues —
     /// `rule:observability/a-hook-observes-and-never-steers`.
     ///
-    /// The readings § 5 gives, and only the last stops the queue:
+    /// The readings that rule gives, and only the last stops the queue:
     ///
     /// - **A throw** is written to the same record `Core\Log` writes, through
-    ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
+    ///   [`crate::floor`], and abandoned — the rule's "logged with the request's
     ///   trace id rather than swallowed", which is
     ///   `rule:concurrency/nothing-is-still-running-when-a-call-returns`
     ///   's rule for a second throw and [`crate::deferred`]'s reading of it
     ///   for after-response work.
-    /// - **An `exit`** is § 5's refusal: a hook that could end the script would
+    /// - **An `exit`** is the rule's refusal: a hook that could end the script would
     ///   suppress every hook behind it, so the status it named is dropped and
     ///   the `RuntimeError` that section names is reported in its place.
     /// - **A `Core\Script::finish()`** is that refusal for the same reason and
@@ -299,7 +303,7 @@ impl Ctx {
     ///   would cut short the very drain it is running inside. It arrives as a
     ///   throw rather than as a status of its own — [`crate::is_finish`] is what
     ///   separates the two — and leaves the same `RuntimeError` behind.
-    /// - **A `FATAL`** is the one that stops the drain. § 5's last sentence: a
+    /// - **A `FATAL`** is the one that stops the drain. The rule's last sentence: a
     ///   limit breach inside a hook is a `FATAL` like any other, the ladder
     ///   takes over and the rest of the queue never runs — so the pending state
     ///   is left exactly as the breach recorded it.
@@ -358,13 +362,16 @@ impl Ctx {
     /// outlives it. A refused registration hands the reference back by leaving
     /// it with the caller, which is then what releases it.
     ///
-    /// `deadline_nanos` is § 7's `deadline` already resolved — the option the
+    /// `deadline_nanos` is `rule:concurrency/deferred-is-bounded-by-two-directives`'s
+    /// `deadline` already resolved — the option the
     /// call named, or [`Self::deferred_deadline`] — and `0` is no deadline.
     ///
     /// **Two refusals, and the caller keeps the reference on both.**
-    /// [`crate::deferred::DeferError::Sealed`] is § 6's last bullet — this
+    /// [`crate::deferred::DeferError::Sealed`] is
+    /// `rule:concurrency/only-the-request-registers-deferred-work` — this
     /// context is a child, and deferred work may not defer more.
-    /// [`crate::deferred::DeferError::AtCapacity`] is § 7's cap, asked here
+    /// [`crate::deferred::DeferError::AtCapacity`] is
+    /// `rule:concurrency/a-full-deferred-executor-throws`'s cap, asked here
     /// because this is where a *tree* first becomes one of the ones a core is
     /// holding open. Both become a `RuntimeError` at the call site, while there
     /// is still a request to decide what to do about it.
@@ -401,7 +408,7 @@ impl Ctx {
         Ok(())
     }
 
-    /// Gives back the slot this tree holds against § 7's cap, if it has one.
+    /// Gives back the slot this tree holds against `[deferred] max_concurrent`, if it has one.
     ///
     /// Called at the end of the drain ([`crate::deferred::run_deferred`]) and
     /// once more as the context goes down, for the tree that never drained at
@@ -432,12 +439,13 @@ impl Ctx {
         self.deferred.take().unwrap_or_default()
     }
 
-    /// § 7's printed default for [`Self::deferred_max_concurrent`], for a tree
+    /// The printed default for [`Self::deferred_max_concurrent`], for a tree
     /// that writes no `[deferred] max_concurrent` of its own.
     const DEFAULT_DEFERRED_MAX_CONCURRENT: u64 = nvs_config::defaults::DEFERRED_MAX_CONCURRENT;
 
     /// `[deferred] max_concurrent` — how many request trees this core may hold
-    /// open for after-response work at once (§ 7).
+    /// open for after-response work at once
+    /// (`rule:concurrency/deferred-is-bounded-by-two-directives`).
     ///
     /// 256 where nothing is written, which is the number `rule:concurrency/deferred-is-bounded-by-two-directives` prints
     /// beside the directive. A written `0` is honoured rather than corrected:
@@ -465,7 +473,8 @@ impl Ctx {
     }
 
     /// `[deferred] deadline` in nanoseconds, or `0` when the tree names none —
-    /// the default a call that names no `deadline` of its own inherits (§ 7).
+    /// the default a call that names no `deadline` of its own inherits
+    /// (`rule:concurrency/deferred-is-bounded-by-two-directives`).
     #[must_use]
     pub fn deferred_deadline(&self) -> u64 {
         let Some(written) = self
@@ -503,7 +512,7 @@ impl Ctx {
     /// caller records *its* fault after this returns, over any pending status
     /// the handler set.
     ///
-    /// It is handed § 1's `LimitReport`: one array, whose `limit` key names the
+    /// It is handed `rule:errors/on-limit`'s `LimitReport`: one array, whose `limit` key names the
     /// limit that stopped the request in the spelling [`Limit::name`] owns. A
     /// handler declaring no parameter still runs — [`crate::call_callable`] trims
     /// the call to the arity the callable recorded — so the report costs nothing
@@ -522,7 +531,7 @@ impl Ctx {
         // `Value::default()` is the null this leaves behind, which is the
         // encoding of "nothing registered" [`Self::has_limit_handler`] reads.
         let handler = std::mem::take(&mut self.limit_handler);
-        // § 1's reserved slice, added back for exactly the length of the call,
+        // `rule:errors/on-limit`'s reserved slice, added back for exactly the length of the call,
         // and both halves of it are added back whichever limit got here: a
         // handler stopped by the CPU-time flag still allocates to say so, and
         // one stopped by the memory cap still takes time to write it.
@@ -565,8 +574,9 @@ impl Ctx {
         // array of empty strings and the handler cannot allocate the one byte
         // it needs to read it, which is the tier saying nothing by another
         // route. What bounds the slice instead is the counting ceiling: the
-        // widened threshold is compared behind every allocation, and § 1's
-        // zero-retry rule is what a handler overrunning it meets. It covers the
+        // widened threshold is compared behind every allocation, and
+        // `rule:errors/escalation-ladder`'s zero retries are what a handler
+        // overrunning it meets. It covers the
         // report alone, and closes before the handler is called.
         let reporting = crate::budget::Reporting::begin();
         // The CPU half, and the reason it is a *flag* edit as well as a ceiling
@@ -577,8 +587,9 @@ impl Ctx {
         // names. Lowering the flag for the length of the call is what makes the
         // slice `fatal_reserve_time` wide instead: the timer watching this
         // request re-raises it when the thread's clock passes the widened
-        // ceiling, which is exactly the handler overrunning its slice, and § 1's
-        // zero-retry rule already says what happens to one that does.
+        // ceiling, which is exactly the handler overrunning its slice, and
+        // `rule:errors/escalation-ladder`'s zero retries already say what
+        // happens to one that does.
         //
         // Only what was lowered is raised again. A handler reached by the memory
         // branch never had the flag set, and setting it on the way out would

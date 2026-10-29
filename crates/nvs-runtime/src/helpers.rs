@@ -311,7 +311,7 @@ crate::nvs_helper! {
     /// `nvs_ir::lower::Lowering::truthy_convert`'s arms are that table, one
     /// representation at a time.
     ///
-    /// The row itself is [`value_truthy`], which is total — § 2 covers every
+    /// The row itself is [`value_truthy`], which is total — the table covers every
     /// type that can reach a condition — so this carries no error edge, the
     /// same reason [`nvs_value_identical`] carries none on the equality side.
     /// The operand is borrowed, the treatment [`nvs_array_truthy`] already
@@ -741,7 +741,7 @@ crate::nvs_helper! {
 /// all four ordering operators false and `<=>` answer `1`.
 ///
 /// `Err` is the other end of the same table, and the reason this helper family
-/// carries an error edge where every other comparison helper does not: § 4's
+/// carries an error edge where every other comparison helper does not: the
 /// ordering row is a **closed** list, so a pair it names none for has no
 /// ordering at all rather than a plausible one. The wording is
 /// `nvs_types::expr::operators::reject_unordered_operand`'s, because it is the
@@ -916,10 +916,10 @@ impl ArithRow {
 ///   object, `null`, a `bool` — has no arithmetic at all rather than PHP's
 ///   converted one, since `rule:types/conversion` has no implicit conversion for that to
 ///   be. That is [`no_arithmetic`].
-/// * **`int ⊕ uint`** is refused outright: § 4 gives the pair no representable
+/// * **`int ⊕ uint`** is refused outright: `rule:types/arithmetic` gives the pair no representable
 ///   common type, so there is nothing to return. `E0407` where it is written,
 ///   [`mixed_signedness`] where only the tags know.
-/// * **Overflow throws**, § 4's least tradeable divergence from PHP, which is
+/// * **Overflow throws**, `rule:types/arithmetic`'s least tradeable divergence from PHP, which is
 ///   what makes every integer row below a `checked_*` and not a `wrapping_*`.
 ///
 /// Certain rows are deliberately narrower than "the operands are numbers", and
@@ -928,7 +928,7 @@ impl ArithRow {
 /// * The **`decimal`** rows are `rule:types/arithmetic`'s arithmetic ones and no
 ///   more — its `**` is `E0455` and its bit operators `E0706` — so a `decimal`
 ///   under an operator it grants nothing takes the refusal.
-/// * The **`float`** rows are § 4's "either operand a `float`" for `+ - * / **`
+/// * The **`float`** rows are `rule:types/arithmetic`'s "either operand a `float`" for `+ - * / **`
 ///   only. `%` is left out on purpose: `nvs-codegen` lowers no `float` `%`
 ///   either, so refusing here is the answer that *agrees* with the statically
 ///   typed end, and inventing PHP's integer-modulo reading behind a `mixed`
@@ -1020,7 +1020,7 @@ fn overflowed(op: ArithRow) -> Fault {
 }
 
 /// The `int ⊕ int` rows. Every one that can leave the type is `checked_*`:
-/// § 4's "no wrap, no promotion to `float`" is what this table exists to keep.
+/// `rule:types/arithmetic`'s "no wrap, no promotion to `float`" is what this table exists to keep.
 fn signed_arith(op: ArithRow, left: i64, right: i64) -> Result<Value, Fault> {
     let value = match op {
         ArithRow::Add => left.checked_add(right).ok_or_else(|| overflowed(op))?,
@@ -1209,7 +1209,7 @@ fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
 /// `rule:types/arithmetic`'s "either operand a `float`" row.
 ///
 /// The integer side widens through [`row::int_to_float`], which is the *checked*
-/// widening § 2 names as the language's one implicit conversion — exact, or
+/// widening `rule:types/conversion` names as the language's one implicit conversion — exact, or
 /// throwing above 2^53 — because that is the widening `nvs_ir`'s
 /// `Lowering::widen_to_float` emits for the statically typed spelling of the
 /// same row. A silent `as f64` here would answer a pair one representation
@@ -1350,7 +1350,7 @@ value_arith_helper! {
 ///
 /// `-` is over the numeric types and no more. The integer rows are
 /// `checked_neg` for the table's own reason: `-i64::MIN` has no `int` and every
-/// non-zero `uint` has no negation at all, so § 4's overflow throw reaches the
+/// non-zero `uint` has no negation at all, so the table's overflow throw reaches the
 /// unary row too, worded exactly as `nvs-codegen`'s `emit_unop` words the
 /// statically typed spelling's. `float` and `decimal` cannot fail — a float's
 /// sign bit is one flip, and `rule:types/decimal`'s mantissa is unsigned, so there is no
@@ -1753,10 +1753,10 @@ fn str_operand(value: &Value) -> Option<&str> {
 ///
 /// Dispatching on the tag is why one function covers every source. That is not
 /// a shortcut: it is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`"
-/// and § 3's "from `mixed` every target has a checked path" the same code as
+/// and `rule:expressions/nullable-conversion-availability`'s "every target has a checked path" from `mixed` the same code as
 /// `"42" as ?int`, with no branch in lowering and no second implementation of
 /// any row (see [`row`]). A tag `rule:types/conversion` defines no row from — an array, an
-/// object, a `bool` — is a conversion that does not exist, which § 3 makes a
+/// object, a `bool` — is a conversion that does not exist, which that availability rule makes a
 /// compile error for a statically-known operand and a failure for a `mixed`
 /// one.
 ///
@@ -2155,7 +2155,7 @@ crate::nvs_helper! {
 /// one throws.
 ///
 /// One implementation of `rule:types/conversion`'s `→ string` rows and not a second copy
-/// of them, which is the whole point of § 1's "yields `null` exactly where
+/// of them, which is the whole point of `rule:expressions/nullable-conversion`'s "yields `null` exactly where
 /// `expr as T` would throw" — a twin that decided any row for itself could
 /// disagree with the checked spelling on that row.
 ///
@@ -2550,10 +2550,10 @@ fn arithmetic_error(operation: &str) -> Fault {
 /// instruction in lowering, which is what makes `rule:types/arithmetic`'s
 /// `decimal ⊕ int` row cost nothing extra: both are exact in 96 bits, and the
 /// promotion is a tag test the helper already performs. A `float` operand
-/// **never reaches an arithmetic helper** — § 3 makes `decimal ⊕ float` a
+/// **never reaches an arithmetic helper** — `rule:types/decimal` makes `decimal ⊕ float` a
 /// compile error — so it is a miscompile here, reported as one; the
 /// comparison helpers take the other path ([`decimal_ordering`]) and accept
-/// one, because § 3 permits comparison precisely where it forbids arithmetic.
+/// one, because that rule permits comparison precisely where it forbids arithmetic.
 fn decimal_operand(helper: &'static str, value: Value) -> Result<Decimal, Fault> {
     match value.tag() {
         Some(Tag::Decimal) => value
@@ -3062,7 +3062,7 @@ fn quoted_operand(text: &str) -> String {
 
 /// One operand of a failed
 /// `rule:types/single-value-types`
-/// membership test, rendered the way § 6's compile-time sibling renders it,
+/// membership test, rendered the way its compile-time diagnostic renders it,
 /// backticks included: a `string` double-quoted ([`quoted_operand`]), an
 /// integer bare. Only the representations a set of allowed values can name
 /// reach this — `nvs-codegen` boxed the operand from `Ty::Str`, `Ty::Int`,
@@ -3091,7 +3091,7 @@ fn rendered_operand(value: Value) -> String {
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::SingleValueMismatch` — `rule:types/single-value-types`'s membership test
-    /// having missed every literal its target names, which § 4 makes a throw.
+    /// having missed every literal its target names, which is a throw.
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already
     /// decided the answer; this exists to carry the message, whose accepted

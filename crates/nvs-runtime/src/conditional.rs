@@ -11,11 +11,11 @@
 //!
 //! What it decides, in order:
 //!
-//! - **`If-None-Match`** against the tag, compared weakly (RFC 9110
-//!   § 13.1.2): a list is honoured, `*` matches, and a `W/` prefix is stripped.
+//! - **`If-None-Match`** against the tag, compared weakly
+//!   (RFC 9110 § 13.1.2): a list is honoured, `*` matches, and a `W/` prefix is stripped.
 //!   A match is a `304`.
 //! - **`If-Range`**, read only when `Range` is present, compared strongly
-//!   (§ 13.1.5): anything but the current tag makes the range ignored, so a
+//!   (RFC 9110 § 13.1.5): anything but the current tag makes the range ignored, so a
 //!   resumed download of a changed representation is never two of them
 //!   spliced together. A `W/` tag, a date and a value that does not parse all
 //!   miss, because this server sends no `Last-Modified`.

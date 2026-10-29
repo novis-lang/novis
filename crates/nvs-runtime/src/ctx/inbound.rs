@@ -68,7 +68,7 @@ impl Ctx {
         // context's — the one write [`Self::set_trace_context`] describes, made
         // before the program runs and beside the rest of what a request arrives
         // with. A carrier that carries none leaves the root [`Self::new`] drew
-        // standing, which is § 2's "an id exists for every request".
+        // standing, which is `rule:observability/a-trace-id-exists-for-every-request`.
         if let Some(trace) = inbound.trace_context() {
             self.set_trace_context(trace);
         }
@@ -106,7 +106,8 @@ impl Ctx {
 /// **Effective, not observed**: Novis terminates no TLS
 /// (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`
 /// ), so `Https` is only ever what a *trusted* proxy asserted through
-/// `X-Forwarded-Proto` — § 6's walk is the one thing that decides it, and this
+/// `X-Forwarded-Proto` —
+/// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk is the one thing that decides it, and this
 /// carrier holds its answer rather than re-deriving one.
 ///
 /// Not a boolean, because the two values are named in
@@ -172,7 +173,7 @@ pub struct Inbound {
     ///
     /// `""` for a request no mount table selected — a test, a CLI program, a
     /// carrier built by something that never had a table — and equally for a
-    /// mount written `prefix = "/"`. Those are deliberately one answer: § 7's
+    /// mount written `prefix = "/"`. Those are deliberately one answer: the rule's
     /// `prefix` is *what was stripped*, and neither of them stripped anything.
     ///
     /// **What it spends:** one short allocation per request, of a prefix the
@@ -180,16 +181,16 @@ pub struct Inbound {
     /// carrier outlives the handler that read the table
     /// (`nvs_server::mount::carry` owns that direction).
     mount_prefix: Box<str>,
-    /// § 7's other half: `rule:http-server/a-mount-table-expands-at-boot`'s glob captures of the row that selected
+    /// `rule:routing/a-request-reads-its-mount`'s other half: `rule:http-server/a-mount-table-expands-at-boot`'s glob captures of the row that selected
     /// this request, in order — `{1}` is the first — and empty for every mount
     /// whose `scan` had no `*` to capture with.
     ///
     /// The two are one fact and are written by one call ([`Self::set_mount`]):
     /// a prefix standing beside somebody else's captures is not a mount.
     ///
-    /// **What it spends:** one allocation per capture, of which § 3 admits as
+    /// **What it spends:** one allocation per capture, of which the mount table admits as
     /// many as the `scan` has `*`s — one, for the tenant-per-directory layout
-    /// § 7 exists to serve.
+    /// `rule:routing/a-request-reads-its-mount` exists to serve.
     mount_captures: Box<[Box<str>]>,
     /// One entry per header field line, in arrival order, name first.
     ///
@@ -202,8 +203,8 @@ pub struct Inbound {
     /// standing twice is read as one combined value or as two is
     /// `nvs_stdlib::request`'s, and it answers both.
     ///
-    /// A name is a token and so is text; a **value is bytes**, because RFC 9110
-    /// § 5.5 still admits `obs-text` and refusing one is the door's decision to
+    /// A name is a token and so is text; a **value is bytes**, because
+    /// RFC 9110 § 5.5 still admits `obs-text` and refusing one is the door's decision to
     /// make rather than this carrier's. A Novis `string` is bytes either way,
     /// so nothing downstream pays for it.
     headers: Vec<(Box<str>, Box<[u8]>)>,
@@ -408,7 +409,7 @@ pub struct Inbound {
     /// and the captures it filled.
     ///
     /// **It is on the carrier because it is a fact about the request**, and
-    /// because § 1's whole rule is that the match is taken *once*, before any
+    /// because that rule's whole point is that the match is taken *once*, before any
     /// application code, and travels from there — a field on the context would
     /// be a place a second match could be written from inside the program.
     /// [`Ctx::routes`] holds the table it was taken against, which is the
@@ -416,7 +417,7 @@ pub struct Inbound {
     ///
     /// `None` is "nothing matched" and is also every carrier nobody matched
     /// for: a program run off the command line, and a request whose unit
-    /// declared no route. They all answer alike, which is § 1's `null` —
+    /// declared no route. They all answer alike, which is the rule's `null` —
     /// nothing here dispatches, so there is no further case to tell apart.
     ///
     /// **What it spends:** one pointer per request, plus — only for a matched
@@ -445,7 +446,7 @@ pub struct Inbound {
     /// program run off the command line and a test's own carrier both want, and
     /// is why this is an `Option` rather than a [`crate::TraceContext`]. What
     /// the absence records is that no door asked, never that the request has no
-    /// id: § 2 has one exist for every request whatever the sampling decision.
+    /// id: `rule:observability/a-trace-id-exists-for-every-request`, whatever the sampling decision.
     ///
     /// **What it spends:** 26 bytes per request, held no longer than the
     /// carrier.
@@ -655,7 +656,8 @@ impl Inbound {
             // carrier says until a connection that can be upgraded says
             // otherwise — and is why `Core\Socket::upgrade` throws on one.
             upgrade: None,
-            // And nothing has offered it § 5's cell either, which a CLI program
+            // And nothing has offered it `rule:concurrency/two-doors-one-isolate`'s
+            // SSE cell either, which a CLI program
             // and a `spawn script` child both say for good — a server answering
             // a request is what offers one, and this is why `Core\Sse::upgrade`
             // refuses off everything else.
@@ -703,7 +705,7 @@ impl Inbound {
     /// mount would answer `Core\Request::mount()` with a prefix and somebody
     /// else's captures.
     ///
-    /// Nothing here interprets either one. § 7 states the captures as
+    /// Nothing here interprets either one. `rule:routing/a-request-reads-its-mount` states the captures as
     /// `tainted string` and this crate has no qualifier to write them with —
     /// the taint is declared on the member that hands them over, which is
     /// `nvs_stdlib::request`'s registry row.
@@ -735,7 +737,7 @@ impl Inbound {
     /// Called at most once, beside [`Self::set_peer`] and before the program
     /// runs — `nvs_server::route` is the one caller and the home of that
     /// direction. Nothing during the request can move it: matching again would
-    /// be the second match § 1 exists to remove.
+    /// be the second match that rule exists to remove.
     pub fn set_route(&mut self, matched: crate::routes::Match) {
         self.route = Some(matched);
     }
@@ -1156,7 +1158,7 @@ impl Inbound {
     /// connection starts against the response body it is still sending.
     ///
     /// **Called for every request a server answers**, and not only for one an
-    /// upgrade could be framed out of — that is § 5's own sentence and the
+    /// upgrade could be framed out of — that is the rule's own sentence and the
     /// whole difference between this door and [`Self::offer_upgrade`]'s, since
     /// an event stream needs nothing of the connection but the response the
     /// request already has.
@@ -1540,8 +1542,8 @@ impl InboundSpec {
     }
 }
 
-/// Whether a field of this name is already written, compared the way RFC 9110
-/// § 5.1 compares one.
+/// Whether a field of this name is already written, compared the way
+/// RFC 9110 § 5.1 compares one.
 fn carries(headers: &[(String, Vec<u8>)], name: &str) -> bool {
     headers
         .iter()
@@ -1558,8 +1560,8 @@ fn writable(label: &str, text: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The upper-case hex digits a percent-escape is written with — RFC 3986
-/// § 2.1's recommendation, and the case `Core\Uri::encodeFormValue` writes.
+/// The upper-case hex digits a percent-escape is written with —
+/// RFC 3986 § 2.1's recommendation, and the case `Core\Uri::encodeFormValue` writes.
 const HEX: [u8; 16] = *b"0123456789ABCDEF";
 
 /// `pairs` as an `application/x-www-form-urlencoded` payload.
@@ -1656,7 +1658,7 @@ fn multipart(parts: &[SpecPart], boundary: &str) -> Vec<u8> {
 /// the argument that has already crossed to it.
 ///
 /// **It is exactly what `nvs_host::Isolate::new` takes**, and that is the whole
-/// of the type — a connection is not a kind of isolate of its own but § 1's root
+/// of the type — a connection is not a kind of isolate of its own but that rule's root
 /// one with the two things every isolate needs decided a task earlier. Why they
 /// are decided there is `nvs_stdlib::socket`'s module doc: the capability, the
 /// argument and the code are all the *request's* to refuse, and each of them
@@ -1829,7 +1831,8 @@ impl UpgradeSlot {
 /// hand-overs are different objects arriving at different moments: a WebSocket
 /// upgrade takes the socket and starts after the request's future has ended,
 /// while an SSE isolate writes into the body of an ordinary `200
-/// text/event-stream` the connection has not finished sending. § 5 refuses the
+/// text/event-stream` the connection has not finished sending.
+/// `rule:concurrency/two-doors-one-isolate` refuses the
 /// one slot that carried both, and this type is the whole of that refusal: a
 /// connection reading a shared slot would have to ask it a *kind* before it
 /// could use it, which is a tag standing in for a distinction the types
@@ -1894,7 +1897,7 @@ impl SseSlot {
 /// stream, at the seam where it crosses into a crate that has never heard of
 /// HTTP.
 ///
-/// # A reader rather than the bytes, and § 5 is what decides it
+/// # A reader rather than the bytes, and the two caps decide it
 ///
 /// The alternative was for whoever accepted the request to read the body to its
 /// end and hand [`Inbound`] a `Box<[u8]>` beside its strings, which is
@@ -1912,7 +1915,7 @@ impl SseSlot {
 /// ceiling a few uploads fill the memory budget, so the honest configuration
 /// and the working one stop being the same file.
 ///
-/// § 6 closes the remaining option before it is asked: there is no temp file, so
+/// `rule:http-server/there-is-no-temp-file` closes the remaining option before it is asked, so
 /// "neither resident nor streamed" is not a place a body can be put. Buffered
 /// or streamed is the whole choice, and only one of them is bounded — which is
 /// exactly what `rule:http-server/an-upload-is-received-only-through-files`'s
@@ -1928,7 +1931,7 @@ impl SseSlot {
 /// advice. A reader that wants to keep bytes copies them into the bound it
 /// chose, which is the point at which a cap can be applied to a number that has
 /// not been spent yet; a reader that is writing them to a destination
-/// (§ 3's `saveTo`) never copies at all. Returning an owned `Vec` would have
+/// (that rule's `saveTo`) never copies at all. Returning an owned `Vec` would have
 /// charged every upload one allocation and one copy per chunk for a byte almost
 /// none of them keep.
 ///
@@ -2254,7 +2257,8 @@ mod tests {
         assert!(slot.fill(prepared(&marker, 1)).is_ok());
 
         // The request is over: its carrier is gone and the connection reads
-        // what it left, which is § 1's ordering as the code expresses it.
+        // what it left, which is `rule:concurrency/a-connection-is-a-root-isolate`'s
+        // ordering as the code expresses it.
         drop(inbound);
         assert!(connection.is_filled());
         let (program, args, _) = connection
@@ -2332,7 +2336,8 @@ mod tests {
     }
 
     /// The two cells are independent, which is what makes them two: filling one
-    /// leaves the other empty, and each refusal is its own. The single slot § 5
+    /// leaves the other empty, and each refusal is its own. The single slot
+    /// `rule:concurrency/two-doors-one-isolate`
     /// refuses — one place carrying both hand-overs — passes every assertion in
     /// the test above this one and fails this one on its second line.
     #[test]

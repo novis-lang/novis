@@ -9,7 +9,8 @@
 //! them would produce a distributed trace with one span per function call, which no backend can
 //! store and no human can read.
 //!
-//! **An id exists for every request, whatever the sampling decision** (§ 2). Sampling governs
+//! **An id exists for every request, whatever the sampling decision**
+//! (`rule:observability/a-trace-id-exists-for-every-request`). Sampling governs
 //! whether a trace is *exported*, never whether an id is generated. `Core\Server::traceId()` reads
 //! the trace id, and every `[log]` record and every error rendering carries the request id. The
 //! two are one number for a trace this process roots. A continued trace's id is the client's
@@ -120,7 +121,8 @@ impl TraceContext {
     /// The context an inbound request produces: `inbound`'s trace continued when it is a
     /// `traceparent` this understands, and a new trace otherwise.
     ///
-    /// **A malformed header starts a new trace rather than throwing** (§ 2). It arrived from
+    /// **A malformed header starts a new trace rather than throwing**
+    /// (`rule:observability/an-inbound-traceparent-is-continued`). It arrived from
     /// outside, it is `tainted`, and refusing a request over a bad tracing header would turn an
     /// observability feature into an availability one. That is why this takes an `Option` and
     /// returns a `TraceContext` rather than a `Result`: there is no failure to report.
@@ -131,7 +133,8 @@ impl TraceContext {
     /// that arrived with no header and for the one whose header could not be read, because both of
     /// those *are* new traces. Carrying the rate down here rather than deciding above is what makes
     /// those two cases impossible to tell apart by accident — the malformed one is a new trace by
-    /// § 2, so it is a new trace in the head draw too — and the draw is made only on the path that
+    /// `rule:observability/an-inbound-traceparent-is-continued`, so it is a new trace in the head
+    /// draw too — and the draw is made only on the path that
     /// roots one.
     #[must_use]
     pub fn continuing(inbound: Option<&str>, sample: f64) -> Self {
@@ -356,7 +359,8 @@ mod tests {
         assert_ne!(TraceContext::started(), TraceContext::started());
     }
 
-    /// § 2: an inbound header's trace id and parent span id are adopted, and its sampled flag is
+    /// `rule:observability/an-inbound-traceparent-is-continued`: an inbound header's trace id and
+    /// parent span id are adopted, and its sampled flag is
     /// honoured — an inbound sampled trace is always continued.
     ///
     /// The arrived span id is adopted **as the parent** and not as this request's own, which is
@@ -387,7 +391,8 @@ mod tests {
         assert!(!TraceContext::continuing(Some(unsampled), 0.0).sampled());
     }
 
-    /// § 2: a malformed header starts a new trace rather than throwing. Asserted over every way one
+    /// `rule:observability/an-inbound-traceparent-is-continued`: a malformed header starts a new
+    /// trace rather than throwing. Asserted over every way one
     /// can be wrong at once, by *counting* — a rule that accepted one of these would still look
     /// right on the line above.
     #[test]
@@ -449,7 +454,7 @@ mod tests {
             "an inbound sampled trace was dropped by a rate that is not its to answer"
         );
 
-        // A header nothing can read is a new trace in § 2 and so a new trace in the draw too —
+        // A header nothing can read is a new trace, and so a new trace in the draw too —
         // the case a rate carried by the caller rather than by this type would be the one to miss.
         assert!(
             TraceContext::continuing(Some("00-not-a-trace-01"), 1.0).sampled(),

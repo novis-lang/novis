@@ -76,7 +76,7 @@
 //! * **One heap shape**, because the difference between the two types is the
 //!   UTF-8 promise, which is a checker property. A second buffer would be the
 //!   "second arena setup" `rule:types/bytes` already rejected, and it would make
-//!   § 3's `string as bytes` row — *total, free, the same buffer reinterpreted*
+//!   `rule:types/conversion`'s `string as bytes` row — *total, free, the same buffer reinterpreted*
 //!   — allocate. As it stands that conversion is a retain and a tag byte, and
 //!   `bytes as string` is a UTF-8 validation over a borrow. Neither copies.
 //! * **Two tags**, because a tag exists precisely to answer "which type is
@@ -146,7 +146,8 @@
 //!   `foreach` cursor. Independent of the codegen that emits them, for the
 //!   same reason;
 //! * [`Decimal`], `rule:types/decimal`'s scalar — sign, a 96-bit mantissa and a scale of
-//!   0 to 28, with the whole of § 3's arithmetic and § 4's conversions. It is
+//!   0 to 28, with the whole of its arithmetic and `rule:types/conversion`'s
+//!   `decimal` rows. It is
 //!   **not a second heap shape or a second register shape**: a `decimal` is a
 //!   [`Value`] carrying [`Tag::Decimal`], whose mantissa spends the bytes the
 //!   struct otherwise calls padding. [`decimal`]'s own module docs are the one

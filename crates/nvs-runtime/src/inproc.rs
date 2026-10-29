@@ -2,7 +2,7 @@
 //! in-process request: the seam `Core\Test::request` reaches the unit under
 //! test through.
 //!
-//! § 18 asks for a request that runs through
+//! That rule asks for a request that runs through
 //! `rule:routing/routes-are-compiled-not-registered`'s compiled table and the
 //! real middleware chain with **no socket and no port**. Everything that needs
 //! is on the two sides of this seam and on neither one alone: the carrier, the
@@ -69,8 +69,9 @@ pub trait Answering: std::fmt::Debug {
     /// at all: a `#[Test]` method runs in an isolate of its own, which shares
     /// compiled code with the unit under test and nothing else — so a member
     /// matching against its own context's table would match against nothing and
-    /// hand every request a `null` route. § 1's "once, before any application
-    /// code runs" still holds, and this is the one side that can honour it.
+    /// hand every request a `null` route. `rule:routing/matched-once-before-the-handler`'s
+    /// "once, before any application code" still holds, and this is the one side
+    /// that can honour it.
     ///
     /// # Errors
     ///

@@ -1,4 +1,5 @@
-//! `rule:security/capability-check-at-the-door`'s check, and § 5's refusal: the one function a door to the operating system calls
+//! `rule:security/capability-check-at-the-door`'s check, and `rule:security/denial-is-a-runtime-error`'s
+//! refusal: the one function a door to the operating system calls
 //! before it opens.
 //!
 //! [`require`] is deliberately the only *decision* here, and [`granted`] is that same decision
@@ -6,7 +7,7 @@
 //! needs only the yes or no. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
 //! snapshot comes from, and what a denial looks like to the program that hit it. Below are
-//! § 2's filesystem doors — [`open_read`], [`metadata`], [`metadata_if_present`], [`exists`],
+//! the filesystem doors — [`open_read`], [`metadata`], [`metadata_if_present`], [`exists`],
 //! [`canonicalize`], [`resolve_existing`] and
 //! [`read_dir`] behind `fs.read`, [`write()`],
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write`, and [`open`] behind whichever
@@ -14,7 +15,7 @@
 //! door behind `process.exec`, and [`pin_host`] is the outbound one behind `net.connect`, which
 //! answers an address rather than a yes for `rule:http-server/allow-url-pins-the-address`'s reason; each of them calls [`require`]
 //! before it names a spelling that
-//! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
+//! performs the effect, which is what makes the rule's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
 //!
 //! Every door that reads also records what it read — the file, the directory listed or the path
@@ -29,7 +30,8 @@
 //! a worker installs a resolver handing the lookup to its blocking pool, because this crate is the
 //! bottom of the tree and cannot reach `nvs_host` itself
 //! (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). Everything either side of it — the
-//! grant, and § 3's table over every address the name answered — stays on the core.
+//! grant, and `rule:security/net-address-policy`'s table over every address the name answered —
+//! stays on the core.
 //!
 
 use std::fs::File;
@@ -55,7 +57,8 @@ use nvs_config::capability::{Cap, Scope};
 use crate::ctx::Ctx;
 use crate::{Fault, ThrownClass};
 
-/// § 1's question, asked of `ctx`'s own snapshot, and § 5's `RuntimeError` when the answer is no.
+/// `rule:security/capability-question-is-grant-and-scope`'s question, asked of `ctx`'s own snapshot,
+/// and `rule:security/denial-is-a-runtime-error`'s `RuntimeError` when the answer is no.
 ///
 /// `member` is what the message names as the thing that wanted the capability — `Core\IO::write`,
 /// or `spawn script` for the language construct, which is not a `Core` member at all and is checked
@@ -238,8 +241,8 @@ pub fn working_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
     std::env::current_dir().map_err(|err| io_failure(member, Path::new("."), &err))
 }
 
-/// [`require`]'s answer as data: `None` when the capability covers `scope`, and § 5's message
-/// otherwise.
+/// [`require`]'s answer as data: `None` when the capability covers `scope`, and the denial's
+/// message otherwise.
 ///
 /// For the doors [`require`] does not fit. [`crate::script::resolve`] cannot hand back a [`Fault`]:
 /// it owns an error type of its own, because a spawn's other ways of failing are not capability
@@ -254,7 +257,8 @@ pub fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<St
     Some(denial(cap, scope, member))
 }
 
-/// § 1's question as a `bool`, with no message built for the `false` side.
+/// `rule:security/capability-question-is-grant-and-scope`'s question as a `bool`, with no message
+/// built for the `false` side.
 ///
 /// [`require`]'s own decision, factored out for the one caller that is not a door: `Core\Cap::has`,
 /// which is `rule:security/optional-capability-degrades`
@@ -262,7 +266,8 @@ pub fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<St
 /// build. Every door goes on calling `require`, because a door needs the sentence a denial prints
 /// and this answers only the yes or no.
 ///
-/// **Reporting a grant is not widening one.** § 7's runtime layer may only ever drop, and this
+/// **Reporting a grant is not widening one.** `rule:security/no-runtime-grant`'s runtime layer may
+/// only ever drop, and this
 /// reads the same effective configuration a door reads at the same instant — so an answer of `true`
 /// is a fact about what the request already holds, never a step towards holding it. Nothing here
 /// records the question either: a member that answered and then let the program proceed on the
@@ -306,7 +311,7 @@ fn own_file(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
             .is_some_and(|at| ctx.owns_file(&at))
 }
 
-/// § 5's message. The capability's name comes first after the member because the reader is usually
+/// `rule:security/denial-is-a-runtime-error`'s message. The capability's name comes first after the member because the reader is usually
 /// the operator, and that string is what they are about to paste into a configuration file.
 ///
 /// **The second line is the line to add and where**: [`nvs_config::capability::grant_line`]'s
@@ -342,19 +347,20 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 
 /// `rule:http-server/allow-url-pins-the-address`'s outbound door: the first address
 /// `host` is approved to be reached at, once [`Cap::NetConnect`] has been shown to cover the name
-/// and § 3's policy has been shown to cover every address that name answered.
+/// and `rule:security/net-address-policy` has been shown to cover every address that name answered.
 ///
 /// [`pin_host_addresses`] is this same door answering the whole approved set, which is what
 /// `Core\Http\Target` carries; this one is for a member that connects to a single address, and the
 /// address it hands back is the head of that set.
 ///
-/// **The address is the answer, and that is § 2's load-bearing part.** A door that said only "yes"
+/// **The address is the answer, and that is the rule's load-bearing part.** A door that said only "yes"
 /// would leave a gap between this check and the connection in which a second DNS resolution could
 /// answer differently — the rebinding attack — so the caller is handed the address that was
 /// approved and connects to *that*. Every retry of a call reuses it and only a redirect hop asks
 /// again (`rule:http-server/retry-is-opt-in-jittered-and-closed`).
 ///
-/// **Here rather than in `nvs-stdlib`**, for § 5's reason and for this crate's: the policy is one
+/// **Here rather than in `nvs-stdlib`**, for `rule:security/the-policy-lives-in-the-capability`'s
+/// reason and for this crate's: the policy is one
 /// policy across `Core\Http`, `Core\Net` and `Core\Db::open`, and resolution is an operating-system
 /// effect, which every `Core` member reaches through a door in this module and through nothing
 /// else.
@@ -362,7 +368,7 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 /// **The lookup is the only part of this that leaves the thread.** The grant is asked here, on the
 /// core, before any name is looked up; the lookup goes through whatever [`install_resolver`] put on
 /// this thread, which on a worker is a handoff to the blocking pool
-/// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`); and § 3's table is asked back on the
+/// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`); and the denied-range table is asked back on the
 /// core, once per address the name answered.
 ///
 /// `member` is what a refusal names — see [`require`].
@@ -371,7 +377,8 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `net.connect` for
 /// `host`; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
-/// naming the range when **any** address the name answered is one § 3 denies and this deployment's
+/// naming the range when **any** address the name answered is one
+/// `rule:security/net-address-policy` denies and this deployment's
 /// `net.internal` does not except ([`nvs_config::tree::CapNet::internal`]) — one denied address
 /// refuses the whole host. The order is the point: a host outside the grant is refused before it is
 /// looked up, so an ungranted program cannot use this door as a resolver.
@@ -380,7 +387,7 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
     pinned_address(ctx, host, member)
 }
 
-/// [`pin_host`]'s whole answer: every address `host` resolved to that § 3's policy approves, in the
+/// [`pin_host`]'s whole answer: every address `host` resolved to that the address policy approves, in the
 /// resolver's order and at most [`PINNED_ADDRESSES`] of them.
 ///
 /// `rule:http-server/an-outbound-call-tries-every-approved-address` is what the set is for — a call
@@ -405,8 +412,8 @@ pub fn pin_host_addresses(
 /// for the doors whose endpoint an operator wrote into root-owned configuration.
 ///
 /// `rule:config/cache-shared-is-the-grant-over-the-configured-store` is why one exists: a store the
-/// operator named is authorized by that naming, so the grant over it is asked at the door and § 3's
-/// denied-range table is not asked at all — the table exists to keep a *program-supplied* endpoint
+/// operator named is authorized by that naming, so the grant over it is asked at the door and
+/// `rule:security/net-address-policy`'s denied-range table is not asked at all — the table exists to keep a *program-supplied* endpoint
 /// away from the local machine, which is precisely where such a store usually lives. Splitting it
 /// out rather than resolving in `nvs-stdlib` keeps `rule:security/capability-check-at-the-door`'s
 /// shape: name resolution is an operating-system effect, and every `Core` member reaches one
@@ -535,12 +542,12 @@ fn unresolved(host: &str, member: &str) -> Fault {
 }
 
 /// [`pin_host`]'s second half on its own: [`resolve_addresses`] once, and the whole host refused if
-/// § 3's table denies any address the name answered.
+/// `rule:security/net-address-policy`'s table denies any address the name answered.
 ///
 /// **Split out because one member asks the capability question differently and the address
 /// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host its
 /// settings object named (`rule:core-classes/db-capabilities`), so asking
-/// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
+/// `net.connect` as well would demand a second grant for the same host; what that rule does say is that
 /// an `open` target "stays subject to that policy in full", and *that* policy is this function.
 /// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing
 /// the range check beside it would be a second home for the rule — which is the reason this is a
@@ -555,15 +562,15 @@ fn unresolved(host: &str, member: &str) -> Fault {
 /// A `RuntimeError` when `host` is a socket path, which is a target this door cannot authorize
 /// whatever the roster holds — the grant over one is `Cap::NetLocal`, asked of a path by the member
 /// that takes a path; a `RuntimeError` when the name resolves to no address at all; and a
-/// `RuntimeError` naming the range when the address it resolves to is one § 3 denies and this deployment's
-/// `net.internal` does not except.
+/// `RuntimeError` naming the range when the address it resolves to is one the address policy denies
+/// and this deployment's `net.internal` does not except.
 pub fn pinned_addresses(
     ctx: &Ctx,
     host: &str,
     member: &str,
 ) -> Result<Vec<std::net::IpAddr>, Fault> {
     // `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`: a socket path is a
-    // way onto the local machine that § 3's table cannot see, because there is no address for it to
+    // way onto the local machine that the denied-range table cannot see, because there is no address for it to
     // match. It is refused here, in front of the resolution and of every caller's socket, so the
     // answer is the same whether or not anything is bound at the path -- a refusal that had to open
     // the path first would report the difference, and the difference is what a probe reads. A
@@ -580,7 +587,7 @@ pub fn pinned_addresses(
 
     let addresses = resolve_addresses(host, member)?;
 
-    // § 3's table, less whatever this deployment excepted from it with `net.internal`, asked of
+    // `rule:security/net-address-policy`'s table, less whatever this deployment excepted from it with `net.internal`, asked of
     // every address the name answered: one denied refuses the whole host and names that address,
     // per `rule:http-server/an-outbound-call-tries-every-approved-address`. A context with no
     // snapshot, and one whose snapshot grants no capability at all, both get the table itself -- an
@@ -617,7 +624,7 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
         .ok_or_else(|| unresolved(host, member))
 }
 
-/// § 2's read door: the file at `path`, open for reading, once [`Cap::FsRead`] has been shown to
+/// The read door: the file at `path`, open for reading, once [`Cap::FsRead`] has been shown to
 /// cover it.
 ///
 /// The open handle rather than the bytes, because one door has to serve a whole-file read and an
@@ -662,7 +669,7 @@ pub enum Access {
     ReadWrite,
 }
 
-/// § 2's handle door: the file at `path`, open for what `access` names, once every capability that
+/// The handle door: the file at `path`, open for what `access` names, once every capability that
 /// access needs has been shown to cover it.
 ///
 /// This is [`open_read`] generalised to the writing accesses, and the split between them is
@@ -705,7 +712,7 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
     crate::beneath::open_file(&at, mode).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's streaming-write door: a handle on `path`, ready to become the whole of its content, once
+/// The streaming-write door: a handle on `path`, ready to become the whole of its content, once
 /// [`Cap::FsWrite`] has been shown to cover it.
 ///
 /// [`write()`] hands back the finished effect because it already holds every byte; this is the same
@@ -844,12 +851,12 @@ fn allow(
     Ok(at)
 }
 
-/// § 2's write door: `bytes` become the whole content of `path`, once [`Cap::FsWrite`] has been
+/// The write door: `bytes` become the whole content of `path`, once [`Cap::FsWrite`] has been
 /// shown to cover it.
 ///
 /// The finished effect rather than an open handle, unlike [`open_read`], because a write *creates*
-/// the path it names: `nvs_config::capability` § 4's argument side resolves the deepest existing
-/// ancestor precisely so this check can happen before anything is created, and handing back a
+/// the path it names: the argument side of `rule:security/path-scope-canonicalise-then-prefix`, in
+/// `nvs_config::capability`, resolves the deepest existing ancestor precisely so this check can happen before anything is created, and handing back a
 /// handle would put the create on the caller's side of the door.
 ///
 /// # Errors
@@ -863,7 +870,7 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
         .map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's copy door: `to` becomes a duplicate of `from`, once [`Cap::FsRead`] has been shown to cover
+/// The copy door: `to` becomes a duplicate of `from`, once [`Cap::FsRead`] has been shown to cover
 /// the source and [`Cap::FsWrite`] the destination.
 ///
 /// **Two paths, two capabilities, and both are checked before either is used**, for [`open`]'s
@@ -913,7 +920,7 @@ pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault
         .map_err(|err| fail(&err))
 }
 
-/// § 2's rename door: the name `from` becomes the name `to`, once [`Cap::FsWrite`] has been shown to
+/// The rename door: the name `from` becomes the name `to`, once [`Cap::FsWrite`] has been shown to
 /// cover **both**.
 ///
 /// `fs.write` on the source and not [`copy`]'s `fs.read`, which is the whole difference between the
@@ -942,7 +949,7 @@ pub fn rename(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fau
         .map_err(|err| io_failure(member, &pair(from, to), &err))
 }
 
-/// § 2's mkdir door: a directory exists at `path` when this returns, once [`Cap::FsWrite`] has been
+/// The mkdir door: a directory exists at `path` when this returns, once [`Cap::FsWrite`] has been
 /// shown to cover it.
 ///
 /// **Missing parents are created, where [`remove_dir`] refuses to recurse**, and the asymmetry is
@@ -979,7 +986,7 @@ fn pair(from: &Path, to: &Path) -> PathBuf {
     PathBuf::from(format!("{} -> {}", from.display(), to.display()))
 }
 
-/// § 2's metadata door: what the operating system knows about `path`, once [`Cap::FsRead`] has been
+/// The metadata door: what the operating system knows about `path`, once [`Cap::FsRead`] has been
 /// shown to cover it.
 ///
 /// Reading a file's size, kind or timestamps is reading the file, so this is the same capability
@@ -1005,7 +1012,7 @@ pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault>
     crate::beneath::metadata(&at).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's kind door: the [`Metadata`] at `path` if there is anything there, once [`Cap::FsRead`] has
+/// The kind door: the [`Metadata`] at `path` if there is anything there, once [`Cap::FsRead`] has
 /// been shown to cover it, and `None` if there is not.
 ///
 /// Separate from [`metadata`] for the same reason [`exists`] is: **absence is an answer here, not a
@@ -1040,7 +1047,7 @@ pub fn metadata_if_present(
     }
 }
 
-/// § 2's `realpath` door: what `path` resolves to **when every component of it already exists**,
+/// The `realpath` door: what `path` resolves to **when every component of it already exists**,
 /// once [`Cap::FsRead`] has been shown to cover it.
 ///
 /// The other resolution door, and the difference from [`canonicalize`] is **only** what it does
@@ -1079,7 +1086,7 @@ pub fn resolve_existing(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf,
     })
 }
 
-/// § 2's existence door: whether anything is at `path`, once [`Cap::FsRead`] has been shown to cover
+/// The existence door: whether anything is at `path`, once [`Cap::FsRead`] has been shown to cover
 /// it.
 ///
 /// Separate from [`metadata`] for the one reason that matters to a caller: **absence is an answer
@@ -1098,7 +1105,7 @@ pub fn exists(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     metadata_if_present(ctx, path, member).map(|found| found.is_some())
 }
 
-/// § 2's access door for reading: whether the operating system would let **this process** read what
+/// The access door for reading: whether the operating system would let **this process** read what
 /// is at `path`, once [`Cap::FsRead`] has been shown to cover it.
 ///
 /// **The two gates answer differently on purpose, and this is the whole design of the pair.** The
@@ -1124,7 +1131,7 @@ pub fn readable(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
     Ok(permitted(path, false))
 }
 
-/// § 2's access door for writing: whether the operating system would let **this process** write what
+/// The access door for writing: whether the operating system would let **this process** write what
 /// is at `path`, once [`Cap::FsWrite`] has been shown to cover it.
 ///
 /// [`readable`]'s doc is the home of why the capability refuses where the operating system answers
@@ -1189,7 +1196,7 @@ fn permitted(path: &Path, write: bool) -> bool {
     !write || !stat.permissions().readonly()
 }
 
-/// § 2's resolution door: what `path` actually names, once [`Cap::FsRead`] has been shown to cover
+/// The resolution door: what `path` actually names, once [`Cap::FsRead`] has been shown to cover
 /// it — every `..` collapsed by the operating system and every symlink followed.
 ///
 /// Behind `fs.read` and not behind nothing, because resolving a name *reads* the directories above
@@ -1222,7 +1229,7 @@ pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fau
     })
 }
 
-/// § 2's enumeration door: what the directory at `path` holds, once [`Cap::FsRead`] has been shown
+/// The enumeration door: what the directory at `path` holds, once [`Cap::FsRead`] has been shown
 /// to cover the directory itself.
 ///
 /// The grant is asked about the directory and about nothing under it, because reading a directory
@@ -1254,10 +1261,9 @@ pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<Vec<Entry>, Faul
     crate::beneath::list(&at).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
+/// The unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
 ///
-/// Removal is a write and not a capability of its own, for the reason § 3 gives for not splitting
-/// one: an account that may replace a file's whole content can already destroy it, so a separate
+/// Removal is a write and not a capability of its own: an account that may replace a file's whole content can already destroy it, so a separate
 /// grant would name a distinction the filesystem does not make.
 ///
 /// # Errors
@@ -1274,7 +1280,7 @@ pub fn remove_file(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
     crate::beneath::remove_file(&at).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's rmdir door: the **empty** directory at `path` stops existing, once [`Cap::FsWrite`] has
+/// The rmdir door: the **empty** directory at `path` stops existing, once [`Cap::FsWrite`] has
 /// been shown to cover it.
 ///
 /// Empty deliberately, and this is the door's own decision rather than the caller's: a recursive
@@ -1295,7 +1301,7 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
     crate::beneath::remove_dir(&at).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's temporary-directory door: a new, empty, private directory under the root Novis owns, once
+/// The temporary-directory door: a new, empty, private directory under the root Novis owns, once
 /// [`Cap::FsWrite`] has been shown to cover **the path it is about to create**.
 ///
 /// The check is the ordinary one and the argument is the ordinary argument, which is the whole
@@ -1355,7 +1361,7 @@ pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
     let path = create_entry(
         &root,
         // Asked of the entry rather than of the root, because that is the path the member hands
-        // back (§ 2), and before the root is created, so a program the grant refuses leaves
+        // back, and before the root is created, so a program the grant refuses leaves
         // nothing behind. The entry counts as one of this run's directories, so server work's
         // default write covers creating it and nothing else under the root.
         |path| {
@@ -1486,7 +1492,7 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
     }
 }
 
-/// § 2's process door: `program` started as a child with `argv`, once [`Cap::ProcessExec`] has been
+/// The process door: `program` started as a child with `argv`, once [`Cap::ProcessExec`] has been
 /// shown to cover it and `rule:core-classes/process-refuses-a-shell-target`'s shell targets have been refused.
 ///
 /// The started child rather than its output, for [`open_read`]'s reason: one door has to serve
@@ -1532,7 +1538,7 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `process.exec` for
-/// `program`, a `RuntimeError` naming the extension for § 4's refused target kinds, an `IOError`
+/// `program`, a `RuntimeError` naming the extension for a refused shell target, an `IOError`
 /// when a bare name is in no folder of `PATH`, or [`io_failure`]'s `IOError` when the spawn itself
 /// fails — nothing is at `program`, or it is not executable.
 ///
@@ -1773,7 +1779,7 @@ mod tests {
         LOOKUPS.with(std::cell::Cell::get)
     }
 
-    /// The `n`th address of TEST-NET-3, which § 3's table does not deny and which no machine a case
+    /// The `n`th address of TEST-NET-3, which `rule:security/net-address-policy`'s table does not deny and which no machine a case
     /// can reach answers on.
     fn public(n: u8) -> IpAddr {
         IpAddr::V4(Ipv4Addr::new(203, 0, 113, n))
@@ -1818,7 +1824,7 @@ mod tests {
 
         assert_eq!(
             pin_host(&reaching(HOST), HOST, OUTBOUND)
-                .expect("a public address § 3's table does not deny"),
+                .expect("a public address the denied-range table does not deny"),
             public(7)
         );
         assert_eq!(
@@ -1836,7 +1842,7 @@ mod tests {
     }
 
     /// `rule:http-server/an-outbound-call-tries-every-approved-address`: a name answering one
-    /// address § 3 denies refuses the **whole host**, naming that address, whichever position it
+    /// address `rule:security/net-address-policy` denies refuses the **whole host**, naming that address, whichever position it
     /// arrived in — a door that dropped it and used the rest would approve exactly the answer a
     /// rebinding attack produces.
     #[test]
@@ -2136,7 +2142,9 @@ mod tests {
             let refused = exec(&mut ctx, Path::new(target), &[], MEMBER)
                 .expect_err("a second command-line parser is not a target this API has");
             let Fault::Thrown(class, message) = refused else {
-                panic!("§ 4's refusal is catchable, like every other one this module writes");
+                panic!(
+                    "the shell-target refusal is catchable, like every other one this module writes"
+                );
             };
             assert_eq!(class, ThrownClass::Runtime);
             assert!(

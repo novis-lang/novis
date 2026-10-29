@@ -11,10 +11,11 @@
 //! comparison and never arrives here. An array pair arrives through
 //! [`nvs_array_eq`], a string pair through [`crate::nvs_str_eq`] and an object
 //! pair through an inline pointer comparison, because in each of those the row
-//! is known before the program runs. Only a `mixed` or union operand — § 5's
-//! case, where the row is a runtime tag — arrives through `nvs_value_identical`
-//! on [`crate::abi`]'s general helper convention, and § 5's "a mismatched
-//! runtime type is `false` rather than a throw" is the fall-through arm of
+//! is known before the program runs. Only a `mixed` or union operand —
+//! `rule:expressions/mixed-equality`'s case, where the row is a runtime tag —
+//! arrives through `nvs_value_identical` on [`crate::abi`]'s general helper
+//! convention, and that rule's "when the two runtime tags belong to different
+//! rows, the answer is `false`" is the fall-through arm of
 //! [`shallow_identical`] rather than a rule stated twice. The numeric row is
 //! answered by [`numeric_identical`], which the statically typed
 //! `nvs_ir::Helper::NumericEq` reaches directly and [`shallow_identical`]
@@ -410,8 +411,9 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 
 /// Whether two numeric values are mathematically equal with `int`, `uint`,
 /// `float` and `decimal` read as **one domain** —
-/// `rule:expressions/equality-semantics`'s numeric row, which its § 2 admits as a compiling pairing and its § 5
-/// resolves a `mixed` operand to.
+/// `rule:expressions/equality-semantics`'s numeric row, which
+/// `rule:expressions/disjoint-comparison-refused` admits as a compiling pairing and
+/// `rule:expressions/mixed-equality` resolves a `mixed` operand to.
 ///
 /// It is reached from either side, and answers the same question for both:
 /// `nvs_ir::Helper::NumericEq` when two statically typed operands crossed two

@@ -1005,7 +1005,7 @@ pub enum SlotKey {
 
 impl SlotKey {
     /// The key as a string, rendering the decimal a packed array does not
-    /// hold — the allocation § D exists to avoid making where nothing asks
+    /// hold — the allocation this type exists to avoid making where nothing asks
     /// for one, paid here where something does.
     #[must_use]
     pub fn to_str(&self) -> NvsStr {

@@ -4,7 +4,7 @@
 //!
 //! # Why the table is a runtime value at all
 //!
-//! [`crate::commands`]' argument, one table along, and the same one § 1 makes
+//! [`crate::commands`]' argument, one table along, and the same one that rule makes
 //! for itself: the table is a compile product — `nvs_types::routes::RouteTable`,
 //! built by the same `rule:programs/implementing` scan `rule:tooling/terminal-output-is-a-sink`'s commands are — and the
 //! question asked of it is a *request's*, which no compile-time answer can
@@ -22,15 +22,15 @@
 //! `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in rule as a member sees it.
 //!
 //! The **match** is not on the context: it is on [`crate::Inbound`], because it
-//! is a fact about the request rather than about the program, and § 1's whole
-//! rule is that it is taken once *before* any application code and travels from
+//! is a fact about the request rather than about the program, and
+//! `rule:routing/matched-once-before-the-handler` is that it is taken once *before* any application code and travels from
 //! there. `nvs_server::route` is the door that takes it and the home of that
 //! direction; `Core\Request::route()` is the one reader.
 //!
 //! # What matching is, and what it is deliberately not
 //!
 //! [`Routes::match_request`] answers with the row and its typed captures, and
-//! **dispatches nothing** — § 1's second rule. A failed conversion is not a
+//! **dispatches nothing** — `rule:routing/the-servers-match-dispatches-nothing`. A failed conversion is not a
 //! match, which is why the walk continues to the next row rather than answering
 //! with a row whose capture it could not fill.
 //!
@@ -145,7 +145,7 @@ pub enum CaptureConv {
     /// `nvs_stdlib::uuid`'s, one crate above, and a capture is accepted or
     /// refused here. That module's doc is the home of the placement.
     Uuid,
-    /// § 5's closed set: the segment text of each admitted value, in the order
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set: the segment text of each admitted value, in the order
     /// the union declares them. A segment outside the set is no match, which is
     /// what makes the narrowing a property of the *table* rather than a check
     /// the handler was trusted to write.
@@ -256,7 +256,7 @@ impl CaptureConv {
 /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s own rule for relating a capture to a parameter.
 #[derive(Clone, Debug)]
 pub struct Capture {
-    /// The parameter's name, sigil-less, as § 3 compares it.
+    /// The parameter's name, sigil-less, as that rule compares it.
     pub name: String,
     /// What this capture's text becomes.
     pub conv: CaptureConv,
@@ -286,7 +286,8 @@ pub struct QueryParam {
     pub default: Option<Param>,
 }
 
-/// A capture as the request filled it — § 1's "typed parameters".
+/// A capture as the request filled it — the "typed parameters" of
+/// `rule:routing/the-servers-match-dispatches-nothing`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     /// The segment's text. `tainted` everywhere above this crate: it is a
@@ -313,7 +314,8 @@ pub enum Param {
     /// [`Self::Text`] either — [`CaptureConv::Parses`] owns why this walk may
     /// not run a program's `parse`. The class name rides here rather than being
     /// looked back up, because a [`Match`] hands over the captures and never
-    /// the row (this module's § 2).
+    /// the row (the module doc's *The match crosses as four answers and a row
+    /// index*).
     Parses {
         /// The class whose `parse` the crossing calls, fully qualified.
         class: String,
@@ -338,7 +340,7 @@ pub enum LinkPiece<'a> {
     Rest(&'a str),
 }
 
-/// § 2's three capture forms and the fixed segment that is none of them, as the
+/// `rule:routing/path-grammar`'s three capture forms and the fixed segment that is none of them, as the
 /// matcher walks a path rather than as an author wrote one.
 ///
 /// Parsed once, when the row is built, because a path is fixed for the life of
@@ -358,7 +360,7 @@ enum Seg {
 }
 
 impl Seg {
-    /// This form's place in § 2's precedence: lower binds tighter.
+    /// This form's place in `rule:routing/precedence-is-structural`: lower binds tighter.
     fn rank(&self) -> u8 {
         match self {
             Self::Fixed(_) => 0,
@@ -369,11 +371,11 @@ impl Seg {
     }
 }
 
-/// One row of § 1's table: a declared route, and what a match against it
+/// One row of the route table: a declared route, and what a match against it
 /// answers with.
 ///
 /// `nvs_types::routes::Route`'s fields that survive the crossing — the verb,
-/// the path, § 1's name, the handler label and `rule:attributes/access-is-a-required-sibling`'s access decision —
+/// the path, the route's name, the handler label and `rule:attributes/access-is-a-required-sibling`'s access decision —
 /// plus the two things derived from the path once at boot: its parsed segments
 /// and its rank. The OpenAPI half of the compiler's row (summary, tags,
 /// security, errors, example) does not cross: nothing a *request* asks reads
@@ -411,8 +413,8 @@ pub struct Route {
 const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
 impl Route {
-    /// The row a compiled `#[Route]` becomes, with its path read as § 2's
-    /// grammar.
+    /// The row a compiled `#[Route]` becomes, with its path read as
+    /// `rule:routing/path-grammar` reads it.
     ///
     /// A segment that is neither fixed text nor a well-formed capture is taken
     /// as a **fixed segment**, which is the fail-closed reading: it then matches its
@@ -433,7 +435,7 @@ impl Route {
         let rank = segments.iter().map(Seg::rank).collect();
         // `rule:security/csrf-is-on-by-default`'s default, derived rather than passed: on for the four
         // unsafe verbs and off for every other, so a table built by hand is
-        // fail-closed by construction. § 1a's opt-out is the rare half and is
+        // fail-closed by construction. `rule:attributes/access-payload`'s `csrf: false` opt-out is the rare half and is
         // [`Self::without_csrf`].
         let csrf = UNSAFE_VERBS.contains(&verb.as_str());
         Self {
@@ -497,7 +499,7 @@ impl Route {
     /// `rule:security/csrf-is-on-by-default`'s answer for this row: whether a request that matched it is
     /// CSRF-checked.
     ///
-    /// The verb's half and § 1a's opt-out already folded together, because a
+    /// The verb's half and `#[Access]`'s `csrf: false` opt-out already folded together, because a
     /// reader of a match is asking one question and the two halves are decided
     /// at two different times — the verb here at boot, the opt-out by the
     /// compiler that wrote the row. `nvs_server::route::csrf_required` is the
@@ -606,7 +608,7 @@ impl Route {
 
     /// The captures `request` fills, or `None` where this row does not match it
     /// at all — including the row that matches shape-wise and whose conversion
-    /// failed, which § 1's measured table counts as a miss.
+    /// failed, which is a miss: a failed conversion is not a match.
     fn fill(&self, request: &[&str]) -> Option<Vec<(String, Param)>> {
         let mut filled: Vec<(String, Param)> = Vec::new();
         let mut index = 0usize;
@@ -675,7 +677,7 @@ impl Route {
     }
 }
 
-/// § 2's grammar over one path, as the matcher needs it.
+/// `rule:routing/path-grammar` over one path, as the matcher needs it.
 ///
 /// The leading empty piece `"/users"` splits into is kept rather than skipped,
 /// so that a request path — which also begins at the root — is compared piece
@@ -729,13 +731,14 @@ impl Prefix {
     }
 }
 
-/// § 1's match: the row the request selected, and the captures it filled.
+/// The match `rule:routing/matched-once-before-the-handler` takes: the row the
+/// request selected, and the captures it filled.
 ///
 /// It holds the row rather than a copy of its fields — one atomic bump against
 /// a clone of every `String` in it — and the capture names it does copy are the
 /// few a path declares. The row outliving the table is what makes the match
 /// *travel*: a request carries this from the door to `Core\Request::route()`
-/// with nothing left to look up, which is § 1's rule stated as an ownership.
+/// with nothing left to look up, which is that rule stated as an ownership.
 #[derive(Clone, Debug)]
 pub struct Match {
     route: Arc<Route>,
@@ -928,10 +931,12 @@ impl Routes {
         self.dispatches
     }
 
-    /// § 1's match: this method and this path against the whole table, once.
+    /// The match: this method and this path against the whole table, once
+    /// (`rule:routing/matched-once-before-the-handler`).
     ///
     /// `None` is "nothing matched", which is a served request like any other —
-    /// nothing here dispatches and nothing here refuses. § 2's `404`/`405` is
+    /// nothing here dispatches and nothing here refuses. The `404`/`405` of
+    /// `rule:routing/a-refused-verb-is-not-a-missing-path` is
     /// the *other* question, asked only once this one has answered `None`.
     ///
     /// **`HEAD` matches a route declared `Get`**, which is RFC 9110 § 9.3.2's
@@ -973,7 +978,8 @@ impl Routes {
         best.map(|(_, matched)| matched)
     }
 
-    /// § 2's other question: every verb this path claims, in load order.
+    /// `rule:routing/a-refused-verb-is-not-a-missing-path`'s question: every verb
+    /// this path claims, in load order.
     ///
     /// Empty is "no route claims this path at all" — the `404`. Non-empty is
     /// the `405`, and the list is the `Allow:` header RFC 9110 requires beside
@@ -981,11 +987,11 @@ impl Routes {
     /// `None`**, so a served request never walks this.
     ///
     /// The same walk, with the verb filter dropped and the rank ignored: a row
-    /// claims the path iff [`Route::fill`] fills it, which is what makes § 2's
-    /// `{name?}` rule fall out rather than needing a case — `/posts` and
+    /// claims the path iff [`Route::fill`] fills it, which is what makes
+    /// `rule:routing/a-trailing-segment-may-be-absent` fall out rather than needing a case — `/posts` and
     /// `/posts/3` against `/posts/{page?}` are both fills, so the shorter form
     /// cannot `404` while the longer one `405`s. A failed conversion is not a
-    /// claim, on § 1's own reading: a `uint` capture that the segment is not
+    /// claim, on the match's own reading: a `uint` capture that the segment is not
     /// leaves the path unclaimed by that row, exactly as it leaves it unmatched.
     ///
     /// **`HEAD` is never synthesized into the answer**, although
@@ -1025,7 +1031,7 @@ impl Routes {
 mod tests {
     use super::{Capture, CaptureConv, Decimal, Param, Routes};
 
-    /// A table of the shapes § 2's grammar admits, in a deliberately
+    /// A table of the shapes `rule:routing/path-grammar` admits, in a deliberately
     /// unhelpful load order: the capture rows come before the fixed segments
     /// they have to lose to.
     fn table() -> Routes {
@@ -1104,7 +1110,7 @@ mod tests {
         assert_eq!(routes.methods_for("/en/posts"), vec!["Get"]);
     }
 
-    /// § 2's forms each match what they claim, and the verb selects among
+    /// `rule:routing/path-grammar`'s forms each match what they claim, and the verb selects among
     /// rows sharing a path.
     #[test]
     fn every_capture_form_matches_the_shape_its_grammar_declares() {
@@ -1145,7 +1151,8 @@ mod tests {
         assert!(routes.match_request("DELETE", "/users").is_none());
     }
 
-    /// § 2's precedence, and § 1's "a failed conversion is not a match" — both
+    /// `rule:routing/precedence-is-structural`, and its "a failed conversion is
+    /// not a match" — both
     /// asserted where the answer is a *different* row rather than nothing, so a
     /// matcher that took the first shape-wise hit fails here.
     #[test]
@@ -1163,7 +1170,7 @@ mod tests {
         // nothing in the table claims this path.
         assert!(routes.match_request("GET", "/users/-1").is_none());
         assert!(routes.match_request("GET", "/en/about").is_some());
-        // § 5's closed set: `fr` is not a value the union declares.
+        // `rule:routing/a-capture-narrows-to-a-closed-set`: `fr` is not a value the union declares.
         assert!(routes.match_request("GET", "/fr/about").is_none());
     }
 
@@ -1186,7 +1193,8 @@ mod tests {
         assert_eq!(matched.param("id"), Some(&Param::Uint(7)));
     }
 
-    /// § 2's two answers, asked of the same table § 1's match walks: empty is
+    /// `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers, asked
+    /// of the same table the match walks: empty is
     /// the `404` and non-empty is the `405`'s `Allow:`, with both bounds named
     /// together so a member that claimed everything or nothing fails here.
     #[test]
@@ -1198,13 +1206,13 @@ mod tests {
         // The `404`: nothing in the table claims this path at all…
         assert!(routes.methods_for("/nothing/here").is_empty());
         // …including the path whose *shape* fits and whose conversion does
-        // not, which § 1 counts as a miss and so does this.
+        // not, which the match counts as a miss and so does this.
         assert!(routes.methods_for("/users/-1").is_empty());
         // No `HEAD` is invented beside the `Get` it would be served from.
         assert_eq!(routes.methods_for("/users/42"), vec!["Get"]);
     }
 
-    /// § 2's `{name?}` rule, stated as the agreement it exists to force: the
+    /// `rule:routing/a-trailing-segment-may-be-absent`, stated as the agreement it exists to force: the
     /// two forms of a terminal node answer the same verbs, so the shorter one
     /// cannot `404` while the longer one `405`s.
     #[test]
@@ -1239,7 +1247,8 @@ mod tests {
         assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);
     }
 
-    /// The class-typed capture's half of § 5, on the side that runs at the
+    /// The class-typed capture's half of
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`, on the side that runs at the
     /// door: the segment matches on **shape**, and the class name travels
     /// beside its text rather than this walk reaching a `parse`.
     ///
@@ -1291,7 +1300,8 @@ mod tests {
         assert!(matched("/deploy").is_none());
     }
 
-    /// § 5's narrowing, for the type whose reader this crate owns: a `decimal`
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`'s narrowing, for the
+    /// type whose reader this crate owns: a `decimal`
     /// capture converts, and a segment that is not one is **no match** rather
     /// than text handed to a handler that declared a number.
     ///
@@ -1343,7 +1353,7 @@ mod tests {
         }
     }
 
-    /// § 5's narrowing for the type whose class this crate does *not* own: a
+    /// The same narrowing for the type whose class this crate does *not* own: a
     /// `Core\Uuid` capture converts to the sixteen octets, and a segment that is
     /// not RFC 9562 § 4's canonical form is **no match** rather than text handed
     /// to a handler that declared an identifier.
@@ -1397,11 +1407,13 @@ mod tests {
         }
     }
 
-    /// § 2's two answers as the *decision* taken over them: a miss is the `404`
+    /// `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers as the
+    /// *decision* taken over them: a miss is the `404`
     /// exactly where nothing claims the path, and the `405` otherwise, with the
     /// answer spelling the `Allow:` RFC 9110 requires beside it.
     ///
-    /// **Filed here rather than in `nvs-server`.** § 1 forbids the door to send
+    /// **Filed here rather than in `nvs-server`.**
+    /// `rule:routing/the-servers-match-dispatches-nothing` forbids the door to send
     /// either status — "the program may still serve the request however it
     /// likes, because nothing here dispatches" — and a door that refused a miss
     /// would refuse every request of a program declaring no `#[Route]` at all,
@@ -1413,12 +1425,12 @@ mod tests {
         let routes = table();
         // What a sender does with the answer, written out once here because
         // nothing in this crate does it: the status, and the field value that
-        // rides beside a `405`. The `expect` is § 2's calling rule — the walk
+        // rides beside a `405`. The `expect` is the rule's calling order — the walk
         // is asked *only* once the match has answered `None`.
         let answer = |verb: &str, path: &str| {
             assert!(
                 routes.match_request(verb, path).is_none(),
-                "{verb} {path} matched; § 2 is asked only after a miss"
+                "{verb} {path} matched; the refused-verb check runs only after a miss"
             );
             let verbs = routes.methods_for(path);
             if verbs.is_empty() {

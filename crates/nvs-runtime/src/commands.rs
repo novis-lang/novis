@@ -38,7 +38,7 @@
 //!
 //! # Every conversion `rule:tooling/commands-are-compiled` admits is on the table
 //!
-//! Including the one § 3 spells as a union: `Log::Level::Warn|Log::Level::Error`
+//! Including the one `rule:routing/a-capture-narrows-to-a-closed-set` spells as a union: `Log::Level::Warn|Log::Level::Error`
 //! crosses as [`ArgConv::Enum`] carrying those two cases, because the two
 //! questions a subset raises — which word, and what it becomes — are the ones
 //! that arm already answers for a whole enum, so a subset is those same pairs
@@ -114,7 +114,7 @@ pub enum ArgConv {
     /// arm's other half, carrying the segment and the class to that site and
     /// converting nothing on the way.
     Parses(String),
-    /// § 3's closed set: the word each single-value type in a set of allowed
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set: the word each single-value type in a set of allowed
     /// values admits, in the order the union declares them, and a usage error for
     /// anything else — a command line is input, so a word outside the set is
     /// never a throw.
@@ -126,7 +126,7 @@ pub enum ArgConv {
     /// the two tables rather than two answers that could come to disagree;
     /// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.
     OneOf(Vec<String>),
-    /// An enum, or the subset of one § 3 spells as a union of its cases: every
+    /// An enum, or the subset of one `rule:routing/a-capture-narrows-to-a-closed-set` spells as a union of its cases: every
     /// admitted case as the word a command line writes it with and the value
     /// that word becomes, ascending by value, with the enum's own name beside
     /// them.

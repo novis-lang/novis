@@ -54,7 +54,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     /// `rule:security/db-pool-reset-is-a-boundary`'s release gate, asked
     /// of the driver because only the driver knows where its wire is.
     ///
-    /// **The default is `false`**, which is § 13's "a driver with no reset
+    /// **The default is `false`**, which is that rule's "a driver with no reset
     /// primitive is not poolable at all" written as the answer a driver gets
     /// for saying nothing. A driver that has not decided is one whose
     /// connections are closed with the request.
@@ -282,7 +282,7 @@ impl Drop for HeldChild {
 /// [`crate::pool`] to be handed and nothing it is counted against.
 #[derive(Debug)]
 pub(super) struct OpenConnection {
-    /// § 2's memoization key, or `None` for a `{ shared: false }` call — see
+    /// `rule:core-classes/db-connection-is-named`'s memoization key, or `None` for a `{ shared: false }` call — see
     /// [`Ctx::hold_open_connection`]. Distinct from the lease's key on
     /// purpose: `{ shared: false }` bypasses memoization *within* the request and
     /// is still drawn from and returned to the pool.
@@ -631,7 +631,7 @@ impl Ctx {
     /// because a request opens a handful of connections at most, so a linear
     /// scan is the whole lookup and an empty request pays no allocation for it.
     ///
-    /// `lease` is the other half, and it is § 13's: it is the slot this
+    /// `lease` is the other half, and it is `rule:security/db-pool-reset-is-a-boundary`'s: it is the slot this
     /// connection is live under, and it names the pool the connection rejoins
     /// when the request ends instead of being closed. It is **not** the
     /// memoization key even though `connect` computes both from the block's
@@ -729,9 +729,9 @@ impl Ctx {
     }
 
     /// The key of the connection this request already opened under `memo`, or
-    /// `None` for a name it has not reached yet — § 2's memoization, asked.
+    /// `None` for a name it has not reached yet — `rule:core-classes/db-connection-is-named`'s memoization, asked.
     ///
-    /// **A closed entry does not answer.** § 2 memoizes so that a second
+    /// **A closed entry does not answer.** The rule memoizes so that a second
     /// `connect("main")` is the same *connection*, and a handle whose
     /// connection has been released is not one — so the name is free again and
     /// the next `connect` opens and files a second entry, which is what a

@@ -4,7 +4,7 @@
 //!
 //! # One record, whichever tier writes it
 //!
-//! § 6's claim is that ordinary application code and the floor produce
+//! `rule:errors/log-write`'s claim is that ordinary application code and the floor produce
 //! **schema-identical** records, so a log pipeline never has to reconcile two
 //! shapes depending on which tier happened to write a line. This module is the
 //! floor's half of that: it builds an
@@ -27,13 +27,13 @@
 //!
 //! # What is in an uncaught throw's record, and what is deliberately not
 //!
-//! [`uncaught`] fills § 6's `level`, `message`, a field for the error class and
+//! [`uncaught`] fills the record's `level`, `message`, a field for the error class and
 //! one node per frame the throw carried. It fills none of
 //! `ts`, `request_id`, `trace_id` or `span_id`, because it is handed a
 //! `Throwable` and not a context, and those keys are the request's. [`report`]
 //! is where a context arrives, and it stamps them through
 //! [`Ctx::stamp_envelope`] — the *same* method `Core\Log::write` calls, which
-//! is what keeps a floor line and an application's the one shape § 6 asks for.
+//! is what keeps a floor line and an application's the one shape `rule:errors/log-write` asks for.
 //! A record built with no request in front of it carries none of them, and an
 //! absent envelope key is omitted rather than written empty.
 //!
@@ -78,8 +78,8 @@
 //! of a record keeps both the shape tier 3 is handed and the seam it is reached
 //! through, and `nvs_host::ladder`'s own module doc argues that split in full.
 //!
-//! `[log] format` is not read here: the floor always writes JSON Lines, § 6's
-//! default. `rule:errors/renderings`'s plaintext rendering of the same record is
+//! `[log] format` is not read here: the floor always writes JSON Lines,
+//! `rule:errors/log-write`'s default. `rule:errors/renderings`'s plaintext rendering of the same record is
 //! what `rule:config/a-mode-is-five-defaults`'s `development` default selects,
 //! and the request context's log output (`ctx/output.rs`) is what reads the
 //! directive.
@@ -154,7 +154,7 @@ pub fn uncaught(thrown: &Thrown) -> Record {
 /// otherwise have reported.
 ///
 /// **A keyed array, not a `Core\Fatal\ErrorReport` instance**, for the reason
-/// § 1 gives for `LimitReport` being one: the report is built where the failure
+/// `rule:errors/on-limit` gives for `LimitReport` being one: the report is built where the failure
 /// is, in a crate that holds no `Core` class descriptor to instantiate an object
 /// from, and a keyed array takes a later key without changing the signature of a
 /// handler already written. The keys are the record's *own* — `level`, `message`
@@ -275,7 +275,7 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
         return;
     };
     // Owned from here on, because everything left to do writes to the
-    // envelope: the multiplicity, and § 6's request keys. The clone
+    // envelope: the multiplicity, and `rule:errors/log-write`'s request keys. The clone
     // is the one [`key`] already takes per call, on the path a request has
     // already failed on rather than on the one it is served by.
     let mut carried = record.clone();
@@ -422,8 +422,8 @@ fn report_panic(message: &str, location: Option<&str>) -> bool {
 ///
 /// One second, and **not a directive**: a bound that exists so the disk cannot
 /// be filled is not one an operator should be able to raise to infinity, and
-/// `Core\RateLimit`'s own § 4 already settles that no configuration at all is
-/// the design for a limiter. The number is chosen so that a fault loop costs a
+/// `rule:core-classes/ratelimit-two-members` already settles that a limit is
+/// policy written in code and not configuration. The number is chosen so that a fault loop costs a
 /// line per second — enough to see that it is still happening, few enough that
 /// a day of it is 86,400 lines rather than a partition.
 pub const COALESCING_WINDOW: Duration = Duration::from_secs(1);

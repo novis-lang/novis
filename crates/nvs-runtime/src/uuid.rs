@@ -1,5 +1,5 @@
-//! The canonical UUID text, read at the bottom of the crate tree: RFC 9562
-//! § 4's `8-4-4-4-12` hyphenated form, and the sixteen octets it spells.
+//! The canonical UUID text, read at the bottom of the crate tree:
+//! RFC 9562 § 4's `8-4-4-4-12` hyphenated form, and the sixteen octets it spells.
 //!
 //! # Why the grammar is here and not beside the class
 //!
@@ -13,7 +13,7 @@
 //! a declared narrowing unenforced. It sits here for the reason [`crate::decimal`] does — a matcher that cannot
 //! perform a conversion matches a segment the declared type would have
 //! refused, and a route table that admits what its own signature rejects is
-//! § 5's narrowing stated and not kept.
+//! that rule's narrowing stated and not kept.
 //!
 //! **One reader, not two.** `nvs_stdlib::uuid`'s own `parse`
 //! reads through [`read`], so a segment a route accepts and a string a program

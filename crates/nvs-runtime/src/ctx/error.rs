@@ -19,7 +19,7 @@ use super::*;
 ///
 /// The outcome is the *message*, not a `bool`, because the ledger is what the
 /// runner reports from — reading the exception state instead is exactly the
-/// silently-passing test § 5 abolishes, and a `bool` would send it back there
+/// silently-passing test the ledger abolishes, and a `bool` would send it back there
 /// for the wording.
 #[derive(Clone, Debug)]
 pub struct AssertionOutcome {
@@ -798,7 +798,7 @@ impl Ctx {
     /// or not.
     ///
     /// Recording the *passing* ones as well is not bookkeeping for its own
-    /// sake: § 20's "a test that asserts nothing fails" is a question about
+    /// sake: `rule:testing/runner-is-strict`'s "a test that asserts nothing fails" is a question about
     /// how many entries a test produced, and a ledger holding only failures
     /// cannot answer it.
     ///
@@ -869,7 +869,7 @@ impl Ctx {
     /// `rule:testing/failure-ledger`.
     ///
     /// The passing entries in that range stay: they are assertions that really
-    /// ran, and § 20 counts them. Only the failure is discharged, and only
+    /// ran, and `rule:testing/runner-is-strict` counts them. Only the failure is discharged, and only
     /// where the caller has said it expected one.
     ///
     /// One pass over the entries from `mark` onward and none before it, so the
@@ -1208,7 +1208,7 @@ mod tests {
         // `rule:testing/failure-ledger`: the discharge is what `Core\Test::expectFailure` does,
         // and it is deliberately narrow in both directions — a failure recorded
         // *before* the mark is another test's problem and stays, and a passing
-        // assertion inside the body really ran, so § 20 still counts it.
+        // assertion inside the body really ran, so `rule:testing/runner-is-strict` still counts it.
         let mut ctx = Ctx::buffered();
         ctx.set_owned_by_test();
         ctx.record_assertion("assertSame", Some("an earlier failure".to_owned()));

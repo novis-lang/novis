@@ -609,7 +609,7 @@ pub struct Ctx {
     /// `null` for a request that registered none.
     ///
     /// **Here, beside the ceiling, because this is where the breach is asked.**
-    /// § 1 makes the registration request-local and puts it next to the pending
+    /// The rule makes the registration request-local and puts it next to the pending
     /// slot for the reason this field is a field at all: it dies with the
     /// request, exactly as `rule:statements/static-is-a-member-modifier`
     /// and `rule:statements/no-host-populated-variables` require of
@@ -652,8 +652,8 @@ pub struct Ctx {
     /// different questions: wall time bounds how long a client waits, and CPU
     /// time bounds how much of this machine one request may burn. Charging a
     /// request for the time it spent descheduled or blocked on a socket would
-    /// make a runaway loop and a slow database indistinguishable, and § 1's
-    /// limits exist to stop the first without touching the second.
+    /// make a runaway loop and a slow database indistinguishable, and the
+    /// limits `rule:errors/on-limit` reports exist to stop the first without touching the second.
     ///
     /// **The sampling is the host's, not this crate's.** A thread-per-core host
     /// runs many requests in one process, so the clock has to be per-thread
@@ -682,7 +682,7 @@ pub struct Ctx {
     /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2, and the second handler slot beside [`Self::limit_handler`].
     ///
-    /// **Nothing is reserved for it, and that is § 2's own decision**: a throw
+    /// **Nothing is reserved for it, and that is the rule's own decision**: a throw
     /// that reached the root means execution was healthy up to the moment it
     /// was raised, so the request's ordinary remaining budget is what this
     /// handler runs under. The two words [`Self::fatal_reserve`] and
@@ -722,14 +722,15 @@ pub struct Ctx {
     ///
     /// **A queue rather than a slot**, which is the one way it differs from the
     /// handlers above it: a hook does not replace the hook before it, so
-    /// registering twice registers twice and § 1's FIFO order is this vec's
+    /// registering twice registers twice and the rule's FIFO order is this vec's
     /// order. A hook registered *by* a hook joins the tail of the same drain,
     /// which is why [`Self::run_exit_hooks`] walks by index rather than
     /// draining the vec it is iterating.
     ///
     /// Request-local for [`Self::limit_handler`]'s reason, and released in the
     /// same place for it: a script stopped by a `FATAL` reaches [`Drop`] with
-    /// its queue unrun, exactly as its deferred work does, because § 3 says a
+    /// its queue unrun, exactly as its deferred work does, because
+    /// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook` says a
     /// limit breach runs none of it.
     ///
     /// **What it spends:** one reference per registration, plus whatever each
@@ -819,7 +820,7 @@ pub struct Ctx {
     /// [`crate::deferred::DeferError::Sealed`].
     ///
     /// Request-local for [`Self::limit_handler`]'s reason, and the one thing
-    /// that makes § 6's "memory, CPU and tasks stay charged to the request
+    /// that makes the rule's "memory, CPU and tasks stay charged to the request
     /// tree" true by construction rather than by remembering to: the
     /// registrations are the request's, so the request ending is what releases
     /// them. [`mod@crate::deferred`] is the one home for when the queue runs
@@ -830,7 +831,7 @@ pub struct Ctx {
     /// that defers nothing.
     deferred: Option<Vec<crate::deferred::Deferred>>,
     /// Whether this tree is one of the ones this core is counting against
-    /// § 7's `max_concurrent`.
+    /// `[deferred] max_concurrent` (`rule:concurrency/deferred-is-bounded-by-two-directives`).
     ///
     /// A flag rather than a reading of the queue above, because the two say
     /// different things at the one moment that matters: the drain takes the
@@ -950,7 +951,7 @@ pub struct Ctx {
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
     /// `/`.
     ///
-    /// **Configured, never sniffed.** § 6 refuses `Host` and
+    /// **Configured, never sniffed.** The rule refuses `Host` and
     /// `X-Forwarded-Host` outright, which is why this is written *before* the
     /// request runs and nothing during it can move it — `nvs run` reads
     /// `nvs.toml`'s `[[app]] origin` today, and the mount that accepted the
@@ -973,7 +974,7 @@ pub struct Ctx {
     /// [`Self::set_config`]; every `Core\Config` member then reads this field.
     /// A reload landing mid-request replaces what `Current::load` would hand
     /// out next and cannot touch the `Arc` this one already holds, which is the
-    /// whole of § 1's "a request reads one tree to completion".
+    /// whole of the rule's "reads from that clone for its whole life".
     ///
     /// `None` is a context nobody configured — every test context, and any
     /// caller that has not built a snapshot. The members answer as they do for
@@ -1015,7 +1016,8 @@ pub struct Ctx {
     /// [`crate::trace_context`]'s module doc opens on why the two are separate
     /// and what each is for.
     ///
-    /// Drawn eagerly in [`Self::new`] rather than on first ask, because § 2 has
+    /// Drawn eagerly in [`Self::new`] rather than on first ask, because
+    /// `rule:observability/a-trace-id-exists-for-every-request` has
     /// an id exist for every request whatever the sampling decision — a lazy one
     /// would be the same id in the end and a second place for two readers to
     /// disagree about whether there is one at all. A request that arrived with a
@@ -1043,7 +1045,7 @@ pub struct Ctx {
     /// question of.
     ///
     /// The table, and never this request's *match*: that is a fact about the
-    /// request and lives on [`Inbound`], because § 1's rule is that it is taken
+    /// request and lives on [`Inbound`], because the rule is that it is taken
     /// once before any application code and travels from there.
     ///
     /// Written before the program runs and never rewritten, on
@@ -1056,7 +1058,8 @@ pub struct Ctx {
     routes: Option<std::sync::Arc<crate::routes::Routes>>,
     /// The process argument vector past the program itself — what
     /// `rule:tooling/commands-are-compiled`'s
-    /// `Core\Command::run` matches against the table above, and what § 13's
+    /// `Core\Command::run` matches against the table above, and what
+    /// `rule:core-classes/cli-arguments`'
     /// `Core\Cli::arguments` will hand back unchanged.
     ///
     /// **Isolate configuration, written before the program runs**, for
@@ -1198,7 +1201,8 @@ pub struct Ctx {
     ///
     /// The only writer is `Core\Test::scriptAnswers`, so a request or a
     /// `nvs run` never has one — and a program cannot script its own prompts
-    /// into a state nobody typed, which is what keeps § 4's "it never blocks"
+    /// into a state nobody typed, which is what keeps
+    /// `rule:tooling/a-prompt-never-blocks`
     /// a statement about the terminal rather than about this field.
     ///
     /// **What it spends:** three words per request for the empty queue, and the
@@ -1242,18 +1246,19 @@ pub struct Ctx {
     /// The media type this request's output has been *declared* to be —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's body members, each of which owns one body shape and sets its
-    /// own `Content-Type`. `None` for a request that only echoed, which § 4's
-    /// last bullet reads as `text/html`.
+    /// own `Content-Type`. `None` for a request that only echoed, which the
+    /// rule reads as `text/html`.
     ///
     /// **A declaration and not the bytes.** The bytes are
-    /// [`Self::write_output`]'s, because § 3's table already binds a request's
+    /// [`Self::write_output`]'s, because `rule:tooling/echo-always-has-a-sink`'s
+    /// table already binds a request's
     /// `echo` to the response body and a second buffer beside it would be two
     /// answers to the question of what the body is. What a body member adds
     /// over an `echo` is this one string, so this one string is what it
     /// records.
     ///
-    /// Nothing here adjudicates a disagreement between two declarations: § 4's
-    /// sixth row makes mixing writers a **compile** error, so the last one
+    /// Nothing here adjudicates a disagreement between two declarations:
+    /// `rule:security/response-body-is-one-typed-member` makes mixing writers a **compile** error, so the last one
     /// wins by construction rather than by a rule this field enforces.
     ///
     /// **What it spends:** one word per request, and one short allocation per
@@ -1359,7 +1364,8 @@ pub struct Ctx {
     /// able to.
     ///
     /// The last declaration wins here too, and for a weaker reason than
-    /// `content_type`'s: § 4's sixth row does not reach `setStatus` at all,
+    /// `content_type`'s: `rule:security/response-body-is-one-typed-member`
+    /// does not reach `setStatus` at all,
     /// since setting a status twice writes no body twice. Two calls are a
     /// program saying two things about one response, and the later one is the
     /// one it meant.
@@ -1589,7 +1595,7 @@ pub struct Ctx {
     ///
     /// Unlike its neighbours this is a list and not a table: a directory
     /// is a path rather than a handle, nothing in Novis holds a key to one, and
-    /// a program removing its own directory is § 3's goal state reached early
+    /// a program removing its own directory is the sweep's goal state reached early
     /// rather than a slot to empty. So an entry is never taken back out
     /// individually and the sweep drains the whole list once.
     temporary_dirs: Vec<std::path::PathBuf>,
@@ -1623,7 +1629,7 @@ pub struct Ctx {
     /// connection ends.
     ///
     /// **An [`Option`] because the allocation is on the request path.** The
-    /// queue is a separate allocation because § 4's subscriber table shares it
+    /// queue is a separate allocation because `rule:core-classes/topic`'s subscriber table shares it
     /// ([`crate::peer::Inbox`]), and an eager one would charge every request
     /// ever served for a connection's facility; [`Ctx::inbox`] makes it the
     /// first time something asks, which is a subscribe or a delivery and
@@ -1709,7 +1715,8 @@ impl Drop for Ctx {
         self.set_shutdown_handler(Value::null());
         // `rule:observability/script-on-exit`'s exit hooks are request-local for the same reason. A
         // script that ended at a `FATAL` or a cancellation reaches here with the
-        // queue unrun — § 3 — so this is where those registrations are given
+        // queue unrun — `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`
+        // — so this is where those registrations are given
         // back, exactly as an unrun deferred registration is below.
         #[expect(
             unsafe_code,
@@ -1760,7 +1767,7 @@ impl Drop for Ctx {
                 work.callable.release();
             }
         }
-        // The other end of § 7's count, for a tree that ended without draining
+        // The other end of the `[deferred] max_concurrent` count, for a tree that ended without draining
         // — and a no-op for one that drained, which gave its slot back there.
         self.release_deferred_slot();
         // `rule:security/db-pool-reset-is-a-boundary`: a connection the request is still holding is released
@@ -1901,17 +1908,17 @@ pub const STACK_RESERVE: usize = 256 << 10;
 
 /// Which of `rule:errors/on-limit`'s resource limits stopped the request, as the tier-1 handler is told it.
 ///
-/// § 1 spells that handler's parameter `LimitReport`, and this is what the
+/// The rule spells that handler's parameter `LimitReport`, and this is what the
 /// report is built from: [`Ctx::run_limit_handler`] hands the callable an array
 /// whose `limit` key is [`Limit::name`]. **An array and not a class**, because
 /// the report is built where the breach is — in this crate, which holds no
 /// `Core` class descriptor to instantiate one from and would have to reach into
 /// `nvs-stdlib` to get one — and because a keyed array is the one shape a later
 /// field can be added to without changing the signature of a handler already
-/// written. What it spends is two allocations out of § 1's reserved slice, once
+/// written. What it spends is two allocations out of the rule's reserved slice, once
 /// per request that both registers a handler and is stopped.
 ///
-/// **A variant per enforced limit.** § 1 lists more than these; call-stack
+/// **A variant per enforced limit.** The rule lists more than these; call-stack
 /// depth gains a variant in the slice that gives it a breach to report, since a
 /// variant nothing can produce is a word in this report's vocabulary that no
 /// handler could see.

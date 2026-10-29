@@ -210,7 +210,7 @@ pub const SQL_STATE_SLOT: usize = KIND_SLOT + 1;
 /// It is `null` on PostgreSQL and always will be: the `SQLSTATE` *is* that
 /// server's code, and `nvs_db::ServerError` owns why a second integer invented
 /// to fill the shape would be a value with no meaning. The slot exists ahead of
-/// the driver that fills it because § 8 fixes the property order, and one added
+/// the driver that fills it because `rule:core-classes/db-error` fixes the property order, and one added
 /// later would move every slot after it.
 /// `nvs_hir::errors::DRIVER_CODE_SLOT` is the compiler's copy.
 pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
@@ -232,11 +232,11 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// The slot `Core\Db\DbError::$sql` occupies — the statement that was refused,
 /// as the program wrote it (`rule:core-classes/db-error`).
 ///
-/// § 8 lets the text ride the throw where it lets no bound value ride it: the
+/// That rule lets the text ride the throw where it lets no bound value ride it: the
 /// SQL is developer-authored and the values are the request's, which is
 /// `rule:security/secret-qualifier`'s
 /// line and not a judgement made here. It is `?string` because a refusal is not
-/// always *of* a statement a caller spelled — § 7's `BEGIN`, `COMMIT` and
+/// always *of* a statement a caller spelled — `rule:core-classes/db-transactions`'s `BEGIN`, `COMMIT` and
 /// `SAVEPOINT` are this runtime's own text — and an unwritten slot already
 /// reads `null`. `nvs_hir::errors::SQL_SLOT` is the compiler's copy, held to
 /// this one by `nvs-codegen`'s
@@ -267,7 +267,7 @@ pub const LDAP_CODE_SLOT: usize = LDAP_KIND_SLOT + 1;
 /// one by `nvs-codegen`'s
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 ///
-/// Unlike its siblings this slot's value **is the message**: § 7 gives
+/// Unlike its siblings this slot's value **is the message**: that rule gives
 /// `rollBack` one string and it is both what the exception says and what the
 /// property holds, so [`Thrown::new_as`] seeds it rather than making every
 /// thrower pass the same text twice.
@@ -373,12 +373,12 @@ pub enum ThrownClass {
     /// commit (`rule:core-classes/db-error`): every
     /// failure `Core\Db` reports that the program did not itself choose.
     ///
-    /// One class rather than ten, because § 8 normalises the condition into a
+    /// One class rather than ten, because that rule normalises the condition into a
     /// `kind` instead of naming a type per condition — some of those boundaries
     /// are a driver's rather than the language's. That `kind` is [`KIND_SLOT`]
     /// on the object, beside the raw `sqlState` it was normalised from and the
     /// rest of the row `nvs_hir::errors::OWN_PROPERTIES` declares; the message
-    /// next to them is one § 8 requires to carry no bound value.
+    /// next to them is one the rule requires to carry no bound value.
     DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
     /// (`rule:core-classes/db-transactions`), propagated out of

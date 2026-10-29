@@ -1,17 +1,18 @@
 //! `rule:security/db-pool-reset-is-a-boundary`'s connection pool: where a
 //! request's database connection goes at teardown instead of being dropped.
 //!
-//! **Per core, and never shared between cores** — § 13's first bullet, and the
+//! **Per core, and never shared between cores**, as that rule says, and the
 //! reason this is a `thread_local!` rather than anything with a lock in it. The
 //! acquire path is a scan of one `Vec` the calling core owns outright, so a
 //! connection reaches the next request on that core for the price of a string
 //! comparison, and a core that has never opened a database holds an empty `Vec`
 //! and pays nothing at all.
 //!
-//! **The key is the caller's, and this module never parses one.** § 13 keys a
+//! **The key is the caller's, and this module never parses one.** The rule keys a
 //! pool on every credential — the block's name for `Core\Db::connect`, a hash of
-//! every settings field for `open` — which is the key § 2 already computes to
-//! memoize a connection *within* a request. The crate that computes it hands it
+//! every settings field for `open` — which is the key
+//! `rule:core-classes/db-connection-is-named` already computes to memoize a
+//! connection *within* a request. The crate that computes it hands it
 //! over in a [`Ticket`], so two config blocks are two pools and two database
 //! users never share a connection, without this module knowing what a
 //! credential is.
@@ -23,7 +24,7 @@
 //!
 //! # Where the reset is
 //!
-//! § 13 makes the reset a security boundary: a connection that cannot be proven
+//! `rule:security/db-pool-reset-is-a-boundary` makes the reset a security boundary: a connection that cannot be proven
 //! clean is closed rather than reused. That proof is taken **at acquire**, by
 //! the request about to use the connection, and not here at release.
 //!
@@ -33,18 +34,18 @@
 //! CLI and by a test that has neither. Acquire has both. It is also where the
 //! property has to hold anyway — an acquiring request that cannot reset what it
 //! took destroys it and opens a fresh connection, so no request ever observes
-//! another's session state, which is the whole of what § 13 asks.
+//! another's session state, which is the whole of what that rule asks.
 //!
 //! What that costs is stated rather than hidden: a connection waits in the pool
 //! carrying whatever session state its last request left behind. Never an open
 //! transaction or a wire mid-message — [`HeldConnection::is_poolable`] refuses
 //! both at release — but possibly an advisory lock or a temporary table, until
 //! the next acquire clears them. A deployment that cannot accept that has
-//! § 13's `pool = false`.
+//! `pool = false`.
 //!
 //! # What `max` counts
 //!
-//! § 13's `max` bounds the connections one core holds under one key, and what
+//! `[db.<name>.pool] max` bounds the connections one core holds under one key, and what
 //! this module counts is the ones it has **handed out**: a [`Lease`] per live
 //! connection, taken by [`admit`] before the connection is opened and given
 //! back when it is released or closed.
@@ -54,7 +55,7 @@
 //! lease, and [`take`] hands one back only *against* a lease — so `live + idle`
 //! under a key can no more exceed `max` than `live` can, and a fresh handshake
 //! happens only where the idle store had nothing to offer the slot. That is
-//! what makes § 13's `cores × max` the number an operator sizes the server's
+//! what makes `cores × max` the number an operator sizes the server's
 //! own connection limit against, rather than a number the idle bound quietly
 //! adds to.
 //!
@@ -65,7 +66,7 @@
 //!
 //! [`PoolBounds::acquire`] is how long a request may wait at that ceiling
 //! before it throws. [`admit`] on its own is the `acquire = 0` answer — a value
-//! § 13 makes legal and defines as refusing rather than queueing — and [`queue`]
+//! the configuration allows and defines as refusing rather than queueing — and [`queue`]
 //! is every other value: it joins the caller to a per-key line, [`Waiting::slot`]
 //! is what a woken task re-asks, and dropping the [`Waiting`] leaves the line.
 //!
@@ -90,7 +91,7 @@
 //!
 //! Up to `idle` connections per key per core — a socket, a TLS session and a
 //! statement cache each — held open between the requests that use them. That is
-//! the footprint § 13 spends to buy latency, and it is O(cores × keys)
+//! the footprint `rule:security/db-pool-reset-is-a-boundary` spends to buy latency, and it is O(cores × keys)
 //! rather than O(requests served): a release past `idle` closes the connection
 //! instead of queueing it, so nothing accumulates with traffic.
 //!
@@ -124,7 +125,7 @@ use crate::host::Waker;
 
 use crate::ctx::HeldConnection;
 
-/// What a held connection needs to rejoin the pool: the key § 13 pools it
+/// What a held connection needs to rejoin the pool: the key it is pooled
 /// under, and the bounds that key resolved to at boot.
 ///
 /// Carried beside the connection for the request's whole life rather than
@@ -134,7 +135,8 @@ use crate::ctx::HeldConnection;
 /// the key — per connection a request opens.
 #[derive(Clone, Debug)]
 pub struct Ticket {
-    /// § 2's key: a block's name scoped to its generation for
+    /// The memoization key of `rule:core-classes/db-connection-is-named`: a
+    /// block's name scoped to its generation for
     /// [`Ticket::for_block`], and the settings hash itself for
     /// [`Ticket::for_settings`]. Two requests share a pooled connection exactly
     /// when this string matches, so it must carry every credential.
@@ -170,15 +172,15 @@ impl Ticket {
         }
     }
 
-    /// The ticket for one `Core\Db::open` settings object, under the key § 2
-    /// already hashes out of every field of it — `nvs_stdlib::db`'s
+    /// The ticket for one `Core\Db::open` settings object, under the key
+    /// `rule:core-classes/db-connection-is-named` already hashes out of every field of it — `nvs_stdlib::db`'s
     /// `settings_key`, which owns which fields those are and why the hash
     /// cannot collide with a block's name.
     ///
     /// **This key is deliberately not generation-scoped**, where
     /// [`Ticket::for_block`]'s is. The two answer the same question — may these
     /// two requests share one connection? — from opposite sides. A block's name
-    /// is an *indirection* an operator can repoint, so § 1's reload can publish
+    /// is an *indirection* an operator can repoint, so a configuration reload can publish
     /// different credentials under an unchanged name and only the generation
     /// tells the two apart; a settings object *is* the credentials, written by
     /// the program, so two settings objects that hash alike name the same endpoint as
@@ -201,14 +203,15 @@ impl Ticket {
     /// holds, named on its own for a caller that has a name and no ticket yet.
     ///
     /// **A block's name identifies its credentials only within one
-    /// configuration.** § 13 keys a pool on every credential and names the
+    /// configuration.** `rule:security/db-pool-reset-is-a-boundary` keys a pool
+    /// on every credential and names the
     /// block's name as that key for `connect`, which holds because the block is
     /// where the credentials are written — until
     /// `rule:config/the-config-is-an-immutable-snapshot`
     /// 's reload publishes a `[db.main]` naming a different database user
     /// under the same name. A pool keyed on the name alone would then hand the
     /// new generation's request a connection authenticated as the old one's
-    /// user, which is exactly the sharing § 13 forbids. Scoping the key to the
+    /// user, which is exactly the sharing that rule forbids. Scoping the key to the
     /// generation makes a reload two pools rather than one, and the old
     /// generation's connections retire against their own `lifetime` with
     /// nothing left to hand them to.
@@ -228,7 +231,7 @@ struct Idle {
     /// The [`Ticket::key`] it was released under.
     key: String,
     /// The connection itself, still holding its statement cache — the thing
-    /// § 13's reset is written *not* to throw away.
+    /// the reset is written *not* to throw away.
     connection: Box<dyn HeldConnection>,
     /// When it is retired regardless of health: the release instant plus
     /// [`PoolBounds::lifetime`], stored as the deadline so that a scan compares
@@ -269,7 +272,7 @@ thread_local! {
     static LIVE: RefCell<Vec<Live>> = const { RefCell::new(Vec::new()) };
 }
 
-/// One task waiting for a slot under a key: § 13's `acquire`, from the inside.
+/// One task waiting for a slot under a key: the pool's `acquire`, from the inside.
 struct Waiter {
     /// The [`Ticket::key`] it is waiting under.
     key: String,
@@ -323,7 +326,7 @@ fn grant(live: &mut Vec<Live>, ticket: &Ticket) -> bool {
     }
 }
 
-/// One live connection's slot under a key: § 13's `max`, held.
+/// One live connection's slot under a key: the pool's `max`, held.
 ///
 /// A lease is the *right* to have a connection open on this core under
 /// [`Ticket::key`], taken before the connection exists — by [`admit`], which
@@ -412,7 +415,7 @@ impl Drop for Lease {
 /// gives it back when it drops.
 ///
 /// `None` is the ceiling reached and nothing else, and it is the whole of
-/// § 13's `acquire = 0`. A caller that may wait longer than that joins the line
+/// `acquire = 0`. A caller that may wait longer than that joins the line
 /// with [`queue`] instead; a caller that may not — or that has no task under it
 /// to park — reads this `None` as the refusal.
 ///
@@ -420,7 +423,7 @@ impl Drop for Lease {
 /// [`Lease`] hands its slot to the head of the line without the count dipping,
 /// so a key with anyone waiting is a key this function still finds full.
 ///
-/// A key whose pool is off (§ 13's `pool = false`) has no ceiling and is not
+/// A key whose pool is off (`pool = false`) has no ceiling and is not
 /// counted: that switch restores connect-per-request *exactly*, and a limit
 /// connect-per-request does not have would not be that.
 #[must_use]
@@ -432,7 +435,7 @@ pub fn admit(ticket: Ticket) -> Option<Lease> {
         .then(|| Lease { ticket })
 }
 
-/// A place in the line for a slot under one key: § 13's `acquire`, held.
+/// A place in the line for a slot under one key: the pool's `acquire`, held.
 ///
 /// [`queue`] takes one, [`Waiting::slot`] is what the caller re-asks after every
 /// wake, and dropping it leaves the line — including handing on a slot that was
@@ -542,7 +545,8 @@ impl Drop for Waiting {
 
 /// Releases `connection` to this core's pool, or closes it here.
 ///
-/// It is closed rather than pooled when § 13 says it must be: the pool is off
+/// It is closed rather than pooled when `rule:security/db-pool-reset-is-a-boundary`
+/// says it must be: the pool is off
 /// for that key (`pool = false`), the driver cannot prove the wire clean
 /// ([`HeldConnection::is_poolable`]), or the key already holds
 /// [`PoolBounds::idle`] connections doing nothing. Each of them drops the box
@@ -588,14 +592,14 @@ pub fn release(lease: Lease, now: Instant, connection: Box<dyn HeldConnection>) 
 /// The connection this core last released under `lease`'s key, or `None` for a
 /// key it holds none of.
 ///
-/// **A lease, not a bare key**, because that is what keeps § 13's `max` honest:
+/// **A lease, not a bare key**, because that is what keeps the pool's `max` honest:
 /// a connection may leave the idle store only into a slot [`admit`] granted, so
 /// the ceiling counts every live connection under a key rather than only the
 /// ones that arrived by a handshake. `None` here is the caller's cue to open
 /// one instead, on the slot it is already holding.
 ///
-/// **What comes back has not been reset**, and the caller owes § 13's reset
-/// before it runs a statement over it — the module doc's *Where the reset is*
+/// **What comes back has not been reset**, and the caller owes
+/// `rule:security/db-pool-reset-is-a-boundary`'s reset before it runs a statement over it — the module doc's *Where the reset is*
 /// owns why that is the acquiring side's job. A caller that cannot reset what
 /// it took must close it and open a fresh connection.
 ///
@@ -728,7 +732,7 @@ mod tests {
     // which is the same isolation a core gets and the reason none of them has
     // to clean up after itself.
 
-    /// § 13's other key: the hash `Core\Db::open` computes over its settings,
+    /// The pool's other key: the hash `Core\Db::open` computes over its settings,
     /// carried verbatim.
     ///
     /// Two claims in one case because they are one property — the settings key
@@ -865,7 +869,7 @@ mod tests {
             Some(lease(&generation, "main", 2)),
             fake(1),
         );
-        // Still the request's while the request is running: § 13 releases at
+        // Still the request's while the request is running: the pool takes it at
         // teardown and never before.
         assert_eq!(id_of(take(&lease(&generation, "main", 2), now)), None);
         drop(ctx);
@@ -962,7 +966,7 @@ mod tests {
             max: 1,
             ..PoolBounds::OFF
         };
-        // § 13's `pool = false` restores connect-per-request *exactly*, and
+        // `pool = false` restores connect-per-request *exactly*, and
         // connect-per-request has no ceiling to arrive at.
         let held: Vec<_> = (0..4)
             .map(|_| {

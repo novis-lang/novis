@@ -10,7 +10,7 @@
 //! records ([`Ctx::write_log_record`]) and the records [`LogWriter`] takes from
 //! a thread holding no request at all end in [`write_to`], so a variant added
 //! later cannot be handled at one channel and forgotten at another.
-//! § 5's captures, and the content type, status and headers a request declares
+//! `rule:security/capture-answers-the-carrier`'s captures, and the content type, status and headers a request declares
 //! back, sit beside them because each is a decision about the same response.
 
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ use super::*;
 
 /// The `Core` class a captured terminal sink hands its bytes back as —
 /// `rule:tooling/echo-always-has-a-sink`
-/// 's default row, and § 5's carrier.
+/// 's default row, and `rule:security/capture-answers-the-carrier`'s carrier.
 ///
 /// Named here rather than in `nvs-stdlib`, where the class itself is declared,
 /// because the *sink* is what decides the carrier and the sink lives in this
@@ -106,7 +106,7 @@ pub enum OutputSink {
     /// rather than a rule a call site states. It is selected in exactly one
     /// place — `nvs_host::Isolate`, from whether the isolate was handed a
     /// request — and a `spawn script` child inside a request takes it because
-    /// § 3's third row gives that child the *parent's* carrier.
+    /// that rule's third row gives that child the *parent's* carrier.
     Body(Vec<u8>),
     /// A file on disk, under `rule:http-server/the-floor-cannot-fill-the-disk`
     /// 's rotation and retention bound.
@@ -384,7 +384,7 @@ impl Ctx {
     ///
     /// **This is the only reader of that directive**, and both of
     /// `rule:errors/record-producers`'s writers reach it: `Core\Log::write` with [`LogChannel::Output`]
-    /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. § 6's
+    /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. That rule's
     /// claim is about *sameness* — one serialiser, two callers — and a
     /// destination each caller resolved for itself is the second way that
     /// sameness could be lost after the record's shape.
@@ -403,18 +403,18 @@ impl Ctx {
     /// written, so a record quieter than it is dropped and answers `Ok`: it was
     /// not written, and nothing failed. Asked at this one call rather than at
     /// each writer, so the two of them cannot come to disagree about which
-    /// records a deployment collects — which is § 6's sameness a second time,
+    /// records a deployment collects — which is `rule:errors/record-producers`'s sameness a second time,
     /// after the record's shape and its destination.
     ///
-    /// The comparison is `<` over [`Level`]'s own ordering, which is § 2's
-    /// roster quietest-first, and so is that section's `<=` over the syslog
+    /// The comparison is `<` over [`Level`]'s own ordering, which is `rule:errors/log-level`'s
+    /// roster quietest-first, and so is that rule's `<=` over the syslog
     /// severities read the other way round — those run *downward*, `Debug` at 7
     /// and `Critical` at 2. Written as the enum ordering because that is the
     /// one of the two spellings a reader cannot get backwards.
     ///
     /// **`[log] format` picks the rendering, which is why this takes a
     /// [`Record`] and not bytes.** `rule:errors/renderings` gives a log target
-    /// its JSON Lines and plaintext renderings, and § 6's producers name
+    /// its JSON Lines and plaintext renderings, and `rule:errors/record-producers`'s producers name
     /// neither, so the choice belongs at the sink and nowhere else. A
     /// caller that rendered first would be a caller that had chosen, and the
     /// two of them would have chosen separately: the same drift the record's
@@ -559,7 +559,7 @@ impl Ctx {
     /// Fills the envelope keys `rule:errors/log-write` asks for beyond `level` and `msg` — `ts`, `request_id`, and
     /// `trace_id`/`span_id` when a trace is active.
     ///
-    /// **Called by both of § 6's writers**, `Core\Log::write` and
+    /// **Called by both of the rule's writers**, `Core\Log::write` and
     /// [`crate::floor::report`], for the reason
     /// [`Self::write_log_record`] gives about the format, the floor and the
     /// destination: a rule asked once cannot come to be answered two ways. It
@@ -570,11 +570,11 @@ impl Ctx {
     ///
     /// **All four come from the request, and a context answering none stamps
     /// nothing.** That is why `ts` is here rather than read off the clock
-    /// unconditionally: § 6's four keys are what a *request* contributes to a
+    /// unconditionally: these four keys are what a *request* contributes to a
     /// record, and a bare clock read would give a CLI run an envelope shape of
     /// its own — neither the bare envelope the floor writes with no request in
     /// front of it nor the full one a served request carries. Those two shapes
-    /// and no third is § 6's sameness. An absent key is omitted rather than
+    /// and no third is `rule:errors/log-write`'s sameness. An absent key is omitted rather than
     /// written empty, which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s rule
     /// for `trace_id`/`span_id` applied to the whole envelope.
     ///
@@ -596,8 +596,9 @@ impl Ctx {
         let trace = self.trace_context();
         envelope.ts = Some(jiff::Timestamp::now().to_string());
         envelope.request_id = Some(trace.request_id_hex());
-        // § 6's "whenever a trace is active", where active is the sampling
-        // decision § 2 makes at the door, or a caller's trace this request
+        // `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s
+        // "whenever a trace is active", where active is the sampling decision
+        // `rule:observability/sampling-is-head-based` makes at the door, or a caller's trace this request
         // continued: an id exists for every request, and what those two
         // additionally have is a trace a backend will be asked to join this
         // line to.
@@ -652,7 +653,7 @@ impl Ctx {
     /// `rule:tooling/echo-always-has-a-sink`
     /// 's table, read as a class name.
     ///
-    /// [`carrier_of`] over the sink `echo` writes to. § 3's direction is the
+    /// [`carrier_of`] over the sink `echo` writes to. That rule's direction is the
     /// fail-closed one — the HTML sink is attached by an HTTP request and by
     /// nothing else — and it is that variant plus that table rather than a rule
     /// any call site states: `nvs_host::Isolate` picks the sink from the
@@ -1268,8 +1269,8 @@ impl DeclaredHeaders {
 /// readers being two answers.
 ///
 /// [`nvs_config::log::Target`] is that grammar and it has two readers:
-/// this one, and the boot check that refuses a tree naming a target § 4
-/// does not spell, or `syslog` on a host with no syslog socket. So a value
+/// this one, and the boot check that refuses a tree naming a target
+/// `rule:errors/engine-floor` does not spell, or `syslog` on a host with no syslog socket. So a value
 /// that reached here is one this host opens. `syslog` is
 /// [`LogTarget::Syslog`] rather than a sink, because its datagram carries
 /// the record's severity and the byte-oriented sinks take bytes alone.
@@ -1696,7 +1697,7 @@ mod tests {
     }
 
     /// A context reads `syslog` to the same transport the writer does, so
-    /// both of § 6's writers send a record there and neither keeps its own
+    /// both of `rule:errors/log-write`'s callers send a record there and neither keeps its own
     /// channel.
     #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]

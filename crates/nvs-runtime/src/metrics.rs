@@ -18,17 +18,20 @@
 //! **A registry is therefore not the server's to create.** [`meter_this_core`]
 //! is how a serving core gets the one `[metrics]` configured, and [`record`]
 //! builds one on any thread that writes a metric without having been metered —
-//! which is every `nvs run`, and which is § 3's "accumulates even with no
-//! exporter built" rather than a second kind of registry.
+//! which is every `nvs run`, and which is `rule:observability/metrics-three-members`'s
+//! "accumulates into the per-core registry" without an exporter rather than a
+//! second kind of registry.
 //!
 //! # Why a core owns it, and why that is not `rule:concurrency/cross-request-state-is-explicit`'s closed door
 //!
 //! A registry is mutable state outliving a request, which is the shape
 //! `rule:concurrency/cross-request-state-is-explicit` exists to
-//! constrain, and § 5 is where it passes that rule's own test: nothing reads a
+//! constrain, and `rule:observability/a-registry-is-per-core-and-nothing-reads-it`
+//! is where it passes that rule's own test: nothing reads a
 //! metric to make a decision — no Novis program can read one at all — the values
 //! are approximate aggregates whose merge across cores is arithmetic rather than
-//! coordination, § 4 forbids any request-derived value from becoming a label,
+//! coordination, `rule:security/metric-label-refuses-tainted` forbids any
+//! request-derived value from becoming a label,
 //! and the memory is charged to the core and capped. A core's registry is its
 //! own rather than a store every core writes into: a counter two
 //! cores contended over would be coordination bought for a number that is
@@ -45,7 +48,7 @@
 //! weak handle onto each, and [`every_core`] copies what is behind them.
 //!
 //! One lock **per core**, which is the whole of why this is not the shared
-//! store § 5 refuses. A core takes only its own — uncontended on every count
+//! store that rule refuses. A core takes only its own — uncontended on every count
 //! except during the moment a scrape is copying it — and no two cores ever
 //! touch the same word. The alternative considered was a message, the scraping
 //! core poking each of the others and waiting for it to publish, and
@@ -62,13 +65,14 @@
 //!
 //! # Refuse the new, never evict the old
 //!
-//! [`Registry::max_series`] is § 7's bound, per core. Past it a series that does
+//! [`Registry::max_series`] is `rule:observability/past-max-series-a-new-series-is-refused`'s
+//! bound, per core. Past it a series that does
 //! not exist yet is **refused** — the call is a no-op and the refusal is counted
 //! against the metric's name — and one that does is untouched. Evicting instead
 //! would make a counter's value appear to reset when it was next recreated,
 //! which every backend reads as a process restart and which silently corrupts
 //! every `rate()` over it. A missing series is a hole in a dashboard; a
-//! recreated one is a wrong number on it, and § 7 chose the hole.
+//! recreated one is a wrong number on it, and that rule chose the hole.
 //!
 //! **`rule:observability/default-series`'s declared series are seeded past the
 //! bound rather than counted through it.** They are what that rule promises is
@@ -78,13 +82,14 @@
 //!
 //! # A name is fixed to one kind, one label set and one bucket table
 //!
-//! § 3 fixes a name to a kind on first use within a process, and this module
+//! `rule:observability/a-name-is-fixed-to-one-kind` fixes a name to a kind on
+//! first use within a process, and this module
 //! fixes its label *names* with it, because the exposition format both exporters
 //! write has no way to say that two members of one family disagree about which
 //! labels they have. Both mismatches come back as a [`Refused`] naming what the
-//! name was fixed to, which is what lets `Core\Metrics` throw for the kind (§ 3
-//! calls it a mistake and not a mode) while a cardinality refusal stays the
-//! no-op § 7 asks for.
+//! name was fixed to, which is what lets `Core\Metrics` throw for the kind (that
+//! rule calls it a mistake and not a mode) while a cardinality refusal stays the
+//! no-op `rule:observability/past-max-series-a-new-series-is-refused` asks for.
 //!
 //! A histogram carries its boundaries for the same reason: a table whose first
 //! boundary sits above every observation records a count and answers nothing, so
@@ -188,11 +193,11 @@ impl Kind {
 /// names every member of it carries.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Family {
-    /// The series name, as § 1 spells it.
+    /// The series name, as `rule:observability/default-series` spells it.
     pub name: &'static str,
     /// What it counts.
     pub kind: Kind,
-    /// The label names, in § 1's order. Every member carries all of them.
+    /// The label names, in that rule's order. Every member carries all of them.
     pub labels: &'static [&'static str],
     /// The boundaries, for a histogram; empty otherwise.
     pub buckets: &'static [f64],
@@ -200,8 +205,8 @@ pub struct Family {
 
 /// `rule:observability/default-series`'s declared series, present the moment an exporter is configured.
 ///
-/// Each is read from instrumentation that already exists, which is § 1's own
-/// governing claim and the reason no probe site is added anywhere to carry them.
+/// Each is read from instrumentation that already exists, which is that rule's
+/// own governing claim and the reason no probe site is added anywhere to carry them.
 /// A name here is fixed to its kind and its labels before any code runs, so the
 /// first mistaken `Core\Metrics::observe("nvs_requests_total", …)` is refused
 /// rather than recorded.
@@ -357,13 +362,14 @@ impl Value {
 /// Why a write reached no series.
 ///
 /// A mismatch is the caller's mistake and a cardinality refusal is the
-/// deployment's, which is the distinction a caller acts on: § 3 makes a kind or
-/// a label mismatch a throw naming what the name was fixed to, while § 7's
-/// cardinality refusal is a no-op with a warning behind it
+/// deployment's, which is the distinction a caller acts on:
+/// `rule:observability/a-name-is-fixed-to-one-kind` makes a kind or a label
+/// mismatch a throw naming what the name was fixed to, while
+/// `rule:observability/past-max-series-a-new-series-is-refused`'s cardinality refusal is a no-op with a warning behind it
 /// ([`Registry::refusals`]).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Refused {
-    /// The name is fixed to another kind (§ 3).
+    /// The name is fixed to another kind.
     Kind {
         /// The series name.
         name: String,
@@ -381,7 +387,7 @@ pub enum Refused {
         /// The label names this call wrote, sorted.
         asked: Vec<String>,
     },
-    /// The core already holds `max_series` series and this one is new (§ 7).
+    /// The core already holds `max_series` series and this one is new.
     Cardinality {
         /// The series name whose newest labels were lost.
         name: String,
@@ -391,7 +397,7 @@ pub enum Refused {
 }
 
 impl Refused {
-    /// The metric this refusal is about, which is what § 7's warning names.
+    /// The metric this refusal is about, which is what the cardinality warning names.
     #[must_use]
     pub fn metric(&self) -> &str {
         match self {
@@ -485,7 +491,8 @@ pub const REFUSED_NAMES: usize = 256;
 /// One core's series, and the bound it holds them under.
 ///
 /// Built by [`Registry::of`] where an exporter is configured, and by
-/// [`Registry::new`] where § 3's members accumulate without one.
+/// [`Registry::new`] where `Core\Metrics` accumulates without one
+/// (`rule:observability/metrics-three-members`).
 #[derive(Clone, Debug)]
 pub struct Registry {
     exporter: Option<Exporter>,
@@ -497,7 +504,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// A registry bounded at `max_series`, carrying § 1's declared series and no
+    /// A registry bounded at `max_series`, carrying [`DEFAULT`]'s declared series and no
     /// exporter.
     #[must_use]
     pub fn new(max_series: u64) -> Self {
@@ -520,7 +527,7 @@ impl Registry {
         self.exporter
     }
 
-    /// § 7's bound, per core.
+    /// `rule:observability/past-max-series-a-new-series-is-refused`'s bound, per core.
     #[must_use]
     pub fn max_series(&self) -> u64 {
         self.max_series
@@ -576,10 +583,11 @@ impl Registry {
         self.shapes.get(name).map(|shape| shape.labels.as_slice())
     }
 
-    /// How many series each metric has lost to § 7's bound since this registry
-    /// was built.
+    /// How many series each metric has lost to the `max_series` bound since this
+    /// registry was built.
     ///
-    /// The count rather than the fact, because the warning § 7 asks for is one
+    /// The count rather than the fact, because the warning
+    /// `rule:observability/past-max-series-a-new-series-is-refused` asks for is one
     /// per window and an operator reading it wants to know whether they lost one
     /// label combination or ten thousand. The first [`REFUSED_NAMES`] distinct
     /// names are keyed here; refusals of any name past them are counted in
@@ -589,7 +597,7 @@ impl Registry {
         &self.refusals
     }
 
-    /// How many series were lost to § 7's bound under a name that arrived after
+    /// How many series were lost to the `max_series` bound under a name that arrived after
     /// [`Registry::refusals`] already held [`REFUSED_NAMES`] keys.
     #[must_use]
     pub fn refused_unnamed(&self) -> u64 {
@@ -693,7 +701,7 @@ impl Registry {
     }
 
     /// [`Registry::record`]'s path for a write [`Registry::rewrite`] could not
-    /// make: it fixes the name, applies § 7's bound, and builds the series.
+    /// make: it fixes the name, applies the `max_series` bound, and builds the series.
     fn create(
         &mut self,
         site: Option<&str>,
@@ -725,21 +733,22 @@ impl Registry {
     /// already knows: the verb, the status that went back, and the **route's
     /// path pattern** (`nvs_server::route::label`).
     ///
-    /// `route` is the label § 1 says would otherwise be unbounded, and this is
+    /// `route` is the label `rule:observability/route-label-is-the-path-pattern`
+    /// says would otherwise be unbounded, and this is
     /// the one place its value is chosen. It is a pattern out of `rule:routing/routes-are-compiled-not-registered`'s
     /// compile-time table and never the request's path, so the label's set is
     /// closed by the compile that produced the table. **A request that matched
     /// nothing carries the label empty rather than not at all**: an exposition
     /// format cannot hold a family whose members disagree about which labels
     /// they have, and a program with no route table then has one series per
-    /// method and status, which is § 1's "no `route` label" with a spelling the
+    /// method and status, which is that rule's "no `route` label" with a spelling the
     /// wire allows.
     ///
     /// `method` is closed the same way, by [`method_label`]: a verb the client
     /// made up is `other`, so a request's bytes never become a label.
     ///
     /// Nothing is returned. Both names are seeded by [`DEFAULT`], so neither
-    /// mismatch in [`Refused`] is reachable here, and § 7's cardinality refusal
+    /// mismatch in [`Refused`] is reachable here, and the cardinality refusal
     /// is the no-op it is defined to be — counted in [`Registry::refusals`] and
     /// never allowed to affect the response that produced it.
     pub fn request(&mut self, method: &str, status: u16, route: Option<&str>, took: Duration) {
@@ -761,7 +770,7 @@ impl Registry {
     /// labelled the way [`Registry::request`] labels its two: the route's path
     /// pattern, or empty for a request that matched none. Nothing is
     /// returned, for that method's reason — the family is seeded by
-    /// [`DEFAULT`], so the only refusal left is § 7's counted no-op.
+    /// [`DEFAULT`], so the only refusal left is the cardinality refusal's counted no-op.
     pub fn request_peak(&mut self, route: Option<&str>, peak: usize) {
         #[allow(clippy::cast_precision_loss)]
         let bytes = peak as f64;
@@ -772,7 +781,7 @@ impl Registry {
         );
     }
 
-    /// [`Registry::new`] and [`Registry::of`]'s shared body: § 1's roster, then
+    /// [`Registry::new`] and [`Registry::of`]'s shared body: [`DEFAULT`]'s roster, then
     /// a zero-valued member of every family that has no labels to distinguish
     /// one member from another.
     ///
@@ -810,7 +819,7 @@ impl Registry {
         registry
     }
 
-    /// Fixes or checks the name's shape, applies § 7's bound, and makes sure the
+    /// Fixes or checks the name's shape, applies the `max_series` bound, and makes sure the
     /// series exists — so that the writers above are one lookup each and
     /// share every rule.
     fn admit(
@@ -982,15 +991,16 @@ fn held<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
 /// Gives this core the registry `config` asks for, unless it already has one.
 ///
 /// [`Registry::of`] is what decides, so a tree naming no exporter leaves this
-/// core with nothing and every count below it a no-op — which is § 3's reading
-/// of `exporter = false` and the cheapest one there is.
+/// core with nothing and every count below it a no-op — which is how a serving
+/// core reads `exporter = false`, and the cheapest reading there is.
 ///
 /// **Idempotent**, and that is the contract rather than a convenience: the
 /// counters belong to the core and not to the accept loop that happened to
 /// build them, so a second loop on the same core adds to the same series. It
 /// is also what makes a re-entered loop safe, since a registry that was
 /// rebuilt would reset every counter under it and every backend reads that as
-/// a process restart (§ 7's own argument against eviction). A core that
+/// a process restart (`rule:observability/past-max-series-a-new-series-is-refused`'s
+/// own argument against eviction). A core that
 /// already holds one **adopts** the exporter into it ([`Registry::adopt`])
 /// rather than keeping a registry nothing ships, which is the same sentence
 /// read against the registry [`record`] builds.
@@ -1383,8 +1393,10 @@ mod tests {
         }
     }
 
-    /// § 6: `exporter = false`, an unwritten key and a missing block each build
-    /// no registry at all, and a written bound is what § 7 holds a core to.
+    /// `rule:observability/metrics-and-trace-blocks-are-system`'s `[metrics]` block:
+    /// `exporter = false`, an unwritten key and a missing block each build no
+    /// registry at all, and a written bound is what
+    /// `rule:observability/past-max-series-a-new-series-is-refused` holds a core to.
     #[test]
     fn no_exporter_builds_no_registry_and_a_written_bound_is_the_one_in_force() {
         assert!(Registry::of(&Config::default()).is_none());
@@ -1402,7 +1414,7 @@ mod tests {
         assert_eq!(written.exporter(), Some(Exporter::Otlp));
         assert_eq!(written.max_series(), 64);
 
-        // § 6's own default, for a block that names an exporter and no bound.
+        // The block's own default, for a block that names an exporter and no bound.
         let defaulted = Registry::of(&configured(Setting::Text("otlp".to_owned()), None))
             .expect("an otlp exporter builds a registry");
         assert_eq!(defaulted.max_series(), 10_000);
@@ -1436,7 +1448,7 @@ mod tests {
         ));
     }
 
-    /// § 7 on both sides: the last series the bound accepts is recorded, the
+    /// `rule:observability/past-max-series-a-new-series-is-refused` on both sides: the last series the bound accepts is recorded, the
     /// first one past it is refused and counted, and **every existing series
     /// keeps answering** — which is the half that separates this from eviction.
     #[test]
@@ -1521,7 +1533,7 @@ mod tests {
         assert_eq!(registry.len(), 4);
     }
 
-    /// § 3: a name is fixed to one kind on first use, and this module fixes its
+    /// `rule:observability/a-name-is-fixed-to-one-kind`: a name is fixed to one kind on first use, and this module fixes its
     /// label names with it. Neither mismatch records anything.
     #[test]
     fn a_name_is_fixed_to_one_kind_and_one_label_set() {

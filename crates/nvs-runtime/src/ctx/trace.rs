@@ -98,13 +98,14 @@ pub enum FaultSite {
 /// `rule:observability/trace-events-carry-a-kind`
 /// 's kinds a [`TraceEvent`] is.
 ///
-/// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
+/// The tag is the whole of the distinction here, and deliberately so: that rule keeps
 /// a `call` event's shape exactly as `rule:testing/debug-probes` defines it, and the other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
 /// A `query`'s field set is fixed by `rule:observability/a-query-is-a-trace-event`
 /// and lives in `nvs_db::QuerySpan`, and an `http`'s by the same rule as this
 /// one in `Core\Http\Client`'s own span — each in the crate that is already
-/// holding the facts; a per-kind payload is what § 4's export needs and what lands with
+/// holding the facts; a per-kind payload is what
+/// `rule:observability/speedscope-timeline-export` needs and what lands with
 /// `rule:testing/debug-probes`'s sink, alongside the `PROFILE` timing the `trace` field's own doc
 /// comment defers for the same reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -511,7 +512,8 @@ impl Ctx {
     /// fields, and [`crate::spool::Query`] is the one type the writer and the
     /// ingester share, so `nvs_db::QuerySpan::spooled` fills it there.
     ///
-    /// The rendering is `QuerySpan`'s `Display`, so § 11's "never parameters"
+    /// The rendering is `QuerySpan`'s `Display`, so
+    /// `rule:observability/a-query-is-a-trace-event`'s "never parameters"
     /// is held where the span is built and
     /// `a_query_span_contains_no_parameter_value_anywhere` asserts it over that
     /// same rendering; nothing here can put a bound value back.

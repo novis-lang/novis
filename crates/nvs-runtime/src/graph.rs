@@ -1,8 +1,8 @@
 //! `rule:classes/graph-copy`'s graph copy: one walk, reached by two carriers.
 //!
 //! A recursive, cycle-safe traversal of a value's reachable structure that
-//! produces a result sharing no mutable heap state with its source. § 2 names
-//! two carriers for it — live, arena-to-arena at the `spawn` boundary, and
+//! produces a result sharing no mutable heap state with its source. The rule
+//! names two carriers for it — live, arena-to-arena at the `spawn` boundary, and
 //! externalized to bytes as `Core\Serialize::encode`/`decode` — and the whole
 //! point of the item is that they are **one** operation. Two implementations
 //! that agree today is the failure this module exists to prevent.
@@ -18,7 +18,7 @@
 //!
 //! # Decision: identity is *object* identity, and nothing else
 //!
-//! § 2 asks for shared substructure to stay shared and for a cycle to
+//! `rule:classes/graph-copy` asks for shared substructure to stay shared and for a cycle to
 //! terminate, and it states both in terms of objects — "two properties pointing
 //! at the same nested object". That is not an omission:
 //!
@@ -51,7 +51,7 @@
 //!
 //! # Decision: a refusal is a bit on the class, never a shape it happens to have
 //!
-//! § 2's refusals are about what a value *is*, and the two an object can still
+//! `rule:classes/graph-copy`'s refusals are about what a value *is*, and the two an object can still
 //! carry into the walk are both marks on its [`ClassDesc`]:
 //! [`ClassDesc::is_callable()`] and [`ClassDesc::holds_host_handle()`]. Neither
 //! is inferred from the instance in front of [`refusable`] — a declared
@@ -196,7 +196,7 @@ trait Carrier {
     /// in the identity map immediately, which is what lets a cycle terminate.
     fn open_object(&mut self, class: &ClassDesc, adopted: Option<Value>) -> Self::Node;
 
-    /// § 2's *unresolvable class*: may an instance of `class` exist on the
+    /// `rule:classes/graph-copy`'s *unresolvable class*: may an instance of `class` exist on the
     /// receiving side at all?
     ///
     /// A carrier question rather than one of [`refusable`]'s, because the two
@@ -208,7 +208,7 @@ trait Carrier {
     ///
     /// # Errors
     ///
-    /// [`GraphError`] naming the class, per § 2's "never a stub".
+    /// [`GraphError`] naming the class, per that rule's "never stubbed".
     fn admit(&self, _class: &ClassDesc) -> Result<(), GraphError> {
         Ok(())
     }
@@ -391,7 +391,7 @@ fn walk<C: Carrier>(
 pub(crate) const GENERATOR_REFUSAL: &str =
     "a generator is a suspended frame, so it has no meaning on the other side of a copy boundary";
 
-/// § 2's "refuses what has no meaning on the other side", for the shapes that
+/// `rule:classes/graph-copy`'s "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`].
 ///
 /// All three refusals are a fact about the class and nothing structural. A
@@ -433,7 +433,7 @@ pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
 // The live carrier
 // ============================================================================
 
-/// § 2's first carrier: arena-to-arena, with no intervening byte
+/// The graph copy's first carrier: arena-to-arena, with no intervening byte
 /// representation.
 ///
 /// `receiving` is the class table the copy lands in, when the crossing has one
@@ -448,7 +448,8 @@ struct Live<'a> {
 impl Carrier for Live<'_> {
     type Node = Value;
 
-    /// § 2's third bullet, at the live carrier: **the same class, not a class
+    /// `rule:classes/graph-copy`'s unresolvable-class refusal, at the live
+    /// carrier: **the same class, not a class
     /// of the same name.**
     ///
     /// Identity is the descriptor's address, which is stricter than resolving
@@ -483,7 +484,7 @@ impl Carrier for Live<'_> {
         }
     }
 
-    /// § 2's move, and **the one place in the runtime an allocation changes
+    /// The live carrier's move at refcount 1, and **the one place in the runtime an allocation changes
     /// owners** — so an object's live-list membership changes here too, inside
     /// this implementation rather than at any call site.
     ///
@@ -579,7 +580,7 @@ impl Carrier for Live<'_> {
     }
 }
 
-/// § 2's live carrier, as one call. **Consumes one reference to `value`** and
+/// The graph copy's live carrier, as one call. **Consumes one reference to `value`** and
 /// returns one, which is the same allocation wherever a move at refcount 1 let
 /// it be adopted.
 ///
@@ -636,7 +637,7 @@ pub fn copy_graph_to(
 // The byte carrier
 // ============================================================================
 
-/// § 2's second carrier: the same walk, appending `rule:classes/serialize-is-a-closed-format`'s closed format.
+/// The graph copy's second carrier: the same walk, appending `rule:classes/serialize-is-a-closed-format`'s closed format.
 struct Encode {
     /// The payload so far, magic and version already written.
     out: Vec<u8>,
@@ -762,8 +763,9 @@ impl Carrier for Encode {
         self.blob(&name);
         self.varint(length(class.field_count()));
         // Every declared property's name, *before* any of their values — which
-        // is what lets a decode check § 3's "recorded property set does not
-        // exactly match the target class's current declared properties" before
+        // is what lets a decode check `rule:classes/serialize-is-a-closed-format`'s
+        // "recorded property set does not
+        // exactly match the target class's current declarations" before
         // it builds anything at all.
         for index in 0..class.field_count() {
             let field = class
@@ -794,7 +796,7 @@ impl Carrier for Encode {
     }
 }
 
-/// § 2's externalizing carrier — `Core\Serialize::encode`'s whole body.
+/// The graph copy's externalizing carrier — `Core\Serialize::encode`'s whole body.
 /// **Consumes one reference to `value`.**
 ///
 /// # Errors
@@ -949,7 +951,7 @@ impl Reader<'_> {
         }
     }
 
-    /// One object node — § 3's refusals, every one of them made *before* a
+    /// One object node — `rule:classes/serialize-is-a-closed-format`'s refusals, every one of them made *before* a
     /// single field is read.
     fn object(&mut self, depth: u32) -> Result<Value, GraphError> {
         let name = String::from_utf8(self.blob()?)
@@ -990,8 +992,8 @@ impl Reader<'_> {
             }
         }
         // Registered before its fields are read: that is what a cycle's
-        // back-reference finds, and § 2's "a cycle terminates instead of
-        // recursing forever" on this side.
+        // back-reference finds, and `rule:classes/graph-copy`'s "a cycle
+        // terminates instead of recursing" on this side.
         #[expect(
             unsafe_code,
             reason = "the descriptor came from a class table that outlives every \
@@ -1009,7 +1011,7 @@ impl Reader<'_> {
     }
 }
 
-/// § 3's `Core\Serialize::decode`: the closed format read back, or a refusal.
+/// `rule:classes/serialize-is-a-closed-format`'s `Core\Serialize::decode`: the closed format read back, or a refusal.
 ///
 /// `resolve` answers with the descriptor for a class name, from whichever table
 /// holds it: [`crate::Ctx::class_desc`] is the resolver every call site passes,
@@ -1152,7 +1154,7 @@ mod tests {
     use crate::object::{ClassTable, MethodRow, SlotCheck};
 
     /// A table with one two-field class, `Node { value, next }` — enough to
-    /// build sharing and a cycle, which are the two properties § 2 states.
+    /// build sharing and a cycle, which are the two properties `rule:classes/graph-copy` states.
     fn table() -> ClassTable {
         let mut table = ClassTable::new();
         table.define("Node", &["value", "next"], &[]);
@@ -1201,7 +1203,7 @@ mod tests {
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let callable = Value::object(unsafe { NvsObj::new(callables.desc(id)) });
 
-        // A `secret` property, which § 2's walk refuses on the same pass.
+        // A `secret` property, which the graph copy's walk refuses on the same pass.
         let mut wallets = ClassTable::new();
         let id = wallets.define("Wallet", &["key"], &[]);
         wallets.set_secret_fields(id, vec![true]);
@@ -1237,7 +1239,7 @@ mod tests {
         }
     }
 
-    /// § 2's refusal is about what a value *is*, so a class a program declared
+    /// `rule:classes/graph-copy`'s refusal is about what a value *is*, so a class a program declared
     /// crosses both carriers however it spelled its method names — the
     /// [`ClassDesc::is_callable()`] bit is the whole test, and `invoke` is a
     /// name a program may use.
@@ -1276,7 +1278,7 @@ mod tests {
         release(command);
     }
 
-    /// § 2's third refusal, `rule:security/isolate-values-cross-by-copy`'s "an
+    /// `rule:classes/graph-copy`'s third refusal, `rule:security/isolate-values-cross-by-copy`'s "an
     /// object holding a host handle is owned by this process": the mark is the
     /// class's bit, so the refusal names the class, and a `uint` slot on a
     /// class carrying no bit is an ordinary number that crosses.
@@ -1311,7 +1313,7 @@ mod tests {
         release(ticks);
     }
 
-    /// § 2's move: at refcount 1 the allocation is *reused*, which is the
+    /// The live carrier's move: at refcount 1 the allocation is *reused*, which is the
     /// semantics rather than an optimisation — asserted by pointer, because
     /// nothing about the copy's contents could tell the two apart.
     #[test]
@@ -1331,7 +1333,7 @@ mod tests {
         release(moved);
     }
 
-    /// § 2's cycle rule, from both carriers: the walk terminates, and what
+    /// `rule:classes/graph-copy`'s cycle rule, from both carriers: the walk terminates, and what
     /// comes back is cyclic in the same place rather than unrolled or cut.
     #[test]
     fn a_cyclic_value_crosses_without_hanging() {
@@ -1368,7 +1370,7 @@ mod tests {
         }
     }
 
-    /// § 3's first bullet: a payload that does not carry Novis's marker and
+    /// `rule:classes/serialize-is-a-closed-format`: a payload that does not carry Novis's marker and
     /// version is refused outright — never best-effort parsed, never partially
     /// accepted.
     #[test]
@@ -1457,7 +1459,7 @@ mod tests {
         assert_eq!(back.exact_tag(), Some(Tag::EnumUint));
     }
 
-    /// § 3's third bullet: a recorded property set that is not the class's
+    /// `rule:classes/serialize-is-a-closed-format`: a recorded property set that is not the class's
     /// **current** one is refused naming the mismatch — never coerced, never
     /// filled with a type default, and refused before the object is built.
     #[test]
@@ -1487,7 +1489,7 @@ mod tests {
             "the refusal did not name the mismatch: {why}"
         );
 
-        // And § 3's second bullet, on the same payload: a class the receiving
+        // And the same rule's unresolvable class, on the same payload: a class the receiving
         // side cannot resolve at all.
         let empty = ClassTable::new();
         let why = decode(&written, &resolver(&empty)).expect_err("the class is gone");

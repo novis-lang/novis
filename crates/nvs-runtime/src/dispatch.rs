@@ -682,11 +682,11 @@ pub(crate) fn call_unwind(
 /// dependencies before dependants always finds what [`Self::build`] asks for
 /// already here.
 ///
-/// **Built once here and copied into each test**, which is § 8's own bargain:
+/// **Built once here and copied into each test**, which is `rule:testing/fixtures`'s own bargain:
 /// the expensive half runs once per class, and what a test is handed is
 /// [`CrossedFixtures`] — its own graph copy, sharing no mutable state with
 /// this set or with the test before it. A test that mutates what it was given
-/// therefore mutates a copy, and § 2's isolation holds over a fixture as it
+/// therefore mutates a copy, and `rule:testing/isolate-per-test`'s isolation holds over a fixture as it
 /// does over a static.
 #[derive(Debug, Default)]
 pub struct Fixtures {
@@ -802,7 +802,7 @@ impl Drop for Fixtures {
 /// [`Value`] it may pass but never owns.
 ///
 /// Where `Fixtures` is a **per-class** owner, this is a **per-call** one, and
-/// that is § 9's own rule rather than a convenience: each row is its own case,
+/// that is `rule:testing/data-rows`'s own rule rather than a convenience: each row is its own case,
 /// so its values are built where the call is made and released when it
 /// returns, and no two cases ever share one. A row holds only the constants
 /// `nvs_types::defaults::literal_default` folds — the scalars and a
@@ -1063,7 +1063,7 @@ impl Drop for InputValues {
 /// type's reason: the copy carries one reference each and somebody has to
 /// release it once the call has returned, which `nvs-cli` cannot spell. Where
 /// `Fixtures` is the **per-class** owner, this is the **per-test** one, and
-/// that split is § 2 rather than a convenience — the set outlives the class's
+/// that split is `rule:testing/isolate-per-test` rather than a convenience — the set outlives the class's
 /// last test, a copy does not outlive the isolate it was made for.
 ///
 /// The copy is made on the **parent's** stack, before the isolate exists, and
@@ -1212,7 +1212,7 @@ pub type AfterTest<'a> = dyn FnMut(&mut Ctx, Value, Result<(), i32>) + 'a;
 
 /// `rule:testing/runner-is-strict`'s
 /// one test: a fresh instance of `class`, its `method` called on that instance
-/// with `args` — § 8's fixtures, in the order the checker resolved them — then
+/// with `args` — `rule:testing/fixtures`'s fixtures, in the order the checker resolved them — then
 /// `after`, and the instance released.
 ///
 /// `after` is `rule:testing/after-each-test`'s seam: it receives the instance,
@@ -1222,9 +1222,9 @@ pub type AfterTest<'a> = dyn FnMut(&mut Ctx, Value, Result<(), i32>) + 'a;
 /// called: a constructor that threw left no object to clean up after.
 ///
 /// **One instance per call** is the whole of what a runner buys from this
-/// entry point — § 2's isolation begins at "no test observes another's
+/// entry point — `rule:testing/isolate-per-test`'s isolation begins at "no test observes another's
 /// receiver", and an instance shared across two methods would lose that before
-/// the isolates that finish it exist. The constructor is § 7's `setUp` and is
+/// the isolates that finish it exist. The constructor is `rule:testing/constructor-is-setup`'s `setUp` and is
 /// run where the class declares one; a class that declares none carries no
 /// `constructor` row at all (`nvs_ir` lowers such a `new` with no target), so
 /// the allocation and its armed defaults are the whole of construction.
@@ -1242,7 +1242,8 @@ pub type AfterTest<'a> = dyn FnMut(&mut Ctx, Value, Result<(), i32>) + 'a;
 ///   test failing — a failed assertion arrives here as `rule:testing/failure-ledger`'s
 ///   `Core\Test\Failure` like any other throw;
 /// - [`crate::THROWN`] for a constructor that declares parameters, which
-///   nothing supplies: § 7 makes the constructor `setUp` and § 8 injects into
+///   nothing supplies: `rule:testing/constructor-is-setup` makes the constructor `setUp` and
+///   `rule:testing/fixtures` injects into
 ///   the *test method's* parameters, so there is no roster a constructor
 ///   argument could come out of. A throw rather than a [`crate::FATAL`]: it is
 ///   a limit of this runner, so the suite reports that test and carries on;
@@ -1292,7 +1293,7 @@ pub unsafe fn construct_and_call(
                 ctx,
                 Fault::thrown(format!(
                     "`{}`'s constructor declares {} parameter(s), and this runner supplies \
-                     none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and § 8's fixtures \
+                     none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and fixtures \
                      fill the test method's own parameters",
                     desc.name(),
                     row.arity

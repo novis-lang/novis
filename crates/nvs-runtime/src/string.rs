@@ -155,7 +155,7 @@
 //!
 //! What discharges it is a property of the **tag**, not of this module: a
 //! `string` is well-formed UTF-8 by construction
-//! (`rule:types/bytes`). Its § 3 makes
+//! (`rule:types/bytes`). `rule:types/conversion` makes
 //! `bytes as string` — the one conversion that could introduce arbitrary
 //! octets — checked and throwing, and every other producer either copies a
 //! payload whole or joins payloads end to end, neither of which can split a

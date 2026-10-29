@@ -453,7 +453,7 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 /// *is* the effect: a `Program` is the thing a spawn was after, and there is no
 /// second way to obtain one, so a caller that skipped the check would have
 /// nothing to run. `Cap::ScriptSpawn` is asked with the path as its scope, so
-/// § 4's canonicalise-then-prefix rule applies to a spawn target exactly as it
+/// `rule:security/path-scope-canonicalise-then-prefix` applies to a spawn target exactly as it
 /// does to a read — being allowed to read a file has never been permission to
 /// run it, which is why this is not implied by `fs.read`.
 ///
@@ -681,7 +681,7 @@ mod tests {
         };
         assert!(
             message.contains("script.spawn") && message.contains("child.nvs"),
-            "§ 5's message names the capability and the target: {message}"
+            "the denial names the capability and the target: {message}"
         );
         // And the grant is what turns it into the resolver's answer, on the
         // same path and the same resolver: nothing but the configuration moved.
