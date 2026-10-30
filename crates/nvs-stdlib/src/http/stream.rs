@@ -630,9 +630,10 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
         Framing::Events => crate::instance::slot(receiver, READER_LAST_ID_AT),
         Framing::Lines | Framing::Chunks => Value::null(),
     };
-    // Both scans resume where the previous pull left them. Nothing is consumed
-    // until an element is framed, and a pull only appends, so what they have
-    // already read is still the front of what the reader holds.
+    // Both scans resume where the previous pull left them. A pull only appends,
+    // and the event scan consumes only lines it has finished with
+    // (`EventScan::settle`), so what they have read is still the front of what
+    // the reader holds.
     let mut scan = EventScan::new(carried);
     let mut searched = 0;
     let reader = reader_at(ctx, key, class)?;
@@ -663,6 +664,13 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
             }
             None if ended => break None,
             None => {
+                if matches!(framing, Framing::Events) {
+                    let (used, id) = scan.settle()?;
+                    if let Some(id) = id {
+                        crate::instance::set_slot(receiver, READER_LAST_ID_AT, id);
+                    }
+                    reader.consume(used);
+                }
                 reader.pull()?;
             }
         }
@@ -865,7 +873,18 @@ struct EventScan {
     written: bool,
     name: Option<Vec<u8>>,
     id: Id,
+    /// Whether an `id` line was read in the block still being scanned.
+    open_id: bool,
 }
+
+/// The most octets one block may take before it dispatches, comments and
+/// field names included.
+///
+/// [`transport::EVENT_CEILING`] bounds the `data` and this bounds the rest: a
+/// comment inside an open block cannot be consumed before the block ends, so an
+/// origin that sends comments and never a blank line runs into this cap. Twice
+/// the `data` cap leaves room for one `data: ` prefix per short line.
+const BLOCK_CEILING: usize = 2 * transport::EVENT_CEILING;
 
 impl EventScan {
     /// A scan positioned at the front of a block, with `carried` in force: a
@@ -878,7 +897,39 @@ impl EventScan {
             written: false,
             name: None,
             id: Id::Carried(carried),
+            open_id: false,
         }
+    }
+
+    /// The octets every line read so far took, where those lines leave nothing
+    /// a later event needs, and the id a finished block set, for the walk's slot.
+    ///
+    /// The scan starts again at the front, so the walk consumes what it
+    /// returns. A stream of comments and blocks with no `data` is then held one
+    /// line at a time. A block that is still open returns `0`, because the
+    /// lines it read are part of the event it may still dispatch.
+    ///
+    /// # Errors
+    ///
+    /// A `RuntimeError` where the id a finished block set is not text, as at a
+    /// dispatch.
+    fn settle(&mut self) -> Result<(usize, Option<Value>), Fault> {
+        if self.written || self.name.is_some() || self.open_id {
+            return Ok((0, None));
+        }
+        let used = std::mem::take(&mut self.at);
+        let Id::Set(octets) = &self.id else {
+            return Ok((used, None));
+        };
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "`checked` passes these bytes first"
+        )]
+        let id = Value::str(NvsStr::new(checked(octets, "events")?.as_bytes()));
+        // The slot takes the reference the string was built with, and the scan
+        // borrows it from there, as it borrows the id it started with.
+        self.id = Id::Carried(id);
+        Ok((used, Some(id)))
     }
 
     /// The next event of `octets`, which must start with every octet an
@@ -897,7 +948,14 @@ impl EventScan {
             "events",
         )? {
             self.at += next;
+            if self.at > BLOCK_CEILING {
+                return Err(Fault::thrown(format!(
+                    "{STREAM_NAME}::events(): one event of this reply is longer than the {BLOCK_CEILING} \
+                     bytes an event may take before its blank line"
+                )));
+            }
             if line.is_empty() {
+                self.open_id = false;
                 if self.written {
                     // All three are checked before any is allocated, so a
                     // refusal leaves nothing to release.
@@ -985,7 +1043,10 @@ impl EventScan {
             b"event" => self.name = Some(value.to_vec()),
             // A NUL in an id is the one value the format says to ignore, and
             // ignoring it leaves the previous one standing.
-            b"id" if !value.contains(&0) => self.id = Id::Set(value.to_vec()),
+            b"id" if !value.contains(&0) => {
+                self.id = Id::Set(value.to_vec());
+                self.open_id = true;
+            }
             _ => {}
         }
         Ok(())
@@ -1476,6 +1537,50 @@ mod tests {
             .expect("no cap is reached")
             .expect("the second block carries data");
         assert_eq!(set_id(id).as_deref(), Some("7"));
+    }
+
+    /// Comments and blocks with no `data` are consumed as they are read, so a
+    /// stream that sends only those holds one line at a time. An id such a
+    /// block set goes to the walk's slot then, and a block still open keeps its
+    /// lines until it dispatches.
+    #[test]
+    fn lines_that_dispatch_nothing_are_consumed_as_they_are_read() {
+        let mut scan = EventScan::new(Value::null());
+        let comments = b": ping\n: ping\n\n";
+        assert!(scan.next(comments, false).expect("short").is_none());
+        let (used, id) = scan.settle().expect("no id to check");
+        assert_eq!((used, id.is_none()), (comments.len(), true));
+
+        let mut scan = EventScan::new(Value::null());
+        assert!(scan.next(b"id: 7\n\n", false).expect("short").is_none());
+        let (used, id) = scan.settle().expect("an id that is text");
+        assert_eq!((used, set_id(id).as_deref()), (7, Some("7")));
+        assert!(scan.next(b"data: x\n", false).expect("short").is_none());
+        assert_eq!(
+            scan.settle().expect("open").0,
+            0,
+            "an open block keeps its lines"
+        );
+        let (_, used, set) = scan
+            .next(b"data: x\n\n", false)
+            .expect("short")
+            .expect("the block ends");
+        assert_eq!(
+            (used, set.is_none()),
+            (9, true),
+            "the id was already in force"
+        );
+
+        let mut scan = EventScan::new(Value::null());
+        let mut open = b"data: x\n".to_vec();
+        open.extend(b": c\n".repeat(super::BLOCK_CEILING / 4 + 1));
+        let refused = scan
+            .next(&open, false)
+            .expect_err("an open block has a cap");
+        assert!(
+            format!("{refused:?}").contains("before its blank line"),
+            "{refused:?}"
+        );
     }
 
     /// A body that stops inside a block is a block the origin did not finish,
