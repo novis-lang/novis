@@ -285,6 +285,17 @@ request. Simplicity: one engine stack with no second copy of `wasmparser`, `regi
 Usability: the editor client needs no newer VS Code, and a program author sees whatever the
 `rusqlite`, `fancy-regex` and `icu_experimental` releases change, as their commits say.
 
+**The body wait ends with the body.** Once `hyper` has read a request body to its end, the
+connection leaves `Phase::Body` for a phase with no socket idle wait. The request is then bounded
+by its own `[limits] wall_time` and by a client EOF, which `hyper`'s read probe still sees. Today
+the probe re-arms `body_idle_timeout` (30 s) on every pass while the handler runs, so a handler
+that reads its body and then works for more than 30 s is cut with no reply at all. The gate run
+found it as `registry_build`'s two publish tests under load. It is a product bug the sweep
+surfaced, and the gate stage fixes it, because the stage owes every failure it names. Declined:
+raising the timeout or the test's bound, which loosens a check and still cuts any slow handler.
+Cost: one more phase value per connection, nothing per request. The home is
+`crates/nvs-server/src/io.rs`'s module doc and `rule:http-server/the-server-block-is-boot-class`.
+
 ## Stages
 
 ### 1. the JIT and the sandbox run on cranelift 0.137 and wasmtime 50
@@ -369,50 +380,59 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
+- [x] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+  - [x] `Core\Cldr`'s plural rules are CLDR 49's, so `plural_rules_agree_with_core_cldr_on_its_whole_roster` passes.
+  - [ ] The body wait ends with the body, as the standing decision says, with a server test for the reproduced shape.
+  - [ ] `the_publishing_commands_work_against_the_registry_service` and `the_website_shows_a_published_package_and_search_finds_it_once_released` pass, run once by name.
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. `bun nv deps --check` exits 0 (341 pins, 18 held), and `bun nv owners
---closes dependency-sweep` names no gap.
-- Both actions and every bench and test-server image are at the latest, one commit each. The bench
-  drivers' labels for the next recording moved too (`tools/nv/cmd/bench-compare.ts:61`).
-- `mysql:9.7.4` is the `lts` tag's head, and the MySQL and MariaDB holds are dated 2026-11-30.
-- CI's `supply-chain` job checks the advisories of the eight other lockfiles, one step each
-  (`.github/workflows/ci.yml:1004`). `LOCKFILE_DIRS` (`tools/nv/cmd/ci-changes.ts:39`) is the list,
-  and `PRE_PUSH` and the `deps` lane read it. All eight pass locally with CI's arguments.
-- The rule names the nine lockfiles. `docs/setup.md`'s SDK row says `10.0.26100 or newer`.
+Stages 1 to 5 are done. Stage 6's first verify ran on 2026-10-30. It passed every step before
+`test`, and failed there after 14 m with two failing binaries. Steps 19 to 23 were not reached.
+- `nvs-ext test intl`: ICU4X 2.4 carries CLDR 49, which changed the plural rules of `af`, `bg`,
+  `es` (ordinal), `gl` and `vi` (cardinal). `Core\Cldr` now carries them (commit `8b3957f04`), and
+  the intl test and the `cldr` unit tests pass by name.
+- `nvs-cli test registry_build`: two publish tests fail under load and pass alone. Not fixed yet.
+  The cause is reproduced and is a server bug, recorded as the standing decision *The body wait
+  ends with the body*. A handler that reads its body runs under `Phase::Body`
+  (`crates/nvs-server/src/serve.rs:1702`) until its answer starts. `hyper` 1.12's EOF probe
+  (`mid_message_detect_eof`) reads while the service is pending, and `ConnectionIo::poll_read`
+  (`crates/nvs-server/src/io.rs:444`) arms `body_idle_timeout` on that read (`io.rs:352`). After
+  30 s the read returns `TimedOut`, and `hyper` closes the connection with no reply. The client
+  reports `no header section ended it` (`crates/nvs-stdlib/src/http/transport.rs:1572`). The
+  registry's publish reads its body (`apps/registry/src/App.nvs:656`) and then clones and builds
+  (`apps/registry/src/NvsBuilder.nvs:30`), which takes over 30 s under load. Reproduction: a
+  scratch app with `[server] body_idle_timeout = "2s"` and a handler that calls
+  `Core\Request::body()` and then sleeps 5 s. A `curl` POST gets an empty reply after 2.05 s.
+  Without the `body()` call it gets `200` after 5.1 s.
 
-The sweep finding `env-secret-proofs` is stale. No goal file or `looper.toml` in the tree defines
-that check, so the driver reads it from its own record. `bun nv proofs --gate --only
-'Core\Env::secret'` exits 0 on 2026-10-30. Nothing in the tree can clear it.
+The sweep finding `env-secret-proofs` is stale: its log shows exit 0. No goal file or
+`looper.toml` defines that check, so nothing in the tree can clear it.
 
 ### Next
 
-Stage 6, the gate. Start `bun nv affected --run` with `run_in_background`, end the turn, and fix
-every failure in one pass. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
-dependency-sweep` and `bun nv ci --check`, which now runs nine advisory legs.
+Stage 6: the fix pass goes on. The body-wait fix is next, then verify once more, then the
+goal-end gates: `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and
+`bun nv ci --check`, which now runs nine advisory legs.
 
-- [ ] Run `looper verify` over the whole goal. `tools/nv/cmd/affected.ts:1`
-- [ ] Fix every failure in one pass, never loosening a test. `crates/nvs-ext/tests/spreadsheet_read.rs:844`
-- [ ] `looper verify` again, green, then the goal-end gates. `tools/nv/cmd/ci.ts:103`
+- [ ] Add a phase the connection enters once `hyper` has read the body to its end, with no idle wait. A read in it that returns `Ok(0)` still ends the connection. Rewrite `Phase`'s doc and the module doc's clock section as a whole. `crates/nvs-server/src/io.rs:130`, `crates/nvs-server/src/io.rs:352`, `crates/nvs-server/src/io.rs:444`
+- [ ] Set that phase where the body's end is known, and check every place that sets `Phase::Body` or `Phase::Write`. `crates/nvs-server/src/serve.rs:1702`, `crates/nvs-server/src/serve.rs:1869`, `crates/nvs-server/src/serve.rs:2531`
+- [ ] A server test: a handler reads its body, then sleeps past a short `body_idle_timeout`, and still answers `200`. Wait on the reply, never on time. `crates/nvs-server/src/io.rs:700`
+- [ ] The rule says the body wait ends with the body. Then `bun nv rules --render`. `docs/rules/http-server/the-server-block-is-boot-class.md:1`
+- [ ] Build and clippy, run the new test and the two `registry_build` publish tests once by name, and commit. `crates/nvs-cli/tests/registry_build.rs:1418`
+- [ ] `bun nv affected --run` again with `run_in_background`, green, then the goal-end gates. `tools/nv/cmd/ci.ts:103`
 
-Expected red: `a_header_of_every_column_equal_is_numbered_in_linear_time`
-(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It took 12.6 s against its 10 s
-wall-clock bound in stage 1, and passes in 0.21 s alone. Its fix is to bound the work with a count,
-not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner*). A threshold
-change is not a fix. The `nvs-db` SQLite suites run on the new SQLite for the first time there.
-The intl component's tests and the `Core\Intl` conformance cases run on CLDR data 2.4 for the first
-time there too. A changed relative-time or date string is the new data, and its expected output
-moves with it. The database matrix runs on the new MySQL, SQL Server, Redis, Mailpit and Samba
-images for the first time. For Samba, recreate the service and run every case that names
-`127.0.0.1:16636`, as the playbook's `Core\Ldap` bullet says. `tools/nv/test/ci-changes.test.ts`
-and `tools/nv/test/ci.test.ts` read `LANES` and `PRE_PUSH`, which both grew. `editors/vscode/`
-changed, so the goal-end hook rebuilds the `.vsix`.
+Steps 19 to 23 of verify have not run yet, so they can still fail. Possible red in the next run:
+`a_header_of_every_column_equal_is_numbered_in_linear_time`
+(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It passed in this run, but it took
+12.6 s against its 10 s bound in stage 1. If it fails, bound the work with a count, never with a
+longer time. The database matrix runs on the new images for the first time. For Samba, recreate
+the service as the playbook's `Core\Ldap` bullet says. `editors/vscode/` changed, so the goal-end
+hook rebuilds the `.vsix`.
 
 ### Backlog
 
