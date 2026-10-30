@@ -6,7 +6,7 @@ context: [docs/rules/tooling/fmt-never-reorders-members.md, docs/rules/core-clas
 stages:
   - id: 1
     title: "the order is a rule, and Core\\Json\\KeepKeyOrder compiles only beside Core\\Json\\Derive"
-    status: open
+    status: done
     context: [docs/rules/attributes/attach-sites-and-forms.md, docs/rules/core-classes/derive-attribute.md, crates/nvs-diagnostics/src/code/types_e08.rs, docs/reference/lang/90-attributes.md]
   - id: 2
     title: "nvs_lsp::order writes the member order, and the editor offers it as a source action"
@@ -123,6 +123,9 @@ or one the formatter refuses, gets no action, and `nvs code order` names it and 
 fallback: if a moved member's text cannot be formatted without changing a token, the function
 returns no edit for the file, and `nvs code order` names the file and the class.
 
+**A missing `reason` is `E0401`**, the code a missing field of any attribute's payload gets
+(`docs/reference/lang/90-attributes.md`), and not a second new code. Stage 1 built it that way.
+
 **`#[Core\Json\KeepKeyOrder(reason: string)]`.** A compiler-recognized attribute in
 `ATTRIBUTES` (`crates/nvs-types/src/derive.rs:74`), allowed on a class only
 (`crates/nvs-types/src/derive.rs:146`), with one required field, `reason`. It compiles only on a
@@ -218,14 +221,14 @@ whose `write_out` it reuses.
 **Does:** the rulebook holds the member order and the attribute, and the compiler accepts
 `KeepKeyOrder` beside `Core\Json\Derive` and nowhere else.
 
-- [ ] `rule:tooling/class-members-have-one-order`: record and fragment, `designed`, `goal: member-order`, inserted after `tooling/fmt-never-reorders-members`. `data/rules/tooling/class-members-have-one-order.json:1`, `docs/rules/tooling/class-members-have-one-order.md:1`, `data/rules/tooling.json:44`
-- [ ] `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`: record and fragment, `designed`, `goal: member-order`, placed after `core-classes/derive-property-list` in its topic's list. `data/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.json:1`, `docs/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.md:1`
-- [ ] `rule:tooling/fmt-never-reorders-members` names the action and the command, and its Declined bullet is rewritten. Then `bun nv rules --render`. `docs/rules/tooling/fmt-never-reorders-members.md:10`
-- [ ] `KEEP_KEY_ORDER` in `ATTRIBUTES` beside `DERIVE`, `Site::Class` in `sites`, and its `AttributeDoc`. `crates/nvs-types/src/derive.rs:74`, `crates/nvs-types/src/derive.rs:146`, `crates/nvs-types/src/derive.rs:253`, `crates/nvs-types/src/derive.rs:670`
-- [ ] The `reason` field is required, and the new error code fires when the class has no `Core\Json\Derive`. The check sits with the class's other derive checks. `crates/nvs-types/src/derive.rs:2311`, `crates/nvs-diagnostics/src/code/types_e08.rs:1031`
-- [ ] Conformance: one case that compiles and encodes in written order, one `reject/` case without `Core\Json\Derive`, and one `reject/` case without `reason`. Each runs once by name. `tests/conformance/core/json-keep-key-order-compiles-beside-json-derive.nvst:1`, `tests/conformance/reject/json-keep-key-order-needs-json-derive.nvst:1`, `tests/conformance/reject/json-keep-key-order-needs-a-reason.nvst:1`
-- [ ] The attributes reference gets a `Core\Json\KeepKeyOrder` paragraph under the JSON derive section, and the feature's `about.md` and `details.md` say what it keeps. `docs/reference/lang/90-attributes.md:684`, `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:1`, `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/details.md:1`
-- [ ] A seventh example: a class whose `type` key must come first. `bun nv proofs --comments` passes on it. `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/07-keep-the-json-key-order.nvs:1`
+- [x] `rule:tooling/class-members-have-one-order`: record and fragment, `designed`, `goal: member-order`, inserted after `tooling/fmt-never-reorders-members`. `data/rules/tooling/class-members-have-one-order.json:1`, `docs/rules/tooling/class-members-have-one-order.md:1`, `data/rules/tooling.json:44`
+- [x] `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`: record and fragment, `designed`, `goal: member-order`, placed after `core-classes/derive-property-list` in its topic's list. `data/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.json:1`, `docs/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.md:1`
+- [x] `rule:tooling/fmt-never-reorders-members` names the action and the command, and its Declined bullet is rewritten. Then `bun nv rules --render`. `docs/rules/tooling/fmt-never-reorders-members.md:10`
+- [x] `KEEP_KEY_ORDER` in `ATTRIBUTES` beside `DERIVE`, `Site::Class` in `sites`, and its `AttributeDoc`. `crates/nvs-types/src/derive.rs:74`, `crates/nvs-types/src/derive.rs:146`, `crates/nvs-types/src/derive.rs:253`, `crates/nvs-types/src/derive.rs:670`
+- [x] The `reason` field is required, and the new error code fires when the class has no `Core\Json\Derive`. The check sits with the class's other derive checks. `crates/nvs-types/src/derive.rs:2311`, `crates/nvs-diagnostics/src/code/types_e08.rs:1031`
+- [x] Conformance: one case that compiles and encodes in written order, one `reject/` case without `Core\Json\Derive`, and one `reject/` case without `reason`. Each runs once by name. `tests/conformance/core/json-keep-key-order-compiles-beside-json-derive.nvst:1`, `tests/conformance/reject/json-keep-key-order-needs-json-derive.nvst:1`, `tests/conformance/reject/json-keep-key-order-needs-a-reason.nvst:1`
+- [x] The attributes reference gets a `Core\Json\KeepKeyOrder` paragraph under the JSON derive section, and the feature's `about.md` and `details.md` say what it keeps. `docs/reference/lang/90-attributes.md:684`, `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:1`, `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/details.md:1`
+- [x] A seventh example: a class whose `type` key must come first. `bun nv proofs --comments` passes on it. `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/07-keep-the-json-key-order.nvs:1`
 
 ### 2. nvs_lsp::order writes the member order, and the editor offers it as a source action
 
@@ -235,7 +238,7 @@ whose `write_out` it reuses.
 **Split:** the `.lspt` cases under `tests/lsp/actions/` are a batch of similar files. A writing
 subagent writes them once the session has landed `nvs_lsp::order` and the kind. It builds nothing.
 
-- [ ] `nvs_types::derive::field_order`: the walk at the codec check becomes one public function, and the check calls it. `crates/nvs-types/src/derive.rs:2397`
+- [ ] `nvs_types::derive::field_order`: the walk at the codec check becomes one public function, and the check calls it. `crates/nvs-types/src/derive.rs:2467`
 - [ ] `nvs_lsp::order`: the sort key the standing decision gives, the stable sort, the units that move, the `KeepKeyOrder` freeze and its skip, the derived-class notes, then `nvs_fmt::format`. It returns the new text, the classes it moved, and the notes, or nothing for an ordered file. `crates/nvs-lsp/src/order.rs:1`, `crates/nvs-lsp/src/lib.rs:145`
 - [ ] `Kind::OrderMembers`, its wire name, `asked_for` answering `source` with both source actions, and `CODE_ACTION_KINDS`. `crates/nvs-lsp/src/actions.rs:114`, `crates/nvs-lsp/src/actions.rs:145`, `crates/nvs-lsp/src/actions.rs:188`, `crates/nvs-lsp/src/capabilities.rs:93`
 - [ ] The handshake test that pins the capabilities expects the new kind. `crates/nvs-lsp/tests/handshake.rs:1`
@@ -273,16 +276,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Written, not started. Every design call is under § *Standing decisions*, and the user agreed to the
-order, the source action, `nvs code order` with `--check`, `nvs fmt` unchanged, and the attribute's
-name `Core\Json\KeepKeyOrder`.
+Stage 1 is done. The two rules are `designed` with `goal: member-order`, and
+`rule:tooling/fmt-never-reorders-members` names the action and the command. `KEEP_KEY_ORDER`
+(`Core\Json\KeepKeyOrder`) is on `ATTRIBUTES` with its card, sits on a class only, and its `reason`
+is checked by the shared roster. `check_keep_key_order` (`crates/nvs-types/src/derive.rs:2349`) gives
+`E0892` without `Core\Json\Derive` and `E0401` without `reason`. The three conformance cases pass by
+name. `about.md`, `details.md`, the seventh example, the rendered chapter, `llms-full.txt` and the
+`lang:attributes` perf records are in.
+
+The prompt's sweep, read this session: `env-secret-proofs` reruns green, and the nightly's
+`miri units (nvs-runtime 2/2)` failure was fixed after that run by `a178403e2`. The nightly's
+`proofs / linux-x86_64` failure was one `whoami` timeout in
+`tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs` at 2 jobs at a time,
+and the next push CI ran all 1539 hostile cases green. The nightly's
+`cost guards / windows-x86_64` failure was
+`serve::tests::serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at 0.90x
+to 0.99x over three steady attempts, while the CPU-only fan-out guard in the same job passed. The
+same test passed on Windows in the next push CI with `serve.rs` unchanged, and gives 1.96x on this
+machine. Neither reproduces, so no bound changed. If the next nightly is red on either, it is a cause
+to find, not a flake.
 
 ### Next
 
-Stage 1, after `code-rename-and-calls` is reached.
+Stage 2.
 
-- [ ] The two rules, `designed`, and the change to `rule:tooling/fmt-never-reorders-members`. `data/rules/tooling.json:44`
-- [ ] `KEEP_KEY_ORDER`, its site, its card and its error. `crates/nvs-types/src/derive.rs:74`
-- [ ] The three conformance cases, the reference paragraph, `about.md`, `details.md` and the seventh example. `docs/reference/lang/90-attributes.md:684`
+- [ ] `nvs_types::derive::field_order` out of the walk in `check_class_format`. `crates/nvs-types/src/derive.rs:2467`
+- [ ] `nvs_lsp::order` and its tests. `crates/nvs-lsp/src/order.rs:1`, `crates/nvs-lsp/tests/member_order.rs:1`
+- [ ] `Kind::OrderMembers`, `CODE_ACTION_KINDS`, the handshake test, the `.lspt` cases and the editor reference. `crates/nvs-lsp/src/actions.rs:114`
+
+No test is expected to go red from stage 1: the new code is a new error on a new attribute name.
 
 ### Backlog
