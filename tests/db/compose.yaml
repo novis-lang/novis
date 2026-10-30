@@ -262,7 +262,7 @@ services:
   # again, and the key is the `certs` job's second copy for the reason that job's header gives.
   # ---------------------------------------------------------------------------------------------------
   mssql:
-    image: mcr.microsoft.com/mssql/server:2025-CU9-ubuntu-24.04
+    image: mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04
     depends_on:
       certs:
         condition: service_completed_successfully
