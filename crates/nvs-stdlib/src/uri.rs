@@ -1252,9 +1252,9 @@ pub(crate) fn encode(text: &[u8], form: Form) -> String {
 /// allocation returns an empty string, and the request's next poll ends it.
 fn encoded(text: &[u8], form: Form) -> HelperResult {
     let escape = |byte: u8| !(form.unreserved(byte) || (byte == b' ' && form == Form::FormValue));
-    let len = text
-        .iter()
-        .fold(0_usize, |len, &byte| len.saturating_add(if escape(byte) { 3 } else { 1 }));
+    let len = text.iter().fold(0_usize, |len, &byte| {
+        len.saturating_add(if escape(byte) { 3 } else { 1 })
+    });
     let built = NvsStr::build(len, |out| {
         let mut run = 0;
         for (at, &byte) in text.iter().enumerate() {
@@ -1263,7 +1263,11 @@ fn encoded(text: &[u8], form: Form) -> HelperResult {
             }
             out.push(&text[run..at]);
             if escape(byte) {
-                out.push(&[b'%', HEX[usize::from(byte >> 4)], HEX[usize::from(byte & 0x0f)]]);
+                out.push(&[
+                    b'%',
+                    HEX[usize::from(byte >> 4)],
+                    HEX[usize::from(byte & 0x0f)],
+                ]);
             } else {
                 out.push(b"+");
             }
@@ -3552,7 +3556,10 @@ mod tests {
     /// agree on every byte, at the start, in the middle and at the end.
     #[test]
     fn the_members_write_what_encode_writes() {
-        let subject: String = (0..=127_u8).map(char::from).chain(['é', '→', 'a', ' ']).collect();
+        let subject: String = (0..=127_u8)
+            .map(char::from)
+            .chain(['é', '→', 'a', ' '])
+            .collect();
         for (member, form) in [
             (
                 super::nvs_core_uri_encode_component

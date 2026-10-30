@@ -1712,7 +1712,9 @@ type Captured<'a> = Vec<Option<(usize, &'a str)>>;
 /// keeps many times the subject's size. What it spends: one comparison per
 /// match, beside a search that costs far more.
 fn kept<'a>(found: &mut Vec<Captured<'a>>, groups: Captured<'a>) -> Result<(), Fault> {
-    let mut ask = groups.capacity().saturating_mul(size_of::<Option<(usize, &str)>>());
+    let mut ask = groups
+        .capacity()
+        .saturating_mul(size_of::<Option<(usize, &str)>>());
     if found.len() == found.capacity() {
         let capacity = found.capacity().saturating_mul(2).max(4);
         ask = ask.saturating_add(capacity.saturating_mul(size_of::<Captured<'_>>()));
