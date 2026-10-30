@@ -1,0 +1,13 @@
+<?nvs
+// Attack: a pattern matches every character of a very long text, so the program
+// must keep millions of matches before it calls the function. The program should
+// stop at the memory limit while it collects them.
+// hostile: ends-early 2 FATAL
+
+// 1. A short text where every character is a match. This prints "bbb".
+echo Core\Regex::replaceWith('abc', '.', fn(Core\Regex\Match $m) => 'b'), "\n";
+
+// 2. A text of 20 million characters where every character is a match.
+// The matches need more memory than the program may use, so the program stops here.
+echo "step 2\n";
+echo Core\Str::length(Core\Regex::replaceWith(Core\Str::repeat('a', 20000000), '.', fn(Core\Regex\Match $m) => 'b')), "\n";
