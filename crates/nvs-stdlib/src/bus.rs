@@ -45,7 +45,8 @@
 //! # Decision: the queue is bounded, and an overflow is refused rather than waited on
 //!
 //! `rule:core-classes/topic` says a publisher is never blocked and no queue
-//! grows without bound. A mailbox therefore holds [`MAILBOX_CAP`] envelopes and
+//! grows without bound. A mailbox therefore holds [`MAILBOX_CAP`] envelopes, or
+//! fewer once their payloads reach the publishing request's memory limit, and
 //! refuses the next one, and a refused envelope's subscribers are **not**
 //! counted — so a publish answers what it actually queued. A core cannot reach
 //! that cap while it is running, because it drains its whole mailbox at every
@@ -90,6 +91,7 @@
 //! one read lock and no encode at all.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use nvs_runtime::budget;
@@ -97,7 +99,9 @@ use nvs_runtime::budget;
 /// How many envelopes one core's mailbox holds before the next is refused.
 ///
 /// The module doc owns why an overflow is refused rather than waited on, and
-/// why a core that is running cannot reach this.
+/// why a core that is running cannot reach this. The bytes have a bound beside
+/// this count: [`hand_off`] refuses an envelope that would take the mailbox
+/// past the publishing request's memory limit.
 const MAILBOX_CAP: usize = 1024;
 
 /// One published value on its way to the cores that are not the publisher's.
@@ -131,6 +135,10 @@ struct Mailbox {
     /// Arrival order, drained whole. Written by every other core and read only
     /// by this one.
     queue: Mutex<VecDeque<Envelope>>,
+    /// The payload bytes the queued envelopes name, counted once per mailbox
+    /// even where cores share one carrier. Moved only while [`Self::queue`]'s
+    /// lock is held, so it always matches what that queue holds.
+    held: AtomicUsize,
     /// This core's live subscriber count per topic — written only by this core
     /// and read by every publisher, which is why it is an `RwLock` rather than
     /// the queue's `Mutex`.
@@ -284,8 +292,11 @@ pub(crate) fn subscribers_elsewhere(topic: &str) -> u64 {
 ///
 /// The count is that core's own, read as the envelope is queued. A core whose
 /// mailbox is full takes none of it and contributes none of it, which is the
-/// module doc's refusal.
-pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
+/// module doc's refusal. Full is [`MAILBOX_CAP`] envelopes, or payload bytes
+/// past `limit`, the publishing request's memory limit (`0` for none). So a
+/// core that does not drain holds at most one request's limit of the bus's
+/// bytes.
+pub(crate) fn hand_off(topic: &str, payload: Vec<u8>, limit: usize) -> u64 {
     let queued = {
         // Everything the queue comes to hold is allocated here, and the carrier
         // is a *copy* of what the caller handed over rather than that `Vec`
@@ -303,13 +314,16 @@ pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
                     continue;
                 }
                 let mut waiting = queue(core);
-                if waiting.len() >= MAILBOX_CAP {
+                let held = core.held.load(Ordering::Relaxed);
+                let bytes = held.saturating_add(carrier.len());
+                if waiting.len() >= MAILBOX_CAP || (limit != 0 && bytes > limit) {
                     continue;
                 }
                 waiting.push_back(Envelope {
                     topic: Box::from(topic),
                     payload: Arc::clone(&carrier),
                 });
+                core.held.store(bytes, Ordering::Relaxed);
                 drop(waiting);
                 woken.extend(one_parked(core));
                 queued += listening;
@@ -424,7 +438,14 @@ impl Drop for Drained {
 /// frees what the store allocated, which is the module doc's second bracket.
 pub(crate) fn take_all() -> Drained {
     let _bracket = budget::Detached::begin();
-    Drained(with_mine(|mine| queue(mine).drain(..).collect()).unwrap_or_default())
+    Drained(
+        with_mine(|mine| {
+            let mut waiting = queue(mine);
+            mine.held.store(0, Ordering::Relaxed);
+            waiting.drain(..).collect()
+        })
+        .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]
@@ -438,7 +459,7 @@ mod tests {
     fn a_core_is_never_its_own_neighbour() {
         note_subscribers("bus:self", 3);
         assert_eq!(subscribers_elsewhere("bus:self"), 0);
-        assert_eq!(hand_off("bus:self", vec![1, 2, 3]), 0);
+        assert_eq!(hand_off("bus:self", vec![1, 2, 3], 0), 0);
         assert!(take_all().envelopes().is_empty());
         note_subscribers("bus:self", 0);
     }
@@ -462,7 +483,7 @@ mod tests {
 
         listening.recv().expect("the neighbour has joined");
         let accepted: u64 = (0..=MAILBOX_CAP)
-            .map(|_| hand_off("bus:flooded", vec![0]))
+            .map(|_| hand_off("bus:flooded", vec![0], 0))
             .sum();
         done.send(()).expect("the neighbour is waiting");
 
@@ -475,6 +496,40 @@ mod tests {
             neighbour.join().expect("the neighbour finished"),
             MAILBOX_CAP,
             "and the queue held exactly the cap"
+        );
+    }
+
+    /// The mailbox's byte bound: a core that does not drain takes envelopes
+    /// until their payloads reach the publishing request's memory limit, and
+    /// refuses the next one, far below the count bound.
+    #[test]
+    fn a_mailbox_refuses_an_envelope_past_the_publishers_memory_limit() {
+        const LIMIT: usize = 4096;
+        let (ready, listening) = std::sync::mpsc::channel();
+        let (done, stop) = std::sync::mpsc::channel::<()>();
+        let neighbour = std::thread::spawn(move || {
+            note_subscribers("bus:heavy", 1);
+            ready.send(()).expect("the publisher is waiting");
+            stop.recv().expect("the publisher says when");
+            let taken = take_all().envelopes().len();
+            note_subscribers("bus:heavy", 0);
+            taken
+        });
+
+        listening.recv().expect("the neighbour has joined");
+        let accepted: u64 = (0..5)
+            .map(|_| hand_off("bus:heavy", vec![0; 1024], LIMIT))
+            .sum();
+        done.send(()).expect("the neighbour is waiting");
+
+        assert_eq!(
+            accepted, 4,
+            "four payloads fill the limit and the fifth is refused"
+        );
+        assert_eq!(
+            neighbour.join().expect("the neighbour finished"),
+            4,
+            "and the queue held the four"
         );
     }
 
@@ -514,7 +569,7 @@ mod tests {
         let payload = vec![b'e'; ENTRY];
         let held = budget::detached_bytes();
         let live = budget::live_bytes();
-        assert_eq!(hand_off("bus:charged", payload), 1);
+        assert_eq!(hand_off("bus:charged", payload, 0), 1);
 
         assert!(
             budget::detached_bytes() - held >= ENTRY.cast_signed(),

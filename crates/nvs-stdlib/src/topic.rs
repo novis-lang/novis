@@ -791,7 +791,7 @@ nvs_runtime::nvs_helper! {
     /// value is encoded so that a topic nobody joined elsewhere costs no
     /// carrier at all. What it hands over is bytes and what it counts is what
     /// those cores reported, which is this module's fourth decision.
-    fn nvs_core_topic_publish(_ctx, args: [2]) {
+    fn nvs_core_topic_publish(ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
         let subscribers = subscribers_of(topic);
         let before = budget::live_bytes();
@@ -846,7 +846,7 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::uint(delivered));
         }
         if crate::bus::subscribers_elsewhere(topic) > 0 {
-            delivered += crate::bus::hand_off(topic,externalize(args[1])?);
+            delivered += crate::bus::hand_off(topic, externalize(args[1])?, ctx.memory_limit());
         }
         Ok(Value::uint(delivered))
     }
