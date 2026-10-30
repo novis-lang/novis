@@ -226,6 +226,18 @@ trait Carrier {
 
     /// Give up a half-built holder, because a node beneath it was refused.
     fn discard(&mut self, node: Self::Node);
+
+    /// Whether the request's memory ceiling refused a growth this carrier
+    /// made. The walk then returns at once, so a graph that shares one array
+    /// many times costs no further visits once nothing more can be built.
+    fn stopped(&self) -> bool;
+}
+
+/// What the walk returns once its carrier has [stopped](Carrier::stopped).
+/// The breach is already recorded, and the request's next poll ends it, so no
+/// partial copy reaches another request.
+fn refused_growth() -> GraphError {
+    GraphError("the copy passed the request's memory limit".to_owned())
 }
 
 /// The identity map: one entry per distinct object reached.
@@ -278,6 +290,10 @@ fn walk<C: Carrier>(
             if !adopt {
                 release(value);
             }
+            if carrier.stopped() {
+                carrier.discard(node);
+                return Err(refused_growth());
+            }
             Ok(node)
         }
         Tag::Array => {
@@ -313,6 +329,13 @@ fn walk<C: Carrier>(
                     }
                 };
                 carrier.close_entry(&holder, index, Some(key), child);
+                if carrier.stopped() {
+                    carrier.discard(holder);
+                    if !adopt {
+                        release(value);
+                    }
+                    return Err(refused_growth());
+                }
             }
             if !adopt {
                 release(value);
@@ -372,6 +395,13 @@ fn walk<C: Carrier>(
                     }
                 };
                 carrier.close_entry(&holder, index, None, child);
+                if carrier.stopped() {
+                    carrier.discard(holder);
+                    if !adopt {
+                        release(value);
+                    }
+                    return Err(refused_growth());
+                }
             }
             if !adopt {
                 release(value);
@@ -539,6 +569,11 @@ impl Carrier for Live<'_> {
         if let Some(value) = adopted {
             return value;
         }
+        // One string held in many slots is copied once per slot, so each copy
+        // asks first. A refused copy is `null`, and the walk then stops.
+        if !crate::budget::affords(text.len()) {
+            return Value::null();
+        }
         let held = NvsStr::new(text);
         if tag == Tag::Bytes {
             Value::bytes(held)
@@ -581,6 +616,12 @@ impl Carrier for Live<'_> {
 
     fn discard(&mut self, node: Value) {
         release(node);
+    }
+
+    /// Any refusal the request has recorded: a copied string asks in
+    /// [`Self::text`], and an array asks whenever it grows.
+    fn stopped(&self) -> bool {
+        crate::budget::refused()
     }
 }
 
@@ -808,6 +849,12 @@ impl Carrier for Encode {
         // A refusal throws the whole buffer away, so a half-written node in it
         // is never read.
     }
+
+    /// Only a refused growth. A payload past the caller's limit still walks to
+    /// its end, so a graph [`encode`] refuses is refused there too.
+    fn stopped(&self) -> bool {
+        self.out.stopped() == Some(Stopped::Refused)
+    }
 }
 
 /// The graph copy's externalizing carrier — `Core\Serialize::encode`'s whole body.
@@ -827,15 +874,18 @@ pub fn encode(value: Value) -> Result<Vec<u8>, GraphError> {
 /// [`encode`], for a caller that keeps a payload of at most `limit` bytes.
 /// **Consumes one reference to `value`.**
 ///
-/// `None` is a payload longer than `limit`. The walk still runs to its end, so
-/// a graph [`encode`] refuses is refused here too, but nothing past the limit
-/// is written or allocated. The memory cache passes its size limit, so a value
-/// it could never keep costs no copy of its bytes.
+/// [`Stopped::Over`] is a payload longer than `limit`. The walk still runs to
+/// its end, so a graph [`encode`] refuses is refused here too, but nothing past
+/// the limit is written or allocated. The memory cache passes its size limit,
+/// so a value it could never keep costs no copy of its bytes.
+///
+/// [`Stopped::Refused`] is a growth the request's memory ceiling refused. The
+/// walk returned at that refusal, and the breach is recorded.
 ///
 /// # Errors
 ///
 /// [`GraphError`], exactly as [`encode`].
-pub fn encode_within(value: Value, limit: usize) -> Result<Option<Vec<u8>>, GraphError> {
+pub fn encode_within(value: Value, limit: usize) -> Result<Result<Vec<u8>, Stopped>, GraphError> {
     let mut carrier = Encode {
         out: ByteWriter::within(limit),
         objects: 0,
@@ -843,12 +893,13 @@ pub fn encode_within(value: Value, limit: usize) -> Result<Option<Vec<u8>>, Grap
     carrier.out.put(MAGIC);
     carrier.out.put_byte(VERSION);
     let mut seen = Seen::new();
-    walk(&mut carrier, value, &mut seen, 0)?;
-    match carrier.out.finish() {
-        Ok(payload) => Ok(Some(payload)),
-        Err(Stopped::Over) => Ok(None),
-        Err(Stopped::Refused) => Ok(Some(Vec::new())),
+    if let Err(why) = walk(&mut carrier, value, &mut seen, 0) {
+        if carrier.stopped() {
+            return Ok(Err(Stopped::Refused));
+        }
+        return Err(why);
     }
+    Ok(carrier.out.finish())
 }
 
 // ============================================================================
@@ -1438,8 +1489,48 @@ mod tests {
         );
     }
 
+    /// An array holding one array twice, forty levels deep, is 2^40 strings
+    /// to either carrier. The walk returns at the first refusal, so both
+    /// copies end at the ceiling in a few visits past it, and this test ends.
+    #[test]
+    fn a_doubling_graph_stops_both_carriers_at_the_first_refusal() {
+        let mut top = Value::text(&"x".repeat(1 << 10));
+        for _ in 0..40 {
+            let mut pair = NvsArray::new();
+            retain(top);
+            pair.append(top);
+            pair.append(top);
+            top = Value::array(pair);
+        }
+
+        // A context each, so the copy does not start with the encoding's
+        // refusal already recorded.
+        {
+            let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
+            ctx.set_memory_limit(1 << 20);
+            retain(top);
+            assert!(
+                matches!(encode_within(top, usize::MAX), Ok(Err(Stopped::Refused))),
+                "the encoding of 2^40 strings was not refused"
+            );
+            assert!(ctx.over_memory_limit(), "the encoding recorded no breach");
+        }
+        {
+            let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
+            ctx.set_memory_limit(1 << 20);
+            assert!(!ctx.over_memory_limit(), "the copy began over its ceiling");
+            retain(top);
+            assert!(
+                copy_graph(top).is_err(),
+                "the copy of 2^40 strings was not refused"
+            );
+            assert!(ctx.over_memory_limit(), "the copy recorded no breach");
+        }
+        release(top);
+    }
+
     /// A payload longer than the caller's limit is never written: the buffer
-    /// stops at the limit, the result is `None`, and no breach is recorded,
+    /// stops at the limit, the result is `Stopped::Over`, and no breach is recorded,
     /// because the bytes past the limit were never asked for.
     #[test]
     fn an_encode_past_its_limit_gives_none_and_allocates_nothing_past_it() {
@@ -1449,7 +1540,7 @@ mod tests {
         ctx.set_memory_limit(64 << 20);
         assert_eq!(
             encode_within(text, 64 << 10).expect("a string crosses any boundary"),
-            None,
+            Err(Stopped::Over),
             "a payload of 4 MiB fit a limit of 64 KiB"
         );
         assert!(

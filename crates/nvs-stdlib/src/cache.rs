@@ -2665,11 +2665,18 @@ nvs_runtime::nvs_helper! {
         let payload = nvs_runtime::encode_within(args[2], limit).map_err(|why| {
             Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
         })?;
-        let Some(payload) = payload else {
+        let payload = match payload {
+            Ok(payload) => payload,
             // Only the memory tier passes a limit, and `Entries::put` takes the
             // same exit for an arrival past it: what was under the key goes.
-            memory_forget(&scoped(ctx, &key));
-            return Ok(Value::null());
+            Err(nvs_runtime::budget::Stopped::Over) => {
+                memory_forget(&scoped(ctx, &key));
+                return Ok(Value::null());
+            }
+            // The request's memory ceiling refused the encoding, so the request
+            // ends at its next poll. Nothing is stored: an empty payload would
+            // make every later `get` on the key throw a decode error.
+            Err(nvs_runtime::budget::Stopped::Refused) => return Ok(Value::null()),
         };
 
         match tier {
