@@ -38,7 +38,9 @@ with the pinned key is an error. So is a retraction or a withhold among the log'
 records that the feed does not list, a listed record the log has with other bytes, and a `root` that
 is not the log's at `size` (`crates/nvs-cli/src/package/advisory.rs`). The feed covers a log that
 the client's checkpoint continues, so a record past the feed's `size` is read from the log itself.
-An `advisory` entry is not in the feed: no route writes one, and its `versions` has no syntax yet.
+
+**Not on disk.** An `advisory` entry is not in the feed: no route writes one, and its `versions` has
+no syntax (gap:nvs-cli/advisory-route-and-range).
 
 Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
 nobody asked for does not arrive on its own (`rule:packaging/resolution-takes-the-highest-minimum`),
@@ -52,6 +54,7 @@ narrowly scoped automatic patch floor, not a general range system.
 - **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
   of every fresh resolution before any owner saw it.
 
-**Not on disk.** There is no `nvs pkg audit`, and the registry's service neither writes a
-retraction's `fixed_in` into its log entry nor publishes the feed. Resolution refuses a retracted version
+`nvs pkg audit` is `crates/nvs-cli/src/package/audit.rs`. The service writes a retraction's
+`fixed_in` into its log entry (`apps/registry/src/Events.nvs`) and writes the feed again from the log
+whenever the index is flushed (`apps/registry/src/Index.nvs`). Resolution refuses a retracted version
 the lock does not already have and names its fix (`crates/nvs-cli/src/package/resolve.rs`).

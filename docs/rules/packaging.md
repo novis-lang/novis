@@ -961,10 +961,9 @@ exists.
   is what squatting is.
 
 The client derives the slug from the namespace and refuses `Core` and every built-in component's
-namespace (`crates/nvs-cli/src/package/manifest.rs`).
-
-**Not on disk.** The registry, which owns each vendor, refuses a name that differs from a taken one
-only by case and checks the `Novis\` account at publish, is not written yet.
+namespace (`crates/nvs-cli/src/package/manifest.rs`). At publish the registry refuses a name that
+differs from a taken one only by case, and a `Core\` or `Novis\` name from any account but the
+project's (`apps/registry/src/Publish.nvs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds).</sub>
 
@@ -1047,7 +1046,8 @@ because a root file without it means "no second copy". Under each file host:
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
 (`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
 
-**Not on disk.** An extension package is not packed or fetched as one yet.
+**Not on disk.** An extension package is not packed or fetched as one
+(gap:nvs-cli/extension-package-is-packed-and-fetched).
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
@@ -1109,9 +1109,9 @@ own project is a different question from a language locating a declaration. The 
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** `nvs pkg` has `add`, `fetch`, `update`, `outdated`, `vendor`, `api`, `diff`, `pack`,
-`download` and `provide` (`crates/nvs-cli/src/package/mod.rs`). `audit`, `publish`, `retract`,
-`unlist`, `login` and `whoami` are not written yet, and the editor does not read `[grants]` yet.
+Every `nvs pkg` subcommand is a module under `crates/nvs-cli/src/package/`, which `mod.rs` lists. The
+editor reads `[grants]` from the snapshot the runtime enforces, and a route's hover shows them
+(`crates/nvs-lsp/src/grants.rs`).
 
 <sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
@@ -1250,7 +1250,8 @@ file is canonicalized and must lie under the package's directory (`crates/nvs-ty
 `nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
 (`crates/nvs-cli/src/package/pack.rs`).
 
-**Not on disk.** No fetch path exists to refuse an archive that holds an `nvs.toml`.
+**Not on disk.** `nvs pkg fetch` does not refuse an archive that holds an `nvs.toml`
+(gap:nvs-cli/fetch-refuses-an-archive-with-nvs-toml).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
@@ -1315,8 +1316,11 @@ type-checked.
 - **A mark that suppresses a break the author calls harmless.** A check its author can switch off is a
   convention again.
 
-**Not on disk.** `nvs api diff` compares two OpenAPI documents ([`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change));
-nothing extracts or compares a package's API.
+`nvs pkg api` extracts a package's public API from the checked program, without running any of it
+(`crates/nvs-cli/src/package/api.rs`). `nvs pkg diff` compares two versions' APIs, classifies each
+change as breaking or additive, and refuses a breaking change in a minor or a patch
+(`crates/nvs-cli/src/package/diff.rs`). `nvs api diff` is a different command: it compares two OpenAPI
+documents ([`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change)).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change).</sub>
 
@@ -1487,10 +1491,8 @@ above changes.
 
 The client clones and packs a root git dependency (`crates/nvs-cli/src/package/git.rs`), and
 resolution refuses one found below the root, naming the package that declared it
-(`crates/nvs-cli/src/package/resolve.rs`).
-
-**Not on disk.** The registry, which refuses a publish whose manifest names a git dependency, is not
-written yet.
+(`crates/nvs-cli/src/package/resolve.rs`). The registry's publish build refuses a manifest that names a
+git dependency (`crates/nvs-cli/src/package/build.rs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
 
@@ -1830,9 +1832,9 @@ registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, o
 can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
 host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
 making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
-longer owns the vendor.
-
-**Not on disk.** Creating or revoking a token writes no log entry yet and notifies no owner yet.
+longer owns the vendor. Creating and revoking a token each write a `token` log entry, which names the
+token's id and never the token, and notify the vendor's owners (`Events::token`,
+`apps/registry/src/Events.nvs`).
 
 <sub>See also [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
@@ -1882,10 +1884,9 @@ held after the digest is recorded.
 **On disk.** `nvs registry build` (`crates/nvs-cli/src/package/build.rs`) clones, packs and digests,
 and the service runs it through `Registry\Builder` for every publish (`apps/registry/src/Publish.nvs`).
 The service binds the repository URL and the directory at the first publish, and refuses a publish
-from another repository.
-
-**Not on disk.** No route changes a package's bound repository with a passkey yet, so a changed
-repository is always refused, and no `repository` log entry or owner notice is written for it.
+from another repository. An owner who signed in with a passkey in the last 15 minutes moves the
+package with `POST /api/packages/<vendor>/<name>/repository` (`App::rebind`), which writes a
+`repository` log entry and notifies the vendor's owners (`Events::repository`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
 
@@ -1989,7 +1990,8 @@ it resolves the path again and compares the words (`crates/nvs-runtime/src/capab
 The fetch reads each archive through `crates/nvs-cli/src/package/index.rs`, which stops one byte past
 `pack::MAX_ARCHIVE_BYTES` from a `file:` and from an `https:` file host.
 
-**Not on disk.** `nvs pkg publish` and its `--dry-run` are not written yet.
+`nvs pkg publish` packs and checks the same set before it sends anything, and `--dry-run` prints every
+file, its size, the total and the digest, and sends nothing (`crates/nvs-cli/src/package/publish.rs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
@@ -2067,8 +2069,8 @@ request.
 
 `nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
 `crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`.
-
-**Not on disk.** `nvs pkg publish` and the package page are not written yet.
+`nvs registry build` refuses a malformed `[[download]]` entry at publish, and the package page lists
+each external file with its host, size, SHA-256 hash and license (`apps/registry/src/PackagePage.nvs`).
 
 <sub>See also [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 
@@ -2119,14 +2121,11 @@ lets a mirror or a `vendor/` copy be checked against the log instead of trusted.
 
 **On disk.** `nvs pkg publish` sends the commit, and the service's `POST /api/publish` is
 `Publish::publish` (`apps/registry/src/Publish.nvs`). It runs `nvs registry build`, which refuses
-everything one commit can show, and then refuses a version published before, an inactive account, a
-name outside the token's scope or the vendor's owners, a name that differs only by case, and a changed
-repository. `Index::catchUp` (`apps/registry/src/Index.nvs`) appends the `publish` entry, whose
+everything one commit can show, and then refuses a version published before, an inactive account, an
+account with no verified notification channel, a name outside the token's scope or the vendor's
+owners, a name that differs only by case, and a changed repository. `Index::catchUp` (`apps/registry/src/Index.nvs`) appends the `publish` entry, whose
 digest covers the manifest and its capabilities, before it writes and signs the index file that
 lists the version and its capabilities. The publish is answered only after that.
-
-**Not on disk.** The refusal for an account with no verified notification channel is not checked
-yet, because no channel exists yet.
 
 <sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
@@ -2179,9 +2178,14 @@ retraction sent with a token shows seven days later (`App::retract`). The client
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 
-**Not on disk.** The public feed of pending releases, the owners' notification, and the pending list
-in `nvs pkg publish` and `nvs pkg whoami` are not written, and neither are the website's confirmation
-pages. An advisory sent with a token has no route.
+The signed public list of pending releases is `GET /feeds/pending` (`Feeds::pending`,
+`apps/registry/src/Feeds.nvs`), and each pending release notifies the vendor's owners. `nvs pkg
+publish` and `nvs pkg whoami` print the account's pending releases
+(`crates/nvs-cli/src/package/login.rs`).
+
+**Not on disk.** The website has no page where an owner confirms a release or a stable API with a
+passkey (gap:nvs-cli/release-confirmation-pages). An advisory sent with a token has no route
+(gap:nvs-cli/advisory-route-and-range).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -2286,9 +2290,11 @@ module and of C2SP's and Go's tile paths, vendored under `crates/nvs-cli/tests/f
 The cost is that this tree owns the code for as long as the log exists. The risk is bounded: a
 proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every other verifier.
 
-**Not on disk.** There is no registry service to run the commands, the default registry has no
-verifier key yet, so nothing is read from it, and `nvs pkg audit` does not compare a second copy of
-the checkpoint.
+The registry service under `apps/registry/` runs these commands. `nvs pkg audit` compares the second
+copy of the checkpoint a registry's root file names with the log the file host serves, and stops on
+a disagreement (`crates/nvs-cli/src/package/audit.rs`). The client reads the default registry once its
+verifier key is in the binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), and reads
+nothing from it while that is `None`.
 
 <sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
@@ -2375,7 +2381,9 @@ with the pinned key is an error. So is a retraction or a withhold among the log'
 records that the feed does not list, a listed record the log has with other bytes, and a `root` that
 is not the log's at `size` (`crates/nvs-cli/src/package/advisory.rs`). The feed covers a log that
 the client's checkpoint continues, so a record past the feed's `size` is read from the log itself.
-An `advisory` entry is not in the feed: no route writes one, and its `versions` has no syntax yet.
+
+**Not on disk.** An `advisory` entry is not in the feed: no route writes one, and its `versions` has
+no syntax (gap:nvs-cli/advisory-route-and-range).
 
 Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
 nobody asked for does not arrive on its own ([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)),
@@ -2389,8 +2397,9 @@ narrowly scoped automatic patch floor, not a general range system.
 - **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
   of every fresh resolution before any owner saw it.
 
-**Not on disk.** There is no `nvs pkg audit`, and the registry's service neither writes a
-retraction's `fixed_in` into its log entry nor publishes the feed. Resolution refuses a retracted version
+`nvs pkg audit` is `crates/nvs-cli/src/package/audit.rs`. The service writes a retraction's
+`fixed_in` into its log entry (`apps/registry/src/Events.nvs`) and writes the feed again from the log
+whenever the index is flushed (`apps/registry/src/Index.nvs`). Resolution refuses a retracted version
 the lock does not already have and names its fix (`crates/nvs-cli/src/package/resolve.rs`).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
@@ -2436,8 +2445,11 @@ running it again finishes a delete a store failed. Resolution refuses a withheld
 reason (`crates/nvs-cli/src/package/resolve.rs`). The policy page is `GET /policy`
 (`apps/registry/src/PolicyPage.nvs`).
 
-**Not on disk.** There is no `nvs pkg audit`. A CDN in front of a store may serve
-a cached archive until its cache lifetime ends, because the service never purges a CDN.
+`nvs pkg audit` reports a locked version that is withheld, with its reason
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
+
+**Not on disk.** A CDN in front of a store may serve a cached archive until its cache lifetime ends,
+because the service never purges a CDN (gap:nvs-cli/withhold-purges-the-cdn).
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 
@@ -2513,7 +2525,8 @@ the only per-address data, and both are deleted when the day ends.
   cache waits until a few thousand packages make that cost measurable.
 - **A separate search service.** SQLite's full-text index covers a few thousand packages.
 
-**Not on disk.** There is no registry.
+The search is `apps/registry/src/Search.nvs`, and the order's facts and formula are
+`apps/registry/src/Ranking.nvs`.
 
 <sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api).</sub>
 
@@ -2899,13 +2912,14 @@ The PDF crate is `extensions/pdf/`, built and embedded the same way as `nvs_ext:
 with its digest folded in beside the other two. Its manifest class is `Novis\Pdf\Engine`, the
 interface `wit/pdf.wit`, and its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
 (`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
-`render`'s `whole` pass is implemented, and the exports [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster) still owes
-return `runtime`. The spreadsheet crate is `extensions/spreadsheet/`, built and embedded the same
-way as `nvs_ext::builtin::SPREADSHEET` with its digest folded in beside the other three. Its
-manifest class is `Novis\Spreadsheet\Engine`, the interface `wit/spreadsheet.wit`, and its Novis
-half so far is `Novis\Spreadsheet\Written` (`crates/nvs-ext/tests/spreadsheet.rs`). The writer's
-exports are implemented; `writer-part`, the reader's and the template's return `runtime` and are
-not in its manifest.
+Its exports are `render`, which lays out and draws a document, `merge`, which joins PDFs into one,
+`read`, which returns a PDF's facts, and `read-text`, which returns the text of the pages it names.
+The spreadsheet crate is `extensions/spreadsheet/`, built and embedded the same way as
+`nvs_ext::builtin::SPREADSHEET` with its digest folded in beside the other three. Its manifest class
+is `Novis\Spreadsheet\Engine`, the interface `wit/spreadsheet.wit`, and its Novis half is the classes
+under `extensions/spreadsheet/nvs/` (`crates/nvs-ext/tests/spreadsheet.rs`). Its exports are the
+writer's, which write an xlsx workbook sheet by sheet, the reader's, which read the sheets, rows and
+extras of a workbook, and the template's, which fill the placeholders of a workbook and write it.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
@@ -4120,9 +4134,9 @@ The `sd_notify` protocol is a datagram to
 `$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
 [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) does not arise.
 
-Socket activation — a privileged port with an empty capability set — is deferred rather than refused:
-it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
-would simply follow.
+**Not on disk.** Socket activation, which gives a privileged port with an empty capability set, is
+not written (gap:nvs-cli/socket-activation). It changes how `nvs serve` gets its listener, so it is a
+server change, and the unit generator follows it.
 
 <sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 

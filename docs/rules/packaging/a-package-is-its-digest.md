@@ -71,4 +71,5 @@ because a root file without it means "no second copy". Under each file host:
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
 (`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
 
-**Not on disk.** An extension package is not packed or fetched as one yet.
+**Not on disk.** An extension package is not packed or fetched as one
+(gap:nvs-cli/extension-package-is-packed-and-fetched).

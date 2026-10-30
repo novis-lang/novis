@@ -64,4 +64,5 @@ the only per-address data, and both are deleted when the day ends.
   cache waits until a few thousand packages make that cost measurable.
 - **A separate search service.** SQLite's full-text index covers a few thousand packages.
 
-**Not on disk.** There is no registry.
+The search is `apps/registry/src/Search.nvs`, and the order's facts and formula are
+`apps/registry/src/Ranking.nvs`.

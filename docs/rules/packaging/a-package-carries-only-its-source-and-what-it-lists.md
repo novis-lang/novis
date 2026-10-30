@@ -92,4 +92,5 @@ it resolves the path again and compares the words (`crates/nvs-runtime/src/capab
 The fetch reads each archive through `crates/nvs-cli/src/package/index.rs`, which stops one byte past
 `pack::MAX_ARCHIVE_BYTES` from a `file:` and from an `https:` file host.
 
-**Not on disk.** `nvs pkg publish` and its `--dry-run` are not written yet.
+`nvs pkg publish` packs and checks the same set before it sends anything, and `--dry-run` prints every
+file, its size, the total and the digest, and sends nothing (`crates/nvs-cli/src/package/publish.rs`).

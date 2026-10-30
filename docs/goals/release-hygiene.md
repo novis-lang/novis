@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/test/owners-rules.test.ts, docs/rules/testing/a-failing-proof-is-fixed-or-recorded.md, docs/agent/conventions.md]
   - id: 2
     title: "every packaging and security fragment says what is on disk, and each gap it names is a record"
-    status: open
+    status: done
     context: [docs/rules/packaging/package-toml-is-a-tool-input.md, crates/nvs-cli/src/package/mod.rs, docs/agent/doc-style.md]
   - id: 3
     title: "every core-classes, ide and testing fragment says what is on disk, and each gap it names is a record"
@@ -250,37 +250,37 @@ or cites a gap record, and every real item there has an owner.
 The session confirms each one with the anchor's grep as it rewrites the fragment.
 
 Fully STALE: the code is on disk. Rewrite the fragment to the present and drop the paragraph, with no record:
-- [ ] `rule:packaging/package-toml-is-a-tool-input`: `audit`, `publish`, `retract`, `unlist`, `login` and `whoami` exist, and the editor reads `[grants]`. `docs/rules/packaging/package-toml-is-a-tool-input.md:53`, `crates/nvs-cli/src/package/mod.rs:369`, `crates/nvs-lsp/src/grants.rs:1`
-- [ ] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`: `nvs pkg publish` and `--dry-run` exist. `docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:95`, `crates/nvs-cli/src/package/publish.rs:18`
-- [ ] `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`: `publish` exists, and the package page lists each external file with its host, size, hash and license. `docs/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.md:70`, `apps/registry/src/PackagePage.nvs:414`
-- [ ] `rule:packaging/the-first-party-components-are-built-in`: check the PDF exports and the spreadsheet reader and template against "return `runtime`", and describe what each export does. This paragraph has no bold lead. `docs/rules/packaging/the-first-party-components-are-built-in.md:53`, `extensions/pdf/src/lib.rs:1`, `extensions/spreadsheet/src/lib.rs:914`
-- [ ] `rule:packaging/only-a-major-may-break-the-api`: `nvs pkg api` extracts a package's API, and `nvs pkg diff` classifies each change and refuses a breaking minor. `docs/rules/packaging/only-a-major-may-break-the-api.md:56`, `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-cli/src/package/diff.rs:50`
-- [ ] `rule:security/package-authority-is-granted-one-line-at-a-time`: `nvs pkg add` prints every capability the new subgraph requests. `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:43`, `crates/nvs-cli/src/package/minimum.rs:251`, `crates/nvs-cli/src/package/report.rs:5`
-- [ ] `rule:packaging/a-git-dependency-is-root-only`: the publish build refuses a git dependency. `docs/rules/packaging/a-git-dependency-is-root-only.md:34`, `crates/nvs-cli/src/package/build.rs:367`
-- [ ] `rule:packaging/a-package-name-is-vendor-slash-name`: the registry refuses a name that differs from a taken one only by case, and checks the `Novis\` and `Core\` vendors against the project account. `docs/rules/packaging/a-package-name-is-vendor-slash-name.md:42`, `apps/registry/src/Publish.nvs:121`
-- [ ] `rule:packaging/a-publish-token-is-scoped-and-expires`: creating and revoking a token writes a log entry and notifies the owners. `docs/rules/packaging/a-publish-token-is-scoped-and-expires.md:30`, `apps/registry/src/Events.nvs:74`
-- [ ] `rule:packaging/publishing-never-overwrites`: the registry refuses a publish from an account with no verified notification channel. `docs/rules/packaging/publishing-never-overwrites.md:48`, `apps/registry/src/App.nvs:989`, `apps/registry/src/Notices.nvs:107`
-- [ ] `rule:packaging/search-sorts-by-the-readers-choice`: the registry's search and ranking exist. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:67`, `apps/registry/src/Search.nvs:1`, `apps/registry/src/Ranking.nvs:1`
-- [ ] `rule:packaging/the-registry-builds-the-archive-from-git`: the repository route needs a recent passkey sign-in, and writes a `repository` log entry. `docs/rules/packaging/the-registry-builds-the-archive-from-git.md:43`, `apps/registry/src/App.nvs:789`, `apps/registry/src/Events.nvs:64`
-- [ ] `rule:packaging/the-registry-keeps-an-append-only-log`: the service exists, and `nvs pkg audit` compares the second copy of the checkpoint. The verifier key is the user's own release step, so it gets no record. Write it as a present fact: the default registry is read once its key is in the binary (`DEFAULT_KEY`). `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`, `crates/nvs-cli/src/package/audit.rs:12`, `crates/nvs-cli/src/package/manifest.rs:93`
+- [x] `rule:packaging/package-toml-is-a-tool-input`: `audit`, `publish`, `retract`, `unlist`, `login` and `whoami` exist, and the editor reads `[grants]`. `docs/rules/packaging/package-toml-is-a-tool-input.md:53`, `crates/nvs-cli/src/package/mod.rs:369`, `crates/nvs-lsp/src/grants.rs:1`
+- [x] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`: `nvs pkg publish` and `--dry-run` exist. `docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:95`, `crates/nvs-cli/src/package/publish.rs:18`
+- [x] `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`: `publish` exists, and the package page lists each external file with its host, size, hash and license. `docs/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.md:70`, `apps/registry/src/PackagePage.nvs:414`
+- [x] `rule:packaging/the-first-party-components-are-built-in`: check the PDF exports and the spreadsheet reader and template against "return `runtime`", and describe what each export does. This paragraph has no bold lead. `docs/rules/packaging/the-first-party-components-are-built-in.md:53`, `extensions/pdf/src/lib.rs:1`, `extensions/spreadsheet/src/lib.rs:914`
+- [x] `rule:packaging/only-a-major-may-break-the-api`: `nvs pkg api` extracts a package's API, and `nvs pkg diff` classifies each change and refuses a breaking minor. `docs/rules/packaging/only-a-major-may-break-the-api.md:56`, `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-cli/src/package/diff.rs:50`
+- [x] `rule:security/package-authority-is-granted-one-line-at-a-time`: `nvs pkg add` prints every capability the new subgraph requests. `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:43`, `crates/nvs-cli/src/package/minimum.rs:251`, `crates/nvs-cli/src/package/report.rs:5`
+- [x] `rule:packaging/a-git-dependency-is-root-only`: the publish build refuses a git dependency. `docs/rules/packaging/a-git-dependency-is-root-only.md:34`, `crates/nvs-cli/src/package/build.rs:367`
+- [x] `rule:packaging/a-package-name-is-vendor-slash-name`: the registry refuses a name that differs from a taken one only by case, and checks the `Novis\` and `Core\` vendors against the project account. `docs/rules/packaging/a-package-name-is-vendor-slash-name.md:42`, `apps/registry/src/Publish.nvs:121`
+- [x] `rule:packaging/a-publish-token-is-scoped-and-expires`: creating and revoking a token writes a log entry and notifies the owners. `docs/rules/packaging/a-publish-token-is-scoped-and-expires.md:30`, `apps/registry/src/Events.nvs:74`
+- [x] `rule:packaging/publishing-never-overwrites`: the registry refuses a publish from an account with no verified notification channel. `docs/rules/packaging/publishing-never-overwrites.md:48`, `apps/registry/src/App.nvs:989`, `apps/registry/src/Notices.nvs:107`
+- [x] `rule:packaging/search-sorts-by-the-readers-choice`: the registry's search and ranking exist. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:67`, `apps/registry/src/Search.nvs:1`, `apps/registry/src/Ranking.nvs:1`
+- [x] `rule:packaging/the-registry-builds-the-archive-from-git`: the repository route needs a recent passkey sign-in, and writes a `repository` log entry. `docs/rules/packaging/the-registry-builds-the-archive-from-git.md:43`, `apps/registry/src/App.nvs:789`, `apps/registry/src/Events.nvs:64`
+- [x] `rule:packaging/the-registry-keeps-an-append-only-log`: the service exists, and `nvs pkg audit` compares the second copy of the checkpoint. The verifier key is the user's own release step, so it gets no record. Write it as a present fact: the default registry is read once its key is in the binary (`DEFAULT_KEY`). `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`, `crates/nvs-cli/src/package/audit.rs:12`, `crates/nvs-cli/src/package/manifest.rs:93`
 
 Partly STALE. Rewrite the stale part, and cite a `registry-service` record for the rest:
-- [ ] `rule:packaging/a-known-bad-version-is-retracted-not-deleted`: `nvs pkg audit` exists. The advisory route and its version range are real, at both paragraphs: record `nvs-cli/advisory-route-and-range`. `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:41`, `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:55`, `crates/nvs-cli/src/package/audit.rs:1`, `data/gaps/nvs-cli/advisory-route-and-range.json:1`
-- [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`: the pending feed, the owners' notice and the pending list in `publish` and `whoami` exist. The confirmation pages, where an owner confirms with a passkey in the browser, are real: record `nvs-cli/release-confirmation-pages`. The advisory route cites `nvs-cli/advisory-route-and-range`. `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44`, `apps/registry/src/Feeds.nvs:85`, `crates/nvs-cli/src/package/login.rs:19`, `data/gaps/nvs-cli/release-confirmation-pages.json:1`
-- [ ] `rule:packaging/the-operator-only-withholds`: `audit` exists. The CDN purge is real: record `nvs-cli/withhold-purges-the-cdn`. `docs/rules/packaging/the-operator-only-withholds.md:36`, `data/gaps/nvs-cli/withhold-purges-the-cdn.json:1`
+- [x] `rule:packaging/a-known-bad-version-is-retracted-not-deleted`: `nvs pkg audit` exists. The advisory route and its version range are real, at both paragraphs: record `nvs-cli/advisory-route-and-range`. `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:41`, `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:55`, `crates/nvs-cli/src/package/audit.rs:1`, `data/gaps/nvs-cli/advisory-route-and-range.json:1`
+- [x] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`: the pending feed, the owners' notice and the pending list in `publish` and `whoami` exist. The confirmation pages, where an owner confirms with a passkey in the browser, are real: record `nvs-cli/release-confirmation-pages`. The advisory route cites `nvs-cli/advisory-route-and-range`. `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44`, `apps/registry/src/Feeds.nvs:85`, `crates/nvs-cli/src/package/login.rs:19`, `data/gaps/nvs-cli/release-confirmation-pages.json:1`
+- [x] `rule:packaging/the-operator-only-withholds`: `audit` exists. The CDN purge is real: record `nvs-cli/withhold-purges-the-cdn`. `docs/rules/packaging/the-operator-only-withholds.md:36`, `data/gaps/nvs-cli/withhold-purges-the-cdn.json:1`
 
 REAL, owned by `registry-service`. The paragraph cites its record:
-- [ ] `rule:packaging/a-package-cannot-reach-its-host`: `fetch` does not refuse an archive that holds an `nvs.toml`. Record `nvs-cli/fetch-refuses-an-archive-with-nvs-toml`. `docs/rules/packaging/a-package-cannot-reach-its-host.md:20`, `crates/nvs-cli/src/package/fetch.rs:1`, `data/gaps/nvs-cli/fetch-refuses-an-archive-with-nvs-toml.json:1`
-- [ ] `rule:packaging/a-package-is-its-digest`: an extension package is not packed or fetched as one. Record `nvs-cli/extension-package-is-packed-and-fetched`. `docs/rules/packaging/a-package-is-its-digest.md:74`, `crates/nvs-cli/src/package/pack.rs:1`, `data/gaps/nvs-cli/extension-package-is-packed-and-fetched.json:1`
+- [x] `rule:packaging/a-package-cannot-reach-its-host`: `fetch` does not refuse an archive that holds an `nvs.toml`. Record `nvs-cli/fetch-refuses-an-archive-with-nvs-toml`. `docs/rules/packaging/a-package-cannot-reach-its-host.md:20`, `crates/nvs-cli/src/package/fetch.rs:1`, `data/gaps/nvs-cli/fetch-refuses-an-archive-with-nvs-toml.json:1`
+- [x] `rule:packaging/a-package-is-its-digest`: an extension package is not packed or fetched as one. Record `nvs-cli/extension-package-is-packed-and-fetched`. `docs/rules/packaging/a-package-is-its-digest.md:74`, `crates/nvs-cli/src/package/pack.rs:1`, `data/gaps/nvs-cli/extension-package-is-packed-and-fetched.json:1`
 
 REAL, owned by `runtime-leftovers`, written as running prose today. It gets a bold-led paragraph:
-- [ ] `rule:packaging/the-generated-unit-is-hardened`: socket activation, record `nvs-cli/socket-activation` with module `crates/nvs-cli/src/service.rs`. `docs/rules/packaging/the-generated-unit-is-hardened.md:77`, `data/gaps/nvs-cli/socket-activation.json:1`
+- [x] `rule:packaging/the-generated-unit-is-hardened`: socket activation, record `nvs-cli/socket-activation` with module `crates/nvs-cli/src/service.rs`. `docs/rules/packaging/the-generated-unit-is-hardened.md:77`, `data/gaps/nvs-cli/socket-activation.json:1`
 
 STALE in security:
-- [ ] `rule:security/authority-is-the-enclosing-namespace`: the type checker reads `[grants]` per namespace, and the `grants-*` conformance cases guard it. Rewrite and drop the paragraph. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`, `crates/nvs-types/src/capability.rs:235`, `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
+- [x] `rule:security/authority-is-the-enclosing-namespace`: the type checker reads `[grants]` per namespace, and the `grants-*` conformance cases guard it. Rewrite and drop the paragraph. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`, `crates/nvs-types/src/capability.rs:235`, `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
 
 Then:
-- [ ] `bun nv rules --render`, and `bun nv owners --prose` lists no `rule` finding under `docs/rules/packaging/` or `docs/rules/security/`. `tools/nv/cmd/rules.ts:5`
+- [x] `bun nv rules --render`, and `bun nv owners --prose` lists no `rule` finding under `docs/rules/packaging/` or `docs/rules/security/`. `tools/nv/cmd/rules.ts:5`
 
 ### 3. every core-classes, ide and testing fragment says what is on disk, and each gap it names is a record
 
@@ -357,39 +357,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `notBuilt` (`tools/nv/cmd/owners.ts:242`) is the `rule` prose kind, and
-`outsideBlocks` (`tools/nv/cmd/owners.ts:289`) appends its findings. Its eight tests in
-`tools/nv/test/owners-fragments.test.ts` pass. `bun nv owners --prose` lists 32 `rule` findings and
-no other kind: 29 fragment paragraphs and the 3 module-doc lists at `extensions/spreadsheet/src/lib.rs:38`,
-`extensions/pdf/src/lib.rs:45` and `extensions/pdf/src/layout/table.rs:62`. Adding
-`extensions/*/src/**/*.rs` to `PROSE_SOURCES` raised no `heading`, `block` or `numbered` finding.
-`data/gaps/` still holds no record this goal writes.
+Stages 1 and 2 are done. Every packaging and security fragment says what is on disk, and
+`bun nv owners --prose` lists no finding under `docs/rules/packaging/` or `docs/rules/security/`.
+Six records under `data/gaps/nvs-cli/` back the paragraphs still owed: `advisory-route-and-range`,
+`release-confirmation-pages`, `withhold-purges-the-cdn`, `fetch-refuses-an-archive-with-nvs-toml` and
+`extension-package-is-packed-and-fetched` name `registry-service`, and `socket-activation` names
+`runtime-leftovers`. The three registry-side records name the registry file whose code owes them
+(`apps/registry/src/App.nvs`, `apps/registry/jobs/withhold.nvs`) as their `module`, because that code
+is on disk, and keep the `nvs-cli/` ids the stage fixed. `bun nv rules --render --check` is clean.
 
-The acceptance sweep's four reds were checked and need no change. `env-secret-proofs` exits 0 on
-disk. Nightly run 40919832286 was built from `6d280a1ba`. Its Miri failure in
-`floor::tests::a_record_differing_in_its_source_line_is_written_immediately` was fixed by
-`a178403e2`. Its `cost guards / windows-x86_64` result (serve fan-out 0.9x on that runner) and its
-`proofs / linux-x86_64` result (an LDAP `whoami` timeout in
-`tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs`) did not recur
-in the scheduled nightly 41033290883 on `1e28a23c7`, where all three jobs pass.
+Every verdict the stage listed held against the code. `rule:packaging/the-first-party-components-are-built-in`
+now describes the PDF exports (`render`, `merge`, `read`, `read-text`) and the spreadsheet writer, reader
+and template exports, all of them implemented. The doc comment on `sheet_part`
+(`extensions/spreadsheet/src/lib.rs:914`) still says a part kind may return `runtime`, and no arm does;
+stage 3 rewrites it with the spreadsheet module doc.
+
+The acceptance sweep's two reds: `env-secret-proofs` exits 0 on disk, as its log shows. Nightly
+41033290883's `test / linux-x86_64 (tests)` failed in
+`a_bundle_whose_embedded_extension_was_altered_refuses_to_start` with `ExecutableFileBusy`: the test
+rewrites the executable in-process, and a sibling test's fork held the write descriptor until its
+`exec`. `b9ce9d0e6` retries that one error in `run_rewritten` (`crates/nvs-cli/tests/bundle.rs:380`).
 
 ### Next
 
-Stage 2, one group over the packaging and security fragments and the `data/gaps/nvs-cli/` records
-they cite. No gate: stage 1 has landed the citation format. The stage's items carry each verdict and
-anchor (`docs/goals/release-hygiene.md:244`). Each record is `data/gaps/nvs-cli/<slug>.json` with the
-shape in § *Standing decisions*, and the paragraph cites it as `gap:nvs-cli/<slug>`.
+Stage 3, one group over the core-classes, ide and testing fragments, the three extension module-doc
+lists and their records. Follow the stage's `**Split:**` line: the seven spreadsheet fragments go to
+one `reader` subagent for verdicts first. Items and anchors: `docs/goals/release-hygiene.md:285`.
+`bun nv owners --prose` lists the 14 findings left, which are the worklist:
 
-- [ ] The thirteen fully STALE fragments: confirm each by its anchor's grep, then rewrite to the present and drop the paragraph. `docs/rules/packaging/package-toml-is-a-tool-input.md:53`, `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`
-- [ ] The three partly STALE fragments and their three `registry-service` records. `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:41`, `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44`, `docs/rules/packaging/the-operator-only-withholds.md:36`
-- [ ] The two REAL `registry-service` fragments and the `runtime-leftovers` socket-activation record. `docs/rules/packaging/a-package-cannot-reach-its-host.md:20`, `docs/rules/packaging/a-package-is-its-digest.md:74`, `docs/rules/packaging/the-generated-unit-is-hardened.md:77`
-- [ ] `rule:security/authority-is-the-enclosing-namespace`, which is STALE. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
-- [ ] `bun nv rules --render`, then `bun nv owners --prose` lists no `rule` finding under `docs/rules/packaging/` or `docs/rules/security/`. `tools/nv/cmd/owners.ts:324`
+- [ ] The three STALE fragments and `rule:core-classes/process-spawn`'s reword. `docs/rules/core-classes/passkey-verifies-a-webauthn-ceremony.md:51`, `docs/rules/core-classes/web-push-sends-an-encrypted-message.md:46`, `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:113`, `docs/rules/core-classes/process-spawn.md:35`
+- [ ] The three `runtime-leftovers` records: regex deny block, debugger task tree, class-scoped alias rename. `docs/rules/core-classes/regex-compile-time-tiering.md:18`, `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:28`, `crates/nvs-lsp/src/rename.rs:108`
+- [ ] The seven spreadsheet fragments and their `spreadsheet-second-wave` records. `docs/rules/core-classes/spreadsheet-roster.md:50`
+- [ ] The three module-doc lists and their records, and the stale `sheet_part` comment. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:914`, `extensions/pdf/src/lib.rs:45`, `extensions/pdf/src/layout/table.rs:62`
+- [ ] `bun nv rules --render`, then `bun nv owners --check` passes. `tools/nv/cmd/owners.ts:375`
 
 Expected red until stage 3 ends: `bun nv owners --check`, which `bun nv verify` and `bun nv ci --check`
-run. Its `--prose` list is the worklist.
+run.
 
 ### Backlog
 
 - Sibling goals `registry-service`, `runtime-leftovers`, `spreadsheet-second-wave` and `extension-leftovers` close the
   records stages 2 and 3 write. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:469`).
+- Stage 4 touches no file of stages 1 to 3 and may run as a side goal.

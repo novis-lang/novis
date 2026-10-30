@@ -1,0 +1,6 @@
+{
+  "module": "apps/registry/src/App.nvs",
+  "title": "No route writes an `advisory` log entry, and its `versions` range has no syntax.",
+  "text": "An owner can retract a version but cannot announce an advisory over a range of versions. Closing it writes the range's syntax, a route that takes it from a token and waits seven days or from a passkey and takes effect at once, the `advisory` entry in the feed, and `nvs pkg audit` reading it (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).",
+  "goal": "registry-service"
+}

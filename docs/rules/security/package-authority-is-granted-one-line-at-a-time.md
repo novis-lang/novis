@@ -40,6 +40,7 @@ it still `tainted`.
 - **A package inherits the application's defaults.** It would hand every dependency the files, hosts
   and programs a first program needs, which is the ambient authority above under another name.
 
-**Not on disk.** `nvs pkg fetch` writes the grant lines (`crates/nvs-cli/src/package/fetch.rs`), and
-the compiler checks each call against them (`crates/nvs-types/src/capability.rs`). `nvs pkg add`,
-which prints what a new dependency's subgraph requests, is not written yet.
+`nvs pkg fetch` writes the grant lines (`crates/nvs-cli/src/package/fetch.rs`), and the compiler
+checks each call against them (`crates/nvs-types/src/capability.rs`). Before `nvs pkg add` writes, it
+prints every package of the new dependency's subgraph and every capability each one requests
+(`crates/nvs-cli/src/package/report.rs`).

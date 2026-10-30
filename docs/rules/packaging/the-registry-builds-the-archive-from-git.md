@@ -38,7 +38,6 @@ held after the digest is recorded.
 **On disk.** `nvs registry build` (`crates/nvs-cli/src/package/build.rs`) clones, packs and digests,
 and the service runs it through `Registry\Builder` for every publish (`apps/registry/src/Publish.nvs`).
 The service binds the repository URL and the directory at the first publish, and refuses a publish
-from another repository.
-
-**Not on disk.** No route changes a package's bound repository with a passkey yet, so a changed
-repository is always refused, and no `repository` log entry or owner notice is written for it.
+from another repository. An owner who signed in with a passkey in the last 15 minutes moves the
+package with `POST /api/packages/<vendor>/<name>/repository` (`App::rebind`), which writes a
+`repository` log entry and notifies the vendor's owners (`Events::repository`).

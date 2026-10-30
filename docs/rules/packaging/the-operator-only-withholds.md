@@ -33,5 +33,8 @@ running it again finishes a delete a store failed. Resolution refuses a withheld
 reason (`crates/nvs-cli/src/package/resolve.rs`). The policy page is `GET /policy`
 (`apps/registry/src/PolicyPage.nvs`).
 
-**Not on disk.** There is no `nvs pkg audit`. A CDN in front of a store may serve
-a cached archive until its cache lifetime ends, because the service never purges a CDN.
+`nvs pkg audit` reports a locked version that is withheld, with its reason
+(`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
+
+**Not on disk.** A CDN in front of a store may serve a cached archive until its cache lifetime ends,
+because the service never purges a CDN (gap:nvs-cli/withhold-purges-the-cdn).

@@ -93,6 +93,8 @@ module and of C2SP's and Go's tile paths, vendored under `crates/nvs-cli/tests/f
 The cost is that this tree owns the code for as long as the log exists. The risk is bounded: a
 proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every other verifier.
 
-**Not on disk.** There is no registry service to run the commands, the default registry has no
-verifier key yet, so nothing is read from it, and `nvs pkg audit` does not compare a second copy of
-the checkpoint.
+The registry service under `apps/registry/` runs these commands. `nvs pkg audit` compares the second
+copy of the checkpoint a registry's root file names with the log the file host serves, and stops on
+a disagreement (`crates/nvs-cli/src/package/audit.rs`). The client reads the default registry once its
+verifier key is in the binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), and reads
+nothing from it while that is `None`.

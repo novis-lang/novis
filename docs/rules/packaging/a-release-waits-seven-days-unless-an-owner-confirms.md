@@ -41,6 +41,11 @@ retraction sent with a token shows seven days later (`App::retract`). The client
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 
-**Not on disk.** The public feed of pending releases, the owners' notification, and the pending list
-in `nvs pkg publish` and `nvs pkg whoami` are not written, and neither are the website's confirmation
-pages. An advisory sent with a token has no route.
+The signed public list of pending releases is `GET /feeds/pending` (`Feeds::pending`,
+`apps/registry/src/Feeds.nvs`), and each pending release notifies the vendor's owners. `nvs pkg
+publish` and `nvs pkg whoami` print the account's pending releases
+(`crates/nvs-cli/src/package/login.rs`).
+
+**Not on disk.** The website has no page where an owner confirms a release or a stable API with a
+passkey (gap:nvs-cli/release-confirmation-pages). An advisory sent with a token has no route
+(gap:nvs-cli/advisory-route-and-range).

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/package/pack.rs",
+  "title": "An extension package is not packed or fetched as one.",
+  "text": "A package that carries a `.nvsx` beside its Novis source has no archive form, so its digest does not cover the extension. Closing it packs and fetches the extension with the package, under the package's one digest (`rule:packaging/a-package-is-its-digest`).",
+  "goal": "registry-service"
+}

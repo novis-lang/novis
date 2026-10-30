@@ -25,6 +25,6 @@ registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, o
 can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
 host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
 making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
-longer owns the vendor.
-
-**Not on disk.** Creating or revoking a token writes no log entry yet and notifies no owner yet.
+longer owns the vendor. Creating and revoking a token each write a `token` log entry, which names the
+token's id and never the token, and notify the vendor's owners (`Events::token`,
+`apps/registry/src/Events.nvs`).

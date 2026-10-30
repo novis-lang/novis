@@ -39,11 +39,8 @@ lets a mirror or a `vendor/` copy be checked against the log instead of trusted.
 
 **On disk.** `nvs pkg publish` sends the commit, and the service's `POST /api/publish` is
 `Publish::publish` (`apps/registry/src/Publish.nvs`). It runs `nvs registry build`, which refuses
-everything one commit can show, and then refuses a version published before, an inactive account, a
-name outside the token's scope or the vendor's owners, a name that differs only by case, and a changed
-repository. `Index::catchUp` (`apps/registry/src/Index.nvs`) appends the `publish` entry, whose
+everything one commit can show, and then refuses a version published before, an inactive account, an
+account with no verified notification channel, a name outside the token's scope or the vendor's
+owners, a name that differs only by case, and a changed repository. `Index::catchUp` (`apps/registry/src/Index.nvs`) appends the `publish` entry, whose
 digest covers the manifest and its capabilities, before it writes and signs the index file that
 lists the version and its capabilities. The publish is answered only after that.
-
-**Not on disk.** The refusal for an account with no verified notification channel is not checked
-yet, because no channel exists yet.

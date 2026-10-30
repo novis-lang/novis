@@ -53,5 +53,8 @@ type-checked.
 - **A mark that suppresses a break the author calls harmless.** A check its author can switch off is a
   convention again.
 
-**Not on disk.** `nvs api diff` compares two OpenAPI documents (`rule:routing/api-diff-fails-a-breaking-change`);
-nothing extracts or compares a package's API.
+`nvs pkg api` extracts a package's public API from the checked program, without running any of it
+(`crates/nvs-cli/src/package/api.rs`). `nvs pkg diff` compares two versions' APIs, classifies each
+change as breaking or additive, and refuses a breaking change in a minor or a patch
+(`crates/nvs-cli/src/package/diff.rs`). `nvs api diff` is a different command: it compares two OpenAPI
+documents (`rule:routing/api-diff-fails-a-breaking-change`).

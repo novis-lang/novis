@@ -17,4 +17,5 @@ file is canonicalized and must lie under the package's directory (`crates/nvs-ty
 `nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
 (`crates/nvs-cli/src/package/pack.rs`).
 
-**Not on disk.** No fetch path exists to refuse an archive that holds an `nvs.toml`.
+**Not on disk.** `nvs pkg fetch` does not refuse an archive that holds an `nvs.toml`
+(gap:nvs-cli/fetch-refuses-an-archive-with-nvs-toml).

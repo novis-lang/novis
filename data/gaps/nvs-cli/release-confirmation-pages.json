@@ -1,0 +1,6 @@
+{
+  "module": "apps/registry/src/App.nvs",
+  "title": "The website has no page where an owner confirms a pending release or a first stable API.",
+  "text": "The `.../release` and `.../stable` routes exist, and the publish reply tells the owner to confirm on the website. Closing it writes the pages that show the pending release or the API from `.../api` and send the confirmation with a recent passkey sign-in (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`).",
+  "goal": "registry-service"
+}

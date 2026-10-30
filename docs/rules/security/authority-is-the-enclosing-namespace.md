@@ -13,4 +13,6 @@ Keying on the namespace is what closes the override hole — a file overriding o
 keeps that dependency's authority, because it must keep its namespace to be an override at all — and
 it reaches code no package manager ever touched.
 
-**Not on disk.** Nothing in the tree reads a per-namespace grant table.
+The type checker checks each call against the grants of the namespace the calling code is declared in
+(`crates/nvs-types/src/capability.rs`), and the `grants-*` cases under `tests/conformance/cap/` hold it,
+the anonymous function's case included.

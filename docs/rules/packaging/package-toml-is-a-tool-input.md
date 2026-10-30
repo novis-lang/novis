@@ -50,6 +50,6 @@ own project is a different question from a language locating a declaration. The 
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** `nvs pkg` has `add`, `fetch`, `update`, `outdated`, `vendor`, `api`, `diff`, `pack`,
-`download` and `provide` (`crates/nvs-cli/src/package/mod.rs`). `audit`, `publish`, `retract`,
-`unlist`, `login` and `whoami` are not written yet, and the editor does not read `[grants]` yet.
+Every `nvs pkg` subcommand is a module under `crates/nvs-cli/src/package/`, which `mod.rs` lists. The
+editor reads `[grants]` from the snapshot the runtime enforces, and a route's hover shows them
+(`crates/nvs-lsp/src/grants.rs`).

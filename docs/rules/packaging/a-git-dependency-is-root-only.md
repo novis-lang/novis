@@ -29,7 +29,5 @@ above changes.
 
 The client clones and packs a root git dependency (`crates/nvs-cli/src/package/git.rs`), and
 resolution refuses one found below the root, naming the package that declared it
-(`crates/nvs-cli/src/package/resolve.rs`).
-
-**Not on disk.** The registry, which refuses a publish whose manifest names a git dependency, is not
-written yet.
+(`crates/nvs-cli/src/package/resolve.rs`). The registry's publish build refuses a manifest that names a
+git dependency (`crates/nvs-cli/src/package/build.rs`).

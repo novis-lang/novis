@@ -66,5 +66,5 @@ request.
 
 `nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
 `crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`.
-
-**Not on disk.** `nvs pkg publish` and the package page are not written yet.
+`nvs registry build` refuses a malformed `[[download]]` entry at publish, and the package page lists
+each external file with its host, size, SHA-256 hash and license (`apps/registry/src/PackagePage.nvs`).

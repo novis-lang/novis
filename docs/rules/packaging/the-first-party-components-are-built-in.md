@@ -50,13 +50,14 @@ The PDF crate is `extensions/pdf/`, built and embedded the same way as `nvs_ext:
 with its digest folded in beside the other two. Its manifest class is `Novis\Pdf\Engine`, the
 interface `wit/pdf.wit`, and its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
 (`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
-`render`'s `whole` pass is implemented, and the exports `rule:core-classes/pdf-roster` still owes
-return `runtime`. The spreadsheet crate is `extensions/spreadsheet/`, built and embedded the same
-way as `nvs_ext::builtin::SPREADSHEET` with its digest folded in beside the other three. Its
-manifest class is `Novis\Spreadsheet\Engine`, the interface `wit/spreadsheet.wit`, and its Novis
-half so far is `Novis\Spreadsheet\Written` (`crates/nvs-ext/tests/spreadsheet.rs`). The writer's
-exports are implemented; `writer-part`, the reader's and the template's return `runtime` and are
-not in its manifest.
+Its exports are `render`, which lays out and draws a document, `merge`, which joins PDFs into one,
+`read`, which returns a PDF's facts, and `read-text`, which returns the text of the pages it names.
+The spreadsheet crate is `extensions/spreadsheet/`, built and embedded the same way as
+`nvs_ext::builtin::SPREADSHEET` with its digest folded in beside the other three. Its manifest class
+is `Novis\Spreadsheet\Engine`, the interface `wit/spreadsheet.wit`, and its Novis half is the classes
+under `extensions/spreadsheet/nvs/` (`crates/nvs-ext/tests/spreadsheet.rs`). Its exports are the
+writer's, which write an xlsx workbook sheet by sheet, the reader's, which read the sheets, rows and
+extras of a workbook, and the template's, which fill the placeholders of a workbook and write it.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would

@@ -702,7 +702,9 @@ Keying on the namespace is what closes the override hole — a file overriding o
 keeps that dependency's authority, because it must keep its namespace to be an override at all — and
 it reaches code no package manager ever touched.
 
-**Not on disk.** Nothing in the tree reads a per-namespace grant table.
+The type checker checks each call against the grants of the namespace the calling code is declared in
+(`crates/nvs-types/src/capability.rs`), and the `grants-*` cases under `tests/conformance/cap/` hold it,
+the anonymous function's case included.
 
 <sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
@@ -1103,9 +1105,10 @@ it still `tainted`.
 - **A package inherits the application's defaults.** It would hand every dependency the files, hosts
   and programs a first program needs, which is the ambient authority above under another name.
 
-**Not on disk.** `nvs pkg fetch` writes the grant lines (`crates/nvs-cli/src/package/fetch.rs`), and
-the compiler checks each call against them (`crates/nvs-types/src/capability.rs`). `nvs pkg add`,
-which prints what a new dependency's subgraph requests, is not written yet.
+`nvs pkg fetch` writes the grant lines (`crates/nvs-cli/src/package/fetch.rs`), and the compiler
+checks each call against them (`crates/nvs-types/src/capability.rs`). Before `nvs pkg add` writes, it
+prints every package of the new dependency's subgraph and every capability each one requests
+(`crates/nvs-cli/src/package/report.rs`).
 
 <sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 
