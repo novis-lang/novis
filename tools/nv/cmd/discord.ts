@@ -1,5 +1,5 @@
 // `bun nv discord`: the project's Discord server, administered from a session when the user asks for a
-// change. Nothing here runs unattended: every call is one the session makes on the user's request.
+// change, and the release and dev build messages CI posts to it.
 //
 //     bun nv discord check    --token-file <path> (--guild <id> | --channel <id>)
 //     bun nv discord api      --token-file <path> <METHOD> <api-path> [<json> | --body-file <path>] [--reason <text>]
@@ -7,16 +7,19 @@
 //     bun nv discord snapshot --token-file <path> (--guild <id> | --channel <id>) --out <path>
 //     bun nv discord diff     <before.json> <after.json>
 //     bun nv discord bits     <NAME>... | <bitfield>
+//     bun nv discord announce dev --sha <commit> --run-url <url> [--since <commit>] [--dry-run]
+//     bun nv discord announce release --tag <vX.Y.Z> --url <url> --notes-file <path> [--dry-run]
 //
-// The bot's token is read from `--token-file` alone, the path a session's secret prompt gives, and only
-// ever goes into the `Authorization` header: no argument takes it, and nothing prints or stores it. A
-// token in an environment variable or a file the tree keeps would hand the unattended loop sessions an
-// administrator of the server.
+// Every subcommand but `announce` runs only in a session, on the user's request. The bot's token is read
+// from `--token-file` alone, the path a session's secret prompt gives, and only ever goes into the
+// `Authorization` header: no argument takes it, and nothing prints or stores it. A token in an
+// environment variable or a file the tree keeps would hand the unattended loop sessions an administrator
+// of the server.
 //
 // `api` is one REST call against Discord's API v10, so every endpoint the docs list is reachable without a
 // command of its own; a task that comes back gets its own subcommand. The API path's leading `/` is
-// optional, because Git Bash rewrites an argument that starts with one into a Windows path. It waits out a bucket the last
-// response emptied and retries a 429 after the `retry_after` Discord sends (a GET is also retried on a
+// optional, because Git Bash rewrites an argument that starts with one into a Windows path. It waits out a
+// bucket the last response emptied and retries a 429 after the `retry_after` Discord sends (a GET is also retried on a
 // 5xx, a write never is, so a write is never sent twice). `--reason` becomes the `X-Audit-Log-Reason` the
 // server's audit log shows. `--all` follows a list endpoint page by page: `before` for a channel's messages,
 // which come newest first, `after` for everything else, up to `--max` items. In the path and the body,
@@ -34,15 +37,25 @@
 //
 // `check` verifies the setup a session needs and names each missing step: the token, the bot's privileged
 // intents, that it is not public, that it is in the server and sees the channel, that it holds
-// Administrator, and that no role sits above its own. A server's id given as `--channel` is named as one. `bits` turns flag names into a bitfield for a write, or a bitfield into names.
+// Administrator, and that no role sits above its own. A server's id given as `--channel` is named as one.
+// `bits` turns flag names into a bitfield for a write, or a bitfield into names.
 //
-// Exits 0 on success, 1 when Discord or a check fails, and 2 on a usage error.
+// `announce` is the one subcommand CI runs (`.github/workflows/discord.yml`). It posts one embed to the
+// webhook URL in `DISCORD_WEBHOOK_URL`, which can post to one channel and do nothing else, and never
+// prints that URL. `dev` lists the commits from `--since` (the previous dev build) to `--sha`, grouped
+// the way `nv release` groups a changelog: features, fixes and performance by name, every other commit
+// counted. With no `--since`, or one git does not know, it names the one commit. `release` shows the
+// release's notes, cut at a line to fit an embed, with the install page and the image to pull. Neither
+// mentions anyone, whatever a commit subject or the notes contain. `--dry-run` prints the message.
+//
+// Exits 0 on success, 1 when Discord, git or a check fails, and 2 on a usage error.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { classify, HEADLINE_SECTIONS, parseLog } from "./release.ts";
 
-export const summary = "administer the project's Discord server on request: nv discord check|api|snapshot|diff|bits";
+export const summary = "administer the project's Discord server on request, and post CI's messages: nv discord check|api|snapshot|diff|bits|announce";
 
 const USAGE = `usage:
   bun nv discord check    --token-file <path> (--guild <id> | --channel <id>)
@@ -50,7 +63,9 @@ const USAGE = `usage:
                           [--guild <id> | --channel <id>] [--all] [--max <n>] [--out <path>] [--dry-run]
   bun nv discord snapshot --token-file <path> (--guild <id> | --channel <id>) --out <path>
   bun nv discord diff     <before.json> <after.json>
-  bun nv discord bits     <NAME>... | <bitfield>`;
+  bun nv discord bits     <NAME>... | <bitfield>
+  bun nv discord announce dev --sha <commit> --run-url <url> [--since <commit>] [--dry-run]
+  bun nv discord announce release --tag <vX.Y.Z> --url <url> --notes-file <path> [--dry-run]`;
 
 export const API = "https://discord.com/api/v10";
 const USER_AGENT = "DiscordBot (https://github.com/novis-lang/novis, 1)";
@@ -135,6 +150,10 @@ export interface Seams {
   warn(line: string): void;
   read(path: string): string;
   write(path: string, text: string): void;
+  /** `git <args>` in the root; its standard output, or a throw when it fails. */
+  git(args: string[]): string;
+  env: Record<string, string | undefined>;
+  now(): number;
   root: string;
 }
 
@@ -148,6 +167,13 @@ const REAL: Seams = {
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, t);
   },
+  git: (args) => {
+    const r = Bun.spawnSync(["git", ...args], { cwd: ROOT });
+    if (r.exitCode !== 0) throw new Fail(`git ${args[0]} failed: ${r.stderr.toString().trim()}`);
+    return r.stdout.toString();
+  },
+  env: process.env,
+  now: () => Date.now(),
   root: ROOT,
 };
 
@@ -520,6 +546,180 @@ async function check(client: Client, where: { guild?: string | undefined; channe
   return red === 0 ? 0 : 1;
 }
 
+const REPO_URL = "https://github.com/novis-lang/novis";
+const IMAGE = "ghcr.io/novis-lang/novis";
+const INSTALL_URL = "https://novis-lang.org/install/";
+/** The website's blue. */
+const BRAND = 0x11a7d7;
+/** How many commits a dev build lists by name before it counts the rest. */
+const DEV_LINES = 15;
+const SUBJECT_MAX = 160;
+/** An embed's description holds 4096 characters, and the notes leave room for the link after them. */
+const NOTES_MAX = 3800;
+const WEBHOOK = /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/;
+const COMMIT = /^[0-9a-f]{40}$/;
+
+/** One Discord embed, as `announce` posts it. */
+export interface Embed {
+  title: string;
+  url: string;
+  description: string;
+  color: number;
+  fields: { name: string; value: string }[];
+  footer?: { text: string };
+  timestamp: string;
+}
+
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function listed(words: string[]): string {
+  return words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+}
+
+/** The message of a dev build: the commits since the dev build before it, from `git log`'s records. */
+export function devEmbed(o: { sha: string; since: string | null; version: string; runUrl: string; log: string; now: number }): Embed {
+  const entries = parseLog(o.log).map(classify);
+  const lines: string[] = [];
+  let named = 0;
+  let unnamed = 0;
+  for (const [type, title] of HEADLINE_SECTIONS) {
+    const rows = entries.filter((e) => e.type === type);
+    if (rows.length === 0) continue;
+    const room = Math.max(0, DEV_LINES - named);
+    named += Math.min(room, rows.length);
+    unnamed += rows.length - Math.min(room, rows.length);
+    if (room === 0) continue;
+    if (lines.length > 0) lines.push("");
+    lines.push(`**${title}**`, ...rows.slice(0, room).map((e) => `- ${e.scope ? `**${e.scope}**: ` : ""}${clip(e.clean, SUBJECT_MAX)}`));
+  }
+  if (unnamed > 0) lines.push(`- and ${unnamed} more`);
+  const headline = new Set(HEADLINE_SECTIONS.map(([type]) => type));
+  const rest = entries.filter((e) => e.type === null || !headline.has(e.type));
+  if (rest.length > 0) {
+    const kinds = [...new Set(rest.map((e) => (e.type === "docs" ? "documentation" : e.type === "test" ? "tests" : "internal work")))];
+    if (lines.length > 0) lines.push("");
+    lines.push(`${plural(rest.length, named + unnamed > 0 ? "other change" : "change")}: ${listed(kinds)}.`);
+  }
+  if (entries.length === 0) lines.push("No new commits since the last dev build.");
+  lines.push("", o.since ? `[See all ${plural(entries.length, "commit")}](${REPO_URL}/compare/${o.since}...${o.sha})` : `[See the commit](${REPO_URL}/commit/${o.sha})`);
+  return {
+    title: `Dev build ${o.version}+dev`,
+    url: `${REPO_URL}/commit/${o.sha}`,
+    description: lines.join("\n"),
+    color: BRAND,
+    fields: [
+      { name: "Docker", value: `\`\`\`\ndocker pull ${IMAGE}:dev\n\`\`\`` },
+      { name: "Binaries", value: `[Windows, Linux and macOS](${o.runUrl}). The files are kept for 30 days.` },
+    ],
+    footer: { text: `${o.sha.slice(0, 7)} · A dev build is not a release. It can change or break at any time.` },
+    timestamp: new Date(o.now).toISOString(),
+  };
+}
+
+/** Release notes as an embed shows them: the version heading dropped, headings bold, cut at a line. */
+export function notesText(notes: string, url: string): string {
+  const lines = notes
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .split("\n")
+    .filter((l) => !/^##\s+\[/.test(l))
+    .map((l) => l.replace(/^#{1,6}\s+(.*)$/, "**$1**"));
+  const text = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (text.length <= NOTES_MAX) return text;
+  const cut = text.lastIndexOf("\n", NOTES_MAX);
+  return `${text.slice(0, cut > 0 ? cut : NOTES_MAX)}\n\n[Read all release notes](${url})`;
+}
+
+/** The message of a published release. */
+export function releaseEmbed(o: { tag: string; url: string; notes: string; now: number }): Embed {
+  const version = o.tag.replace(/^v/, "");
+  return {
+    title: `Novis ${version} is released`,
+    url: o.url,
+    description: notesText(o.notes, o.url) || `[Release notes](${o.url})`,
+    color: BRAND,
+    fields: [
+      { name: "Install", value: `[Install page](${INSTALL_URL}) · [Release on GitHub](${o.url})` },
+      { name: "Docker", value: `\`\`\`\ndocker pull ${IMAGE}:${version}\n\`\`\`` },
+    ],
+    timestamp: new Date(o.now).toISOString(),
+  };
+}
+
+/** The workspace version, from the root `Cargo.toml`'s `[workspace.package]`. */
+function workspaceVersion(toml: string): string {
+  const m = /^\[workspace\.package\][^[]*?^version\s*=\s*"([^"]+)"/m.exec(toml);
+  if (!m) throw new Fail("Cargo.toml has no [workspace.package] version");
+  return m[1]!;
+}
+
+/** Posts one embed through the webhook. No error names the URL, which holds the webhook's token. */
+async function post(url: string, embed: Embed, s: Seams): Promise<void> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": USER_AGENT },
+    body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
+  };
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await s.fetch(`${url}?wait=true`, init);
+    } catch (e) {
+      throw new Fail(`posting to the webhook failed: ${(e as { code?: string }).code ?? "network error"}`);
+    }
+    const answer = await parse(res);
+    if (res.status === 429 && attempt < RETRIES) {
+      const after = (answer as { retry_after?: number } | null)?.retry_after;
+      await s.sleep(typeof after === "number" ? Math.ceil(after * 1000) : 1000);
+      continue;
+    }
+    if (!res.ok) throw new Fail(`the webhook did not take the message: ${describe(res.status, answer)}`);
+    return;
+  }
+}
+
+async function announce(o: Opts, s: Seams): Promise<number> {
+  const [kind, extra] = o.positional;
+  if (extra !== undefined) throw new Usage(`unexpected argument ${extra}`);
+  let embed: Embed;
+  if (kind === "dev") {
+    if (!o.sha || !o.runUrl) throw new Usage("announce dev needs --sha <commit> and --run-url <url>");
+    for (const c of [o.sha, o.since]) if (c !== undefined && !COMMIT.test(c)) throw new Usage(`${c} is not a full commit hash`);
+    const format = "--format=%H%x1f%s%x1f%b%x1e";
+    let since = o.since ?? null;
+    let log: string;
+    try {
+      log = s.git(["log", "--no-merges", format, since ? `${since}..${o.sha}` : `${o.sha}^!`]);
+    } catch (e) {
+      if (since === null) throw e;
+      s.warn(`nv discord: git does not know ${since}, so the message names the one commit`);
+      since = null;
+      log = s.git(["log", "--no-merges", format, `${o.sha}^!`]);
+    }
+    const version = workspaceVersion(s.read(join(s.root, "Cargo.toml")));
+    embed = devEmbed({ sha: o.sha, since, version, runUrl: o.runUrl, log, now: s.now() });
+  } else if (kind === "release") {
+    if (!o.tag || !o.url || !o.notesFile) throw new Usage("announce release needs --tag <vX.Y.Z>, --url <url> and --notes-file <path>");
+    if (!/^v\d+\.\d+\.\d+/.test(o.tag)) throw new Usage(`${o.tag} is not a release tag, as in v1.2.3`);
+    embed = releaseEmbed({ tag: o.tag, url: o.url, notes: s.read(o.notesFile), now: s.now() });
+  } else throw new Usage("announce needs dev or release");
+  if (o.dryRun) {
+    s.say(JSON.stringify({ embeds: [embed] }, null, 2));
+    return 0;
+  }
+  const url = s.env.DISCORD_WEBHOOK_URL;
+  if (!url || !WEBHOOK.test(url)) throw new Fail("DISCORD_WEBHOOK_URL is not set to a Discord webhook URL");
+  await post(url, embed, s);
+  s.say(`nv discord: posted the ${kind} message`);
+  return 0;
+}
+
 interface Opts {
   positional: string[];
   tokenFile?: string;
@@ -528,12 +728,31 @@ interface Opts {
   reason?: string;
   bodyFile?: string;
   out?: string;
+  sha?: string;
+  since?: string;
+  runUrl?: string;
+  tag?: string;
+  url?: string;
+  notesFile?: string;
   all: boolean;
   max: number;
   dryRun: boolean;
 }
 
-const VALUED = { "--token-file": "tokenFile", "--channel": "channel", "--guild": "guild", "--reason": "reason", "--body-file": "bodyFile", "--out": "out" } as const;
+const VALUED = {
+  "--token-file": "tokenFile",
+  "--channel": "channel",
+  "--guild": "guild",
+  "--reason": "reason",
+  "--body-file": "bodyFile",
+  "--out": "out",
+  "--sha": "sha",
+  "--since": "since",
+  "--run-url": "runUrl",
+  "--tag": "tag",
+  "--url": "url",
+  "--notes-file": "notesFile",
+} as const;
 
 function parseArgs(args: string[]): Opts {
   const o: Opts = { positional: [], all: false, max: DEFAULT_MAX, dryRun: false };
@@ -647,6 +866,8 @@ export async function discord(args: string[], over: Partial<Seams> = {}): Promis
         s.say(o.positional.length === 1 && /^\d+$/.test(first!) ? permissionNames(first!).join(" ") : permissionBits(o.positional));
         return 0;
       }
+      case "announce":
+        return await announce(o, s);
       default:
         throw new Usage(sub === undefined ? "name a subcommand" : `no subcommand ${sub}`);
     }

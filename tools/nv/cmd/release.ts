@@ -116,8 +116,9 @@ Actions tab; [docs/release.md](docs/release.md) is the procedure and what it nee
 // does not match is listed under *Other*.
 const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<bang>!)?: (?<subject>.+)$/;
 
-// Listed in full, in this order. Every other type collapses into the Internal count.
-const HEADLINE_SECTIONS: [string, string][] = [
+// Listed in full, in this order. Every other type collapses into the Internal count. `nv discord
+// announce dev` groups a dev build's commits by the same table.
+export const HEADLINE_SECTIONS: [string, string][] = [
   ["feat", "Features"],
   ["fix", "Fixes"],
   ["perf", "Performance"],

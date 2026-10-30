@@ -32,9 +32,9 @@ binary is green.
 
 ## Setting up GitHub
 
-GitHub is set up for releases: § 1 to § 5 are done. They are here for a new fork or a moved
-repository, and § 6 is the one step left, after the first release. **None of them is a secret** — see
-*Credentials* below.
+GitHub is set up for releases: § 1 to § 5 and § 7 are done. They are here for a new fork or a moved
+repository, and § 6 is the one step left, after the first release. **None of them but § 7 is a
+secret**, and the release itself reads none — see *Credentials* below.
 
 ### 1. The code is on `main`, and `landing` is the default branch
 
@@ -43,8 +43,9 @@ a short README and the files GitHub reads only from the default branch: the issu
 security policy, the Dependabot configuration and one file per workflow. `landing`'s `ci.yml` has
 the nightly `schedule` and dispatches CI on `main`. `landing`'s `dev-build.yml` starts when a push's
 CI run on `main` finishes, because GitHub reads `workflow_run` only from the default branch. It builds
-that run's commit with `main`'s `build.yml` and `image.yml`, and publishes the `dev` image when the
-run is green. Its other workflow files exist so the **Run workflow** button appears, and a run
+that run's commit with `main`'s `build.yml` and `image.yml`, publishes the `dev` image when the
+run is green, and then posts the build to Discord with `main`'s `discord.yml`. Its other workflow
+files exist so the **Run workflow** button appears, and a run
 started on `landing` stops with an error.
 
 Set `landing` in **Settings → General → Default branch**. Cut a release from the Actions tab with
@@ -116,9 +117,20 @@ able to push to it without any credential of its own.
 
 This is once, ever. Subsequent releases push to the same package.
 
-### 7. Nothing else
+### 7. The Discord webhook
 
-There is no secret to create, no PAT to store, no deploy key, no signing key and no registry
+`discord.yml` posts each published release and each dev build to the Discord server's
+`#github-feed`. Its one credential is the repository secret `DISCORD_WEBHOOK_URL` (**Settings →
+Secrets and variables → Actions**), the URL of a webhook in that channel. A webhook can post to its
+own channel and do nothing else, and no release job can read the secret. Without it, nothing is
+posted and nothing fails.
+
+To replace it: in Discord, **Edit Channel → Integrations → Webhooks → New Webhook** on
+`#github-feed`, copy its URL into the secret, and delete the old webhook.
+
+### 8. Nothing else
+
+There is no other secret to create, no PAT to store, no deploy key, no signing key and no registry
 token — the container registry included. If a future step asks you to add one, that step is the
 thing to question.
 
@@ -177,9 +189,10 @@ regime and declares the version contract — "the switch is thrown once, in the 
 
 ## Credentials
 
-The only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and revoked when
-it ends. `bun nv release` has no code path that reads a token at all, which is what makes the
-whole release reproducible on a laptop with no access to anything.
+The release's only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and
+revoked when it ends. `bun nv release` has no code path that reads a token at all, which is what
+makes the whole release reproducible on a laptop with no access to anything. The Discord webhook
+(§ 7) is the repository's one secret, and only `discord.yml` reads it.
 
 Three habits in the workflow keep it that way, each load-bearing rather than decorative:
 `permissions: {}` at the top with per-job re-grants so only `publish` can write;

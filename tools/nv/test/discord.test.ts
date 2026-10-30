@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { relative, resolve } from "node:path";
-import { API, diff, discord, permissionBits, permissionNames, type Seams } from "../cmd/discord.ts";
+import { API, diff, discord, notesText, permissionBits, permissionNames, type Seams } from "../cmd/discord.ts";
 
 const TOKEN = "secret-token-value";
 const GUILD = "100000000000000001";
@@ -283,6 +283,119 @@ describe("bun nv discord check", () => {
     const unseen = fake({ ...ok, [`GET /channels/${CHANNEL}`]: { status: 403, body: { message: "Missing Access", code: 50001 } } });
     expect(await discord(["check", ...T, "--channel", CHANNEL], unseen.seams)).toBe(1);
     expect(unseen.out.at(-1)).toContain("the bot cannot see channel");
+  });
+});
+
+describe("bun nv discord announce", () => {
+  const HOOK = "https://discord.com/api/webhooks/123456789012345678/hook-token_value";
+  const SHA = "a".repeat(40);
+  const SINCE = "b".repeat(40);
+  const record = (sha: string, subject: string) => `${sha}\x1f${subject}\x1f\x1e\n`;
+  const LOG = [
+    record("1".repeat(40), "feat(lsp): members get one order @everyone"),
+    record("2".repeat(40), "fix(code): rename keeps the file"),
+    record("3".repeat(40), "docs(goals): the next goal"),
+    record("4".repeat(40), "test(runtime): one more case"),
+    record("5".repeat(40), "chore: tidy"),
+  ].join("");
+
+  /** `fake` with a git that answers `log`, a webhook that answers `answers` in turn, and a fixed clock. */
+  function announcing(answers: Answer[] = [{ body: { id: "1" } }], git: (args: string[]) => string = () => LOG) {
+    const f = fake({}, { [resolve(ROOT, "Cargo.toml")]: '[workspace]\nmembers = []\n\n[workspace.package]\nversion = "0.4.2"\n' });
+    const posted: { url: string; body: { embeds: { title: string; description: string; fields: { value: string }[] }[]; allowed_mentions: unknown } }[] = [];
+    const gitCalls: string[][] = [];
+    let n = 0;
+    const seams: Partial<Seams> = {
+      ...f.seams,
+      fetch: async (url, init) => {
+        posted.push({ url, body: JSON.parse(init.body as string) });
+        const a = answers[Math.min(n++, answers.length - 1)]!;
+        return new Response(JSON.stringify(a.body ?? {}), { status: a.status ?? 200 });
+      },
+      git: (args) => {
+        gitCalls.push(args);
+        return git(args);
+      },
+      env: { DISCORD_WEBHOOK_URL: HOOK },
+      now: () => Date.UTC(2026, 9, 30),
+    };
+    return { ...f, posted, gitCalls, seams };
+  }
+
+  test("a dev build names its features and fixes, counts the rest, and mentions nobody", async () => {
+    const a = announcing();
+    const code = await discord(["announce", "dev", "--sha", SHA, "--since", SINCE, "--run-url", "https://example.com/run/1"], a.seams);
+    expect(code).toBe(0);
+    expect(a.gitCalls).toEqual([["log", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${SINCE}..${SHA}`]]);
+    expect(a.posted).toHaveLength(1);
+    expect(a.posted[0]!.url).toBe(`${HOOK}?wait=true`);
+    expect(a.posted[0]!.body.allowed_mentions).toEqual({ parse: [] });
+    const embed = a.posted[0]!.body.embeds[0]!;
+    expect(embed.title).toBe("Dev build 0.4.2+dev");
+    expect(embed.description).toBe(
+      [
+        "**Features**",
+        "- **lsp**: members get one order @everyone",
+        "",
+        "**Fixes**",
+        "- **code**: rename keeps the file",
+        "",
+        "3 other changes: documentation, tests and internal work.",
+        "",
+        `[See all 5 commits](https://github.com/novis-lang/novis/compare/${SINCE}...${SHA})`,
+      ].join("\n"),
+    );
+    expect(embed.fields[0]!.value).toContain("docker pull ghcr.io/novis-lang/novis:dev");
+    expect([...a.out, ...a.err].join("\n")).not.toContain("hook-token");
+  });
+
+  test("a --since git does not know falls back to the one commit, with a warning", async () => {
+    const a = announcing(undefined, (args) => {
+      if (args.at(-1)!.includes("..")) throw new Error("git log failed: bad revision");
+      return record(SHA, "fix(code): one commit");
+    });
+    expect(await discord(["announce", "dev", "--sha", SHA, "--since", SINCE, "--run-url", "https://example.com/run/1"], a.seams)).toBe(0);
+    expect(a.gitCalls.map((c) => c.at(-1))).toEqual([`${SINCE}..${SHA}`, `${SHA}^!`]);
+    expect(a.err.join("\n")).toContain(`git does not know ${SINCE}`);
+    expect(a.posted[0]!.body.embeds[0]!.description).toEndWith(`[See the commit](https://github.com/novis-lang/novis/commit/${SHA})`);
+  });
+
+  test("a release shows its notes with the version heading dropped and the image to pull", async () => {
+    const notes = "## [0.4.2] - 2026-10-30\n\n<!-- generated -->\n### Features\n\n- **lsp**: one order\n";
+    const a = announcing();
+    const f = { ...a.seams, read: (p: string) => (p === "/notes" ? notes : a.seams.read!(p)) };
+    expect(await discord(["announce", "release", "--tag", "v0.4.2", "--url", "https://example.com/r", "--notes-file", "/notes"], f)).toBe(0);
+    const embed = a.posted[0]!.body.embeds[0]!;
+    expect(embed.title).toBe("Novis 0.4.2 is released");
+    expect(embed.description).toBe("**Features**\n\n- **lsp**: one order");
+    expect(embed.fields[1]!.value).toContain("docker pull ghcr.io/novis-lang/novis:0.4.2");
+  });
+
+  test("long notes are cut at a line and end with a link to all of them", () => {
+    const text = notesText(Array.from({ length: 400 }, (_, i) => `- change number ${i}`).join("\n"), "https://example.com/r");
+    expect(text.length).toBeLessThan(4096);
+    expect(text).toEndWith("\n\n[Read all release notes](https://example.com/r)");
+    expect(text.split("\n\n")[0]!.split("\n").every((l) => /^- change number \d+$/.test(l))).toBe(true);
+  });
+
+  test("--dry-run prints the message and posts nothing; a missing webhook fails without posting", async () => {
+    const dry = announcing();
+    expect(await discord(["announce", "dev", "--sha", SHA, "--run-url", "https://example.com/run/1", "--dry-run"], dry.seams)).toBe(0);
+    expect(dry.gitCalls[0]!.at(-1)).toBe(`${SHA}^!`);
+    expect(dry.posted).toHaveLength(0);
+    expect(JSON.parse(dry.out.join("\n")).embeds[0].description).toEndWith(`[See the commit](https://github.com/novis-lang/novis/commit/${SHA})`);
+    const none = announcing();
+    expect(await discord(["announce", "dev", "--sha", SHA, "--run-url", "https://example.com/run/1"], { ...none.seams, env: {} })).toBe(1);
+    expect(none.posted).toHaveLength(0);
+    expect(none.err.join("\n")).toContain("DISCORD_WEBHOOK_URL is not set");
+  });
+
+  test("a webhook that refuses the message fails without printing its URL, and a 429 is retried", async () => {
+    const a = announcing([{ status: 429, body: { retry_after: 0.2 } }, { status: 404, body: { message: "Unknown Webhook", code: 10015 } }]);
+    expect(await discord(["announce", "dev", "--sha", SHA, "--run-url", "https://example.com/run/1"], a.seams)).toBe(1);
+    expect(a.slept).toEqual([200]);
+    expect(a.err.join("\n")).toContain("the webhook did not take the message: 404 Unknown Webhook (code 10015)");
+    expect([...a.out, ...a.err].join("\n")).not.toContain("hook-token");
   });
 });
 

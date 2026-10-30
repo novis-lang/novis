@@ -1,0 +1,109 @@
+# Posts a published release and each dev build to the project's Discord, through
+# `bun nv discord announce`, whose module doc owns what a message says.
+#
+# A release is published by hand from the draft `release.yml` leaves, and `release: published` posts
+# its notes. The dev build (`dev-build.yml` on `landing`) calls this once it has pushed the `dev`
+# image, and the message lists the commits since the dev build before it. That commit is kept as a
+# cache entry keyed by commit: the newest entry is the previous dev build. With none, or one evicted,
+# the message names the one commit.
+#
+# The webhook URL is the repository secret `DISCORD_WEBHOOK_URL`. It can post to one channel and do
+# nothing else, and it reaches the shell through `env:` only. Without the secret (a fork) the job
+# posts nothing and succeeds.
+
+name: Discord
+
+on:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      sha:
+        description: 'The commit the dev build published.'
+        type: string
+        required: true
+    secrets:
+      DISCORD_WEBHOOK_URL:
+        required: false
+
+permissions: {}
+
+jobs:
+  release:
+    name: release message
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: Post the release
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          NOTES: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::notice::DISCORD_WEBHOOK_URL is not set, so nothing is posted"
+            exit 0
+          fi
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
+          bun nv discord announce release --tag "$TAG" --url "$URL" --notes-file "$RUNNER_TEMP/notes.md"
+
+  dev:
+    name: dev build message
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+          # The message lists the commits since the previous dev build, so the history has to be here.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - id: previous
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .discord-dev-build
+          key: discord-dev-build-${{ inputs.sha }}
+          restore-keys: discord-dev-build-
+      - name: Post the dev build
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SHA: ${{ inputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          since=()
+          if [ -f .discord-dev-build ]; then
+            since=(--since "$(cat .discord-dev-build)")
+          fi
+          printf '%s' "$SHA" > .discord-dev-build
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::notice::DISCORD_WEBHOOK_URL is not set, so nothing is posted"
+            exit 0
+          fi
+          bun nv discord announce dev --sha "$SHA" --run-url "$RUN_URL" "${since[@]}"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        if: steps.previous.outputs.cache-hit != 'true'
+        with:
+          path: .discord-dev-build
+          key: discord-dev-build-${{ inputs.sha }}
