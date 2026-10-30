@@ -1,0 +1,6 @@
+{
+  "module": "extensions/pdf/src/lib.rs",
+  "title": "The PDF module doc's list is open: a render inside a header, the depth and size limits below the request's cap, merge and read costs, and the pagination gaps.",
+  "text": "Closing it fixes or bounds each bullet in `extensions/pdf/src/lib.rs`, turning each `ends-early` hostile case it covers into a case that passes, and deletes the bullets (`rule:core-classes/pdf-roster`).",
+  "goal": "extension-leftovers"
+}

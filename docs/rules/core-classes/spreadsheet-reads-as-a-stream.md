@@ -113,7 +113,7 @@ and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Rea
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
-Month and day names are English in every `locale`.
+Month and day names are English in every `locale` (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

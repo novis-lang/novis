@@ -1,0 +1,6 @@
+{
+  "module": "extensions/spreadsheet/src/lib.rs",
+  "title": "The spreadsheet module doc's bullets from number formats on are open: formats, ods reads, extras, rows, sheets, messages, charts, sheet-end parts, addresses, names, `Export`, the engine exports and the costs.",
+  "text": "Closing it fixes or bounds each item of those bullets in `extensions/spreadsheet/src/lib.rs`, with a test or a hostile case for each, and deletes the bullets (`rule:core-classes/spreadsheet-roster`).",
+  "goal": "extension-leftovers"
+}

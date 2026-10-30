@@ -42,7 +42,8 @@
 //! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it, a copy
 //! of their own beside the image component's.
 //!
-//! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest:
+//! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
+//! (gap:nvs-pdf/pdf-leftovers):
 //!
 //! - A `Document::render` inside a header, footer or slot function replaces the outer render's
 //!   [`Kept`], so the outer second pass returns `invalid` ("the second pass needs a first pass in

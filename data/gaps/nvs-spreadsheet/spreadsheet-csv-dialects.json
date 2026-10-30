@@ -1,0 +1,6 @@
+{
+  "module": "extensions/spreadsheet/nvs/Reader.nvs",
+  "title": "A CSV is read and written only with `,` and `\"`, and only as UTF-8.",
+  "text": "Closing it adds a delimiter and quote option and a source encoding to the CSV reader and writer, decoded through `Core\\Charset` (`rule:core-classes/spreadsheet-has-no-io`).",
+  "goal": "spreadsheet-second-wave"
+}

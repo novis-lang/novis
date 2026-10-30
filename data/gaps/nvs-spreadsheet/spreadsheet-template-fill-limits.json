@@ -1,0 +1,6 @@
+{
+  "module": "extensions/spreadsheet/src/template",
+  "title": "A template's repeated blocks are on one sheet, shared formulas and `x14` conditional formats are not moved, and an `Iterator` is not a list.",
+  "text": "Closing it repeats blocks on more than one sheet, gives each copy of a shared formula its own `si`, shifts an `x14` conditional format under `extLst`, and takes an `Iterator` as a list in `$data` (`rule:core-classes/spreadsheet-template-fill`).",
+  "goal": "spreadsheet-second-wave"
+}

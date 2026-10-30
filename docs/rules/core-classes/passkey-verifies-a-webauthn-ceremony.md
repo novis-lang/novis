@@ -47,5 +47,3 @@ in with it (`rule:packaging/a-registry-account-is-a-passkey`).
   table would be a second user store beside it.
 - **A challenge the application creates and passes back in.** Nothing could then stop one challenge
   from verifying twice.
-
-**Not on disk.** There is no `Core\Passkey`.

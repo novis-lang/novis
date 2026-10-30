@@ -1,0 +1,6 @@
+{
+  "module": "extensions/spreadsheet/nvs/Cell.nvs",
+  "title": "There is no `Cell::rich`, so no Novis method writes rich text in one cell, although the writer writes it.",
+  "text": "Closing it adds `Cell::rich(array<{text: string, style?: Style}> $runs)`, passed to the writer's existing rich value (`rule:core-classes/spreadsheet-roster`, `rule:core-classes/spreadsheet-sheet-end-parts`).",
+  "goal": "spreadsheet-second-wave"
+}

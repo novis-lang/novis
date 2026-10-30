@@ -35,9 +35,10 @@
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 //!
-//! **Not done yet.** The second wave (`Cell::rich`, writing ods, an evaluate call) and the cut-off
-//! download are named in their rules' fragments. These are the rest, and none of them is checked
-//! against Excel:
+//! **Not done yet.** `Cell::rich`, writing ods and an evaluate call are named in their rules'
+//! fragments. These are the rest, and none of them is checked against Excel. The tables and
+//! template bullets are gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets
+//! from number formats on are gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
 //! - Tables (`table`): a totals formula `[@x]` is written in its long form `[[#This Row],[x]]`.
 //!   No fixture has one, so opening it in Excel is not checked.
@@ -911,7 +912,8 @@ mod guest {
         }
     }
 
-    /// The part `part` is, or `runtime` for a kind this version does not write yet.
+    /// The core's part for `part`. Every kind of `wit::SheetPart` converts, so it never
+    /// returns an error.
     fn sheet_part(part: wit::SheetPart) -> Result<tail::Part, wit::Error> {
         use tail::Part;
         Ok(match part {

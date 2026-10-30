@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-config/src/tree.rs",
+  "title": "There is no `[regex]` block, so an operator cannot make a backtracking pattern a warning or a compile error.",
+  "text": "Closing it adds `[regex] backtracking = \"allow\" | \"warn\" | \"deny\"` to the configuration, and the compiler reports or refuses a pattern that needs the backtracking tier (`rule:core-classes/regex-compile-time-tiering`).",
+  "goal": "runtime-leftovers"
+}

@@ -1,0 +1,6 @@
+{
+  "module": "extensions/spreadsheet/src/read",
+  "title": "The reader's extras throw for xlsb, xls and ods, an ods cell's text ignores the file's number style, and month and day names are English in every locale.",
+  "text": "Closing it reads `links`, `notes`, `names`, `tables` and `images` from xlsb, xls and ods and `properties` from xls and ods in `read/extras.rs`, renders an ods cell under its own number style in `read/ods.rs`, and gives `format/date.rs` the month and day names of each `locale` (`rule:core-classes/spreadsheet-reads-as-a-stream`).",
+  "goal": "spreadsheet-second-wave"
+}

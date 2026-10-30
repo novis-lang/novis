@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/packaging/package-toml-is-a-tool-input.md, crates/nvs-cli/src/package/mod.rs, docs/agent/doc-style.md]
   - id: 3
     title: "every core-classes, ide and testing fragment says what is on disk, and each gap it names is a record"
-    status: open
+    status: done
     context: [docs/rules/core-classes/spreadsheet-roster.md, extensions/spreadsheet/src/lib.rs, crates/nvs-cli/src/debug.rs, docs/agent/doc-style.md]
   - id: 4
     title: "no checkout path, every crate is publish = false, and the license names its scope"
@@ -187,6 +187,11 @@ says "not just on your own machine". Each bullet's `until:` trailer stays as wri
 `tools/nv/test/*.test.ts` are test inputs and stay. The check skips `docs/goals/`, whose files quote
 the pattern.
 
+**The spreadsheet style enums are REAL, not a BOUND.** `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+binds every built-in component's enum, so the style enums at namespace scope, and `Visibility` beside
+them, break a shipped rule. Record `nvs-spreadsheet/spreadsheet-style-enums` names
+`spreadsheet-second-wave`, and the roster's `Visibility` sentence moved into its Not-shipped paragraph.
+
 **The license scope.** The root MIT `LICENSE` covers the whole repository, the looper kit in
 `tools/looper/` included. `tools/looper/` is synced and never hand-edited, so the scope is stated
 outside it: one sentence in README.md § *License* (`README.md:163`) and the `tools/` line of
@@ -291,33 +296,33 @@ record, and the editor's one "not available yet" message has a record.
 item's verdict (REAL or BOUND) with evidence. The session writes every fragment and record.
 
 STALE. Rewrite and drop the paragraph:
-- [ ] `rule:core-classes/passkey-verifies-a-webauthn-ceremony`: `docs/rules/core-classes/passkey-verifies-a-webauthn-ceremony.md:51`, `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `rule:core-classes/web-push-sends-an-encrypted-message`: `docs/rules/core-classes/web-push-sends-an-encrypted-message.md:46`, `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`: the API, search, replay, settings and to-test hand-off exist. Any view the code lacks (grouping, compare) is REAL, record `nvs-cli/viewer-views` owned by `runtime-leftovers`. `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:113`, `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/src/debug/search.rs:1`, `crates/nvs-cli/src/debug/replay.rs:1`, `crates/nvs-cli/src/debug/settings.rs:1`, `crates/nvs-cli/src/debug/to_test.rs:1`
+- [x] `rule:core-classes/passkey-verifies-a-webauthn-ceremony`: `docs/rules/core-classes/passkey-verifies-a-webauthn-ceremony.md:51`, `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] `rule:core-classes/web-push-sends-an-encrypted-message`: `docs/rules/core-classes/web-push-sends-an-encrypted-message.md:46`, `crates/nvs-stdlib/src/webpush.rs:1`
+- [x] `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`: the API, search, replay, settings and to-test hand-off exist. Any view the code lacks (grouping, compare) is REAL, record `nvs-cli/viewer-views` owned by `runtime-leftovers`. `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:113`, `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/src/debug/search.rs:1`, `crates/nvs-cli/src/debug/replay.rs:1`, `crates/nvs-cli/src/debug/settings.rs:1`, `crates/nvs-cli/src/debug/to_test.rs:1`
 
-- [ ] `rule:core-classes/process-spawn`: the paragraph states intended behaviour. Reword it as the rule's present statement without the bold lead, and write no record, because `runtime-leftovers` tests it and fixes the handle hole it finds. `docs/rules/core-classes/process-spawn.md:35`, `crates/nvs-stdlib/src/process.rs:1`
+- [x] `rule:core-classes/process-spawn`: the paragraph states intended behaviour. Reword it as the rule's present statement without the bold lead, and write no record, because `runtime-leftovers` tests it and fixes the handle hole it finds. `docs/rules/core-classes/process-spawn.md:35`, `crates/nvs-stdlib/src/process.rs:1`
 
 REAL, owned by `runtime-leftovers`:
-- [ ] `rule:core-classes/regex-compile-time-tiering`: running prose today, so it gets a bold lead. Record `nvs-config/regex-deny-block`. `docs/rules/core-classes/regex-compile-time-tiering.md:18`, `crates/nvs-config/src/lib.rs:1`, `data/gaps/nvs-config/regex-deny-block.json:1`
-- [ ] `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`: the task tree, out of the bullet into a bold-led paragraph. Record `nvs-cli/debugger-task-tree`. `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:28`, `crates/nvs-cli/src/dap/mod.rs:1`, `data/gaps/nvs-cli/debugger-task-tree.json:1`
-- [ ] `rule:types/class-scoped-alias`: renaming a type alias a class declares. Record `nvs-lsp/rename-a-class-scoped-alias`. No fragment changes. `crates/nvs-lsp/src/rename.rs:108`, `data/gaps/nvs-lsp/rename-a-class-scoped-alias.json:1`
+- [x] `rule:core-classes/regex-compile-time-tiering`: running prose today, so it gets a bold lead. Record `nvs-config/regex-deny-block`. `docs/rules/core-classes/regex-compile-time-tiering.md:18`, `crates/nvs-config/src/lib.rs:1`, `data/gaps/nvs-config/regex-deny-block.json:1`
+- [x] `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`: the task tree, out of the bullet into a bold-led paragraph. Record `nvs-cli/debugger-task-tree`. `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:28`, `crates/nvs-cli/src/dap/mod.rs:1`, `data/gaps/nvs-cli/debugger-task-tree.json:1`
+- [x] `rule:types/class-scoped-alias`: renaming a type alias a class declares. Record `nvs-lsp/rename-a-class-scoped-alias`. No fragment changes. `crates/nvs-lsp/src/rename.rs:108`, `data/gaps/nvs-lsp/rename-a-class-scoped-alias.json:1`
 
 REAL or BOUND, owned by `spreadsheet-second-wave`. One record per paragraph under `data/gaps/nvs-spreadsheet/`:
-- [ ] `rule:core-classes/spreadsheet-evaluation-and-roster`: evaluate and writing ods, record `spreadsheet-evaluate-and-write-ods`. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:35`
-- [ ] `rule:core-classes/spreadsheet-has-no-io`: other CSV dialects and encodings, record `spreadsheet-csv-dialects`. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: the xlsb, xls and ods parts, ods number styles and month names, record `spreadsheet-read-parts-of-every-format`. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`
-- [ ] `rule:core-classes/spreadsheet-roster` and `rule:core-classes/spreadsheet-sheet-end-parts`: `Cell::rich`, one record `spreadsheet-cell-rich` cited by both. `docs/rules/core-classes/spreadsheet-roster.md:50`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
-- [ ] `rule:core-classes/spreadsheet-styles-and-defaults`: the style enums under `Style`, record `spreadsheet-style-enums`. `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:67`
-- [ ] `rule:core-classes/spreadsheet-template-fill`: blocks across sheets, shared formulas, `x14` formats and iterators, record `spreadsheet-template-fill-limits`. `docs/rules/core-classes/spreadsheet-template-fill.md:47`
+- [x] `rule:core-classes/spreadsheet-evaluation-and-roster`: evaluate and writing ods, record `spreadsheet-evaluate-and-write-ods`. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:35`
+- [x] `rule:core-classes/spreadsheet-has-no-io`: other CSV dialects and encodings, record `spreadsheet-csv-dialects`. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: the xlsb, xls and ods parts, ods number styles and month names, record `spreadsheet-read-parts-of-every-format`. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`
+- [x] `rule:core-classes/spreadsheet-roster` and `rule:core-classes/spreadsheet-sheet-end-parts`: `Cell::rich`, one record `spreadsheet-cell-rich` cited by both. `docs/rules/core-classes/spreadsheet-roster.md:50`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
+- [x] `rule:core-classes/spreadsheet-styles-and-defaults`: the style enums under `Style`, record `spreadsheet-style-enums`. `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:67`
+- [x] `rule:core-classes/spreadsheet-template-fill`: blocks across sheets, shared formulas, `x14` formats and iterators, record `spreadsheet-template-fill-limits`. `docs/rules/core-classes/spreadsheet-template-fill.md:47`
 
 The three `**Not done yet.**` lists in extension module docs. Each list cites its records, and a list split between two owners cites both. A `Cost:` paragraph after a list is a documented trade-off, not a gap:
-- [ ] `rule:core-classes/spreadsheet-roster`: the bullets at lines 42-52 (tables, template rows, template values) → record `nvs-spreadsheet/spreadsheet-unchecked-against-excel`, owned by `spreadsheet-second-wave`. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:42`, `data/gaps/nvs-spreadsheet/spreadsheet-unchecked-against-excel.json:1`
-- [ ] `rule:core-classes/spreadsheet-roster`: the bullets from line 53 on (number formats, ods and merges, extras, rows, sheets, the decompression-bound message, charts, sheet-end parts and the rest) → record `nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers`, owned by `extension-leftovers`. `extensions/spreadsheet/src/lib.rs:53`, `data/gaps/nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers.json:1`
-- [ ] `rule:core-classes/pdf-roster`: every bullet of the PDF list → record `nvs-pdf/pdf-leftovers`, owned by `extension-leftovers`. `extensions/pdf/src/lib.rs:45`, `data/gaps/nvs-pdf/pdf-leftovers.json:1`
-- [ ] `rule:core-classes/pdf-tables-across-pages`: the table list → record `nvs-pdf/pdf-table-leftovers`, owned by `extension-leftovers`. Its `Cost:` paragraph stays as written. `extensions/pdf/src/layout/table.rs:62`, `data/gaps/nvs-pdf/pdf-table-leftovers.json:1`
+- [x] `rule:core-classes/spreadsheet-roster`: the bullets at lines 42-52 (tables, template rows, template values) → record `nvs-spreadsheet/spreadsheet-unchecked-against-excel`, owned by `spreadsheet-second-wave`. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:42`, `data/gaps/nvs-spreadsheet/spreadsheet-unchecked-against-excel.json:1`
+- [x] `rule:core-classes/spreadsheet-roster`: the bullets from line 53 on (number formats, ods and merges, extras, rows, sheets, the decompression-bound message, charts, sheet-end parts and the rest) → record `nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers`, owned by `extension-leftovers`. `extensions/spreadsheet/src/lib.rs:53`, `data/gaps/nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers.json:1`
+- [x] `rule:core-classes/pdf-roster`: every bullet of the PDF list → record `nvs-pdf/pdf-leftovers`, owned by `extension-leftovers`. `extensions/pdf/src/lib.rs:45`, `data/gaps/nvs-pdf/pdf-leftovers.json:1`
+- [x] `rule:core-classes/pdf-tables-across-pages`: the table list → record `nvs-pdf/pdf-table-leftovers`, owned by `extension-leftovers`. Its `Cost:` paragraph stays as written. `extensions/pdf/src/layout/table.rs:62`, `data/gaps/nvs-pdf/pdf-table-leftovers.json:1`
 
 Then:
-- [ ] `bun nv rules --render`, then `bun nv owners --check` passes and lists the records by owner. `tools/nv/cmd/rules.ts:5`, `tools/nv/cmd/owners.ts:375`
+- [x] `bun nv rules --render`, then `bun nv owners --check` passes and lists the records by owner. `tools/nv/cmd/rules.ts:5`, `tools/nv/cmd/owners.ts:375`
 
 ### 4. no checkout path, every crate is publish = false, and the license names its scope
 
@@ -357,45 +362,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Every packaging and security fragment says what is on disk, and
-`bun nv owners --prose` lists no finding under `docs/rules/packaging/` or `docs/rules/security/`.
-Six records under `data/gaps/nvs-cli/` back the paragraphs still owed: `advisory-route-and-range`,
-`release-confirmation-pages`, `withhold-purges-the-cdn`, `fetch-refuses-an-archive-with-nvs-toml` and
-`extension-package-is-packed-and-fetched` name `registry-service`, and `socket-activation` names
-`runtime-leftovers`. The three registry-side records name the registry file whose code owes them
-(`apps/registry/src/App.nvs`, `apps/registry/jobs/withhold.nvs`) as their `module`, because that code
-is on disk, and keep the `nvs-cli/` ids the stage fixed. `bun nv rules --render --check` is clean.
+Stages 1 to 3 are done. `bun nv owners --check` passes with 19 gap records, all goal-owned, and
+`bun nv owners --prose` lists nothing. `bun nv rules --render --check` is clean, and the
+`stale-sections-gone` grep matches nothing.
 
-Every verdict the stage listed held against the code. `rule:packaging/the-first-party-components-are-built-in`
-now describes the PDF exports (`render`, `merge`, `read`, `read-text`) and the spreadsheet writer, reader
-and template exports, all of them implemented. The doc comment on `sheet_part`
-(`extensions/spreadsheet/src/lib.rs:914`) still says a part kind may return `runtime`, and no arm does;
-stage 3 rewrites it with the spreadsheet module doc.
+Stage 3's verdicts against the code: passkey, web push and the viewer were STALE. The viewer's
+paragraph now names the API, search, replay, settings, to-test, views and fixtures on disk; the
+exceptions view (grouping) and compare exist too, so no `nvs-cli/viewer-views` record was written.
+`rule:core-classes/process-spawn`'s paragraph is a plain present statement. Records written:
+`nvs-config/regex-deny-block`, `nvs-cli/debugger-task-tree` and `nvs-lsp/rename-a-class-scoped-alias`
+(`runtime-leftovers`); seven `nvs-spreadsheet/` records for `spreadsheet-second-wave`, including
+`spreadsheet-unchecked-against-excel`; `nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers`,
+`nvs-pdf/pdf-leftovers` and `nvs-pdf/pdf-table-leftovers` (`extension-leftovers`). The style enums
+are REAL (standing decision *The spreadsheet style enums are REAL*). The spreadsheet module doc no
+longer calls the cut-off download owed, since `rule:core-classes/spreadsheet-writes-as-a-stream` has it
+on disk, and `sheet_part`'s doc says it never returns an error.
 
-The acceptance sweep's two reds: `env-secret-proofs` exits 0 on disk, as its log shows. Nightly
-41033290883's `test / linux-x86_64 (tests)` failed in
-`a_bundle_whose_embedded_extension_was_altered_refuses_to_start` with `ExecutableFileBusy`: the test
-rewrites the executable in-process, and a sibling test's fork held the write descriptor until its
-`exec`. `b9ce9d0e6` retries that one error in `run_rewritten` (`crates/nvs-cli/tests/bundle.rs:380`).
+The acceptance sweep's reds were both green on disk: `env-secret-proofs` exits 0, and nightly
+41033290883 is the `ExecutableFileBusy` failure `b9ce9d0e6` fixed.
 
 ### Next
 
-Stage 3, one group over the core-classes, ide and testing fragments, the three extension module-doc
-lists and their records. Follow the stage's `**Split:**` line: the seven spreadsheet fragments go to
-one `reader` subagent for verdicts first. Items and anchors: `docs/goals/release-hygiene.md:285`.
-`bun nv owners --prose` lists the 14 findings left, which are the worklist:
+Stage 4, three groups and one local step. Items and anchors: `docs/goals/release-hygiene.md:327`.
 
-- [ ] The three STALE fragments and `rule:core-classes/process-spawn`'s reword. `docs/rules/core-classes/passkey-verifies-a-webauthn-ceremony.md:51`, `docs/rules/core-classes/web-push-sends-an-encrypted-message.md:46`, `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:113`, `docs/rules/core-classes/process-spawn.md:35`
-- [ ] The three `runtime-leftovers` records: regex deny block, debugger task tree, class-scoped alias rename. `docs/rules/core-classes/regex-compile-time-tiering.md:18`, `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:28`, `crates/nvs-lsp/src/rename.rs:108`
-- [ ] The seven spreadsheet fragments and their `spreadsheet-second-wave` records. `docs/rules/core-classes/spreadsheet-roster.md:50`
-- [ ] The three module-doc lists and their records, and the stale `sheet_part` comment. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:914`, `extensions/pdf/src/lib.rs:45`, `extensions/pdf/src/layout/table.rs:62`
-- [ ] `bun nv rules --render`, then `bun nv owners --check` passes. `tools/nv/cmd/owners.ts:375`
+- [ ] Paths: every playbook checkout path becomes `<repo>`, `tools/nv/accept/mirror.ts:53` and
+  `AGENTS.md:92`. `docs/agent/playbook.md:96`
+- [ ] License: README § *License* and CONTRIBUTING's `tools/` line. `README.md:163`, `CONTRIBUTING.md:184`
+- [ ] Crates: `publish = false` inherited, the lints check and its test, the two descriptions, and `cache.rs`'s dead-code allow. `crates/nvs-cli/src/cache.rs:194`, `tools/nv/cmd/lints.ts:1`
+- [ ] Delete the untracked `a.out` at the repository root, whose ignore line stays. `docs/goals/release-hygiene.md:346`
 
-Expected red until stage 3 ends: `bun nv owners --check`, which `bun nv verify` and `bun nv ci --check`
-run.
+Expected red until stage 4 ends: `no-checkout-path`, `publish-false-test`, `lints-check`,
+`manifests-plain`, `license-scope` and `no-permissive-claim`. Nothing from stage 3 is expected red.
 
 ### Backlog
 
 - Sibling goals `registry-service`, `runtime-leftovers`, `spreadsheet-second-wave` and `extension-leftovers` close the
-  records stages 2 and 3 write. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:469`).
-- Stage 4 touches no file of stages 1 to 3 and may run as a side goal.
+  records stages 2 and 3 wrote. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:469`).
+- Stage 5 runs `bun nv verify --doc`, `bun nv owners --closes release-hygiene` and `bun nv ci --check` before `DONE`.

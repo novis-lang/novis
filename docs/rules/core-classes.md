@@ -265,8 +265,8 @@ running a set-user-ID program, which the watcher may have no permission to kill,
 before the watcher itself was killed. nvs finds a killed watcher at its next child start, writes a
 `warn` record to the log and starts another.
 
-**Not on disk.** A child started inside a `Core\Task` child task is ended and reported when that task ends, and under `nvs run` that
-report does not change the exit status.
+A child started inside a `Core\Task` child task is ended and reported when that task ends. Under
+`nvs run`, that report does not change the exit status.
 
 Both members take the same options bag, [`core-classes/process-options`](core-classes.md#core-classes-process-options), and its `timeout` bounds
 every handle member that parks.
@@ -512,7 +512,8 @@ A pattern assembled at run time is compiled at run time and gets the same tierin
 budget, with none of the three benefits. That is a reason to write patterns as string literals, stated here
 rather than discovered.
 
-The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
+**Not on disk.** The third consequence: there is no `[regex]` block, so an operator cannot set
+`warn` or `deny` (gap:nvs-config/regex-deny-block).
 
 <sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed).</sub>
 
@@ -3121,8 +3122,6 @@ in with it ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging
 - **A challenge the application creates and passes back in.** Nothing could then stop one challenge
   from verifying twice.
 
-**Not on disk.** There is no `Core\Passkey`.
-
 <sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
 
 <a id="core-classes-web-push-sends-an-encrypted-message"></a>
@@ -3175,8 +3174,6 @@ it ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-o
   fixes all three.
 - **Encryption only, with the sending left to the application.** The application would then build the
   VAPID header itself, which is the part most often wrong.
-
-**Not on disk.** There is no `Core\WebPush`.
 
 <sub>See also [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/net-address-policy`](security.md#security-net-address-policy), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email).</sub>
 
@@ -4695,7 +4692,8 @@ surfaced as data and nothing resolved.
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
 
-**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8.
+**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8
+(gap:nvs-spreadsheet/spreadsheet-csv-dialects).
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
@@ -4770,12 +4768,12 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
 **On disk.** Every member the table names but `Cell::rich`, in `extensions/spreadsheet/nvs/`, and
-the enums in `extensions/spreadsheet/manifest.json`. `Visibility` is at namespace scope with the
-style enums, not owned by `Reader`. A `Style` also has the readonly `fields` and `key` that
-`Workbook` reads.
+the enums in `extensions/spreadsheet/manifest.json`. A `Style` also has the readonly `fields` and
+`key` that `Workbook` reads.
 
 **Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
-`Cell` is `of` alone.
+`Cell` is `of` alone (gap:nvs-spreadsheet/spreadsheet-cell-rich). `Visibility` is at namespace
+scope with the style enums, not owned by `Reader` (gap:nvs-spreadsheet/spreadsheet-style-enums).
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -5089,7 +5087,8 @@ a sheet.
 number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
 `extensions/spreadsheet/src/width.rs`).
 
-**Not shipped.** The style enums under `Style`: they are at namespace scope.
+**Not shipped.** The style enums under `Style`: they are at namespace scope
+(gap:nvs-spreadsheet/spreadsheet-style-enums).
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on
@@ -5193,7 +5192,7 @@ written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `
 `chart.rs`.
 
 **Not shipped.** `Cell::rich`, so no Novis method writes rich text in one cell
-([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster)).
+([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster), gap:nvs-spreadsheet/spreadsheet-cell-rich).
 
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
@@ -5266,7 +5265,7 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
 shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
 `si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
-`Iterator` in `$data` is not a list.
+`Iterator` in `$data` is not a list (gap:nvs-spreadsheet/spreadsheet-template-fill-limits).
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
@@ -5404,7 +5403,7 @@ and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Rea
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
 rendered under the default format of its type, and not under the file's own number style.
-Month and day names are English in every `locale`.
+Month and day names are English in every `locale` (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
@@ -5496,7 +5495,7 @@ rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](c
 **On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
 (`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`).
 
-**Not shipped.** An evaluate call and writing ods, the second wave.
+**Not shipped.** An evaluate call and writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

@@ -15,4 +15,5 @@ A pattern assembled at run time is compiled at run time and gets the same tierin
 budget, with none of the three benefits. That is a reason to write patterns as string literals, stated here
 rather than discovered.
 
-The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
+**Not on disk.** The third consequence: there is no `[regex]` block, so an operator cannot set
+`warn` or `deny` (gap:nvs-config/regex-deny-block).

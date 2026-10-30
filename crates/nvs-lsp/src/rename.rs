@@ -104,7 +104,8 @@ const CONSTRUCTOR: &str = "constructor";
 const NOTHING: &str = "There is nothing to rename here. You can rename a class, a variable, a \
                        method, a property, a constant or an enum case.";
 
-/// The message for a cursor on a type alias a class declares.
+/// The message for a cursor on a type alias a class declares, until such an
+/// alias is renamed (gap:nvs-lsp/rename-a-class-scoped-alias).
 const AN_OWNED_ALIAS: &str = "Renaming a type alias that a class declares is not available yet.";
 
 /// The names a type may not take, because the language already uses each one

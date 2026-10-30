@@ -32,7 +32,7 @@ rule the PDF component applies to dropped CSS (`rule:core-classes/pdf-css-subset
 **On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
 (`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`).
 
-**Not shipped.** An evaluate call and writing ods, the second wave.
+**Not shipped.** An evaluate call and writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

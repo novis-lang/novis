@@ -64,7 +64,8 @@ a sheet.
 number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
 `extensions/spreadsheet/src/width.rs`).
 
-**Not shipped.** The style enums under `Style`: they are at namespace scope.
+**Not shipped.** The style enums under `Style`: they are at namespace scope
+(gap:nvs-spreadsheet/spreadsheet-style-enums).
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on

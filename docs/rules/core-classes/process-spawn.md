@@ -32,8 +32,8 @@ running a set-user-ID program, which the watcher may have no permission to kill,
 before the watcher itself was killed. nvs finds a killed watcher at its next child start, writes a
 `warn` record to the log and starts another.
 
-**Not on disk.** A child started inside a `Core\Task` child task is ended and reported when that task ends, and under `nvs run` that
-report does not change the exit status.
+A child started inside a `Core\Task` child task is ended and reported when that task ends. Under
+`nvs run`, that report does not change the exit status.
 
 Both members take the same options bag, `rule:core-classes/process-options`, and its `timeout` bounds
 every handle member that parks.

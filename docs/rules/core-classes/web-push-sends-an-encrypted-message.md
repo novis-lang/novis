@@ -42,5 +42,3 @@ it (`rule:packaging/an-owner-is-notified-without-email`).
   fixes all three.
 - **Encryption only, with the sending left to the application.** The application would then build the
   VAPID header itself, which is the part most often wrong.
-
-**Not on disk.** There is no `Core\WebPush`.

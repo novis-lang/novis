@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/rename.rs",
+  "title": "Rename refuses a type alias that a class declares.",
+  "text": "Closing it renames the alias and every use of it, inside the class and through the class's name, in the editor and in `nvs code rename`, and deletes `AN_OWNED_ALIAS` (`rule:types/class-scoped-alias`).",
+  "goal": "runtime-leftovers"
+}

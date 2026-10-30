@@ -25,7 +25,10 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   worth of state the adapter already has, and the UI renders it with no work of its own.
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
   pauses all of them (`rule:testing/a-stop-pauses-the-whole-task-tree`). That is the standard
-  presentation, needing no protocol extension. The *tree* of tasks would need one and is not built.
+  presentation, needing no protocol extension. The *tree* of tasks needs one.
+
+**Not on disk.** The tree of tasks: the threads pane lists every task flat
+(gap:nvs-cli/debugger-task-tree).
 
 **A condition and a logpoint's `{…}` hole are expressions over the stopped frame's variables.** They
 are type-checked against the frame's slot table

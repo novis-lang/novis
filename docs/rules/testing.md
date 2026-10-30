@@ -2970,10 +2970,12 @@ them, and a restart on the same port finds them.
   index, one thread per open connection up to 64, and one sequence number per open tab. The browser
   holds one page of rows and the request it shows.
 
-**Not on disk.** The listener serves the page, the two files and `/api/events`, and every other
-`/api/` path is a `404`: the JSON API, its fixture, the views, search, grouping, compare, replay and
-the settings file are not built. The one hand-off built is the editor's: the VS Code extension reads
-the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
+The JSON API is `crates/nvs-cli/src/debug/api.rs`, with search, replay, the settings file and the
+to-test hand-off in `search.rs`, `replay.rs`, `settings.rs` and `to_test.rs` beside it, and the
+listener's route table names every `/api/` path; any other is a `404`. The views are
+`viewer/src/views/`, and `crates/nvs-cli/tests/debug_api.rs` writes the fixtures under
+`viewer/test/fixtures/` that `viewer/test/api.test.ts` checks the types against. The VS Code extension
+reads the lcov file `nvs test` writes (`editors/vscode/src/report.ts`).
 
 **Declined:**
 - **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it

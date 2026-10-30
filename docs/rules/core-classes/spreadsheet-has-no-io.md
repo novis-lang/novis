@@ -71,7 +71,8 @@ surfaced as data and nothing resolved.
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
 
-**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8.
+**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8
+(gap:nvs-spreadsheet/spreadsheet-csv-dialects).
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a

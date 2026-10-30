@@ -47,7 +47,7 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
 shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
 `si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
-`Iterator` in `$data` is not a list.
+`Iterator` in `$data` is not a list (gap:nvs-spreadsheet/spreadsheet-template-fill-limits).
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody

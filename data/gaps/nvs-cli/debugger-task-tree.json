@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/dap",
+  "title": "The debugger shows each task of the debugged request as a flat DAP thread, with no tree of which task spawned which.",
+  "text": "Closing it presents the parent of each task through a protocol extension the VS Code extension reads, and the threads pane nests them (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).",
+  "goal": "runtime-leftovers"
+}
