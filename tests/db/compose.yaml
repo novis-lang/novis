@@ -393,7 +393,7 @@ services:
   # that adds `-y /root/.ldappass`, which `-w` cannot be combined with.
   # ---------------------------------------------------------------------------------------------------
   samba-ad:
-    image: smblds/smblds@sha256:656b90fd11b1e32a0e6bcfb8a88fd98dc1f1edfb2db4d295ad570251f804ece1
+    image: smblds/smblds@sha256:b99c19f3ab7c79f4c5b25a484856eab7babf563f4eed0cbf3bb00026c013e47c
     hostname: samba-ad
     depends_on:
       certs:
