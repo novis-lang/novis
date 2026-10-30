@@ -1658,6 +1658,8 @@ fn pushed(out: &mut Vec<Field>, field: Field) -> Result<(), Fault> {
 /// The error a refused growth returns. The request's memory breach is already
 /// recorded, so the `FATAL` that ends it names the ceiling and not this text.
 fn over_memory() -> Fault {
+    // no case can reach this: no program reads this text, for the reason above.
+    // `a_list_of_fields_past_the_memory_limit_stops_at_the_limit` asserts it instead.
     Fault::thrown("Core\\Bytes::unpack: the fields do not fit in the request's memory limit")
 }
 
@@ -2474,6 +2476,34 @@ mod tests {
 
     /// The property that makes one shared code table worth having: a format
     /// means the same thing read as it does written.
+    /// `C*` reads one field per octet, and each field is many times wider than
+    /// its octet, so the list stops growing at the memory limit.
+    // covers: Core\Bytes::unpack
+    #[test]
+    fn a_list_of_fields_past_the_memory_limit_stops_at_the_limit() {
+        const LIMIT: usize = 64 << 10;
+        let subject = Value::bytes(NvsStr::new(&vec![0_u8; 1 << 20]));
+        let format = Value::text("C*");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+
+        let answered = nvs_runtime::call(nvs_core_bytes_unpack, &mut ctx, &[subject, format]);
+
+        assert!(answered.is_err(), "a million fields do not fit");
+        assert!(nvs_runtime::budget::refused(), "the breach is recorded");
+        assert!(
+            ctx.memory_peak() < 2 * LIMIT,
+            "the list stopped at the limit: peak {}",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "the case owns the values it made")]
+        unsafe {
+            subject.release();
+            format.release();
+        }
+    }
+
     // covers: Core\Bytes::unpack
     #[test]
     fn unpack_is_packs_inverse_over_the_same_format() {

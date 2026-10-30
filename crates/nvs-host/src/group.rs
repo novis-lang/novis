@@ -1416,27 +1416,37 @@ mod tests {
         );
     }
 
-    /// A request whose ceiling is smaller than one stack has a child that is
-    /// over it from its first poll, which is what stops groups nested past
+    /// A request whose ceiling is smaller than one stack is refused that stack
+    /// before the child exists, so the child never runs and the group ends at
+    /// the memory `FATAL`. That is what stops groups nested past
     /// `[limits] memory`.
     #[test]
     fn a_child_whose_stack_passes_the_request_s_ceiling_is_over_it() {
         let mut sched = Scheduler::new();
         let mut parent = ctx();
         parent.set_memory_limit(crate::stack::TASK_STACK_SIZE / 2);
-        let over = Rc::new(std::cell::Cell::new(false));
-        let out = Rc::clone(&over);
+        let ran = Rc::new(std::cell::Cell::new(false));
+        let ran_in_child = Rc::clone(&ran);
+        let fatal = Rc::new(std::cell::Cell::new(false));
+        let out = Rc::clone(&fatal);
 
         sched.spawn(parent, TaskRoot::Request, move |ctx| {
-            let jobs: Vec<Job> = vec![Box::new(move |child: &mut Ctx| {
-                out.set(child.memory_breach().is_some());
+            let jobs: Vec<Job> = vec![Box::new(move |_child: &mut Ctx| {
+                ran_in_child.set(true);
                 Value::int(0)
             })];
-            let _ = group(ctx, jobs, Bounds::default());
+            out.set(matches!(
+                group(ctx, jobs, Bounds::default()),
+                Outcome::Fatal(_)
+            ));
         });
         sched.run();
 
-        assert!(over.get(), "one stack is past a ceiling of half a stack");
+        assert!(
+            !ran.get(),
+            "a stack past a ceiling of half a stack was made"
+        );
+        assert!(fatal.get(), "the refused stack is the group's FATAL");
     }
 
     /// A child stopped on a `FATAL` ends its group as one, even where a sibling

@@ -2134,6 +2134,10 @@ nvs_runtime::nvs_helper! {
             .saturating_mul(group_separator.len())
             .saturating_add(integer.len() + fraction.len() + 1)
             .saturating_add(decimal_separator.len());
+        // no case can reach this: the recorded breach ends the request at the
+        // memory `FATAL` first, so no program reads this text.
+        // `a_result_past_the_memory_limit_is_refused_before_it_is_allocated`
+        // asserts the refusal instead.
         if !nvs_runtime::budget::affords(length) {
             return Err(Fault::thrown(
                 "Core\\Math::format: the result does not fit in the request's memory limit",
@@ -2653,6 +2657,37 @@ mod tests {
         unsafe {
             comma.release();
             point.release();
+        }
+    }
+
+    /// A group separator long enough to multiply the result past the memory
+    /// limit is refused before the result is allocated.
+    // covers: Core\Math::format
+    #[test]
+    fn a_result_past_the_memory_limit_is_refused_before_it_is_allocated() {
+        const LIMIT: usize = 1 << 20;
+        let point = Value::text(".");
+        let separator = Value::text(&",".repeat(LIMIT));
+        let mut ctx = Ctx::new(nvs_runtime::OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+
+        let answered = call(
+            nvs_core_math_format,
+            &mut ctx,
+            &[Value::float(1e300), Value::uint(0), point, separator],
+        );
+
+        assert!(answered.is_err(), "about a hundred separators do not fit");
+        assert!(nvs_runtime::budget::refused(), "the breach is recorded");
+        assert!(
+            ctx.memory_peak() < LIMIT,
+            "nothing was allocated for the result"
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "the case owns the literals it made")]
+        unsafe {
+            point.release();
+            separator.release();
         }
     }
 

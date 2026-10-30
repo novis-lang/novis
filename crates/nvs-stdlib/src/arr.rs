@@ -3055,6 +3055,8 @@ fn append_values(subject: &NvsArray, out: &mut NvsArray) -> Result<(), Fault> {
 /// breach is already recorded, so the `FATAL` that ends the request names the
 /// ceiling and not this text.
 fn over_memory() -> Fault {
+    // no case can reach this: no program reads this text, for the reason above.
+    // `flatten_deep_stops_at_the_memory_limit_over_many_rows` asserts it instead.
     Fault::thrown("Core\\Arr: the result does not fit in the request's memory limit")
 }
 
@@ -6713,6 +6715,40 @@ mod tests {
             reason = "this test owns the one reference it built above, and the \
                       helper borrowed rather than consumed it"
         )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// Once the result is refused a growth, the walk stops at the next nested
+    /// row. It does not copy the rows that are left.
+    // covers: Core\Arr::flattenDeep
+    #[test]
+    fn flatten_deep_stops_at_the_memory_limit_over_many_rows() {
+        const LIMIT: usize = 64 << 10;
+        let mut rows = NvsArray::new();
+        for _ in 0..16 {
+            let mut row = NvsArray::new();
+            for n in 0..10_000 {
+                row.append(Value::int(n));
+            }
+            rows.append(Value::array(row));
+        }
+        let subject = Value::array(rows);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+
+        let answered = call(super::nvs_core_arr_flatten_deep, &mut ctx, &[subject]);
+
+        assert!(answered.is_err(), "160,000 values do not fit");
+        assert!(nvs_runtime::budget::refused(), "the breach is recorded");
+        assert!(
+            ctx.memory_peak() < 2 * LIMIT,
+            "the walk stopped at the limit: peak {}",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "this test owns the one reference it built")]
         unsafe {
             subject.release();
         }

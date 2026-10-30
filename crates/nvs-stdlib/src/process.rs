@@ -1208,7 +1208,8 @@ fn drain<C: Reapable>(
             read => read,
         };
         if let Ok(held) = &read {
-            nvs_runtime::budget::carry(isize::try_from(held.capacity()).unwrap_or(isize::MAX));
+            // A `Vec`'s capacity is never past `isize::MAX`, so the cast is exact.
+            nvs_runtime::budget::carry(held.capacity().cast_signed());
             if u64::try_from(held.len()).unwrap_or(u64::MAX) >= bound {
                 child.stop();
             }

@@ -960,6 +960,10 @@ nvs_runtime::nvs_helper! {
         }
         if !nvs_runtime::budget::affords(size.saturating_mul(2)) {
             return Err(ctx.memory_breach().unwrap_or_else(|| {
+                // no case can reach this: the request ends at its memory
+                // `FATAL`, so no program reads this text.
+                // `html_join_past_the_memory_limit_is_refused_before_a_byte_is_copied`
+                // asserts it.
                 Fault::fatal(
                     "Core\\Html::join: the page does not fit in the request's memory limit"
                         .to_owned(),
@@ -2282,6 +2286,33 @@ mod tests {
         )]
         unsafe {
             joined.release();
+            separator.release();
+            parts.release();
+        }
+    }
+
+    /// Parts whose page is larger than the memory limit are refused before a
+    /// byte of the page is copied.
+    // covers: Core\Html::join
+    #[test]
+    fn html_join_past_the_memory_limit_is_refused_before_a_byte_is_copied() {
+        const LIMIT: usize = 64 << 10;
+        let mut list = NvsArray::new();
+        list.append(markup(&"<p>x</p>".repeat(LIMIT / 8)));
+        list.append(markup(&"<p>y</p>".repeat(LIMIT / 8)));
+        let parts = Value::array(list);
+        let separator = markup("<br>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+
+        let answered = call(super::nvs_core_html_join, &mut ctx, &[parts, separator]);
+
+        assert!(answered.is_err(), "a page of twice the limit does not fit");
+        assert!(nvs_runtime::budget::refused(), "the breach is recorded");
+        assert!(ctx.memory_peak() < LIMIT, "no byte of the page was copied");
+        drop(ctx);
+        #[expect(unsafe_code, reason = "this test owns the references it built")]
+        unsafe {
             separator.release();
             parts.release();
         }

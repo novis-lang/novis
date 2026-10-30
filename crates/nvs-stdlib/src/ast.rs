@@ -494,6 +494,9 @@ fn instance_of(
 /// member where the poll finds the request back under its ceiling.
 fn past_ceiling(ctx: &nvs_runtime::Ctx) -> Result<(), Fault> {
     if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
+        // no case can reach this: the request ends at its memory `FATAL`, so
+        // no program reads this text.
+        // `a_tree_past_the_memory_limit_stops_the_parse_at_the_limit` asserts it.
         return Err(ctx.memory_breach().unwrap_or_else(|| {
             Fault::fatal("Core\\Ast::parse: the tree does not fit in the request's memory limit")
         }));
@@ -793,6 +796,32 @@ mod tests {
         )]
         unsafe {
             tree.release();
+            source.release();
+        }
+    }
+
+    /// A source of many statements builds a tree past the memory limit, and
+    /// the walk stops at the limit.
+    // covers: Core\Ast::parse
+    #[test]
+    fn a_tree_past_the_memory_limit_stops_the_parse_at_the_limit() {
+        const LIMIT: usize = 1 << 20;
+        let source = Value::text(&format!("<?nvs {}", "echo 1 + 2;".repeat(50_000)));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+
+        let answered = call(super::nvs_core_ast_parse, &mut ctx, &[source]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+
+        assert!(
+            answered.is_err(),
+            "the tree of 50,000 statements does not fit"
+        );
+        let refusal = refusal.expect("a refusal leaves its message in the context");
+        assert!(refusal.contains("memory limit"), "{refusal}");
+        drop(ctx);
+        #[expect(unsafe_code, reason = "this test owns the source it made")]
+        unsafe {
             source.release();
         }
     }
