@@ -59862,7 +59862,7 @@ anything else, because nothing else is offered.
 | `textDocument/selectionRange` | the chain of nodes the cursor is inside, innermost first, so expand-selection walks the tree |
 | `textDocument/foldingRange` | every construct written over three lines or more, plus the comment blocks |
 | `textDocument/documentLink` | each `require`'s path, with the file it reached, and each `autoload` root and `discover` glob, with the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
-| `textDocument/codeAction` | the quick fixes and the one refactor below |
+| `textDocument/codeAction` | the quick fixes, the refactor and the source action below |
 | `nvs/redactions` | the byte ranges the editor must conceal. Novis's own request; the protocol has no shape for it |
 
 Every quick fix is a fix that the diagnostic which reported the problem already contains. Examples
@@ -59894,6 +59894,18 @@ and the text of an html template is printed as markup. So the action is never ap
 the preview before you apply it. It is offered for a double-quoted or single-quoted string. It is
 not offered for a heredoc or nowdoc, for an array key, a `case` or `match` condition, a constant, or
 the path of a `require` or `use`.
+
+**Order class members** is a source action, of kind `source.orderMembers.nvs`. It puts the members of
+every class and interface in the file in one order. Types come first, then constants, then
+properties, then methods. In each group, `static` members come before the others. Then `public` comes
+before `protected`, and `protected` before `private`. The constructor is the first method after the
+`static` methods. Members that are equal in this order keep the order you wrote them in.
+
+A member moves with its comments and its attributes. Enum cases and constructor parameters do not
+move. The file is formatted as `nvs fmt` formats it. The action is offered when you ask for it, and
+never on save. If the action changes the JSON key order of a class with `#[Core\Json\Derive]`, you see
+the change in the edit. A class with `#[Core\Json\KeepKeyOrder]` keeps its properties in the order you
+wrote them.
 
 #### Diagnostics, and the phase gate
 

@@ -190,6 +190,31 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
 }
 
 #[test]
+fn initialize_declares_every_code_action_kind_the_server_answers() {
+    // A client asks only for a kind it was offered, so a source action left
+    // off this list is one no editor ever shows.
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
+    let kinds: Vec<&str> = declared["codeActionProvider"]["codeActionKinds"]
+        .as_array()
+        .expect("`codeActionProvider` declares its kinds")
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            "quickfix",
+            "source.fixAll.nvs",
+            nvs_lsp::html_template::KIND,
+            nvs_lsp::split_join::KIND,
+            "source.organizeImports",
+            nvs_lsp::extract::KIND,
+            "source.orderMembers.nvs",
+        ]
+    );
+}
+
+#[test]
 fn the_server_declares_no_formatting_provider() {
     // The load-bearing half of
     // `rule:ide/a-template-region-gets-the-editors-services-and-formatter`, asked

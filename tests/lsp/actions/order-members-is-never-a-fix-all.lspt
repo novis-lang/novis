@@ -1,0 +1,16 @@
+--TEST--
+order class members is never a fix-all, so no save moves a member, `rule:tooling/fmt-never-reorders-members`
+--FILE--
+<?nvs
+class Shop
+{
+    public function <|>run(): void
+    {
+    }
+
+    private int $count = 0;
+}
+--REQUEST--
+codeAction only=source.fixAll.nvs
+--EXPECT--
+none

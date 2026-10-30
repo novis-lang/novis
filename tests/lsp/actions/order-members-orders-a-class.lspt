@@ -1,0 +1,16 @@
+--TEST--
+order class members puts a property above a method, and the file stays formatted, `rule:tooling/class-members-have-one-order`
+--FILE--
+<?nvs
+class Shop
+{
+    public function <|>run(): void
+    {
+    }
+
+    private int $count = 0;
+}
+--REQUEST--
+codeAction only=source.orderMembers.nvs
+--EXPECT--
+4:6-8:28 source.orderMembers.nvs Order class members -> "rivate int $count = 0;\n    public function run(): void\n    {\n    }"

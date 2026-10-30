@@ -90,7 +90,7 @@ pub fn at(analysed: &Analysed, encoding: PositionEncoding) -> Option<Action> {
 
 /// The bytes of `old` that differ from `new`: where the common start ends,
 /// and where the common end begins. Both are on a character boundary.
-fn changed(old: &str, new: &str) -> (usize, usize) {
+pub(crate) fn changed(old: &str, new: &str) -> (usize, usize) {
     let mut start = old
         .bytes()
         .zip(new.bytes())

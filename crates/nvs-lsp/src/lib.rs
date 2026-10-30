@@ -121,6 +121,7 @@ pub mod index;
 mod lens_rows;
 pub mod links;
 pub mod narrow;
+pub mod order;
 pub mod organize;
 mod position;
 pub mod query;

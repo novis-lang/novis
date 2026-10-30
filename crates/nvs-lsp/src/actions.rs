@@ -108,8 +108,10 @@ use crate::render::{Action, Edit};
 /// with format-on-save": `editor.codeActionsOnSave` asks for the second, a
 /// light bulb asks for the first, and one translation answers both.
 ///
-/// Organize imports is the third kind, and it is answered only when asked for:
-/// it edits the whole `use` block, wherever the cursor is.
+/// Organize imports and order class members are the two source actions, and
+/// each is answered only when asked for, by its own kind or by `source`. Each
+/// edits the whole file, wherever the cursor is. Neither is ever a fix-all, so
+/// no save runs them (`rule:tooling/fmt-never-reorders-members`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Kind {
     /// A fix a person is being offered, one at a time.
@@ -119,6 +121,10 @@ pub enum Kind {
     FixAll,
     /// [`crate::organize`]'s one action.
     OrganizeImports,
+    /// [`crate::order`]'s one action.
+    OrderMembers,
+    /// Both source actions, for a request that names `source`.
+    Source,
 }
 
 impl Kind {
@@ -129,14 +135,17 @@ impl Kind {
             Self::QuickFix => "quickfix",
             Self::FixAll => "source.fixAll.nvs",
             Self::OrganizeImports => crate::organize::KIND,
+            Self::OrderMembers => crate::order::KIND,
+            Self::Source => "source",
         }
     }
 
     /// The kind to answer a request whose context named `only`.
     ///
-    /// [`FixAll`](Self::FixAll) only when it was asked for by name, and
-    /// [`OrganizeImports`](Self::OrganizeImports) when it or `source` was. A
-    /// client that asked for nothing in particular gets
+    /// [`FixAll`](Self::FixAll) only when it was asked for by name.
+    /// [`Source`](Self::Source) when `source` was, or both source actions by
+    /// name, and each source action alone when only it was. A client that
+    /// asked for nothing in particular gets
     /// [`QuickFix`](Self::QuickFix), which is what a light bulb shows, and so
     /// does one that asked for a kind this server does not produce — the
     /// filtering LSP specifies for that case is the client's, and answering
@@ -146,10 +155,16 @@ impl Kind {
         let asked = |wanted: &[&str]| {
             only.is_some_and(|kinds| kinds.iter().any(|kind| wanted.contains(&kind.as_str())))
         };
+        let organize = asked(&[Self::OrganizeImports.name()]);
+        let order = asked(&[Self::OrderMembers.name()]);
         if asked(&[Self::FixAll.name()]) {
             Self::FixAll
-        } else if asked(&[Self::OrganizeImports.name(), "source"]) {
+        } else if asked(&[Self::Source.name()]) || (organize && order) {
+            Self::Source
+        } else if organize {
             Self::OrganizeImports
+        } else if order {
+            Self::OrderMembers
         } else {
             Self::QuickFix
         }
@@ -185,10 +200,22 @@ pub fn at(
     kind: Kind,
     encoding: PositionEncoding,
 ) -> Vec<Action> {
-    if kind == Kind::OrganizeImports {
-        return crate::organize::at(analysed, encoding)
-            .into_iter()
-            .collect();
+    match kind {
+        Kind::OrganizeImports => {
+            return crate::organize::at(analysed, encoding)
+                .into_iter()
+                .collect();
+        }
+        Kind::OrderMembers => {
+            return crate::order::at(analysed, encoding).into_iter().collect();
+        }
+        Kind::Source => {
+            return crate::organize::at(analysed, encoding)
+                .into_iter()
+                .chain(crate::order::at(analysed, encoding))
+                .collect();
+        }
+        Kind::QuickFix | Kind::FixAll => {}
     }
     let file = analysed.map.file(analysed.entry);
     let listed = from_completion_files(analysed, files);

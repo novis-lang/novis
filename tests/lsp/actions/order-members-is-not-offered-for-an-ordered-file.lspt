@@ -1,0 +1,21 @@
+--TEST--
+order class members offers nothing when every class is in order, `rule:tooling/class-members-have-one-order`
+--FILE--
+<?nvs
+class Shop
+{
+    public const int LIMIT = 3;
+    private int $count = 0;
+
+    public function constructor()
+    {
+    }
+
+    public function <|>run(): void
+    {
+    }
+}
+--REQUEST--
+codeAction only=source.orderMembers.nvs
+--EXPECT--
+none

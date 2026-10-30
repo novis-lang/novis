@@ -89,7 +89,8 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 /// onto one line* are filed under ([`crate::split_join::KIND`]). The fifth is
 /// organize imports ([`crate::organize::KIND`]), and the sixth is
 /// `refactor.extract`, which *Extract to variable* and *Extract to method* are
-/// filed under ([`crate::extract::KIND`]).
+/// filed under ([`crate::extract::KIND`]). The seventh is *Order class
+/// members* ([`crate::order::KIND`]), which no save asks for.
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
@@ -97,6 +98,7 @@ pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::new(crate::split_join::KIND),
     CodeActionKind::new(crate::organize::KIND),
     CodeActionKind::new(crate::extract::KIND),
+    CodeActionKind::new(crate::order::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.
