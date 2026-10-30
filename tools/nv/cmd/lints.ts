@@ -4,6 +4,11 @@
 //     bun nv lints            rewrite the generated tables
 //     bun nv lints --check    exit 1 if any has drifted (CI, nv verify)
 //
+// It also owns the other key every member manifest inherits: `publish`. Nothing here is published to
+// crates.io, so `[workspace.package]` says `publish = false` and every member writes
+// `publish.workspace = true`. `--check` refuses a member that does not, so a new crate cannot be
+// published by saying nothing. A write does not add the line, because it touches only the lint region.
+//
 // `[workspace.lints]` in the root manifest is the one home for this repository's lint policy. Most
 // crates inherit it with `[lints] workspace = true` and there is nothing to generate. The crates that
 // hold `unsafe` cannot: the workspace pins `unsafe_code = "forbid"`, which no inner `#[allow]` can
@@ -239,10 +244,18 @@ export function lintTables(root: string, write: boolean): Outcome {
   const out: Outcome = { problems: [], rewritten: [] };
   const known = new Set(Object.keys(UNSAFE_CRATES));
 
+  const wsPackage = ((rootManifest.workspace ?? {}) as { package?: Record<string, unknown> }).package ?? {};
+  if (wsPackage.publish !== false) out.problems.push("Cargo.toml: [workspace.package] does not say `publish = false`.");
+
   for (const rel of members(root, rootManifest)) {
     const path = join(root, rel, "Cargo.toml");
     const text = readFileSync(path, "utf8");
-    const declared = ((parseToml(text) as Record<string, unknown>).lints ?? {}) as Record<string, unknown>;
+    const parsed = parseToml(text) as Record<string, unknown>;
+    const declared = (parsed.lints ?? {}) as Record<string, unknown>;
+    const publish = ((parsed.package ?? {}) as { publish?: unknown }).publish as { workspace?: unknown } | undefined;
+    if (publish?.workspace !== true) {
+      out.problems.push(`${rel}/Cargo.toml: does not inherit publish. Write \`publish.workspace = true\` under [package].`);
+    }
 
     if (!(rel in UNSAFE_CRATES)) {
       if (!declared.workspace) {

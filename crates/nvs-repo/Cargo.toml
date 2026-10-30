@@ -5,9 +5,9 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish = false
 
 [lib]
 # No doc comment in this crate has a runnable example, so `cargo test` does

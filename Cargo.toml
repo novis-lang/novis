@@ -32,12 +32,16 @@ exclude = ["benches/members", "benches/serve", "benches/proxied",
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.
+# Nothing here is published to crates.io: Novis ships as the `nvs` binary, so
+# every member inherits `publish = false`, and `bun nv lints --check` refuses a
+# member manifest that does not write `publish.workspace = true`.
 # ---------------------------------------------------------------------------
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
+publish = false
 authors = ["The Novis authors"]
 repository = "https://github.com/novis-lang/novis"
 homepage = "https://novis-lang.org"

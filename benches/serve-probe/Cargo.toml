@@ -1,11 +1,11 @@
 [package]
 name = "nvs-serve-probe"
 description = "The load probe behind `bun nv bench-load`: what `nvs serve` saturates at, and whether every answer was the right one"
-publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish.workspace = true
 authors.workspace = true
 repository.workspace = true
 

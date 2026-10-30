@@ -1,10 +1,11 @@
 [package]
 name = "nvs-stdlib"
-description = "Novis Tier 0 standard library: the `Core` namespace's native Rust members and the signature registry the compiler resolves them through"
+description = "The Novis standard library: the `Core` namespace's native Rust members and the signature registry the compiler resolves them through"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish.workspace = true
 authors.workspace = true
 repository.workspace = true
 

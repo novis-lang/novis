@@ -191,17 +191,9 @@
 //! out of it, so there is no already-produced payload for the cache to ship over.
 //!
 
-// Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
-// anything else here. What is left over is the vocabulary the read path's own steps are stated in —
-// `Cache::dir`, `Verified::header`, `Provenance::Loaded` — reachable only from this module's tests,
-// which is where a format decision is asserted rather than used. Narrowing this to those items
-// would be a list to maintain for no reader.
-#![allow(dead_code)]
-
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -319,6 +311,13 @@ pub(crate) struct Verified {
     /// The whole file, header included, as one read returned it.
     bytes: Box<[u8]>,
     /// The decoded header, already checked against this process.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "`load` decodes the header to check it, and only this module's tests read it back"
+        )
+    )]
     header: Header,
 }
 
@@ -330,6 +329,7 @@ impl Verified {
     }
 
     /// The artifact's header, as it was read.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn header(&self) -> Header {
         self.header
@@ -1098,6 +1098,14 @@ pub(crate) struct Loaded {
     /// writable again — the `MmapMut` that was the only writable view is consumed by `make_exec`.
     pages: Mmap,
     /// Where the entry frame starts inside [`Self::pages`].
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "`relocate` finds the entry frame to refuse a payload without one, and a \
+                      program runs it through `Descriptors::into_unit`, so only the tests read it here"
+        )
+    )]
     entry: usize,
     /// Every function symbol the payload defines, to its offset inside [`Self::pages`] — what this
     /// type's [`nvs_codegen::Placed`] impl answers from, and the only thing that survives the
@@ -1109,6 +1117,7 @@ pub(crate) struct Loaded {
     functions: BTreeMap<String, usize>,
 }
 
+#[cfg(test)]
 impl Loaded {
     /// This artifact's entry frame, ready to run — `nvs_codegen::Unit::script`'s counterpart for a
     /// unit that was compiled by another process.
@@ -1131,7 +1140,7 @@ impl Loaded {
         let function = unsafe { std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(address) };
         Entry {
             function,
-            pages: PhantomData,
+            pages: std::marker::PhantomData,
         }
     }
 }
@@ -1155,12 +1164,14 @@ impl nvs_codegen::Placed for Loaded {
 /// The borrow is the point: a frame is a bare address, and the mapping it points into is dropped
 /// by whoever owns the [`Loaded`]. Tying the two together here is what keeps a caller from
 /// outliving the pages it is about to jump into.
+#[cfg(test)]
 #[derive(Debug)]
 pub(crate) struct Entry<'a> {
     function: nvs_runtime::NvsFn,
-    pages: PhantomData<&'a Loaded>,
+    pages: std::marker::PhantomData<&'a Loaded>,
 }
 
+#[cfg(test)]
 impl Entry<'_> {
     /// Runs the frame on `ctx`.
     ///

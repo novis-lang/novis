@@ -15,6 +15,9 @@ const ROOT_MANIFEST = [
   "[workspace]",
   'members = ["crates/*"]',
   "",
+  "[workspace.package]",
+  "publish = false",
+  "",
   "[workspace.lints.rust]",
   'unsafe_code = "forbid"',
   'rust_2018_idioms = { level = "warn", priority = -1 }',
@@ -23,7 +26,7 @@ const ROOT_MANIFEST = [
   'todo = "warn"',
   "",
 ].join("\n");
-const PACKAGE = (name: string) => `[package]\nname = "${name}"\nversion = "0.1.0"\n`;
+const PACKAGE = (name: string) => `[package]\nname = "${name}"\nversion = "0.1.0"\npublish.workspace = true\n`;
 
 describe("nv lints region", () => {
   test("a roster crate gets the workspace table with unsafe_code at deny, rendered as the manifest writes it", () => {
@@ -75,6 +78,19 @@ describe("nv lints over a workspace", () => {
     expect(about("crates/nvs-host")[0]).toContain("has drifted");
     expect(about("crates/nvs-runtime")[0]).toContain("is not a workspace member");
     expect(readFileSync(join(tmp.root, "crates/nvs-host/Cargo.toml"), "utf8")).toBe(before);
+  });
+
+  test("a crate manifest that does not inherit publish is a finding", () => {
+    tmp = workspace();
+    tmp.put("crates/own/Cargo.toml", '[package]\nname = "own"\npublish = false\n\n[lints]\nworkspace = true\n');
+    tmp.put("crates/silent/Cargo.toml", '[package]\nname = "silent"\n\n[lints]\nworkspace = true\n');
+    const about = (rel: string) => lintTables(tmp.root, false).problems.filter((p) => p.startsWith(rel));
+    expect(about("crates/own/")).toEqual([expect.stringContaining("does not inherit publish")]);
+    expect(about("crates/silent/")).toEqual([expect.stringContaining("does not inherit publish")]);
+    expect(about("crates/plain/")).toEqual([]);
+    expect(about("Cargo.toml")).toEqual([]);
+    tmp.put("Cargo.toml", ROOT_MANIFEST.replace("publish = false\n", ""));
+    expect(about("Cargo.toml")).toEqual([expect.stringContaining("does not say `publish = false`")]);
   });
 
   test("a write regenerates the region, keeps the table after it, and a second check is clean for that crate", () => {

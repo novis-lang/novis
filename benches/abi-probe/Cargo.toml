@@ -2,11 +2,11 @@
 name = "nvs-abi-probe"
 build = "../../tools/build/tests_without_pdb.rs"
 description = "Architecture invariants and cost baselines for Novis's calling convention, coroutines and extension sandbox"
-publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish.workspace = true
 authors.workspace = true
 repository.workspace = true
 
