@@ -800,7 +800,7 @@ const FILL_WAIT: &str = "cache.memory.fill_wait";
 const DEFAULT_MAX_SIZE: usize = nvs_config::defaults::CACHE_MAX_SIZE;
 
 /// What one entry costs beyond its own bytes: a map bucket, an `Arc` header, a
-/// queue slot, the deadline held beside the payload, and the fat pointers over
+/// queue slot and its key's handle, the deadline held beside the payload, and the fat pointers over
 /// them, rounded to something a reader can hold in their head. Charged so the
 /// cap bounds the *allocation* — a tier full of one-byte entries under a cap
 /// that counted payloads alone would be a cap measuring almost none of what it
@@ -902,14 +902,18 @@ struct Entries {
     /// need a slot per *write*, which is the O(requests served) growth
     /// `AGENTS.md` calls a leak rather than a policy.
     ///
-    /// Each slot carries the number its entry has in [`Entry::slot`]. A key
-    /// that is forgotten leaves its slot here, and the same key written again
-    /// takes a new one; the number is how [`Entries::forget_oldest`] and
-    /// [`Entries::sweep`] tell the old slot from the live one. Those stale
-    /// slots are taken out by the sweep, which runs when this queue reaches
-    /// `sweep_at`, so it holds at most twice the live keys plus
-    /// [`SWEEP_FLOOR`] — sixteen bytes and a key handle per slot, per shard.
-    order: VecDeque<(u64, Arc<[u8]>)>,
+    /// Each slot is the number its entry has in [`Entry::slot`], and
+    /// [`Entries::keys`] names the key a live slot belongs to. A key that is
+    /// forgotten leaves its number here and takes its key out of `keys` at
+    /// once, so a stale slot holds no key bytes. The same key written again
+    /// takes a new number. Stale slots are taken out by the sweep, which runs
+    /// when this queue reaches `sweep_at`, so it holds at most twice the live
+    /// keys plus [`SWEEP_FLOOR`] — eight bytes per slot, per shard.
+    order: VecDeque<u64>,
+    /// The key of every live slot in [`Entries::order`], by its number: a
+    /// handle onto the key the map already holds, so a live key's bytes are
+    /// held once. A slot whose number is not here is stale.
+    keys: HashMap<u64, Arc<[u8]>>,
     /// The number the next new slot in `order` gets.
     next_slot: u64,
     /// The length of `order` at which the next write sweeps it.
@@ -926,6 +930,7 @@ impl Default for Entries {
         Self {
             entries: HashMap::new(),
             order: VecDeque::new(),
+            keys: HashMap::new(),
             next_slot: 0,
             sweep_at: SWEEP_FLOOR,
             held: 0,
@@ -974,7 +979,8 @@ impl Entries {
                 let fresh = Arc::<[u8]>::from(key);
                 let slot = self.next_slot;
                 self.next_slot += 1;
-                self.order.push_back((slot, Arc::clone(&fresh)));
+                self.order.push_back(slot);
+                self.keys.insert(slot, Arc::clone(&fresh));
                 (fresh, slot)
             }
         };
@@ -995,12 +1001,14 @@ impl Entries {
     /// Takes the entry under `key` out, and answers nothing about whether
     /// there was one.
     ///
-    /// The slot `order` holds for it is left behind, because finding it would
-    /// cost a scan of the queue on every forget. [`Entries::forget_oldest`]
-    /// skips it when it reaches the front, and [`Entries::sweep`] takes it out.
+    /// The slot's key leaves [`Entries::keys`] here, so the key's bytes are
+    /// freed now. Its number is left in `order`, because finding it would cost
+    /// a scan of the queue on every forget. [`Entries::forget_oldest`] skips
+    /// it when it reaches the front, and [`Entries::sweep`] takes it out.
     fn forget(&mut self, key: &[u8]) {
         if let Some(previous) = self.entries.remove(key) {
             self.held -= charged(key.len(), previous.payload.len());
+            self.keys.remove(&previous.slot);
         }
     }
 
@@ -1033,18 +1041,15 @@ impl Entries {
     /// whose key was forgotten and written again under a newer slot. Evicting
     /// on the stale slot would take the newer entry out at the old one's age.
     fn forget_oldest(&mut self) -> bool {
-        while let Some((slot, key)) = self.order.pop_front() {
+        while let Some(slot) = self.order.pop_front() {
+            let Some(key) = self.keys.remove(&slot) else {
+                continue;
+            };
             let raw: &[u8] = &key;
-            if self
-                .entries
-                .get(raw)
-                .is_some_and(|entry| entry.slot == slot)
-            {
-                if let Some(previous) = self.entries.remove(raw) {
-                    self.held -= charged(raw.len(), previous.payload.len());
-                }
-                return true;
+            if let Some(previous) = self.entries.remove(raw) {
+                self.held -= charged(raw.len(), previous.payload.len());
             }
+            return true;
         }
         false
     }
@@ -1062,6 +1067,7 @@ impl Entries {
         let Self {
             entries,
             order,
+            keys,
             held,
             ..
         } = self;
@@ -1069,10 +1075,11 @@ impl Entries {
             let live = entry.until.is_none_or(|until| now < until);
             if !live {
                 *held -= charged(key.len(), entry.payload.len());
+                keys.remove(&entry.slot);
             }
             live
         });
-        order.retain(|(slot, key)| entries.get(key).is_some_and(|entry| entry.slot == *slot));
+        order.retain(|slot| keys.contains_key(slot));
         self.sweep_at = SWEEP_FLOOR.max(2 * self.order.len());
     }
 }
@@ -3343,6 +3350,28 @@ pub(crate) mod tests {
             "the queue grew with the writes served: {} slots",
             tier.order.len()
         );
+    }
+
+    /// A forgotten key's bytes are freed at the forget, not at the next sweep:
+    /// the slot it leaves in the queue is a number and holds no key.
+    // covers: Core\Cache\Store::forget
+    #[test]
+    fn a_forgotten_key_leaves_no_key_bytes_behind() {
+        let mut tier = Entries::default();
+        let key = vec![b'k'; 1 << 20];
+        tier.put(&key, b"v", Lifetime::Forever, None);
+        let held = budget::live_bytes();
+        tier.forget(&key);
+
+        assert_eq!(tier.order.len(), 1, "the stale slot waits for the sweep");
+        assert!(tier.keys.is_empty(), "a stale slot still names its key");
+        assert!(
+            budget::live_bytes() <= held - (1 << 20),
+            "the forget kept the key's megabyte: {held} then {}",
+            budget::live_bytes()
+        );
+        assert!(!tier.forget_oldest(), "a stale slot evicted nothing");
+        assert!(tier.order.is_empty());
     }
 
     /// An entry written once with a lifetime is taken out by a later write's
