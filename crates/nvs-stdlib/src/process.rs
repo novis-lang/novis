@@ -63,6 +63,12 @@
 //! [`nvs_runtime::Ctx::intake_breach`] is asked is the two lengths added, so a
 //! child that splits its output evenly between them is refused as well.
 //!
+//! A request with no `max_output` is held to its memory limit instead
+//! ([`nvs_runtime::Ctx::intake_limit`]). The reader threads run under no memory
+//! ceiling of their own, so they share the request's headroom, read before the
+//! wait starts ([`Capture`]). A growth past it stops the child, and the request
+//! ends with its memory `FATAL`.
+//!
 //! The refusal is a **throw**, not `rule:errors/on-limit`'s `FATAL`: nothing has
 //! reached the response, so the request has exceeded nothing and a caller who
 //! ran a chattier child than it meant to can catch this and run it differently.
@@ -100,6 +106,8 @@
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStderr, ChildStdout, ExitStatus, Output};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
@@ -886,7 +894,7 @@ nvs_runtime::nvs_helper! {
         let options = Options::of(args, RUN_MEMBER)?;
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
-        let bound = ctx.intake_bound();
+        let capture = Capture::of(ctx);
         let child = nvs_runtime::capability::exec_with(
             ctx,
             path,
@@ -894,13 +902,17 @@ nvs_runtime::nvs_helper! {
             &options.launch(),
             RUN_MEMBER,
         )?;
-        let output = wait_off_core(child, bound, options.until())
-            .map_err(|err| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))?
+        let output = wait_off_core(child, capture, options.until())
+            .map_err(|err| {
+                refused_capture(ctx, RUN_MEMBER, &err)
+                    .unwrap_or_else(|| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))
+            })?
             .ok_or_else(|| timed_out(RUN_MEMBER))?;
         let taken = output.stdout.len() + output.stderr.len();
         if let Some(over) = ctx.intake_breach(RUN_MEMBER, taken) {
             return Err(over);
         }
+        copy_affordable(ctx, RUN_MEMBER, taken)?;
         Ok(crate::instance::build(
             &RESULT,
             [
@@ -927,9 +939,9 @@ nvs_runtime::nvs_helper! {
 /// `a_process_wait_suspends_its_coroutine_through_the_blocking_pool` drives
 /// this on a scheduler, and the member around it needs a compiled program.
 ///
-/// `bound` is [`nvs_runtime::Ctx::intake_bound`] — one byte past the ceiling, or
-/// `u64::MAX` for a request under none, which is the whole of what this layer
-/// knows about the directive. `until` is the end of the call's `timeout`.
+/// `capture` is what the two streams may hold, read on the request's thread
+/// before the wait starts ([`Capture::of`]). `until` is the end of the call's
+/// `timeout`.
 ///
 /// The child's standard input is closed first, so a child that reads its input
 /// to the end sees that end rather than waiting for input `run` never sends.
@@ -945,15 +957,122 @@ nvs_runtime::nvs_helper! {
 /// to name. `Ok(None)` is a child stopped by its timeout.
 fn wait_off_core(
     mut child: Child,
-    bound: u64,
+    capture: Capture,
     until: Option<Instant>,
 ) -> std::io::Result<Option<Output>> {
     drop(child.stdin.take());
     nvs_host::blocking::run(move || {
         let out = child.stdout.take();
         let err = child.stderr.take();
-        drain(&mut child, out, err, bound, until)
+        drain(&mut child, out, err, capture, until)
     })
+}
+
+/// What a child's two captured streams may hold, read on the request's thread
+/// before the wait starts. The reader threads run under no memory ceiling of
+/// their own, so they are handed these two numbers instead.
+#[derive(Clone, Copy, Debug)]
+struct Capture {
+    /// [`nvs_runtime::Ctx::intake_bound`]: one byte past the per-call ceiling,
+    /// or `u64::MAX` for a request under none. Each stream stops here.
+    bound: u64,
+    /// [`nvs_runtime::budget::headroom`]: what the request may still allocate,
+    /// or `usize::MAX` for a request under no memory ceiling. The two streams'
+    /// buffers share it.
+    room: usize,
+}
+
+impl Capture {
+    /// No bound at all, for a wait no request is charged for.
+    #[cfg(test)]
+    const UNBOUNDED: Self = Self {
+        bound: u64::MAX,
+        room: usize::MAX,
+    };
+
+    /// The bound and the room of the request `ctx` is running.
+    fn of(ctx: &Ctx) -> Self {
+        Self {
+            bound: ctx.intake_bound(),
+            room: nvs_runtime::budget::headroom().unwrap_or(usize::MAX),
+        }
+    }
+}
+
+/// What the two reader threads of one child share.
+struct Shared {
+    /// The bytes the two buffers may still grow by, out of [`Capture::room`].
+    left: AtomicUsize,
+    /// [`Capture::room`], so a refusal can say what the pair would have held.
+    room: usize,
+    /// Set once [`drain`] stops waiting, after a timeout or a refusal. A reader
+    /// that sees it frees what it read and ends.
+    abandoned: AtomicBool,
+}
+
+impl Shared {
+    /// Takes `bytes` out of what is left, or nothing where they do not fit.
+    fn take(&self, bytes: usize) -> bool {
+        self.left
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |left| {
+                left.checked_sub(bytes)
+            })
+            .is_ok()
+    }
+
+    /// Gives `bytes` back to what is left.
+    fn give(&self, bytes: usize) {
+        self.left.fetch_add(bytes, Ordering::AcqRel);
+    }
+}
+
+/// The error a reader stops with when the request's memory ceiling has no room
+/// for its next growth. `wanted` is what the two buffers would have held.
+#[derive(Debug)]
+struct CaptureRefused {
+    wanted: usize,
+}
+
+impl std::fmt::Display for CaptureRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "the program's output needs {} bytes, which the request's memory limit does not allow",
+            self.wanted
+        )
+    }
+}
+
+impl std::error::Error for CaptureRefused {}
+
+/// The memory `FATAL` for a wait whose readers the memory ceiling stopped, or
+/// `None` for any other error. The readers ran on threads under no ceiling, so
+/// the refusal is recorded here, on the request's own thread, by asking for
+/// what they would have held.
+fn refused_capture(ctx: &Ctx, member: &str, err: &std::io::Error) -> Option<Fault> {
+    let refused = err.get_ref()?.downcast_ref::<CaptureRefused>()?;
+    let _ = nvs_runtime::budget::affords(refused.wanted);
+    Some(
+        ctx.memory_breach()
+            .unwrap_or_else(|| Fault::fatal(format!("{member}: {refused}"))),
+    )
+}
+
+/// Asks the memory ceiling for the copy of `taken` captured bytes into the
+/// result's two `bytes` values, before the copy is made.
+///
+/// # Errors
+///
+/// The memory `FATAL` when the copy does not fit.
+fn copy_affordable(ctx: &Ctx, member: &str, taken: usize) -> Result<(), Fault> {
+    if nvs_runtime::budget::affords(taken) {
+        return Ok(());
+    }
+    Err(ctx.memory_breach().unwrap_or_else(|| {
+        Fault::fatal(format!(
+            "{member}: the program's output does not fit in the request's memory limit"
+        ))
+    }))
 }
 
 /// A child [`drain`] can stop and reap: the bare [`Child`] `run` waits on, and
@@ -1002,7 +1121,8 @@ enum Stream {
 /// One reader's answer: the stream, and what was read from it.
 type Heard = (Stream, std::io::Result<Vec<u8>>);
 
-/// Both pipes drained at once, neither past `bound`, and then the exit status —
+/// Both pipes drained at once, neither past [`Capture::bound`] and both together
+/// inside [`Capture::room`], and then the exit status —
 /// what [`Child::wait_with_output`] does, plus the ceiling and the deadline it
 /// has nowhere to take.
 ///
@@ -1024,23 +1144,40 @@ type Heard = (Stream, std::io::Result<Vec<u8>>);
 /// passes, the child is stopped and reaped and `Ok(None)` comes back at once.
 /// The readers are not joined then: a grandchild that inherited a pipe can keep
 /// it open after the child is gone, and a timeout that waited for it would not
-/// be one. Each reader ends when its pipe closes and frees what it read.
+/// be one. Each reader frees what it read and ends at its next read, so no
+/// reader keeps growing after the request has stopped waiting for it.
+///
+/// **The room** is shared by the two readers, and a reader that has none left
+/// for its next growth stops the wait the same way, with [`CaptureRefused`].
+/// What a reader hands back is charged to this thread, so the request that
+/// frees the buffers is the one they were charged to.
 ///
 /// # Errors
 ///
 /// Whatever the operating system said about draining a pipe or reaping the
-/// child.
+/// child, and [`CaptureRefused`] when the output needs more than the room.
 fn drain<C: Reapable>(
     child: &mut C,
     out: Option<ChildStdout>,
     err: Option<ChildStderr>,
-    bound: u64,
+    capture: Capture,
     until: Option<Instant>,
 ) -> std::io::Result<Option<Output>> {
+    let bound = capture.bound;
+    let shared = Arc::new(Shared {
+        left: AtomicUsize::new(capture.room),
+        room: capture.room,
+        abandoned: AtomicBool::new(false),
+    });
     let (tell, heard) = std::sync::mpsc::channel::<Heard>();
-    let mut stdout = read_apart(out, Stream::Out, bound, &tell);
-    let mut stderr = read_apart(err, Stream::Err, bound, &tell);
+    let mut stdout = read_apart(out, Stream::Out, bound, &shared, &tell);
+    let mut stderr = read_apart(err, Stream::Err, bound, &shared, &tell);
     drop(tell);
+    let stop = |child: &mut C| {
+        shared.abandoned.store(true, Ordering::Release);
+        child.stop();
+        child.finish()
+    };
     while stdout.is_none() || stderr.is_none() {
         let next = match until {
             Some(at) => heard.recv_timeout(at.saturating_duration_since(Instant::now())),
@@ -1049,23 +1186,32 @@ fn drain<C: Reapable>(
         let (stream, read) = match next {
             Ok(answer) => answer,
             Err(RecvTimeoutError::Timeout) => {
-                child.stop();
-                child.finish()?;
+                stop(child)?;
                 return Ok(None);
             }
             Err(RecvTimeoutError::Disconnected) => {
-                child.stop();
-                child.finish()?;
+                stop(child)?;
                 return Err(std::io::Error::other(
                     "a reader of the program's output stopped without an answer",
                 ));
             }
         };
-        if read
-            .as_ref()
-            .is_ok_and(|held| u64::try_from(held.len()).unwrap_or(u64::MAX) >= bound)
-        {
-            child.stop();
+        let read = match read {
+            Err(refused)
+                if refused
+                    .get_ref()
+                    .is_some_and(|why| why.is::<CaptureRefused>()) =>
+            {
+                stop(child)?;
+                return Err(refused);
+            }
+            read => read,
+        };
+        if let Ok(held) = &read {
+            nvs_runtime::budget::carry(isize::try_from(held.capacity()).unwrap_or(isize::MAX));
+            if u64::try_from(held.len()).unwrap_or(u64::MAX) >= bound {
+                child.stop();
+            }
         }
         match stream {
             Stream::Out => stdout = Some(read),
@@ -1089,18 +1235,61 @@ fn read_apart<R: Read + Send + 'static>(
     pipe: Option<R>,
     stream: Stream,
     bound: u64,
+    shared: &Arc<Shared>,
     tell: &Sender<Heard>,
 ) -> Option<std::io::Result<Vec<u8>>> {
     let Some(pipe) = pipe else {
         return Some(Ok(Vec::new()));
     };
     let tell = tell.clone();
+    let shared = Arc::clone(shared);
     std::thread::spawn(move || {
-        let mut held = Vec::new();
-        let read = pipe.take(bound).read_to_end(&mut held).map(|_| held);
+        let read = read_capped(pipe, bound, &shared);
         let _ = tell.send((stream, read));
     });
     None
+}
+
+/// Every byte `pipe` gives, up to `bound`, in a buffer whose every growth is
+/// taken out of `shared`'s room first.
+///
+/// The buffer doubles, and never past `bound`. A growth the room cannot pay
+/// for stops the read with [`CaptureRefused`]. Once [`drain`] has stopped
+/// waiting, the next read frees the buffer and ends the thread.
+///
+/// **What it spends:** one [`nvs_runtime::budget::READ_STEP`] buffer on the
+/// reader's stack, and a buffer of at most twice the bytes captured.
+fn read_capped(mut pipe: impl Read, bound: u64, shared: &Shared) -> std::io::Result<Vec<u8>> {
+    let bound = usize::try_from(bound).unwrap_or(usize::MAX);
+    let mut held: Vec<u8> = Vec::new();
+    let mut step = [0_u8; nvs_runtime::budget::READ_STEP];
+    while held.len() < bound {
+        let want = (bound - held.len()).min(step.len());
+        let read = match pipe.read(&mut step[..want]) {
+            Ok(0) => break,
+            Ok(read) => read,
+            Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(err) => return Err(err),
+        };
+        if shared.abandoned.load(Ordering::Acquire) {
+            return Ok(Vec::new());
+        }
+        let needed = held.len() + read;
+        if needed > held.capacity() {
+            let before = held.capacity();
+            let grown = needed.max(before.saturating_mul(2)).min(bound);
+            if !shared.take(grown) {
+                let holding = shared.room - shared.left.load(Ordering::Acquire);
+                return Err(std::io::Error::other(CaptureRefused {
+                    wanted: holding.saturating_add(grown),
+                }));
+            }
+            held.reserve_exact(grown - held.len());
+            shared.give(before);
+        }
+        held.extend_from_slice(&step[..read]);
+    }
+    Ok(held)
 }
 
 /// The child's status once both of its pipes have closed, or `None` when
@@ -1459,7 +1648,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_runtime::HeldChild`] rather than in the handle the program holds.
     fn nvs_core_process_handle_wait(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "wait")?;
-        let bound = ctx.intake_bound();
+        let capture = Capture::of(ctx);
         live_child(ctx, key, "wait")?;
         let Some(mut held) = ctx.take_spawned_child(key) else {
             return Err(Fault::fatal(format!(
@@ -1476,7 +1665,7 @@ nvs_runtime::nvs_helper! {
             let out = held.stdout.take();
             let err = held.stderr.take();
             let until = held.deadline;
-            let drained = drain(&mut held, out, err, bound, until);
+            let drained = drain(&mut held, out, err, capture, until);
             (held, drained)
         });
         ctx.restore_spawned_child(key, held);
@@ -1493,12 +1682,16 @@ nvs_runtime::nvs_helper! {
             stdout,
             stderr,
         } = drained
-            .map_err(|err| failed("wait", &path, &err))?
+            .map_err(|err| {
+                refused_capture(ctx, SPAWN_MEMBER, &err)
+                    .unwrap_or_else(|| failed("wait", &path, &err))
+            })?
             .ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::wait")))?;
         let taken = stdout.len() + stderr.len();
         if let Some(over) = ctx.intake_breach(SPAWN_MEMBER, taken) {
             return Err(over);
         }
+        copy_affordable(ctx, SPAWN_MEMBER, taken)?;
         Ok(crate::instance::build(
             &RESULT,
             [
@@ -1539,9 +1732,48 @@ mod tests {
     use crate::registry;
 
     use super::{
-        CHUNK, CLASS, CoreTy, EXIT_CODE_SLOT, HANDLE, HANDLE_NAME, Path, RESULT, RESULT_NAME,
-        RUN_MEMBER, Read, STDERR_SLOT, chunk_of, wait_off_core,
+        CHUNK, CLASS, Capture, CoreTy, EXIT_CODE_SLOT, HANDLE, HANDLE_NAME, Path, RESULT,
+        RESULT_NAME, RUN_MEMBER, Read, STDERR_SLOT, chunk_of, wait_off_core,
     };
+
+    /// The two readers of one child share one room. A read that fits returns every byte, a read
+    /// whose buffer would grow past the room stops with `CaptureRefused` and names what the pair
+    /// would have held, and a read after the wait was abandoned returns nothing.
+    #[test]
+    fn a_capture_stops_at_the_room_its_two_readers_share() {
+        use super::{CaptureRefused, Shared, read_capped};
+        use std::sync::atomic::{AtomicBool, AtomicUsize};
+
+        let shared = |room: usize| Shared {
+            left: AtomicUsize::new(room),
+            room,
+            abandoned: AtomicBool::new(false),
+        };
+        let input = vec![b'x'; 256 * 1024];
+
+        let roomy = shared(1024 * 1024);
+        let read = read_capped(&input[..], u64::MAX, &roomy).expect("256 KiB fit in 1 MiB");
+        assert_eq!(read.len(), input.len());
+
+        let tight = shared(64 * 1024);
+        let refused = read_capped(&input[..], u64::MAX, &tight)
+            .expect_err("256 KiB do not fit in a 64 KiB room");
+        let why = refused
+            .get_ref()
+            .and_then(|why| why.downcast_ref::<CaptureRefused>())
+            .expect("a refusal by the room, not a failed read");
+        assert!(why.wanted > 64 * 1024, "{why}");
+
+        let bounded = read_capped(&input[..], 1000, &shared(1024 * 1024)).expect("a bound of 1000");
+        assert_eq!(bounded.len(), 1000, "each stream stops at its bound");
+
+        let abandoned = shared(1024 * 1024);
+        abandoned
+            .abandoned
+            .store(true, std::sync::atomic::Ordering::Release);
+        let read = read_capped(&input[..], u64::MAX, &abandoned).expect("an abandoned read");
+        assert!(read.is_empty(), "an abandoned reader keeps nothing");
+    }
 
     /// [`chunk_of`] reuses one buffer per thread, so each read returns exactly
     /// the bytes that read produced: a short read after a long one carries
@@ -2410,7 +2642,7 @@ mod tests {
         ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
         let child = nvs_runtime::capability::exec(&mut ctx, &me, &["--list"], RUN_MEMBER)
             .expect("`exec = true` admits an ordinary executable");
-        let listing = wait_off_core(child, u64::MAX, None)
+        let listing = wait_off_core(child, Capture::UNBOUNDED, None)
             .expect("the child never ended")
             .expect("a wait with no timeout is never stopped by one")
             .stdout
@@ -2477,7 +2709,7 @@ mod tests {
                 RUN_MEMBER,
             )
             .expect("`exec = true` admits an ordinary executable");
-            let output = wait_off_core(child, u64::MAX, None)
+            let output = wait_off_core(child, Capture::UNBOUNDED, None)
                 .expect("the child never ended")
                 .expect("a wait with no timeout is never stopped by one");
             assert!(
