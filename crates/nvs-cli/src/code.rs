@@ -11,7 +11,7 @@
 //! **Only `rename`, `move` and `order` write**, through [`planned`] and
 //! [`committed`], the one write path: it writes only inside the project root,
 //! and only files whose bytes have not changed since this call first read
-//! them. [`write_out`] prints what `rename` and `move` wrote, and [`order`]
+//! them. [`write_out`] prints what `rename` and `move` wrote, and [`order()`]
 //! prints what it wrote by class.
 //!
 //! A call costs one analysis per `.nvs` file under the project root, and
