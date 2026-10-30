@@ -1,0 +1,19 @@
+--TEST--
+`#[Core\Json\KeepKeyOrder]` without a `reason` does not compile — `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+#[Core\Json\Derive]
+#[Core\Json\KeepKeyOrder]
+class Event {
+    public function constructor(public string $type) {}
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: `#[Core\Json\KeepKeyOrder]` needs a `reason`
+  --> case.nvs:4:3
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

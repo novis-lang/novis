@@ -26257,6 +26257,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 - `#[Core\Json\Derive]`
 - `#[Core\Json\Field]`
+- `#[Core\Json\KeepKeyOrder]`
 - `#[Core\Db\Derive]`
 - `#[Core\Db\Field]`
 - `#[Core\Test]`
@@ -26283,7 +26284,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON text. A class without
 the attribute is not allowed at either call.
 
-The fields of the document are the class's declared properties, in the order they are written. Each
+The fields of the document are the class's declared properties, in the order they are written.
+`#[Core\Json\KeepKeyOrder]` keeps this order when `nvs code order` sorts the class. Each
 of these properties is also a constructor parameter of the same name and type, because a decode calls your
 constructor. `#[Core\Json\Field]` changes one property. `name:` writes it under a different key, and
 `skip: true` leaves it out of the document.
@@ -26294,7 +26296,7 @@ bad field at once.
 
 The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
 read into an object. Then they show each check of a decode, a property with no constructor parameter,
-and an enum and an array in a decode.
+an enum and an array in a decode, and a key order that must not change.
 
 The document has one key for each instance property that the class itself declares. A `private` or
 `protected` property has a key too. A property promoted in the `constructor` has its key in the place
@@ -26321,6 +26323,13 @@ property is always required in a decode too. A missing key is the issue `require
 for any other property. Only its value may be `null`.
 
 A key in the document that the class does not have is ignored.
+
+`#[Core\Json\KeepKeyOrder(reason: '...')]` on the class says that somebody reads the keys in their
+order. An example is a client that reads the `type` key first. The encoder does not change: it
+always writes the keys in the order the properties are written. The attribute changes what
+`nvs code order` and the editor's *Order class members* action do. They keep the instance properties
+of this class in their written order. `reason` is required, and says who needs the order. The
+attribute on a class without `#[Core\Json\Derive]` is `E0892`. Without `reason`, it is `E0401`.
 
 The `ParseError` has every problem in its `issues`. Each issue has a `path` and a `message`.
 
@@ -26629,6 +26638,39 @@ try {
 true full
 level: expected a declared enum case, found a number
 tags.1: expected string, found a number
+```
+
+#### Example 07: keep the json key order
+
+```nvs
+<?nvs
+// Shows a class whose `type` key must stay the first key in its JSON.
+
+// `#[Core\Json\KeepKeyOrder]` says that the order of the keys matters.
+// `nvs code order` then keeps these properties in the order they are written.
+#[Core\Json\Derive]
+#[Core\Json\KeepKeyOrder(reason: 'the client reads the type key first')]
+class Message
+{
+    public string $type;
+    public string $text;
+    private int $sentAt;
+
+    public function constructor(string $type, string $text, int $sentAt)
+    {
+        $this->type = $type;
+        $this->text = $text;
+        $this->sentAt = $sentAt;
+    }
+}
+
+// The keys are in the order the properties are written.
+// This prints {"type":"chat","text":"hello","sentAt":1700}.
+echo Core\Json::encode(new Message('chat', 'hello', 1700)), "\n";
+```
+
+```output
+{"type":"chat","text":"hello","sentAt":1700}
 ```
 
 ### `#[Core\Route]` and `#[Core\Access]`: the route table

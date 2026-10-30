@@ -1,0 +1,18 @@
+--TEST--
+`#[Core\Json\KeepKeyOrder]` on a class without `#[Core\Json\Derive]` does not compile, because the class has no JSON keys — `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+#[Core\Json\KeepKeyOrder(reason: 'the client reads the type key first')]
+class Event {
+    public string $type = '';
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0892]: `#[Core\Json\KeepKeyOrder]` is written on a class without `#[Core\Json\Derive]`
+  --> case.nvs:3:3
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

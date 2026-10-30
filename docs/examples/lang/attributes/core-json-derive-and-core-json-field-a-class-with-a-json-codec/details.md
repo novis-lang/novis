@@ -24,6 +24,13 @@ for any other property. Only its value may be `null`.
 
 A key in the document that the class does not have is ignored.
 
+`#[Core\Json\KeepKeyOrder(reason: '...')]` on the class says that somebody reads the keys in their
+order. An example is a client that reads the `type` key first. The encoder does not change: it
+always writes the keys in the order the properties are written. The attribute changes what
+`nvs code order` and the editor's *Order class members* action do. They keep the instance properties
+of this class in their written order. `reason` is required, and says who needs the order. The
+attribute on a class without `#[Core\Json\Derive]` is `E0892`. Without `reason`, it is `E0401`.
+
 The `ParseError` has every problem in its `issues`. Each issue has a `path` and a `message`.
 
 A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` property are

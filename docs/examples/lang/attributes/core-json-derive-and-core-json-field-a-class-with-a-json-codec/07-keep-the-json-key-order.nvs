@@ -1,0 +1,24 @@
+<?nvs
+// Shows a class whose `type` key must stay the first key in its JSON.
+
+// `#[Core\Json\KeepKeyOrder]` says that the order of the keys matters.
+// `nvs code order` then keeps these properties in the order they are written.
+#[Core\Json\Derive]
+#[Core\Json\KeepKeyOrder(reason: 'the client reads the type key first')]
+class Message
+{
+    public string $type;
+    public string $text;
+    private int $sentAt;
+
+    public function constructor(string $type, string $text, int $sentAt)
+    {
+        $this->type = $type;
+        $this->text = $text;
+        $this->sentAt = $sentAt;
+    }
+}
+
+// The keys are in the order the properties are written.
+// This prints {"type":"chat","text":"hello","sentAt":1700}.
+echo Core\Json::encode(new Message('chat', 'hello', 1700)), "\n";

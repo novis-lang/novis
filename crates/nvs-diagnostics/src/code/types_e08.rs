@@ -1165,4 +1165,13 @@ codes! {
          method uses this path. To make the end of a path optional, write `{name?}`, such as \
          `/posts/{page?}`. To serve a different path, write a second method.",
     );
+
+    /// `#[Core\Json\KeepKeyOrder]` on a class without `#[Core\Json\Derive]`
+    /// (`rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`). Only
+    /// a derived JSON codec has a key order, so the attribute would do nothing.
+    pub const E_KEEP_KEY_ORDER_WITHOUT_DERIVE: Code = Code::new("E0892").card(
+        "`#[Core\\Json\\KeepKeyOrder]` keeps the order of the JSON keys of a class. Only a \
+         class with `#[Core\\Json\\Derive]` has JSON keys. Add `#[Core\\Json\\Derive]` to the \
+         class, or remove `#[Core\\Json\\KeepKeyOrder]`.",
+    );
 }

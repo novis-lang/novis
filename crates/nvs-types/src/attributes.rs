@@ -385,6 +385,17 @@ fn check_recognized(
                 ctx,
                 env,
             );
+        } else if recognized(crate::derive::KEEP_KEY_ORDER) {
+            // The roster answers what `reason` may hold. That it is written,
+            // and that the class derives a JSON codec, is
+            // `crate::derive::check_class_derive`'s question.
+            check_roster(
+                r"Core\Json\KeepKeyOrder",
+                crate::derive::KEEP_KEY_ORDER_OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
         } else if recognized(crate::derive::DEPRECATED) {
             // The roster admits `construct` everywhere, because it cannot see
             // the declaration; `crate::deprecated::check_sites` refuses it on

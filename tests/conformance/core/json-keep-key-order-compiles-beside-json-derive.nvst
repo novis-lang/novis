@@ -1,0 +1,25 @@
+--TEST--
+`#[Core\Json\KeepKeyOrder]` compiles beside `#[Core\Json\Derive]`, and the encode order stays the written order — `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+// The attribute changes nothing the codec writes: the keys come out in the
+// order the properties are written, `type` first, as they would without it.
+#[Core\Json\Derive]
+#[Core\Json\KeepKeyOrder(reason: 'the client reads the type key first')]
+class Event {
+    public string $type;
+    public int $at;
+
+    public function constructor(string $type, int $at) {
+        $this->type = $type;
+        $this->at = $at;
+    }
+}
+
+echo Core\Json::encode(new Event('login', 7)), "\n";
+var $back = Core\Json::decodeAs<Event>('{"at":9,"type":"logout"}');
+echo $back->type, ' ', $back->at, "\n";
+--EXPECT--
+{"type":"login","at":7}
+logout 9

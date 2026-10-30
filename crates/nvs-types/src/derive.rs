@@ -63,7 +63,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// each entry owes its own argued rule.
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
-/// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
+/// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]`/`#[Json\KeepKeyOrder]` are this
 /// module's, `#[Test]` and `#[Bench]` are [`crate::testing`]'s, `#[Property]` is
 /// [`crate::property`]'s, `#[BeforeClass]`,
 /// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
@@ -74,6 +74,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 pub const ATTRIBUTES: &[&str] = [
     DERIVE,
     FIELD,
+    KEEP_KEY_ORDER,
     DB_DERIVE,
     DB_FIELD,
     TEST,
@@ -145,7 +146,7 @@ impl Site {
 /// `#[Route]` beside `#[Api]` — stays with that pass.
 pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
     Some(match name {
-        DERIVE | DB_DERIVE | API_SCHEME => &[Site::Class],
+        DERIVE | KEEP_KEY_ORDER | DB_DERIVE | API_SCHEME => &[Site::Class],
         FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
         TEST | BENCH | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS
         | AFTER_EACH_TEST | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
@@ -275,6 +276,18 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         short: "Changes how one property is written in JSON: the key it is written under, or \
                 whether it is left out.",
         site: "a property",
+    },
+    AttributeDoc {
+        name: KEEP_KEY_ORDER,
+        fields: &[AttributeField {
+            name: "reason",
+            ty: "string",
+            required: true,
+        }],
+        short: "Keeps the JSON keys of this class in the order its properties are written. \
+                `nvs code order` then does not move these properties. `reason` says who needs \
+                this order.",
+        site: "a class with `#[Core\\Json\\Derive]`",
     },
     AttributeDoc {
         name: DB_DERIVE,
@@ -672,6 +685,16 @@ pub const DERIVE: &str = r"Core\Json\Derive";
 /// `#[Json\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-property-list`'s per-field
 /// override, on a property.
 pub const FIELD: &str = r"Core\Json\Field";
+
+/// `#[Json\KeepKeyOrder(reason: string)]` —
+/// `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`'s freeze, on a class that
+/// also carries [`DERIVE`]. The codec reads nothing from it: the member-order tools do.
+pub const KEEP_KEY_ORDER: &str = r"Core\Json\KeepKeyOrder";
+
+/// [`KEEP_KEY_ORDER`]'s one option. It is required, which
+/// [`check_keep_key_order`] asks, because the roster says only what a field may hold.
+pub(crate) const KEEP_KEY_ORDER_OPTIONS: &[(&str, crate::testing::OptionTy)] =
+    &[("reason", crate::testing::OptionTy::Str)];
 
 /// `#[Db\Derive]` — `rule:core-classes/derive-attribute`'s opt-in again, on a class, for the row half
 /// of the same table. It generates `Core\Db\Codec`'s `fromRow` and nothing
@@ -2314,8 +2337,54 @@ pub(crate) fn check_class_derive(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    check_keep_key_order(decl, ctx, env);
     for format in Format::ALL {
         check_class_format(decl, class, format, ctx, env);
+    }
+}
+
+/// `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`: `#[Json\KeepKeyOrder]`
+/// compiles only beside `#[Json\Derive]`, and writes its `reason`. A missing `reason` is
+/// `E0401`, the code a missing field of any attribute's payload gets.
+fn check_keep_key_order(decl: &ClassDecl, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(keep) = decl
+        .attributes
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .find(|attr| attribute_is(attr, KEEP_KEY_ORDER, ctx, env))
+    else {
+        return;
+    };
+    if attribute_span(&decl.attributes, DERIVE, ctx, env).is_none() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_KEEP_KEY_ORDER_WITHOUT_DERIVE,
+                "`#[Core\\Json\\KeepKeyOrder]` is written on a class without \
+                 `#[Core\\Json\\Derive]`",
+            )
+            .with_primary(keep.span, "this class has no JSON keys to keep in order")
+            .with_help(
+                "add `#[Core\\Json\\Derive]` to the class, or remove \
+                 `#[Core\\Json\\KeepKeyOrder]`",
+            ),
+        );
+    }
+    if !keep
+        .fields
+        .iter()
+        .any(|field| span_text(env.src, field.name) == "reason")
+    {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_MISMATCH,
+                "`#[Core\\Json\\KeepKeyOrder]` needs a `reason`",
+            )
+            .with_primary(keep.span, "the field `reason` is missing")
+            .with_help(
+                "say who needs this key order, such as \
+                 `#[Core\\Json\\KeepKeyOrder(reason: \"the client reads the type key first\")]`",
+            ),
+        );
     }
 }
 
