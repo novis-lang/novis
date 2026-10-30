@@ -243,7 +243,7 @@
   },
   "syntax/testing/writing-tests.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "4fd5d3629c19f24d",
-    "lang:testing/bench-and-nvs-test-bench": "21b5475d7dc787ee",
+    "lang:testing/bench-and-nvs-test-bench": "b97f530724f889e5",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "facf911a09a2e45e",
     "lang:testing/running-tests-nvs-test": "60bf36930e87485b",
     "lang:testing/test-options": "4bbccf20a7433053"
@@ -400,7 +400,7 @@
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "4fd5d3629c19f24d",
-    "lang:testing/bench-and-nvs-test-bench": "21b5475d7dc787ee",
+    "lang:testing/bench-and-nvs-test-bench": "b97f530724f889e5",
     "lang:testing/core-test-property-generated-inputs": "efc5ffb061d342e8",
     "lang:testing/running-tests-nvs-test": "60bf36930e87485b",
     "lang:testing/test-options": "4bbccf20a7433053",

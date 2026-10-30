@@ -6603,12 +6603,13 @@
   },
   "/reference/core/jwt-keyset/read/": {
     "feature": "Core\\Jwt\\KeySet::read",
-    "hash": "95a9abd21e28222c",
+    "hash": "35c01178c0320e35",
     "questions": [
       "How do I load a JWKS document?",
       "Read the published keys of a login provider",
       "Parse a key set from JSON to check tokens",
       "Why does my key set document throw an error?",
+      "How large can a key set document be?",
       "Load the signing keys from a file at startup"
     ]
   },
