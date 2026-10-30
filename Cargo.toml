@@ -99,16 +99,16 @@ nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
 nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
-cranelift = "0.136.4"
-cranelift-jit = "0.136.4"
-cranelift-module = "0.136.4"
-cranelift-native = "0.136.4"
+cranelift = "0.137.1"
+cranelift-jit = "0.137.1"
+cranelift-module = "0.137.1"
+cranelift-native = "0.137.1"
 # The second `Module` behind the one lowering walk — the relocatable
 # object payload of
 # `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
 # Same version as its four siblings above, and it must stay so:
 # they share `cranelift-codegen`'s types.
-cranelift-object = "0.136.4"
+cranelift-object = "0.137.1"
 # The reader for what that one writes, and a test dependency only: an object's
 # relocation table is the evidence that an address was left for a loader rather
 # than baked in. Same version `cranelift-object` already resolved to.
@@ -350,14 +350,14 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- extension sandbox (M9). Built on the same cranelift version above, so the
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
-# HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1. The minimum is
-# 49.0.5: the first release with the fixes for RUSTSEC-2026-0379, -0422, -0423
-# and -0424, so a `cargo update` cannot resolve back to a vulnerable patch release.
+# The minimum is 50.0.1, the latest release, which carries the fixes for
+# RUSTSEC-2026-0379, -0422, -0423 and -0424, so a `cargo update` cannot resolve
+# back to a vulnerable release.
 # Every default feature but `cache`: Novis keeps a compiled module in its own
 # artifact cache (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`)
 # and never configures wasmtime's, and `cache` is the one path to `zstd` 0.13,
 # whose RUSTSEC-2026-0391, -0398, -0403 and -0410 are fixed only in 0.14.
-wasmtime = { version = "49.0.5", default-features = false, features = [
+wasmtime = { version = "50.0.1", default-features = false, features = [
     "addr2line",
     "anyhow",
     "async",
@@ -389,15 +389,15 @@ wasmtime = { version = "49.0.5", default-features = false, features = [
 # the lock file did not already hold. Only `std`: the test reads text, and
 # `decoding` would pull `wasmparser` and `serde` for binary components it never
 # reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
-# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
-wit-parser = { version = "0.258", default-features = false, features = ["std"] }
+# HOLD (revisit 2026-11-30): 0.262 is out, and wasmtime 50.0.1 parses with 0.261. It moves with wasmtime.
+wit-parser = { version = "0.261", default-features = false, features = ["std"] }
 # The reader of a `.nvsx`'s custom sections, at the version wasmtime parses
 # with, so it adds no crate the lock file did not already hold. `std` and
 # `component-model` are what walking a component's sections needs; `validate`
 # is left off because validating is the engine's job at load.
 # `crates/nvs-ext/src/section.rs` is the one caller.
-# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
-wasmparser = { version = "0.258", default-features = false, features = ["std", "component-model"] }
+# HOLD (revisit 2026-11-30): 0.262 is out, and wasmtime 50.0.1 parses with 0.261. It moves with wasmtime.
+wasmparser = { version = "0.261", default-features = false, features = ["std", "component-model"] }
 # Component text compiled at test time, so a test guest needs no wasm
 # toolchain. Already in the lock file under wasmtime's own `wat` feature.
 wat = "1"
@@ -406,16 +406,16 @@ wat = "1"
 # it adds no crate the lock file did not hold. The defaults are off: the
 # `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
 # `crates/nvs-ext/src/pack.rs` is the one caller.
-# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49's bindgen pulls 0.258. It moves with wasmtime.
-# wasmtime 49's `sha2` 0.10 also keeps `generic-array` at 0.14.7, which `crypto-common` 0.1.7 pins with `=`.
-wit-component = { version = "0.258", default-features = false }
+# HOLD (revisit 2026-11-30): 0.262 is out, and wasmtime 50.0.1's bindgen pulls 0.261. It moves with wasmtime.
+# `cranelift-codegen` 0.137's `sha2` 0.10 also keeps `generic-array` at 0.14.7, which `crypto-common` 0.1.7 pins with `=`.
+wit-component = { version = "0.261", default-features = false }
 # `wasi:io`'s host half — the `pollable`, `input-stream` and `output-stream`
 # resources every other WASI interface is written in — at wasmtime's own
 # version. Not `wasmtime-wasi`: that crate's host runs on `tokio`'s `rt`, which
 # `rule:concurrency/one-scheduler` refuses, and this one is `no_std` with no
 # executor. It adds `tracing`, with no subscriber and no `log` bridge.
 # `crates/nvs-ext/src/wasi.rs` is the one caller.
-wasmtime-wasi-io = "49.0.5"
+wasmtime-wasi-io = "50.0.1"
 
 # --- the language server's wire and its vocabulary ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
@@ -545,11 +545,12 @@ memmap2 = "0.9"
 # that crate's own dependency, so naming it here adds no crate and no C.
 # Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
-wasmtime-internal-jit-icache-coherence = "49.0.5"
+wasmtime-internal-jit-icache-coherence = "50.0.1"
 # Dev-only: asks the OS for a code page's protection, so `nvs-codegen`'s and
 # `nvs-cli`'s tests check that a page Novis made executable is not writable
 # (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`).
 # `cranelift-jit` already depends on it, so naming it here adds no crate.
+# HOLD (revisit 2026-11-30): 4 is out, and cranelift-jit 0.137.1, the latest, needs ^3.0.2, so 4 would build a second copy.
 region = "3"
 
 # --- Unicode text segmentation (`rule:types/string-is-utf8`'s grapheme granularity) ---

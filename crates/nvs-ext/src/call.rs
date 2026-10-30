@@ -30,8 +30,12 @@
 //!
 //! **What crosses is the request's memory too.** wasmtime lifts a value from the guest into
 //! [`Val`]s, one per element of a list, and bounds each crossing by the store's hostcall fuel.
-//! The fuel is [`Budget::left`] when the call starts and at every tick, so a crossing allocates
-//! no more on the host than the request can still afford, and running out is [`Limit::Memory`].
+//! The fuel is [`Budget::left`] when the call starts, so a crossing allocates no more on the host
+//! than the request could afford then, and running out is [`Limit::Memory`]. wasmtime gives the
+//! epoch callback no way to set it, so it is not refreshed at a tick. That loses no bound: a guest
+//! can grow its memory by any amount between two ticks, so the fuel never tracked that growth.
+//! The charge each lifted value makes right after its crossing is what catches a request that
+//! spent its memory during the call. The cost is one crossing's bytes, held until that charge.
 //! A call's lowered arguments are measured once they are made and charged to the request until
 //! the guest returns, and its lifted results are charged while they are converted; a call that
 //! cannot afford either is [`Limit::Memory`], and both are given back after. A request with no
@@ -1323,8 +1327,6 @@ impl Request {
                 guest.reached = Some(Limit::Cpu);
                 return Ok(UpdateDeadline::Interrupt);
             }
-            let fuel = fuel(&*guest.budget);
-            cx.set_hostcall_fuel(fuel);
             Ok(UpdateDeadline::Yield(1))
         });
         let instance = match self

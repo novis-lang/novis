@@ -61,7 +61,7 @@ fn probe(resolve: &mut Resolve, index: usize, interface: &str) -> Vec<u8> {
         .select_world(&[package], Some("w"))
         .expect("the probe world exists");
     let mut module = dummy_module(resolve, world, ManglingAndAbi::Standard32);
-    embed_component_metadata(&mut module, resolve, world, StringEncoding::UTF8)
+    embed_component_metadata(&mut module, resolve, world, StringEncoding::UTF8, false)
         .expect("the probe's metadata embeds");
     ComponentEncoder::default()
         .module(&module)
@@ -243,7 +243,7 @@ fn guest_bytes(wit: &str, core: &str) -> Vec<u8> {
         .select_world(&[package], Some("guest"))
         .expect("the guest's world exists");
     let mut module = wat::parse_str(core).expect("the guest's core module compiles");
-    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8)
+    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8, false)
         .expect("the guest's metadata embeds");
     ComponentEncoder::default()
         .module(&module)

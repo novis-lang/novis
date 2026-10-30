@@ -193,7 +193,7 @@ fn componentize(
         .select_world(&[package], Some("extension"))
         .map_err(|err| malformed(format!("the WIT does not resolve: {err:#}")))?;
     let mut module = module.to_vec();
-    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8)
+    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8, false)
         .map_err(|err| malformed(format!("the module's type does not encode: {err:#}")))?;
     ComponentEncoder::default()
         .validate(true)

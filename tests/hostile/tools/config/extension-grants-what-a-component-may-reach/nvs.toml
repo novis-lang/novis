@@ -3,7 +3,7 @@
 # It asks to read files and to connect to `tiles.example.com` and `routes.example.com`.
 [[extension]]
 path = "../../../../../docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas.nvsx"
-sha256 = "e05d5aefc48218c936ce53aa42030872f4e16f4687284a00df8bc6be9a2af72a"
+sha256 = "8bb2081b5d76340eb1cdc2cf22b0eaa2144bb7851b83abb5662c1b369ce9694b"
 grants = { read = ["data/geo/"], write = ["data/geo/"], connect = ["tiles.example.com", "maps.example.com"] }
 
 # The attacks may read and write the folder `data/`, and connect to any host.

@@ -1,4 +1,4 @@
 # Loads the test extension `Shop\Ledger`, whose method `crash` always crashes.
 [[extension]]
 path = "../../../conformance/ext/fixtures/ledger.nvsx"
-sha256 = "506a37674d4de4e9fdb2128a3e3ea10c1f5e8b5cd751aee377dcb396d82daeed"
+sha256 = "3112cf3359166c7a83a052ca0f21537ef8e1f87a6873d0b4c7d96b8b7fd4e1b6"

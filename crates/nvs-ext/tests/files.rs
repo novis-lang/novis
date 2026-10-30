@@ -184,7 +184,7 @@ fn guest_bytes() -> Vec<u8> {
         .select_world(&[package], Some("guest"))
         .expect("the guest's world exists");
     let mut module = wat::parse_str(CORE).expect("the guest's core module compiles");
-    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8)
+    embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8, false)
         .expect("the guest's metadata embeds");
     ComponentEncoder::default()
         .module(&module)
