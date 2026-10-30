@@ -1,8 +1,9 @@
 <?nvs
 // Attack: a large array is split into one run per entry, and then into a run
 // wider than the array. A size of 0 is thrown out. Every step should finish or
-// throw an error, and the runtime must not crash.
+// throw an error. The last one should stop at the memory limit.
 // hostile: timeout-ms 60000
+// hostile: ends-early 7 FATAL
 
 // 1. 100000 entries become 100000 runs of one entry each.
 array<int> $long = [];
@@ -44,4 +45,8 @@ try {
     echo 'step 6: the size was refused', '|', "\n";
 }
 
-echo 'the runtime is still standing', "\n";
+// 7. Five million entries become five million runs of one entry each.
+// The runs need more memory than the program may use, so the program stops here.
+echo "step 7\n";
+array<int> $many = Core\Arr::fill(5000000, 7);
+echo Core\Arr::count(Core\Arr::chunk($many, 1)), "\n";
