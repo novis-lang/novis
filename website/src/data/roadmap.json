@@ -1,13 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "Refactoring from the command line",
-      "text": "`nvs code rename` renames a class or a method everywhere it is used. `nvs code move` moves a file and updates every `require` that loads it. `nvs code find` finds a class or a method by its name. `nvs code calls` lists the callers of a method, and `nvs code reach` lists the routes and tests that use it.",
-      "goals": [
-        "code-rename-and-calls"
-      ]
-    }
-  ]
+  "themes": []
 }
