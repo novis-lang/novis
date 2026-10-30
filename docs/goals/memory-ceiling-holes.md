@@ -433,6 +433,7 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
   - [x] Five undeclared memory-limit texts get tests; `process.rs`'s cast; the group test (`956669248`).
   - [x] The assertion ledger asks before it grows (`94a9b434f`).
+  - [x] The reference bench count and the website render (`cea8e01ad`).
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
@@ -444,7 +445,9 @@ the gate is `bun nv affected --run`. Run 1 found three reds, fixed in `956669248
 step 19 (conformance): the assertion ledger, fixed in `94a9b434f`, and six `image-*` cases that
 aborted with `memory allocation of ~1.5 MB failed`. Those six pass alone and together on the same
 binary, and no job limit exists, so they read as host commit running out under the gate's load.
-Run 3 was started on `94a9b434f`; if those six are red again, look for what holds the host's memory.
+Run 3 passed conformance, the six included, and stopped at step 20 (reference): `Str::join`'s
+bench count fell. That is re-rendered in `cea8e01ad`, and `bun nv reference` holds 678 of 678. Steps
+21 to 23 have not run yet.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
@@ -463,8 +466,8 @@ exist, and this `looper` has no `check` command to run it by name.
 
 ### Next
 
-Stage 10's last run. `bun nv affected --run` with `run_in_background`; it starts at step 19 now
-that steps 1 to 18 are green. Fix what it names, never loosening a test. Then the goal-end gates:
+Stage 10's last run. `bun nv affected --run` with `run_in_background`; steps 1 to 20 are green, so
+it runs little more than 21 to 23. Fix what it names, never loosening a test. Then the goal-end gates:
 `bun nv verify --doc`, `bun nv owners --closes memory-ceiling-holes`, and `bun nv ci --check`.
 
 - [ ] `bun nv affected --run` green from `tests/conformance/novis/image-a-barcode-renders-as-png.nvst:1`.
