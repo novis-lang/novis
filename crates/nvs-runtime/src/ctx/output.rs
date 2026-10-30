@@ -275,7 +275,21 @@ impl Ctx {
     pub fn write_output(&mut self, bytes: &[u8]) -> io::Result<()> {
         // `rule:security/capture-answers-the-carrier`: while a `Core\Out::capture` is in force, the innermost
         // one takes the bytes and the sink below sees nothing.
+        //
+        // A growth asks the request's budget for the whole new block, as
+        // `crate::budget::ByteWriter::put` does, because a reallocation holds
+        // the old block and the new one at once. A refused growth writes
+        // nothing: the breach is recorded, and the request's next poll stops
+        // it. One comparison per write that fits.
         if let Some(capture) = self.captures.last_mut() {
+            let needed = capture.len().saturating_add(bytes.len());
+            if needed > capture.capacity() {
+                let grown = needed.max(capture.capacity().saturating_mul(2));
+                if !crate::budget::affords(grown) {
+                    return Ok(());
+                }
+                capture.reserve_exact(grown - capture.len());
+            }
             capture.extend_from_slice(bytes);
             return Ok(());
         }
