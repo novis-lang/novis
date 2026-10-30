@@ -99,10 +99,14 @@
 //! `open`**, which is the one place that bound needs reading carefully: a
 //! [`Ticket::for_block`] key can only be one of the config's `[db.<name>]`
 //! blocks, while a [`Ticket::for_settings`] key is a hash of fields a program
-//! chooses, and `database`, `user` and `password` all accept `tainted`. What
-//! keeps the second finite is that every [`take`] retires *every* expired entry
-//! it walks past and not only the ones under its own key, so the store holds
-//! `idle` per key opened within one `lifetime` and not one per key ever seen.
+//! chooses, and `database`, `user` and `password` all accept `tainted`. Two
+//! things keep the second finite. Every [`take`] and every [`release`] retires
+//! *every* expired entry it walks past and not only the ones under its own
+//! key, so the store holds `idle` per key opened within one `lifetime` and not
+//! one per key ever seen. And a [`release`] that finds the whole store at the
+//! releasing block's `max` closes the oldest idle connection first, whatever
+//! its key, so a core never holds more idle connections than that `max`
+//! however many keys a program opens.
 //!
 //! The count above adds one entry per key a core has a live connection under —
 //! a string and a number, dropped when the last of them goes home, so it is
@@ -553,6 +557,12 @@ impl Drop for Waiting {
 /// before this returns, which is the same close a request without a pool
 /// already performed.
 ///
+/// On the way in it closes every idle entry whose lifetime `now` has passed,
+/// under any key, and then the oldest entries until the store is under
+/// [`PoolBounds::max`]. That bound is the module doc's for a program that
+/// opens many keys. **Cost:** one walk of this core's idle store per release,
+/// which is at most `max` entries long.
+///
 /// `now` is passed in rather than read here so that the one clock read at a
 /// request's teardown covers every connection it held — and so that a test can
 /// name an instant the future has already passed.
@@ -572,21 +582,27 @@ pub fn release(lease: Lease, now: Instant, connection: Box<dyn HeldConnection>) 
         return;
     };
     let bound = usize::try_from(ticket.bounds.idle).unwrap_or(usize::MAX);
+    let ceiling = usize::try_from(ticket.bounds.max).unwrap_or(usize::MAX);
     // Dropped after the borrow ends: a connection's own `Drop` closes a socket
     // and cannot reach this module, but a store that hands a `Drop` type out
     // from inside its own borrow is one edit away from a panic.
-    let closed = IDLE.with_borrow_mut(|idle| {
-        if idle.iter().filter(|entry| entry.key == ticket.key).count() >= bound {
-            return Some(connection);
+    let (closed, retired) = IDLE.with_borrow_mut(|idle| {
+        let mut retired: Vec<Idle> = idle.extract_if(.., |entry| entry.retire <= now).collect();
+        if ceiling == 0 || idle.iter().filter(|entry| entry.key == ticket.key).count() >= bound {
+            return (Some(connection), retired);
         }
+        // The store is in release order, so the front is the oldest.
+        let over = (idle.len() + 1).saturating_sub(ceiling);
+        retired.extend(idle.drain(..over));
         idle.push(Idle {
             key: ticket.key.clone(),
             connection,
             retire,
         });
-        None
+        (None, retired)
     });
     drop(closed);
+    drop(retired);
 }
 
 /// The connection this core last released under `lease`'s key, or `None` for a
@@ -768,6 +784,37 @@ mod tests {
         assert_eq!(id_of(take(&lease(&generation, "other", 2), now)), None);
         assert_eq!(id_of(take(&lease(&generation, "main", 2), now)), Some(1));
         assert_eq!(id_of(take(&lease(&generation, "main", 2), now)), None);
+    }
+
+    /// A program that opens many keys leaves at most the block's `max` idle
+    /// connections on a core, the oldest closed first, and a release closes
+    /// every expired entry it walks past with no `take` asking.
+    #[test]
+    fn the_idle_store_holds_at_most_max_and_a_release_retires_expired_entries() {
+        let now = std::time::Instant::now();
+        let generation = generation();
+        for key in 0..10 {
+            let held = admit(capped(&generation, &format!("k{key}"), 3)).unwrap();
+            release(held, now, fake(key));
+        }
+        assert_eq!(
+            super::IDLE.with_borrow(Vec::len),
+            3,
+            "the store passed `max`"
+        );
+        let newest = admit(capped(&generation, "k9", 3)).unwrap();
+        assert_eq!(id_of(take(&newest, now)), Some(9), "the newest was closed");
+        let oldest = admit(capped(&generation, "k0", 3)).unwrap();
+        assert_eq!(id_of(take(&oldest, now)), None, "the oldest was kept");
+        drop((newest, oldest));
+
+        let later = now + PoolBounds::DEFAULT.lifetime + std::time::Duration::from_secs(1);
+        release(lease(&generation, "fresh", 2), later, fake(100));
+        assert_eq!(
+            super::IDLE.with_borrow(Vec::len),
+            1,
+            "a release kept entries whose lifetime was over"
+        );
     }
 
     #[test]
