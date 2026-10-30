@@ -58,7 +58,7 @@ export const NVS_IMAGE = "nvs-bench-serve:local";
 /** The ini `compose.php.yaml` mounts after the proxied leg's, which turns PHP's file check back on at its defaults. */
 export const FILE_CHECK_INI = join(COMPARE_DIR, "php", "file-check.ini");
 
-export const NGINX_IMAGE = "nginx:1.31.7-alpine";
+export const NGINX_IMAGE = "nginx:1.31.8-alpine";
 export const OHA_IMAGE = "ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f";
 const CERT_IMAGE = "alpine/openssl:3.5.9";
 const NGINX_CPUS = 4;

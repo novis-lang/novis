@@ -12,7 +12,7 @@
 
 services:
   nginx:
-    image: nginx:1.31.7-alpine
+    image: nginx:1.31.8-alpine
 
     # The same number in every stack, and more than any backend budget, so nginx is not what is measured.
     cpus: 4

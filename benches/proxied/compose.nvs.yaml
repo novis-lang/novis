@@ -55,7 +55,7 @@ services:
       start_period: 2s
 
   nginx:
-    image: nginx:1.31.7-alpine
+    image: nginx:1.31.8-alpine
 
     # Fixed, and identical in `compose.php.yaml`: the proxy is the one part of the two stacks that
     # must not vary, or the arms stop being comparable to each other. Four is comfortably more than
