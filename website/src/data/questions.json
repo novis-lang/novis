@@ -1113,13 +1113,14 @@
   },
   "/reference/cli/nvs-code/": {
     "feature": "tools:cli/nvs-code",
-    "hash": "23112a22cebaf0dd",
+    "hash": "78b16f6e145f5f22",
     "questions": [
       "Find every place a method is used in my project",
       "Rename a class or a method everywhere from the terminal",
       "Move a file and update every require that loads it",
       "Which methods call this method, and which routes reach it?",
-      "Find a class or a method when I know only part of its name"
+      "Find a class or a method when I know only part of its name",
+      "Sort the properties and methods of every class in my project"
     ]
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
@@ -1225,7 +1226,7 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "938fd49e0a732137",
+    "hash": "544c0fc48f1a6c6f",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
@@ -17353,14 +17354,14 @@
   },
   "/syntax/attributes/json/": {
     "feature": "syntax/attributes/json.mdx",
-    "hash": "6314d7d6214d5d58",
+    "hash": "43e3743a8858b17f",
     "questions": [
       "How do I let a class be converted to and from JSON?",
       "Use a different JSON key name for one property",
       "How do I leave a property out of the JSON output?",
       "Why does decoding JSON into my class throw an error?",
       "Which property types work when I build an object from JSON?",
-      "Can a class with a password property be decoded from JSON?"
+      "How do I keep the JSON keys in the order I wrote the properties?"
     ]
   },
   "/syntax/attributes/routes/": {
@@ -18100,13 +18101,13 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "a309a8936b666a41",
+    "hash": "a0dbdc503fc147cf",
     "questions": [
       "How do I install the VS Code extension from a .vsix file?",
       "Rename a method in every file of my project at once",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
-      "Show every method that calls this method",
+      "Put the properties and methods of a class in order in the editor",
       "See where a tainted value came from in the editor"
     ]
   },

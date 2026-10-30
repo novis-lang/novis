@@ -11,7 +11,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "b7e1ddae9ac7cbb4"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "1a3f22bcf1c36fa9"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "d85a61e4df39f6a2"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "030a6f7cc3ac0c09",
@@ -386,7 +386,7 @@
     "tools:editor/nvs-dap": "90b163dcf00c5f05"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "938fd49e0a732137",
+    "tools:editor/nvs-lsp": "544c0fc48f1a6c6f",
     "tools:editor/the-vs-code-extension": "4afd1f36579d319b"
   },
   "tools/formatter/index.mdx": {
