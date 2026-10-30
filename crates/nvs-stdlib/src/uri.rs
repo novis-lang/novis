@@ -1241,6 +1241,43 @@ pub(crate) fn encode(text: &[u8], form: Form) -> String {
     out
 }
 
+/// `text` percent-encoded under `form`, written once into the string the member
+/// returns.
+///
+/// One counting pass gives the exact length, so the result is one allocation
+/// that never grows. Encoding into a `String` and copying it into the result
+/// held the text up to four times over, and an argument of reserved bytes then
+/// reached five times the request's memory ceiling inside one call. The count
+/// costs one table test per byte, beside a write that costs more. A refused
+/// allocation returns an empty string, and the request's next poll ends it.
+fn encoded(text: &[u8], form: Form) -> HelperResult {
+    let escape = |byte: u8| !(form.unreserved(byte) || (byte == b' ' && form == Form::FormValue));
+    let len = text
+        .iter()
+        .fold(0_usize, |len, &byte| len.saturating_add(if escape(byte) { 3 } else { 1 }));
+    let built = NvsStr::build(len, |out| {
+        let mut run = 0;
+        for (at, &byte) in text.iter().enumerate() {
+            if !escape(byte) && !(byte == b' ' && form == Form::FormValue) {
+                continue;
+            }
+            out.push(&text[run..at]);
+            if escape(byte) {
+                out.push(&[b'%', HEX[usize::from(byte >> 4)], HEX[usize::from(byte & 0x0f)]]);
+            } else {
+                out.push(b"+");
+            }
+            run = at + 1;
+        }
+        out.push(&text[run..]);
+    });
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "every byte written is an unreserved ASCII byte, `+`, `%` or a hex digit"
+    )]
+    Ok(Value::str(built))
+}
+
 /// The two hex digits at `at`, as the byte they spell, or `None` where either
 /// is missing or is not a hex digit.
 ///
@@ -3143,7 +3180,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_uri_encode_component(_ctx, args: [1]) {
         let text = text_of(args, "encodeComponent")?;
 
-        produced(&encode(text.as_bytes(), Form::Component))
+        encoded(text.as_bytes(), Form::Component)
     }
 }
 
@@ -3187,7 +3224,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_uri_encode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "encodeFormValue")?;
 
-        produced(&encode(text.as_bytes(), Form::FormValue))
+        encoded(text.as_bytes(), Form::FormValue)
     }
 }
 
@@ -3507,6 +3544,26 @@ mod tests {
                 "an encoded answer is ASCII by construction"
             );
             assert_eq!(octets(decoder, &encoded), subject.as_bytes());
+        }
+    }
+
+    /// The two members write their answer in place, and `encode` writes it
+    /// into a `String` for the members that build a larger text. Both must
+    /// agree on every byte, at the start, in the middle and at the end.
+    #[test]
+    fn the_members_write_what_encode_writes() {
+        let subject: String = (0..=127_u8).map(char::from).chain(['é', '→', 'a', ' ']).collect();
+        for (member, form) in [
+            (
+                super::nvs_core_uri_encode_component
+                    as unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+                Form::Component,
+            ),
+            (super::nvs_core_uri_encode_form_value, Form::FormValue),
+        ] {
+            for text in [subject.as_str(), "", "plain", " a b "] {
+                assert_eq!(run(member, text), Ok(encode(text.as_bytes(), form)));
+            }
         }
     }
 
