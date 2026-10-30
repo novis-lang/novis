@@ -30723,7 +30723,7 @@ final class CsvLineBench
     ✓ byLoop
       count: statements=1406 calls=2 allocations=423 bytes=32373 gc=0
     ✓ byJoin
-      count: statements=406 calls=3 allocations=422 bytes=31681 gc=0
+      count: statements=406 calls=3 allocations=418 bytes=30336 gc=0
 
   0 failed, 2 passed, 0 skipped, 0 flaky
 ```
@@ -45900,7 +45900,7 @@ Reads the signing keys from a JWKS document. A token can then be checked with th
 
 **Returns** `Core\Jwt\KeySet` — A set of at most 16 public keys, each with the name the document gave it. A key is found in it by its `kid`. The set is never searched by trying every key.
 
-**Throws** `LogicError` — `{ rsaScheme: … }` names a kind that is not one of the two RSA kinds. No other kind has two schemes to choose from.; `RuntimeError` — `$jwks` is not a valid key document. It is not JSON, or it has no `keys` array. A key has a private field, or a `kid` that is not a string. A key does not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An `alg` does not fit its key's kind. Two keys have the same `kid`. The document has more than 16 keys that can be used.
+**Throws** `LogicError` — `{ rsaScheme: … }` names a kind that is not one of the two RSA kinds. No other kind has two schemes to choose from.; `RuntimeError` — `$jwks` is not a valid key document. It is not JSON, or it has no `keys` array. A key has a private field, or a `kid` that is not a string. A key does not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An `alg` does not fit its key's kind. Two keys have the same `kid`. The document has more than 16 keys that can be used. The document is longer than 1 MiB.
 
 <a id="core-core-jwe"></a>
 ### `Core\Jwe`

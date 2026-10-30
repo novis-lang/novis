@@ -18353,7 +18353,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$jwks</code> is not a valid key document. It is not JSON, or it has no <code>keys</code> array. A key has a private field, or a <code>kid</code> that is not a string. A key does not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An <code>alg</code> does not fit its key's kind. Two keys have the same <code>kid</code>. The document has more than 16 keys that can be used."
+                "descHtml": "<code>$jwks</code> is not a valid key document. It is not JSON, or it has no <code>keys</code> array. A key has a private field, or a <code>kid</code> that is not a string. A key does not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An <code>alg</code> does not fit its key's kind. Two keys have the same <code>kid</code>. The document has more than 16 keys that can be used. The document is longer than 1 MiB."
               }
             ]
           },
