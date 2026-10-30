@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/src/math.rs, crates/nvs-stdlib/src/regex.rs]
   - id: 6
     title: "the JSON, CSV, HTML, JWT, URI, XML and AST builders stop at the ceiling"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/jwt.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/xml.rs, crates/nvs-stdlib/src/ast.rs]
   - id: 7
     title: "files, processes, HTTP replies and mail replies are read no further than the request can hold"
@@ -214,6 +214,15 @@ scratch from about 35 to 16 bytes per live object. Cost: O(n log n) for the walk
 the ceiling. Where even that scratch does not fit under the bound, the in-flight walk is skipped and
 the request ends on its breach, as it would without a collector. The teardown walk is unchanged.
 
+**A JWT parse is capped before it starts, and an unsigned part by size.** A `serde_json::Value`
+tree is up to about 64 times its text (a list of one-digit numbers). A header is read before its
+signature, so a forger picks its size: a header past 8 KiB (`MAX_HEADER`) is the ordinary
+refusal, a catchable throw, and never a `FATAL`. A key set past 1 MiB (`MAX_KEY_SET`) throws
+`not_a_key_set`. Sixteen keys need a few kilobytes. A signed payload, and a key set within the cap,
+ask for `parse_bound` first: the text plus 128 bytes per value, counted in one string-aware pass.
+A flat factor was declined because it refused `sign`'s own 32 MB single-claim round trip. A
+visitor that builds no tree was declined as more code for the same bound.
+
 **Out of scope, decided elsewhere.**
 - No cap on open connections before admission
   (`docs/rules/http-server/admission-is-arithmetic-not-a-number.md`).
@@ -296,13 +305,13 @@ table above go red. That is expected: this goal's later stages turn them green.
 **Split:** as stage 5's.
 
 - [x] *Confirmed:* `Json::encode`'s `Sink` writes through the shared writer. This also bounds `Response::json`, the HTTP JSON body, SSE, queue job arguments and `Jwt::signObject`. `crates/nvs-stdlib/src/json.rs:781`, `crates/nvs-stdlib/src/json.rs:915`
-- [ ] `Csv::format` and `Html::join` write through a writer that asks. `crates/nvs-stdlib/src/csv.rs:894`, `crates/nvs-stdlib/src/html.rs:931`
-- [ ] `Jwt::sign` asks before its payload and base64 copies. `Jwt::verify` and `KeySet::read` cap the JSON they parse before the parse. `crates/nvs-stdlib/src/jwt.rs:1113`, `crates/nvs-stdlib/src/jwt.rs:1528`, `crates/nvs-stdlib/src/jwt.rs:2245`
+- [x] `Csv::format` and `Html::join` write through a writer that asks. `Csv::format` is a `ByteWriter` (0.80x), and `Html::join` sizes the page in one pass and asks twice it (a refusal before any copy). `crates/nvs-stdlib/src/csv.rs:894`, `crates/nvs-stdlib/src/html.rs:931`
+- [x] `Jwt::sign` asks before its payload and base64 copies (0.75x). `Jwt::verify` and `KeySet::read` cap the JSON they parse before the parse (verify 0.92x). `crates/nvs-stdlib/src/jwt.rs:1113`, `crates/nvs-stdlib/src/jwt.rs:1528`, `crates/nvs-stdlib/src/jwt.rs:2245`
 - [x] `Uri::encodeComponent` and `encodeFormValue` (5.2x), now 0.75x: one counting pass sizes the result, written once (`encoded`). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
-- [ ] `Xml\Writer`'s indent is counted in its ask. `crates/nvs-stdlib/src/xml.rs:3049`
+- [x] `Xml\Writer`'s indent is counted in its ask (0.85x). `crates/nvs-stdlib/src/xml.rs:3049`
 - [x] `Ast::parse`'s node objects ask (1.27x), now 1.24x: the parser asks a keep-going callback per statement (`parse_file_within`). `crates/nvs-stdlib/src/ast.rs:454`
 - [x] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x, now 1.0x) and `Response::html` (1.54x, now 0.79x through the capture buffer's ask), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `jsonAs` reads within the bound since stage 5's array fixes. `crates/nvs-stdlib/src/arr.rs:6462`
-- [ ] An attack step per member above, each ending at `FATAL` within the bound.
+- [x] An attack step per member above, each ending at `FATAL` within the bound. `KeySet::read`'s step 10 throws instead, by the JWT parse decision.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
 
@@ -354,13 +363,11 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 has its Uri, Json, Ast and shapeAs/jsonAs/html items done. Build
-and clippy green, rustfmt clean, no full test run. Every reading the last `--overshoot` scan had
-red is now within the bound by `bun nv proofs --run --id ... --show`: `Arr/shapeAs` 1.0x (list
-decode reads `over_ceiling` per row), `Ast/parse` 1.24x (`nvs_syntax::parse_file_within`'s
-keep-going callback, asked per statement, and per node in `instance_of`), `Response/html` 0.79x
-(a `Core\Out::capture` buffer asks for each growth, `Ctx::write_output`), `Json/encode`'s new
-step 6 0.87x (`Sink` is a `ByteWriter`, which now takes `io::Write`).
+Stages 1 to 6 are done. Build and clippy green, rustfmt clean, no full test run. Stage 6's last
+items landed here: `Csv::format` on `ByteWriter` (0.80x), `Html::join` sized in one pass and asked
+before it copies, `Xml\Writer`'s lead asked (0.85x), and `Core\Jwt` per the new standing decision
+(sign 0.75x, verify 0.92x). `bun nv proofs --overshoot` exits 0: 228 readings, none red, and the
+worst real one is `Str/wrap` at 1.45x.
 
 A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built. That
 check is not sticky, so a breach read after the free finds the request under its ceiling.
@@ -374,19 +381,24 @@ any entry. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. A collector
 test that counts objects reclaimed under a small ceiling may now read 0 where the scratch did not
 fit. New: a parse a keep-going callback stopped is `walk::STOPPED`, and a capture write the ceiling
-refused writes nothing. The sweep's `env-secret-proofs` red names no check: `bun
-tools/looper/main.ts check --name env-secret` finds none, and its log does not exist.
+refused writes nothing. New: `Core\Jwt::verify` and `verifyIssued` refuse a header past 8 KiB,
+and `KeySet::read` throws for a document past 1 MiB, so a test with a huge header gets the refusal.
+
+The sweep's `env-secret-proofs` red is stale: no file defines it, and its command (`bun nv proofs
+--gate --only 'Core\Env::secret'`) exits 0.
 
 ### Next
 
-Stage 6. Read the bound with `bun nv proofs --overshoot`, which ignores `--group` and takes about
-6 minutes, and run one member's proofs with `bun nv proofs --run --id 'Core\Uri::encodeComponent'
---show` (a class name is not a `--group`).
+Stage 7. Read one member's bound with `bun nv proofs --run --id '<member>' --show`. An attack
+that lowers its limit with `Core\Config::set` after earlier steps hold much memory reads that
+holding as its overshoot, so lower it only where little is held.
 
-- [ ] `crates/nvs-stdlib/src/csv.rs:894` `Csv::format` onto `ByteWriter`, as `json::Sink` is, and a step formatting rows that share one row.
-- [ ] `crates/nvs-stdlib/src/html.rs:931` `Html::join` onto a writer that asks, and a step.
-- [ ] `crates/nvs-stdlib/src/jwt.rs:1113` `Jwt::sign`'s copies ask; `verify` (`jwt.rs:1528`) and `KeySet::read` (`jwt.rs:2245`) cap their parse.
-- [ ] `crates/nvs-stdlib/src/xml.rs:3049` `Xml\Writer`'s indent in its ask.
-- [ ] `tools/nv/proofs/run.ts:1` one `bun nv proofs --overshoot` run confirms stage 6 before stage 7.
+- [ ] `crates/nvs-runtime/src/ctx/limits.rs:559` confirm `intake_bound` falls back to the memory limit, and `crates/nvs-stdlib/src/io.rs:2969` reads under it.
+- [ ] `crates/nvs-stdlib/src/io.rs:2258` `IO::stdin` reads under that bound.
+- [ ] `crates/nvs-stdlib/src/io.rs:3514` `IO::list` and `walk` (`io.rs:3546`) ask per entry.
+- [ ] `crates/nvs-stdlib/src/process.rs:1098` reader threads stop at the bound and discard after a timeout (`process.rs:1025`).
+- [ ] `crates/nvs-stdlib/src/http/stream.rs:639` `Http\Stream::events` consumes a line that dispatches nothing.
+- [ ] `crates/nvs-stdlib/src/mail.rs:918` SMTP replies capped per line and per reply.
+- [ ] `docs/goals/memory-ceiling-holes.md:325` stage 7's attacks, each ending at `FATAL` within the bound.
 
 ### Backlog
