@@ -124,7 +124,7 @@ use crate::ast::{
     NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, SwitchCase,
     TestOperand, Type, TypeAtom, TypeKind, UnaryOp,
 };
-use crate::parse_file;
+use crate::parse_file_within;
 
 /// One node of a parsed tree: which production it is, and what it contains.
 ///
@@ -355,7 +355,7 @@ fn post_order(node: &Node, out: &mut Vec<u32>) {
 /// Parses `source` exactly as the compiler parses a file of that name, and
 /// answers the walk over it.
 ///
-/// One grammar, `rule:core-classes/ast-is-inert`: this calls [`parse_file`], so a construct that
+/// One grammar, `rule:core-classes/ast-is-inert`: this calls [`crate::parse_file`], so a construct that
 /// compiles parses here and a construct the parser refuses is refused here.
 /// The root node is the file, whose children are its top-level statements.
 ///
@@ -376,6 +376,23 @@ pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
 /// [`StmtKind::Error`] in it, because a caller asking for a description of
 /// source it cannot compile is asking about source it should be told about.
 pub fn located(name: &str, source: &str) -> Result<Located, String> {
+    located_within(name, source, &mut || true)
+}
+
+/// What [`located_within`] answers once its `keep_going` said `false`.
+pub const STOPPED: &str = "the parse was stopped";
+
+/// [`located`], asking `keep_going` before each statement the parser reads and
+/// before each top-level statement the walk turns into a [`Node`].
+///
+/// # Errors
+///
+/// [`located`]'s, and [`STOPPED`] once `keep_going` answered `false`.
+pub fn located_within(
+    name: &str,
+    source: &str,
+    keep_going: &mut dyn FnMut() -> bool,
+) -> Result<Located, String> {
     if source.len() > MAX_SOURCE_LEN {
         return Err("source exceeds 4 GiB".to_owned());
     }
@@ -384,13 +401,21 @@ pub fn located(name: &str, source: &str) -> Result<Located, String> {
     let tree = {
         let file = map.file(id);
         let mut diags = Diagnostics::new();
-        let stmts = parse_file(file, &mut diags);
+        let stmts =
+            parse_file_within(file, &mut diags, keep_going).ok_or_else(|| STOPPED.to_owned())?;
         if let Some(first) = diags.iter().find(|d| d.is_error()) {
             let where_ = first.primary_span().map_or_else(String::new, |span| {
                 let (line, col) = file.line_col(span.start);
                 format!("line {}, column {}: ", line + 1, col + 1)
             });
             return Err(format!("{where_}{}", first.message));
+        }
+        let mut children = Vec::with_capacity(stmts.len());
+        for s in &stmts {
+            if !keep_going() {
+                return Err(STOPPED.to_owned());
+            }
+            children.push(stmt(s));
         }
         Node {
             kind: "File",
@@ -400,7 +425,7 @@ pub fn located(name: &str, source: &str) -> Result<Located, String> {
                 .reduce(Span::to)
                 .unwrap_or_else(|| Span::at(id, 0)),
             name: None,
-            children: of_stmts(&stmts),
+            children,
             fields: Vec::new(),
         }
     };

@@ -169,6 +169,21 @@ pub struct Parser<'src, 'd> {
     /// Whether the modifier list just read had a `covariant` in front of one
     /// of its modifiers, which [`Self::eat_covariant`] takes and clears.
     covariant_before_modifier: bool,
+    /// Asked before each statement, and the parse ends at the first `false`.
+    /// [`parse_file_within`] sets it; every other parse never stops.
+    keep_going: Option<KeepGoing<'d>>,
+    /// Set once [`Self::keep_going`] answered `false`, so every loop the
+    /// cursor is in ends, not only the innermost.
+    stopped: bool,
+}
+
+/// [`Parser::keep_going`]'s callback, in a type that can be `Debug`.
+struct KeepGoing<'d>(&'d mut dyn FnMut() -> bool);
+
+impl std::fmt::Debug for KeepGoing<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("KeepGoing")
+    }
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -250,7 +265,21 @@ impl<'src, 'd> Parser<'src, 'd> {
             finally_breakables: 0,
             modifiers: None,
             covariant_before_modifier: false,
+            keep_going: None,
+            stopped: false,
         }
+    }
+
+    /// Whether the parse was told to stop. Sticky, and asked before each
+    /// statement of every statement list.
+    pub(crate) fn stopping(&mut self) -> bool {
+        if !self.stopped
+            && let Some(KeepGoing(keep_going)) = &mut self.keep_going
+            && !keep_going()
+        {
+            self.stopped = true;
+        }
+        self.stopped
     }
 
     /// Starts parsing `file` exactly as [`Self::new`] does, and keeps the two
@@ -499,7 +528,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// points share, so neither can drift from the other.
     fn parse_all(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
-        while !self.at(TokenKind::Eof) {
+        while !self.at(TokenKind::Eof) && !self.stopping() {
             let before = self.peek().span;
             stmts.push(self.parse_statement());
             // Mirrors `parse_block`'s guard: if a statement consumed nothing (a
@@ -1086,4 +1115,23 @@ pub fn parse(file: &SourceFile, diags: &mut Diagnostics) -> Parsed {
 #[must_use]
 pub fn parse_file(file: &SourceFile, diags: &mut Diagnostics) -> Vec<Stmt> {
     Parser::new(file, diags).parse_all()
+}
+
+/// [`parse_file`], asking `keep_going` before each statement, and `None` once
+/// it answered `false`.
+///
+/// For a caller whose memory is capped while it parses: the tree is many times
+/// the size of its source, and a parse that runs to the end of a file too
+/// large for its caller holds all of that tree first. A stopped parse ends at
+/// once, and what it built is freed.
+#[must_use]
+pub fn parse_file_within<'d>(
+    file: &SourceFile,
+    diags: &'d mut Diagnostics,
+    keep_going: &'d mut dyn FnMut() -> bool,
+) -> Option<Vec<Stmt>> {
+    let mut parser = Parser::new(file, diags);
+    parser.keep_going = Some(KeepGoing(keep_going));
+    let stmts = parser.parse_all();
+    (!parser.stopped).then_some(stmts)
 }

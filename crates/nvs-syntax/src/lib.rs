@@ -116,6 +116,7 @@ pub use index::{IndexNode, NodePath, SyntaxIndex};
 pub use lexer::{Lexer, OPEN_TAGS, first_open_tag, tokenize};
 pub use parser::{
     DOC_MARKER, Parsed, Parser, by_reference_assignment, parse, parse_expression, parse_file,
+    parse_file_within,
 };
 pub use todo::{Todo, todos, todos_in};
 pub use token::{Keyword, Token, TokenKind, Trivia, TriviaKind};

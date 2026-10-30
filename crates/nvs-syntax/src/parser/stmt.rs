@@ -50,7 +50,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     pub(crate) fn parse_block(&mut self) -> Block {
         let start = self.expect(TokenKind::LBrace, "`{`");
         let mut stmts = Vec::new();
-        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) && !self.stopping() {
             let before = self.peek().span;
             stmts.push(self.parse_statement());
             if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)

@@ -451,16 +451,30 @@ const OFFSET_DOC: MethodDoc = MethodDoc {
 ///
 /// `positions` is [`nvs_syntax::walk::Located::positions`], consumed in the
 /// post-order this recursion builds in.
+///
+/// Each node is several allocations that ask the budget nothing, and the walk
+/// reaches no poll, so the ceiling is read at every node and the walk stops at
+/// the crossing. That is two thread-local reads per node.
+///
+/// # Errors
+///
+/// The request's memory breach, once it holds more than its ceiling. It is
+/// read before the nodes built so far are freed, so it names the reading the
+/// request reached.
 fn instance_of(
+    ctx: &nvs_runtime::Ctx,
     node: &nvs_syntax::walk::Node,
     positions: &mut impl Iterator<Item = (u32, u32, u32)>,
-) -> Value {
-    let mut children = NvsArray::new();
+) -> Result<Value, Fault> {
+    past_ceiling(ctx)?;
+    // Sized once, so a file of many statements is never copied into a
+    // doubled backing. The room is asked of the budget.
+    let mut children = NvsArray::with_capacity(node.children.len());
     for child in &node.children {
-        children.append(instance_of(child, positions));
+        children.append(instance_of(ctx, child, positions)?);
     }
     let (line, column, offset) = positions.next().unwrap_or_default();
-    crate::instance::build(
+    Ok(crate::instance::build(
         class_of(node.kind),
         [
             Value::text(node.kind),
@@ -469,7 +483,22 @@ fn instance_of(
             Value::int(i64::from(column)),
             Value::int(i64::from(offset)),
         ],
-    )
+    ))
+}
+
+/// The request's memory breach, where it now holds more than its ceiling.
+///
+/// # Errors
+///
+/// [`nvs_runtime::Ctx::memory_breach`]'s fault, or a plain `FATAL` naming the
+/// member where the poll finds the request back under its ceiling.
+fn past_ceiling(ctx: &nvs_runtime::Ctx) -> Result<(), Fault> {
+    if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
+        return Err(ctx.memory_breach().unwrap_or_else(|| {
+            Fault::fatal("Core\\Ast::parse: the tree does not fit in the request's memory limit")
+        }));
+    }
+    Ok(())
 }
 
 /// A slot of the receiving node, retained because it is being answered.
@@ -548,7 +577,7 @@ nvs_runtime::nvs_helper! {
     /// objects. Everything interesting about the member is in those two
     /// modules' doc comments rather than here, which is the point of the
     /// split.
-    fn nvs_core_ast_parse(_ctx, args: [1]) {
+    fn nvs_core_ast_parse(ctx, args: [1]) {
         // Unreachable from source: `$source` is a `string` parameter, so
         // `E0401` refuses anything else before any of this runs. The guard is
         // what makes the tag read below it sound, the way a `debug_assert!`
@@ -562,14 +591,28 @@ nvs_runtime::nvs_helper! {
         })?;
         // The name is what a diagnostic would print for this text, and there
         // is no file behind it — the member is the whole of its provenance.
-        let parsed = nvs_syntax::walk::located("Core\\Ast::parse", source)
+        // The parser's own tree asks the budget nothing, and is many times
+        // the size of its source. So the parse reads the ceiling before each
+        // statement, and a source too large for the request stops there. The
+        // breach is read at that moment, while the tree is still held, so it
+        // names the reading the request reached.
+        let mut breach = None;
+        let parsed = nvs_syntax::walk::located_within("Core\\Ast::parse", source, &mut || {
+            breach = past_ceiling(ctx).err();
+            breach.is_none()
+        });
+        if let Some(fault) = breach {
+            return Err(fault);
+        }
+        past_ceiling(ctx)?;
+        let parsed = parsed
             .map_err(|message| {
                 Fault::thrown_as(
                     ThrownClass::Parse,
                     format!("Core\\Ast::parse(): {message}"),
                 )
             })?;
-        Ok(instance_of(&parsed.tree, &mut parsed.positions().into_iter()))
+        instance_of(ctx, &parsed.tree, &mut parsed.positions().into_iter())
     }
 }
 
