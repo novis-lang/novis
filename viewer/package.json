@@ -10,5 +10,9 @@
     "@babel/preset-typescript": "^7",
     "@types/babel__core": "^7.20.5",
     "babel-preset-solid": "^1.9.16"
+  },
+  "holds": {
+    "@babel/core": "HOLD (revisit 2026-11-30): babel-preset-solid 1.9.16, the latest, has the peer @babel/core ^7.0.0.",
+    "@babel/preset-typescript": "HOLD (revisit 2026-11-30): it moves with @babel/core, and babel-preset-solid 1.9.16, the latest, has the peer @babel/core ^7.0.0."
   }
 }
