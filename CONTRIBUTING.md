@@ -181,7 +181,7 @@ docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
 viewer/             the debug viewer `nvs debug` serves: a Solid app, built into `viewer/dist/` and embedded in `nvs`
-tools/              how this repository is driven; docs/agent/commands.md is the full set
+tools/              how this repository is driven; docs/agent/commands.md is the full set. The root LICENSE covers the looper kit in tools/looper/ too
 data/               the JSON records `bun nv` reads and writes: gaps, rules, proofs, reference, spec
 docs/
   setup.md          what a development machine installs, and what a clone does not carry

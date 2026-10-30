@@ -162,9 +162,13 @@ says where they go.
 
 ## License
 
-Novis is under the [MIT](LICENSE) license. Contributions are accepted under the same license.
+Novis is under the [MIT](LICENSE) license. Contributions are accepted under the same license. The
+license covers the whole repository. This includes the tools in `tools/looper/`.
 
-Every third-party component in the `nvs` binary has a permissive license.
+Every third-party component in the `nvs` binary has a license that [deny.toml](deny.toml) allows. Most
+of these licenses are permissive. Five components are under MPL-2.0: `avif-parse`, `cssparser`,
+`cssparser-macros`, `dtoa-short` and `selectors`. The MPL-2.0 covers only the files of the component
+itself, and Novis uses these files unchanged.
 [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt) lists each one with its copyright notice and its full
 license text. A tool generates this file from the dependencies. The file is also built into the binary,
 so every copy of `nvs` contains the notices:
