@@ -250,6 +250,17 @@ event stream that arrives line by line. Those are Rust tests:
 `IO::read`, and its attack would need an `.in` file larger than a memory limit in the tree, so
 `IO::read`'s attack covers it.
 
+**A database read asks before the bytes exist, and SQLite's own buffers are capped too.**
+PostgreSQL asks for a whole frame from its header before `Message::parse` reserves it (the parse
+reserves the declared length itself, which is how the first fix passed 2.39x), and a read stops at
+the frame's end. SQL Server asks in `copy`, which every value of a row passes. SQLite's engine
+memory is counted against no request, so each statement sets `SQLITE_LIMIT_LENGTH` to the
+headroom plus the longest parameter; a parameter the request already holds still binds. A
+`SQLITE_TOOBIG` under that limit is the memory `FATAL`, not a throw. Setting the limit from the
+whole memory limit was declined: a stored value between the headroom and the limit would be
+built by the engine and refused only at the copy. Cost: one `sqlite3_limit` call per statement,
+one comparison per cell, per frame and per buffer growth.
+
 **Out of scope, decided elsewhere.**
 - No cap on open connections before admission
   (`docs/rules/http-server/admission-is-arithmetic-not-a-number.md`).
@@ -366,13 +377,15 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 8. database rows and directory entries are read no further than the request can hold
 
-- [ ] *Confirmed:* Postgres `read_message` asks before each `inbox` growth, using the frame length once it is known. `crates/nvs-db/src/pg.rs:612`
-- [ ] Postgres array columns ask per element. `crates/nvs-db/src/pg.rs:2284`
-- [ ] SQL Server PLP and LONG values ask per chunk. `crates/nvs-db/src/tds/rows.rs:705`, `crates/nvs-db/src/tds/rows.rs:678`
-- [ ] SQLite: each cell is checked against `headroom` before its copy, and each connection sets `SQLITE_LIMIT_LENGTH` from the request's memory limit. `crates/nvs-db/src/sqlite.rs:303`, `crates/nvs-db/src/sqlite.rs:740`, `crates/nvs-db/src/sqlite.rs:1083`
-- [ ] `Rows::all`, `iterate` and `queryAs` hydration ask per row. `crates/nvs-stdlib/src/db/row.rs:781`
-- [ ] LDAP `Cursor::fetch` asks per entry, and the ranged-attribute loop stops when a range does not advance and asks per merge. `crates/nvs-ldap/src/conn.rs:959`, `crates/nvs-ldap/src/ranged.rs:79`
+- [x] *Confirmed:* Postgres `read_message` asks before each `inbox` growth, using the frame length once it is known. `crates/nvs-db/src/pg.rs:612`
+- [x] Postgres array columns ask per element. `crates/nvs-db/src/pg.rs:2284`
+- [x] SQL Server PLP and LONG values ask per chunk. `crates/nvs-db/src/tds/rows.rs:705`, `crates/nvs-db/src/tds/rows.rs:678`
+- [x] SQLite: each cell is checked against `headroom` before its copy, and each connection sets `SQLITE_LIMIT_LENGTH` from the request's memory limit. `crates/nvs-db/src/sqlite.rs:303`, `crates/nvs-db/src/sqlite.rs:740`, `crates/nvs-db/src/sqlite.rs:1083`
+- [x] `Rows::all`, `iterate` and `queryAs` hydration ask per row. `crates/nvs-stdlib/src/db/row.rs:781`
+- [x] LDAP `Cursor::fetch` asks per entry, and the ranged-attribute loop stops when a range does not advance and asks per merge. `crates/nvs-ldap/src/conn.rs:959`, `crates/nvs-ldap/src/ranged.rs:79`
 - [ ] Attacks: a query that returns one huge value for each driver the fixtures run, and an LDAP group with a ranged member list. Each ends at `FATAL` within the bound.
+  - [x] SQLite, PostgreSQL and SQL Server: `tests/hostile/core/Db-Connection/query/02-`, `03-`, `04-`, run once, each green
+  - [ ] the LDAP ranged member list
 
 ### 9. topic inboxes, core mailboxes, cache slots, spans and idle connections are capped in bytes and charged to who holds them
 
@@ -403,42 +416,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done. Build and clippy green, rustfmt clean, no full test run. Stage 7's chunked
-"confirmed" item was false too: the decoder held a whole chunk and `at + size + 2` overflowed. It now
-moves a chunk's octets as they arrive (new standing decision, *A peer's bytes are framed as they
-arrive*). `Http\Stream::events` consumes finished blocks that dispatch nothing, and SMTP replies are
-capped. Three attacks end at `FATAL` within the bound: a file (0.81x), a folder (0.75x) and an
-endless child. The HTTP and SMTP ones are Rust tests, each run once and green.
-A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built.
+Stages 1 to 7 done; stage 8 done but its LDAP attack. Build and clippy green, rustfmt clean, no
+full test run. Every database and LDAP reader asks the budget before it grows: `pg.rs` `grow_inbox`
+(before `Message::parse`, which reserves a declared frame itself) and array `elements`,
+`tds/rows.rs` `copy`, `sqlite.rs` `read_row`, `cap_length` and `refused`, `db/row.rs`
+`row_object`, and `nvs-ldap` `receive`, `Cursor::fetch` and `ranged::complete`. `nvs-ldap` depends
+on `nvs-runtime`; rusqlite has `limits`. `tests/hostile/core/Db-Connection/query/02-` to `04-`
+(SQLite, PostgreSQL, SQL Server) end at `FATAL` within the bound, run once.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
 a partial `copy_graph` or `Some(empty)` from `encode_within`; `NvsArray::with_capacity` under a
 small ceiling is empty; `Arr::range` past it is a `FATAL` first; a collector test may reclaim 0; a
-stopped parse is `walk::STOPPED`; a refused capture write writes nothing; a JWT header past 8 KiB
-and a key set past 1 MiB throw. New: a file, stdin or child output past a small `[limits] memory`
-with no `max_output` gets a throw naming `[limits] memory` or the memory `FATAL` (a 40 MB file
-under 16 MiB is the `FATAL`). A chunked or event-stream test that asserted a whole chunk waits in
-`raw`, or that an id-only block's id reaches only the next event's `set`, reads the new framing.
-Look first at `crates/nvs-runtime/tests/refusal.rs`, `tests/server_memory.rs` and
-`crates/nvs-stdlib/src/budget.rs`.
+stopped parse is `walk::STOPPED`; a refused capture write writes nothing; JWT caps throw; a file,
+stdin or child output past a small limit throws or is the `FATAL`; a chunk or event-stream test
+reads the new framing; a SQLite `SQLITE_TOOBIG` under a ceiling is the `FATAL`; an LDAP range with
+no value that asks for more is `Kind::Protocol`. Look first at `crates/nvs-runtime/tests/refusal.rs`,
+`tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
-The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` matches no
-check, no goal or floor file names it, and the log the sweep named does not exist.
+The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and its log does
+not exist.
 
 ### Next
 
-Stage 8, items at `docs/goals/memory-ceiling-holes.md` § *8.*. Read one member's bound with
-`bun nv proofs --run --id '<member>' --show`. An attack that lowers its limit with
-`Core\Config::set` after earlier steps hold much memory reads that holding as its overshoot, so
-write the data first in small pieces, then lower the limit. Do not trust the word "confirmed":
-both of stage 7's were false.
+Finish stage 8 with its LDAP attack, then stage 9 (items at § *9.*). Read one member's bound with
+`bun nv proofs --run --id '<member>' --show`; Docker is up on this host, so a `requires: postgres`,
+`mssql` or `samba-ad` proof runs. An attack that lowers its limit with `Core\Config::set` after
+earlier steps hold much memory reads that holding as its overshoot, so lower it first.
 
-- [ ] `crates/nvs-db/src/pg.rs:612` confirm `read_message` asks before each `inbox` growth, then `pg.rs:2284` array columns.
-- [ ] `crates/nvs-db/src/tds/rows.rs:705` and `:678` PLP and LONG values ask per chunk.
-- [ ] `crates/nvs-db/src/sqlite.rs:303`, `:740`, `:1083` cell headroom and `SQLITE_LIMIT_LENGTH`.
-- [ ] `crates/nvs-stdlib/src/db/row.rs:781` `Rows::all`, `iterate`, `queryAs` ask per row.
-- [ ] `crates/nvs-ldap/src/conn.rs:959` and `crates/nvs-ldap/src/ranged.rs:79` LDAP fetch and ranged loop.
-- [ ] `docs/goals/memory-ceiling-holes.md:375` stage 8's attacks. A database attack carries `// requires: <service>`; SQLite needs none.
+- [ ] The LDAP ranged attack. The `samba-ad` seed (`tests/db/compose.yaml:430`) has five members in
+  `Employees`, and Samba is believed to send a range only when one is asked for (unverified;
+  `tests/hostile/core/Ldap-Connection/read/01-strange-names-and-attributes.nvs:39` asks
+  `member;range=0-1`). Try one `.nvs` under `tests/hostile/core/Ldap-Connection/read/` that asks a
+  ranged attribute after the admin block `[ldap.corp-accounts]` writes large values; if no `.nvs`
+  can make the merged list pass a ceiling, a Rust test in `crates/nvs-ldap/tests/samba.rs` stands in
+  for it, as the standing decision *An attack needs a way in* allows, and the decision names it.
+- [ ] Stage 9, from `crates/nvs-runtime/src/peer.rs:153` and `crates/nvs-stdlib/src/topic.rs:777`.
 
 ### Backlog
+
+- MySQL and MariaDB are named by no stage 8 item, and nobody has read whether their packet reader
+  (`crates/nvs-db/src/mysql.rs`) asks before a row that spans several 16 MiB packets grows. Read it
+  at the gate; an attack would be a fourth file beside `query/04-`.
