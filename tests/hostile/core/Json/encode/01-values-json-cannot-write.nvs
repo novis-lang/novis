@@ -1,6 +1,8 @@
 <?nvs
 // Attack: a program encodes values that JSON cannot write, values nested very deep, and very large
 // values. Each call must return text or throw an error, and must not crash.
+// hostile: ends-early 6 FATAL
+// hostile: timeout-ms 60000
 
 #[Core\Json\Derive]
 class Node
@@ -87,3 +89,15 @@ if ($total != 18000000) {
     throw new LogicError('an encode returned the wrong length');
 }
 echo 'step 5: done', "\n";
+
+// 6. A list that contains the same inner list twice, forty levels deep. It is small in memory, but
+// its JSON text is far larger than the memory limit. The program stops at that limit.
+echo "step 6\n";
+array<mixed> $tree = [Core\Str::repeat('x', 1000)];
+uint $level = 0;
+while ($level < 40) {
+    $tree = [$tree, $tree];
+    $level = $level + 1;
+}
+Core\Json::encode($tree);
+echo "the whole text was written\n";

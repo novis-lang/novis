@@ -1348,6 +1348,25 @@ impl ByteWriter {
     }
 }
 
+/// [`ByteWriter::put`] for a writer that takes `io::Write`, such as
+/// `serde_json`'s formatter. A write never fails: after a stop the bytes are
+/// discarded, and the caller reads [`ByteWriter::stopped`] to end its work.
+impl std::io::Write for ByteWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.put(bytes);
+        Ok(bytes.len())
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        self.put(bytes);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// The counters that say an allocation was made, whoever ends up holding the
 /// bytes.
 ///

@@ -310,6 +310,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use nvs_runtime::budget::ByteWriter;
 use nvs_runtime::{
     ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
 };
@@ -778,13 +779,17 @@ enum Cursor {
 /// The calls below are made in the order `serde_json`'s own serializer makes
 /// them, so a [`PrettyFormatter`], whose indentation is state it carries
 /// between them, writes what `serde_json::to_string_pretty` would have.
+///
+/// The buffer is a [`ByteWriter`], so each growth asks the request's memory
+/// ceiling for the whole new block. After a refusal it writes nothing, and
+/// [`Encodable::written`] ends the walk at its next value.
 struct Sink<F> {
-    out: Vec<u8>,
+    out: ByteWriter,
     fmt: F,
 }
 
 /// What a write into [`Sink`]'s buffer cannot be.
-const INFALLIBLE: &str = "a `Vec<u8>` sink never fails a write";
+const INFALLIBLE: &str = "a `ByteWriter` sink never fails a write";
 
 impl<F: Formatter> Sink<F> {
     /// One scalar, spelled by the crate: its escaping, its number formatting.
@@ -912,14 +917,22 @@ impl<'a> Encodable<'a> {
     /// The refusal that stopped the walk. Where a hand-written [`ENCODE`] is
     /// what refused, its [`Fault`] is on [`Reentry`] for [`rendered`] to
     /// prefer, and this is the message nobody reads.
+    ///
+    /// A document the request's memory ceiling refused is the empty string.
+    /// The breach is already recorded, and the request's next poll stops it.
     fn written<F: Formatter>(self, fmt: F) -> Result<String, serde_json::Error> {
         let mut sink = Sink {
-            out: Vec::new(),
+            out: ByteWriter::new(),
             fmt,
         };
         let mut stack = Stack { frames: Vec::new() };
         let mut next = Some(self.value);
         loop {
+            // A refusal stops the work and not only the writes, so a graph
+            // that shares one array many times costs no more visits.
+            if sink.out.stopped().is_some() {
+                return Ok(String::new());
+            }
             if let Some(value) = next.take() {
                 if !stack.value(self.walk, value, &mut sink)? {
                     stack.finished(&mut sink);
@@ -933,6 +946,9 @@ impl<'a> Encodable<'a> {
                 stack.finished(&mut sink);
             }
         }
+        let Ok(out) = sink.out.finish() else {
+            return Ok(String::new());
+        };
         #[expect(
             unsafe_code,
             clippy::disallowed_methods,
@@ -940,7 +956,7 @@ impl<'a> Encodable<'a> {
                       — the same step and the same reason as that crate's own \
                       `to_string`"
         )]
-        let written = unsafe { String::from_utf8_unchecked(sink.out) };
+        let written = unsafe { String::from_utf8_unchecked(out) };
         Ok(written)
     }
 }
