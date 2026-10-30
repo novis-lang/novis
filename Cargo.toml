@@ -615,6 +615,7 @@ unicode-width = { version = "0.2", default-features = false }
 # `regex` picks from do not change.
 regex = "1"
 regex-automata = { version = "0.4", default-features = false, features = ["syntax", "nfa-thompson"] }
+# HOLD (revisit 2026-11-30): 0.20 is out, and `jsonschema` 0.60.2, the latest, needs ^0.19, so 0.20 would build a second copy.
 fancy-regex = "0.19"
 
 # --- dates, times and the IANA zone database (`Core\Time`, named by the user) ---
@@ -1103,7 +1104,7 @@ mysql_common = { version = "0.38", default-features = false, features = [
 # all, and the version here is `postgres-protocol`'s own: a second major would
 # be a second trait, and the iterator impls would silently not apply.
 bytes = "1"
-# HOLD (revisit 2026-11-16): 0.3 is out, and `postgres-protocol` 0.6, the latest, uses 0.2.
+# HOLD (revisit 2026-11-30): 0.3 is out, and `postgres-protocol` 0.6.12, the latest, needs ^0.2.
 fallible-iterator = "0.2"
 # The one C dependency this goal adds, pre-answered under `rule:packaging/a-c-dependency-answers-two-questions`'s second
 # question and recorded against it. The slice that first takes this as a
