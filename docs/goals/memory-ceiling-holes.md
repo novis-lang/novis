@@ -429,18 +429,22 @@ subagent. Such subagents run side by side, and none of them builds.
 
 - [ ] Run `looper verify` over the whole goal.
   - [x] Started in the background as `bun nv affected --run`, on the tree at `da8ac348f`.
-  - [ ] Its report read, and its failures grouped by cause.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+  - [x] Its report read, and its failures grouped by cause.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+  - [x] Five undeclared memory-limit texts get tests; `process.rs`'s cast; the group test (`956669248`).
+  - [x] The assertion ledger asks before it grows (`94a9b434f`).
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 done. `bun nv proofs --overshoot` exits 0: 0 red of 249, worst reading `Str/wrap/01-`
-at 1.45x. MySQL's `Wire::read_packet` now asks the budget at each chunk's header (`da8ac348f`, its
-test passes; MariaDB shares the `Wire`). Stage 10 started: the installed `looper` has no `verify`,
-so `bun nv affected --run` was started on `da8ac348f`, its report unread in this session.
+Stages 1 to 9 done; overshoot exits 0 (worst 1.45x). The installed `looper` has no `verify`, so
+the gate is `bun nv affected --run`. Run 1 found three reds, fixed in `956669248`. Run 2 reached
+step 19 (conformance): the assertion ledger, fixed in `94a9b434f`, and six `image-*` cases that
+aborted with `memory allocation of ~1.5 MB failed`. Those six pass alone and together on the same
+binary, and no job limit exists, so they read as host commit running out under the gate's load.
+Run 3 was started on `94a9b434f`; if those six are red again, look for what holds the host's memory.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
@@ -459,13 +463,12 @@ exist, and this `looper` has no `check` command to run it by name.
 
 ### Next
 
-Stage 10. Run `bun nv affected --run` with `run_in_background` (a gate this session started may
-still be running; it reports to nobody once the session ends). Group its failures by cause, fix them
-in one pass against the expected-red list above, never loosening a test, and run it once more. Then
-the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes memory-ceiling-holes`, and
-`bun nv ci --check`.
+Stage 10's last run. `bun nv affected --run` with `run_in_background`; it starts at step 19 now
+that steps 1 to 18 are green. Fix what it names, never loosening a test. Then the goal-end gates:
+`bun nv verify --doc`, `bun nv owners --closes memory-ceiling-holes`, and `bun nv ci --check`.
 
-- [ ] Stage 10: `bun nv affected --run`, then fixes from `crates/nvs-runtime/tests/refusal.rs:1`.
+- [ ] `bun nv affected --run` green from `tests/conformance/novis/image-a-barcode-renders-as-png.nvst:1`.
+- [ ] The goal-end gates, then `DONE`. The owners check is `tools/nv/cmd/owners.ts:1`.
 
 ### Backlog
 
