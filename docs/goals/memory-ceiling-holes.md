@@ -354,21 +354,15 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done, and stage 5's members are fixed; build and clippy green, no full test run.
-`Str::join` writes through `StrWriter`, `Bytes::unpack` asks per field-list growth (`pushed`),
-`Math::format` asks for its exact length. `NvsArray::with_capacity` and the packed-to-hash
-conversion (`hashed_mut`) ask for their room, which fixed `fillKeys` and `fromKeysAndValues`.
-`range` asks for its whole list once. `budget::refused` is now `pub`: `append_values` (flatten,
-appendAll, padding), `flattenDeep` and `matchAll` return at a refusal, and `replaceWith` asks per
-kept match (`kept`, `crates/nvs-stdlib/src/regex.rs`).
+Stages 1 to 4 are done; stage 5's members are fixed but `replaceWith` and the cart. Build and
+clippy green, no full test run. `NvsArray::with_capacity` and `hashed_mut` ask for their room;
+`budget::refused` is `pub`, and `append_values`, `flattenDeep` and `matchAll` return at a refusal.
 
 `bun nv proofs --overshoot` is red on 7, down from 11: both `Uri/encode*` 5.2x, the cart 1.78x,
-`Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Http-Response/jsonAs` 1.64x, `Response/html` 1.54x. Every
-`Str`, `Bytes`, `Math` and `Arr` member attack but `shapeAs` is green, and new steps for
-`codePoints`, `graphemes`, `chunk`, `Math::format`, `flatten`, `flattenDeep` and `appendAll` read
-0.05x to 1.00x. `Regex::replaceWith` is not bounded yet: see its sub-item under stage 5. `shapeAs` hydrates through
-`json::hydrate`, as `jsonAs` does, so it moved to stage 6. The cart has no member: it is the cycle
-collector's scratch (Standing decisions, *The collector's scratch*).
+`Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Http-Response/jsonAs` 1.64x, `Response/html` 1.54x. New
+steps for `codePoints`, `graphemes`, `chunk`, `Math::format`, `flatten`, `flattenDeep` and
+`appendAll` read 0.05x to 1.00x. `shapeAs` hydrates through `json::hydrate`, so it moved to stage 6.
+The cart is the cycle collector's scratch (Standing decisions, *The collector's scratch*).
 
 Expected red at the gate, each not a test to loosen: a member that builds an array past its ceiling
 returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `inside one call`
