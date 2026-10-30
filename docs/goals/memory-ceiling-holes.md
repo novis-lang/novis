@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/tds/rows.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-stdlib/src/db/row.rs, crates/nvs-stdlib/src/db/execute.rs, crates/nvs-ldap/src/conn.rs, crates/nvs-ldap/src/ranged.rs]
   - id: 9
     title: "topic inboxes, core mailboxes, cache slots, spans and idle connections are capped in bytes and charged to who holds them"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/peer.rs, crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-server/src/otlp.rs, crates/nvs-server/src/trace.rs, crates/nvs-runtime/src/pool.rs, crates/nvs-stdlib/src/regex.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
@@ -416,7 +416,7 @@ table above go red. That is expected: this goal's later stages turn them green.
   - [x] `a_forgotten_key_leaves_no_key_bytes_behind`
   - [x] `a_long_path_makes_a_span_of_at_most_one_kibibyte`
   - [x] `the_idle_store_holds_at_most_max_and_a_release_retires_expired_entries` and `the_cache_keeps_at_most_its_bound_in_pattern_text`
-- [ ] `bun nv proofs --overshoot` exits 0.
+- [x] `bun nv proofs --overshoot` exits 0.
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -428,6 +428,8 @@ the failures by cause. A group whose fix touches files no other group touches ma
 subagent. Such subagents run side by side, and none of them builds.
 
 - [ ] Run `looper verify` over the whole goal.
+  - [x] Started in the background as `bun nv affected --run`, on the tree at `da8ac348f`.
+  - [ ] Its report read, and its failures grouped by cause.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
 
@@ -435,15 +437,10 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 8 done. Stage 9's seven code items and its tests are in, one commit each, and each new
-test was run once by name and passes (listed under § *9.*). Build and clippy green, rustfmt clean, no
-full test run. Left of stage 9: `bun nv proofs --overshoot`, stopped at the hand-off unread.
-
-Stage 9 has no new `.nvs` attack, and needs none. Two connections cannot meet in one hostile `.nvs`,
-so the Rust tests above are the attacks for the inbox and the mailbox (the decision *An attack needs a
-way in*). `tests/hostile/core/Topic/publish/01-` step 4 is a connection publishing to itself: the
-copy passes the tree's ceiling about 10 MB before the inbox's byte cap would refuse it, so it still
-ends at `FATAL`.
+Stages 1 to 9 done. `bun nv proofs --overshoot` exits 0: 0 red of 249, worst reading `Str/wrap/01-`
+at 1.45x. MySQL's `Wire::read_packet` now asks the budget at each chunk's header (`da8ac348f`, its
+test passes; MariaDB shares the `Wire`). Stage 10 started: the installed `looper` has no `verify`,
+so `bun nv affected --run` was started on `da8ac348f`, its report unread in this session.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
@@ -453,7 +450,8 @@ stopped parse is `walk::STOPPED`; a refused capture write writes nothing; JWT ca
 stdin or child output past a small limit throws or is the `FATAL`; a chunk or event-stream test
 reads the new framing; a SQLite `SQLITE_TOOBIG` under a ceiling is the `FATAL`; an LDAP range with
 no value that asks for more is `Kind::Protocol`; a test that reads `Inbox`'s `Debug` sees `held`; a
-pool test that releases under many keys with a small `max` finds fewer idle. Look first at `crates/nvs-runtime/tests/refusal.rs`,
+pool test that releases under many keys with a small `max` finds fewer idle; a MySQL read under a
+small ceiling is `OutOfMemory` at the chunk header. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
 The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, its log does not
@@ -461,17 +459,15 @@ exist, and this `looper` has no `check` command to run it by name.
 
 ### Next
 
-Stage 9's last item, then stage 10. Run `bun nv proofs --overshoot` with `run_in_background`,
-because it runs about 6.5 minutes of programs plus a proof-binary build. Fix any reading past the
-bound at its member, never the bound. Read one member's bound with `bun nv proofs --run --id
-'<member>' --show`. Docker is up on this host, so a `requires: postgres`, `mssql` or `samba-ad` proof
-runs. Once it exits 0, set stage 9 to `done` and take stage 10.
+Stage 10. Run `bun nv affected --run` with `run_in_background` (a gate this session started may
+still be running; it reports to nobody once the session ends). Group its failures by cause, fix them
+in one pass against the expected-red list above, never loosening a test, and run it once more. Then
+the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes memory-ceiling-holes`, and
+`bun nv ci --check`.
 
-- [ ] `bun nv proofs --overshoot` exits 0 (§ *9.*, last item). The bound is `tools/nv/proofs/run.ts:1`.
-- [ ] Stage 10: `looper verify` in the background, from `crates/nvs-runtime/tests/refusal.rs:1`.
+- [ ] Stage 10: `bun nv affected --run`, then fixes from `crates/nvs-runtime/tests/refusal.rs:1`.
 
 ### Backlog
 
-- MySQL and MariaDB are named by no stage 8 item, and nobody has read whether their packet reader
-  (`crates/nvs-db/src/mysql.rs`) asks before a row that spans several 16 MiB packets grows. Read it
-  at the gate; an attack would be a fourth file beside `query/04-`.
+- `tools/looper/` names `looper verify` and `looper check --name`, and the installed `looper.exe`
+  has neither. `bun tools/looper/main.ts verify` may be the project's copy of it.
