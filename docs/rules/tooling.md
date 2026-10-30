@@ -2299,14 +2299,14 @@ deliberate commit.
 
 <a id="tooling-nvs-code-answers-about-the-project"></a>
 
-## `nvs code` answers questions about one project by name from the editor's own index, reads every file and writes none
+## `nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` writes
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
 `nvs code` has five read-only verbs over one project: `show`, `refs` and `impls` take a name, and
-`outline` and `types` take a file (`types` also `file:line` or `file:first-last`). Each answers from
-`nvs_lsp::workspace` through `nvs_lsp::query`, the functions the editor's references and implementation
-requests call, so the command and the editor give one answer to one question
+`outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and `rename` writes.
+Each answers from `nvs_lsp::workspace` through `nvs_lsp::query`, the functions the editor's references,
+implementation and rename requests call, so the command and the editor give one answer to one question
 ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)). It is a command of its own beside `nvs agent`,
 which answers about the language with no project open; this one needs a project and answers about code
 that may not compile.
@@ -2341,6 +2341,18 @@ that may not compile.
 - **Text from the project** — a source line, a doc comment, a signature, a type, a path — is printed
   with every control character but tab written as `\u{..}`, in the text and the JSON. A file's bytes
   reach a terminal or an agent's context here, and must reach it as text and nothing else.
+- **`rename <name|path:line:column> <new-name>`** is the editor's rename, `nvs_lsp::query::rename`
+  over `rename::rename`. A name renames at its declaration; a position is the only way to name a
+  local. It refuses with the editor's own message, and a `$` on the new name is optional. It writes
+  by default, in this order, and a failure at any step writes nothing: every edit is computed; every
+  path and every moved file's target is judged inside the project root before anything is joined;
+  each file is read again and one whose bytes changed since the call first read it fails, named;
+  then each file is written with `fs::write`, as `nvs fmt` writes, and a type's file named after it
+  is moved last. Without `--dry-run` it prints one line per changed file with its number of edits
+  and one per moved file; with it, one line per edit with the position, the old text and the new
+  text, and nothing is written. `--json` gives `edits`, `moved` and `written`. A debug build reads
+  one test variable, `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, that changes a file between the two reads;
+  a release build has no such hook.
 
 A call costs one cold analysis of the project, one `analyse_file` per `.nvs` file under its root, and
 nothing outlives the call. No limit and no setting is added. The walk reads each ignore file once and
@@ -2359,9 +2371,9 @@ keeps its parsed patterns, a few KiB, until it ends.
   and every project would repeat that list in a second place that drifts from the first.
 - **Reading the global git excludes file and `.git/info/exclude`.** Both are one machine's settings,
   so the same tree would give a different file list on a colleague's machine or in CI.
-- **A `rename` verb, or any verb that writes a file.** The language server does not rename yet, and a
-  second implementation of it here would be the one that drifts
-  ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+- **A journal or a staged write for `rename`.** A crash between two writes leaves the project half
+  renamed, and the next `nvs check` names every site that no longer resolves. `nvs fmt` writes the
+  same way, and nothing on the request path is involved.
 - **A disk cache of the index.** It is a second copy of the project that can be stale, and a stale
   answer is worse than a slow one. A call measured too slow on a large project is a gap against
   `nvs-lsp`, not a cache.

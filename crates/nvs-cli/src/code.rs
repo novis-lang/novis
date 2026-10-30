@@ -2,10 +2,14 @@
 //!
 //! `rule:tooling/nvs-code-answers-about-the-project` is the surface. Every
 //! answer is read through [`nvs_lsp::query`] over one [`nvs_lsp::workspace`],
-//! the functions the editor's references and implementation requests call, so
-//! this command and the editor never disagree. This module decides nothing
-//! about the language: it finds the project, turns a [`Site`] into a position
-//! a reader can type, escapes what the project wrote, and renders.
+//! the functions the editor's references, implementation and rename requests
+//! call, so this command and the editor never disagree. This module decides
+//! nothing about the language: it finds the project, turns a [`Site`] into a
+//! position a reader can type, escapes what the project wrote, and renders.
+//!
+//! **Only `rename` writes**, through [`write_out`], the one write path: it
+//! writes only inside the project root, and only files whose bytes have not
+//! changed since this call first read them.
 //!
 //! A call costs one analysis per `.nvs` file under the project root, and
 //! nothing is kept after it: there is no cache and no daemon, because either
@@ -33,6 +37,7 @@ use std::process::ExitCode;
 use nvs_diagnostics::{SourceFile, canonical_key};
 use nvs_hir::members::edit_distance;
 use nvs_lsp::query::{self, Outline};
+use nvs_lsp::rename::Rewrite;
 use nvs_lsp::{DeclKind, Declaration, Site, Workspace};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
 use serde_json::{Map, Value, json};
@@ -44,7 +49,7 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 ///
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
-/// `.nvs` file in it is read, and nothing is changed.
+/// `.nvs` file in it is read. Only `rename` changes files.
 ///
 /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
 /// Put it in single quotes, so that the shell keeps the backslashes. A
@@ -118,6 +123,32 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Rename a class, a method, a property, a constant, an enum case or a
+    /// variable everywhere it is used, and save the changed files.
+    ///
+    /// This is the same rename that the editor does. A method is renamed in
+    /// every class that overrides it. A class that is alone in a file with
+    /// its name also gets a new file name.
+    ///
+    /// The command prints one line for each changed file. If the rename is
+    /// not possible, it prints why, changes nothing and fails.
+    Rename {
+        /// What to rename. Write a name, as `Shop\Cart::addItem`, or a
+        /// position, as `src/Cart.nvs:12:9`. A local variable has no name
+        /// outside its function, so use its position.
+        target: String,
+        /// The new name, as `addProduct`. For a variable or a property, the
+        /// `$` is optional.
+        new_name: String,
+        /// Print each change, and save nothing. Each line has the position,
+        /// the old text and the new text.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Args {
@@ -129,6 +160,12 @@ impl Args {
             Command::Impls { symbol, json } => impls(&symbol, json),
             Command::Outline { file, json } => outline(&file, json),
             Command::Types { file, json } => types(&file, json),
+            Command::Rename {
+                target,
+                new_name,
+                dry_run,
+                json,
+            } => rename(&target, &new_name, dry_run, json),
         }
     }
 }
@@ -206,6 +243,26 @@ impl Project {
     fn file(&self, written: &str) -> Option<PathBuf> {
         let path = canonical_key(&self.cwd.join(written));
         self.workspace.index().holds(&path).then_some(path)
+    }
+
+    /// The bytes of `path`, read once, which every later position in it is
+    /// counted in. A file that cannot be read is an error.
+    fn snapshot(&mut self, path: &Path) -> Result<&str, String> {
+        if !self.texts.contains_key(path) {
+            let text = std::fs::read_to_string(path).map_err(|err| {
+                format!(
+                    "`{}` cannot be read: {err}",
+                    escaped(&relative(path, &self.cwd))
+                )
+            })?;
+            self.texts.insert(path.to_owned(), text);
+        }
+        Ok(self.text(path))
+    }
+
+    /// `path` as a position prints it.
+    fn shown(&self, path: &Path) -> String {
+        escaped(&relative(path, &self.cwd))
     }
 
     /// The project's files nearest to `written`, as positions print them.
@@ -584,6 +641,304 @@ pub(crate) fn types(spec: &str, json: bool) -> ExitCode {
         println!("{:<width$}  {name}: {ty}", place.position());
     }
     ExitCode::SUCCESS
+}
+
+/// `nvs code rename`: the editor's rename of a name or of the symbol at a
+/// position, written to disk through [`write_out`], or printed with
+/// `--dry-run`.
+pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let renamed = if let Some((file, line, column)) = split_position(target) {
+        let Some(path) = project.file(file) else {
+            let nearest = project.nearest_files(file);
+            return unknown(
+                &format!("no file `{}` in this project", escaped(file)),
+                &nearest,
+                json,
+            );
+        };
+        let at = query::Target::Position {
+            path: &path,
+            line,
+            column,
+        };
+        query::rename(&project.workspace, at, new_name)
+    } else {
+        if project.workspace.index().declaration(target).is_none() {
+            let nearest = project.nearest_names(target);
+            return unknown(
+                &format!("no name `{}` in this project", escaped(target)),
+                &nearest,
+                json,
+            );
+        }
+        query::rename(&project.workspace, query::Target::Name(target), new_name)
+    };
+    match renamed {
+        Ok(renamed) => {
+            let moves: Vec<(PathBuf, PathBuf)> = renamed.file.into_iter().collect();
+            write_out(&mut project, &renamed.rewrites, &moves, dry_run, json)
+        }
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `path:line:column` split into the file, the line and the column, and
+/// `None` for anything else, a name such as `Shop\Cart::MAX` included.
+fn split_position(spec: &str) -> Option<(&str, u32, u32)> {
+    let (rest, column) = spec.rsplit_once(':')?;
+    let (file, line) = rest.rsplit_once(':')?;
+    let line: u32 = line.parse().ok()?;
+    let column: u32 = column.parse().ok()?;
+    (!file.is_empty() && line > 0 && column > 0).then_some((file, line, column))
+}
+
+/// One file the write path changes: the bytes the edits were computed
+/// against, the bytes it writes, and how many edits make the difference.
+struct Change {
+    path: PathBuf,
+    before: String,
+    after: String,
+    edits: usize,
+}
+
+/// The one write path of `nvs code`, which `rename` and `move` share.
+///
+/// In this order: every edit is applied in memory, and a file that cannot be
+/// read or an edit that does not fit its file writes nothing. Every path and
+/// every move's target is checked to be inside the project root. Each file is
+/// read again, and one whose bytes differ from the bytes the edits were
+/// computed against writes nothing. Then each file is written, and each move
+/// is made after all of them. `--dry-run` stops before the second read.
+///
+/// The bytes the edits were computed against are each file's first read in
+/// this call, which is right after the analysis. A crash between two writes
+/// leaves the project half changed, and `nvs check` then names every site
+/// that no longer resolves. A journal is not kept (the rule's Declined list).
+fn write_out(
+    project: &mut Project,
+    rewrites: &[Rewrite],
+    moves: &[(PathBuf, PathBuf)],
+    dry_run: bool,
+    json: bool,
+) -> ExitCode {
+    let mut rewrites: Vec<&Rewrite> = rewrites.iter().collect();
+    rewrites.sort();
+    rewrites.dedup();
+    let changes = match planned(project, &rewrites, moves) {
+        Ok(changes) => changes,
+        Err(message) => return unknown(&message, &[], json),
+    };
+    let edits: Vec<(Place, String, String)> = rewrites
+        .iter()
+        .map(|rewrite| {
+            let place = project.place(&rewrite.site);
+            let old = project
+                .text(&rewrite.site.path)
+                .get(rewrite.site.start as usize..rewrite.site.end as usize)
+                .map(escaped)
+                .unwrap_or_default();
+            (place, old, escaped(&rewrite.text))
+        })
+        .collect();
+    let shown_moves: Vec<(String, String)> = moves
+        .iter()
+        .map(|(from, to)| (project.shown(from), project.shown(to)))
+        .collect();
+    if !dry_run && let Err(message) = committed(project, &changes, moves) {
+        return unknown(&message, &[], json);
+    }
+    if json {
+        let edits: Vec<Value> = edits
+            .iter()
+            .map(|(place, old, new)| {
+                let mut record = place.json();
+                record.insert("old".into(), Value::from(old.clone()));
+                record.insert("new".into(), Value::from(new.clone()));
+                Value::Object(record)
+            })
+            .collect();
+        let moved: Vec<Value> = shown_moves
+            .iter()
+            .map(|(from, to)| json!({ "from": from, "to": to }))
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "edits": edits,
+                "moved": moved,
+                "written": !dry_run,
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    if dry_run {
+        let width = edits
+            .iter()
+            .map(|(place, _, _)| place.position().len())
+            .max()
+            .unwrap_or(0);
+        for (place, old, new) in &edits {
+            println!("{:<width$}  {old} -> {new}", place.position());
+        }
+        for (from, to) in &shown_moves {
+            println!("move {from} -> {to}");
+        }
+        return ExitCode::SUCCESS;
+    }
+    for change in &changes {
+        let noun = if change.edits == 1 { "edit" } else { "edits" };
+        println!("{}  {} {noun}", project.shown(&change.path), change.edits);
+    }
+    for (from, to) in &shown_moves {
+        println!("moved {from} -> {to}");
+    }
+    ExitCode::SUCCESS
+}
+
+/// Each changed file's bytes before and after `rewrites`, which are sorted,
+/// once every path and every move is judged to be inside the project root.
+fn planned(
+    project: &mut Project,
+    rewrites: &[&Rewrite],
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<Vec<Change>, String> {
+    let root = project.workspace.root().to_owned();
+    let outside = |path: &Path| {
+        format!(
+            "`{}` is outside the project, so nothing was changed.",
+            escaped(&relative(path, &root))
+        )
+    };
+    let judged = rewrites
+        .iter()
+        .map(|rewrite| rewrite.site.path.as_path())
+        .chain(
+            moves
+                .iter()
+                .flat_map(|(from, to)| [from.as_path(), to.as_path()]),
+        );
+    for path in judged {
+        if !inside(&root, path) {
+            return Err(outside(path));
+        }
+    }
+    let mut changes: Vec<Change> = Vec::new();
+    for group in rewrites.chunk_by(|a, b| a.site.path == b.site.path) {
+        let path = &group[0].site.path;
+        let before = project.snapshot(path)?.to_owned();
+        let after = applied(&before, group).ok_or_else(|| {
+            format!(
+                "An edit does not fit `{}`, so nothing was changed.",
+                project.shown(path)
+            )
+        })?;
+        changes.push(Change {
+            path: path.clone(),
+            before,
+            after,
+            edits: group.len(),
+        });
+    }
+    Ok(changes)
+}
+
+/// Whether `path` is `root` or under it, with no `.` or `..` part that could
+/// lead out of it. Every path the index holds is a canonical key, so this
+/// fails only on a bug, and it fails closed.
+fn inside(root: &Path, path: &Path) -> bool {
+    path.starts_with(root)
+        && !path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
+}
+
+/// `text` with each of `rewrites` applied, which are in source order, and
+/// `None` when two overlap or one is not on a character boundary.
+fn applied(text: &str, rewrites: &[&Rewrite]) -> Option<String> {
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    for rewrite in rewrites {
+        out.push_str(text.get(at..rewrite.site.start as usize)?);
+        out.push_str(&rewrite.text);
+        at = rewrite.site.end as usize;
+    }
+    out.push_str(text.get(at..)?);
+    Some(out)
+}
+
+/// The variable a test sets to a file that is changed after the edits are
+/// computed and before they are written. Only a debug build reads it, so a
+/// release binary has no such hook.
+#[cfg(debug_assertions)]
+const CHANGE_BEFORE_WRITE: &str = "NVS_TEST_CODE_CHANGE_BEFORE_WRITE";
+
+/// Writes `changes` once no file differs from the bytes they were computed
+/// against, and then makes `moves`.
+fn committed(
+    project: &Project,
+    changes: &[Change],
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os(CHANGE_BEFORE_WRITE) {
+        let mut bytes = std::fs::read(&path).unwrap_or_default();
+        bytes.push(b'\n');
+        let _ = std::fs::write(&path, bytes);
+    }
+    for change in changes {
+        let now = std::fs::read(&change.path).unwrap_or_default();
+        if now != change.before.as_bytes() {
+            return Err(format!(
+                "`{}` changed while the command ran, so nothing was changed. Run the command again.",
+                project.shown(&change.path)
+            ));
+        }
+    }
+    for (_, to) in moves {
+        if to.exists() {
+            return Err(format!(
+                "`{}` already exists, so nothing was changed.",
+                project.shown(to)
+            ));
+        }
+    }
+    let mut done: Vec<String> = Vec::new();
+    let partly = |what: String, done: &[String]| {
+        if done.is_empty() {
+            what
+        } else {
+            format!(
+                "{what} These files were already changed: {}.",
+                done.join(", ")
+            )
+        }
+    };
+    for change in changes {
+        if let Err(err) = std::fs::write(&change.path, &change.after) {
+            let what = format!(
+                "`{}` cannot be written: {err}.",
+                project.shown(&change.path)
+            );
+            return Err(partly(what, &done));
+        }
+        done.push(project.shown(&change.path));
+    }
+    for (from, to) in moves {
+        if let Err(err) = std::fs::rename(from, to) {
+            let what = format!(
+                "`{}` cannot be moved to `{}`: {err}.",
+                project.shown(from),
+                project.shown(to)
+            );
+            return Err(partly(what, &done));
+        }
+    }
+    Ok(())
 }
 
 /// `file:10` or `file:10-20` split into the file and its lines, and the whole

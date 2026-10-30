@@ -427,3 +427,235 @@ fn a_doc_comment_that_writes_to_the_terminal_is_printed_as_text() {
     assert!(lines[0].ends_with(r"class  Shop\Alarm"), "{out}");
     assert!(!out.contains("Admin"), "{out}");
 }
+
+/// The fixture's files, as `(path, text)` in a fixed order, for a test that
+/// checks nothing was written.
+fn files(dir: &Path) -> Vec<(&'static str, String)> {
+    [
+        "public/index.nvs",
+        "src/Priced.nvs",
+        "src/Cart.nvs",
+        "src/GiftCart.nvs",
+        "src/Wishlist.nvs",
+    ]
+    .into_iter()
+    .map(|path| (path, fs::read_to_string(dir.join(path)).unwrap_or_default()))
+    .collect()
+}
+
+fn read(dir: &Path, path: &str) -> String {
+    fs::read_to_string(dir.join(path)).unwrap_or_else(|err| panic!("{path}: {err}"))
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_renames_a_method_at_every_site_and_in_its_overrides() {
+    let dir = project("rename-method", &[]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Cart::price", "cost"]);
+    assert!(ok, "{err}");
+    // The interface declares it, `Cart` implements it, `GiftCart` overrides
+    // it, and the entry point calls it.
+    for path in [
+        "src/Priced.nvs",
+        "src/Cart.nvs",
+        "src/GiftCart.nvs",
+        "public/index.nvs",
+    ] {
+        let text = read(&dir, path);
+        assert!(text.contains("cost()"), "{path}: {text}");
+        assert!(!text.contains("price"), "{path}: {text}");
+        assert!(out.contains(path), "{out}");
+    }
+    assert!(out.contains("public/index.nvs  1 edit\n"), "{out}");
+    assert_eq!(read(&dir, "src/Wishlist.nvs"), WISHLIST);
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the renamed project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_renames_a_type_and_moves_the_file_named_after_it() {
+    let dir = project("rename-type", &[]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Wishlist", "Favourites"]);
+    assert!(ok, "{err}");
+    assert!(!dir.join("src/Wishlist.nvs").exists());
+    assert!(
+        read(&dir, "src/Favourites.nvs").contains("class Favourites"),
+        "{out}"
+    );
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("use Shop\\Favourites;"), "{index}");
+    assert!(index.contains("new Favourites()"), "{index}");
+    assert!(
+        out.contains("moved src/Wishlist.nvs -> src/Favourites.nvs"),
+        "{out}"
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_renames_a_local_at_a_position() {
+    let dir = project("rename-local", &[]);
+    // Line 9 is `var $total = $cart->addItem(3);`, and column 5 is its `$`.
+    let (out, err, ok) = code(&dir, &["rename", "public/index.nvs:9:5", "sum"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "public/index.nvs  2 edits\n");
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("var $sum = $cart->addItem(3);"), "{index}");
+    assert!(index.contains("echo $sum + "), "{index}");
+    // The property of the same name in `Cart` is another symbol.
+    assert_eq!(read(&dir, "src/Cart.nvs"), CART);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_clash_and_writes_nothing() {
+    let dir = project("rename-clash", &[]);
+    let before = files(&dir);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Cart::addItem", "price"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("price"), "{err}");
+    assert_eq!(files(&dir), before);
+
+    let (out, _, ok) = code(&dir, &["rename", r"Shop\Cart::addItem", "price", "--json"]);
+    assert!(!ok);
+    let answer = parsed(&out);
+    assert!(answer["error"].as_str().is_some(), "{out}");
+    assert_eq!(answer["nearest"], Value::Array(Vec::new()));
+    assert_eq!(files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_parameter_and_writes_nothing() {
+    let dir = project("rename-parameter", &[]);
+    let before = files(&dir);
+    // Line 10 is `    public function addItem(int $n): int {`, and column 33
+    // is the `$` of `$n`.
+    let (out, err, ok) = code(&dir, &["rename", "src/Cart.nvs:10:33", "count"]);
+    assert!(!ok, "{out}");
+    assert!(err.starts_with("error: "), "{err}");
+    assert_eq!(files(&dir), before);
+
+    // A position on nothing renames nothing, with the message the editor shows.
+    let (_, err, ok) = code(&dir, &["rename", "src/Cart.nvs:1:2", "x"]);
+    assert!(!ok);
+    assert!(
+        err.contains("There is nothing to rename here. You can rename a class"),
+        "{err}"
+    );
+    assert_eq!(files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_of_an_unknown_name_prints_the_nearest() {
+    let dir = project("rename-unknown", &[]);
+    let before = files(&dir);
+    let (_, err, ok) = code(&dir, &["rename", r"Shop\Cart::addItems", "x"]);
+    assert!(!ok);
+    assert!(err.contains(r"Shop\Cart::addItem"), "{err}");
+    let (out, _, ok) = code(&dir, &["rename", r"Shop\Cart::addItems", "x", "--json"]);
+    assert!(!ok);
+    let nearest = parsed(&out)["nearest"].clone();
+    assert_eq!(nearest[0], r"Shop\Cart::addItem", "{out}");
+
+    let (_, err, ok) = code(&dir, &["rename", "src/Carts.nvs:1:1", "x"]);
+    assert!(!ok);
+    assert!(err.contains("src/Cart.nvs"), "{err}");
+    assert_eq!(files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_dry_run_prints_every_edit_and_writes_nothing() {
+    let dir = project("rename-dry", &[]);
+    let before = files(&dir);
+    let (out, err, ok) = code(
+        &dir,
+        &["rename", r"Shop\Cart::addItem", "addProduct", "--dry-run"],
+    );
+    assert!(ok, "{err}");
+    let lines: Vec<Vec<&str>> = out
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            ["public/index.nvs:9:21", "addItem", "->", "addProduct"],
+            ["src/Cart.nvs:10:21", "addItem", "->", "addProduct"],
+        ],
+        "{out}"
+    );
+    assert_eq!(files(&dir), before);
+
+    let (out, _, ok) = code(
+        &dir,
+        &["rename", r"Shop\Wishlist", "Favourites", "--dry-run"],
+    );
+    assert!(ok);
+    assert!(
+        out.contains("move src/Wishlist.nvs -> src/Favourites.nvs"),
+        "{out}"
+    );
+    assert_eq!(files(&dir), before);
+    assert!(!dir.join("src/Favourites.nvs").exists());
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_json_lists_every_edit_and_the_moved_file() {
+    let dir = project("rename-json", &[]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Wishlist", "Favourites", "--json"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(answer["written"], true, "{out}");
+    assert_eq!(
+        answer["moved"],
+        serde_json::json!([{ "from": "src/Wishlist.nvs", "to": "src/Favourites.nvs" }]),
+        "{out}"
+    );
+    let edits = answer["edits"].as_array().expect("an edits list");
+    assert!(!edits.is_empty(), "{out}");
+    for edit in edits {
+        for key in ["path", "line", "column", "start", "end", "old", "new"] {
+            assert!(edit.get(key).is_some(), "{key}: {out}");
+        }
+        // A `use` line's edit covers the whole name, `Shop\Wishlist`.
+        let old = edit["old"].as_str().expect("the old text");
+        assert!(old.ends_with("Wishlist"), "{out}");
+        assert_eq!(
+            edit["new"],
+            old.replace("Wishlist", "Favourites").as_str(),
+            "{out}"
+        );
+    }
+    assert!(dir.join("src/Favourites.nvs").exists());
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_file_that_changed_after_it_was_read() {
+    let dir = project("rename-changed", &[]);
+    let before = files(&dir);
+    // The debug binary changes this file after it computes the edits and
+    // before it compares the bytes again.
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(&*dir)
+        .env(
+            "NVS_TEST_CODE_CHANGE_BEFORE_WRITE",
+            dir.join("src/Cart.nvs"),
+        )
+        .args(["code", "rename", r"Shop\Cart::addItem", "addProduct"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let err = String::from_utf8(out.stderr).expect("the output is UTF-8");
+    assert!(!out.status.success(), "{err}");
+    assert!(err.contains("src/Cart.nvs"), "{err}");
+    assert!(err.contains("changed while the command ran"), "{err}");
+    // Only the change the hook made is on disk.
+    assert_eq!(read(&dir, "src/Cart.nvs"), format!("{CART}\n"));
+    assert_eq!(read(&dir, "public/index.nvs"), before[0].1);
+}

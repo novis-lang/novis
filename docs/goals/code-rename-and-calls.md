@@ -6,7 +6,7 @@ context: [docs/rules/tooling/nvs-code-answers-about-the-project.md, docs/rules/i
 stages:
   - id: 1
     title: "nvs code rename writes the editor's rename to disk"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/rename.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, crates/nvs-cli/src/fmt.rs]
   - id: 2
     title: "nvs code move moves a file or a directory and rewrites every require that names it"
@@ -229,13 +229,13 @@ and writes the result or prints it.
 **Split:** the 32 `.lspt` message updates are one string replaced in each file. A writing subagent
 does them while the session writes the Rust. The subagent builds nothing.
 
-- [ ] `nvs_lsp::query::rename`: a name resolves to its declaration's file and start offset, a position resolves to an offset in its file, and both call `rename::rename` with that file's `Analysed` (`analyse_file`, `crates/nvs-lsp/src/document.rs:654`). `crates/nvs-lsp/src/query.rs:301`, `crates/nvs-lsp/src/rename.rs:132`
-- [ ] The `NOTHING` message is reworded, and the 32 cases under `tests/lsp/rename/` expect the new text. `crates/nvs-lsp/src/rename.rs:103`
-- [ ] The `Rename` verb with `--dry-run` and `--json`, its help text, and the `path:line:column` parser beside `split_lines`. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-cli/src/code.rs:591`
-- [ ] The one write path `move` reuses: root check, unchanged-bytes check, `fs::write`, then the moves, in the order the standing decision gives. `crates/nvs-cli/src/code.rs:125`
-- [ ] The tests the `query-rename-tests` check names. `crates/nvs-lsp/tests/query.rs:1`
-- [ ] The tests the `code-rename-tests` check names. The changed-file test changes a file between two steps through a test hook in `code.rs`, never with a timer. `crates/nvs-cli/tests/code.rs:1`
-- [ ] The rule fragment describes `rename`, its title changes, and its Declined list loses `rename` and gains the journal entry. Then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`, `data/rules/tooling/nvs-code-answers-about-the-project.json:2`
+- [x] `nvs_lsp::query::rename`: a name resolves to its declaration's file and start offset, a position resolves to an offset in its file, and both call `rename::rename` with that file's `Analysed` (`analyse_file`, `crates/nvs-lsp/src/document.rs:654`). `crates/nvs-lsp/src/query.rs:301`, `crates/nvs-lsp/src/rename.rs:132`
+- [x] The `NOTHING` message is reworded, and the 32 cases under `tests/lsp/rename/` expect the new text. `crates/nvs-lsp/src/rename.rs:103`
+- [x] The `Rename` verb with `--dry-run` and `--json`, its help text, and the `path:line:column` parser beside `split_lines`. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-cli/src/code.rs:591`
+- [x] The one write path `move` reuses: root check, unchanged-bytes check, `fs::write`, then the moves, in the order the standing decision gives. `crates/nvs-cli/src/code.rs:125`
+- [x] The tests the `query-rename-tests` check names. `crates/nvs-lsp/tests/query.rs:1`
+- [x] The tests the `code-rename-tests` check names. The changed-file test changes a file between two steps through a test hook in `code.rs`, never with a timer. `crates/nvs-cli/tests/code.rs:1`
+- [x] The rule fragment describes `rename`, its title changes, and its Declined list loses `rename` and gains the journal entry. Then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`, `data/rules/tooling/nvs-code-answers-about-the-project.json:2`
 
 ### 2. nvs code move moves a file or a directory and rewrites every require that names it
 
@@ -279,15 +279,28 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built yet.
+Stage 1 is done. `nvs_lsp::query::rename` takes a `query::Target` (a name or a position), and
+`nvs code rename` writes through `write_out`, the one write path. `planned` applies the edits in
+memory and judges every path inside the root. `committed` reads each file again, writes, and moves
+last. A debug build reads `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, which the changed-file test uses.
+The JSON is `edits`, `moved` (an array of `{from, to}`, so a directory move fits) and `written`.
+`NOTHING` has its new wording, and so do the 32 `.lspt` cases. Both stage 1 checks pass, and so does
+clippy. The full `.lspt` suite has not run; stage 4 runs it.
+
+The sweep's reds: `env-secret-proofs` exits 0 when run again (its log is green). Each nightly CI
+failure has its fix on main already, after the sha the run tested: the overload job's
+`CHANGELOG.md` in ef7e629e2, the passkey Miri ignores in df208a541, and the spool wake test in
+dafe6c98d. The next nightly shows whether they hold.
 
 ### Next
 
-Stage 1, in item order. The first three items share `crates/nvs-lsp/src/rename.rs` and
-`crates/nvs-lsp/src/query.rs`, and the rest share `crates/nvs-cli/src/code.rs`.
+Stage 2, in item order. Every item is in `crates/nvs-cli/src/code.rs` and its tests.
 
-- [ ] `nvs_lsp::query::rename` by name and by position. `crates/nvs-lsp/src/query.rs:301`
-- [ ] The `NOTHING` message and the 32 `.lspt` cases. `crates/nvs-lsp/src/rename.rs:103`
-- [ ] The `Rename` verb, the shared write path, and its tests. `crates/nvs-cli/src/code.rs:59`
+- [ ] The `Move` verb and its checks of `<from>` and `<to>`, then `rename::moved`. `crates/nvs-cli/src/code.rs:67`, `crates/nvs-lsp/src/rename.rs:211`
+- [ ] Write through `write_out` with the move as its one `(from, to)`. `fs::rename` moves a directory as it moves a file. `crates/nvs-cli/src/code.rs:721`, `crates/nvs-cli/src/code.rs:882`
+- [ ] The `code-move-tests` tests, beside the rename ones. `crates/nvs-cli/tests/code.rs:640`
+- [ ] The rule fragment's `move` line and its Declined entry. `docs/rules/tooling/nvs-code-answers-about-the-project.md:39`
+
+No test should go red. Stage 4 runs the whole `.lspt` suite, which reads the new `NOTHING` text.
 
 ### Backlog
