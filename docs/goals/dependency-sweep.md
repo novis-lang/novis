@@ -10,7 +10,7 @@ stages:
     context: [Cargo.toml, crates/nvs-ext/src/call.rs, crates/nvs-codegen/src/lib.rs, docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md, docs/rules/packaging/a-dependency-move-proves-two-things.md]
   - id: 2
     title: "the host's leaf crates are current, and every tool lockfile is at its latest in range"
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-stdlib/src/regex.rs, crates/nvs-db/src/sqlite.rs, deny.toml]
   - id: 3
     title: "the four built-in components are current, and their advisories are clear"
@@ -170,6 +170,13 @@ already depends on it (`Cargo.toml:545`). cranelift-jit 0.137.1 needs `^3.0.2`, 
 build a second copy. The row gets `# HOLD (revisit 2026-11-30): 4 is out, and cranelift-jit 0.137.1,
 the latest, needs ^3.0.2, so 4 would build a second copy.`
 
+**`fancy-regex` stays on 0.19.** The dev-dependency `jsonschema` 0.60.2, the latest, needs `^0.19`,
+so 0.20 would build a second copy, and stage 2's `cargo tree --duplicates` item allows none. 0.20
+builds with no source change, so lifting the hold is a one-line move. The row gets `# HOLD (revisit
+2026-11-30): 0.20 is out, and jsonschema 0.60.2, the latest, needs ^0.19, so 0.20 would build a second
+copy.` Declined: taking 0.20 with a test-only second copy, which costs every test build one more
+regex engine for nothing a program sees.
+
 **A failed guard never moves a threshold** (`rule:packaging/a-dependency-move-proves-two-things`). If
 `engine-guards` fails on the new engine, the session reads the rule the failing test's comment
 names. If the premise really changed, the engine group goes back to wasmtime 49.0.4 and cranelift
@@ -303,13 +310,13 @@ each Rust lockfile outside `extensions/` takes its in-range updates.
 member manifest names (`<name>.workspace = true` or `workspace = true` under that name), as
 `Cargo.toml:NN` and one line each.
 
-- [ ] Move `fancy-regex` to `0.20` and adapt `Core\Regex`'s backtracking engine to its API. `Cargo.toml:613`, `crates/nvs-stdlib/src/regex.rs:922`, `crates/nvs-stdlib/src/regex.rs:1261`
-- [ ] Move `rusqlite` to `0.41` and adapt its callers. `bun nv gen-attribution --check-c-deps` passes, since `libsqlite3-sys` 0.39 carries a new SQLite amalgamation (`rule:packaging/a-c-dependency-answers-two-questions`). `Cargo.toml:1131`, `crates/nvs-db/src/sqlite.rs:1`, `crates/nvs-db/src/catalog.rs:1`, `crates/nvs-cli/src/debug/index.rs:1`, `crates/nvs-lsp/src/recorded.rs:1`
-- [ ] Re-date the `fallible-iterator` hold to 2026-11-30, naming `postgres-protocol` 0.6.12. `Cargo.toml:1101`
-- [ ] Remove each workspace row the `Explore` list names. `Cargo.toml:1`
-- [ ] `cargo update` on the root lock takes every in-range release, in one commit with the notice. `cargo tree --duplicates` names no second copy the moves above added (`docs/agent/dependency-update.md` § 1). `Cargo.lock:1`
-- [ ] `cargo update --manifest-path` on `fuzz/`, `tools/covwrap/`, `tools/nv-scan/` and `website/guides/markdown-extension/`, one commit each. The `fuzz-advisories` and `guide-advisories` checks pass. `cargo build --manifest-path` builds `tools/covwrap/` and `tools/nv-scan/`. `fuzz/Cargo.lock:1`, `tools/covwrap/Cargo.lock:1`, `tools/nv-scan/Cargo.lock:1`, `website/guides/markdown-extension/Cargo.lock:1`
-- [ ] `cargo build`, `cargo clippy --all-targets -- -D warnings` and `cargo deny check` are clean on the tip. `deny.toml:1`
+- [x] Move `fancy-regex` to `0.20` and adapt `Core\Regex`'s backtracking engine to its API. Held on 0.19 instead, as the standing decision says. `Cargo.toml:613`, `crates/nvs-stdlib/src/regex.rs:922`, `crates/nvs-stdlib/src/regex.rs:1261`
+- [x] Move `rusqlite` to `0.41` and adapt its callers. `bun nv gen-attribution --check-c-deps` passes, since `libsqlite3-sys` 0.39 carries a new SQLite amalgamation (`rule:packaging/a-c-dependency-answers-two-questions`). `Cargo.toml:1131`, `crates/nvs-db/src/sqlite.rs:1`, `crates/nvs-db/src/catalog.rs:1`, `crates/nvs-cli/src/debug/index.rs:1`, `crates/nvs-lsp/src/recorded.rs:1`
+- [x] Re-date the `fallible-iterator` hold to 2026-11-30, naming `postgres-protocol` 0.6.12. `Cargo.toml:1101`
+- [x] Remove each workspace row the `Explore` list names. The list is empty: all 117 rows are named by a member. `Cargo.toml:1`
+- [x] `cargo update` on the root lock takes every in-range release, in one commit with the notice. `cargo tree --duplicates` names no second copy the moves above added (`docs/agent/dependency-update.md` § 1). `Cargo.lock:1`
+- [x] `cargo update --manifest-path` on `fuzz/`, `tools/covwrap/`, `tools/nv-scan/` and `website/guides/markdown-extension/`, one commit each. The `fuzz-advisories` and `guide-advisories` checks pass. `cargo build --manifest-path` builds `tools/covwrap/` and `tools/nv-scan/`. `fuzz/Cargo.lock:1`, `tools/covwrap/Cargo.lock:1`, `tools/nv-scan/Cargo.lock:1`, `website/guides/markdown-extension/Cargo.lock:1`
+- [x] `cargo build`, `cargo clippy --all-targets -- -D warnings` and `cargo deny check` are clean on the tip. `deny.toml:1`
 
 ### 3. the four built-in components are current, and their advisories are clear
 
@@ -370,37 +377,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done in one commit (`build(deps): the JIT and the sandbox run on cranelift 0.137.1 and
-wasmtime 50.0.1`). The engine group is on cranelift 0.137.1, wasmtime 50.0.1 and `wit-*` 0.261, with
-`region` and the three `wit-*` rows held to 2026-11-30. Two API breaks were absorbed, as the two new
-standing decisions say: `embed_component_metadata`'s `canonical_names`, and the hostcall fuel set at
-each call's start only. wit-component 0.261 writes different bytes, so the fixture `.nvsx` files were
-packed again (`NVS_WRITE_FIXTURES=1`), and the 11 `nvs.toml` files that pin them carry the new pins.
+Stages 1 and 2 are done. Stage 2 landed in six commits:
+- `fancy-regex` is held on 0.19, because `jsonschema` 0.60.2 needs `^0.19` (the new standing decision).
+  The `fallible-iterator` hold is re-dated to 2026-11-30.
+- `rusqlite` 0.41.1 and `libsqlite3-sys` 0.39.1. `update_hook` and `authorizer` take `&mut self`
+  now, and `Statement::columns` returns an iterator (`crates/nvs-db/src/sqlite.rs:741`,
+  `crates/nvs-db/src/sqlite.rs:1849`). `--check-c-deps` passes.
+- The root lock's `cargo update` moved 36 packages, with the notice. No new duplicate, and
+  `cargo deny check` passes all four legs.
+- `fuzz/`, `tools/nv-scan/` and the markdown guide's locks moved, one commit each. `tools/covwrap/`
+  had nothing to take. `fuzz-advisories` and `guide-advisories` pass, and both tools build.
 
-`engine-guards` passed. `components-load` (`bun nv verify -p nvs-ext`) passed every load and call
-test. One test failed under the run's load only: `a_header_of_every_column_equal_is_numbered_in_linear_time`
-(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) took 12.6 s against its 10 s wall-clock bound. It
-passes in 0.21 s alone, on the new engine as well, so the bump is not the cause.
+The `Explore` split found no unused workspace row in 117. Nothing was removed.
 
-The two sweep findings were already fixed: `env-secret-proofs` passes, and the nightly's `bundle`
-failure (`ExecutableFileBusy`) predates `b9ce9d0e6`, which retries it.
+The two sweep findings were stale. `env-secret-proofs` passes when run (`bun nv proofs --gate --only
+'Core\Env::secret'`, exit 0). The nightly run's URL returns 404, and a fresh CI run on `52c109b00`
+was queued at 14:19Z on 2026-10-30.
 
 ### Next
 
-Stage 2, the host's leaf crates. Files: `Cargo.toml`, `Cargo.lock`, `crates/nvs-stdlib/src/regex.rs`,
-`crates/nvs-db/src/`, the four tool lockfiles, `deny.toml`. No gate. Start with the stage's `Explore`
-split for the unused workspace rows.
+Stage 3, the four built-in components. Files: `extensions/*/Cargo.toml`, `extensions/*/Cargo.lock`,
+`extensions/spreadsheet/tests/excel.rs`, `extensions/intl/src/`, `deny.toml`,
+`THIRD-PARTY-LICENSES.txt`. No gate. Each component is a commit of its own.
 
-- [ ] `fancy-regex` to `0.20`. `Cargo.toml:618`, `crates/nvs-stdlib/src/regex.rs:922`
-- [ ] `rusqlite` to `0.41`, with `--check-c-deps`. `Cargo.toml:1136`, `crates/nvs-db/src/sqlite.rs:1`
-- [ ] Re-date the `fallible-iterator` hold. `Cargo.toml:1107`
-- [ ] Remove the unused workspace rows the `Explore` list names. `Cargo.toml:1`
-- [ ] Root `cargo update`, then the four tool lockfiles, one commit each. `fuzz/Cargo.lock:1`
-- [ ] Build, clippy and `cargo deny check` on the tip. `deny.toml:1`
+- [ ] spreadsheet: `calamine` to `0.37`, adapt `tests/excel.rs`. `extensions/spreadsheet/Cargo.toml:30`
+- [ ] image: `resvg` to `0.49`, and re-date three holds. `extensions/image/Cargo.toml:37`, `extensions/image/Cargo.toml:23`
+- [ ] intl: `icu_experimental` `=0.7.0`, `icu_*` floors `2.4`. `extensions/intl/Cargo.toml:27`, `extensions/intl/Cargo.toml:17`
+- [ ] pdf: re-date three holds, and add the `rustybuzz` ignore. `extensions/pdf/Cargo.toml:17`, `deny.toml:29`
+- [ ] `cargo update --manifest-path` on each lock, with its component's commit. `extensions/image/Cargo.lock:1`
+- [ ] The four `*-advisories` checks, `gen-attribution --check`, root build and clippy. `THIRD-PARTY-LICENSES.txt:1`
 
-Expected red in the gate stage: the spreadsheet test above, under load. Its fix is to bound the
-work with a count, not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner*).
-A threshold change is not a fix.
+Expected red in the gate stage: `a_header_of_every_column_equal_is_numbered_in_linear_time`
+(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It took 12.6 s against its 10 s
+wall-clock bound in stage 1, and passes in 0.21 s alone. Its fix is to bound the work with a count,
+not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner*). A threshold
+change is not a fix. The `nvs-db` SQLite suites run on the new SQLite for the first time there.
 
 ### Backlog
 
