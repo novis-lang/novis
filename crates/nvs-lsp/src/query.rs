@@ -5,14 +5,15 @@
 //! [`crate::index`]'s module doc spells it: `Shop\Cart`,
 //! `Shop\Cart::addItem`, `Shop\Cart::$total`. The editor feature that answers
 //! the same question calls the same function — `textDocument/references` is
-//! [`references`] and `textDocument/implementation` is [`implementations`] —
-//! so the editor and the command never disagree about an answer
-//! (`rule:ide/five-features-are-one-reference-index`).
+//! [`references`], `textDocument/implementation` is [`implementations`] and
+//! `textDocument/rename` is [`rename`] — so the editor and the command never
+//! disagree about an answer (`rule:ide/five-features-are-one-reference-index`).
 //!
 //! Every function reads a [`Workspace`] or the index inside one and builds
 //! nothing: the index is built in `server.rs`, which is the module that owns
-//! one. [`declaration`] and [`types`] analyse one file again, because the
-//! index keeps names and sites and neither a `///` run nor an inferred type.
+//! one. [`declaration`], [`types`] and [`rename`] analyse one file again,
+//! because the index keeps names and sites and neither a `///` run, an
+//! inferred type nor a file's tokens.
 
 use std::ops::RangeInclusive;
 use std::path::Path;
@@ -28,6 +29,7 @@ use crate::hints;
 use crate::hover::markdown;
 use crate::index::{DeclKind, Declaration, Site, SymbolIndex};
 use crate::position::offset_at;
+use crate::rename::{self, Renamed};
 use crate::server::Workspace;
 
 /// What a reference to a name is.
@@ -288,6 +290,81 @@ pub fn types(workspace: &Workspace, path: &Path, lines: RangeInclusive<u32>) -> 
             })
             .collect(),
     )
+}
+
+/// What [`rename`] renames: a name the index declares, or the symbol at one
+/// place in a file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Target<'a> {
+    /// A name in the index's form, as `Shop\Cart::addItem`.
+    Name(&'a str),
+    /// A place in a file, the only way to name a local. The path is a
+    /// canonical key, and the line and the column count from 1, the column in
+    /// characters.
+    Position {
+        /// The file.
+        path: &'a Path,
+        /// The line, from 1.
+        line: u32,
+        /// The column, from 1, in characters.
+        column: u32,
+    },
+}
+
+/// Every edit that renames `target` to `new_name`, through the function the
+/// editor's rename calls.
+///
+/// A name renames at the first byte of its declaration's name, which is where
+/// the editor's rename at the declaration starts too. A position renames at
+/// that offset of its file. A `$` on `new_name` is optional, as it is in the
+/// editor.
+///
+/// # Errors
+///
+/// Returns the refusal message the editor shows, or a message for a name the
+/// index does not declare or a file it does not hold.
+pub fn rename(
+    workspace: &Workspace,
+    target: Target<'_>,
+    new_name: &str,
+) -> Result<Renamed, String> {
+    let index = workspace.index();
+    // A name carries its byte offset, and a position its line and column,
+    // which become an offset once the file is analysed.
+    let (path, start, position) = match target {
+        Target::Name(symbol) => {
+            let site = &index
+                .declaration(symbol)
+                .ok_or_else(|| format!("This project does not declare `{symbol}`."))?
+                .site;
+            (
+                site.path.as_path(),
+                Some(site.start),
+                lsp_types::Position::default(),
+            )
+        }
+        Target::Position { path, line, column } => (
+            path,
+            None,
+            lsp_types::Position {
+                line: line.saturating_sub(1),
+                character: column.saturating_sub(1),
+            },
+        ),
+    };
+    let not_held = || format!("`{}` is not a file of this project.", path.display());
+    if !index.holds(path) {
+        return Err(not_held());
+    }
+    let analysed = analyse_file(workspace.documents(), path, 0).ok_or_else(not_held)?;
+    let offset = start.unwrap_or_else(|| {
+        offset_at(
+            analysed.map.file(analysed.entry),
+            position,
+            PositionEncoding::Utf32,
+        )
+    });
+    rename::rename(workspace.documents(), index, &analysed, offset, new_name)
 }
 
 /// The names the index declares that are closest to `name`, nearest first,

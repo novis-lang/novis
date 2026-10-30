@@ -10,4 +10,4 @@ class User { }
 --REQUEST--
 prepareRename
 --EXPECT--
-refused: There is nothing to rename here. Put the cursor on a class, a variable, a method, a property, a constant or an enum case.
+refused: There is nothing to rename here. You can rename a class, a variable, a method, a property, a constant or an enum case.

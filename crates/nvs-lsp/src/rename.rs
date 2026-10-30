@@ -99,9 +99,10 @@ pub struct Renamed {
 /// The name a class gives its constructor, which `new` calls by that name.
 const CONSTRUCTOR: &str = "constructor";
 
-/// The message for a cursor on nothing this module renames.
-const NOTHING: &str = "There is nothing to rename here. Put the cursor on a class, a variable, \
-                       a method, a property, a constant or an enum case.";
+/// The message for a cursor on nothing this module renames, worded for the
+/// editor and for `nvs code rename` alike.
+const NOTHING: &str = "There is nothing to rename here. You can rename a class, a variable, a \
+                       method, a property, a constant or an enum case.";
 
 /// The message for a cursor on a type alias a class declares.
 const AN_OWNED_ALIAS: &str = "Renaming a type alias that a class declares is not available yet.";

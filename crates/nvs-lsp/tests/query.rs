@@ -13,6 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use nvs_lsp::query::{self, UseKind};
+use nvs_lsp::rename;
 use nvs_lsp::{Site, Workspace, analyse_file, symbol_at, workspace};
 
 /// The program's entry point: it autoloads `Shop` and uses three of its
@@ -250,6 +251,70 @@ fn types_list_each_binding_in_a_line_range_with_its_inferred_type() {
     assert!(typed[0].ty.ends_with("Cart"), "{typed:?}");
     assert_eq!(typed[1].ty, "int");
     assert_eq!(Project::text_of(&typed[1].site), "$total");
+}
+
+#[test]
+fn rename_by_name_matches_rename_at_the_declaration() {
+    let project = Project::new("rename-name");
+    let documents = project.workspace.documents();
+    let index = project.workspace.index();
+    let by_name = query::rename(
+        &project.workspace,
+        query::Target::Name(r"Shop\Cart::addItem"),
+        "addProduct",
+    )
+    .expect("a method the project declares");
+
+    // The editor's rename with the cursor on the declaration's name.
+    let cart = project.at("src/Cart.nvs");
+    let analysed = analyse_file(documents, &cart, 0).expect("an analysis");
+    let offset = u32::try_from(CART.find("addItem").expect("the declaration")).expect("small");
+    let at_declaration =
+        rename::rename(documents, index, &analysed, offset, "addProduct").expect("a rename");
+    assert_eq!(by_name, at_declaration);
+    // The declaration and the call in the entry point, and not `Wishlist`'s
+    // method of the same name.
+    let files: Vec<String> = by_name
+        .rewrites
+        .iter()
+        .map(|rewrite| name_of(&rewrite.site.path))
+        .collect();
+    assert_eq!(files, ["index.nvs", "Cart.nvs"], "{by_name:?}");
+
+    let unknown = query::rename(
+        &project.workspace,
+        query::Target::Name(r"Shop\Cart::none"),
+        "x",
+    );
+    assert!(unknown.is_err(), "{unknown:?}");
+}
+
+#[test]
+fn rename_by_position_matches_rename_at_that_offset() {
+    let project = Project::new("rename-position");
+    let documents = project.workspace.documents();
+    let index = project.workspace.index();
+    let entry = project.at("public/index.nvs");
+    // Line 9 is `var $total = $cart->addItem(3);`, and column 5 is its `$`.
+    let at = query::Target::Position {
+        path: &entry,
+        line: 9,
+        column: 5,
+    };
+    let by_position = query::rename(&project.workspace, at, "$sum").expect("a local");
+
+    let analysed = analyse_file(documents, &entry, 0).expect("an analysis");
+    let offset = u32::try_from(INDEX.find("$total").expect("the local")).expect("small");
+    let at_offset = rename::rename(documents, index, &analysed, offset, "sum").expect("a rename");
+    assert_eq!(by_position, at_offset);
+    // The declaration and the read in the `echo`.
+    let texts: Vec<&str> = by_position
+        .rewrites
+        .iter()
+        .map(|rewrite| rewrite.text.as_str())
+        .collect();
+    assert_eq!(texts, ["$sum", "$sum"], "{by_position:?}");
+    assert!(by_position.file.is_none());
 }
 
 #[test]
