@@ -596,10 +596,9 @@ impl Ctx {
     /// The message names the ceiling as well as the reading, because the two
     /// together are what tells an operator whether to raise the limit or to fix
     /// the program, and a help line names both ways to raise it. The subject is
-    /// "the program" on a CLI run and "the request" in server work. After a refusal the reading is the one taken when the
-    /// allocation was refused, followed by what it asked for
-    /// ([`crate::budget::Refusal`] owns why): by the poll, a refused
-    /// concatenation has already given back the text it was growing.
+    /// "the program" on a CLI run and "the request" in server work. The
+    /// reading is [`Self::memory_held`], the most the request held, and after
+    /// a refusal it is followed by what the refused allocation asked for.
     ///
     /// **Under the ceiling this is a few loads and branches, and it is inlined
     /// into each member's frame.** `crate::run_helper` is generic, so it is
@@ -632,7 +631,7 @@ impl Ctx {
         if let Some(refusal) = crate::budget::refusal().filter(|refusal| refusal.full) {
             return crate::Fault::fatal(format!(
                 "the server's memory is full, so the request was stopped while it held {} bytes",
-                self.memory_share(refusal.live),
+                self.memory_held(refusal.live),
             ));
         }
         // The ceiling named is the request's **whole** budget, not the reduced
@@ -649,15 +648,48 @@ impl Ctx {
         let reading = match crate::budget::refusal() {
             Some(refusal) => format!(
                 "the {run} exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}, when an allocation of {} bytes was refused",
-                self.memory_share(refusal.live),
+                self.memory_held(refusal.live),
                 refusal.asked,
             ),
             None => format!(
                 "the {run} exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}",
-                self.memory_used(),
+                self.memory_held(crate::budget::live_bytes()),
             ),
         };
         crate::Fault::fatal(format!("{reading}\n{}", self.memory_help(ceiling)))
+    }
+
+    /// The most this request has held, read as [`Self::memory_used`] reads
+    /// the balance: the higher of `live` and [`crate::budget::peak_bytes`],
+    /// as the request's share.
+    ///
+    /// What a memory `FATAL` reports. The poll comes after the growth, and a
+    /// member that grew far past the ceiling and gave most of it back before
+    /// the poll still held that much. The balance at the poll would hide it.
+    /// The mark is the one [`crate::budget`] already keeps, and below the
+    /// ceiling the peak is never read, so this costs nothing until a breach.
+    /// Before the breach the request was under its ceiling, so the mark since
+    /// the context began is the mark since the breach.
+    pub(crate) fn memory_held(&self, live: isize) -> usize {
+        self.memory_share(live.max(crate::budget::peak_bytes()))
+    }
+
+    /// The most a debug build lets this request hold inside one member call,
+    /// or `None` for a request with no memory ceiling.
+    ///
+    /// `bun nv proofs --overshoot`'s bound, written again: one and a half
+    /// times the whole ceiling plus 8 MiB. [`crate::run_helper`] checks it
+    /// after each body in a debug build, so a member that grows past its
+    /// ceiling without asking the budget panics in the first Rust test that
+    /// runs it under one. A release build never reads it.
+    #[cfg(debug_assertions)]
+    pub(crate) fn overshoot_bound(&self) -> Option<usize> {
+        const SLACK: usize = 8 << 20;
+        if self.memory_limit == 0 {
+            return None;
+        }
+        let ceiling = self.memory_limit.saturating_add(self.fatal_reserve);
+        Some(ceiling.saturating_add(ceiling / 2).saturating_add(SLACK))
     }
 
     /// What [`Self::memory_breach`] calls the run: "program" on a CLI run, "request" in server

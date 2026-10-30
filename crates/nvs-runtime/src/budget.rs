@@ -227,6 +227,16 @@
 //! The per-core gauge admission reads is `gauge`'s, and its module doc says
 //! what it spends: one compare per balance change on the allocation path, and
 //! a relaxed store once the balance has moved a mebibyte.
+//!
+//! A memory `FATAL` reports the peak, through
+//! [`Ctx::memory_held`](crate::Ctx), and it adds no cell and no work on the
+//! allocation path: the mark it reads is the one [`PEAK`] already keeps.
+//! Before a breach the request was under its ceiling, so the mark since its
+//! context began is also the mark since the breach. The read happens only
+//! once a poll has found the breach. A debug build also checks each member
+//! call against `bun nv proofs --overshoot`'s bound (`run_helper`'s
+//! `overshoot_backstop`). That is two thread-local loads per call, and a
+//! release build does not compile it.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -1531,5 +1541,41 @@ mod tests {
             "the nested context erased the peak of the one that made it"
         );
         drop(held);
+    }
+
+    /// The `ceiling-backstop` check's cases: what a request past its ceiling
+    /// reports, here, and what a debug build does to a member that grows past
+    /// it inside one call, in `abi.rs`.
+    mod past_its_ceiling {
+        /// The poll comes after the growth. A request that grew far past its
+        /// ceiling and gave most of it back before the poll reports what it
+        /// held at the top, because that is what the ceiling was for.
+        #[test]
+        fn a_breach_reports_the_peak_the_request_held_not_the_balance_at_the_poll() {
+            let ceiling = 1 << 20;
+            let spike = 16 << 20;
+            let mut ctx = crate::Ctx::buffered();
+            ctx.set_memory_limit(ceiling);
+            let kept = vec![1_u8; 2 << 20];
+            drop(vec![1_u8; spike]);
+            assert!(
+                ctx.memory_used() < spike,
+                "the spike was not given back, so this asserts nothing"
+            );
+            let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() else {
+                panic!("a request holding twice its ceiling was not stopped");
+            };
+            let held: usize = message
+                .split(" bytes held")
+                .next()
+                .and_then(|head| head.rsplit(' ').next())
+                .and_then(|figure| figure.parse().ok())
+                .unwrap_or_else(|| panic!("the message names no reading: {message}"));
+            assert!(
+                held >= spike,
+                "the message reads {held} bytes, the balance at the poll, and not the {spike}-byte peak: {message}"
+            );
+            drop(kept);
+        }
     }
 }

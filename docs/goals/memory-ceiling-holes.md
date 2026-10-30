@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/proofs/run.ts, tools/nv/cmd/proofs.ts, tools/nv/test/hostile-ending.test.ts, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 2
     title: "a memory FATAL names the peak the request held, and a debug build stops a member that passes its ceiling inside one call"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 3
     title: "an array, a byte buffer and a text writer ask the budget whenever they grow"
@@ -139,11 +139,11 @@ comment says why it is 1.5.
 is the only one, so the server's memory filling first means the request's own ceiling never stopped
 it. No attack targets the server's limit, and the scan saw none of these lines.
 
-**The reading is the peak.** Stage 2 makes `budget` remember the highest balance since the breach. It
-costs nothing under the ceiling, because the tracking runs only on the path that has already crossed
-it. The `FATAL` reports that peak, so a member that grew to 20 GB and freed most of it before the poll
-still reads 20 GB. Safe fallback, if the peak cannot be kept on the cold path alone: the refusal's
-`live`, which the message already prints.
+**The reading is the peak.** The `FATAL` reports the highest balance the request held
+(`Ctx::memory_held`), so a member that grew to 20 GB and freed most of it before the poll still reads
+20 GB. `budget`'s existing `PEAK` mark is that number, so `add` gains no tracking: before a breach the
+request was under its ceiling, so the mark since its context began is the mark since the breach. The
+mark is read only once a poll has found the breach.
 
 **`bun nv proofs --overshoot` is the scan as a command** (AGENTS.md rule 12). It runs every hostile
 `.nvs` and `.cmd` whose `ends-early` names `FATAL`, two at a time, and prints the reading worst first.
@@ -155,8 +155,11 @@ or a signal). The scratch scan it replaces is `.agent-tmp/overshoot/scan.ts`. It
 **The debug backstop.** In a `debug_assertions` build, `run_helper` compares the peak a member call
 reached against `1.5 x ceiling + 8 MiB`, and panics naming the member when it passed. Every Rust test
 that sets a ceiling, and every debug-built `nvs` run, then catches the class without an attack. The
-release build keeps today's behaviour: the request ends at its next poll. Safe fallback, if the panic
-breaks the containment tests: record the member's name and assert it in `Ctx`'s drop in a debug build.
+release build keeps today's behaviour: the request ends at its next poll. The member's name is the
+body closure's `type_name`, so `run_helper`'s signature is unchanged. Only a call that raised the mark
+is checked, and a body that returns `Fault::Pending` is not, so a callback's outer member is never
+blamed for its callee. The panic is contained by `run_helper`'s `catch_unwind` as a `FATAL`, and a
+result the body returned leaks on that debug-only path.
 
 **One place asks, not each site** (`rule:programs/memory-priority`). Stage 3 builds the mechanism the
 later stages use:
@@ -238,16 +241,17 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 2. a memory FATAL names the peak the request held, and a debug build stops a member that passes its ceiling inside one call
 
-- [ ] `budget::add` keeps the highest balance since the breach, on the over-ceiling path only. `crates/nvs-runtime/src/budget.rs:1243`
-- [ ] `memory_fault` reports that peak. `crates/nvs-runtime/src/ctx/limits.rs:628`
-- [ ] `run_helper`'s debug-build check after each body panics naming the member past the bound. `crates/nvs-runtime/src/abi.rs:496`
-- [ ] The two tests the `ceiling-backstop` check names, in `budget.rs` and `abi.rs`'s test modules. Run once: `cargo test --lib past_its_ceiling`. `crates/nvs-runtime/src/budget.rs:1161`
-- [ ] The budget module doc says what the peak and the backstop cost. `crates/nvs-runtime/src/budget.rs:1`
+- [x] `budget::add` keeps the highest balance since the breach, on the over-ceiling path only. `crates/nvs-runtime/src/budget.rs:1243`
+  The existing `PEAK` mark is that balance, so `add` is unchanged (*The reading is the peak*).
+- [x] `memory_fault` reports that peak. `crates/nvs-runtime/src/ctx/limits.rs:628`
+- [x] `run_helper`'s debug-build check after each body panics naming the member past the bound. `crates/nvs-runtime/src/abi.rs:496`
+- [x] The two tests the `ceiling-backstop` check names, in `budget.rs` and `abi.rs`'s test modules. Run once: `cargo test --lib past_its_ceiling`. `crates/nvs-runtime/src/budget.rs:1161`
+- [x] The budget module doc says what the peak and the backstop cost. `crates/nvs-runtime/src/budget.rs:1`
 
 ### 3. an array, a byte buffer and a text writer ask the budget whenever they grow
 
 - [ ] `NvsArray`'s growth asks for the new backing at each reallocation. `append` and `set` leave the array unchanged on a refusal. `crates/nvs-runtime/src/array.rs:1275`, `crates/nvs-runtime/src/array.rs:1167`, `crates/nvs-runtime/src/array.rs:1155`
-- [ ] The shared byte writer in `budget`, taken out of `Encode::put`. `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`, `crates/nvs-runtime/src/budget.rs:1161`
+- [ ] The shared byte writer in `budget`, taken out of `Encode::put`. `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`, `crates/nvs-runtime/src/budget.rs:1171`
 - [ ] Unit tests: an array and the writer under a 1 MiB ceiling stop at it and record the breach. Run once by name.
 
 ### 4. the graph walk, Core\Task::map and Core\Compress stop at the ceiling
@@ -333,36 +337,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `judgeHostile` fails a memory reading past `overshootBound` (`OVERSHOOT_FACTOR`,
-`OVERSHOOT_SLACK_BYTES` in `tools/nv/proofs/run.ts`), a server-full `FATAL`, and a program the host
-killed with no reading. `Ran` carries the `signal`. An exit of 9 or 137 counts as a host kill only in
-an attack whose ending is `FATAL`, because `tests/hostile/core/Script/onExit/01-*.nvs` calls `exit(9)`
-itself. `overshoot-judge`'s tests pass (13 in the file).
+Stages 1 and 2 are done. A memory `FATAL` reports `Ctx::memory_held`, the higher of the balance and
+`budget`'s existing `PEAK` mark (`crates/nvs-runtime/src/ctx/limits.rs:673`). A debug build's
+`run_helper` calls `overshoot_backstop` after each body (`crates/nvs-runtime/src/abi.rs:593`), which
+panics naming the body's closure type past `Ctx::overshoot_bound`. Both `ceiling-backstop` tests pass.
+Build and clippy are green, and no full test run was made.
 
-`bun nv proofs --overshoot --nvs target/release/nvs.exe` ran: 225 attacks, 211 with a reading, 14
-stopped at another limit. It exits 1 on 9 red, worst first: `Task/map` 78.71x, `Str/join` 61.04x,
-`Compress-Compressor/finish` 32.05x, `lang/concurrency/core-task-map-one-task-per-element` 31.55x,
-`Compress-Compressor/add` 8.02x, `Compress/compressor` 4.02x, `Uri/encodeComponent` and
-`Uri/encodeFormValue` 3.73x, `Bytes/unpack` 2.00x. The Serialize encode attack the host killed before
-read within the bound this run.
+Expected red at the gate, each a member for stages 4 to 8 and not a test to loosen: a Rust test that
+grows past 1.5x its ceiling plus 8 MiB inside one call now gets an `inside one call` `FATAL`. A test
+that compares an exact `N bytes held` figure may read the higher peak: look first at
+`crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/server_memory.rs` and
+`crates/nvs-stdlib/src/budget.rs`.
 
-Those 9 attacks are red in `bun nv proofs --run`, and so are the floor's `floor-debt` and
-`proofs-gate`, until stages 4 and 5 fix them. The sweep's `env-secret-proofs` red was stale: no check
-by that name is defined, and `bun nv proofs --gate --only 'Core\Env::secret'` owes nothing.
+`bun nv proofs --overshoot` (stage 1) was red on 9 attacks before the peak, worst first: `Task/map`,
+`Str/join`, `Compress-Compressor/finish`, `core-task-map-one-task-per-element`,
+`Compress-Compressor/add`, `Compress/compressor`, both `Uri/encode*`, `Bytes/unpack`. Readings now
+rise, so expect more. Those attacks keep `floor-debt` and `proofs-gate` red until stages 4 and 5. The
+sweep's `env-secret-proofs` red is a stale log of Oct 22: no check by that name is defined.
 
 ### Next
 
-Stage 2, one group: `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/limits.rs` and
-`crates/nvs-runtime/src/abi.rs`. No gate.
+Stage 3, one group: `array.rs`, `graph.rs` and `budget.rs` under `crates/nvs-runtime/src/`. No gate.
+After a change to how `budget` arms or charges, run `bun nv proofs --run --group 'Core\Task'`.
 
-- [ ] `budget::add` keeps the peak since the breach, on the over-ceiling path only. `crates/nvs-runtime/src/budget.rs:1243`
-- [ ] `memory_fault` reports the peak. `crates/nvs-runtime/src/ctx/limits.rs:628`
-- [ ] `run_helper`'s debug backstop. `crates/nvs-runtime/src/abi.rs:496`
-- [ ] The two `past_its_ceiling` tests, run once: `cargo test --lib past_its_ceiling`. `crates/nvs-runtime/src/budget.rs:1161`
-- [ ] The budget module doc's cost paragraph. `crates/nvs-runtime/src/budget.rs:1`
-
-Once the peak is reported, readings rise, so expect more attacks past the bound in `--overshoot`. The
-debug backstop may turn Rust tests that set a ceiling red. Each one it names is a member for stages 4
-to 8, not a test to loosen.
+- [ ] `NvsArray`'s growth asks `budget::affords` at each reallocation; `append` and `set` keep the array on a refusal. `crates/nvs-runtime/src/array.rs:1275`
+- [ ] The shared byte writer in `budget`, out of `Encode::put`, and `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`
+- [ ] Unit tests: an array and the writer under a 1 MiB ceiling stop at it, run once by name. `crates/nvs-runtime/src/budget.rs:1171`
 
 ### Backlog

@@ -493,7 +493,16 @@ where
             !ctx.take_armed_helper_panic(),
             "internal error: injected helper panic (--fault-inject=helper-panic)"
         );
-        body(ctx, args).map_err(|fault| match ctx.memory_breach() {
+        #[cfg(debug_assertions)]
+        let peak_before = crate::budget::peak_bytes();
+        let result = body(ctx, args);
+        // A body that failed with `Fault::Pending` passes on a callee's fault,
+        // and the callee was checked in its own frame.
+        #[cfg(debug_assertions)]
+        if !matches!(result, Err(Fault::Pending(_))) {
+            overshoot_backstop::<F>(ctx, peak_before);
+        }
+        result.map_err(|fault| match ctx.memory_breach() {
             // A member that failed *while* the request crossed its ceiling
             // reports the ceiling and not its own error. A refused allocation
             // is what a fallible producer reads as "no room", and one that
@@ -563,6 +572,39 @@ pub(crate) unsafe fn contain_panic(ctx: *mut Ctx, slow: impl FnOnce(&mut Ctx) ->
         )]
         contained_panic(unsafe { &mut *ctx }, payload)
     })
+}
+
+/// A debug build's check, after a member's body, that the call did not take
+/// the request past [`Ctx::overshoot_bound`].
+///
+/// A member that grows without asking the budget is stopped only at the next
+/// poll, and by then it may have held many times its ceiling. This panics
+/// naming the member, so the first Rust test or debug-built `nvs` run that
+/// calls it under a ceiling reports it. The member's name is the body's
+/// closure type, which names the helper it was written in. Only a call that
+/// raised the mark is checked, so a later call is never blamed for an earlier
+/// one's peak. The panic is contained by [`run_helper`]'s `catch_unwind` as
+/// any helper bug is, and a result the body returned is not released on that
+/// path.
+///
+/// What it costs: two thread-local loads per member call in a debug build,
+/// and nothing in a release build, which does not compile it.
+#[cfg(debug_assertions)]
+fn overshoot_backstop<F>(ctx: &Ctx, peak_before: isize) {
+    if crate::budget::peak_bytes() <= peak_before {
+        return;
+    }
+    let Some(bound) = ctx.overshoot_bound() else {
+        return;
+    };
+    let held = ctx.memory_held(crate::budget::live_bytes());
+    assert!(
+        held <= bound,
+        "internal error: {} held {held} bytes inside one call, past {bound} bytes \
+         (one and a half times the memory ceiling of {} plus 8 MiB)",
+        std::any::type_name::<F>(),
+        ctx.memory_limit().saturating_add(ctx.fatal_reserve()),
+    );
 }
 
 /// The status a panic caught under a JIT frame becomes: the panic's message as
@@ -1370,5 +1412,47 @@ mod tests {
             matches!(&fault, Fault::Thrown(_, message) if message == "element 3 is not an int"),
             "the combinator guards the deadline and rewrites nothing else: {fault:?}"
         );
+    }
+
+    nvs_helper! {
+        /// Grows to 32 MiB without asking the budget, then gives it back.
+        fn nvs_test_grows_past_its_ceiling(_ctx, _args: [0]) {
+            drop(std::hint::black_box(vec![1_u8; 32 << 20]));
+            Ok(Value::null())
+        }
+    }
+
+    /// The `ceiling-backstop` check's second case. A member that passes one
+    /// and a half times its ceiling plus 8 MiB inside one call, and frees it
+    /// before it returns, is stopped by name in a debug build. The release
+    /// build is left to the next poll, which [`Ctx::memory_held`] makes read
+    /// the peak.
+    #[test]
+    #[cfg(debug_assertions)]
+    fn a_member_past_its_ceiling_inside_one_call_panics_naming_it_in_a_debug_build() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        assert_eq!(
+            call(nvs_test_grows_past_its_ceiling, &mut ctx, &[]).err(),
+            Some(FATAL),
+            "a member that held 32 times its ceiling returned as if it fitted"
+        );
+        let message = ctx
+            .pending()
+            .map(|text| text.into_owned())
+            .unwrap_or_default();
+        assert!(
+            message.contains("nvs_test_grows_past_its_ceiling")
+                && message.contains("inside one call"),
+            "the FATAL does not name the member that passed its ceiling: {message}"
+        );
+    }
+
+    /// The same member under no ceiling runs, so the check costs an uncapped
+    /// request nothing but its two loads.
+    #[test]
+    fn a_member_with_no_ceiling_is_not_held_to_the_backstop() {
+        let mut ctx = Ctx::buffered();
+        assert!(call(nvs_test_grows_past_its_ceiling, &mut ctx, &[]).is_ok());
     }
 }
