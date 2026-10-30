@@ -406,7 +406,7 @@ platform Novis builds for, so one may appear that a given build omits.
   libc                                       0.2.190                        MIT                             (MIT OR Apache-2.0)
   Liberation Fonts                           2.1.5                          OFL-1.1
   libm                                       0.2.16                         MIT
-  libsqlite3-sys                             0.38.2                         MIT
+  libsqlite3-sys                             0.39.1                         MIT
   libwebp                                    1.6.0                          BSD-3-Clause
   linebender_resource_handle                 0.1.1                          MIT                             (Apache-2.0 OR MIT)
   linux-raw-sys                              0.12.1                         MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
@@ -540,7 +540,7 @@ platform Novis builds for, so one may appear that a given build omits.
   ring                                       0.17.14                        Apache-2.0 AND ISC
   roxmltree                                  0.21.1                         MIT                             (MIT OR Apache-2.0)
   rsqlite-vfs                                0.1.1                          MIT
-  rusqlite                                   0.40.2                         MIT
+  rusqlite                                   0.41.1                         MIT
   rustc-demangle                             0.1.28                         MIT                             (MIT/Apache-2.0)
   rustc-hash                                 2.1.3                          MIT                             (Apache-2.0 OR MIT)
   rustc_version                              0.4.1                          MIT                             (MIT OR Apache-2.0)
@@ -5497,8 +5497,8 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  libsqlite3-sys 0.38.2
-  rusqlite 0.40.2
+  libsqlite3-sys 0.39.1
+  rusqlite 0.41.1
 
 ------------------------------------------------------------------------------
 

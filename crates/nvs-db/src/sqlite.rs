@@ -738,7 +738,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let wal = target.wal;
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
-        let connection = if read_only {
+        let mut connection = if read_only {
             use rusqlite::OpenFlags;
             rusqlite::Connection::open_with_flags(
                 path,
@@ -1849,7 +1849,6 @@ fn walk(
 fn describe(statement: &rusqlite::Statement<'_>) -> Vec<SqliteColumn> {
     statement
         .columns()
-        .iter()
         .map(|column| SqliteColumn {
             name: column.name().to_owned(),
             declared: column.decl_type().map(str::to_owned),
