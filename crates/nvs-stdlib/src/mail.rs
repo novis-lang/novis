@@ -918,6 +918,15 @@ impl Session {
     fn expect(&mut self, want: i64, what: &str, member: &str) -> Result<Vec<String>, Fault> {
         let mut reply = Vec::new();
         loop {
+            if reply.len() == REPLY_LINES {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{member}: the reply to {what} has more than the {REPLY_LINES} lines \
+                         an SMTP reply may have"
+                    ),
+                ));
+            }
             let line = self.line(what, member)?;
             let code = line
                 .get(..3)
@@ -953,7 +962,17 @@ impl Session {
     /// A catchable `IOError` when the connection closes before one arrives.
     fn line(&mut self, what: &str, member: &str) -> Result<String, Fault> {
         loop {
-            if let Some(end) = self.held.iter().position(|byte| *byte == b'\n') {
+            let found = self.held.iter().position(|byte| *byte == b'\n');
+            if found.unwrap_or(self.held.len()) > REPLY_LINE_CEILING {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{member}: a line of the reply to {what} is longer than the \
+                         {REPLY_LINE_CEILING} bytes an SMTP reply line may be"
+                    ),
+                ));
+            }
+            if let Some(end) = found {
                 let mut line: Vec<u8> = self.held.drain(..=end).collect();
                 while line
                     .last()
@@ -980,6 +999,20 @@ impl Session {
         }
     }
 }
+
+/// The longest reply line [`Session::line`] reads, terminator excluded.
+///
+/// RFC 5321 § 4.5.3.1.5 allows 512 octets with the terminator. The cap is
+/// eight times that, so an endpoint that is a little over the limit still
+/// works, and one that never ends a line is refused at 4 KiB.
+const REPLY_LINE_CEILING: usize = 4096;
+
+/// The most lines one reply may have.
+///
+/// An `EHLO` reply is one line per extension, and endpoints advertise about
+/// twenty. With [`REPLY_LINE_CEILING`] this caps a reply at 1 MiB, which an
+/// endpoint that sends continuation lines forever runs into.
+const REPLY_LINES: usize = 256;
 
 /// The parameters `keyword` was advertised with in an `EHLO` reply, or `None`
 /// where the endpoint did not advertise it at all.
@@ -1215,6 +1248,35 @@ mod tests {
 
         // A keyword nobody offered is absent rather than empty.
         assert_eq!(advertised(&reply, "DSN"), None);
+    }
+
+    /// A reply line that never ends and a reply that never stops continuing
+    /// are both refused at their cap, so an endpoint cannot choose how much a
+    /// session holds. The endpoint here reads until the session closes, so the
+    /// refusal is never a reset.
+    #[test]
+    fn a_reply_is_capped_per_line_and_per_reply() {
+        let endless_line = "a".repeat(REPLY_LINE_CEILING + 1024);
+        let endless_reply = "220-mail.example.com\r\n".repeat(REPLY_LINES + 1);
+        for (greeting, refused) in [
+            (endless_line, "an SMTP reply line may be"),
+            (endless_reply, "lines an SMTP reply may have"),
+        ] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+            let address = listener.local_addr().expect("its address");
+            let endpoint = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().expect("the session");
+                stream.write_all(greeting.as_bytes()).expect("the greeting");
+                let mut rest = Vec::new();
+                drop(stream.read_to_end(&mut rest));
+            });
+            let Err(fault) = Session::open(address, Duration::from_secs(10), "Core\\Mail::send")
+            else {
+                panic!("a greeting past its cap was read");
+            };
+            assert!(format!("{fault:?}").contains(refused), "{fault:?}");
+            endpoint.join().expect("the endpoint thread");
+        }
     }
 
     /// RFC 4616's framing, which is three fields and not two: the empty
