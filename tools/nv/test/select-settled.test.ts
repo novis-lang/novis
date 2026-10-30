@@ -115,6 +115,28 @@ describe("a run killed halfway", () => {
     }
   }, 180_000);
 
+  test("a base commit a rewritten history removed selects everything but what ran on the tree as it is", async () => {
+    const r = repo();
+    try {
+      r.t.put(LIB, fns(10, 20, 3));
+      await r.select();
+      green(r.s, A);
+      r.s.setBase("0".repeat(40));
+      const change = await computeChange(r.s, { graph: null, root: r.t.root });
+      expect(change.global).toBe(`the recorded tree ${"0".repeat(12)} is no longer in the repository`);
+      expect(change.full).toBe(true);
+      const sel = query(r.s, change, { discovered: [A, B, C] });
+      expect(ids(sel)).toEqual([B, C]);
+      expect(sel.selected.get(B)?.why).toBe("global");
+      // A green run moves the base off the lost commit.
+      advance(r.s, change, sel, new Set([B, C]), null, r.t.root);
+      expect(r.s.base()).toBe(change.tree!.commit);
+      expect(ids(await r.select())).toEqual([]);
+    } finally {
+      r.done();
+    }
+  }, 180_000);
+
   test("a red atom stays selected, and so does an owed one", async () => {
     const r = repo();
     try {

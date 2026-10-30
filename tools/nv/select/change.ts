@@ -35,6 +35,15 @@ export async function commitOf(rev: string, root: string = ROOT): Promise<string
   return (await git(["rev-parse", "--verify", `${rev}^{commit}`], root)).trim();
 }
 
+/** Whether the repository still has the commit `rev` names. A rewritten history leaves a recorded commit
+ * that names nothing; any other failure of git throws. */
+export async function hasCommit(rev: string, root: string = ROOT): Promise<boolean> {
+  const r = await run(["git", "rev-parse", "--verify", "--quiet", `${rev}^{commit}`], { cwd: root, timeoutMs: 120_000 });
+  if (r.code === 0) return true;
+  if (r.code === 1) return false;
+  throw new Error(`git rev-parse --verify --quiet ${rev}^{commit}: exit ${r.code}\n${r.stderr.trim()}`);
+}
+
 /** Every path that differs between the commit `since` and the working tree, untracked files included,
  * sorted by path. */
 export async function changedPaths(since: string, root: string = ROOT): Promise<Change[]> {

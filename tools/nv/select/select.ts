@@ -39,7 +39,7 @@ import { buildScripts, envReaders, generatedDigest, generatedIncludes, generated
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../proofs/ledger.ts";
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
-import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot, treeSig } from "./change.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, hasCommit, namedChanges, sinceOverlay, snapshot, treeSig } from "./change.ts";
 import { diffFile, referenceWalk, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, ALL_COMPONENTS, BUILTINS_READ, builtinComponents, componentKeys, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
@@ -353,6 +353,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const base = from ? from.tree.commit : store.base();
   const sinceRev = opts.since ?? base;
   if (!sinceRev) throw new Error("the store has no recorded tree: run `bun nv select --seed` first, or name one with --since");
+  if (!from && opts.since === undefined && !opts.until && !opts.paths && !(await hasCommit(sinceRev, root))) return lostBase(store, sinceRev, opts.graph === undefined ? await metadata() : opts.graph, root);
   const since = await commitOf(sinceRev, root);
   const until = opts.until ? await commitOf(opts.until, root) : null;
   // The tree is taken first, so a file written while the change is read is a change again next time.
@@ -500,6 +501,20 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     ...(stamped ? { stamped } : {}),
     root,
   };
+}
+
+/**
+ * The change since a base commit `base` the repository no longer has, as a rewritten history leaves it:
+ * every atom is selected, with every Rust file scanned as it is now and the tree taken to be recorded.
+ * An atom stamped with a tree git still has is read against the change since that tree, so a run killed
+ * halfway keeps what it ran here too.
+ */
+async function lostBase(store: SelectStore, base: string, graph: Graph | null, root: string): Promise<ChangeSet> {
+  const tree = await snapshot(root);
+  const view = new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f]));
+  const why = `the recorded tree ${base.slice(0, 12)} is no longer in the repository`;
+  const stamped = await sinceStamps(store, tree, view, graph, root);
+  return { ...everything(view, why), rustFiles: view.size, tree, full: true, root, ...(stamped.size > 0 ? { stamped } : {}) };
 }
 
 /**
