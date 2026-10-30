@@ -392,28 +392,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Every stage is done. The first verify's two reds are fixed: `Core\Cldr` carries CLDR 49's plural
-rules (`8b3957f04`), and the body wait ends with the body (`a4874f6d7`, `Phase::Run` in
-`crates/nvs-server/src/io.rs:154`, with a served test in `crates/nvs-cli/tests/serve_isolation.rs`).
+Every stage is done. The second verify is green (23 of 23 steps), and so are the goal-end gates:
+`bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`.
+`bun nv deps --check` exits 0: 319 pins current, 18 held, 4 floating.
 
-The second verify is green: 23 of 23 steps, 8248 tests and 3173 conformance cases. The goal-end
-gates are green: `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and
-`bun nv ci --check`. That last one first found two reds, both fixed: five extension pages'
-questions restamped after the repacked `.nvsx`, and the `Core\Cldr` benches declaring their one
-Core call (`calls 1`, counted since `4beafef13`) and measured again.
+Two DONEs were refused on `floor-debt`, each for one red attack, and both are fixed at the cause.
+`ed76b4102` makes the Serialize encoder ask `budget::affords` before its buffer grows
+(`crates/nvs-runtime/src/graph.rs:661`). That turned the cache-memory attack
+(`tests/hostile/config/cache-memory/01-storing-more-than-the-limit-allows.nvs`) red at step 2,
+alone too: the walk copied each string before the carrier read it, so a 128 MB put held it twice.
+`a926faef0` makes the walk read the bytes in place (`crates/nvs-runtime/src/graph.rs:265`), and the
+memory cache encodes with `nvs_runtime::encode_within` up to its shard cap
+(`crates/nvs-stdlib/src/cache.rs:2665`). The proofs of `directive:cache.memory` and
+`Core\Serialize::encode`, and both unit tests, are green. No test is expected to go red.
 
-`bun nv deps --check` exits 0: 319 pins current, 18 held, 4 floating. Every standing decision has
-a home outside this file. The sweep finding `env-secret-proofs` is stale (its log shows exit 0),
-and no file in the tree defines it.
-
-The first DONE was refused on `floor-debt`: one red atom, the Serialize encode attack
-(`tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-callables.nvs`). Alone it
-passed, but its `FATAL` named 17.9 GB held against a 256 MB ceiling. `Core\Serialize::encode`
-grew a plain `Vec` the ceiling never asked about, so under the debt's parallel load the host ran
-out. `ed76b4102` makes `Encode::put` (`crates/nvs-runtime/src/graph.rs:661`) ask
-`budget::affords` before each growth. The attack now stops at 175 MB in 0.9 s, and the unit test
-`an_encode_past_the_ceiling_writes_nothing_and_reports_the_breach` pins it. Build, clippy and that
-test are green, and the attack's proof ran green with the fix. No test is expected to go red.
+The sweep finding `env-secret-proofs` is stale: its log shows exit 0.
 
 ### Next
 
@@ -425,6 +418,7 @@ it. The runtime change makes the debt owe its atoms again, so that check takes a
 - [x] Read the second verify's report: green. `tools/nv/cmd/ci.ts:103`
 - [x] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
 - [x] `floor-debt`'s red atom fixed at its cause. `crates/nvs-runtime/src/graph.rs:661`
+- [x] `floor-debt`'s second red atom, the cache-memory attack, fixed at its cause. `crates/nvs-runtime/src/graph.rs:265`
 
 ### Backlog
 
