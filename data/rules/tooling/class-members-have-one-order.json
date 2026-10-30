@@ -1,0 +1,13 @@
+{
+  "title": "Class members have one order, and an editor action and `nvs code order` write it on request",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/fmt-never-reorders-members",
+    "tooling/fmt-base-style-is-per",
+    "core-classes/keep-key-order-freezes-a-derived-classs-keys",
+    "core-classes/derive-property-list",
+    "tooling/nvs-code-answers-about-the-project"
+  ],
+  "guardedBy": [],
+  "goal": "member-order"
+}

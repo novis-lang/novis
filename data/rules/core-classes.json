@@ -58,6 +58,7 @@
     "core-classes/schema-apply-capability",
     "core-classes/derive-attribute",
     "core-classes/derive-property-list",
+    "core-classes/keep-key-order-freezes-a-derived-classs-keys",
     "core-classes/derive-reports-every-field",
     "core-classes/derive-generates-what-is-missing",
     "core-classes/ldap-capabilities",

@@ -42,6 +42,7 @@
     "tooling/fmt-normalizes-only-reserved-spellings",
     "tooling/fmt-never-inserts-visibility",
     "tooling/fmt-never-reorders-members",
+    "tooling/class-members-have-one-order",
     "tooling/fmt-is-idempotent",
     "tooling/fmt-is-never-a-diagnostic",
     "tooling/fmt-check-writes-nothing",

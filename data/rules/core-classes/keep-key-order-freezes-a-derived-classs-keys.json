@@ -1,0 +1,11 @@
+{
+  "title": "`#[Core\\Json\\KeepKeyOrder]` freezes a derived class's JSON key order, and compiles only beside `#[Core\\Json\\Derive]`",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/derive-attribute",
+    "core-classes/derive-property-list",
+    "tooling/class-members-have-one-order"
+  ],
+  "guardedBy": [],
+  "goal": "member-order"
+}

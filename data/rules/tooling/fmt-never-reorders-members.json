@@ -3,6 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "tooling/fmt-sorts-the-use-block",
+    "tooling/class-members-have-one-order",
     "core-classes/derive-property-list",
     "testing/bench-counters",
     "core-api/written-visibility",
