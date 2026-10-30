@@ -22,7 +22,7 @@ stages:
     context: [README.md, Cargo.toml, tools/nv/cmd/lints.ts, crates/nvs-cli/src/cache.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-fragment-tests
@@ -359,48 +359,36 @@ goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. `bun nv owners --check` passed at the end of stage 3 with 19 gap records,
-all goal-owned, and stage 4 touched no fragment or record.
+Every stage is done, and 19 gap records stand, each owned by a sibling goal. The acceptance sweep's two reds were already fixed: `bun nv proofs --gate --only
+'Core\Env::secret'` exits 0, and nightly 41033290883 ran on `1e28a23c7`, which comes before the
+`ExecutableFileBusy` fix `b9ce9d0e6`.
 
-Stage 4 landed in three commits. Paths: every playbook bullet, `tools/nv/accept/mirror.ts` and
-`AGENTS.md` name no checkout path, and the `no-checkout-path` grep matches nothing. License: the
-README names the scope, `tools/looper/` included, and the MPL-2.0 components. The code differed from
-the standing decision: `THIRD-PARTY-LICENSES.txt` lists five MPL-2.0 crates, not `avif-parse` alone,
-so the README names all five and the decision says so. Crates: `[workspace.package]` says
-`publish = false`, every member inherits it (the two bench crates too, recorded in the decision),
-and `bun nv lints --check` refuses a member or a root without it. `tools/nv/test/lints.test.ts`
-passed once (6 tests) and `bun nv lints --check` is clean. The two descriptions are plain. In
-`crates/nvs-cli/src/cache.rs`, `Loaded::script`, `Entry` and `Verified::header` are `#[cfg(test)]`,
-and the fields `Verified::header` and `Loaded::entry` carry the fallback `cfg_attr(not(test),
-expect(dead_code))`, because `load` and `relocate` set them on the production path. `cargo build`
-and `cargo clippy --all-targets -- -D warnings` are green. `a.out` is deleted.
-
-The acceptance sweep's reds were green on disk again: `env-secret-proofs`'s log shows exit 0, and
-nightly 41033290883 is the `ExecutableFileBusy` failure `b9ce9d0e6` fixed.
+Verify ran four times. Run 1 was red on `nvs-stdlib test ldap`: seven Samba operations passed
+their 30 s deadline together, the binary passed alone, no other worktree or lane used Samba, and
+Samba logged no crashed worker. Run 2 was green. `bun nv ci --check` then failed on `cargo deny`'s
+RUSTSEC-2026-0422, -0423 and -0424 against wasmtime 49.0.4, so `cf788ede6` moves the wasmtime floors
+to 49.0.5 and regenerates `THIRD-PARTY-LICENSES.txt`. Run 3 was red on
+`serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core`: it read the end
+of a connection before a response head. It passed alone, and wasmtime does not reach it. Run 4 was
+green. A playbook bullet records both load-only reds. `bun nv verify --doc`, `bun nv owners
+--closes release-hygiene` and `bun nv ci --check` are green.
 
 ### Next
 
-Stage 5, the gate. Items and anchors: `docs/goals/release-hygiene.md:353`.
-
-- [ ] Start `looper verify` with `run_in_background`, then end the turn to wait. `docs/goals/release-hygiene.md:353`
-- [ ] Fix every failure it names in one pass, then run it once more. `docs/goals/release-hygiene.md:353`
-- [ ] The goal-end gates, each red fixed. `tools/nv/cmd/owners.ts:469`
-  `bun nv verify --doc`, `bun nv owners --closes release-hygiene` and `bun nv ci --check`.
-
-Possible reds: the Rust tests over `cache.rs`, if a test reaches a gated item in a way the
-build did not show (none expected), and `cargo deny` or a manifest check that reads `publish`.
-No stage 4 check is expected red.
+Nothing in this goal. The goal is reached.
 
 ### Backlog
 
 - Sibling goals `registry-service`, `runtime-leftovers`, `spreadsheet-second-wave` and `extension-leftovers` close the
   records stages 2 and 3 wrote. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:469`).
-- Stage 5 runs `bun nv verify --doc`, `bun nv owners --closes release-hygiene` and `bun nv ci --check` before `DONE`.
+- The two load-only reds above have no known cause yet. A goal that touches the Samba fixture
+  (`crates/nvs-stdlib/tests/ldap.rs:163`) or the serve slice cases (`crates/nvs-cli/src/serve.rs:5993`)
+  finds it. `dependency-sweep` takes the wasmtime 50 hold at `Cargo.toml:353`.
