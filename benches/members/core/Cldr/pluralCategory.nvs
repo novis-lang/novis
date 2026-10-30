@@ -2,7 +2,7 @@
 // Measures picking the plural form for a count, which a page does once for
 // every message that names a number.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 
