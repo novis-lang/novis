@@ -20,7 +20,10 @@
 // endpoint.
 //
 // - `pull` reads the wall the service holds on the account, and notes it in the file. So a wall another
-//   project's loop met holds this loop too.
+//   project's loop met holds this loop too. When the service answers that it holds none, `pull` ends
+//   the file's wall, so a `retry-now` in one project lifts the wall in every project.
+// - A wall noted while the service did not answer is ended by the next `pull` that reaches it. The
+//   loop then meets that wall again in its next session, and reports it.
 // - `report` sends a wall this loop noted, and `liftShared` ends the account's wall on the service as
 //   well as in the file.
 // - Each fails open: with no home or no service that answers, the file alone holds the walls.
@@ -56,7 +59,7 @@ export class Walls {
     readonly home: string | null = null,
   ) {}
 
-  /** Notes the wall the service holds on `account` at `now`, if it holds one. */
+  /** Notes the wall the service holds on `account` at `now`, or ends the file's wall when the service holds none. */
   async pull(account: string, now: number): Promise<void> {
     if (this.home === null) return;
     let answer: unknown;
@@ -66,7 +69,11 @@ export class Walls {
       return;
     }
     const w = (answer as { wall?: { resets_at?: unknown; kind?: unknown } | null }).wall;
-    if (w === null || w === undefined || typeof w.resets_at !== "number") return;
+    if (w === null) {
+      this.lift(account);
+      return;
+    }
+    if (w === undefined || typeof w.resets_at !== "number") return;
     this.keep(account, { resetsAt: w.resets_at, kind: typeof w.kind === "string" ? w.kind : "" }, now);
   }
 

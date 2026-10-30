@@ -5,8 +5,9 @@
 // # One turn
 //
 // 1. **Gate.** A usage wall standing on the loop's account (`wall.ts`), which it first reads from
-//    looper's service when one answers, ends the turn with a `wait`
-//    before anything starts, or with an `end` when it clears later than `max_limit_wait_s`. An empty
+//    looper's service when one answers, ends the turn with a `wait` before anything starts. The wait
+//    lasts until the wall clears, or `max_limit_wait_s` when that is sooner, and the next turn reads
+//    the wall again. A `retry-now` ends the wait sooner. An empty
 //    chain ends the run, and so does a run that has started the `max_sessions` a `set` gave it. Stop,
 //    pause and the `before_run` and `before_session` hooks are the caller's gate, and so are the
 //    `after_session` hooks after the turn.
@@ -557,11 +558,8 @@ export class Driver {
     const now = Date.now();
     const w = this.walls.standing(this.account, now);
     if (w === null) return null;
-    const until = clearsAt(w);
-    const max = this.cfg.loop.max_limit_wait_s;
-    if (until - now > max * 1000) {
-      return { kind: "end", why: `the usage wall on ${this.account} clears further out than the ${max} s maximum wait` };
-    }
+    // A wall further out than the maximum wait is read again after it, so a lift elsewhere reaches the loop.
+    const until = Math.min(clearsAt(w), now + this.cfg.loop.max_limit_wait_s * 1000);
     return { kind: "wait", until, why: `the ${w.kind === "" ? "usage" : w.kind} wall on ${this.account}` };
   }
 
