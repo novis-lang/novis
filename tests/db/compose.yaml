@@ -127,8 +127,8 @@ services:
   # than one with a flag -- `rule:core-classes/db-one-api`.
   # ---------------------------------------------------------------------------------------------------
   mysql:
-    # HOLD (revisit 2026-11-16): 9.7 is MySQL's LTS line, which the `lts` tag names; 26.x is an Innovation release, supported only until the next one.
-    image: mysql:9.7.2
+    # HOLD (revisit 2026-11-30): 9.7 is MySQL's LTS line, which the `lts` tag names at 9.7.4; 26.10.0 is an Innovation release, supported only until the next one.
+    image: mysql:9.7.4
     depends_on:
       certs:
         condition: service_completed_successfully
