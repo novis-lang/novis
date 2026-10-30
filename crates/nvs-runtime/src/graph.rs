@@ -264,13 +264,16 @@ fn walk<C: Carrier>(
         | Tag::Decimal => Ok(carrier.scalar(value)),
         Tag::Str | Tag::Bytes => {
             let adopt = carrier.adopt(value);
-            // The borrow ends with this call: `as_str_bytes` reads the
-            // allocation the caller's reference keeps alive.
-            let text = borrow_str(value)
-                .expect("a `Str` or `Bytes` value carries a string header")
-                .as_bytes()
-                .to_vec();
-            let node = carrier.text(tag, &text, adopt.then_some(value));
+            // The carrier reads the bytes in place. The walk's reference keeps
+            // the allocation alive across the call, and an adopted value keeps
+            // it alive in the copy, so the borrow ends before any release. A
+            // copy here would cost a second string's bytes under the request's
+            // memory ceiling, for a payload the carrier may never write.
+            let node = {
+                let held =
+                    borrow_str(value).expect("a `Str` or `Bytes` value carries a string header");
+                carrier.text(tag, held.as_bytes(), adopt.then_some(value))
+            };
             if !adopt {
                 release(value);
             }
@@ -646,6 +649,11 @@ struct Encode {
     /// Whether the request's memory ceiling refused the buffer's growth. From
     /// then on nothing more is written, and [`encode`] gives back no bytes.
     refused: bool,
+    /// The longest payload the caller keeps, and `usize::MAX` for any.
+    limit: usize,
+    /// Whether the payload grew past [`Self::limit`]. From then on nothing
+    /// more is written, and [`encode_within`] gives back `None`.
+    over: bool,
 }
 
 impl Encode {
@@ -658,13 +666,21 @@ impl Encode {
     /// written whole before the copy into a `bytes` value was refused. The ask
     /// is the whole new block, because a reallocation holds the old one and the
     /// new one at once. What it spends: one comparison per write that fits.
+    ///
+    /// A write past [`Self::limit`] is checked first and allocates nothing, so
+    /// a caller that would throw a long payload away never pays for it, and
+    /// the buffer never grows past the limit.
     fn put(&mut self, bytes: &[u8]) {
-        if self.refused {
+        if self.refused || self.over {
             return;
         }
         let needed = self.out.len().saturating_add(bytes.len());
+        if needed > self.limit {
+            self.over = true;
+            return;
+        }
         if needed > self.out.capacity() {
-            let grown = needed.max(self.out.capacity().saturating_mul(2));
+            let grown = needed.max(self.out.capacity().saturating_mul(2).min(self.limit));
             if !crate::budget::affords(grown) {
                 self.refused = true;
                 return;
@@ -839,18 +855,38 @@ impl Carrier for Encode {
 /// Where the request's memory ceiling refused the buffer's growth, the result
 /// is empty: the breach is recorded, and the request's next poll stops it.
 pub fn encode(value: Value) -> Result<Vec<u8>, GraphError> {
+    Ok(encode_within(value, usize::MAX)?.unwrap_or_default())
+}
+
+/// [`encode`], for a caller that keeps a payload of at most `limit` bytes.
+/// **Consumes one reference to `value`.**
+///
+/// `None` is a payload longer than `limit`. The walk still runs to its end, so
+/// a graph [`encode`] refuses is refused here too, but nothing past the limit
+/// is written or allocated. The memory cache passes its size limit, so a value
+/// it could never keep costs no copy of its bytes.
+///
+/// # Errors
+///
+/// [`GraphError`], exactly as [`encode`].
+pub fn encode_within(value: Value, limit: usize) -> Result<Option<Vec<u8>>, GraphError> {
     let mut carrier = Encode {
         out: MAGIC.to_vec(),
         objects: 0,
         refused: false,
+        limit,
+        over: false,
     };
     carrier.out.push(VERSION);
     let mut seen = Seen::new();
     walk(&mut carrier, value, &mut seen, 0)?;
-    if carrier.refused {
-        return Ok(Vec::new());
+    if carrier.over {
+        return Ok(None);
     }
-    Ok(carrier.out)
+    if carrier.refused {
+        return Ok(Some(Vec::new()));
+    }
+    Ok(Some(carrier.out))
 }
 
 // ============================================================================
@@ -1438,6 +1474,35 @@ mod tests {
             ctx.over_memory_limit(),
             "the refused growth recorded no breach"
         );
+    }
+
+    /// A payload longer than the caller's limit is never written: the buffer
+    /// stops at the limit, the result is `None`, and no breach is recorded,
+    /// because the bytes past the limit were never asked for.
+    #[test]
+    fn an_encode_past_its_limit_gives_none_and_allocates_nothing_past_it() {
+        let text = Value::text(&"x".repeat(4 << 20));
+        retain(text);
+        let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
+        ctx.set_memory_limit(64 << 20);
+        assert_eq!(
+            encode_within(text, 64 << 10).expect("a string crosses any boundary"),
+            None,
+            "a payload of 4 MiB fit a limit of 64 KiB"
+        );
+        assert!(
+            !ctx.over_memory_limit(),
+            "a payload stopped at its limit recorded a breach"
+        );
+        let short = Value::text("short");
+        let kept = encode_within(short, 64 << 10)
+            .expect("a string crosses any boundary")
+            .expect("five bytes fit a limit of 64 KiB");
+        assert_eq!(
+            kept,
+            encode(Value::text("short")).expect("a string crosses")
+        );
+        release(text);
     }
 
     /// `rule:classes/serialize-is-a-closed-format`: a payload that does not carry Novis's marker and

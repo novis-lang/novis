@@ -323,7 +323,9 @@ pub use dispatch::{
 };
 pub use drain::{Drain, DrainWake};
 pub use fmt::php_float_to_string;
-pub use graph::{GraphError, copy_graph, copy_graph_into, copy_graph_to, decode, encode};
+pub use graph::{
+    GraphError, copy_graph, copy_graph_into, copy_graph_to, decode, encode, encode_within,
+};
 pub use helpers::{stringify, symbols, to_float, to_int, to_uint, value_to_string, value_truthy};
 pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,

@@ -2653,13 +2653,28 @@ nvs_runtime::nvs_helper! {
         unsafe {
             args[2].retain();
         }
-        let payload = nvs_runtime::encode(args[2]).map_err(|why| {
+        // The memory tier forgets a payload longer than its shard's cap as it
+        // lands, so the walk stops writing at that length: a value the tier
+        // could never keep costs no copy of its bytes under the request's
+        // memory ceiling.
+        let cap = match tier {
+            Tier::Memory => memory_cap(ctx),
+            Tier::Shared => None,
+        };
+        let limit = shard_cap(cap).unwrap_or(usize::MAX);
+        let payload = nvs_runtime::encode_within(args[2], limit).map_err(|why| {
             Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
         })?;
+        let Some(payload) = payload else {
+            // Only the memory tier passes a limit, and `Entries::put` takes the
+            // same exit for an arrival past it: what was under the key goes.
+            memory_forget(&scoped(ctx, &key));
+            return Ok(Value::null());
+        };
 
         match tier {
             Tier::Memory => {
-                memory_put(&scoped(ctx, &key), payload, lifetime, memory_cap(ctx));
+                memory_put(&scoped(ctx, &key), payload, lifetime, cap);
             }
             Tier::Shared => on_shared(STORE_NAME, "put", |open| {
                 // The store keeps its own clock, so it is told a length of
@@ -3067,7 +3082,7 @@ pub(crate) mod tests {
             .take_while(|line| line.trim_start() != "#[cfg(test)]")
             .filter(|line| !line.trim_start().starts_with("//"))
             .collect();
-        for half in ["nvs_runtime::encode(", "nvs_runtime::decode("] {
+        for half in ["nvs_runtime::encode_within(", "nvs_runtime::decode("] {
             let sites = shipped.iter().filter(|line| line.contains(half)).count();
             assert_eq!(
                 sites, 1,
