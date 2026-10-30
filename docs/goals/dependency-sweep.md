@@ -14,7 +14,7 @@ stages:
     context: [Cargo.toml, crates/nvs-stdlib/src/regex.rs, crates/nvs-db/src/sqlite.rs, deny.toml]
   - id: 3
     title: "the four built-in components are current, and their advisories are clear"
-    status: open
+    status: done
     context: [extensions/spreadsheet/Cargo.toml, extensions/image/Cargo.toml, extensions/intl/Cargo.toml, extensions/pdf/Cargo.toml, crates/nvs-ext/build.rs]
   - id: 4
     title: "Bun, the npm packages and the editor client are current"
@@ -327,12 +327,12 @@ Each component is its own workspace, built by `crates/nvs-ext/build.rs` with `--
 component's lockfile moves with `cargo update --manifest-path extensions/<name>/Cargo.toml`, and the
 root `cargo build` rebuilds it (`rule:packaging/the-first-party-components-are-built-in`).
 
-- [ ] spreadsheet: move the dev-dependency `calamine` to `0.37`, which clears RUSTSEC-2026-0367, -0368, -0369 and the yanked `zip` 8.6.0. Adapt `tests/excel.rs`. `cargo check --all-targets --manifest-path extensions/spreadsheet/Cargo.toml` is clean. `extensions/spreadsheet/Cargo.toml:30`, `extensions/spreadsheet/tests/excel.rs:1`
-- [ ] image: move `resvg` to `0.49`. Re-date the `harfrust` hold with its new reason, and the `color_quant` and `moxcms` holds naming `image` 0.25.10. `extensions/image/Cargo.toml:37`, `extensions/image/Cargo.toml:22`, `extensions/image/Cargo.toml:18`, `extensions/image/Cargo.toml:32`
-- [ ] intl: move `icu_experimental` to `=0.7.0` and the `icu_*` floors to `2.4`, and adapt the component. `extensions/intl/Cargo.toml:17`, `extensions/intl/Cargo.toml:27`, `extensions/intl/src/lib.rs:1`
-- [ ] pdf: re-date the `base64`, `hayro-interpret` and `usvg` holds, naming `krilla` 0.8.2 and `krilla-svg` 0.8.1. Add the `rustybuzz` entry to `deny.toml`'s `ignore`, as the standing decision says. `extensions/pdf/Cargo.toml:16`, `extensions/pdf/Cargo.toml:19`, `extensions/pdf/Cargo.toml:32`, `deny.toml:22`
-- [ ] `cargo update --manifest-path` on each of the four lockfiles, one commit per component with its bumps and the notice. `extensions/image/Cargo.lock:1`, `extensions/intl/Cargo.lock:1`, `extensions/pdf/Cargo.lock:1`, `extensions/spreadsheet/Cargo.lock:1`
-- [ ] The four `*-advisories` checks pass, `bun nv gen-attribution --check` passes, and the root `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean (`rule:testing/attribution-is-diffed-in-ci`). `THIRD-PARTY-LICENSES.txt:1`
+- [x] spreadsheet: move the dev-dependency `calamine` to `0.37`, which clears RUSTSEC-2026-0367, -0368, -0369 and the yanked `zip` 8.6.0. Adapt `tests/excel.rs`. `cargo check --all-targets --manifest-path extensions/spreadsheet/Cargo.toml` is clean. `extensions/spreadsheet/Cargo.toml:30`, `extensions/spreadsheet/tests/excel.rs:1`
+- [x] image: move `resvg` to `0.49`. Re-date the `harfrust` hold with its new reason, and the `color_quant` and `moxcms` holds naming `image` 0.25.10. `extensions/image/Cargo.toml:37`, `extensions/image/Cargo.toml:22`, `extensions/image/Cargo.toml:18`, `extensions/image/Cargo.toml:32`
+- [x] intl: move `icu_experimental` to `=0.7.0` and the `icu_*` floors to `2.4`, and adapt the component. `extensions/intl/Cargo.toml:17`, `extensions/intl/Cargo.toml:27`, `extensions/intl/src/lib.rs:1`
+- [x] pdf: re-date the `base64`, `hayro-interpret` and `usvg` holds, naming `krilla` 0.8.2 and `krilla-svg` 0.8.1. Add the `rustybuzz` entry to `deny.toml`'s `ignore`, as the standing decision says. `extensions/pdf/Cargo.toml:16`, `extensions/pdf/Cargo.toml:19`, `extensions/pdf/Cargo.toml:32`, `deny.toml:22`
+- [x] `cargo update --manifest-path` on each of the four lockfiles, one commit per component with its bumps and the notice. `extensions/image/Cargo.lock:1`, `extensions/intl/Cargo.lock:1`, `extensions/pdf/Cargo.lock:1`, `extensions/spreadsheet/Cargo.lock:1`
+- [x] The four `*-advisories` checks pass, `bun nv gen-attribution --check` passes, and the root `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean (`rule:testing/attribution-is-diffed-in-ci`). `THIRD-PARTY-LICENSES.txt:1`
 
 ### 4. Bun, the npm packages and the editor client are current
 
@@ -377,41 +377,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 landed in six commits:
-- `fancy-regex` is held on 0.19, because `jsonschema` 0.60.2 needs `^0.19` (the new standing decision).
-  The `fallible-iterator` hold is re-dated to 2026-11-30.
-- `rusqlite` 0.41.1 and `libsqlite3-sys` 0.39.1. `update_hook` and `authorizer` take `&mut self`
-  now, and `Statement::columns` returns an iterator (`crates/nvs-db/src/sqlite.rs:741`,
-  `crates/nvs-db/src/sqlite.rs:1849`). `--check-c-deps` passes.
-- The root lock's `cargo update` moved 36 packages, with the notice. No new duplicate, and
-  `cargo deny check` passes all four legs.
-- `fuzz/`, `tools/nv-scan/` and the markdown guide's locks moved, one commit each. `tools/covwrap/`
-  had nothing to take. `fuzz-advisories` and `guide-advisories` pass, and both tools build.
+Stages 1, 2 and 3 are done. Stage 3 landed in four commits, one per component:
+- spreadsheet: `calamine` 0.37 takes `zip` 9.1.3, which clears the three advisories and the yanked
+  `zip`. `tests/excel.rs` builds unchanged.
+- image: `resvg` and `usvg` 0.49.0. The root `Cargo.lock` moved too, because `nvs-ext` takes
+  `nvs-image` as a path dependency (`Cargo.toml:85`). The three holds are true and re-dated.
+- intl: `icu_experimental` `=0.7.0` and ICU4X 2.4. 0.7.0 renamed `LongDayRelativeV1` to
+  `DatetimeRelativeDayLongV1` (`extensions/intl/src/negotiate.rs:99`), and `numeric` is an `Option`
+  (`extensions/intl/src/relative.rs:100`).
+- pdf: the lock's in-range update, the three holds re-dated (`usvg`'s now names 0.49), and the
+  `rustybuzz` ignore in `deny.toml:30`.
 
-The `Explore` split found no unused workspace row in 117. Nothing was removed.
+All four `*-advisories` checks pass, `gen-attribution --check` and root `cargo deny check` pass, and
+root `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean. `bun nv deps --check`
+names no row under `extensions/`.
 
-The two sweep findings were stale. `env-secret-proofs` passes when run (`bun nv proofs --gate --only
-'Core\Env::secret'`, exit 0). The nightly run's URL returns 404, and a fresh CI run on `52c109b00`
-was queued at 14:19Z on 2026-10-30.
+The sweep finding `env-secret-proofs` is stale again. `bun nv proofs --gate --only
+'Core\Env::secret'` exits 0, and its log under `.looper/loops/main/checks/` says exit 0 too.
 
 ### Next
 
-Stage 3, the four built-in components. Files: `extensions/*/Cargo.toml`, `extensions/*/Cargo.lock`,
-`extensions/spreadsheet/tests/excel.rs`, `extensions/intl/src/`, `deny.toml`,
-`THIRD-PARTY-LICENSES.txt`. No gate. Each component is a commit of its own.
+Stage 4, Bun, the npm packages and the editor client. Files: `package.json`, `bun.lock`,
+`editors/vscode/package.json`, `editors/vscode/package-lock.json`, `editors/vscode/src/`,
+`viewer/package.json`, `tools/nv/cmd/deps.ts`, `tools/nv/test/deps.test.ts`. No gate.
 
-- [ ] spreadsheet: `calamine` to `0.37`, adapt `tests/excel.rs`. `extensions/spreadsheet/Cargo.toml:30`
-- [ ] image: `resvg` to `0.49`, and re-date three holds. `extensions/image/Cargo.toml:37`, `extensions/image/Cargo.toml:23`
-- [ ] intl: `icu_experimental` `=0.7.0`, `icu_*` floors `2.4`. `extensions/intl/Cargo.toml:27`, `extensions/intl/Cargo.toml:17`
-- [ ] pdf: re-date three holds, and add the `rustybuzz` ignore. `extensions/pdf/Cargo.toml:17`, `deny.toml:29`
-- [ ] `cargo update --manifest-path` on each lock, with its component's commit. `extensions/image/Cargo.lock:1`
-- [ ] The four `*-advisories` checks, `gen-attribution --check`, root build and clippy. `THIRD-PARTY-LICENSES.txt:1`
+- [ ] `engines.bun` `1.4.4`, and `bun install`. `package.json:10`
+- [ ] `vscode-languageclient` `^11.0.0`, `npm install`, adapt the client. `editors/vscode/package.json:572`, `editors/vscode/src/extension.ts:52`
+- [ ] Re-date the `@types/node` and `typescript` holds. `editors/vscode/package.json:590`
+- [ ] `viewer/package.json` `holds` for the two `@babel` packages. `viewer/package.json:9`
+- [ ] `bun nv deps` skips `tools/looper/`, with its test. `tools/nv/cmd/deps.ts:506`, `tools/nv/test/deps.test.ts:1`
+- [ ] Run `npm run test:headless` and `npm run lint` once each in `editors/vscode/`. `editors/vscode/package.json:561`
 
 Expected red in the gate stage: `a_header_of_every_column_equal_is_numbered_in_linear_time`
 (`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It took 12.6 s against its 10 s
 wall-clock bound in stage 1, and passes in 0.21 s alone. Its fix is to bound the work with a count,
 not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner*). A threshold
 change is not a fix. The `nvs-db` SQLite suites run on the new SQLite for the first time there.
+The intl component's tests and the `Core\Intl` conformance cases run on CLDR data 2.4 for the first
+time there too. A changed relative-time or date string is the new data, and its expected output
+moves with it.
 
 ### Backlog
 
