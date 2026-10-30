@@ -659,3 +659,223 @@ fn code_rename_refuses_a_file_that_changed_after_it_was_read() {
     assert_eq!(read(&dir, "src/Cart.nvs"), format!("{CART}\n"));
     assert_eq!(read(&dir, "public/index.nvs"), before[0].1);
 }
+
+/// A second entry point that requires two function files, one of which
+/// requires the other.
+const APP: &str = "<?nvs\nrequire '../lib/helpers.nvs';\nrequire '../lib/text/upper.nvs';\n\n\
+                   echo shout(greet()), \"\\n\";\n";
+
+const HELPERS: &str = "<?nvs\nfunction greet(): string {\n    return 'hi';\n}\n";
+
+const UPPER: &str = "<?nvs\nrequire '../helpers.nvs';\n\n\
+                     function shout(string $s): string {\n    return $s . '!';\n}\n";
+
+/// The `Shop` project with [`APP`] and the two files it requires.
+fn move_project(name: &str) -> nvs_repo::Scratch {
+    project(
+        name,
+        &[
+            ("public/app.nvs", APP),
+            ("lib/helpers.nvs", HELPERS),
+            ("lib/text/upper.nvs", UPPER),
+        ],
+    )
+}
+
+/// Every file of [`move_project`] that exists, as `(path, text)`, for a test
+/// that checks nothing was written or moved.
+fn move_files(dir: &Path) -> Vec<(String, String)> {
+    let mut paths: Vec<&str> = files(dir).iter().map(|(path, _)| *path).collect();
+    paths.extend(["public/app.nvs", "lib/helpers.nvs", "lib/text/upper.nvs"]);
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let text = fs::read_to_string(dir.join(path)).ok()?;
+            Some((path.to_owned(), text))
+        })
+        .collect()
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_moves_a_file_and_rewrites_each_require_of_it() {
+    let dir = move_project("move-file");
+    let (out, err, ok) = code(&dir, &["move", "lib/helpers.nvs", "lib/greetings.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        [
+            "lib/text/upper.nvs  1 edit",
+            "public/app.nvs  1 edit",
+            "moved lib/helpers.nvs -> lib/greetings.nvs",
+        ],
+        "{out}"
+    );
+    assert!(!dir.join("lib/helpers.nvs").exists());
+    assert_eq!(read(&dir, "lib/greetings.nvs"), HELPERS);
+    assert_eq!(
+        read(&dir, "public/app.nvs"),
+        APP.replace("lib/helpers.nvs", "lib/greetings.nvs")
+    );
+    assert_eq!(
+        read(&dir, "lib/text/upper.nvs"),
+        UPPER.replace("helpers.nvs", "greetings.nvs")
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_moves_a_directory_and_rewrites_each_require_into_it() {
+    let dir = move_project("move-directory");
+    let (out, err, ok) = code(&dir, &["move", "lib/text", "text"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("moved lib/text -> text"), "{out}");
+    assert!(!dir.join("lib/text").exists());
+    assert_eq!(
+        read(&dir, "public/app.nvs"),
+        APP.replace("../lib/text/upper.nvs", "../text/upper.nvs")
+    );
+    // The moved file's own `require` names the file it stayed beside.
+    assert_eq!(
+        read(&dir, "text/upper.nvs"),
+        UPPER.replace("../helpers.nvs", "../lib/helpers.nvs")
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_keeps_a_relative_require_relative_and_an_absolute_one_absolute() {
+    let dir = move_project("move-absolute");
+    // An absolute path with `/` between its parts, as a program writes one,
+    // without the `\\?\` a canonical Windows path starts with.
+    let root = dir.canonicalize().expect("the scratch directory exists");
+    let root = root.to_string_lossy().replace('\\', "/");
+    let root = root.strip_prefix("//?/").unwrap_or(&root);
+    let absolute = format!("<?nvs\nrequire '{root}/lib/helpers.nvs';\n\necho greet();\n");
+    fs::write(dir.join("public/absolute.nvs"), &absolute).expect("a writable scratch file");
+
+    let (_, err, ok) = code(&dir, &["move", "lib/helpers.nvs", "public/helpers.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        read(&dir, "public/app.nvs"),
+        APP.replace("'../lib/helpers.nvs'", "'helpers.nvs'")
+    );
+    let text = read(&dir, "public/absolute.nvs");
+    let literal = text
+        .lines()
+        .find_map(|line| line.strip_prefix("require '")?.strip_suffix("';"))
+        .unwrap_or_else(|| panic!("a require line: {text}"));
+    assert!(Path::new(literal).is_absolute(), "{text}");
+    assert_eq!(
+        Path::new(literal).canonicalize().ok(),
+        dir.join("public/helpers.nvs").canonicalize().ok(),
+        "{text}"
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_refuses_a_target_that_exists_and_writes_nothing() {
+    let dir = move_project("move-exists");
+    let before = move_files(&dir);
+    let (out, err, ok) = code(&dir, &["move", "lib/helpers.nvs", "src/Cart.nvs"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("`src/Cart.nvs` already exists"), "{err}");
+    assert_eq!(move_files(&dir), before);
+
+    // A directory cannot move into itself, and a missing directory is not
+    // created.
+    let (_, err, ok) = code(&dir, &["move", "lib", "lib/inner"]);
+    assert!(!ok);
+    assert!(err.contains("cannot be moved into itself"), "{err}");
+    let (_, err, ok) = code(&dir, &["move", "lib/helpers.nvs", "lib/none/helpers.nvs"]);
+    assert!(!ok);
+    assert!(err.contains("does not exist"), "{err}");
+    assert!(!dir.join("lib/none").exists());
+
+    // A source that does not exist prints the nearest files.
+    let (_, err, ok) = code(&dir, &["move", "lib/helper.nvs", "lib/greetings.nvs"]);
+    assert!(!ok);
+    assert!(err.contains("lib/helpers.nvs"), "{err}");
+    assert_eq!(move_files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_refuses_a_path_outside_the_project_and_writes_nothing() {
+    let dir = move_project("move-outside");
+    let before = move_files(&dir);
+    let name = "code-move-outside-target.nvs";
+    let (out, err, ok) = code(&dir, &["move", "lib/helpers.nvs", &format!("../{name}")]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("is outside the project"), "{err}");
+    assert!(!dir.parent().expect("a parent").join(name).exists());
+
+    // The project's parent directory exists and is outside it.
+    let (_, err, ok) = code(&dir, &["move", "..", "moved"]);
+    assert!(!ok);
+    assert!(err.contains("is outside the project"), "{err}");
+    assert!(!dir.join("moved").exists());
+    assert_eq!(move_files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_dry_run_prints_every_edit_and_moves_nothing() {
+    let dir = move_project("move-dry");
+    let before = move_files(&dir);
+    let (out, err, ok) = code(
+        &dir,
+        &["move", "lib/helpers.nvs", "lib/greetings.nvs", "--dry-run"],
+    );
+    assert!(ok, "{err}");
+    let lines: Vec<Vec<&str>> = out
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            ["lib/text/upper.nvs:2:9", "'../helpers.nvs'", "->", "'../greetings.nvs'"],
+            [
+                "public/app.nvs:2:9",
+                "'../lib/helpers.nvs'",
+                "->",
+                "'../lib/greetings.nvs'"
+            ],
+            ["move", "lib/helpers.nvs", "->", "lib/greetings.nvs"],
+        ],
+        "{out}"
+    );
+    assert_eq!(move_files(&dir), before);
+    assert!(!dir.join("lib/greetings.nvs").exists());
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_json_lists_every_edit_and_the_move() {
+    let dir = move_project("move-json");
+    let (out, err, ok) = code(&dir, &["move", "lib/text", "text", "--json"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(answer["written"], true, "{out}");
+    assert_eq!(
+        answer["moved"],
+        serde_json::json!([{ "from": "lib/text", "to": "text" }]),
+        "{out}"
+    );
+    let edits = answer["edits"].as_array().expect("an edits list");
+    assert_eq!(edits.len(), 2, "{out}");
+    for edit in edits {
+        for key in ["path", "line", "column", "start", "end", "old", "new"] {
+            assert!(edit.get(key).is_some(), "{key}: {out}");
+        }
+    }
+    // The edits name each file where it was before the move.
+    assert_eq!(edits[0]["path"], "lib/text/upper.nvs", "{out}");
+    assert_eq!(edits[0]["new"], "'../lib/helpers.nvs'", "{out}");
+    assert_eq!(edits[1]["path"], "public/app.nvs", "{out}");
+    assert_eq!(edits[1]["new"], "'../text/upper.nvs'", "{out}");
+    assert!(dir.join("text/upper.nvs").exists());
+}

@@ -7,9 +7,9 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename` writes**, through [`write_out`], the one write path: it
-//! writes only inside the project root, and only files whose bytes have not
-//! changed since this call first read them.
+//! **Only `rename` and `move` write**, through [`write_out`], the one write
+//! path: it writes only inside the project root, and only files whose bytes
+//! have not changed since this call first read them.
 //!
 //! A call costs one analysis per `.nvs` file under the project root, and
 //! nothing is kept after it: there is no cache and no daemon, because either
@@ -37,7 +37,7 @@ use std::process::ExitCode;
 use nvs_diagnostics::{SourceFile, canonical_key};
 use nvs_hir::members::edit_distance;
 use nvs_lsp::query::{self, Outline};
-use nvs_lsp::rename::Rewrite;
+use nvs_lsp::rename::{self, Rewrite};
 use nvs_lsp::{DeclKind, Declaration, Site, Workspace};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
 use serde_json::{Map, Value, json};
@@ -149,6 +149,30 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Move a file or a directory, and change every `require` that names it.
+    ///
+    /// This is the same file move that the editor does. A directory moves
+    /// with everything in it. The command does not rename a class or create
+    /// a directory.
+    ///
+    /// The command prints one line for each changed file and one for the
+    /// move. If the move is not possible, it prints why, changes nothing and
+    /// fails.
+    Move {
+        /// The file or directory to move, as `src/Cart.nvs` or `src/Shop`.
+        from: String,
+        /// The new path, as `src/Basket.nvs`. Nothing may exist there yet,
+        /// and its directory must exist.
+        to: String,
+        /// Print each change and the move, and save nothing. Each line has
+        /// the position, the old text and the new text.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved and moved.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Args {
@@ -166,6 +190,12 @@ impl Args {
                 dry_run,
                 json,
             } => rename(&target, &new_name, dry_run, json),
+            Command::Move {
+                from,
+                to,
+                dry_run,
+                json,
+            } => move_path(&from, &to, dry_run, json),
         }
     }
 }
@@ -684,6 +714,87 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
         }
         Err(message) => unknown(&escaped(&message), &[], json),
     }
+}
+
+/// `nvs code move`: the editor's file move of a file or a directory, with
+/// every `require` edit [`rename::moved`] gives, written to disk through
+/// [`write_out`], or printed with `--dry-run`.
+///
+/// Both paths are judged before anything is computed: `from` exists and is
+/// inside the project root, and `to` is inside it too, does not exist, is not
+/// inside `from`, and has a directory that exists. A directory is not created
+/// and a type is not renamed, as the editor's move does neither (the rule's
+/// Declined list).
+pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let moves = match judged_move(&project, from, to) {
+        Ok(moving) => vec![moving],
+        Err((message, nearest)) => return unknown(&message, &nearest, json),
+    };
+    let workspace = &project.workspace;
+    let rewrites = rename::moved(workspace.documents(), workspace.index(), &moves);
+    write_out(&mut project, &rewrites, &moves, dry_run, json)
+}
+
+/// `from` and `to` as the keys a move is made under, or the message and the
+/// nearest files of the first check that fails.
+fn judged_move(
+    project: &Project,
+    from: &str,
+    to: &str,
+) -> Result<(PathBuf, PathBuf), (String, Vec<String>)> {
+    let root = project.workspace.root();
+    let refused = |message: String| Err((message, Vec::new()));
+    let source = canonical_key(&project.cwd.join(from));
+    if std::fs::symlink_metadata(&source).is_err() {
+        return Err((
+            format!("no file or directory `{}` in this project", escaped(from)),
+            project.nearest_files(from),
+        ));
+    }
+    if !inside(root, &source) {
+        return refused(format!(
+            "`{}` is outside the project, so nothing was changed.",
+            escaped(from)
+        ));
+    }
+    let written = project.cwd.join(to);
+    let (Some(parent), Some(name)) = (written.parent(), written.file_name()) else {
+        return refused(format!(
+            "`{}` is not a path that a file can be moved to.",
+            escaped(to)
+        ));
+    };
+    if !parent.is_dir() {
+        return refused(format!(
+            "The directory `{}` does not exist. Create it, then run the command again.",
+            project.shown(parent)
+        ));
+    }
+    let target = canonical_key(parent).join(name);
+    if !inside(root, &target) {
+        return refused(format!(
+            "`{}` is outside the project, so nothing was changed.",
+            escaped(to)
+        ));
+    }
+    if std::fs::symlink_metadata(&target).is_ok() {
+        return refused(format!(
+            "`{}` already exists, so nothing was changed.",
+            project.shown(&target)
+        ));
+    }
+    if target.starts_with(&source) {
+        return refused(format!(
+            "`{}` is inside `{}`. A directory cannot be moved into itself.",
+            project.shown(&target),
+            project.shown(&source)
+        ));
+    }
+    Ok((source, target))
 }
 
 /// `path:line:column` split into the file, the line and the column, and

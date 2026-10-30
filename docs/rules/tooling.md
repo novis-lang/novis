@@ -2299,12 +2299,13 @@ deliberate commit.
 
 <a id="tooling-nvs-code-answers-about-the-project"></a>
 
-## `nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` writes
+## `nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` and `move` write
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
 `nvs code` has five read-only verbs over one project: `show`, `refs` and `impls` take a name, and
-`outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and `rename` writes.
+`outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and `rename` and
+`move` write.
 Each answers from `nvs_lsp::workspace` through `nvs_lsp::query`, the functions the editor's references,
 implementation and rename requests call, so the command and the editor give one answer to one question
 ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)). It is a command of its own beside `nvs agent`,
@@ -2353,6 +2354,14 @@ that may not compile.
   text, and nothing is written. `--json` gives `edits`, `moved` and `written`. A debug build reads
   one test variable, `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, that changes a file between the two reads;
   a release build has no such hook.
+- **`move <from> <to>`** is the editor's file move, `rename::moved`, and writes through the same
+  path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
+  root, and a directory moves with every file under it. `<to>` is inside the root, does not exist,
+  is not inside `<from>`, and its directory exists. Both are judged before anything is computed, and
+  a failure writes nothing. Each `require` literal that names a moved file, or that a moved file
+  writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
+  move; a move that fails after the edits names the files already changed. The output and `--json`
+  are `rename`'s, with the move as the one entry of `moved`.
 
 A call costs one cold analysis of the project, one `analyse_file` per `.nvs` file under its root, and
 nothing outlives the call. No limit and no setting is added. The walk reads each ignore file once and
@@ -2371,9 +2380,12 @@ keeps its parsed patterns, a few KiB, until it ends.
   and every project would repeat that list in a second place that drifts from the first.
 - **Reading the global git excludes file and `.git/info/exclude`.** Both are one machine's settings,
   so the same tree would give a different file list on a colleague's machine or in CI.
-- **A journal or a staged write for `rename`.** A crash between two writes leaves the project half
-  renamed, and the next `nvs check` names every site that no longer resolves. `nvs fmt` writes the
-  same way, and nothing on the request path is involved.
+- **A journal or a staged write for `rename` and `move`.** A crash between two writes leaves the
+  project half changed, and the next `nvs check` names every site that no longer resolves. `nvs fmt`
+  writes the same way, and nothing on the request path is involved.
+- **`move` renaming the type a moved file declares, or creating a missing directory.** The editor's
+  file move does neither. A type is renamed with `rename`, which moves its file too, and after a
+  move `nvs check` names any other name that no longer resolves.
 - **A disk cache of the index.** It is a second copy of the project that can be stale, and a stale
   answer is worse than a slow one. A call measured too slow on a large project is a gap against
   `nvs-lsp`, not a cache.

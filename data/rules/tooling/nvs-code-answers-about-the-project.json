@@ -1,5 +1,5 @@
 {
-  "title": "`nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` writes",
+  "title": "`nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` and `move` write",
   "status": "shipped",
   "seeAlso": [
     "ide/five-features-are-one-reference-index",

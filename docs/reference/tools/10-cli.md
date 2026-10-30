@@ -1048,10 +1048,12 @@ When one run finds both, the status is `2`.
     nvs code impls [--json] <symbol>
     nvs code outline [--json] <file>
     nvs code types [--json] <file>[:<line>[-<line>]]
+    nvs code rename [--dry-run] [--json] <symbol|path:line:column> <new-name>
+    nvs code move [--dry-run] [--json] <from> <to>
 
 Answers questions about the project you are in, from the same index the editor uses. The project is
 the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
-when there is none. Every `.nvs` file in it is read, and nothing is written.
+when there is none. Every `.nvs` file in it is read. Only `rename` and `move` change files.
 
 - `show` prints where a name is declared, its signature and its `///` comment. For a `Core` name it
   prints the card `nvs agent show` prints.
@@ -1061,6 +1063,15 @@ when there is none. Every `.nvs` file in it is read, and nothing is written.
 - `outline` prints what a file declares, one line each, with a class's members indented under it.
 - `types` prints the type of each variable a file declares with `var`. `:10` limits it to line 10,
   and `:10-20` to lines 10 to 20.
+- `rename` renames a class, a method, a property, a constant, an enum case or a variable everywhere
+  it is used. It is the rename the editor does. A local variable has no full name, so you give its
+  position. A class alone in a file with its name also gets a new file name.
+- `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
+  `<to>` must exist, and nothing may exist at `<to>` yet.
+
+`rename` and `move` save the changed files. `--dry-run` prints each change and saves nothing. If the
+change is not possible, the command prints why, changes no file and exits `1`. A file that changed
+after the command read it also stops the command, and no file is changed.
 
 A name is written in full, with its namespace: `Shop\Cart`, `Shop\Cart::addItem`,
 `Shop\Cart::$total` or `Shop\Cart::MAX`. Put it in single quotes, so the shell keeps the
