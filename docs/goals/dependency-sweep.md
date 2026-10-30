@@ -18,7 +18,7 @@ stages:
     context: [extensions/spreadsheet/Cargo.toml, extensions/image/Cargo.toml, extensions/intl/Cargo.toml, extensions/pdf/Cargo.toml, crates/nvs-ext/build.rs]
   - id: 4
     title: "Bun, the npm packages and the editor client are current"
-    status: open
+    status: done
     context: [package.json, editors/vscode/package.json, editors/vscode/src/extension.ts, viewer/package.json, tools/nv/test/deps.test.ts]
   - id: 5
     title: "CI actions and container images are current, and CI judges every lockfile's advisories"
@@ -339,12 +339,12 @@ root `cargo build` rebuilds it (`rule:packaging/the-first-party-components-are-b
 **Does:** every `package.json` pin is current or held, the editor runs on `vscode-languageclient`
 11, and `bun nv deps` no longer reads the synced looper kit.
 
-- [ ] `engines.bun` is `1.4.4`, and `bun install` writes `bun.lock`. `package.json:10`, `bun.lock:1`
-- [ ] `vscode-languageclient` `^11.0.0`, with `npm install` in `editors/vscode/`, and the client adapted to 11's API (`rule:ide/editor-clients-live-under-editors`). `editors/vscode/package.json:572`, `editors/vscode/src/extension.ts:52`, `editors/vscode/package-lock.json:1`
-- [ ] Re-date the `@types/node` and `typescript` holds, the second naming `typescript-eslint` 8.72.1. `editors/vscode/package.json:590`
-- [ ] `viewer/package.json` gets a `holds` object holding `@babel/core` and `@babel/preset-typescript` on 7, naming `babel-preset-solid` 1.9.16's peer range. `viewer/package.json:9`
-- [ ] `bun nv deps` skips `tools/looper/` as it skips `vendor/`, the head comment says why, and the test the `deps-unit` check names covers both prefixes. `tools/nv/cmd/deps.ts:9`, `tools/nv/cmd/deps.ts:506`, `tools/nv/test/deps.test.ts:1`
-- [ ] Run the `editor-headless` and `editor-lint` checks' commands once each in `editors/vscode/`. `editors/vscode/package.json:561`
+- [x] `engines.bun` is `1.4.4`, and `bun install` writes `bun.lock`. `package.json:10`, `bun.lock:1`
+- [x] `vscode-languageclient` `^11.0.0`, with `npm install` in `editors/vscode/`, and the client adapted to 11's API (`rule:ide/editor-clients-live-under-editors`). `editors/vscode/package.json:572`, `editors/vscode/src/extension.ts:52`, `editors/vscode/package-lock.json:1`
+- [x] Re-date the `@types/node` and `typescript` holds, the second naming `typescript-eslint` 8.72.1. `editors/vscode/package.json:590`
+- [x] `viewer/package.json` gets a `holds` object holding `@babel/core` and `@babel/preset-typescript` on 7, naming `babel-preset-solid` 1.9.16's peer range. `viewer/package.json:9`
+- [x] `bun nv deps` skips `tools/looper/` as it skips `vendor/`, the head comment says why, and the test the `deps-unit` check names covers both prefixes. `tools/nv/cmd/deps.ts:9`, `tools/nv/cmd/deps.ts:506`, `tools/nv/test/deps.test.ts:1`
+- [x] Run the `editor-headless` and `editor-lint` checks' commands once each in `editors/vscode/`. `editors/vscode/package.json:561`
 
 ### 5. CI actions and container images are current, and CI judges every lockfile's advisories
 
@@ -377,36 +377,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 landed in four commits, one per component:
-- spreadsheet: `calamine` 0.37 takes `zip` 9.1.3, which clears the three advisories and the yanked
-  `zip`. `tests/excel.rs` builds unchanged.
-- image: `resvg` and `usvg` 0.49.0. The root `Cargo.lock` moved too, because `nvs-ext` takes
-  `nvs-image` as a path dependency (`Cargo.toml:85`). The three holds are true and re-dated.
-- intl: `icu_experimental` `=0.7.0` and ICU4X 2.4. 0.7.0 renamed `LongDayRelativeV1` to
-  `DatetimeRelativeDayLongV1` (`extensions/intl/src/negotiate.rs:99`), and `numeric` is an `Option`
-  (`extensions/intl/src/relative.rs:100`).
-- pdf: the lock's in-range update, the three holds re-dated (`usvg`'s now names 0.49), and the
-  `rustybuzz` ignore in `deny.toml:30`.
+Stages 1 to 4 are done. Stage 4 landed in four commits:
+- `engines.bun` is `1.4.4` (`package.json:10`). `bun install` leaves `bun.lock` unchanged.
+- The editor's `@types/node` and `typescript` holds are re-dated to 2026-11-30, and the second names
+  `typescript-eslint` 8.72.1. `viewer/package.json` holds both `@babel` packages on 7, because
+  `babel-preset-solid` 1.9.16 has the peer `@babel/core` `^7.0.0`.
+- `vscode-languageclient` 11.0.0. The client compiles and bundles with no source change. 11 has an
+  `exports` map, so `require('vscode-languageclient/package.json')` fails; nothing in the tree does it.
+  `npm run test:headless` gives 356 passing, and `npm run lint` is clean.
+- `bun nv deps` skips `tools/looper/` and `vendor/` through `SKIPPED` (`tools/nv/cmd/deps.ts:510`),
+  and `filePins` is the per-file reader its test calls. `deps-unit` passes, and the tools' `tsc` is clean.
 
-All four `*-advisories` checks pass, `gen-attribution --check` and root `cargo deny check` pass, and
-root `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean. `bun nv deps --check`
-names no row under `extensions/`.
+`bun nv deps --check` names no npm row. The rows it still names are stage 5's.
 
-The sweep finding `env-secret-proofs` is stale again. `bun nv proofs --gate --only
-'Core\Env::secret'` exits 0, and its log under `.looper/loops/main/checks/` says exit 0 too.
+The sweep finding `env-secret-proofs` is stale. No goal file or `looper.toml` in the tree defines
+that check, so the driver reads it from its own record. Its log under `.looper/loops/main/checks/`
+is dated 2026-10-22 and says exit 0, and `bun nv proofs --gate --only 'Core\Env::secret'` exits 0.
+The installed `looper` has no `check` command, and `bun tools/looper/main.ts check --name
+env-secret-proofs` finds no such check. Nothing in the tree can clear it.
 
 ### Next
 
-Stage 4, Bun, the npm packages and the editor client. Files: `package.json`, `bun.lock`,
-`editors/vscode/package.json`, `editors/vscode/package-lock.json`, `editors/vscode/src/`,
-`viewer/package.json`, `tools/nv/cmd/deps.ts`, `tools/nv/test/deps.test.ts`. No gate.
+Stage 5, CI actions, container images and the advisory legs. Files: `.github/workflows/*.yml`,
+`benches/compare/`, `benches/proxied/`, `tests/db/compose.yaml`, `tools/nv/cmd/ci.ts`,
+`tools/nv/cmd/ci-changes.ts`, `docs/rules/packaging/a-dependency-move-proves-two-things.md`,
+`docs/setup.md`. Its reach checks are `deps-check` and `owners-closes`.
 
-- [ ] `engines.bun` `1.4.4`, and `bun install`. `package.json:10`
-- [ ] `vscode-languageclient` `^11.0.0`, `npm install`, adapt the client. `editors/vscode/package.json:572`, `editors/vscode/src/extension.ts:52`
-- [ ] Re-date the `@types/node` and `typescript` holds. `editors/vscode/package.json:590`
-- [ ] `viewer/package.json` `holds` for the two `@babel` packages. `viewer/package.json:9`
-- [ ] `bun nv deps` skips `tools/looper/`, with its test. `tools/nv/cmd/deps.ts:506`, `tools/nv/test/deps.test.ts:1`
-- [ ] Run `npm run test:headless` and `npm run lint` once each in `editors/vscode/`. `editors/vscode/package.json:561`
+- [ ] `Swatinem/rust-cache` v2.9.3's SHA at all 19 sites, keeping `# v2`. `.github/workflows/ci.yml:197`
+- [ ] `docker/login-action` v4.7.0's SHA, keeping `# v4`. `.github/workflows/image.yml:141`
+- [ ] The bench images, `oven/bun:1.4.4-slim` among them. `benches/compare/compose.bun.yaml:10`
+- [ ] The test database images, `mssql/server:2025-CU10-ubuntu-24.04` among them, and the LTS holds re-dated. `tests/db/compose.yaml:265`
+- [ ] The eight advisory legs in CI and `bun nv ci --check`, and the `deps` change set. `.github/workflows/ci.yml:986`, `tools/nv/cmd/ci.ts:110`, `tools/nv/cmd/ci-changes.ts:75`
+- [ ] The rule names the nine lockfiles, then `bun nv rules --render`. `docs/rules/packaging/a-dependency-move-proves-two-things.md:12`
+- [ ] `docs/setup.md` § *Versions no manifest pins*. `docs/setup.md:51`
+- [ ] `bun nv deps --check` exits 0, and `bun nv owners --closes dependency-sweep` passes. `tools/nv/cmd/deps.ts:1`
 
 Expected red in the gate stage: `a_header_of_every_column_equal_is_numbered_in_linear_time`
 (`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It took 12.6 s against its 10 s
@@ -415,7 +419,7 @@ not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner
 change is not a fix. The `nvs-db` SQLite suites run on the new SQLite for the first time there.
 The intl component's tests and the `Core\Intl` conformance cases run on CLDR data 2.4 for the first
 time there too. A changed relative-time or date string is the new data, and its expected output
-moves with it.
+moves with it. `editors/vscode/` changed, so the goal-end hook rebuilds the `.vsix`.
 
 ### Backlog
 
