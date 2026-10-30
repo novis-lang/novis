@@ -1162,6 +1162,21 @@ impl NvsArray {
         crate::budget::affords(ask)
     }
 
+    /// [`Self::affords_write`] for a write from Rust, asked only where the
+    /// write allocates: a handle that shares its storage, or storage that is
+    /// full. A write into room this handle owns asks nothing.
+    ///
+    /// This is what bounds every `Core` member that builds an array, with no
+    /// check at the member (`rule:programs/memory-priority`'s one place that
+    /// asks). What it spends: the growth arithmetic on every write, and one
+    /// comparison against the ceiling per reallocation.
+    fn may_grow(&self) -> bool {
+        if self.refcount() == 1 && self.header().table.borrow().growth_cost() == 0 {
+            return true;
+        }
+        self.affords_write()
+    }
+
     /// Writes `value` at `key`, taking over both references and separating
     /// first if this handle is not the only owner.
     pub fn set(&mut self, key: NvsStr, value: Value) {
@@ -1171,7 +1186,23 @@ impl NvsArray {
     /// [`set`](Self::set), returning whether `key` was already there. The
     /// write's own lookup gives the answer, so a decoder that refuses a
     /// repeated key asks nothing twice.
+    ///
+    /// Where the request's memory ceiling refuses the write's growth, the
+    /// array is unchanged, `key` and `value` are released, and the answer is
+    /// `false`. The breach is already recorded, so the request ends at its
+    /// next poll.
     pub fn replace(&mut self, key: NvsStr, value: Value) -> bool {
+        if !self.may_grow() {
+            drop(key);
+            #[expect(
+                unsafe_code,
+                reason = "the write took over `value`'s one reference and stores nothing"
+            )]
+            unsafe {
+                crate::release::release_value(value);
+            }
+            return false;
+        }
         self.make_unique();
         let displaced = self.header().table.borrow_mut().set(key, value);
         let was_there = displaced.is_some();
@@ -1224,7 +1255,20 @@ impl NvsArray {
     /// Writes `value` at the integer key `index`, taking over its reference,
     /// separating first if this handle is not the only owner, and building no
     /// key string while the array is a list — [`nvs_array_set_index`].
+    ///
+    /// A write the memory ceiling refuses leaves the array unchanged and
+    /// releases `value`, as [`Self::replace`] does.
     pub fn set_index(&mut self, index: i64, value: Value) {
+        if !self.may_grow() {
+            #[expect(
+                unsafe_code,
+                reason = "the write took over `value`'s one reference and stores nothing"
+            )]
+            unsafe {
+                crate::release::release_value(value);
+            }
+            return;
+        }
         self.make_unique();
         let displaced = self.header().table.borrow_mut().set_index(index, value);
         if let Some(old) = displaced {
@@ -1272,7 +1316,21 @@ impl NvsArray {
     /// index 0 by the caller cannot reach. Compiled `$a[] = …` runs over an
     /// array the *program* supplied and can, so it goes through
     /// [`Self::try_append`] and reports PHP's refusal instead.
+    ///
+    /// Where the request's memory ceiling refuses the growth, the array is
+    /// unchanged and `value` is released. The breach is already recorded, so
+    /// a producer may keep appending: each refused append allocates nothing.
     pub fn append(&mut self, value: Value) {
+        if !self.may_grow() {
+            #[expect(
+                unsafe_code,
+                reason = "the append took over `value`'s one reference and stores nothing"
+            )]
+            unsafe {
+                crate::release::release_value(value);
+            }
+            return;
+        }
         assert!(
             self.try_append(value).is_ok(),
             "an array a producer built from index 0 cannot have its next integer key occupied"

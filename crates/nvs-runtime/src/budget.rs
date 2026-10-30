@@ -1224,6 +1224,125 @@ pub fn over_ceiling() -> bool {
         && LIVE.with(Cell::get) > ceiling
 }
 
+/// Why a [`ByteWriter`] stopped writing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stopped {
+    /// The request's memory ceiling refused the buffer's growth. The breach is
+    /// recorded, and the request's next poll stops it.
+    Refused,
+    /// The bytes grew past the writer's own limit, which its caller set.
+    Over,
+}
+
+/// A byte buffer that asks the running request's budget in front of every
+/// growth, for every `Core` member that writes a payload of bytes.
+///
+/// **Asked before the allocation, not charged after it**, for [`affords`]'s
+/// reason: the live balance sees a `Vec`'s block only once it is handed over,
+/// so a payload of ten gigabytes was written whole before the copy into a
+/// `bytes` value was refused. The ask is the whole new block, because a
+/// reallocation holds the old one and the new one at once. One writer here and
+/// not a check per member, because a guard written per call site is a guard
+/// the next call site forgets.
+///
+/// After a refusal or a write past the limit, nothing more is written and
+/// nothing more is allocated, and [`Self::finish`] says which one stopped it.
+/// What it spends: one comparison per write that fits, and the buffer grows by
+/// doubling, so it holds at most twice its payload.
+#[derive(Debug)]
+pub struct ByteWriter {
+    /// The bytes written so far.
+    out: Vec<u8>,
+    /// The longest payload the caller keeps, and `usize::MAX` for any.
+    limit: usize,
+    /// What stopped the writes, once something has.
+    stopped: Option<Stopped>,
+}
+
+impl Default for ByteWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ByteWriter {
+    /// An empty writer that only the request's memory ceiling stops.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self::within(usize::MAX)
+    }
+
+    /// An empty writer that also stops once its payload would pass `limit`
+    /// bytes. A write past the limit is checked first and allocates nothing,
+    /// so a caller that would throw a long payload away never pays for it.
+    #[must_use]
+    pub const fn within(limit: usize) -> Self {
+        Self {
+            out: Vec::new(),
+            limit,
+            stopped: None,
+        }
+    }
+
+    /// Appends `bytes`, or nothing once the writer has stopped.
+    pub fn put(&mut self, bytes: &[u8]) {
+        if self.stopped.is_some() {
+            return;
+        }
+        let needed = self.out.len().saturating_add(bytes.len());
+        if needed > self.limit {
+            self.stopped = Some(Stopped::Over);
+            return;
+        }
+        if needed > self.out.capacity() {
+            let grown = needed.max(self.out.capacity().saturating_mul(2).min(self.limit));
+            if !affords(grown) {
+                self.stopped = Some(Stopped::Refused);
+                return;
+            }
+            self.out.reserve_exact(grown - self.out.len());
+        }
+        self.out.extend_from_slice(bytes);
+    }
+
+    /// Appends one byte, as [`Self::put`] does.
+    pub fn put_byte(&mut self, byte: u8) {
+        self.put(&[byte]);
+    }
+
+    /// How many bytes are written.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.out.len()
+    }
+
+    /// Whether nothing is written.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.out.is_empty()
+    }
+
+    /// What stopped the writes, or `None` while every write has landed. A
+    /// caller whose work has no other end checks this and stops its work too.
+    #[must_use]
+    pub const fn stopped(&self) -> Option<Stopped> {
+        self.stopped
+    }
+
+    /// The bytes written, or what stopped the writes. A writer that stopped
+    /// frees its partial payload here.
+    ///
+    /// # Errors
+    ///
+    /// [`Stopped`], where a write was refused or passed the limit.
+    pub fn finish(self) -> Result<Vec<u8>, Stopped> {
+        match self.stopped {
+            None => Ok(self.out),
+            Some(stopped) => Err(stopped),
+        }
+    }
+}
+
 /// The counters that say an allocation was made, whoever ends up holding the
 /// bytes.
 ///
@@ -1576,6 +1695,69 @@ mod tests {
                 "the message reads {held} bytes, the balance at the poll, and not the {spike}-byte peak: {message}"
             );
             drop(kept);
+        }
+    }
+
+    /// Stage 3's two growth seams under a 1 MiB ceiling. Each is asked to
+    /// grow to 64 MiB in one call, stops near its ceiling, and records the
+    /// breach the request's next poll reports.
+    mod a_buffer_stops_at_its_ceiling {
+        use crate::budget::{ByteWriter, Stopped};
+
+        const CEILING: usize = 1 << 20;
+        const ASKED: usize = 64 << 20;
+
+        #[test]
+        fn an_array_a_producer_fills_stops_growing_at_the_ceiling() {
+            let mut ctx = crate::Ctx::buffered();
+            ctx.set_memory_limit(CEILING);
+            let mut out = crate::NvsArray::new();
+            let entries = ASKED / size_of::<crate::Value>();
+            for at in 0..entries {
+                out.append(crate::Value::int(i64::try_from(at).expect("fits")));
+            }
+            let kept = out.count() * size_of::<crate::Value>();
+            assert!(
+                kept <= CEILING,
+                "the array kept {kept} bytes of entries under a {CEILING}-byte ceiling"
+            );
+            assert!(
+                ctx.memory_peak() <= CEILING + CEILING / 2,
+                "the array's growth peaked at {} bytes",
+                ctx.memory_peak()
+            );
+            assert!(
+                matches!(ctx.memory_breach(), Some(crate::Fault::Fatal(_))),
+                "the refused growth recorded no breach"
+            );
+            drop(out);
+        }
+
+        #[test]
+        fn a_byte_writer_stops_writing_at_the_ceiling() {
+            let mut ctx = crate::Ctx::buffered();
+            ctx.set_memory_limit(CEILING);
+            let mut out = ByteWriter::new();
+            let chunk = [7_u8; 4096];
+            for _ in 0..ASKED / chunk.len() {
+                out.put(&chunk);
+            }
+            assert_eq!(out.stopped(), Some(Stopped::Refused));
+            assert!(
+                out.len() <= CEILING,
+                "the writer kept {} bytes under a {CEILING}-byte ceiling",
+                out.len()
+            );
+            assert!(
+                ctx.memory_peak() <= CEILING + CEILING / 2,
+                "the writer's growth peaked at {} bytes",
+                ctx.memory_peak()
+            );
+            assert!(
+                matches!(ctx.memory_breach(), Some(crate::Fault::Fatal(_))),
+                "the refused growth recorded no breach"
+            );
+            assert_eq!(out.finish(), Err(Stopped::Refused));
         }
     }
 }

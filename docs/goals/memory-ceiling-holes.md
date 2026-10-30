@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 3
     title: "an array, a byte buffer and a text writer ask the budget whenever they grow"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-runtime/src/budget.rs]
   - id: 4
     title: "the graph walk, Core\\Task::map and Core\\Compress stop at the ceiling"
@@ -250,9 +250,9 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 3. an array, a byte buffer and a text writer ask the budget whenever they grow
 
-- [ ] `NvsArray`'s growth asks for the new backing at each reallocation. `append` and `set` leave the array unchanged on a refusal. `crates/nvs-runtime/src/array.rs:1275`, `crates/nvs-runtime/src/array.rs:1167`, `crates/nvs-runtime/src/array.rs:1155`
-- [ ] The shared byte writer in `budget`, taken out of `Encode::put`. `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`, `crates/nvs-runtime/src/budget.rs:1171`
-- [ ] Unit tests: an array and the writer under a 1 MiB ceiling stop at it and record the breach. Run once by name.
+- [x] `NvsArray`'s growth asks for the new backing at each reallocation. `append` and `set` leave the array unchanged on a refusal. `crates/nvs-runtime/src/array.rs:1275`, `crates/nvs-runtime/src/array.rs:1167`, `crates/nvs-runtime/src/array.rs:1155`
+- [x] The shared byte writer in `budget`, taken out of `Encode::put`. `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`, `crates/nvs-runtime/src/budget.rs:1171`
+- [x] Unit tests: an array and the writer under a 1 MiB ceiling stop at it and record the breach. Run once by name.
 
 ### 4. the graph walk, Core\Task::map and Core\Compress stop at the ceiling
 
@@ -337,31 +337,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. A memory `FATAL` reports `Ctx::memory_held`, the higher of the balance and
-`budget`'s existing `PEAK` mark (`crates/nvs-runtime/src/ctx/limits.rs:673`). A debug build's
-`run_helper` calls `overshoot_backstop` after each body (`crates/nvs-runtime/src/abi.rs:593`), which
-panics naming the body's closure type past `Ctx::overshoot_bound`. Both `ceiling-backstop` tests pass.
-Build and clippy are green, and no full test run was made.
+Stages 1 to 3 are done; build and clippy green, no full test run. `NvsArray::append`, `replace` and
+`set_index` ask `may_grow` (`crates/nvs-runtime/src/array.rs:1173`): nothing for a unique array with
+room, `affords_write` otherwise. A refused write releases its value and leaves the array as it was.
+`budget::ByteWriter` (`crates/nvs-runtime/src/budget.rs:1253`) is `Encode::put` moved out, and
+`finish` gives `Err(Stopped::Refused | Stopped::Over)`. `encode_within` still maps a refusal to
+`Some(empty)`. `StrWriter::grow` is unchanged: asking the difference keeps a doubling within 1.5x.
+A memory `FATAL` reports the peak (`crates/nvs-runtime/src/ctx/limits.rs:673`), and a debug build's
+`overshoot_backstop` (`crates/nvs-runtime/src/abi.rs:593`) panics naming a member past the bound.
 
-Expected red at the gate, each a member for stages 4 to 8 and not a test to loosen: a Rust test that
-grows past 1.5x its ceiling plus 8 MiB inside one call now gets an `inside one call` `FATAL`. A test
-that compares an exact `N bytes held` figure may read the higher peak: look first at
-`crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/server_memory.rs` and
-`crates/nvs-stdlib/src/budget.rs`.
-
-`bun nv proofs --overshoot` (stage 1) was red on 9 attacks before the peak, worst first: `Task/map`,
-`Str/join`, `Compress-Compressor/finish`, `core-task-map-one-task-per-element`,
-`Compress-Compressor/add`, `Compress/compressor`, both `Uri/encode*`, `Bytes/unpack`. Readings now
-rise, so expect more. Those attacks keep `floor-debt` and `proofs-gate` red until stages 4 and 5. The
-sweep's `env-secret-proofs` red is a stale log of Oct 22: no check by that name is defined.
+Expected red at the gate, each a member for stages 4 to 8 and not a test to loosen: a member that
+builds an array past its ceiling now returns a shorter one; a test growing past 1.5x plus 8 MiB in one
+call gets an `inside one call` `FATAL`; an exact `N bytes held` figure may read the higher peak. Look
+first at `crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/server_memory.rs` and
+`crates/nvs-stdlib/src/budget.rs`. `bun nv proofs --overshoot` was red on 9 attacks, worst first:
+`Task/map`, `Str/join`, `Compress-Compressor/finish`, `core-task-map-one-task-per-element`,
+`Compress-Compressor/add`, `Compress/compressor`, both `Uri/encode*`, `Bytes/unpack`. They keep
+`floor-debt` and `proofs-gate` red until stages 4 and 5. The sweep's `env-secret-proofs` red was an
+orphan log with no check behind it, now deleted.
 
 ### Next
 
-Stage 3, one group: `array.rs`, `graph.rs` and `budget.rs` under `crates/nvs-runtime/src/`. No gate.
-After a change to how `budget` arms or charges, run `bun nv proofs --run --group 'Core\Task'`.
+Stage 4, two groups. First `graph.rs` and `cache.rs`, then `task.rs`, `group.rs` and `compress.rs`.
+After the `Core\Task` change, run `bun nv proofs --run --group 'Core\Task'`.
 
-- [ ] `NvsArray`'s growth asks `budget::affords` at each reallocation; `append` and `set` keep the array on a refusal. `crates/nvs-runtime/src/array.rs:1275`
-- [ ] The shared byte writer in `budget`, out of `Encode::put`, and `encode` uses it. `crates/nvs-runtime/src/graph.rs:661`
-- [ ] Unit tests: an array and the writer under a 1 MiB ceiling stop at it, run once by name. `crates/nvs-runtime/src/budget.rs:1171`
+- [ ] `Live` asks for each copied string and array. `crates/nvs-runtime/src/graph.rs:538`
+- [ ] `walk` returns at the first refusal: `Encode` checks `self.out.stopped()`, and `Live` its own flag. `crates/nvs-runtime/src/graph.rs:239`
+- [ ] `encode_within` gives a third outcome for `Stopped::Refused`, and the cache's `put` stores nothing on it. `crates/nvs-runtime/src/graph.rs:838`, `crates/nvs-stdlib/src/cache.rs:2668`
+- [ ] `Core\Task::map` and `Task::all` ask for each stack charge first. `crates/nvs-stdlib/src/task.rs:513`
+- [ ] `Compressor::finish` writes through `ByteWriter`. `crates/nvs-stdlib/src/compress.rs:1204`
+- [ ] The two doubling-graph attacks, as steps of the existing `Serialize/encode` and `Topic/publish` attacks. `tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-callables.nvs:1`
 
 ### Backlog

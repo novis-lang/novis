@@ -86,6 +86,7 @@
 use std::collections::HashMap;
 
 use crate::array::{NvsArray, SlotKey};
+use crate::budget::{ByteWriter, Stopped};
 use crate::decimal::Decimal;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
 use crate::string::NvsStr;
@@ -642,57 +643,22 @@ pub fn copy_graph_to(
 
 /// The graph copy's second carrier: the same walk, appending `rule:classes/serialize-is-a-closed-format`'s closed format.
 struct Encode {
-    /// The payload so far, magic and version already written.
-    out: Vec<u8>,
+    /// The payload so far, magic and version first. It asks the request's
+    /// budget in front of every growth and stops at the caller's limit.
+    out: ByteWriter,
     /// How many objects have been opened — the index a back-reference names.
     objects: usize,
-    /// Whether the request's memory ceiling refused the buffer's growth. From
-    /// then on nothing more is written, and [`encode`] gives back no bytes.
-    refused: bool,
-    /// The longest payload the caller keeps, and `usize::MAX` for any.
-    limit: usize,
-    /// Whether the payload grew past [`Self::limit`]. From then on nothing
-    /// more is written, and [`encode_within`] gives back `None`.
-    over: bool,
 }
 
 impl Encode {
-    /// Appends `bytes`, asking the request's budget in front of every growth
-    /// of the buffer.
-    ///
-    /// **Asked before the allocation, not charged after it**, for
-    /// [`crate::budget::affords`]'s reason: the live balance sees a `Vec`'s
-    /// block only once it is handed over, so a payload of ten gigabytes was
-    /// written whole before the copy into a `bytes` value was refused. The ask
-    /// is the whole new block, because a reallocation holds the old one and the
-    /// new one at once. What it spends: one comparison per write that fits.
-    ///
-    /// A write past [`Self::limit`] is checked first and allocates nothing, so
-    /// a caller that would throw a long payload away never pays for it, and
-    /// the buffer never grows past the limit.
+    /// Appends `bytes`, as [`ByteWriter::put`] does.
     fn put(&mut self, bytes: &[u8]) {
-        if self.refused || self.over {
-            return;
-        }
-        let needed = self.out.len().saturating_add(bytes.len());
-        if needed > self.limit {
-            self.over = true;
-            return;
-        }
-        if needed > self.out.capacity() {
-            let grown = needed.max(self.out.capacity().saturating_mul(2).min(self.limit));
-            if !crate::budget::affords(grown) {
-                self.refused = true;
-                return;
-            }
-            self.out.reserve_exact(grown - self.out.len());
-        }
-        self.out.extend_from_slice(bytes);
+        self.out.put(bytes);
     }
 
-    /// Appends one byte, as [`Self::put`] does.
+    /// Appends one byte, as [`ByteWriter::put`] does.
     fn put_byte(&mut self, byte: u8) {
-        self.put(&[byte]);
+        self.out.put_byte(byte);
     }
 
     /// A length or an index, LEB128.
@@ -871,22 +837,18 @@ pub fn encode(value: Value) -> Result<Vec<u8>, GraphError> {
 /// [`GraphError`], exactly as [`encode`].
 pub fn encode_within(value: Value, limit: usize) -> Result<Option<Vec<u8>>, GraphError> {
     let mut carrier = Encode {
-        out: MAGIC.to_vec(),
+        out: ByteWriter::within(limit),
         objects: 0,
-        refused: false,
-        limit,
-        over: false,
     };
-    carrier.out.push(VERSION);
+    carrier.out.put(MAGIC);
+    carrier.out.put_byte(VERSION);
     let mut seen = Seen::new();
     walk(&mut carrier, value, &mut seen, 0)?;
-    if carrier.over {
-        return Ok(None);
+    match carrier.out.finish() {
+        Ok(payload) => Ok(Some(payload)),
+        Err(Stopped::Over) => Ok(None),
+        Err(Stopped::Refused) => Ok(Some(Vec::new())),
     }
-    if carrier.refused {
-        return Ok(Some(Vec::new()));
-    }
-    Ok(Some(carrier.out))
 }
 
 // ============================================================================
