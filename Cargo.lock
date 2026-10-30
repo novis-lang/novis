@@ -4537,6 +4537,7 @@ version = "0.0.1"
 dependencies = [
  "nvs-host",
  "nvs-repo",
+ "nvs-runtime",
 ]
 
 [[package]]

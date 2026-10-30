@@ -645,8 +645,14 @@ impl Connection {
     }
 
     /// Reads the next message, which must answer request `id`.
+    ///
+    /// The inbox asks the request's budget before it grows. Once a message's
+    /// header has arrived the ask is for the whole message, so a message
+    /// larger than the request can hold is refused before it is read. The ask
+    /// is the whole new block, because the old one is held while it is copied.
     fn receive(&mut self, id: i32, operation: &str) -> Result<Incoming, Error> {
         loop {
+            let mut wanted = self.inbox.len() + READ_CHUNK;
             if let Some((head, length)) = ber::header(&self.inbox)? {
                 let total = head + length;
                 if self.inbox.len() >= total {
@@ -657,6 +663,17 @@ impl Connection {
                     }
                     return self.answer(incoming, id, operation);
                 }
+                wanted = wanted.max(total);
+            }
+            let capacity = self.inbox.capacity();
+            if wanted > capacity {
+                if !nvs_runtime::budget::affords(wanted.max(capacity.saturating_mul(2))) {
+                    // The rest of the message is still on the wire, so the
+                    // connection is not reused.
+                    self.settled = false;
+                    return Err(beyond_memory(operation));
+                }
+                self.inbox.reserve(wanted - self.inbox.len());
             }
             let start = self.inbox.len();
             self.inbox.resize(start + READ_CHUNK, 0);
@@ -732,6 +749,22 @@ fn unexpected(operation: &str) -> Error {
         Kind::Protocol,
         format!("{operation}: the server answered with another operation"),
     )
+}
+
+/// What a read stops with once the request cannot afford what it would hold.
+/// The breach is already recorded, so the request ends at its next poll with
+/// the memory `FATAL`, and no program sees this error.
+pub(crate) fn beyond_memory(operation: &str) -> Error {
+    Error::new(
+        Kind::SizeLimitExceeded,
+        format!("{operation}: the answer is larger than the request's memory limit"),
+    )
+}
+
+/// Whether the request is past its memory ceiling or was refused a growth: a
+/// loop that builds entries with no poll inside asks this once per entry.
+pub(crate) fn out_of_memory() -> bool {
+    nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused()
 }
 
 /// `password` as AD stores it in `unicodePwd`: the text between double
@@ -969,7 +1002,15 @@ impl Cursor {
         loop {
             let incoming = connection.receive(id, "the search")?;
             match incoming.op {
-                Op::SearchEntry(entry) => self.page.push_back(entry),
+                Op::SearchEntry(entry) => {
+                    // A page is many entries read in one call, so it asks
+                    // once per entry whether the request still fits.
+                    self.page.push_back(entry);
+                    if out_of_memory() {
+                        connection.settled = false;
+                        return Err(beyond_memory("the search"));
+                    }
+                }
                 Op::SearchReference(urls) => self.references.extend(urls),
                 Op::SearchDone(result) => {
                     connection.settled = true;

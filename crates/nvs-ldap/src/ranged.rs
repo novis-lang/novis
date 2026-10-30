@@ -12,7 +12,7 @@
 //! while the search that found it waits between pages. The merged list is the
 //! whole attribute, held in the entry for as long as the entry is.
 
-use crate::conn::{Connection, Cursor};
+use crate::conn::{Connection, Cursor, beyond_memory, out_of_memory};
 use crate::error::{Error, Kind};
 use crate::proto::{Entry, Filter, Scope, SearchRequest};
 
@@ -82,7 +82,22 @@ pub fn complete(connection: &mut Connection, mut entry: Entry) -> Result<Entry, 
             let next = ended + 1;
             match fetch(connection, &entry.dn, &range.plain, next)? {
                 Some(slice) => {
+                    // The merged list asks the request's budget for each new
+                    // block, old and new held at once, and the loop stops once
+                    // the request is past its ceiling.
+                    let wanted = values.len() + slice.values.len();
+                    if wanted > values.capacity() {
+                        let block = wanted.max(values.capacity().saturating_mul(2));
+                        let bytes = block.saturating_mul(std::mem::size_of::<Vec<u8>>());
+                        if !nvs_runtime::budget::affords(bytes) {
+                            return Err(beyond_memory("a ranged attribute"));
+                        }
+                        values.reserve_exact(block - values.len());
+                    }
                     values.extend(slice.values);
+                    if out_of_memory() {
+                        return Err(beyond_memory("a ranged attribute"));
+                    }
                     last = slice.last;
                 }
                 None => break,
@@ -149,7 +164,12 @@ fn fetch(
             if !range.plain.eq_ignore_ascii_case(plain) {
                 continue;
             }
-            if range.first != from || range.last.is_some_and(|last| last < from) {
+            // A range that ends before it starts, or one that carries no
+            // value but asks for more, would never reach its end.
+            if range.first != from
+                || range.last.is_some_and(|last| last < from)
+                || (range.last.is_some() && attribute.values.is_empty())
+            {
                 return Err(Error::new(
                     Kind::Protocol,
                     format!(

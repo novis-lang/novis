@@ -28,6 +28,9 @@ doctest = false
 # crate with LDAP's types sits on a ten-encoding ASN.1 framework, for a BER
 # subset of a tag byte, a length and a body.
 nvs-host.workspace = true
+# The request's memory budget. A search reads into buffers on the request's
+# thread, so each growth asks `budget::affords` first, as `nvs-db`'s readers do.
+nvs-runtime.workspace = true
 
 [dev-dependencies]
 # `tests/samba.rs` reads `tests/db/ca.crt`, the anchor of the compose servers.
