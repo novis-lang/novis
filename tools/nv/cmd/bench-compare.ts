@@ -130,7 +130,7 @@ export const PEERS: Peer[] = [
     stack: "compose.php.yaml",
     nginx: "fastcgi.conf",
     port: 18442,
-    image: "php:8.5.11-fpm",
+    image: "php:8.5.12-fpm",
     env: () => ({}),
     settings: (ctx) => ({ server: "php-fpm", pm: "static", "pm.max_children": phpChildren(ctx.concurrency), ...effectivePhp([PHP_INI, FILE_CHECK_INI]) }),
     prepare: (ctx) => renderPool(phpChildren(ctx.concurrency)),

@@ -463,7 +463,7 @@ async function main(o: Options): Promise<number> {
     ratio_origin: round(origin, 4),
     caveats,
     arms,
-    images: { php: "php:8.5.11-fpm", nginx: "nginx:1.31.7-alpine", oha: "ghcr.io/hatoo/oha@sha256:3ec3dbf5" },
+    images: { php: "php:8.5.12-fpm", nginx: "nginx:1.31.7-alpine", oha: "ghcr.io/hatoo/oha@sha256:3ec3dbf5" },
     php_ini: effectivePhp(),
     config_digests: digests(),
     nvs_source: o.nvsBin !== null ? "prebuilt" : "built from this checkout",

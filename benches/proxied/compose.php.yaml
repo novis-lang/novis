@@ -13,7 +13,7 @@ name: nvs-bench-php
 services:
   # PHP 8.5.11, pinned to the patch so every row of `benches/serve-proxied.json` measures one PHP.
   php:
-    image: php:8.5.11-fpm
+    image: php:8.5.12-fpm
 
     # The budget the whole comparison rests on, and the same number `compose.nvs.yaml` gives
     # `nvs serve` (README § *The CPU budget, and the two arms*): one cpu in the fair arm, and

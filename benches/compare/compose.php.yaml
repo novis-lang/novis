@@ -7,7 +7,7 @@ name: nvs-compare-php
 
 services:
   app:
-    image: php:8.5.11-fpm
+    image: php:8.5.12-fpm
 
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
