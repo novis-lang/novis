@@ -694,21 +694,41 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
     for envelope in drained.envelopes() {
         let subscribers = subscribers_of(envelope.topic());
         let resolve = |name: &str| ctx.class_desc(name);
+        let mut size = envelope.payload().len();
         for inbox in &subscribers {
-            // The same bound the local walk keeps, asked before the decode for
-            // the same reason it is asked before the copy.
-            if !inbox.has_room() {
+            // The same bounds the local walk keeps, asked before the decode for
+            // the same reason they are asked before the copy.
+            if !inbox.has_room() || !inbox.has_room_for(size) {
                 inbox.note_overflow();
                 continue;
             }
-            let Ok(value) = nvs_runtime::decode(envelope.payload(), &resolve) else {
+            // The decode is made on this turn and handed on, so it is asked
+            // for here. A refusal records the breach, and this request ends at
+            // its next poll.
+            if !budget::affords(size) {
+                return;
+            }
+            let Some((value, made)) =
+                measured(|| nvs_runtime::decode(envelope.payload(), &resolve).ok())
+            else {
                 break;
             };
-            if let Some(refused) = inbox.push(Delivery::new(envelope.topic(), value)) {
+            size = made;
+            if let Some(refused) = inbox.push_sized(Delivery::new(envelope.topic(), value), made) {
                 release_crossed(refused.into_value());
             }
         }
     }
+}
+
+/// Runs `make` and returns what it made with the bytes the running request's
+/// balance rose by meanwhile, which is what a copy handed to a subscriber
+/// takes. A collection that freed more than `make` allocated reads as `0`.
+fn measured(make: impl FnOnce() -> Option<Value>) -> Option<(Value, usize)> {
+    let before = budget::live_bytes();
+    let made = make()?;
+    let grew = usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0);
+    Some((made, grew))
 }
 
 /// Publishes `text` on `topic` as `Core\Topic::publish($topic, $text)` does,
@@ -774,13 +794,17 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_publish(_ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
         let subscribers = subscribers_of(topic);
+        let before = budget::live_bytes();
         let mut first = Some(cross(args[1])?);
+        let mut size = usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0);
         let mut delivered: u64 = 0;
         for inbox in &subscribers {
-            // The subscriber queue's bound, asked before the copy is made
+            // The subscriber queue's bounds, asked before the copy is made
             // rather than after: a subscriber that is already being closed
-            // costs this publisher nothing but the test. `nvs_runtime::peer` owns the rest of it.
-            if !inbox.has_room() {
+            // costs this publisher nothing but the test. The byte bound is
+            // asked with the size of the last copy, which every further copy
+            // of the same value repeats. `nvs_runtime::peer` owns the rest of it.
+            if !inbox.has_room() || !inbox.has_room_for(size) {
                 inbox.note_overflow();
                 continue;
             }
@@ -788,15 +812,26 @@ nvs_runtime::nvs_helper! {
             // the one above is the one that reports it: a further copy of the
             // same unchanged value cannot decide differently, and this `?` is
             // unreachable in the same sense the module doc's decision is.
-            let copy = match first.take() {
-                Some(made) => made,
-                None => cross(args[1])?,
+            let (copy, made) = match first.take() {
+                Some(made) => (made, size),
+                None => {
+                    // Each further copy is this request's until it is queued,
+                    // so it is asked for first. A refusal records the breach,
+                    // and the request ends at its next poll.
+                    if !budget::affords(size) {
+                        break;
+                    }
+                    let before = budget::live_bytes();
+                    let copy = cross(args[1])?;
+                    (copy, usize::try_from(budget::live_bytes().wrapping_sub(before)).unwrap_or(0))
+                }
             };
-            // Nothing between `has_room` and here can have filled the queue —
-            // this core is the only one that pushes into its own subscribers'
-            // queues, and neither call suspends — so the refusal is written for
-            // the ownership rule rather than for a path a publish reaches.
-            if let Some(refused) = inbox.push(Delivery::new(topic, copy)) {
+            size = made;
+            // Nothing between the tests above and here can have filled the
+            // queue — this core is the only one that pushes into its own
+            // subscribers' queues, and neither call suspends. The byte bound
+            // is asked again with the copy's real size.
+            if let Some(refused) = inbox.push_sized(Delivery::new(topic, copy), made) {
                 release_crossed(refused.into_value());
                 continue;
             }
@@ -804,6 +839,11 @@ nvs_runtime::nvs_helper! {
         }
         if let Some(unused) = first {
             release_crossed(unused);
+        }
+        // A copy refused above ends this request at its next poll, so it
+        // encodes nothing more for the other cores.
+        if budget::refused() {
+            return Ok(Value::uint(delivered));
         }
         if crate::bus::subscribers_elsewhere(topic) > 0 {
             delivered += crate::bus::hand_off(topic,externalize(args[1])?);
@@ -1390,5 +1430,42 @@ mod tests {
         let reached = publish(&mut publisher, "room:slow", "and on").expect("a publish");
         assert_eq!(reached, 1, "the reader is still a subscriber");
         drained(&mut reader, "room:slow");
+    }
+
+    /// The queue's byte bound: a subscriber that never reads holds at most its
+    /// own memory limit in deliveries, however far below the count bound the
+    /// publishes stop, and the next one past it takes the slow-subscriber path.
+    #[test]
+    fn a_subscriber_that_never_reads_holds_at_most_its_memory_limit() {
+        const LIMIT: usize = 64 * 1024;
+        let mut sleeper = connected();
+        sleeper.set_memory_limit(LIMIT);
+        call(nvs_core_topic_subscribe, &mut sleeper, "room:large").expect("the slow one joins");
+        let inbox = sleeper.deliveries().expect("a subscribe makes the queue");
+
+        let large = "x".repeat(16 * 1024);
+        let mut publisher = Ctx::buffered();
+        let mut reached = 0;
+        for _ in 0..16 {
+            reached += publish(&mut publisher, "room:large", &large).expect("a publish");
+        }
+
+        assert!(
+            (1..16).contains(&reached),
+            "the byte bound stopped the queue after {reached} of 16 deliveries"
+        );
+        assert!(
+            inbox.held_bytes() <= LIMIT,
+            "the queue holds {} bytes against a {LIMIT}-byte limit",
+            inbox.held_bytes()
+        );
+        assert!(
+            inbox.len() < INBOX_CAP,
+            "the count bound is not what stopped it"
+        );
+        assert!(
+            inbox.overflowed(),
+            "a refusal past the bytes closes the subscriber"
+        );
     }
 }

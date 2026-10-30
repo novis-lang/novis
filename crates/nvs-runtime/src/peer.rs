@@ -63,11 +63,13 @@
 //! # What it spends
 //!
 //! Up to [`INBOX_CAP`] deliveries per **live connection that subscribed to
-//! something** — a `Box<str>` and a 16-byte value each, so about 8 KiB of
-//! queue slots, plus the published copies themselves, which are the publisher's
-//! allocations and are bounded by its own `[limits] memory`. It is
-//! O(live connections), never O(publishes), which is the whole point of the
-//! cap: a subscriber that stops reading is closed rather than accumulated.
+//! something** — a `Box<str>`, a 16-byte value and a size each, so about
+//! 10 KiB of queue slots, plus the published copies themselves. Those are at
+//! most the subscriber's own `[limits] memory`, and they are charged to the
+//! subscriber's tree as they are queued ([`Inbox::push_sized`]), so the
+//! request that frees a copy is the one that holds it. It is O(live
+//! connections), never O(publishes), which is the whole point of the cap: a
+//! subscriber that stops reading is closed rather than accumulated.
 //!
 //! Beyond that: one boxed trait object per connection isolate, and one buffer per frame in
 //! flight — a `String` or a `Vec<u8>` the caller is handed and then owns.
@@ -111,6 +113,9 @@ pub struct Delivery {
     /// The published value, already copied across the boundary by the
     /// publisher — `rule:classes/graph-copy`, as `rule:core-classes/topic` requires of anything the bus hands a subscriber.
     value: crate::Value,
+    /// The bytes the copy took, as [`Inbox::push_sized`] counted them against
+    /// the queue's byte bound, and what [`Inbox::pop`] gives back to it.
+    bytes: usize,
 }
 
 impl Delivery {
@@ -122,6 +127,7 @@ impl Delivery {
         Self {
             topic: topic.into(),
             value,
+            bytes: 0,
         }
     }
 
@@ -142,14 +148,13 @@ impl Delivery {
 /// and that connection is closed.
 ///
 /// The module doc owns why an overflow closes the subscriber and what the queue
-/// spends. The number is a *count* rather than a size, because the bytes are
-/// already bounded twice over: a published value is a graph copy the publisher
-/// allocated under its own `[limits] memory`, and the connection holding them
-/// has a memory limit of its own (`rule:concurrency/a-connection-is-a-root-isolate`). 256 is far more than the gap between a
-/// publish and the `receive()` that drains it — a connection that is running at
-/// all empties its whole queue at every wait — so reaching it means this
-/// subscriber has not run for 256 publishes, which is `rule:core-classes/topic`'s "slow subscriber"
-/// and not a burst.
+/// spends. The bytes have a bound of their own beside this count: the queue
+/// holds at most its subscriber's `[limits] memory` ([`Inbox::push_sized`]),
+/// and each delivery is charged to the subscriber's tree as it is queued. 256
+/// is far more than the gap between a publish and the `receive()` that drains
+/// it — a connection that is running at all empties its whole queue at every
+/// wait — so reaching it means this subscriber has not run for 256 publishes,
+/// which is `rule:core-classes/topic`'s "slow subscriber" and not a burst.
 pub const INBOX_CAP: usize = 256;
 
 /// How many topics one connection may have joined at once before the next
@@ -237,6 +242,18 @@ pub struct Inbox {
     /// [`Self::left`], and nothing else does, so a row this connection is in is
     /// counted exactly once.
     topics: std::cell::Cell<usize>,
+    /// The bytes the queued deliveries took, which [`Self::limit`] bounds.
+    held: std::cell::Cell<usize>,
+    /// The subscriber's memory limit in bytes as it last subscribed, or `0`
+    /// for none. [`Self::bind`] writes it.
+    limit: std::cell::Cell<usize>,
+    /// The subscriber's request tree, where a delivery's bytes are charged as
+    /// it is queued, or [`None`] where the subscriber runs on no tree's turn
+    /// and the bytes stay on the balance that allocated them.
+    ///
+    /// **What it spends:** one pointer per connection that subscribed, and an
+    /// `Arc` count on its tree's state.
+    tree: std::cell::RefCell<Option<std::sync::Arc<crate::TreeState>>>,
 }
 
 impl std::fmt::Debug for Inbox {
@@ -250,6 +267,7 @@ impl std::fmt::Debug for Inbox {
             .field("overflowed", &self.overflowed.get())
             .field("parked", &self.waiting.borrow().is_some())
             .field("topics", &self.topics.get())
+            .field("held", &self.held.get())
             .finish()
     }
 }
@@ -269,17 +287,60 @@ impl Inbox {
     /// because it runs the waiting task's scheduler and not this queue.
     #[must_use = "a refused delivery still owns a reference the caller has to release"]
     pub fn push(&self, delivery: Delivery) -> Option<Delivery> {
+        self.push_sized(delivery, 0)
+    }
+
+    /// Queues one delivery whose copy took `bytes`, as [`Self::push`] does,
+    /// and charges those bytes to the subscriber's tree.
+    ///
+    /// The queue refuses a delivery that would take it past its subscriber's
+    /// memory limit, on the same overflow path as a full count: a subscriber
+    /// that has not read that much is the slow subscriber
+    /// `rule:core-classes/topic` closes. A delivery taken moves its bytes off
+    /// the publishing tree and onto the subscriber's
+    /// ([`crate::budget::hand_to`]), so the request that frees the copy is the
+    /// one that was charged for it. The publisher never accumulates the copies
+    /// a fan-out makes.
+    ///
+    /// **Cost:** two compares and, where the bytes move, three thread-local
+    /// writes and one relaxed add.
+    #[must_use = "a refused delivery still owns a reference the caller has to release"]
+    pub fn push_sized(&self, mut delivery: Delivery, bytes: usize) -> Option<Delivery> {
         let mut queue = self.queue.borrow_mut();
-        if queue.len() >= INBOX_CAP {
+        if queue.len() >= INBOX_CAP || !self.has_room_for(bytes) {
             drop(queue);
             self.note_overflow();
             self.wake();
             return Some(delivery);
         }
+        delivery.bytes = bytes;
         queue.push_back(delivery);
         drop(queue);
+        self.held.set(self.held.get().saturating_add(bytes));
+        if let Some(tree) = self.tree.borrow().as_ref() {
+            crate::budget::hand_to(tree, bytes);
+        }
         self.wake();
         None
+    }
+
+    /// Whether a delivery of `bytes` fits under the subscriber's memory limit
+    /// beside what is already queued.
+    ///
+    /// Asked by the fan-out before it makes a copy, with the size of the copy
+    /// it made last, for the reason [`Self::has_room`] is.
+    #[must_use]
+    pub fn has_room_for(&self, bytes: usize) -> bool {
+        let limit = self.limit.get();
+        limit == 0 || self.held.get().saturating_add(bytes) <= limit
+    }
+
+    /// Records the subscriber this queue belongs to: its memory limit and, where
+    /// it runs on its tree's turn, its tree. [`Ctx::inbox`](crate::Ctx::inbox)
+    /// calls it at each subscribe, so a limit lowered since is the one used.
+    pub(crate) fn bind(&self, limit: usize, tree: Option<std::sync::Arc<crate::TreeState>>) {
+        self.limit.set(limit);
+        *self.tree.borrow_mut() = tree;
     }
 
     /// Registers the wake this queue owes the calling task, which is about to
@@ -339,9 +400,22 @@ impl Inbox {
     }
 
     /// The oldest queued delivery, handing its reference to the caller.
+    ///
+    /// Its bytes leave the queue's count here. They stay on the subscriber's
+    /// balance until the program frees the value.
     #[must_use]
     pub fn pop(&self) -> Option<Delivery> {
-        self.queue.borrow_mut().pop_front()
+        let delivery = self.queue.borrow_mut().pop_front()?;
+        self.held
+            .set(self.held.get().saturating_sub(delivery.bytes));
+        Some(delivery)
+    }
+
+    /// The bytes the queued deliveries took — what [`Self::push_sized`]
+    /// bounds by the subscriber's memory limit.
+    #[must_use]
+    pub fn held_bytes(&self) -> usize {
+        self.held.get()
     }
 
     /// Whether this connection may join one more topic — [`TOPIC_CAP`]'s test,

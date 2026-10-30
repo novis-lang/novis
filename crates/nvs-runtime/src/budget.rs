@@ -748,6 +748,40 @@ pub(crate) fn credit_turn(bytes: isize) {
     });
 }
 
+/// Moves `bytes` the running turn just allocated onto `tree`, a tree parked on
+/// this core, and leaves the thread's [`LIVE`] where it is.
+///
+/// For a copy one tree makes and another frees: a topic delivery, queued on a
+/// subscriber's [`Inbox`](crate::Inbox) by the publisher's turn. The running
+/// tree is credited as [`credit_turn`] credits it, and `tree`'s stored balance
+/// rises by the same bytes, so its next turn reads them and its own ceiling
+/// meets them. Nothing moves where the stack runs no tree's turn or runs
+/// `tree`'s own, because neither has a parked balance to move the bytes to.
+///
+/// **Cost:** one thread-local take and set, and on a move three thread-local
+/// writes and one relaxed add.
+pub(crate) fn hand_to(tree: &std::sync::Arc<crate::TreeState>, bytes: usize) {
+    let Ok(bytes) = isize::try_from(bytes) else {
+        return;
+    };
+    if bytes == 0 {
+        return;
+    }
+    let other = TURN.with(|cell| {
+        let turn = cell.take();
+        let other = turn
+            .as_ref()
+            .is_some_and(|running| !std::sync::Arc::ptr_eq(running, tree));
+        cell.set(turn);
+        other
+    });
+    if other {
+        credit_turn(bytes);
+        tree.balance
+            .fetch_add(bytes, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// Starts counting `tree` as a request's from the balance as it stands:
 /// [`Ctx::reroot`](crate::Ctx::reroot), in front of each request a connection
 /// serves. What the tree holds above this is what [`begin_idle`] later sets
@@ -1680,6 +1714,46 @@ mod tests {
         drop(ArmedStack::take());
         outside.restore();
         drop(sibling);
+    }
+
+    /// `hand_to`: a copy one tree makes and hands to a parked tree leaves the
+    /// maker's balance where it was, and the receiver reads it and gives it
+    /// back as it frees it.
+    #[test]
+    fn a_copy_handed_to_a_parked_tree_is_charged_to_that_tree() {
+        let size: isize = 2 << 20;
+        let outside = ArmedStack::take();
+        let receiver = tree_here();
+        begin_turn(&receiver);
+        let receiver_before = live_bytes();
+        let parked = ArmedStack::take();
+
+        let maker = tree_here();
+        begin_turn(&maker);
+        let maker_before = live_bytes();
+        let copy = vec![0_u8; 2 << 20];
+        hand_to(&receiver, copy.capacity());
+        assert_eq!(
+            live_bytes(),
+            maker_before,
+            "the maker is still charged for a copy it handed on"
+        );
+        drop(ArmedStack::take());
+
+        parked.resume();
+        assert!(
+            live_bytes() >= receiver_before + size,
+            "the receiver does not read the copy it holds: {receiver_before} then {}",
+            live_bytes()
+        );
+        drop(copy);
+        assert_eq!(
+            live_bytes(),
+            receiver_before,
+            "freeing the copy did not give back what the receiver was charged"
+        );
+        drop(ArmedStack::take());
+        outside.restore();
     }
 
     /// A context created inside another measures its own allocation, and gives

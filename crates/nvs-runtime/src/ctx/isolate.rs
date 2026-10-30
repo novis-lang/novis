@@ -225,12 +225,24 @@ impl Ctx {
     /// Cost is one small allocation, charged to the first connection that
     /// subscribes or is published to and released with its context — never to
     /// an ordinary request, which never reaches this.
+    ///
+    /// Each call records this context's memory limit on the queue, and its
+    /// tree where this stack runs that tree's turn, which is where a delivery's
+    /// bytes are charged ([`crate::peer::Inbox::push_sized`]).
     #[must_use]
     pub fn inbox(&mut self) -> std::rc::Rc<crate::peer::Inbox> {
-        std::rc::Rc::clone(
+        let tree = std::ptr::eq(
+            std::sync::Arc::as_ptr(&self.tree),
+            crate::budget::running_turn(),
+        )
+        .then(|| std::sync::Arc::clone(&self.tree));
+        let limit = self.memory_limit;
+        let inbox = std::rc::Rc::clone(
             self.deliveries
                 .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default())),
-        )
+        );
+        inbox.bind(limit, tree);
+        inbox
     }
 
     /// Makes `inbox` this connection's delivery queue, the one [`Self::inbox`]
