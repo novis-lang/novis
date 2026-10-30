@@ -223,6 +223,15 @@ ask for `parse_bound` first: the text plus 128 bytes per value, counted in one s
 A flat factor was declined because it refused `sign`'s own 32 MB single-claim round trip. A
 visitor that builds no tree was declined as more code for the same bound.
 
+**A child's two readers share the request's headroom.** The reader threads run under no ceiling,
+so `Capture::of` reads `budget::headroom()` on the request's thread and both readers take each
+growth out of one atomic room. A growth past it stops the child and returns `CaptureRefused`, and
+the member asks `affords` for what the pair wanted, which records the breach and gives the memory
+`FATAL`. A captured buffer is charged to the request with `carry` when `drain` receives it, so the
+request that frees it was charged for it. Cost: one atomic update per buffer growth. After a
+timeout or a refusal a reader frees its buffer and ends at its next read. Reading into a fixed
+buffer and discarding was declined: it keeps a thread alive for as long as a grandchild writes.
+
 **Out of scope, decided elsewhere.**
 - No cap on open connections before admission
   (`docs/rules/http-server/admission-is-arithmetic-not-a-number.md`).
@@ -315,10 +324,16 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
 
-- [ ] *Confirmed:* `intake_bound` falls back to the memory limit when `max_output` is unset. This bounds `IO::read`, `readText`, `lines` and `Process::run`. `crates/nvs-runtime/src/ctx/limits.rs:559`, `crates/nvs-stdlib/src/io.rs:2969`
-- [ ] `IO::stdin` reads under that bound. `crates/nvs-stdlib/src/io.rs:2262`
-- [ ] `IO::list` and `walk` ask per entry. `crates/nvs-stdlib/src/io.rs:3514`, `crates/nvs-stdlib/src/io.rs:3546`
-- [ ] Process reader threads stop accumulating at the bound. After a timeout they read into a fixed buffer and discard, so no thread keeps growing past its request. `crates/nvs-stdlib/src/process.rs:1098`, `crates/nvs-stdlib/src/process.rs:1025`
+- [x] `intake_limit` falls back to the memory limit when `max_output` is unset, and `IO::read`, `readText` and `lines` read through `ByteWriter::read_from`, which asks before each growth. `crates/nvs-runtime/src/ctx/limits.rs:553`, `crates/nvs-stdlib/src/io.rs:2291`
+  - [x] `intake_limit` falls back, and the throw names the setting that set it
+  - [x] `read_bounded` reads through `ByteWriter` and asks for the string copy first
+- [x] `IO::stdin` reads under that bound, through `read_bounded`. `crates/nvs-stdlib/src/io.rs:2271`
+- [x] `IO::list` and `walk` ask per entry: `beneath`'s two listers call `affords_entry`, `read_dir` turns `ListingRefused` into the memory `FATAL`, and `walk` stops at a refused growth. `crates/nvs-runtime/src/beneath.rs`, `crates/nvs-runtime/src/capability.rs:1258`
+- [x] Process reader threads stop at the bound and share the request's headroom. After a timeout or a refusal they free what they read and end at the next read. `crates/nvs-stdlib/src/process.rs` `read_capped`, `drain`
+  - [x] `Capture` and `Shared`, and `read_capped` takes each growth out of the room
+  - [x] `drain` carries a received buffer and stops on `CaptureRefused`
+  - [x] `run` and `wait` record the refusal and ask for the copy first
+  - [x] `a_capture_stops_at_the_room_its_two_readers_share` passes
 - [ ] *Confirmed:* the HTTP client's chunked decoding refuses a chunk larger than what is left under `REPLY_CEILING` before buffering it, and `at + size + 2` uses `checked_add`, so a 16-hex-digit size no longer panics. `crates/nvs-stdlib/src/http/transport.rs:877`, `crates/nvs-stdlib/src/http/transport.rs:104`
 - [ ] `Http\Stream::events` consumes each line that dispatches nothing. `crates/nvs-stdlib/src/http/stream.rs:639`, `crates/nvs-stdlib/src/http/stream.rs:891`
 - [ ] SMTP replies are capped per line and per reply. `crates/nvs-stdlib/src/mail.rs:918`
@@ -363,29 +378,24 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done. Build and clippy green, rustfmt clean, no full test run. Stage 6's last
-items landed here: `Csv::format` on `ByteWriter` (0.80x), `Html::join` sized in one pass and asked
-before it copies, `Xml\Writer`'s lead asked (0.85x), and `Core\Jwt` per the new standing decision
-(sign 0.75x, verify 0.92x). `bun nv proofs --overshoot` exits 0: 228 readings, none red, and the
-worst real one is `Str/wrap` at 1.45x.
+Stages 1 to 6 are done, and stage 7's first four items. Build and clippy green, rustfmt clean, no
+full test run. The handoff's "confirmed" fallback was not true: `intake_limit` returned
+`max_output` alone. It now falls back to the memory limit. Files and stdin read through
+`ByteWriter::read_from` (`read_bounded` in `io.rs`), listings ask per entry in `beneath.rs`, and a
+child's readers share the request's headroom (new standing decision). No attack yet for any of it.
+A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built.
 
-A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built. That
-check is not sticky, so a breach read after the free finds the request under its ceiling.
+Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
+call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
+a partial `copy_graph` or `Some(empty)` from `encode_within`; `NvsArray::with_capacity` under a
+small ceiling is empty; `Arr::range` past it is a `FATAL` first; a collector test may reclaim 0; a
+stopped parse is `walk::STOPPED`; a refused capture write writes nothing; a JWT header past 8 KiB
+and a key set past 1 MiB throw. New: a file, stdin or child output past a small `[limits] memory`
+with no `max_output` gets a throw naming `[limits] memory` or the memory `FATAL`. Look first at
+`crates/nvs-runtime/tests/refusal.rs`, `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
-Expected red at the gate, each not a test to loosen: a member that builds an array past its ceiling
-returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `inside one call`
-`FATAL`; an exact `N bytes held` may read the higher peak; a test expecting a partial `copy_graph` or
-`Some(empty)` from `encode_within`. New: a Rust test that fills `NvsArray::with_capacity` under a
-small ceiling now gets an empty-room array, and `Arr::range` past its ceiling is a `FATAL` before
-any entry. Look first at `crates/nvs-runtime/tests/refusal.rs`,
-`crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. A collector
-test that counts objects reclaimed under a small ceiling may now read 0 where the scratch did not
-fit. New: a parse a keep-going callback stopped is `walk::STOPPED`, and a capture write the ceiling
-refused writes nothing. New: `Core\Jwt::verify` and `verifyIssued` refuse a header past 8 KiB,
-and `KeySet::read` throws for a document past 1 MiB, so a test with a huge header gets the refusal.
-
-The sweep's `env-secret-proofs` red is stale: no file defines it, and its command (`bun nv proofs
---gate --only 'Core\Env::secret'`) exits 0.
+The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` matches no
+check, and no goal or floor file names it.
 
 ### Next
 
@@ -393,12 +403,9 @@ Stage 7. Read one member's bound with `bun nv proofs --run --id '<member>' --sho
 that lowers its limit with `Core\Config::set` after earlier steps hold much memory reads that
 holding as its overshoot, so lower it only where little is held.
 
-- [ ] `crates/nvs-runtime/src/ctx/limits.rs:559` confirm `intake_bound` falls back to the memory limit, and `crates/nvs-stdlib/src/io.rs:2969` reads under it.
-- [ ] `crates/nvs-stdlib/src/io.rs:2258` `IO::stdin` reads under that bound.
-- [ ] `crates/nvs-stdlib/src/io.rs:3514` `IO::list` and `walk` (`io.rs:3546`) ask per entry.
-- [ ] `crates/nvs-stdlib/src/process.rs:1098` reader threads stop at the bound and discard after a timeout (`process.rs:1025`).
+- [ ] `crates/nvs-stdlib/src/http/transport.rs:877` confirm the chunked decoder refuses a chunk past what is left under `REPLY_CEILING`, and `transport.rs:104` uses `checked_add`. Do not trust the word "confirmed": stage 7's first one was false.
 - [ ] `crates/nvs-stdlib/src/http/stream.rs:639` `Http\Stream::events` consumes a line that dispatches nothing.
 - [ ] `crates/nvs-stdlib/src/mail.rs:918` SMTP replies capped per line and per reply.
-- [ ] `docs/goals/memory-ceiling-holes.md:325` stage 7's attacks, each ending at `FATAL` within the bound.
+- [ ] `docs/goals/memory-ceiling-holes.md:325` stage 7's attacks, each ending at `FATAL` within the bound: a huge file and stdin with `max_output` unset, a directory of many entries, a child that writes without end, a chunked reply with one giant chunk, and an event stream of comments only. Find the existing attacks for each member with `bun nv proofs --id '<member>'`.
 
 ### Backlog
