@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/attributes/attach-sites-and-forms.md, docs/rules/core-classes/derive-attribute.md, crates/nvs-diagnostics/src/code/types_e08.rs, docs/reference/lang/90-attributes.md]
   - id: 2
     title: "nvs_lsp::order writes the member order, and the editor offers it as a source action"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/organize.rs, crates/nvs-lsp/src/capabilities.rs, crates/nvs-fmt/src/lib.rs, docs/rules/tooling/fmt-base-style-is-per.md]
   - id: 3
     title: "nvs code order writes, checks and prints the member order"
@@ -85,7 +85,8 @@ order for it to write:
 
 ## Standing decisions
 
-**The order.** It applies to the body of a class, an interface and an anonymous class. Top to bottom:
+**The order.** It applies to the body of a class and an interface. Novis has no anonymous class:
+`new class { … }` is `E0244` at the parse, so no file that parses has one. Top to bottom:
 
 1. **Group:** `enum` and `type` declarations, then constants, then properties (hooked ones
    included), then methods.
@@ -113,8 +114,26 @@ keep their order, because `cases()` returns them in that order. Hooks stay insid
 member above it. That is the formatter's own reading: a comment between two members belongs to the
 member below it (`rule:tooling/fmt-base-style-is-per`). A comment at the end of the member's last
 line moves with it. A comment after the last member, above the class's `}`, stays last. A joined
-declaration (`public int $a, $b;`) is parsed into one `ClassMember` per name with a shared span
-(`crates/nvs-syntax/src/ast.rs:1781`), and it moves as one unit.
+declaration (`public int $a, $b;`) is parsed into one `ClassMember` per name, each spanning from the
+declaration's first byte to its own name (`crates/nvs-syntax/src/parser/decl.rs:1548`). The members
+that share a first byte are one unit, and it moves as one.
+
+**A member moves as whole lines.** Its unit runs from the line after the member above it ends (or
+after the body's `{`) to the end of its own last line. A body this cannot cut into whole lines is
+left as written: two members on one line, a member on the `{` or `}` line, or a line that ends inside
+a block comment. Such a body gets no edit and no note, since `nvs fmt` puts each member on its own
+line and the next run orders it.
+
+**`field_order` lists a skipped field.** `nvs_types::derive::field_order` takes no resolved names, so
+a field with `skip: true` is in its list. A class whose only change is a skipped field's position
+therefore gets the key-order note, or under `KeepKeyOrder` is left as written. That errs toward
+naming a class, never toward a silent key change.
+
+**`source` answers both source actions through `Kind::Source`.** `Kind` is one value per request, so
+a request naming `source`, or naming both source kinds, gets `Kind::Source`, which answers organize
+imports and then order members. A `.lspt` case cannot ask for `only=source`, because the case parser
+admits only a kind in `CODE_ACTION_KINDS`; `order_action_is_offered_under_source_and_never_under_fix_all`
+covers it from Rust.
 
 **The output is formatted.** `nvs_lsp::order` moves each member's text, then runs
 `nvs_fmt::format` (`crates/nvs-fmt/src/lib.rs:165`) over the whole result. The editor's action and
@@ -238,13 +257,13 @@ whose `write_out` it reuses.
 **Split:** the `.lspt` cases under `tests/lsp/actions/` are a batch of similar files. A writing
 subagent writes them once the session has landed `nvs_lsp::order` and the kind. It builds nothing.
 
-- [ ] `nvs_types::derive::field_order`: the walk at the codec check becomes one public function, and the check calls it. `crates/nvs-types/src/derive.rs:2467`
-- [ ] `nvs_lsp::order`: the sort key the standing decision gives, the stable sort, the units that move, the `KeepKeyOrder` freeze and its skip, the derived-class notes, then `nvs_fmt::format`. It returns the new text, the classes it moved, and the notes, or nothing for an ordered file. `crates/nvs-lsp/src/order.rs:1`, `crates/nvs-lsp/src/lib.rs:145`
-- [ ] `Kind::OrderMembers`, its wire name, `asked_for` answering `source` with both source actions, and `CODE_ACTION_KINDS`. `crates/nvs-lsp/src/actions.rs:114`, `crates/nvs-lsp/src/actions.rs:145`, `crates/nvs-lsp/src/actions.rs:188`, `crates/nvs-lsp/src/capabilities.rs:93`
-- [ ] The handshake test that pins the capabilities expects the new kind. `crates/nvs-lsp/tests/handshake.rs:1`
-- [ ] The tests the `member-order-tests` check names. `crates/nvs-lsp/tests/member_order.rs:1`
-- [ ] `.lspt` cases: an unordered class, an ordered file with no action, and a `source.fixAll.nvs` request that does not list it. `tests/lsp/actions/order-members-orders-a-class.lspt:1`, `tests/lsp/actions/order-members-is-not-offered-for-an-ordered-file.lspt:1`, `tests/lsp/actions/order-members-is-never-a-fix-all.lspt:1`
-- [ ] The editor reference names the source action. `docs/reference/tools/40-editor.md:9`
+- [x] `nvs_types::derive::field_order`: the walk at the codec check becomes one public function, and the check calls it. `crates/nvs-types/src/derive.rs:2467`
+- [x] `nvs_lsp::order`: the sort key the standing decision gives, the stable sort, the units that move, the `KeepKeyOrder` freeze and its skip, the derived-class notes, then `nvs_fmt::format`. It returns the new text, the classes it moved, and the notes, or nothing for an ordered file. `crates/nvs-lsp/src/order.rs:1`, `crates/nvs-lsp/src/lib.rs:145`
+- [x] `Kind::OrderMembers`, its wire name, `asked_for` answering `source` with both source actions, and `CODE_ACTION_KINDS`. `crates/nvs-lsp/src/actions.rs:114`, `crates/nvs-lsp/src/actions.rs:145`, `crates/nvs-lsp/src/actions.rs:188`, `crates/nvs-lsp/src/capabilities.rs:93`
+- [x] The handshake test that pins the capabilities expects the new kind. `crates/nvs-lsp/tests/handshake.rs:1`
+- [x] The tests the `member-order-tests` check names. `crates/nvs-lsp/tests/member_order.rs:1`
+- [x] `.lspt` cases: an unordered class, an ordered file with no action, and a `source.fixAll.nvs` request that does not list it. `tests/lsp/actions/order-members-orders-a-class.lspt:1`, `tests/lsp/actions/order-members-is-not-offered-for-an-ordered-file.lspt:1`, `tests/lsp/actions/order-members-is-never-a-fix-all.lspt:1`
+- [x] The editor reference names the source action. `docs/reference/tools/40-editor.md:9`
 
 ### 3. nvs code order writes, checks and prints the member order
 
@@ -276,34 +295,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. The two rules are `designed` with `goal: member-order`, and
-`rule:tooling/fmt-never-reorders-members` names the action and the command. `KEEP_KEY_ORDER`
-(`Core\Json\KeepKeyOrder`) is on `ATTRIBUTES` with its card, sits on a class only, and its `reason`
-is checked by the shared roster. `check_keep_key_order` (`crates/nvs-types/src/derive.rs:2349`) gives
-`E0892` without `Core\Json\Derive` and `E0401` without `reason`. The three conformance cases pass by
-name. `about.md`, `details.md`, the seventh example, the rendered chapter, `llms-full.txt` and the
-`lang:attributes` perf records are in.
+Stages 1 and 2 are done. `nvs_types::derive::field_order` (`crates/nvs-types/src/derive.rs`) is the
+one home of a derived class's field order, and `check_class_format` walks it. `nvs_lsp::order::of`
+(`crates/nvs-lsp/src/order.rs:121`) takes a `&SourceFile` and returns `Result<Ordered, Refused>`:
+`Ordered { text: Option<String>, moved: Vec<Class>, notes: Vec<Note> }`, where `text` is `None` for
+an ordered file, `Class { name, at }` is the full name and the declaration's first byte, and
+`NoteKind` is `KeyOrderChanges` or `KeptAsWritten`. `Refused::DoesNotParse` is a file with a syntax
+error; `Refused::Unsafe(Class)` is a moved text the formatter refuses. It resolves
+`Core\Json\Derive` and `KeepKeyOrder` from the file's own namespace and `use` lines, so stage 3 needs
+no analysis to call it. `order::at` is the editor's action. `Kind::OrderMembers` and `Kind::Source`
+are wired, `CODE_ACTION_KINDS` lists `source.orderMembers.nvs`, the handshake pins the kinds list,
+and the editor reference describes the action. `member-order-tests` passes (13 of 13 by name), and
+the three `.lspt` cases pass under `nvs lsp-test`.
 
-The prompt's sweep, read this session: `env-secret-proofs` reruns green, and the nightly's
-`miri units (nvs-runtime 2/2)` failure was fixed after that run by `a178403e2`. The nightly's
-`proofs / linux-x86_64` failure was one `whoami` timeout in
-`tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs` at 2 jobs at a time,
-and the next push CI ran all 1539 hostile cases green. The nightly's
-`cost guards / windows-x86_64` failure was
-`serve::tests::serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at 0.90x
-to 0.99x over three steady attempts, while the CPU-only fan-out guard in the same job passed. The
-same test passed on Windows in the next push CI with `serve.rs` unchanged, and gives 1.96x on this
-machine. Neither reproduces, so no bound changed. If the next nightly is red on either, it is a cause
-to find, not a flake.
+The prompt's sweep named the same nightly run (`40919832286`) the last handoff read, and
+`env-secret-proofs` exits 0 in its own log. Nothing new to fix there.
 
 ### Next
 
-Stage 2.
+Stage 3. `order::of` returns notes even when `text` is `None`, so `--check` and the note lines read
+the same value.
 
-- [ ] `nvs_types::derive::field_order` out of the walk in `check_class_format`. `crates/nvs-types/src/derive.rs:2467`
-- [ ] `nvs_lsp::order` and its tests. `crates/nvs-lsp/src/order.rs:1`, `crates/nvs-lsp/tests/member_order.rs:1`
-- [ ] `Kind::OrderMembers`, `CODE_ACTION_KINDS`, the handshake test, the `.lspt` cases and the editor reference. `crates/nvs-lsp/src/actions.rs:114`
+- [ ] The `Order` verb, its flags and help text, calling `nvs_lsp::order::of` per file and writing through `write_out`. `crates/nvs-cli/src/code.rs:136`, `crates/nvs-cli/src/code.rs:230`, `crates/nvs-cli/src/code.rs:1074`
+- [ ] The `code-order-tests` tests. `crates/nvs-cli/tests/code.rs:1`
+- [ ] `PROTOCOL`'s `order` line and its `tests/agent.rs` pin. `crates/nvs-cli/src/agent.rs:1629`
+- [ ] The CLI reference, the `nvs code` feature's `about.md` and its second example. `docs/reference/tools/10-cli.md:1045`, `docs/examples/tools/cli/nvs-code/about.md:1`
+- [ ] Both rules `shipped`, `nvs-code-answers-about-the-project` names `order`, then `bun nv rules --render` and `bun nv render --website`. `data/rules/tooling/class-members-have-one-order.json:1`
+- [ ] `bun nv owners --closes member-order`. `tools/nv/cmd/owners.ts:1`
 
-No test is expected to go red from stage 1: the new code is a new error on a new attribute name.
+No existing test is expected to go red. Stage 4's verify reads `crates/nvs-lsp/tests/coverage.rs`,
+which may want the new `.lspt` cases in its matrix.
 
 ### Backlog
