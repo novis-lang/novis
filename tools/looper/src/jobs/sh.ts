@@ -14,8 +14,9 @@
 //    the job's Job Object. The record names the project, the cwd, the command inside the `eval`, the
 //    session from `CLAUDE_CODE_SESSION_ID`, and the subagent and tool call from the entry. bash runs
 //    with `SLOT_VAR` set to the lease's id when it holds slots. The job's windows are kept off the
-//    screen (`spawn.ts`). A project whose `[jobs] hide_windows` is false runs bash with
-//    `LOOPER_WINDOWS=show` instead, and a wrapper that inherits that hides nothing.
+//    screen (`spawn.ts`). A project whose `[jobs] hide_windows` is false, or a call whose command a
+//    `[jobs] show_windows` pattern finds, runs bash with `LOOPER_WINDOWS=show` instead, and a wrapper
+//    that inherits that hides nothing.
 // 3. It copies bash's output to its own stdout as it arrives, and the job's log keeps it too.
 // 4. It watches the job for a hang (`hang.ts`), as below.
 // 5. Once bash exits the job ends, and every process bash left is killed. A job `Store.kill` ended
@@ -41,9 +42,13 @@
 // starts anything. While it waits or runs, it reads that process again every `CLAUDE_EVERY_MS`. When the
 // process has exited, a wait exits with `KILLED_CODE` and a job is killed.
 //
-// Anything else runs as plain `bash -c` with the wrapper's own stdio, unrecorded: a hook or status line
-// command, a call outside a project, and a call whose job cannot be started. The last prints one line,
-// `looper sh: not recorded: <why>`, and still runs.
+// Anything else runs as plain `bash -c` with the wrapper's own stdio, unrecorded: a hook, status line or
+// MCP server command, a call outside a project, and a call whose job cannot be started. The last prints
+// one line, `looper sh: not recorded: <why>`, and still runs.
+//
+// On Windows, a hook, status line or MCP server command that starts with `cmd /c` has its switches
+// doubled first (`cmdSwitches`). Git's bash turns a bare `/c` into the path `C:/`, and cmd then waits
+// for input, so an MCP server written as `cmd /c npx …` would never start.
 //
 // # The bounds it keeps
 //
@@ -59,7 +64,7 @@
 
 import { existsSync, statSync, writeSync } from "node:fs";
 import { delimiter, dirname, join, resolve } from "node:path";
-import { type Config, defaultConfig, loadConfig } from "../goal/config.ts";
+import { type Config, defaultConfig, loadConfig, ruleRegex } from "../goal/config.ts";
 import { sameProcess, started } from "../os/index.ts";
 import { writeState } from "../store/state.ts";
 import { exempt, Printed, watch, type Watching } from "./hang.ts";
@@ -138,6 +143,16 @@ function onPath(env: Env, name: string): string[] {
     .filter((d) => d !== "")
     .map((d) => join(d, name))
     .filter(isFile);
+}
+
+/**
+ * `invocation` with the switches of a leading `cmd /c` written as `//c`, which Git's bash hands cmd as
+ * `/c`. Any other invocation comes back unchanged.
+ */
+export function cmdSwitches(invocation: string): string {
+  const head = /^(cmd(?:\.exe)?)((?:[ \t]+\/[a-z](?=[ \t]|$))+)/i.exec(invocation);
+  if (head === null) return invocation;
+  return `${head[1]}${(head[2] as string).replaceAll("/", "//")}${invocation.slice(head[0].length)}`;
 }
 
 /** Whether `bash` is WSL's: under the Windows directory `windows`, or in a `WindowsApps` directory. */
@@ -233,8 +248,12 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
   const bash = shellPath(env);
   const invocation = args[0];
   const call = args.length > 0 && invocation !== undefined ? bashCall(invocation) : null;
-  const root = call === null ? null : projectOf(cwd);
-  if (call === null || root === null || invocation === undefined) return plain(bash, args, env, cwd);
+  if (call === null) {
+    const windows = process.platform === "win32" && invocation !== undefined;
+    return plain(bash, windows ? [cmdSwitches(invocation), ...args.slice(1)] : args, env, cwd);
+  }
+  const root = projectOf(cwd);
+  if (root === null || invocation === undefined) return plain(bash, args, env, cwd);
   const command = "command" in call ? call.command : invocation;
 
   const claude = claudeOf(env);
@@ -251,7 +270,8 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
     if ("lease" in asked) lease = asked.lease;
     else if ("failed" in asked) process.stderr.write(`looper sh: no heavy slot: ${asked.failed}\n`);
   }
-  const jobEnv = { ...env, ...(lease === null ? {} : { [SLOT_VAR]: lease.id }), ...(jobs.hide_windows ? {} : { [WINDOWS_VAR]: "show" }) };
+  const shown = !jobs.hide_windows || matches(command, jobs.show_windows);
+  const jobEnv = { ...env, ...(lease === null ? {} : { [SLOT_VAR]: lease.id }), ...(shown ? { [WINDOWS_VAR]: "show" } : {}) };
   const hide = jobEnv[WINDOWS_VAR]?.toLowerCase() !== "show";
   try {
     return await recorded(root, bash, args, command, jobEnv, cwd, lease, hide, claude, cfg);
@@ -261,6 +281,17 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
   } finally {
     await lease?.release();
   }
+}
+
+/** Whether one of `patterns` finds `command`. A pattern that does not compile finds nothing. */
+function matches(command: string, patterns: readonly string[]): boolean {
+  return patterns.some((p) => {
+    try {
+      return ruleRegex(p).test(command);
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Runs the call as a job of the project at `root`, and gives bash's exit code. Throws, having started nothing, when the job cannot start. */

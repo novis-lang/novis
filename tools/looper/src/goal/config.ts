@@ -235,6 +235,8 @@ export interface Commits {
 export interface Jobs {
   heavy: string[];
   hide_windows: boolean;
+  /** Patterns, in Rust's `regex` syntax, of Bash commands whose windows stay where they open. */
+  show_windows: string[];
   /** Seconds a Bash call may wait with no output and no CPU before the hang watch kills it; 0 never. */
   hang_stall_s: number;
   /** Seconds a Bash call may use the CPU with no output before the hang watch kills it; 0 never. */
@@ -362,7 +364,7 @@ export function defaultConfig(): Config {
     wrap: { section: [], checks: [] },
     sync: { skip: [] },
     commits: { subject_max: 71, types: [...COMMIT_TYPES] },
-    jobs: { heavy: [], hide_windows: true, hang_stall_s: 90, hang_spin_s: 600, hang_exempt: [] },
+    jobs: { heavy: [], hide_windows: true, show_windows: [], hang_stall_s: 90, hang_spin_s: 600, hang_exempt: [] },
     merge: { generated: [], render: [] },
     launch: [],
   };
@@ -486,11 +488,13 @@ export function parseConfig(path: string, text: string): Config {
       throw new ConfigError(path, `guard.deny pattern ${debug(rule.pattern)}: ${(e as Error).message}`);
     }
   }
-  for (const pattern of cfg.jobs.hang_exempt) {
-    try {
-      ruleRegex(pattern);
-    } catch (e) {
-      throw new ConfigError(path, `jobs.hang_exempt pattern ${debug(pattern)}: ${(e as Error).message}`);
+  for (const [key, patterns] of [["hang_exempt", cfg.jobs.hang_exempt], ["show_windows", cfg.jobs.show_windows]] as const) {
+    for (const pattern of patterns) {
+      try {
+        ruleRegex(pattern);
+      } catch (e) {
+        throw new ConfigError(path, `jobs.${key} pattern ${debug(pattern)}: ${(e as Error).message}`);
+      }
     }
   }
   return cfg;
@@ -696,7 +700,7 @@ const commits = table<Commits>("Commits", { subject_max: usize, types: strings }
 
 const jobsTable = table<Jobs>(
   "Jobs",
-  { heavy: strings, hide_windows: bool, hang_stall_s: u64, hang_spin_s: u64, hang_exempt: strings },
+  { heavy: strings, hide_windows: bool, show_windows: strings, hang_stall_s: u64, hang_spin_s: u64, hang_exempt: strings },
   () => defaultConfig().jobs,
 );
 

@@ -12,7 +12,8 @@
 //   is appended after a blank line, except in `.gitignore` and `.gitattributes`, where it goes first so
 //   the project's own lines win. The text outside the blocks stays as it is.
 // - **Merged**: `.claude/settings.json` loses every `PowerShell(…)` allow entry, and gains each allow
-//   entry and each `env` key it lacks. An entry that runs the guard, `looper guard` or the copy's, takes
+//   entry and each `env` key it lacks. A shell prefix that runs the copy's `sh` takes the template's
+//   value, and any other prefix is kept. An entry that runs the guard, `looper guard` or the copy's, takes
 //   the template's matcher, and a `looper guard` command becomes the copy's. The template's `PreToolUse`
 //   entry is added when none runs the guard. A file that changes is written with sorted keys, as
 //   `serde_json` prints it.
@@ -202,7 +203,8 @@ function sorted(v: Json): Json {
 
 /**
  * The project's settings `text` merged with the template's: its `PowerShell(…)` allow entries gone, the
- * template's allow entries and `env` keys added, and the guard hook added or given the template's matcher.
+ * template's allow entries and `env` keys added, a shell prefix that runs the copy's `sh` given the
+ * template's, and the guard hook added or given the template's matcher.
  * A guard hook that runs `looper guard` is given the template's command, which runs the copy.
  */
 function merged(path: string, text: string, template: string): string {
@@ -233,7 +235,11 @@ function merged(path: string, text: string, template: string): string {
     if (!Object.hasOwn(object, "env")) object.env = {};
     const env = object.env;
     if (!isObject(env)) throw new Error(`${path}: \`env\` is not what Claude Code reads`);
-    for (const [key, value] of Object.entries(keys)) if (!Object.hasOwn(env, key)) env[key] = structuredClone(value);
+    for (const [key, value] of Object.entries(keys)) {
+      const old = env[key];
+      const ours = key === PREFIX && typeof old === "string" && KIT_SH.test(old);
+      if (!Object.hasOwn(env, key) || ours) env[key] = structuredClone(value);
+    }
   }
   const guarded = runsGuard(before);
   const hooks = slot(object, "hooks", "PreToolUse");
@@ -254,6 +260,12 @@ function merged(path: string, text: string, template: string): string {
   if (same(have, before)) return text;
   return `${JSON.stringify(sorted(have), null, 2)}\n`;
 }
+
+/** The `env` key that names Claude Code's shell prefix. */
+const PREFIX = "CLAUDE_CODE_SHELL_PREFIX";
+
+/** A shell prefix that runs the copy's `sh`, whatever shell starts it. */
+const KIT_SH = /\/tools\/looper\/main\.ts" sh "\$0"/;
 
 /** The guard hook's command in the kit's variant of the settings, which runs the copy. */
 const KIT_GUARD = /^bun "\$CLAUDE_PROJECT_DIR\/tools\/looper\/main\.ts" guard$/;

@@ -1,6 +1,6 @@
 {
   "env": {
-    "CLAUDE_CODE_SHELL_PREFIX": "bash -c 'exec bun \"$(git rev-parse \"--show-toplevel\")/tools/looper/main.ts\" sh \"$0\"'",
+    "CLAUDE_CODE_SHELL_PREFIX": "sh -c 'exec bun \"$(git rev-parse \"--show-toplevel\")/tools/looper/main.ts\" sh \"$0\"'",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"
   },
   "hooks": {
