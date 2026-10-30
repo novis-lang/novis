@@ -643,26 +643,59 @@ struct Encode {
     out: Vec<u8>,
     /// How many objects have been opened — the index a back-reference names.
     objects: usize,
+    /// Whether the request's memory ceiling refused the buffer's growth. From
+    /// then on nothing more is written, and [`encode`] gives back no bytes.
+    refused: bool,
 }
 
 impl Encode {
+    /// Appends `bytes`, asking the request's budget in front of every growth
+    /// of the buffer.
+    ///
+    /// **Asked before the allocation, not charged after it**, for
+    /// [`crate::budget::affords`]'s reason: the live balance sees a `Vec`'s
+    /// block only once it is handed over, so a payload of ten gigabytes was
+    /// written whole before the copy into a `bytes` value was refused. The ask
+    /// is the whole new block, because a reallocation holds the old one and the
+    /// new one at once. What it spends: one comparison per write that fits.
+    fn put(&mut self, bytes: &[u8]) {
+        if self.refused {
+            return;
+        }
+        let needed = self.out.len().saturating_add(bytes.len());
+        if needed > self.out.capacity() {
+            let grown = needed.max(self.out.capacity().saturating_mul(2));
+            if !crate::budget::affords(grown) {
+                self.refused = true;
+                return;
+            }
+            self.out.reserve_exact(grown - self.out.len());
+        }
+        self.out.extend_from_slice(bytes);
+    }
+
+    /// Appends one byte, as [`Self::put`] does.
+    fn put_byte(&mut self, byte: u8) {
+        self.put(&[byte]);
+    }
+
     /// A length or an index, LEB128.
     fn varint(&mut self, mut value: u64) {
         loop {
             let byte = u8::try_from(value & 0x7f).expect("seven bits fit in a byte");
             value >>= 7;
             if value == 0 {
-                self.out.push(byte);
+                self.put_byte(byte);
                 return;
             }
-            self.out.push(byte | 0x80);
+            self.put_byte(byte | 0x80);
         }
     }
 
     /// A length-prefixed byte run.
     fn blob(&mut self, bytes: &[u8]) {
         self.varint(length(bytes.len()));
-        self.out.extend_from_slice(bytes);
+        self.put(bytes);
     }
 
     /// One array key, tagged by which of [`SlotKey`]'s shapes it is so a
@@ -670,11 +703,11 @@ impl Encode {
     fn key(&mut self, key: &SlotKey) {
         match key {
             SlotKey::Index(at) => {
-                self.out.push(0);
-                self.out.extend_from_slice(&at.to_le_bytes());
+                self.put_byte(0);
+                self.put(&at.to_le_bytes());
             }
             SlotKey::Str(name) => {
-                self.out.push(1);
+                self.put_byte(1);
                 let name = name.as_bytes().to_vec();
                 self.blob(&name);
             }
@@ -693,47 +726,46 @@ impl Carrier for Encode {
     fn scalar(&mut self, value: Value) -> usize {
         match value.exact_tag() {
             Some(Tag::Bool) => {
-                self.out.push(node::BOOL);
-                self.out
-                    .push(u8::from(value.as_bool().expect("a `Bool` carries one")));
+                self.put_byte(node::BOOL);
+                self.put_byte(u8::from(value.as_bool().expect("a `Bool` carries one")));
             }
             // An enum case writes a node of its own over the same payload, so
             // it decodes as a case (`rule:enums/representation`).
             Some(tag @ (Tag::Int | Tag::EnumInt)) => {
-                self.out.push(if tag == Tag::EnumInt {
+                self.put_byte(if tag == Tag::EnumInt {
                     node::ENUM_INT
                 } else {
                     node::INT
                 });
                 let held = value.as_int().expect("an `Int` payload carries one");
-                self.out.extend_from_slice(&held.to_le_bytes());
+                self.put(&held.to_le_bytes());
             }
             Some(tag @ (Tag::Uint | Tag::EnumUint)) => {
-                self.out.push(if tag == Tag::EnumUint {
+                self.put_byte(if tag == Tag::EnumUint {
                     node::ENUM_UINT
                 } else {
                     node::UINT
                 });
                 let held = value.as_uint().expect("a `Uint` payload carries one");
-                self.out.extend_from_slice(&held.to_le_bytes());
+                self.put(&held.to_le_bytes());
             }
             Some(Tag::Float) => {
-                self.out.push(node::FLOAT);
+                self.put_byte(node::FLOAT);
                 let held = value.as_float().expect("a `Float` carries one");
-                self.out.extend_from_slice(&held.to_bits().to_le_bytes());
+                self.put(&held.to_bits().to_le_bytes());
             }
             Some(Tag::Decimal) => {
-                self.out.push(node::DECIMAL);
+                self.put_byte(node::DECIMAL);
                 let held = value.as_decimal().expect("a `Decimal` carries one");
-                self.out.extend_from_slice(&held.to_bits().to_le_bytes());
+                self.put(&held.to_bits().to_le_bytes());
             }
-            _ => self.out.push(node::NULL),
+            _ => self.put_byte(node::NULL),
         }
         0
     }
 
     fn text(&mut self, tag: Tag, text: &[u8], _adopted: Option<Value>) -> usize {
-        self.out.push(if tag == Tag::Bytes {
+        self.put_byte(if tag == Tag::Bytes {
             node::BYTES
         } else {
             node::STR
@@ -743,13 +775,13 @@ impl Carrier for Encode {
     }
 
     fn backref(&mut self, seen: &usize) -> usize {
-        self.out.push(node::BACKREF);
+        self.put_byte(node::BACKREF);
         self.varint(length(*seen));
         *seen
     }
 
     fn open_array(&mut self, keys: &[SlotKey], _adopted: Option<Value>) -> usize {
-        self.out.push(node::ARRAY);
+        self.put_byte(node::ARRAY);
         self.varint(length(keys.len()));
         for key in keys {
             self.key(key);
@@ -758,7 +790,7 @@ impl Carrier for Encode {
     }
 
     fn open_object(&mut self, class: &ClassDesc, _adopted: Option<Value>) -> usize {
-        self.out.push(node::OBJECT);
+        self.put_byte(node::OBJECT);
         let name = class.name().as_bytes().to_vec();
         self.blob(&name);
         self.varint(length(class.field_count()));
@@ -803,14 +835,21 @@ impl Carrier for Encode {
 ///
 /// [`GraphError`], exactly as [`copy_graph`] does: the two carriers refuse the
 /// same graphs because they share the walk that decides.
+///
+/// Where the request's memory ceiling refused the buffer's growth, the result
+/// is empty: the breach is recorded, and the request's next poll stops it.
 pub fn encode(value: Value) -> Result<Vec<u8>, GraphError> {
     let mut carrier = Encode {
         out: MAGIC.to_vec(),
         objects: 0,
+        refused: false,
     };
     carrier.out.push(VERSION);
     let mut seen = Seen::new();
     walk(&mut carrier, value, &mut seen, 0)?;
+    if carrier.refused {
+        return Ok(Vec::new());
+    }
     Ok(carrier.out)
 }
 
@@ -1368,6 +1407,37 @@ mod tests {
             borrow_object(held).set_field(1, Value::null());
             release(held);
         }
+    }
+
+    /// The encoder asks the request's ceiling before its buffer grows, so a
+    /// payload past the ceiling is never written. One string held many times
+    /// costs its bytes once in the graph and once per copy in the payload,
+    /// which is how a small program asked for ten gigabytes.
+    #[test]
+    fn an_encode_past_the_ceiling_writes_nothing_and_reports_the_breach() {
+        let table = table();
+        let text = Value::text(&"x".repeat(64 << 10));
+        let mut head = Value::null();
+        for _ in 0..64 {
+            retain(text);
+            let link = node(&table, text);
+            borrow_object(link).set_field(1, head);
+            head = link;
+        }
+        release(text);
+
+        let mut ctx = crate::Ctx::new(crate::OutputSink::Buffer(Vec::new()));
+        ctx.set_memory_limit(1 << 20);
+        let bytes = encode(head).expect("the graph is one the walk accepts");
+        assert!(
+            bytes.is_empty(),
+            "a payload of four times the ceiling was written: {} bytes",
+            bytes.len()
+        );
+        assert!(
+            ctx.over_memory_limit(),
+            "the refused growth recorded no breach"
+        );
     }
 
     /// `rule:classes/serialize-is-a-closed-format`: a payload that does not carry Novis's marker and
