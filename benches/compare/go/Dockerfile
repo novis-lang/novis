@@ -23,7 +23,7 @@ RUN for tree in cases scenarios; do \
 
 # Alpine rather than `scratch`, because the driver reads the cgroup's memory files with `cat` and the
 # healthcheck needs `nc`.
-FROM alpine:3.24.2
+FROM alpine:3.24.3
 
 COPY --from=build /out/ /srv/
 EXPOSE 8080
