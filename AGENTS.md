@@ -89,7 +89,7 @@ Each is here because not knowing it exists is the entire cost. The file named af
   binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
   `.nvs` and `about.md` among them is held to § *Text an end user reads* below
   (`rule:testing/feature-proofs`).
-- **Code and tests hold on every CI runner, not just on this Windows machine.** CI runs Linux, macOS,
+- **Code and tests hold on every CI runner, not just on your own machine.** CI runs Linux, macOS,
   aarch64 and Windows, under load, ASAN, Miri and the cost guards, and every mistake below cost a CI
   round. The code rules: state lives as long as its request or case, every way out releases what the
   normal one does, a second path that ends a thing is read by every reader, a shared file or port is

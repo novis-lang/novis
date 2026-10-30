@@ -1,6 +1,6 @@
 - **A Windows path handed to `npm run … -- --nvs <path>` from a POSIX shell loses its backslashes,
   and the host suite then fails six tests that read as a broken server.** `npm.cmd` re-quotes what
-  it forwards, so `E:\mwl\target\debug\nvs.exe` reaches `scripts/host.mjs` as
-  `mwltargetdebugnvs.exe`, which `resolve` takes as relative to `editors/vscode`. Reproduce the
-  driver's check with forward slashes — `--nvs E:/mwl/target/debug/nvs.exe` — and read the status
+  it forwards, so `<repo>\target\debug\nvs.exe` reaches `scripts/host.mjs` as
+  `<repo>targetdebugnvs.exe`, which `resolve` takes as relative to `editors/vscode`. Reproduce the
+  driver's check with forward slashes — `--nvs <repo>/target/debug/nvs.exe` — and read the status
   item's detail in the failure before believing the tree. `until: gone editors/vscode/scripts/host.mjs:--nvs`

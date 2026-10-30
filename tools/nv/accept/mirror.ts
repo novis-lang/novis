@@ -50,7 +50,7 @@ const TIMEOUT_MS = 600 * 1000;
  */
 export const CARRIED = ["tests/db/ca.crt"];
 
-/** A Windows path as the distro sees it: `D:\mwl` is `/mnt/d/mwl`. */
+/** A Windows path as the distro sees it: `D:\src\app` is `/mnt/d/src/app`. */
 export function wslPath(windowsPath: string): string {
   const flat = windowsPath.replaceAll("\\", "/");
   const m = /^([A-Za-z]):(\/.*)?$/.exec(flat);

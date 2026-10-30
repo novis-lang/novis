@@ -93,7 +93,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   finds `tools/looper/main.ts` from the working directory's git root, so once the shell's directory
   stays in a nested `git init` folder, every later Bash call fails with *Module not found*, and
   removing that folder is refused while it holds the working directory. Run git in it with
-  `git -C <dir>` or `cd <dir> && ... && cd /e/mwl` in one call. `until: gone tools/looper/main.ts:run(process.argv`
+  `git -C <dir>` or `cd <dir> && ... && cd <repo>` in one call. `until: gone tools/looper/main.ts:run(process.argv`
 - **`a_served_while_true_does_not_stall_a_second_connection_on_its_core` can fail under a loaded
   full verify and pass alone.** The runaway's socket read EOF with no response head. One untested
   theory: hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
@@ -162,7 +162,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `tools/looper/main.ts`. `until: gone tools/looper/main.ts:verify`
 - **`bun nv soundness --probe` runs the `covws` build, not the debug build you just changed.** After a
   lowering change, the probe reports the old binary's panic for every new cell. Run it as
-  `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe`, with an absolute path, because a
+  `NVS_BIN=<repo>/target/debug/nvs.exe bun nv soundness --probe`, with an absolute path, because a
   relative one is not found. See `tools/nv/cmd/soundness.ts`.
   `until: gone tools/nv/cmd/soundness.ts:covws`
 - **`bun nv proofs --id` reads the roster from `target/release/nvs`, which no build of yours refreshes.**

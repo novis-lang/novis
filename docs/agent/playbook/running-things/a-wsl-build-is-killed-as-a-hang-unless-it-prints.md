@@ -4,5 +4,5 @@
   `(while sleep 30; do echo tick; done) &` beside the build in the same `bash -lc`, with nothing
   piped after `wsl.exe`. `wsl.exe` also drops each `$` in its command line, so put the command
   in a script under `.agent-tmp/` and run `MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu-24.04 --
-  bash /mnt/e/mwl/.agent-tmp/<script>`. See `tools/looper/src/jobs/hang.ts`.
+  bash /mnt/<drive>/<repo>/.agent-tmp/<script>`. See `tools/looper/src/jobs/hang.ts`.
   `until: gone looper.toml:hang_exempt`
