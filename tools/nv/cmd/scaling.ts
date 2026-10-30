@@ -210,8 +210,10 @@ let wslBuild: Promise<void> | null = null;
  * binary nothing rebuilt would measure an older tree and record its counts as this one's. A path
  * `--wsl-nvs` names is the caller's, and runs as given.
  *
- * After a Rust change the build takes minutes, inside the VM where the hang watch cannot read its CPU,
- * so cargo's progress lines go to standard error as they come: they are the only sign it is working.
+ * After a Rust change the build takes minutes, inside the VM where the hang watch cannot read its CPU.
+ * One large crate compiles for longer than the watch's stall bound with no line printed, so the build
+ * is declared to the watch as a wait on purpose for as long as it runs, and cargo's progress lines
+ * still go to standard error as they come.
  */
 function currentWslNvs(path: string): Promise<void> {
   if (process.platform !== "win32" || path !== DEFAULT_WSL_NVS) return Promise.resolve();
@@ -220,17 +222,23 @@ function currentWslNvs(path: string): Promise<void> {
     const mirror = mirrorPath(WSL_TARGET, wslPath(ROOT));
     const synced = await syncMirror(mirror);
     if (synced !== "") throw new PerfError(`the WSL copy of the tree could not be synced: ${synced}`);
-    const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET, true)], { stdout: "pipe", stderr: "pipe" });
+    const done = waitOnPurpose("cargo builds nvs inside WSL, where this call's CPU cannot be read");
+    let code: number;
     let err = "";
-    const decoder = new TextDecoder();
-    const echo = (async () => {
-      for await (const chunk of build.stderr) {
-        const text = decoder.decode(chunk, { stream: true });
-        err += text;
-        process.stderr.write(text);
-      }
-    })();
-    const [code] = await Promise.all([build.exited, echo, new Response(build.stdout).text()]);
+    try {
+      const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET, true)], { stdout: "pipe", stderr: "pipe" });
+      const decoder = new TextDecoder();
+      const echo = (async () => {
+        for await (const chunk of build.stderr) {
+          const text = decoder.decode(chunk, { stream: true });
+          err += text;
+          process.stderr.write(text);
+        }
+      })();
+      [code] = await Promise.all([build.exited, echo, new Response(build.stdout).text()]);
+    } finally {
+      done();
+    }
     if (code !== 0) throw new PerfError(`the WSL build of nvs exited ${code}: ${err.trim().split(/\r?\n/).at(-1) ?? ""}`);
   })();
   return wslBuild;
