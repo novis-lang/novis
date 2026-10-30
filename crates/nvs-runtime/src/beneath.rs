@@ -37,6 +37,41 @@ fn link_refused() -> io::Error {
     )
 }
 
+/// The error a listing stops with when the request's memory ceiling refused its next entry. The
+/// breach is already recorded, so [`crate::capability::read_dir`] reports the memory `FATAL`.
+#[derive(Debug)]
+pub(crate) struct ListingRefused;
+
+impl std::fmt::Display for ListingRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the listing does not fit in the request's memory limit")
+    }
+}
+
+impl std::error::Error for ListingRefused {}
+
+/// Whether the running request can afford one more entry named in `name` bytes, asked before the
+/// entry is made. Where `entries` is full, the ask also covers the block it grows into, which is
+/// held with the old one while the entries move.
+///
+/// **What it spends:** one comparison per entry.
+fn affords_entry(entries: &Vec<Entry>, name: usize) -> io::Result<()> {
+    let grows = if entries.len() == entries.capacity() {
+        entries
+            .capacity()
+            .max(4)
+            .saturating_mul(2)
+            .saturating_mul(std::mem::size_of::<Entry>())
+    } else {
+        0
+    };
+    if crate::budget::affords(grows.saturating_add(name)) {
+        Ok(())
+    } else {
+        Err(io::Error::other(ListingRefused))
+    }
+}
+
 /// How [`open_file`] opens the file at the end of the walk. Every mode but [`Mode::Read`] creates
 /// the file when it is not there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -286,12 +321,14 @@ pub struct Entry {
 /// Every name in the folder at `path` but `.` and `..`, in the order the file system gives them.
 /// The folder is walked as [`open_file`] walks one, and listed from its own handle.
 ///
-/// **Memory:** the whole listing, one name and one kind per entry, until the caller drops it.
+/// **Memory:** the whole listing, one name and one kind per entry, until the caller drops it. Each
+/// entry is asked of the request's memory ceiling before it is made ([`affords_entry`]).
 ///
 /// # Errors
 ///
-/// [`link_refused`] when a level of `path` is a link. Otherwise the operating system's error, such
-/// as nothing at `path` or a file there.
+/// [`link_refused`] when a level of `path` is a link, and [`ListingRefused`] when the request's
+/// memory ceiling refused an entry. Otherwise the operating system's error, such as nothing at
+/// `path` or a file there.
 pub fn list(path: &Path) -> io::Result<Vec<Entry>> {
     sys::list(&walk(path, false)?)
 }
@@ -522,6 +559,9 @@ mod sys {
                     libc::DT_UNKNOWN => kind_at(libc::dirfd(stream), name),
                     _ => super::Kind::Other,
                 };
+                if let Err(refused) = super::affords_entry(&entries, name.to_bytes().len()) {
+                    break Err(refused);
+                }
                 entries.push(super::Entry {
                     name: OsStr::from_bytes(name.to_bytes()).to_owned(),
                     kind,
@@ -1046,6 +1086,7 @@ mod sys {
                 };
                 let name = std::ffi::OsString::from_wide(&name);
                 if name != "." && name != ".." {
+                    super::affords_entry(&entries, name.len())?;
                     let kind = kind_of(dir, &name, attributes);
                     entries.push(super::Entry { name, kind });
                 }

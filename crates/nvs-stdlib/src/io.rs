@@ -2251,7 +2251,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one buffer the size of the input, charged to the
     /// request's memory limit like [`nvs_core_io_read`]'s and bounded by the
-    /// same number rather than by a second one.
+    /// same number rather than by a second one. [`read_bounded`] reads it, so
+    /// input past that bound stops the read at the growth that does not fit.
     ///
     /// **A `#[Test]` method reads end of input**, so a test never stops
     /// `nvs test` to wait for a person (`rule:testing/tests-run-across-every-core`).
@@ -2259,20 +2260,64 @@ nvs_runtime::nvs_helper! {
         if ctx.run_kind() == nvs_runtime::RunKind::Test {
             return text_of(&[], "Core\\IO::stdin");
         }
-        read_to_text(&mut std::io::stdin().lock())
+        read_to_text(ctx, &mut std::io::stdin().lock())
     }
 }
 
 /// [`nvs_core_io_stdin`]'s whole answer, over any reader: every byte until end
-/// of input, checked as text by [`text_of`]. The member hands it the process's
-/// standard input; a test hands it a `Cursor`, since a test cannot choose what
-/// its own process's standard input holds.
-fn read_to_text(input: &mut impl std::io::Read) -> Result<Value, Fault> {
-    let mut bytes = Vec::new();
-    input.read_to_end(&mut bytes).map_err(|err| {
-        nvs_runtime::capability::io_failure("Core\\IO::stdin", Path::new("<stdin>"), &err)
-    })?;
+/// of input, read by [`read_bounded`] and checked as text by [`text_of`]. The
+/// member hands it the process's standard input; a test hands it a `Cursor`,
+/// since a test cannot choose what its own process's standard input holds.
+fn read_to_text(ctx: &nvs_runtime::Ctx, input: &mut impl std::io::Read) -> Result<Value, Fault> {
+    let bytes = read_bounded(ctx, input, "Core\\IO::stdin", Path::new("<stdin>"))?;
     text_of(&bytes, "Core\\IO::stdin")
+}
+
+/// Every byte `input` gives, read no further than the request can hold.
+///
+/// [`nvs_runtime::budget::ByteWriter`] asks the request's memory ceiling
+/// before each growth, and stops at [`nvs_runtime::Ctx::intake_limit`]. So a
+/// source of any size costs at most what the request may hold, and the read
+/// stops there. Once the bytes are read, the one copy every caller makes of
+/// them, into a `string` or into lines, is asked for too. A copy that does not
+/// fit is then refused before it is made.
+///
+/// # Errors
+///
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the read fails;
+/// `intake_breach`'s `RuntimeError` for a source past `max_output`, which is a
+/// refusal to hold it rather than a failure to read it; and the memory `FATAL`
+/// once the request's ceiling refused a growth or the copy.
+fn read_bounded(
+    ctx: &nvs_runtime::Ctx,
+    input: &mut impl std::io::Read,
+    member: &str,
+    path: &Path,
+) -> Result<Vec<u8>, Fault> {
+    use nvs_runtime::budget::{ByteWriter, Stopped};
+
+    let limit = match ctx.intake_limit() {
+        0 => usize::MAX,
+        limit => limit,
+    };
+    let mut bytes = ByteWriter::within(limit);
+    bytes
+        .read_from(input)
+        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
+    let over_memory = || {
+        ctx.memory_breach().unwrap_or_else(|| {
+            Fault::fatal(format!(
+                "{member}: what was read does not fit in the request's memory limit"
+            ))
+        })
+    };
+    match bytes.finish() {
+        Ok(bytes) if nvs_runtime::budget::affords(bytes.len()) => Ok(bytes),
+        Ok(_) | Err(Stopped::Refused) => Err(over_memory()),
+        Err(Stopped::Over) => Err(ctx
+            .intake_breach(member, limit.saturating_add(1))
+            .unwrap_or_else(over_memory)),
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -2952,30 +2997,21 @@ nvs_runtime::nvs_helper! {
 ///
 /// `member` is the fully-qualified spelling every refusal here names.
 ///
-/// **Held to `[limits] max_output`**, through the pair
-/// [`nvs_runtime::Ctx::intake_bound`] and [`nvs_runtime::Ctx::intake_breach`] —
-/// the same two calls, in the same order, that `Core\Process::run` bounds a
-/// child's capture with. That is the whole of the sharing: one directive, one
-/// unit, one refusal, so a file and a child that are each too big to hold
-/// answer a program the same way. A request under no ceiling reads the file
-/// whole, exactly as this did before there was one.
+/// **Held to [`nvs_runtime::Ctx::intake_limit`]**, which is `[limits]
+/// max_output` or else the memory limit, and refused through
+/// [`nvs_runtime::Ctx::intake_breach`], as `Core\Process::run` bounds a child's
+/// capture. One directive, one unit, one refusal, so a file and a child that
+/// are each too big to hold answer a program the same way. [`read_bounded`]
+/// reads it, and is also what `Core\IO::stdin` reads with. A request under no
+/// ceiling reads the file whole.
 ///
 /// # Errors
 ///
-/// The door's catchable `RuntimeError` when `fs.read` does not cover `path`;
-/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the open or the read
-/// itself fails; and `intake_breach`'s `RuntimeError` for a file past the
-/// ceiling, which is a refusal to hold it rather than a failure to read it.
+/// The door's catchable `RuntimeError` when `fs.read` does not cover `path`,
+/// and every error [`read_bounded`] names.
 fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8>, Fault> {
-    let file = nvs_runtime::capability::open_read(ctx, path, member)?;
-    let mut bytes = Vec::new();
-    file.take(ctx.intake_bound())
-        .read_to_end(&mut bytes)
-        .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
-    if let Some(over) = ctx.intake_breach(member, bytes.len()) {
-        return Err(over);
-    }
-    Ok(bytes)
+    let mut file = nvs_runtime::capability::open_read(ctx, path, member)?;
+    read_bounded(ctx, &mut file, member, path)
 }
 
 nvs_runtime::nvs_helper! {
@@ -3565,6 +3601,11 @@ nvs_runtime::nvs_helper! {
                 if descend {
                     frontier.push_back((directory.join(&entry.name), relative));
                 }
+            }
+            // A refused growth of `found` leaves it as it was, so the walk
+            // stops at the directory where it happened and lists no more.
+            if let Some(over) = ctx.memory_breach() {
+                return Err(over);
             }
         }
         Ok(crate::instance::build(&WALK, [Value::array(found)]))
@@ -5490,8 +5531,9 @@ mod tests {
     // covers: Core\IO::stdin
     #[test]
     fn core_io_stdin_reads_to_the_end_and_refuses_input_that_is_not_text() {
+        let ctx = nvs_runtime::Ctx::buffered();
         let text_of_input = |input: &[u8]| {
-            let value = read_to_text(&mut std::io::Cursor::new(input.to_vec()))
+            let value = read_to_text(&ctx, &mut std::io::Cursor::new(input.to_vec()))
                 .unwrap_or_else(|fault| panic!("{input:?} is text: {fault:?}"));
             let answer = value.as_text().expect("the answer is a string").to_owned();
             #[expect(unsafe_code, reason = "the reader handed back a reference of its own")]
@@ -5507,8 +5549,8 @@ mod tests {
         assert_eq!(text_of_input(b""), "");
 
         let mut once = std::io::Cursor::new(b"only once".to_vec());
-        let first = read_to_text(&mut once).expect("the whole input");
-        let second = read_to_text(&mut once).expect("an input that has ended");
+        let first = read_to_text(&ctx, &mut once).expect("the whole input");
+        let second = read_to_text(&ctx, &mut once).expect("an input that has ended");
         assert_eq!(first.as_text(), Some("only once"));
         assert_eq!(second.as_text(), Some(""));
         #[expect(unsafe_code, reason = "each read handed back a reference of its own")]
@@ -5517,7 +5559,7 @@ mod tests {
             second.release();
         }
 
-        let refused = read_to_text(&mut std::io::Cursor::new(b"ok\0ok\xff".to_vec()))
+        let refused = read_to_text(&ctx, &mut std::io::Cursor::new(b"ok\0ok\xff".to_vec()))
             .expect_err("a byte that is never UTF-8 is not text");
         let Fault::Thrown(nvs_runtime::ThrownClass::Runtime, message) = refused else {
             panic!("input that is not text is a catchable `RuntimeError`: {refused:?}");
@@ -5533,7 +5575,8 @@ mod tests {
                 Err(std::io::Error::other("the writer went away"))
             }
         }
-        let failed = read_to_text(&mut Broken).expect_err("a failed read is not an empty input");
+        let failed =
+            read_to_text(&ctx, &mut Broken).expect_err("a failed read is not an empty input");
         let Fault::Thrown(nvs_runtime::ThrownClass::Io, message) = failed else {
             panic!("a failed read is an `IOError`: {failed:?}");
         };

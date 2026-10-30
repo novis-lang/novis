@@ -1229,6 +1229,9 @@ pub fn over_ceiling() -> bool {
         && LIVE.with(Cell::get) > ceiling
 }
 
+/// The bytes [`ByteWriter::read_from`] takes from its reader in one read.
+pub const READ_STEP: usize = 16 * 1024;
+
 /// Why a [`ByteWriter`] stopped writing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stopped {
@@ -1313,6 +1316,30 @@ impl ByteWriter {
     /// Appends one byte, as [`Self::put`] does.
     pub fn put_byte(&mut self, byte: u8) {
         self.put(&[byte]);
+    }
+
+    /// Appends everything `reader` gives until its end, or until the writer
+    /// stops. A file, a pipe and standard input are read this way, so a source
+    /// larger than the request can hold stops at the growth that does not fit.
+    ///
+    /// What it spends: one [`READ_STEP`] buffer on the stack, and one copy of
+    /// each step into the payload.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `reader` said, other than an interrupted read, which is asked
+    /// again.
+    pub fn read_from(&mut self, reader: &mut impl std::io::Read) -> std::io::Result<()> {
+        let mut step = [0_u8; READ_STEP];
+        while self.stopped.is_none() {
+            match reader.read(&mut step) {
+                Ok(0) => break,
+                Ok(read) => self.put(&step[..read]),
+                Err(err) if err.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
     }
 
     /// How many bytes are written.

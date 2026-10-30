@@ -535,6 +535,13 @@ impl Ctx {
     /// [`Self::intake_breach`] — the three together are the whole of what a call
     /// site needs, so no member does this arithmetic itself.
     ///
+    /// **A request with no `max_output` reads under its memory limit instead.**
+    /// A buffer filled from outside is the request's to hold, so a request that
+    /// may hold at most its memory limit reads no more than that in one call.
+    /// Without the fallback, a file or a child's output was read whole first,
+    /// and the memory ceiling was noticed only once all of it was held. `0` is
+    /// left only where neither limit is set.
+    ///
     /// **Per call, where [`Self::output_limit`] is per request.** A response is
     /// a running total because every byte written to one stays in it; a buffer
     /// read in from a child or a file is freed when the value holding it dies,
@@ -544,7 +551,10 @@ impl Ctx {
     /// measured on its own and nothing accumulates.
     #[must_use]
     pub fn intake_limit(&self) -> usize {
-        self.output_limit
+        match self.output_limit {
+            0 => self.memory_limit,
+            limit => limit,
+        }
     }
 
     /// [`Self::intake_limit`] as the count a bounded read stops at: one byte
@@ -580,9 +590,14 @@ impl Ctx {
         if limit == 0 || bytes <= limit {
             return None;
         }
+        let directive = if self.output_limit == 0 {
+            "memory"
+        } else {
+            "max_output"
+        };
         Some(crate::Fault::thrown(format!(
-            "{member} read at least {bytes} bytes, past the `[limits] max_output` ceiling of {limit} \
-             this request holds a single read to",
+            "{member} read at least {bytes} bytes, past the `[limits] {directive}` ceiling of \
+             {limit} this request holds a single read to",
         )))
     }
 

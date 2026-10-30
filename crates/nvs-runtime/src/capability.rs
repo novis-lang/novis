@@ -1248,17 +1248,30 @@ pub fn canonicalize(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fau
 /// fails the listing. Each entry's kind is read without following a link.
 ///
 /// **Memory:** the whole listing, read at once, one name and one kind per entry, until the caller
-/// drops it. Every caller collects the names anyway.
+/// drops it. Every caller collects the names anyway. Each entry is asked of the request's memory
+/// ceiling before it is made, so a folder with more entries than the request can hold stops at the
+/// first one that does not fit.
 ///
 /// # Errors
 ///
 /// [`resolve`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
 /// `path`, or [`io_failure`]'s `IOError` when the directory could not be listed — it is not there,
-/// it is not a directory, or the listing failed partway.
+/// it is not a directory, or the listing failed partway. A listing the memory ceiling stopped is
+/// the memory `FATAL`.
 pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<Vec<Entry>, Fault> {
     let at = resolve(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::dir(path);
-    crate::beneath::list(&at).map_err(|err| io_failure(member, path, &err))
+    crate::beneath::list(&at).map_err(|err| {
+        if err
+            .get_ref()
+            .is_some_and(|why| why.is::<crate::beneath::ListingRefused>())
+        {
+            ctx.memory_breach()
+                .unwrap_or_else(|| Fault::fatal(format!("{member}: {err}")))
+        } else {
+            io_failure(member, path, &err)
+        }
+    })
 }
 
 /// The unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
