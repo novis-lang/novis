@@ -1,7 +1,7 @@
 // `bun nv discord`: the project's Discord server, administered from a session when the user asks for a
 // change. Nothing here runs unattended: every call is one the session makes on the user's request.
 //
-//     bun nv discord check    --token-file <path> --channel <id>
+//     bun nv discord check    --token-file <path> (--guild <id> | --channel <id>)
 //     bun nv discord api      --token-file <path> <METHOD> <api-path> [<json> | --body-file <path>] [--reason <text>]
 //                             [--guild <id> | --channel <id>] [--all] [--max <n>] [--out <path>] [--dry-run]
 //     bun nv discord snapshot --token-file <path> (--guild <id> | --channel <id>) --out <path>
@@ -33,8 +33,8 @@
 // never goes into the tree, and whoever writes it deletes it.
 //
 // `check` verifies the setup a session needs and names each missing step: the token, the bot's privileged
-// intents, that it is not public, that it can see the channel, that it holds Administrator, and that no
-// role sits above its own. `bits` turns flag names into a bitfield for a write, or a bitfield into names.
+// intents, that it is not public, that it is in the server and sees the channel, that it holds
+// Administrator, and that no role sits above its own. A server's id given as `--channel` is named as one. `bits` turns flag names into a bitfield for a write, or a bitfield into names.
 //
 // Exits 0 on success, 1 when Discord or a check fails, and 2 on a usage error.
 
@@ -45,7 +45,7 @@ import { ROOT } from "../lib/paths.ts";
 export const summary = "administer the project's Discord server on request: nv discord check|api|snapshot|diff|bits";
 
 const USAGE = `usage:
-  bun nv discord check    --token-file <path> --channel <id>
+  bun nv discord check    --token-file <path> (--guild <id> | --channel <id>)
   bun nv discord api      --token-file <path> <METHOD> <api-path> [<json> | --body-file <path>] [--reason <text>]
                           [--guild <id> | --channel <id>] [--all] [--max <n>] [--out <path>] [--dry-run]
   bun nv discord snapshot --token-file <path> (--guild <id> | --channel <id>) --out <path>
@@ -456,7 +456,7 @@ function short(v: unknown): string {
 }
 
 /** The setup a session needs, one GREEN or RED line per step; returns the exit code. */
-async function check(client: Client, channel: string, s: Seams): Promise<number> {
+async function check(client: Client, where: { guild?: string | undefined; channel?: string | undefined }, s: Seams): Promise<number> {
   let red = 0;
   const say = (ok: boolean, line: string) => {
     if (!ok) red++;
@@ -478,22 +478,40 @@ async function check(client: Client, channel: string, s: Seams): Promise<number>
   say((flags & MEMBERS_INTENT) !== 0, "Server Members Intent is on (Bot tab, Privileged Gateway Intents)");
   say((flags & CONTENT_INTENT) !== 0, "Message Content Intent is on (Bot tab, Privileged Gateway Intents)");
   say(app.bot_public === false, "Public Bot is off (Bot tab), so only you can add the bot to a server");
-  let ch: { name?: string; guild_id?: string };
-  try {
-    ch = (await client.call("GET", `/channels/${channel}`)) as typeof ch;
-  } catch (e) {
-    if (!(e instanceof DiscordError) || (e.status !== 403 && e.status !== 404)) throw e;
-    say(false, `the bot cannot see channel ${channel}: add it to the server with the OAuth2 URL Generator (scope bot, permission Administrator)`);
+  // The servers the bot is in: an id given as a channel may be one of them, and is then named as a server.
+  const servers = (await client.call("GET", "/users/@me/guilds")) as Named[];
+  const notIn = (id: string) => `the bot is not in server ${id}: add it with the OAuth2 URL Generator (scope bot, permission Administrator)`;
+  let guildId = where.guild;
+  let seen = "";
+  if (where.channel !== undefined) {
+    const server = servers.find((g) => g.id === where.channel);
+    if (server) {
+      say(false, `${where.channel} is the id of the server ${server.name}, not of a channel: run check with --guild ${where.channel}`);
+      return 1;
+    }
+    let ch: { name?: string; guild_id?: string };
+    try {
+      ch = (await client.call("GET", `/channels/${where.channel}`)) as typeof ch;
+    } catch (e) {
+      if (!(e instanceof DiscordError) || (e.status !== 403 && e.status !== 404)) throw e;
+      say(false, `the bot cannot see channel ${where.channel}: ${servers.length === 0 ? notIn("of that channel") : "it is in no server the bot is in, or Administrator is missing"}`);
+      return 1;
+    }
+    if (!ch.guild_id) {
+      say(false, `channel ${where.channel} is not in a server`);
+      return 1;
+    }
+    guildId = ch.guild_id;
+    seen = `#${ch.name} in `;
+  }
+  if (!servers.some((g) => g.id === guildId)) {
+    say(false, notIn(guildId!));
     return 1;
   }
-  if (!ch.guild_id) {
-    say(false, `channel ${channel} is not in a server`);
-    return 1;
-  }
-  const guild = (await client.call("GET", `/guilds/${ch.guild_id}`)) as { name: string; mfa_level: number; roles: (Named & { position: number; permissions: string; managed?: boolean })[] };
-  say(true, `the bot sees #${ch.name} in ${guild.name} (server ${ch.guild_id})`);
-  const member = (await client.call("GET", `/guilds/${ch.guild_id}/members/${me.id}`)) as { roles: string[] };
-  const mine = guild.roles.filter((r) => member.roles.includes(r.id) || r.id === ch.guild_id);
+  const guild = (await client.call("GET", `/guilds/${guildId}`)) as { name: string; mfa_level: number; roles: (Named & { position: number; permissions: string; managed?: boolean })[] };
+  say(true, `the bot sees ${seen}${guild.name} (server ${guildId})`);
+  const member = (await client.call("GET", `/guilds/${guildId}/members/${me.id}`)) as { roles: string[] };
+  const mine = guild.roles.filter((r) => member.roles.includes(r.id) || r.id === guildId);
   say(mine.some((r) => permissionNames(r.permissions).includes("ADMINISTRATOR")), "the bot has Administrator");
   const top = Math.max(...mine.map((r) => r.position));
   const above = guild.roles.filter((r) => r.position > top);
@@ -602,8 +620,8 @@ export async function discord(args: string[], over: Partial<Seams> = {}): Promis
       case "api":
         return await api(o, s);
       case "check": {
-        if (!o.channel || o.positional.length > 0) throw new Usage("check needs --channel <id> and nothing else");
-        return await check(new Client(readToken(o, s), s), o.channel, s);
+        if ((!o.channel && !o.guild) || o.positional.length > 0) throw new Usage("check needs --guild <id> or --channel <id>, and nothing else");
+        return await check(new Client(readToken(o, s), s), { guild: o.guild, channel: o.channel }, s);
       }
       case "snapshot": {
         if (o.out === undefined || o.positional.length > 0) throw new Usage("snapshot needs --out <path> and nothing else");

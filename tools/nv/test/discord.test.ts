@@ -224,6 +224,7 @@ describe("bun nv discord check", () => {
   const ok: Record<string, Answer> = {
     "GET /users/@me": { body: { id: BOT, username: "Novis Admin" } },
     "GET /applications/@me": { body: { flags: (1 << 15) | (1 << 19), bot_public: false } },
+    "GET /users/@me/guilds": { body: [{ id: GUILD, name: "Novis" }] },
     [`GET /channels/${CHANNEL}`]: { body: { id: CHANNEL, name: "general", guild_id: GUILD } },
     [`GET /guilds/${GUILD}`]: {
       body: {
@@ -244,6 +245,21 @@ describe("bun nv discord check", () => {
     expect(await discord(["check", ...T, "--channel", CHANNEL], f.seams)).toBe(0);
     expect(f.out.every((l) => l.startsWith("GREEN"))).toBe(true);
     expect(f.out).toHaveLength(7);
+    const byGuild = fake(ok);
+    expect(await discord(["check", ...T, "--guild", GUILD], byGuild.seams)).toBe(0);
+    expect(byGuild.out[4]).toBe(`GREEN the bot sees Novis (server ${GUILD})`);
+  });
+
+  test("a server's id given as --channel is named as the server's, with the --guild to run instead", async () => {
+    const f = fake(ok);
+    expect(await discord(["check", ...T, "--channel", GUILD], f.seams)).toBe(1);
+    expect(f.out.at(-1)).toBe(`RED ${GUILD} is the id of the server Novis, not of a channel: run check with --guild ${GUILD}`);
+  });
+
+  test("a bot in no server is told to add itself with the URL generator", async () => {
+    const f = fake({ ...ok, "GET /users/@me/guilds": { body: [] } });
+    expect(await discord(["check", ...T, "--guild", GUILD], f.seams)).toBe(1);
+    expect(f.out.at(-1)).toContain(`the bot is not in server ${GUILD}: add it with the OAuth2 URL Generator`);
   });
 
   test("each missing step is a RED line that says how to fix it", async () => {
