@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/organize.rs, crates/nvs-lsp/src/capabilities.rs, crates/nvs-fmt/src/lib.rs, docs/rules/tooling/fmt-base-style-is-per.md]
   - id: 3
     title: "nvs code order writes, checks and prints the member order"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs, docs/rules/tooling/nvs-code-answers-about-the-project.md, crates/nvs-cli/src/agent.rs, docs/reference/tools/10-cli.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -270,13 +270,13 @@ subagent writes them once the session has landed `nvs_lsp::order` and the kind. 
 **Does:** `nvs code order` writes what the editor's action writes, and `--check` gives CI a red
 line for a class out of order.
 
-- [ ] The `Order` verb with `[paths...]`, `--check`, `--dry-run` and `--json`, and its help text. It calls `nvs_lsp::order` per file and writes through `write_out`. `crates/nvs-cli/src/code.rs:136`, `crates/nvs-cli/src/code.rs:230`, `crates/nvs-cli/src/code.rs:1074`
-- [ ] The tests the `code-order-tests` check names. The changed-file test uses the test hook `rename` already uses, never a timer. `crates/nvs-cli/tests/code.rs:1`
-- [ ] `PROTOCOL` names `order` in one line, and the `tests/agent.rs` test that pins the text is updated. `crates/nvs-cli/src/agent.rs:1629`
-- [ ] The CLI reference and the `nvs code` feature describe `order`, with a second example: a class before and after. `bun nv proofs --id 'tools:cli/nvs-code'` owes nothing, and `bun nv proofs --comments` passes on the example. `docs/reference/tools/10-cli.md:1045`, `docs/examples/tools/cli/nvs-code/about.md:1`, `docs/examples/tools/cli/nvs-code/02-order-class-members.nvs:1`
-- [ ] `rule:tooling/nvs-code-answers-about-the-project` describes `order` and its title names the three writers. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`, `data/rules/tooling/nvs-code-answers-about-the-project.json:2`
-- [ ] Both new rules are `shipped`, with their tests and conformance cases as `guardedBy`. Then `bun nv rules --render` and `bun nv render --website`. `data/rules/tooling/class-members-have-one-order.json:1`, `data/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.json:1`
-- [ ] `bun nv owners --closes member-order` passes. `tools/nv/cmd/owners.ts:1`
+- [x] The `Order` verb with `[paths...]`, `--check`, `--dry-run` and `--json`, and its help text. It calls `nvs_lsp::order` per file and writes through `planned` and `committed`, the write path `write_out` wraps. `crates/nvs-cli/src/code.rs:136`, `crates/nvs-cli/src/code.rs:230`, `crates/nvs-cli/src/code.rs:1074`
+- [x] The tests the `code-order-tests` check names. The changed-file test uses the test hook `rename` already uses, never a timer. `crates/nvs-cli/tests/code.rs:1`
+- [x] `PROTOCOL` names `order` in one line, and the `tests/agent.rs` test that pins the text is updated. `crates/nvs-cli/src/agent.rs:1629`
+- [x] The CLI reference and the `nvs code` feature describe `order`, with a second example: a class before and after. `bun nv proofs --id 'tools:cli/nvs-code'` owes nothing, and `bun nv proofs --comments` passes on the example. `docs/reference/tools/10-cli.md:1045`, `docs/examples/tools/cli/nvs-code/about.md:1`, `docs/examples/tools/cli/nvs-code/02-order-class-members.nvs:1`
+- [x] `rule:tooling/nvs-code-answers-about-the-project` describes `order` and its title names the three writers. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`, `data/rules/tooling/nvs-code-answers-about-the-project.json:2`
+- [x] Both new rules are `shipped`, with their tests and conformance cases as `guardedBy`. Then `bun nv rules --render` and `bun nv render --website`. `data/rules/tooling/class-members-have-one-order.json:1`, `data/rules/core-classes/keep-key-order-freezes-a-derived-classs-keys.json:1`
+- [x] `bun nv owners --closes member-order` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -295,35 +295,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs_types::derive::field_order` (`crates/nvs-types/src/derive.rs`) is the
-one home of a derived class's field order, and `check_class_format` walks it. `nvs_lsp::order::of`
-(`crates/nvs-lsp/src/order.rs:121`) takes a `&SourceFile` and returns `Result<Ordered, Refused>`:
-`Ordered { text: Option<String>, moved: Vec<Class>, notes: Vec<Note> }`, where `text` is `None` for
-an ordered file, `Class { name, at }` is the full name and the declaration's first byte, and
-`NoteKind` is `KeyOrderChanges` or `KeptAsWritten`. `Refused::DoesNotParse` is a file with a syntax
-error; `Refused::Unsafe(Class)` is a moved text the formatter refuses. It resolves
-`Core\Json\Derive` and `KeepKeyOrder` from the file's own namespace and `use` lines, so stage 3 needs
-no analysis to call it. `order::at` is the editor's action. `Kind::OrderMembers` and `Kind::Source`
-are wired, `CODE_ACTION_KINDS` lists `source.orderMembers.nvs`, the handshake pins the kinds list,
-and the editor reference describes the action. `member-order-tests` passes (13 of 13 by name), and
-the three `.lspt` cases pass under `nvs lsp-test`.
+Stages 1 to 3 are done. `nvs code order` (`crates/nvs-cli/src/code.rs`, `fn order` and
+`fn ordered_files`) runs `nvs_lsp::order::of` over each file a path names, or every indexed file,
+and writes each changed file as one whole-file `Rewrite` through `planned` and `committed`, the
+write path `write_out` also wraps. `write_out` itself prints by edit, so `order` prints by class
+instead. `--check` prints class lines only and exits 1; `--dry-run` prints class lines then notes;
+a syntax error or a moved text that does not format goes to standard error and the file is skipped.
+`--json` gives `files`, `notes`, `skipped` and `written`. The seven `code-order-tests` pass by name,
+and so does the `tests/agent.rs` protocol pin.
 
-The prompt's sweep named the same nightly run (`40919832286`) the last handoff read, and
-`env-secret-proofs` exits 0 in its own log. Nothing new to fix there.
+`PROTOCOL`, the CLI reference (`docs/reference/tools/10-cli.md`, `# nvs code`), the feature's
+`about.md` and its `02-order-class-members.nvs` example describe `order`; `bun nv proofs --id
+'tools:cli/nvs-code'` owes nothing. Both new rules are `shipped`, the `nvs code` rule names three
+writers, the member-order rule no longer names an anonymous class, the chapters and
+`llms-full.txt` are rendered, and `bun nv owners --closes member-order` passes.
+
+The sweep's `env-secret-proofs` log exits 0 and its nightly run (`40919832286`) is the one the
+handoffs before read. Nothing new to fix there.
 
 ### Next
 
-Stage 3. `order::of` returns notes even when `text` is `None`, so `--check` and the note lines read
-the same value.
+Stage 4, the gate.
 
-- [ ] The `Order` verb, its flags and help text, calling `nvs_lsp::order::of` per file and writing through `write_out`. `crates/nvs-cli/src/code.rs:136`, `crates/nvs-cli/src/code.rs:230`, `crates/nvs-cli/src/code.rs:1074`
-- [ ] The `code-order-tests` tests. `crates/nvs-cli/tests/code.rs:1`
-- [ ] `PROTOCOL`'s `order` line and its `tests/agent.rs` pin. `crates/nvs-cli/src/agent.rs:1629`
-- [ ] The CLI reference, the `nvs code` feature's `about.md` and its second example. `docs/reference/tools/10-cli.md:1045`, `docs/examples/tools/cli/nvs-code/about.md:1`
-- [ ] Both rules `shipped`, `nvs-code-answers-about-the-project` names `order`, then `bun nv rules --render` and `bun nv render --website`. `data/rules/tooling/class-members-have-one-order.json:1`
-- [ ] `bun nv owners --closes member-order`. `tools/nv/cmd/owners.ts:1`
+- [ ] Start `looper verify` with `run_in_background`, end the turn, and group its failures by cause. `crates/nvs-cli/tests/code.rs:1`
+- [ ] Fix every failure in one pass, then run it once more. `crates/nvs-lsp/tests/coverage.rs:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes member-order`, `bun nv ci --check`. `docs/goals/member-order.md:1`
 
-No existing test is expected to go red. Stage 4's verify reads `crates/nvs-lsp/tests/coverage.rs`,
-which may want the new `.lspt` cases in its matrix.
+Tests that may go red: a help or index snapshot that lists every `nvs code` verb (the new `order`
+verb and its flags reach `nvs agent index`), `crates/nvs-lsp/tests/coverage.rs` if it wants the
+three `order-members` `.lspt` cases in its matrix, and the website stale guard if a rendered page
+quotes the CLI reference.
 
 ### Backlog
