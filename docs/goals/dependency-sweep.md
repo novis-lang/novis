@@ -242,9 +242,9 @@ pin keeps a patch release from changing the intl component's output. 0.7 needs t
 extension already needs `^1.97`, so no user loses an editor. The `.vsix` is rebuilt by the goal-end
 hook (`bun nv vsix --hook`), because `editors/vscode/` changed.
 
-**Bun moves in the tree, and the user updates the machine.** `engines.bun` becomes `1.4.4`, and CI
-reads it through `bun-version-file`. The `bun` on the Windows `PATH` is the user's to update. A
-session goes on with the installed one, and the handoff names the update for the user.
+**Bun moves in the tree.** `engines.bun` becomes `1.4.4`, and CI reads it through
+`bun-version-file`. The machine already runs Bun 1.4.4 and Node 26.13 (the user updated both on
+2026-10-30), so the tree catches up with the machine and nothing waits on the user.
 
 **Recorded measurements keep their versions.** `benches/compare.json`,
 `website/src/data/compare.json` and `benches/compare/README.md:139` say which images a recorded run
@@ -382,6 +382,5 @@ No existing test is expected to go red, except where a moved API changes a messa
 
 ### Backlog
 
-- The user updates the `bun` on the Windows `PATH` to 1.4.4 (`docs/setup.md`).
 - wasmtime 50's `Engine::release_idle_pool_memory` could free an idle pool's memory. It is not this goal's (`crates/nvs-ext/src/call.rs`).
 - `tools/looper/package.json`'s `typescript` 7 goes to looper's kit sweep (`tools/looper/`).
