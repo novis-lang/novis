@@ -570,9 +570,8 @@ const STEP: usize = 8192;
 /// octets and the walks in [`super::stream`] never learn which one they are on.
 ///
 /// **What it spends:** one read buffer, whatever has been framed and no reader
-/// has taken yet, — under chunked framing alone — at most one incomplete chunk
-/// waiting for the rest of itself, and for a coded reply one decoding window
-/// and one [`STEP`].
+/// has taken yet, under chunked framing at most one chunk header waiting for
+/// its line end, and for a coded reply one decoding window and one [`STEP`].
 pub(crate) struct Incoming {
     /// The body as it is read, with a decoder in front of the framing or not.
     body: Coding,
@@ -616,8 +615,15 @@ struct Framed {
     /// Body octets pulled and framed, and not yet taken by a reader.
     held: Vec<u8>,
     /// Octets pulled and not yet framed, which only chunked framing ever leaves
-    /// anything in.
+    /// anything in: a chunk header whose line end has not arrived.
     raw: Vec<u8>,
+    /// The octets of the current chunk still to arrive, its closing `\r\n`
+    /// included, or `0` where the next octets are a chunk header.
+    ///
+    /// A chunk's octets are moved across as they arrive. Waiting for a whole
+    /// chunk would let the other end choose how much this reader holds by
+    /// writing one large chunk header.
+    chunk_left: u64,
     /// What delimits this body.
     frame: Frame,
     /// Whether the framing has said there is no more.
@@ -699,6 +705,7 @@ impl Framed {
             source: Some(source),
             held: Vec::new(),
             raw,
+            chunk_left: 0,
             frame,
             ended: false,
             idle,
@@ -731,6 +738,7 @@ impl Framed {
             source: None,
             held,
             raw: Vec::new(),
+            chunk_left: 0,
             frame: Frame::UntilClose,
             ended: true,
             idle: Duration::ZERO,
@@ -868,37 +876,51 @@ impl Framed {
         }
     }
 
-    /// As many whole chunks as [`Framed::raw`] holds, moved across, leaving
-    /// the part-chunk at the end for the read that completes it.
+    /// Every chunk octet [`Framed::raw`] holds, moved across, leaving only a
+    /// chunk header that has not reached its line end.
     ///
     /// # Errors
     ///
-    /// A `RuntimeError` for a chunk header that is not text or not a length.
+    /// A `RuntimeError` for a chunk header that is not text, not a length, or
+    /// longer than [`LINE_CEILING`] without a line end.
     fn dechunk(&mut self) -> Result<bool, Fault> {
         let mut from = 0_usize;
         let ended = loop {
+            if self.chunk_left > 0 {
+                let rest = self.raw.len() - from;
+                let take = usize::try_from(self.chunk_left).map_or(rest, |left| left.min(rest));
+                // The last two octets of a chunk are its `\r\n`, which is not body.
+                let body = usize::try_from(self.chunk_left - 2).map_or(take, |data| data.min(take));
+                self.held.extend_from_slice(&self.raw[from..from + body]);
+                from += take;
+                self.chunk_left -= u64::try_from(take).unwrap_or(u64::MAX);
+                if self.chunk_left > 0 {
+                    break false;
+                }
+                continue;
+            }
             let Some(end) = find(&self.raw[from..], b"\r\n") else {
+                if self.raw.len() - from > LINE_CEILING {
+                    return Err(malformed(&self.member, "a chunk header has no line end"));
+                }
                 break false;
             };
             let header = std::str::from_utf8(&self.raw[from..from + end])
                 .map_err(|_| malformed(&self.member, "a chunk header is not text"))?;
-            let size =
-                usize::from_str_radix(header.split(';').next().unwrap_or_default().trim(), 16)
-                    .map_err(|_| {
-                        malformed(&self.member, "a chunk header is not a hexadecimal length")
-                    })?;
-            let at = from + end + 2;
+            let size = u64::from_str_radix(header.split(';').next().unwrap_or_default().trim(), 16)
+                .map_err(|_| {
+                    malformed(&self.member, "a chunk header is not a hexadecimal length")
+                })?;
+            from += end + 2;
             if size == 0 {
                 // Whatever trailer follows the last chunk is not body, and the
                 // connection is about to be dropped with it.
                 from = self.raw.len();
                 break true;
             }
-            if self.raw.len() < at + size + 2 {
-                break false;
-            }
-            self.held.extend_from_slice(&self.raw[at..at + size]);
-            from = at + size + 2;
+            self.chunk_left = size.checked_add(2).ok_or_else(|| {
+                malformed(&self.member, "a chunk header is not a hexadecimal length")
+            })?;
         };
         self.raw.drain(..from);
         Ok(ended)
@@ -4631,6 +4653,37 @@ pub(crate) mod tests {
     fn a_chunk_header_that_is_not_a_length_fails() {
         let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nok\r\n0\r\n\r\n";
         assert!(parsed(raw).is_err());
+    }
+
+    /// A chunk header as large as a length can be written fails as a reply
+    /// that is not HTTP, and the octets the chunk did send arrive before the
+    /// throw. The decoder never waits for a whole chunk, so its header picks
+    /// nothing about how much is held.
+    #[test]
+    fn a_chunk_header_past_any_reply_fails_without_a_panic() {
+        for size in ["ffffffffffffffff", "fffffffffffffffe", "10000000000000000"] {
+            let raw = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n{size}\r\nok");
+            let Err(fault) = parsed(raw.as_bytes()) else {
+                panic!("{size}: a chunk the reply never finishes was read");
+            };
+            assert!(
+                format!("{fault:?}").contains("not an HTTP reply"),
+                "{size}: {fault:?}"
+            );
+        }
+        let mut framed = super::Framed::already(Vec::new(), "test");
+        framed.frame = super::Frame::Chunked;
+        framed.ended = false;
+        framed.raw = b"7fffffffffff\r\nok".to_vec();
+        assert!(!framed.dechunk().expect("a chunk still arriving"));
+        assert_eq!(
+            framed.held, b"ok",
+            "a chunk's octets move across as they arrive"
+        );
+        assert!(
+            framed.raw.is_empty(),
+            "nothing waits for the rest of the chunk"
+        );
     }
 
     /// The header lookup is case-insensitive because HTTP field names are.
