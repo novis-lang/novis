@@ -6,7 +6,7 @@
 //
 // The pins it reads, and where each one's latest comes from:
 //
-// - `crate`      a versioned row of a dependency table in every tracked `Cargo.toml` outside `vendor/`,
+// - `crate`      a versioned row of a dependency table in every tracked `Cargo.toml`,
 //                and each `cargo install <crate> --version <v>` in a workflow. The crates.io sparse index.
 // - `npm`        `dependencies` and `devDependencies` of every tracked `package.json`, and `engines.bun`
 //                as the `bun` package. The npm registry's `latest` tag.
@@ -26,6 +26,11 @@
 // that is behind is `held` until its date passes and `expired` after. The command reads, and never edits
 // a file. `--check` fails on `behind`, `expired` and `unknown` (a registry that did not answer).
 // GitHub's API is called with `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, whichever comes first.
+//
+// No file under `vendor/` or `tools/looper/` gives a pin. A vendored crate's manifest is upstream's,
+// and a patch to it is judged as a fork. The looper kit is written by `looper sync` and never edited
+// here, so neither a bump nor a hold can land in it: looper's own sweep moves its pins, and the next
+// sync brings them.
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -501,36 +506,42 @@ async function resolve(pin: Pin, today: string): Promise<Row> {
 
 // --- the tree ---------------------------------------------------------------------------------------
 
+/** The trees whose files give no pin, as the head comment says. */
+export const SKIPPED = ["vendor/", "tools/looper/"];
+
 /** Every pin in the tracked files, in file order. */
 export async function pins(): Promise<Pin[]> {
-  const files = (await tracked()).filter((f) => !f.startsWith("vendor/"));
   const read = (f: string) => readFileSync(abs(f), "utf8");
+  return (await tracked()).flatMap((f) => filePins(f, read));
+}
+
+/** The pins one tracked file gives. `read` is called only for a file that can give one. */
+export function filePins(f: string, read: (f: string) => string): Pin[] {
   const out: Pin[] = [];
-  for (const f of files) {
-    const base = f.split("/").at(-1)!;
-    if (base === "Cargo.toml") out.push(...cargoPins(read(f), f));
-    else if (base === "package.json" && !f.startsWith("data/")) out.push(...npmPins(read(f), f));
-    else if (f.startsWith(".github/workflows/") && /\.ya?ml$/.test(f)) {
-      const text = read(f);
-      out.push(...actionPins(text, f), ...cargoInstallPins(text, f));
-      const lines = text.split(/\r?\n/);
-      lines.forEach((l, i) => {
-        const m = /^\s*WASI_SDK_VERSION:\s*['"]?(\d+)/.exec(l);
-        if (m) out.push({ kind: "wasi-sdk", name: "WebAssembly/wasi-sdk", pinned: m[1]!, file: f, line: i + 1, hold: holdAbove(lines, i) });
-      });
-    } else if (/^Dockerfile(\.|$)/.test(base) && !base.endsWith(".dockerignore")) out.push(...imagePins(read(f), f));
-    else if (/^compose.*\.ya?ml$/.test(base)) out.push(...imagePins(read(f), f));
-    else if (f === "rust-toolchain.toml") {
-      const lines = read(f).split(/\r?\n/);
-      const i = lines.findIndex((l) => /^\s*channel\s*=/.test(l));
-      const m = /"([^"]+)"/.exec(lines[i] ?? "");
-      if (m) out.push({ kind: "toolchain", name: "rust", pinned: m[1]!, file: f, line: i + 1, hold: holdAbove(lines, i) });
-    } else if (base === "SOURCE.json") {
-      const text = read(f);
-      const version = (JSON.parse(text) as { toolchain?: { version?: string } }).toolchain?.version;
-      const m = /^wasi-sdk (\d+(?:\.\d+)*)$/.exec(version ?? "");
-      if (m) out.push({ kind: "wasi-sdk", name: "WebAssembly/wasi-sdk", pinned: m[1]!, file: f, line: jsonLine(text.split(/\r?\n/), "toolchain") });
-    }
+  if (SKIPPED.some((p) => f.startsWith(p))) return out;
+  const base = f.split("/").at(-1)!;
+  if (base === "Cargo.toml") out.push(...cargoPins(read(f), f));
+  else if (base === "package.json" && !f.startsWith("data/")) out.push(...npmPins(read(f), f));
+  else if (f.startsWith(".github/workflows/") && /\.ya?ml$/.test(f)) {
+    const text = read(f);
+    out.push(...actionPins(text, f), ...cargoInstallPins(text, f));
+    const lines = text.split(/\r?\n/);
+    lines.forEach((l, i) => {
+      const m = /^\s*WASI_SDK_VERSION:\s*['"]?(\d+)/.exec(l);
+      if (m) out.push({ kind: "wasi-sdk", name: "WebAssembly/wasi-sdk", pinned: m[1]!, file: f, line: i + 1, hold: holdAbove(lines, i) });
+    });
+  } else if (/^Dockerfile(\.|$)/.test(base) && !base.endsWith(".dockerignore")) out.push(...imagePins(read(f), f));
+  else if (/^compose.*\.ya?ml$/.test(base)) out.push(...imagePins(read(f), f));
+  else if (f === "rust-toolchain.toml") {
+    const lines = read(f).split(/\r?\n/);
+    const i = lines.findIndex((l) => /^\s*channel\s*=/.test(l));
+    const m = /"([^"]+)"/.exec(lines[i] ?? "");
+    if (m) out.push({ kind: "toolchain", name: "rust", pinned: m[1]!, file: f, line: i + 1, hold: holdAbove(lines, i) });
+  } else if (base === "SOURCE.json") {
+    const text = read(f);
+    const version = (JSON.parse(text) as { toolchain?: { version?: string } }).toolchain?.version;
+    const m = /^wasi-sdk (\d+(?:\.\d+)*)$/.exec(version ?? "");
+    if (m) out.push({ kind: "wasi-sdk", name: "WebAssembly/wasi-sdk", pinned: m[1]!, file: f, line: jsonLine(text.split(/\r?\n/), "toolchain") });
   }
   return out;
 }

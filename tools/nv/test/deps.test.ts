@@ -7,6 +7,7 @@ import {
   cargoPins,
   cargoRange,
   compare,
+  filePins,
   imagePins,
   judge,
   newestStable,
@@ -51,6 +52,21 @@ test("a Cargo.toml gives every versioned registry row, its renamed package and t
   ]);
   expect(pins[0]!.hold).toEqual({ revisit: "2026-11-16", reason: "the parent still needs 0.2." });
   expect(pins[1]!.hold).toBeUndefined();
+});
+
+test("a file under vendor/ or the synced looper kit gives no pin", () => {
+  const PACKAGE = JSON.stringify({ devDependencies: { typescript: "^5.9.3" } }, null, 2);
+  const text: Record<string, string> = {
+    "Cargo.toml": CARGO,
+    "vendor/html5ever/Cargo.toml": CARGO,
+    "tools/looper/package.json": PACKAGE,
+    "tools/nv/package.json": PACKAGE,
+  };
+  const read = (f: string) => text[f] ?? "";
+  expect(filePins("vendor/html5ever/Cargo.toml", read)).toEqual([]);
+  expect(filePins("tools/looper/package.json", read)).toEqual([]);
+  expect(filePins("Cargo.toml", read)).toHaveLength(6);
+  expect(filePins("tools/nv/package.json", read).map((p) => [p.name, p.pinned])).toEqual([["typescript", "^5.9.3"]]);
 });
 
 test("a Cargo requirement is a caret range unless it says otherwise", () => {
