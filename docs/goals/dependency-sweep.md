@@ -294,7 +294,8 @@ found it as `registry_build`'s two publish tests under load. It is a product bug
 surfaced, and the gate stage fixes it, because the stage owes every failure it names. Declined:
 raising the timeout or the test's bound, which loosens a check and still cuts any slow handler.
 Cost: one more phase value per connection, nothing per request. The home is
-`crates/nvs-server/src/io.rs`'s module doc and `rule:http-server/the-server-block-is-boot-class`.
+`crates/nvs-server/src/io.rs`'s module doc and `rule:http-server/four-idle-waits-all-finite`, which
+owns the waits. The new phase is `Phase::Run`.
 
 ## Stages
 
@@ -383,8 +384,8 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
   - [x] `Core\Cldr`'s plural rules are CLDR 49's, so `plural_rules_agree_with_core_cldr_on_its_whole_roster` passes.
-  - [ ] The body wait ends with the body, as the standing decision says, with a server test for the reproduced shape.
-  - [ ] `the_publishing_commands_work_against_the_registry_service` and `the_website_shows_a_published_package_and_search_finds_it_once_released` pass, run once by name.
+  - [x] The body wait ends with the body, as the standing decision says, with a server test for the reproduced shape.
+  - [x] `the_publishing_commands_work_against_the_registry_service` and `the_website_shows_a_published_package_and_search_finds_it_once_released` pass, run once by name.
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
@@ -396,35 +397,34 @@ Stages 1 to 5 are done. Stage 6's first verify ran on 2026-10-30. It passed ever
 - `nvs-ext test intl`: ICU4X 2.4 carries CLDR 49, which changed the plural rules of `af`, `bg`,
   `es` (ordinal), `gl` and `vi` (cardinal). `Core\Cldr` now carries them (commit `8b3957f04`), and
   the intl test and the `cldr` unit tests pass by name.
-- `nvs-cli test registry_build`: two publish tests fail under load and pass alone. Not fixed yet.
-  The cause is reproduced and is a server bug, recorded as the standing decision *The body wait
-  ends with the body*. A handler that reads its body runs under `Phase::Body`
-  (`crates/nvs-server/src/serve.rs:1702`) until its answer starts. `hyper` 1.12's EOF probe
-  (`mid_message_detect_eof`) reads while the service is pending, and `ConnectionIo::poll_read`
-  (`crates/nvs-server/src/io.rs:444`) arms `body_idle_timeout` on that read (`io.rs:352`). After
-  30 s the read returns `TimedOut`, and `hyper` closes the connection with no reply. The client
-  reports `no header section ended it` (`crates/nvs-stdlib/src/http/transport.rs:1572`). The
-  registry's publish reads its body (`apps/registry/src/App.nvs:656`) and then clones and builds
-  (`apps/registry/src/NvsBuilder.nvs:30`), which takes over 30 s under load. Reproduction: a
-  scratch app with `[server] body_idle_timeout = "2s"` and a handler that calls
-  `Core\Request::body()` and then sleeps 5 s. A `curl` POST gets an empty reply after 2.05 s.
-  Without the `body()` call it gets `200` after 5.1 s.
+- `nvs-cli test registry_build`: two publish tests failed under load. The cause was a server bug,
+  fixed in commit `a4874f6d7` (*The body wait ends with the body*). `hyper`'s EOF probe read while
+  the service was pending and re-armed `body_idle_timeout`, so a program that read its body and
+  then worked for over 30 s was closed with no reply. The connection now enters `Phase::Run`
+  (`crates/nvs-server/src/io.rs:154`) once the body has ended, or at the head for a request with
+  none (`crates/nvs-server/src/serve.rs:1703`, and after each pump at `serve.rs:2265`). `Run` puts
+  no socket wait on the stream, and the drain does not end it. The new test
+  `a_program_that_works_past_the_body_wait_after_its_body_is_answered`
+  (`crates/nvs-cli/tests/serve_isolation.rs`) fails without the fix with an empty reply, and
+  passes with it. The two publish tests and the `io` unit tests pass by name. The rule is
+  `rule:http-server/four-idle-waits-all-finite`'s new paragraph.
 
 The sweep finding `env-secret-proofs` is stale: its log shows exit 0. No goal file or
 `looper.toml` defines that check, so nothing in the tree can clear it.
 
+The second `bun nv affected --run` was started at the end of this session. Its report starts the
+next session.
+
 ### Next
 
-Stage 6: the fix pass goes on. The body-wait fix is next, then verify once more, then the
+Stage 6: read the verify report, fix every failure in one pass, and run it once more. Then the
 goal-end gates: `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and
 `bun nv ci --check`, which now runs nine advisory legs.
 
-- [ ] Add a phase the connection enters once `hyper` has read the body to its end, with no idle wait. A read in it that returns `Ok(0)` still ends the connection. Rewrite `Phase`'s doc and the module doc's clock section as a whole. `crates/nvs-server/src/io.rs:130`, `crates/nvs-server/src/io.rs:352`, `crates/nvs-server/src/io.rs:444`
-- [ ] Set that phase where the body's end is known, and check every place that sets `Phase::Body` or `Phase::Write`. `crates/nvs-server/src/serve.rs:1702`, `crates/nvs-server/src/serve.rs:1869`, `crates/nvs-server/src/serve.rs:2531`
-- [ ] A server test: a handler reads its body, then sleeps past a short `body_idle_timeout`, and still answers `200`. Wait on the reply, never on time. `crates/nvs-server/src/io.rs:700`
-- [ ] The rule says the body wait ends with the body. Then `bun nv rules --render`. `docs/rules/http-server/the-server-block-is-boot-class.md:1`
-- [ ] Build and clippy, run the new test and the two `registry_build` publish tests once by name, and commit. `crates/nvs-cli/tests/registry_build.rs:1418`
-- [ ] `bun nv affected --run` again with `run_in_background`, green, then the goal-end gates. `tools/nv/cmd/ci.ts:103`
+- [ ] Read the report of the `bun nv affected --run` this session started, and group the failures by cause. `tools/nv/cmd/ci.ts:103`
+- [ ] Fix each group, never loosening a test, and run each fixed test once by name. `crates/nvs-ext/tests/spreadsheet_read.rs:844`
+- [ ] Run `bun nv affected --run` again if anything was fixed, and it is green. `tools/nv/cmd/ci.ts:103`
+- [ ] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
 
 Steps 19 to 23 of verify have not run yet, so they can still fail. Possible red in the next run:
 `a_header_of_every_column_equal_is_numbered_in_linear_time`
