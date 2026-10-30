@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/jwt.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/xml.rs, crates/nvs-stdlib/src/ast.rs]
   - id: 7
     title: "files, processes, HTTP replies and mail replies are read no further than the request can hold"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/process.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/http/stream.rs, crates/nvs-stdlib/src/mail.rs]
   - id: 8
     title: "database rows and directory entries are read no further than the request can hold"
@@ -232,6 +232,24 @@ request that frees it was charged for it. Cost: one atomic update per buffer gro
 timeout or a refusal a reader frees its buffer and ends at its next read. Reading into a fixed
 buffer and discarding was declined: it keeps a thread alive for as long as a grandchild writes.
 
+**A peer's bytes are framed as they arrive, never held whole first.** The chunked decoder moves
+each chunk's octets across as they arrive (`Framed::chunk_left`), so a chunk header picks nothing
+about what is held, and `whole`'s `REPLY_CEILING` check bounds a buffered reply. Refusing a chunk
+larger than what is left under `REPLY_CEILING` was declined: it refuses a streamed reply's
+legitimate large chunk. `Http\Stream::events` consumes the lines of a finished block that
+dispatched nothing (`EventScan::settle`), and an id such a block set goes to `lastId` then, as the
+WHATWG format says. A block still open throws past `BLOCK_CEILING` (2 MiB). SMTP replies throw past
+4 KiB a line and 256 lines. Cost: none per byte; one comparison per read.
+
+**An attack needs a way in from a `.nvs` file, and a Rust test stands where there is none.** The
+answer table gives a streamed call its whole body, so no `.nvs` reaches the chunked decoder or an
+event stream that arrives line by line. Those are Rust tests:
+`a_chunk_header_past_any_reply_fails_without_a_panic` and
+`lines_that_dispatch_nothing_are_consumed_as_they_are_read`, and the SMTP caps'
+`a_reply_is_capped_per_line_and_per_reply`. `IO::stdin` reads through the same `read_bounded` as
+`IO::read`, and its attack would need an `.in` file larger than a memory limit in the tree, so
+`IO::read`'s attack covers it.
+
 **Out of scope, decided elsewhere.**
 - No cap on open connections before admission
   (`docs/rules/http-server/admission-is-arithmetic-not-a-number.md`).
@@ -334,10 +352,17 @@ table above go red. That is expected: this goal's later stages turn them green.
   - [x] `drain` carries a received buffer and stops on `CaptureRefused`
   - [x] `run` and `wait` record the refusal and ask for the copy first
   - [x] `a_capture_stops_at_the_room_its_two_readers_share` passes
-- [ ] *Confirmed:* the HTTP client's chunked decoding refuses a chunk larger than what is left under `REPLY_CEILING` before buffering it, and `at + size + 2` uses `checked_add`, so a 16-hex-digit size no longer panics. `crates/nvs-stdlib/src/http/transport.rs:877`, `crates/nvs-stdlib/src/http/transport.rs:104`
-- [ ] `Http\Stream::events` consumes each line that dispatches nothing. `crates/nvs-stdlib/src/http/stream.rs:639`, `crates/nvs-stdlib/src/http/stream.rs:891`
-- [ ] SMTP replies are capped per line and per reply. `crates/nvs-stdlib/src/mail.rs:918`
-- [ ] Attacks: a huge file and stdin with `max_output` unset, a child that writes without end, a chunked reply with one giant chunk, and an event stream of comments only.
+- [x] The HTTP client's chunked decoding moves a chunk's octets as they arrive, and a 16-hex-digit size throws. It was not confirmed: the decoder held a whole chunk, and `at + size + 2` overflowed. `crates/nvs-stdlib/src/http/transport.rs` `dechunk`
+  - [x] `chunk_left` carries a chunk across reads, and a header with no line end past `LINE_CEILING` throws
+  - [x] `a_chunk_header_past_any_reply_fails_without_a_panic` passes
+- [x] `Http\Stream::events` consumes the lines of a finished block that dispatches nothing, and an open block throws past `BLOCK_CEILING`. `crates/nvs-stdlib/src/http/stream.rs` `EventScan::settle`
+  - [x] `settle`, and `step` consumes what it returns before each pull
+  - [x] `lines_that_dispatch_nothing_are_consumed_as_they_are_read` passes
+- [x] SMTP replies are capped at 4 KiB a line and 256 lines. `crates/nvs-stdlib/src/mail.rs` `REPLY_LINE_CEILING`, `REPLY_LINES`
+- [x] Attacks, each ending at `FATAL` within the bound: a 40 MB file under 16 MiB (0.81x), a folder of 4 MB of names under 2 MiB (0.75x), and a child that prints without end under 32 MiB. The HTTP and SMTP ones are Rust tests, and stdin shares `IO::read`'s attack, by the standing decision.
+  - [x] `tests/hostile/core/IO/read/02-a-file-larger-than-the-memory-limit.nvs`
+  - [x] `tests/hostile/core/IO/list/02-a-folder-larger-than-the-memory-limit.nvs`
+  - [x] `tests/hostile/core/Process/spawn/02-a-child-that-never-stops-printing.nvs`
 
 ### 8. database rows and directory entries are read no further than the request can hold
 
@@ -378,11 +403,12 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's first four items. Build and clippy green, rustfmt clean, no
-full test run. The handoff's "confirmed" fallback was not true: `intake_limit` returned
-`max_output` alone. It now falls back to the memory limit. Files and stdin read through
-`ByteWriter::read_from` (`read_bounded` in `io.rs`), listings ask per entry in `beneath.rs`, and a
-child's readers share the request's headroom (new standing decision). No attack yet for any of it.
+Stages 1 to 7 are done. Build and clippy green, rustfmt clean, no full test run. Stage 7's chunked
+"confirmed" item was false too: the decoder held a whole chunk and `at + size + 2` overflowed. It now
+moves a chunk's octets as they arrive (new standing decision, *A peer's bytes are framed as they
+arrive*). `Http\Stream::events` consumes finished blocks that dispatch nothing, and SMTP replies are
+capped. Three attacks end at `FATAL` within the bound: a file (0.81x), a folder (0.75x) and an
+endless child. The HTTP and SMTP ones are Rust tests, each run once and green.
 A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
@@ -391,21 +417,28 @@ a partial `copy_graph` or `Some(empty)` from `encode_within`; `NvsArray::with_ca
 small ceiling is empty; `Arr::range` past it is a `FATAL` first; a collector test may reclaim 0; a
 stopped parse is `walk::STOPPED`; a refused capture write writes nothing; a JWT header past 8 KiB
 and a key set past 1 MiB throw. New: a file, stdin or child output past a small `[limits] memory`
-with no `max_output` gets a throw naming `[limits] memory` or the memory `FATAL`. Look first at
-`crates/nvs-runtime/tests/refusal.rs`, `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
+with no `max_output` gets a throw naming `[limits] memory` or the memory `FATAL` (a 40 MB file
+under 16 MiB is the `FATAL`). A chunked or event-stream test that asserted a whole chunk waits in
+`raw`, or that an id-only block's id reaches only the next event's `set`, reads the new framing.
+Look first at `crates/nvs-runtime/tests/refusal.rs`, `tests/server_memory.rs` and
+`crates/nvs-stdlib/src/budget.rs`.
 
 The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` matches no
-check, and no goal or floor file names it.
+check, no goal or floor file names it, and the log the sweep named does not exist.
 
 ### Next
 
-Stage 7. Read one member's bound with `bun nv proofs --run --id '<member>' --show`. An attack
-that lowers its limit with `Core\Config::set` after earlier steps hold much memory reads that
-holding as its overshoot, so lower it only where little is held.
+Stage 8, items at `docs/goals/memory-ceiling-holes.md` § *8.*. Read one member's bound with
+`bun nv proofs --run --id '<member>' --show`. An attack that lowers its limit with
+`Core\Config::set` after earlier steps hold much memory reads that holding as its overshoot, so
+write the data first in small pieces, then lower the limit. Do not trust the word "confirmed":
+both of stage 7's were false.
 
-- [ ] `crates/nvs-stdlib/src/http/transport.rs:877` confirm the chunked decoder refuses a chunk past what is left under `REPLY_CEILING`, and `transport.rs:104` uses `checked_add`. Do not trust the word "confirmed": stage 7's first one was false.
-- [ ] `crates/nvs-stdlib/src/http/stream.rs:639` `Http\Stream::events` consumes a line that dispatches nothing.
-- [ ] `crates/nvs-stdlib/src/mail.rs:918` SMTP replies capped per line and per reply.
-- [ ] `docs/goals/memory-ceiling-holes.md:325` stage 7's attacks, each ending at `FATAL` within the bound: a huge file and stdin with `max_output` unset, a directory of many entries, a child that writes without end, a chunked reply with one giant chunk, and an event stream of comments only. Find the existing attacks for each member with `bun nv proofs --id '<member>'`.
+- [ ] `crates/nvs-db/src/pg.rs:612` confirm `read_message` asks before each `inbox` growth, then `pg.rs:2284` array columns.
+- [ ] `crates/nvs-db/src/tds/rows.rs:705` and `:678` PLP and LONG values ask per chunk.
+- [ ] `crates/nvs-db/src/sqlite.rs:303`, `:740`, `:1083` cell headroom and `SQLITE_LIMIT_LENGTH`.
+- [ ] `crates/nvs-stdlib/src/db/row.rs:781` `Rows::all`, `iterate`, `queryAs` ask per row.
+- [ ] `crates/nvs-ldap/src/conn.rs:959` and `crates/nvs-ldap/src/ranged.rs:79` LDAP fetch and ranged loop.
+- [ ] `docs/goals/memory-ceiling-holes.md:375` stage 8's attacks. A database attack carries `// requires: <service>`; SQLite needs none.
 
 ### Backlog
