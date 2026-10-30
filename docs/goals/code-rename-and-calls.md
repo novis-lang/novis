@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/calls.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/src/index.rs, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md, docs/rules/ide/five-features-are-one-reference-index.md, crates/nvs-cli/src/agent.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: code-rename-tests
@@ -271,41 +271,34 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done. `nvs code find`, `calls` and `reach` are in `crates/nvs-cli/src/code.rs`
-beside `move`. `find` reads `SymbolIndex::matching`; `calls` reads `calls::incoming` then
-`calls::outgoing`; `reach` reads `reach::reach`. A non-method name for `calls` or `reach` fails
-with `query::nearest_methods`, a new reader in `crates/nvs-lsp/src/query.rs` beside `nearest`
-(both call `nearest_of`). The nine `code-calls-tests` tests pass, run once by name, over the
-`CALLS` one-file fixture at the end of `crates/nvs-cli/tests/code.rs`. `PROTOCOL` names all ten
-`nvs code` verbs, and the two `tests/agent.rs` tests that pin it pass. The rule fragment, its
-record's `seeAlso`, `docs/reference/tools/10-cli.md` and `website/public/llms-full.txt` describe the
-new verbs; `website/src/data/reference.json` needed no change. `bun nv owners --closes` passes,
-clippy is clean and rustfmt was run.
+Every stage is done and the goal is reached. The first `looper verify` failed one check: the
+climbing `require` literals in `crates/nvs-cli/tests/code.rs` made that test binary wide. They are
+data, and each now has a line in `tools/data/impact-data-literals.txt`. The second run was green.
+`bun nv verify --doc` found three ambiguous `[`rename`]` links in `crates/nvs-lsp/src/query.rs`.
+They now link `rename()` and it is green. `bun nv owners --closes code-rename-and-calls` passes.
+In `bun nv ci --check`, the `/reference/cli/nvs-code/` questions were stale. They are rewritten
+for the new verbs in `website/src/data/questions.json` and stamped.
 
-The sweep's reds were the same CI run on 6d280a1ba the last handoff triaged, and
-`env-secret-proofs` is green when run again. If the Windows throughput cost guard or the Ldap
-attack fails again in the next full run, it is a real cause: for the Ldap one, find which `whoami`
-(the start or step 4) and whether the 1 MB login or password keeps Samba busy.
+The rest of `ci --check`'s reds come from the uncommitted `member-order` goal draft that was added
+to the chain during this session. Its rule citations do not exist yet, and `roadmap.json` has no
+theme for it. That draft's own sessions own those reds.
+
+The sweep's nightly reds were all on 6d280a1ba. The Miri `floor` failure is already fixed by
+a178403e2, and the Windows cost guard and the Ldap attack were triaged by the last handoff.
 
 ### Next
 
-Stage 4, the gate: start `looper verify` with `run_in_background`, end the turn, and fix every
-failure it names in one pass. Then the goal-end gates AGENTS.md names: `bun nv verify --doc`,
-`bun nv owners --closes code-rename-and-calls` and `bun nv ci --check`.
+Nothing. The goal is reached. looper retires the file, and its `after_retire` hook rebuilds
+`target/release/nvs`. `docs/goals/code-rename-and-calls.md:1`
 
-- [ ] `looper verify` over the whole goal. `crates/nvs-cli/tests/code.rs:1`
-- [ ] Fix every failure in one pass. `crates/nvs-cli/src/code.rs:1`
-- [ ] `looper verify` once more, green, then the goal-end gates. `docs/goals/code-rename-and-calls.md:1`
-
-No test should go red. The full `.lspt` suite under `tests/lsp/rename/` reads the reworded
-`NOTHING` text for the first time, and `tests/agent.rs` reads the longer `PROTOCOL`.
+No test should go red.
 
 ### Backlog
