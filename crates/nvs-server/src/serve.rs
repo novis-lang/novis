@@ -1698,8 +1698,12 @@ where
     let service = service_fn(move |mut request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
-        // exists.
-        phase.set(Phase::Body);
+        // exists. A request with no body is already past it.
+        phase.set(if request.body().is_end_stream() {
+            Phase::Run
+        } else {
+            Phase::Body
+        });
         // The two facts `rule:observability/default-series`'s request series are
         // counted with that are only readable *here*: the verb, off a request
         // the handler below takes by value, and the instant the door first had
@@ -2253,8 +2257,13 @@ where
                                 // polled with. Ahead of the question, so that a
                                 // request whose last act is to read its body is
                                 // answered on this poll rather than one later.
+                                // The pump is also where the body's end is seen,
+                                // which ends the body wait.
                                 if let Some(supply) = peer.supply.as_mut() {
                                     supply.pump(cx);
+                                    if supply.ended() && phase.get() == Phase::Body {
+                                        phase.set(Phase::Run);
+                                    }
                                 }
                                 // The head, asked **before** the end below and
                                 // never after it: a request that opened a stream

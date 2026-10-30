@@ -94,13 +94,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   stays in a nested `git init` folder, every later Bash call fails with *Module not found*, and
   removing that folder is refused while it holds the working directory. Run git in it with
   `git -C <dir>` or `cd <dir> && ... && cd <repo>` in one call. `until: gone tools/looper/main.ts:run(process.argv`
-- **`a_served_while_true_does_not_stall_a_second_connection_on_its_core` can fail under a loaded
-  full verify and pass alone.** The runaway's socket read EOF with no response head. One untested
-  theory: hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
-  (`crates/nvs-server/src/io.rs`), so a program past 30 s of wall time is closed with no answer. A
-  case at `body_idle` 100 ms and `cpu_time` 1 s passed without a fix. If it fails again, find which
-  socket closes and why before changing `nvs_server::io`.
-  `until: gone crates/nvs-cli/src/serve.rs:a_served_while_true_does_not_stall_a_second_connection_on_its_core`
+- **`hyper` reads the socket while a request's service is pending, once the body is done.** That
+  read is its EOF probe (`mid_message_detect_eof`), and any socket wait armed on it closes a slow
+  program with no reply. A served test that goes red only under load with an empty answer, or a
+  client error like `no header section ended it`, is that shape. `Phase::Run` in
+  `crates/nvs-server/src/io.rs` is the phase with no wait; a new phase change keeps the probe out of
+  every idle wait. `until: gone crates/nvs-server/src/io.rs:Run,`
 - **Git Bash rewrites a leading `/` argument into a Windows path.** `bun nv site --questions --stamp
   /install/server/` arrived as `C:/Program Files/Git/install/server/` and stamped nothing. Prefix the
   call with `MSYS_NO_PATHCONV=1`. `until: gone tools/nv/cmd/site.ts:--stamp`

@@ -49,8 +49,12 @@
 //! deadline — `hyper` knows nothing about them. Three are **idle** waits, so a
 //! slow 2 GB upload completes while a stalled socket does not, and the head's
 //! is a **total**, so a peer that trickles a head one byte at a time is closed
-//! when `header_timeout` passes. Three mechanisms, all of them in this module
-//! because this is the only code that sees a byte move:
+//! when `header_timeout` passes. Between the body's end and the answer
+//! ([`Phase::Run`]) no wait is on the stream at all: the program is running,
+//! the request's own `wall_time` bounds it, and the read `hyper` makes there
+//! is a probe for the client's EOF, which an `Ok(0)` still reports. Three
+//! mechanisms, all of them in this module because this is the only code that
+//! sees a byte move:
 //!
 //! - **Arm on entry.** Every poll below sets the stream's deadline to
 //!   `now + the wait the current [`Phase`] names`, once per phase rather than
@@ -68,9 +72,9 @@
 //! **Not every phase change is visible here.** A first
 //! byte after a response ends the keep-alive wait, and a read attempted while a
 //! response was being written is `hyper` going back for the next request — but
-//! the end of a request *head* is a framing fact only `hyper` has, so the
-//! connection loop sets [`Phase::Body`] and [`Phase::Write`] through the
-//! [`ConnectionIo::phase`] handle. What this module cannot see it is told, and
+//! the end of a request *head* or *body* is a framing fact only `hyper` has,
+//! so the connection loop sets [`Phase::Body`], [`Phase::Run`] and
+//! [`Phase::Write`] through the [`ConnectionIo::phase`] handle. What this module cannot see it is told, and
 //! it is told by the one place that knows.
 //!
 //! **That first rule needs the loop's help for a request that parked**, and
@@ -124,8 +128,11 @@ pub const SCRATCH: usize = 8 * 1024;
 /// Which of `rule:http-server/the-server-block-is-boot-class`'s waits bounds this connection right now.
 ///
 /// A connection is always in exactly one of these, starting in [`Phase::Head`]
-/// from the moment it is accepted: there is no unbounded state to fall into,
-/// which is the whole of `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline stated as a type.
+/// from the moment it is accepted. Every phase but one is bounded by a socket
+/// wait, and that one, [`Phase::Run`], is bounded by the request's own
+/// `wall_time`: there is no unbounded state to fall into, which is the whole of
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline
+/// stated as a type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
     /// Reading a request head — `header_timeout`, the one wait that is a total
@@ -135,6 +142,16 @@ pub enum Phase {
     /// loop, because framing a head is `hyper`'s knowledge and not this
     /// module's.
     Body,
+    /// The program runs, with its body read to the end or with none — no
+    /// socket wait. Set by the connection loop when `hyper` reports the body's
+    /// end, or at the head for a request with no body.
+    ///
+    /// `hyper` reads here while the service is pending, to see a client that
+    /// closes (`mid_message_detect_eof`). An idle wait on that read would close
+    /// a program that works for longer than the wait with no reply at all, so
+    /// the request's `wall_time` is the bound, and the probe's `Ok(0)` still
+    /// ends the connection.
+    Run,
     /// Writing a response — `write_idle_timeout`. Set by the connection loop
     /// when the request has been answered.
     Write,
@@ -172,26 +189,28 @@ impl DrainSeen {
 }
 
 impl Phase {
-    /// The wait this phase is bounded by.
-    fn wait_in(self, waits: &Waits) -> Duration {
+    /// The socket wait this phase is bounded by, or `None` for [`Phase::Run`],
+    /// which the request's own `wall_time` bounds.
+    fn wait_in(self, waits: &Waits) -> Option<Duration> {
         match self {
-            Phase::Head => waits.header,
-            Phase::Body => waits.body_idle,
-            Phase::Write => waits.write_idle,
-            Phase::KeepAlive => waits.keepalive,
+            Phase::Head => Some(waits.header),
+            Phase::Body => Some(waits.body_idle),
+            Phase::Run => None,
+            Phase::Write => Some(waits.write_idle),
+            Phase::KeepAlive => Some(waits.keepalive),
         }
     }
 
     /// Whether the drain period's end also ends this phase's wait.
     ///
-    /// Every phase but [`Phase::Body`]. There the request is running, and
-    /// `crate::serve`'s service cuts it at the period's end and answers `503`;
-    /// a wait cut here would close the connection before that answer is
-    /// written. A response being written is cut at the period's end whether it
-    /// is buffered or streamed, and a streamed one is also ended by its own
-    /// body at the same instant (`crate::serve::DrainCut`).
+    /// Every phase but [`Phase::Body`] and [`Phase::Run`]. There the request is
+    /// running, and `crate::serve`'s service cuts it at the period's end and
+    /// answers `503`; a wait cut here would close the connection before that
+    /// answer is written. A response being written is cut at the period's end
+    /// whether it is buffered or streamed, and a streamed one is also ended by
+    /// its own body at the same instant (`crate::serve::DrainCut`).
     fn ends_at_the_drain(self) -> bool {
-        !matches!(self, Phase::Body)
+        !matches!(self, Phase::Body | Phase::Run)
     }
 }
 
@@ -365,14 +384,14 @@ impl ConnectionIo {
                 _ => now + self.waits.header,
             };
             self.head_ends = Some(ends);
-            ends
+            Some(ends)
         } else {
-            now + phase.wait_in(&self.waits)
+            phase.wait_in(&self.waits).map(|wait| now + wait)
         };
         if let Some(closing) = closing {
-            at = at.min(closing);
+            at = Some(at.map_or(closing, |at| at.min(closing)));
         }
-        self.stream_mut().set_deadline(Some(at));
+        self.stream_mut().set_deadline(at);
     }
 
     /// The instant the drain ends this phase's wait at the latest, or `None`
@@ -697,11 +716,19 @@ mod tests {
     /// without a line here is a variant with no assertion about its wait, and
     /// the `match` in [`Phase::wait_in`] is what makes the omission a compile
     /// error rather than a silent hole.
-    const EVERY_PHASE: [Phase; 4] = [Phase::Head, Phase::Body, Phase::Write, Phase::KeepAlive];
+    const EVERY_PHASE: [Phase; 5] = [
+        Phase::Head,
+        Phase::Body,
+        Phase::Run,
+        Phase::Write,
+        Phase::KeepAlive,
+    ];
 
     /// `rule:http-server/the-server-block-is-boot-class`'s four waits, from both sides: with nothing configured every
-    /// phase is bounded by a finite, non-zero wait, and each phase is bounded by
-    /// its **own** one.
+    /// phase but [`Phase::Run`] is bounded by a finite, non-zero wait, and each
+    /// phase is bounded by its **own** one. [`Phase::Run`] has none, because
+    /// the request's `wall_time` bounds it
+    /// (`rule:http-server/four-idle-waits-all-finite`).
     ///
     /// The second half is what a per-phase assertion cannot reach. Four defaults
     /// that happen to be finite say nothing about a phase wired to the wrong
@@ -718,7 +745,10 @@ mod tests {
     fn the_four_idle_timeouts_are_finite() {
         let defaults = Waits::default();
         for phase in EVERY_PHASE {
-            let wait = phase.wait_in(&defaults);
+            let Some(wait) = phase.wait_in(&defaults) else {
+                assert_eq!(phase, Phase::Run, "{phase:?} has no wait");
+                continue;
+            };
             assert!(
                 wait > Duration::ZERO,
                 "{phase:?} is unbounded with nothing configured"
@@ -743,17 +773,18 @@ mod tests {
             // reaching for it would be read here as a wrong answer.
             drain: Duration::from_secs(5),
         };
-        let bounds: Vec<Duration> = EVERY_PHASE
+        let bounds: Vec<Option<Duration>> = EVERY_PHASE
             .iter()
             .map(|phase| phase.wait_in(&distinct))
             .collect();
         assert_eq!(
             bounds,
             vec![
-                distinct.header,
-                distinct.body_idle,
-                distinct.write_idle,
-                distinct.keepalive
+                Some(distinct.header),
+                Some(distinct.body_idle),
+                None,
+                Some(distinct.write_idle),
+                Some(distinct.keepalive)
             ],
             "a phase is bounded by a wait that is not its own"
         );
@@ -809,6 +840,14 @@ mod tests {
             deadline(&mut io).is_some_and(|at| at > body),
             "a byte of the body did not refresh the body's idle wait"
         );
+
+        // The body's end takes the body wait off the stream, and a byte the
+        // EOF probe reads while the program runs does not put it back.
+        io.phase().set(Phase::Run);
+        io.arm(false);
+        assert_eq!(deadline(&mut io), None, "a running program kept a socket wait");
+        io.arm(true);
+        assert_eq!(deadline(&mut io), None, "a probe's byte armed a socket wait");
 
         io.phase().set(Phase::KeepAlive);
         io.arm(false);

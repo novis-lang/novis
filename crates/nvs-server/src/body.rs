@@ -251,6 +251,14 @@ impl Supply {
         self.malformed
     }
 
+    /// Whether `hyper` has read the body to its end. The connection leaves its
+    /// body wait then (`crate::io::Phase::Run`). A body that failed or crossed
+    /// its cap has not ended, and `hyper` reads no more of it.
+    #[must_use]
+    pub fn ended(&self) -> bool {
+        self.wire.borrow().ended
+    }
+
     /// Records each chunk the program pulls from here on into `recorder`.
     pub fn record(&self, recorder: nvs_runtime::spool::Recorder) {
         self.wire.borrow_mut().recording = Some(recorder);

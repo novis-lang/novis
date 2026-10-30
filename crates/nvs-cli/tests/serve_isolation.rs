@@ -8,7 +8,9 @@
 //! flood past `max_in_flight` beside requests that reach their limits or lose
 //! their client, and a server that gives every place and byte back once it ends. And
 //! `rule:packaging/a-fresh-instance-per-request`: an extension instance ends with its request, so
-//! requests past the process's instance places are all served.
+//! requests past the process's instance places are all served. And
+//! `rule:http-server/four-idle-waits-all-finite`: a program that works past the
+//! body wait once its body is read is still answered.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -449,6 +451,55 @@ const PROBE_BOUND: Duration = Duration::from_secs(10);
 /// the flood has ended: two mebibytes per worker. A core publishes its balance a mebibyte at a
 /// time, so its gauge is stale by up to one, and the second covers what a core keeps in its pools.
 const SETTLED: f64 = 2.0 * WORKERS as f64 * 1_048_576.0;
+
+/// A program that reads its body, works for longer than the body wait below,
+/// and then answers with the body's length.
+const READS_THEN_WORKS: &str = "<?nvs\n\
+tainted string $sent = Core\\Request::body();\n\
+Core\\Time::sleep(1s);\n\
+echo 'read ', Core\\Str::length($sent);\n";
+
+/// `rule:http-server/four-idle-waits-all-finite`'s body wait ends with the
+/// body: a program that has read its body, or had none, and works for five
+/// times `body_idle_timeout` is still answered. The client waits on the reply
+/// itself, so a connection the body wait closes reads as an empty answer.
+#[test]
+fn a_program_that_works_past_the_body_wait_after_its_body_is_answered() {
+    let server = Server::serving(
+        "body-wait",
+        1,
+        READS_THEN_WORKS,
+        "body_idle_timeout = \"200ms\"\n",
+        &[],
+    );
+    for request in [
+        "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    ] {
+        let mut stream = TcpStream::connect(server.addr)
+            .unwrap_or_else(|error| panic!("{} does not answer: {error}", server.addr));
+        stream
+            .set_read_timeout(Some(BOUND))
+            .expect("a read timeout is set");
+        stream
+            .write_all(request.as_bytes())
+            .expect("the request is sent");
+        let mut raw = Vec::new();
+        let read = stream.read_to_end(&mut raw);
+        let text = String::from_utf8_lossy(&raw);
+        assert!(
+            read.is_ok() && text.starts_with("HTTP/1.1 200 OK\r\n"),
+            "a program that read its body and then worked was not answered: {read:?} {text:?}\n\
+             the server wrote: {}",
+            server.said()
+        );
+        let length = if request.starts_with("POST") { 5 } else { 0 };
+        assert!(
+            text.ends_with(&format!("read {length}")),
+            "the program answered something else: {text}"
+        );
+    }
+}
 
 /// A loopback port nothing listens on at the moment it is asked.
 fn free_port() -> u16 {

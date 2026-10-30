@@ -2,8 +2,10 @@ Four waits bound every connection — `header_timeout` (`10s`), `body_idle_timeo
 
 The head is the total because a head is small and has no honest reason to be slow, while a body or a response may be any size. A head held open by trickled bytes costs a connection for as long as the client likes, and an idle wait cannot see it.
 
+**The body wait ends with the body.** Once a request's body has been read to its end, or the request had none, no socket wait bounds the connection while its program runs. The request's own `[limits] wall_time` bounds it there (`rule:concurrency/limit-and-deadline-are-the-only-bounds`), and a client that closes is still seen. A program that reads its body and then works for longer than `body_idle_timeout` is answered, and never closed with no reply. The write wait starts when the answer exists.
+
 This is the division of labour with the proxy in one sentence: **a proxy owns size and rate; Novis owns never waiting forever.** Per-IP caps, flood limiting, request-size shedding and a cap on a head's size stay at the edge.
 
 `keepalive_timeout` must exceed the proxy's upstream keep-alive. If the origin closes an idle connection the proxy still believes is live, the proxy writes into a closing socket and the client sees an intermittent 502. nginx's upstream default is 60s; 75s is deliberately above it, and a deployment that raises the proxy's must raise this one. None of the four notices a worker that is alive and never returns; that is the watchdog's job, named in `rule:http-server/the-server-block-is-boot-class`.
 
-**Declined:** an idle head wait, which a client trickling one byte per interval never reaches. A configuration key or a head size cap beside the deadline, because a proxy owns size.
+**Declined:** an idle head wait, which a client trickling one byte per interval never reaches. A configuration key or a head size cap beside the deadline, because a proxy owns size. Keeping the body wait armed while the program runs, which closes every handler slower than the wait with no reply, whatever its own limits allow.
