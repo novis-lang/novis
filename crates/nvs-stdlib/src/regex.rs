@@ -54,8 +54,8 @@
 //! its flags alone, observable only as speed.
 //!
 //! **What it spends:** one compiled program per distinct pattern per core,
-//! bounded at [`CACHE_CAPACITY`], which is O(cache) rather than O(requests
-//! served). A miss on a full cache evicts the one entry used least recently,
+//! bounded at [`CACHE_CAPACITY`] entries and [`CACHE_PATTERN_BYTES`] of
+//! pattern text, which is O(cache) rather than O(requests served). A miss on a full cache evicts the one entry used least recently,
 //! so a program's hot patterns survive a stream of one-off ones. What that
 //! costs a hit is one counter written into the entry the hit already read;
 //! the scan for the oldest entry runs on a miss only, beside a compile that
@@ -907,6 +907,16 @@ impl<'a> Budget<'a> {
 /// and one compile there takes about a second.
 const CACHE_CAPACITY: usize = if cfg!(miri) { 8 } else { 256 };
 
+/// How many bytes of pattern text one core's cache keeps, beside
+/// [`CACHE_CAPACITY`]. A miss evicts the least recently used entries until the
+/// new pattern fits, and a pattern longer than this alone is compiled for its
+/// call and not kept.
+///
+/// An assembled pattern has no length limit of its own, so without this the
+/// cache's text is 256 times the longest pattern a program builds. 1 MiB is
+/// 4 KiB for each of the 256 entries, far past a pattern written by hand.
+const CACHE_PATTERN_BYTES: usize = 1 << 20;
+
 /// One compiled pattern, in whichever tier `rule:core-classes/regex-two-tiers` placed it.
 ///
 /// The tier is not a user-visible property of the value: no member below
@@ -953,6 +963,9 @@ struct Cached {
 struct Cache {
     /// At most [`CACHE_CAPACITY`] entries, in no order.
     entries: Vec<Cached>,
+    /// The bytes of [`Cached::pattern`] over every entry, at most
+    /// [`CACHE_PATTERN_BYTES`].
+    pattern_bytes: usize,
     /// The number of uses so far on this core.
     clock: u64,
 }
@@ -982,6 +995,7 @@ thread_local! {
     static CACHE: RefCell<Cache> = const {
         RefCell::new(Cache {
             entries: Vec::new(),
+            pattern_bytes: 0,
             clock: 0,
         })
     };
@@ -1105,12 +1119,18 @@ fn compiled_prepared(
     nvs_runtime::affordable(Some(cost), "Core\\Regex")?;
 
     let built = Rc::new(built);
+    if pattern.len() > CACHE_PATTERN_BYTES {
+        return Ok(built);
+    }
     CACHE.with_borrow_mut(|cache| {
-        if cache.entries.len() >= CACHE_CAPACITY
+        while (cache.entries.len() >= CACHE_CAPACITY
+            || cache.pattern_bytes + pattern.len() > CACHE_PATTERN_BYTES)
             && let Some(oldest) = (0..cache.entries.len()).min_by_key(|&at| cache.entries[at].used)
         {
-            cache.entries.swap_remove(oldest);
+            let evicted = cache.entries.swap_remove(oldest);
+            cache.pattern_bytes -= evicted.pattern.len();
         }
+        cache.pattern_bytes += pattern.len();
         let used = cache.clock;
         cache.entries.push(Cached {
             pattern: pattern.to_owned(),
@@ -2899,6 +2919,36 @@ mod tests {
         CACHE.with_borrow(|cache| {
             assert!(cache.entries.iter().all(|entry| entry.pattern != oldest));
             assert!(cache.entries.iter().any(|entry| entry.pattern == newest));
+        });
+    }
+
+    /// The cache keeps at most [`CACHE_PATTERN_BYTES`] of pattern text: long
+    /// patterns evict the oldest entries to fit, and one longer than the bound
+    /// is compiled and not kept. A verbose-mode comment makes the text long
+    /// and the program small.
+    #[test]
+    fn the_cache_keeps_at_most_its_bound_in_pattern_text() {
+        let long = |nth: usize| format!("(?x)long-{nth} # {}", "c".repeat(CACHE_PATTERN_BYTES / 3));
+        for nth in 0..6 {
+            built(&long(nth), NO_FLAGS, "matches").expect("compiles");
+        }
+        CACHE.with_borrow(|cache| {
+            let text: usize = cache.entries.iter().map(|entry| entry.pattern.len()).sum();
+            assert_eq!(
+                text, cache.pattern_bytes,
+                "the count drifted from the entries"
+            );
+            assert!(
+                text <= CACHE_PATTERN_BYTES,
+                "the cache keeps {text} bytes of text"
+            );
+            assert!(cache.entries.iter().any(|entry| entry.pattern == long(5)));
+        });
+
+        let huge = format!("(?x)huge # {}", "c".repeat(CACHE_PATTERN_BYTES));
+        built(&huge, NO_FLAGS, "matches").expect("compiles");
+        CACHE.with_borrow(|cache| {
+            assert!(cache.entries.iter().all(|entry| entry.pattern != huge));
         });
     }
 
