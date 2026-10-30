@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (733)
+COMPONENTS (742)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -79,9 +79,9 @@ platform Novis builds for, so one may appear that a given build omits.
   blowfish                                   0.10.0                         MIT                             (MIT OR Apache-2.0)
   borrow-or-share                            0.2.4                          MIT-0
   brainsort                                  0.5.0                          MIT
-  brotli                                     9.0.0                          BSD-3-Clause AND MIT
+  brotli                                     9.1.1                          BSD-3-Clause AND MIT
   brotli-decompressor                        5.0.3                          MIT                             (BSD-3-Clause/MIT)
-  brotli-decompressor                        6.0.1                          MIT                             (BSD-3-Clause/MIT)
+  brotli-decompressor                        6.2.0                          MIT                             (BSD-3-Clause/MIT)
   bstr                                       1.13.1                         MIT                             (MIT OR Apache-2.0)
   btoi                                       0.5.0                          MIT                             (MIT OR Apache-2.0)
   built                                      0.8.1                          MIT
@@ -93,8 +93,8 @@ platform Novis builds for, so one may appear that a given build omits.
   bytes                                      1.12.1                         MIT
   calendrical_calculations                   0.2.4                          Apache-2.0
   caseless                                   0.2.2                          MIT
+  cc                                         1.10.0                         MIT                             (MIT OR Apache-2.0)
   cc                                         1.6.0                          MIT                             (MIT OR Apache-2.0)
-  cc                                         1.8.0                          MIT                             (MIT OR Apache-2.0)
   cfg-if                                     1.0.5                          MIT                             (MIT OR Apache-2.0)
   chacha20                                   0.10.2                         MIT                             (MIT OR Apache-2.0)
   chacha20poly1305                           0.11.0                         MIT                             (Apache-2.0 OR MIT)
@@ -142,6 +142,7 @@ platform Novis builds for, so one may appear that a given build omits.
   cranelift-srcgen                           0.137.1                        Apache-2.0 WITH LLVM-exception
   crc32c                                     0.6.8                          MIT                             (Apache-2.0/MIT)
   crc32fast                                  1.5.2                          MIT                             (MIT OR Apache-2.0)
+  crc32fast                                  1.5.3                          MIT                             (MIT OR Apache-2.0)
   crossbeam-channel                          0.5.17                         MIT                             (MIT OR Apache-2.0)
   crossbeam-deque                            0.8.8                          MIT                             (MIT OR Apache-2.0)
   crossbeam-epoch                            0.9.21                         MIT                             (MIT OR Apache-2.0)
@@ -155,7 +156,7 @@ platform Novis builds for, so one may appear that a given build omits.
   csstype                                    3.2.3                          MIT
   csv-core                                   0.1.13                         MIT                             (Unlicense/MIT)
   ctr                                        0.10.1                         MIT                             (MIT OR Apache-2.0)
-  ctutils                                    0.4.6                          MIT                             (Apache-2.0 OR MIT)
+  ctutils                                    0.4.7                          MIT                             (Apache-2.0 OR MIT)
   curve25519-dalek                           5.0.0                          BSD-3-Clause
   curve25519-dalek-derive                    0.1.1                          MIT                             (MIT/Apache-2.0)
   dashmap                                    6.2.1                          MIT
@@ -167,7 +168,7 @@ platform Novis builds for, so one may appear that a given build omits.
   defmt                                      1.2.0                          MIT                             (MIT OR Apache-2.0)
   defmt-macros                               1.2.0                          MIT                             (MIT OR Apache-2.0)
   defmt-parser                               1.1.0                          MIT                             (MIT OR Apache-2.0)
-  der                                        0.8.2                          MIT                             (Apache-2.0 OR MIT)
+  der                                        0.8.3                          MIT                             (Apache-2.0 OR MIT)
   der-parser                                 10.0.0                         MIT                             (MIT OR Apache-2.0)
   deranged                                   0.5.9                          MIT                             (MIT OR Apache-2.0)
   derive_more                                2.1.1                          MIT
@@ -183,10 +184,10 @@ platform Novis builds for, so one may appear that a given build omits.
   ed25519                                    3.0.0                          MIT                             (Apache-2.0 OR MIT)
   ed25519-dalek                              3.0.0                          BSD-3-Clause
   either                                     1.19.0                         MIT                             (MIT OR Apache-2.0)
-  elliptic-curve                             0.14.1                         MIT                             (Apache-2.0 OR MIT)
+  elliptic-curve                             0.14.3                         MIT                             (Apache-2.0 OR MIT)
   embedded-io                                0.4.0                          MIT                             (MIT OR Apache-2.0)
   embedded-io                                0.6.1                          MIT                             (MIT OR Apache-2.0)
-  encoding_rs                                0.8.42                         MIT AND BSD-3-Clause            ((Apache-2.0 OR MIT) AND BSD-3-Clause)
+  encoding_rs                                0.8.43                         MIT AND BSD-3-Clause            ((Apache-2.0 OR MIT) AND BSD-3-Clause)
   equator                                    0.4.2                          MIT
   equator-macro                              0.4.2                          MIT
   equivalent                                 1.0.2                          MIT                             (Apache-2.0 OR MIT)
@@ -209,6 +210,7 @@ platform Novis builds for, so one may appear that a given build omits.
   fiat-crypto                                0.3.0                          MIT                             (MIT OR Apache-2.0 OR BSD-1-Clause)
   filetime                                   0.2.29                         MIT                             (MIT/Apache-2.0)
   find-msvc-tools                            0.1.14                         MIT                             (MIT OR Apache-2.0)
+  find-msvc-tools                            0.1.15                         MIT                             (MIT OR Apache-2.0)
   fixed_decimal                              0.7.2                          Unicode-3.0
   fixedbitset                                0.4.2                          MIT                             (MIT/Apache-2.0)
   flagset                                    0.4.7                          Apache-2.0
@@ -290,7 +292,7 @@ platform Novis builds for, so one may appear that a given build omits.
   gix-worktree-stream                        0.39.0                         MIT                             (MIT OR Apache-2.0)
   gix-zlib                                   0.4.0                          MIT                             (MIT OR Apache-2.0)
   glifo                                      0.4.0                          MIT                             (Apache-2.0 OR MIT)
-  globset                                    0.4.20                         MIT                             (Unlicense OR MIT)
+  globset                                    0.4.21                         MIT                             (Unlicense OR MIT)
   group                                      0.14.0                         MIT                             (MIT/Apache-2.0)
   guillotiere                                0.7.0                          MIT                             (MIT/Apache-2.0)
   half                                       2.7.1                          MIT                             (MIT OR Apache-2.0)
@@ -360,7 +362,7 @@ platform Novis builds for, so one may appear that a given build omits.
   icu_time                                   2.3.0                          Unicode-3.0
   icu_time_data                              2.3.1                          Unicode-3.0
   id-arena                                   2.3.0                          MIT                             (MIT/Apache-2.0)
-  ignore                                     0.4.33                         MIT                             (Unlicense OR MIT)
+  ignore                                     0.4.34                         MIT                             (Unlicense OR MIT)
   image                                      0.25.10                        MIT                             (MIT OR Apache-2.0)
   image-webp                                 0.2.4                          MIT                             (MIT OR Apache-2.0)
   imagesize                                  0.14.0                         MIT
@@ -368,7 +370,7 @@ platform Novis builds for, so one may appear that a given build omits.
   imgref                                     1.12.3                         Apache-2.0                      (CC0-1.0 OR Apache-2.0)
   indexmap                                   2.14.2                         MIT                             (Apache-2.0 OR MIT)
   inout                                      0.2.2                          MIT                             (MIT OR Apache-2.0)
-  inout                                      0.2.4                          MIT                             (MIT OR Apache-2.0)
+  inout                                      0.2.5                          MIT                             (MIT OR Apache-2.0)
   is_terminal_polyfill                       1.70.2                         MIT                             (MIT OR Apache-2.0)
   itertools                                  0.14.0                         MIT                             (MIT OR Apache-2.0)
   itoa                                       1.0.18                         MIT                             (MIT OR Apache-2.0)
@@ -381,7 +383,7 @@ platform Novis builds for, so one may appear that a given build omits.
   jiff-tzdb                                  0.1.9                          MIT                             (Unlicense OR MIT)
   jiff-tzdb-platform                         0.1.3                          MIT                             (Unlicense OR MIT)
   jobserver                                  0.1.35                         MIT                             (MIT OR Apache-2.0)
-  js-sys                                     0.3.106                        MIT                             (MIT OR Apache-2.0)
+  js-sys                                     0.3.107                        MIT                             (MIT OR Apache-2.0)
   jxl-bitstream                              1.1.0                          MIT                             (MIT OR Apache-2.0)
   jxl-coding                                 1.0.1                          MIT                             (MIT OR Apache-2.0)
   jxl-color                                  0.11.0                         MIT                             (MIT OR Apache-2.0)
@@ -404,6 +406,7 @@ platform Novis builds for, so one may appear that a given build omits.
   leb128                                     0.2.7                          MIT                             (MIT OR Apache-2.0)
   leb128fmt                                  0.1.0                          MIT                             (MIT OR Apache-2.0)
   libc                                       0.2.190                        MIT                             (MIT OR Apache-2.0)
+  libc                                       0.2.191                        MIT                             (MIT OR Apache-2.0)
   Liberation Fonts                           2.1.5                          OFL-1.1
   libm                                       0.2.16                         MIT
   libsqlite3-sys                             0.39.1                         MIT
@@ -426,6 +429,7 @@ platform Novis builds for, so one may appear that a given build omits.
   memchr                                     2.8.3                          MIT                             (Unlicense OR MIT)
   memfd                                      0.6.6                          MIT                             (MIT OR Apache-2.0)
   memmap2                                    0.9.11                         MIT                             (MIT OR Apache-2.0)
+  memmap2                                    0.9.12                         MIT                             (MIT OR Apache-2.0)
   minimal-lexical                            0.2.1                          MIT                             (MIT/Apache-2.0)
   miniz_oxide                                0.8.9                          MIT                             (MIT OR Zlib OR Apache-2.0)
   miniz_oxide                                0.9.1                          MIT                             (MIT OR Zlib OR Apache-2.0)
@@ -539,13 +543,13 @@ platform Novis builds for, so one may appear that a given build omits.
   rgb                                        0.8.53                         MIT
   ring                                       0.17.14                        Apache-2.0 AND ISC
   roxmltree                                  0.21.1                         MIT                             (MIT OR Apache-2.0)
-  rsqlite-vfs                                0.1.1                          MIT
+  rsqlite-vfs                                0.2.0                          MIT
   rusqlite                                   0.41.1                         MIT
   rustc-demangle                             0.1.28                         MIT                             (MIT/Apache-2.0)
   rustc-hash                                 2.1.3                          MIT                             (Apache-2.0 OR MIT)
   rustc_version                              0.4.1                          MIT                             (MIT OR Apache-2.0)
   rusticata-macros                           4.1.0                          MIT                             (MIT/Apache-2.0)
-  rustix                                     1.1.5                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  rustix                                     1.1.6                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   rustls                                     0.23.46                        MIT                             (Apache-2.0 OR ISC OR MIT)
   rustls-pki-types                           1.15.1                         MIT                             (MIT OR Apache-2.0)
   rustls-webpki                              0.103.16                       ISC
@@ -590,10 +594,11 @@ platform Novis builds for, so one may appear that a given build omits.
   slotmap                                    1.1.1                          Zlib
   smallvec                                   1.16.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.3                         MIT                             (MIT OR Apache-2.0)
+  smallvec                                   1.16.4                         MIT                             (MIT OR Apache-2.0)
   solid-js                                   1.9.17                         MIT
   spki                                       0.8.1                          MIT                             (Apache-2.0 OR MIT)
   sponge-cursor                              0.1.0                          MIT                             (MIT OR Apache-2.0)
-  sqlite-wasm-rs                             0.5.5                          MIT
+  sqlite-wasm-rs                             0.6.2                          MIT
   stable_deref_trait                         1.2.1                          MIT                             (MIT OR Apache-2.0)
   strict-num                                 0.1.1                          MIT
   string_cache                               0.11.0                         MIT                             (MIT OR Apache-2.0)
@@ -628,7 +633,7 @@ platform Novis builds for, so one may appear that a given build omits.
   tinystr                                    0.8.4                          Unicode-3.0
   tinyvec                                    1.13.3                         MIT                             (Zlib OR Apache-2.0 OR MIT)
   to_method                                  1.1.0                          CC0-1.0
-  tokio                                      1.53.3                         MIT
+  tokio                                      1.54.1                         MIT
   toml                                       1.1.8+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
   toml_datetime                              1.1.2+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
   toml_parser                                1.1.5+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
@@ -646,12 +651,12 @@ platform Novis builds for, so one may appear that a given build omits.
   unicode-ccc                                0.4.0                          MIT                             (MIT/Apache-2.0)
   unicode-ident                              1.0.26                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
   unicode-ident                              1.0.27                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
-  unicode-normalization                      0.1.25                         MIT                             (MIT OR Apache-2.0)
+  unicode-normalization                      0.1.26                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
   unicode-properties                         0.1.4                          MIT                             (MIT/Apache-2.0)
   unicode-script                             0.5.8                          MIT                             (MIT OR Apache-2.0)
   unicode-segmentation                       1.13.3                         MIT                             (MIT OR Apache-2.0)
   unicode-vo                                 0.1.0                          MIT                             (MIT/Apache-2.0)
-  unicode-width                              0.2.2                          MIT                             (MIT OR Apache-2.0)
+  unicode-width                              0.2.3                          MIT                             (MIT OR Apache-2.0)
   universal-hash                             0.6.1                          MIT                             (MIT OR Apache-2.0)
   untrusted                                  0.9.0                          ISC
   usvg                                       0.47.0                         MIT                             (Apache-2.0 OR MIT)
@@ -659,7 +664,7 @@ platform Novis builds for, so one may appear that a given build omits.
   utf16_iter                                 1.0.5                          MIT                             (Apache-2.0 OR MIT)
   utf8_iter                                  1.0.4                          MIT                             (Apache-2.0 OR MIT)
   utf8parse                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
-  uuid                                       1.28.0                         MIT                             (Apache-2.0 OR MIT)
+  uuid                                       1.29.0                         MIT                             (Apache-2.0 OR MIT)
   v_frame                                    0.3.9                          BSD-2-Clause
   vcpkg                                      0.2.15                         MIT                             (MIT/Apache-2.0)
   vello_common                               0.3.0                          MIT                             (Apache-2.0 OR MIT)
@@ -669,9 +674,13 @@ platform Novis builds for, so one may appear that a given build omits.
   want                                       0.3.2                          MIT
   wasi                                       0.11.1+wasi-snapshot-preview1  MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-bindgen                               0.2.129                        MIT                             (MIT OR Apache-2.0)
+  wasm-bindgen                               0.2.130                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-macro                         0.2.129                        MIT                             (MIT OR Apache-2.0)
+  wasm-bindgen-macro                         0.2.130                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-macro-support                 0.2.129                        MIT                             (MIT OR Apache-2.0)
+  wasm-bindgen-macro-support                 0.2.130                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-shared                        0.2.129                        MIT                             (MIT OR Apache-2.0)
+  wasm-bindgen-shared                        0.2.130                        MIT                             (MIT OR Apache-2.0)
   wasm-compose                               0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
@@ -696,7 +705,7 @@ platform Novis builds for, so one may appear that a given build omits.
   wast                                       262.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wat                                        1.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.3.0                          MIT                             (MIT OR Apache-2.0)
-  webpki-roots                               1.0.10                         CDLA-Permissive-2.0
+  webpki-roots                               1.0.11                         CDLA-Permissive-2.0
   weezl                                      0.1.12                         MIT                             (MIT OR Apache-2.0)
   winapi                                     0.3.9                          MIT                             (MIT/Apache-2.0)
   winapi-i686-pc-windows-gnu                 0.4.0                          MIT                             (MIT/Apache-2.0)
@@ -770,7 +779,7 @@ Applies to:
   asn1-rs-impl 0.2.0
   atomig-macro 0.4.0
   brotli-decompressor 5.0.3
-  brotli-decompressor 6.0.1
+  brotli-decompressor 6.2.0
   crc32c 0.6.8
   defmt 0.3.101
   fxprof-processed-profile 0.8.1
@@ -784,7 +793,7 @@ Applies to:
   profiling-procmacros 1.0.18
   r-efi 6.0.0
   rcgen 0.14.10
-  rsqlite-vfs 0.1.1
+  rsqlite-vfs 0.2.0
   simd_helpers 0.1.0
   taffy 0.15.0
   winapi-i686-pc-windows-gnu 0.4.0
@@ -868,7 +877,7 @@ Applies to:
   ref-cast 1.0.27
   ref-cast-impl 1.0.27
   rustc-hash 2.1.3
-  rustix 1.1.5
+  rustix 1.1.6
   rustversion 1.0.23
   semver 1.0.28
   serde 1.0.229
@@ -1093,8 +1102,8 @@ Applies to:
   byteorder 1.5.0
   byteorder-lite 0.1.0
   csv-core 0.1.13
-  globset 0.4.20
-  ignore 0.4.33
+  globset 0.4.21
+  ignore 0.4.34
   jiff 0.2.38
   jiff-core 0.1.1
   jiff-static 0.2.38
@@ -2186,7 +2195,7 @@ SOFTWARE.
 ==============================================================================
 
 Applies to:
-  brotli 9.0.0
+  brotli 9.1.1
 
 ------------------------------------------------------------------------------
 
@@ -2442,20 +2451,25 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
+  cc 1.10.0
   cc 1.6.0
-  cc 1.8.0
   cfg-if 1.0.5
   filetime 0.2.29
   find-msvc-tools 0.1.14
+  find-msvc-tools 0.1.15
   id-arena 2.3.0
   jobserver 0.1.35
-  js-sys 0.3.106
+  js-sys 0.3.107
   pkg-config 0.3.34
   rustc-demangle 0.1.28
   wasm-bindgen 0.2.129
+  wasm-bindgen 0.2.130
   wasm-bindgen-macro 0.2.129
+  wasm-bindgen-macro 0.2.130
   wasm-bindgen-macro-support 0.2.129
+  wasm-bindgen-macro-support 0.2.130
   wasm-bindgen-shared 0.2.129
+  wasm-bindgen-shared 0.2.130
 
 ------------------------------------------------------------------------------
 
@@ -2695,7 +2709,7 @@ SOFTWARE.
 Applies to:
   const-oid 0.10.2
   cpufeatures 0.3.1
-  der 0.8.2
+  der 0.8.3
   pkcs8 0.11.0
 
 ------------------------------------------------------------------------------
@@ -2805,10 +2819,10 @@ Applies to:
   heck 0.5.0
   leb128 0.2.7
   unicode-bidi 0.3.18
-  unicode-normalization 0.1.25
+  unicode-normalization 0.1.26
   unicode-properties 0.1.4
   unicode-segmentation 1.13.3
-  unicode-width 0.2.2
+  unicode-width 0.2.3
 
 ------------------------------------------------------------------------------
 
@@ -2917,6 +2931,7 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   crc32fast 1.5.2
+  crc32fast 1.5.3
 
 ------------------------------------------------------------------------------
 
@@ -3160,7 +3175,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  ctutils 0.4.6
+  ctutils 0.4.7
 
 ------------------------------------------------------------------------------
 
@@ -3597,7 +3612,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  elliptic-curve 0.14.1
+  elliptic-curve 0.14.3
   p256 0.14.0
   password-hash 0.6.1
 
@@ -3707,7 +3722,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  encoding_rs 0.8.42
+  encoding_rs 0.8.43
   multiversion_no_op 1.0.0
   utf16_iter 1.0.5
   utf8_iter 1.0.4
@@ -5387,7 +5402,7 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   inout 0.2.2
-  inout 0.2.4
+  inout 0.2.5
 
 ------------------------------------------------------------------------------
 
@@ -5462,6 +5477,7 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   libc 0.2.190
+  libc 0.2.191
 
 ------------------------------------------------------------------------------
 
@@ -5793,6 +5809,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 Applies to:
   memmap2 0.9.11
+  memmap2 0.9.12
 
 ------------------------------------------------------------------------------
 
@@ -7562,6 +7579,7 @@ DEALINGS IN THE SOFTWARE.
 Applies to:
   smallvec 1.16.2
   smallvec 1.16.3
+  smallvec 1.16.4
 
 ------------------------------------------------------------------------------
 
@@ -7665,7 +7683,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  sqlite-wasm-rs 0.5.5
+  sqlite-wasm-rs 0.6.2
 
 ------------------------------------------------------------------------------
 
@@ -8096,7 +8114,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ==============================================================================
 
 Applies to:
-  tokio 1.53.3
+  tokio 1.54.1
 
 ------------------------------------------------------------------------------
 
@@ -8363,7 +8381,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  uuid 1.28.0
+  uuid 1.29.0
 
 ------------------------------------------------------------------------------
 
@@ -11111,7 +11129,7 @@ Applies to:
   alloc-no-stdlib 3.0.0
   alloc-stdlib 0.2.4
   alloc-stdlib 0.3.0
-  brotli 9.0.0
+  brotli 9.1.1
   ittapi 0.4.0
   ittapi-sys 0.4.0
 
@@ -11255,7 +11273,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ==============================================================================
 
 Applies to:
-  encoding_rs 0.8.42
+  encoding_rs 0.8.43
 
 ------------------------------------------------------------------------------
 
@@ -12037,6 +12055,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 Applies to:
   unicode-ident 1.0.26
   unicode-ident 1.0.27
+  unicode-normalization 0.1.26
 
 ------------------------------------------------------------------------------
 
@@ -12218,7 +12237,7 @@ express Statement of Purpose.
 ==============================================================================
 
 Applies to:
-  webpki-roots 1.0.10
+  webpki-roots 1.0.11
 
 ------------------------------------------------------------------------------
 
