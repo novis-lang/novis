@@ -8,9 +8,11 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename` and `move` write**, through [`write_out`], the one write
-//! path: it writes only inside the project root, and only files whose bytes
-//! have not changed since this call first read them.
+//! **Only `rename`, `move` and `order` write**, through [`planned`] and
+//! [`committed`], the one write path: it writes only inside the project root,
+//! and only files whose bytes have not changed since this call first read
+//! them. [`write_out`] prints what `rename` and `move` wrote, and [`order`]
+//! prints what it wrote by class.
 //!
 //! A call costs one analysis per `.nvs` file under the project root, and
 //! nothing is kept after it: there is no cache and no daemon, because either
@@ -35,8 +37,9 @@ use std::ops::RangeInclusive;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 
-use nvs_diagnostics::{SourceFile, canonical_key};
+use nvs_diagnostics::{BytePos, SourceFile, SourceMap, canonical_key};
 use nvs_hir::members::edit_distance;
+use nvs_lsp::order;
 use nvs_lsp::query::{self, Outline};
 use nvs_lsp::rename::{self, Rewrite};
 use nvs_lsp::{DeclKind, Declaration, Site, Workspace};
@@ -50,7 +53,8 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 ///
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
-/// `.nvs` file in it is read. Only `rename` and `move` change files.
+/// `.nvs` file in it is read. Only `rename`, `move` and `order` change
+/// files.
 ///
 /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
 /// Put it in single quotes, so that the shell keeps the backslashes. A
@@ -174,6 +178,37 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Put the members of each class and interface in the standard order,
+    /// and save the changed files.
+    ///
+    /// This is the same change as the editor's "Order class members" action.
+    /// Types come first, then constants, then properties, then methods. In
+    /// each group, static members come before the others. Then `public`
+    /// comes before `protected`, and `protected` before `private`. The
+    /// constructor is the first method that is not static. Members that are
+    /// equal in this order keep the order you wrote. Each changed file is
+    /// also formatted as `nvs fmt` formats it.
+    ///
+    /// The command prints one line for each changed file. A class with
+    /// `#[Core\Json\Derive]` gets a note when its JSON key order changes. A
+    /// file with a syntax error is not changed, and a warning names it.
+    Order {
+        /// The files or directories to order, as `src/Cart.nvs` or `src`.
+        /// With no path, every `.nvs` file in the project is ordered.
+        paths: Vec<String>,
+        /// Save nothing. Print each class whose members are not in order, and
+        /// fail if there is one.
+        #[arg(long, conflicts_with = "dry_run")]
+        check: bool,
+        /// Print each class whose members would move, and the notes. Save
+        /// nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the files, the classes and the notes as one JSON document.
+        /// The `written` field is `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print every class, method, property, constant and enum case whose
     /// name contains a text. Upper and lower case count as the same.
     ///
@@ -239,6 +274,12 @@ impl Args {
                 dry_run,
                 json,
             } => move_path(&from, &to, dry_run, json),
+            Command::Order {
+                paths,
+                check,
+                dry_run,
+                json,
+            } => order(&paths, check, dry_run, json),
             Command::Find { query, json } => find(&query, json),
             Command::Calls { symbol, json } => calls(&symbol, json),
             Command::Reach { symbol, json } => reach(&symbol, json),
@@ -1039,6 +1080,248 @@ fn judged_move(
     Ok((source, target))
 }
 
+/// One class `order` names: where it is declared, and its full name.
+struct Named {
+    place: Place,
+    symbol: String,
+}
+
+impl Named {
+    fn new(project: &mut Project, path: &Path, class: &order::Class) -> Self {
+        let site = Site {
+            path: path.to_owned(),
+            start: class.at,
+            end: class.at,
+        };
+        Self {
+            place: project.place(&site),
+            symbol: escaped(&class.name),
+        }
+    }
+
+    fn json(&self) -> Map<String, Value> {
+        let mut record = self.place.json();
+        record.insert("symbol".into(), Value::from(self.symbol.clone()));
+        record
+    }
+}
+
+/// What a note says about its class, in the text and in the JSON.
+fn note_text(kind: order::NoteKind) -> (&'static str, &'static str) {
+    match kind {
+        order::NoteKind::KeyOrderChanges => (
+            "keyOrderChanges",
+            "note: the JSON key order of this class changes.",
+        ),
+        order::NoteKind::KeptAsWritten => (
+            "keptAsWritten",
+            "note: this class has `Core\\Json\\KeepKeyOrder`, and no member order keeps its \
+             JSON keys. It is left as written.",
+        ),
+    }
+}
+
+/// `nvs code order`: [`order::of`] over each file `paths` names, or over
+/// every file of the project, written through [`planned`] and [`committed`].
+///
+/// `--check` and `--dry-run` stop before the write. A file with a syntax
+/// error, or one whose moved text does not format, is skipped with a line on
+/// standard error, and the other files are still ordered
+/// (`rule:tooling/class-members-have-one-order`).
+pub(crate) fn order(paths: &[String], check: bool, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let files = match ordered_files(&project, paths) {
+        Ok(files) => files,
+        Err((message, nearest)) => return unknown(&message, &nearest, json),
+    };
+    let mut rewrites: Vec<Rewrite> = Vec::new();
+    let mut moved: Vec<(PathBuf, Vec<Named>)> = Vec::new();
+    let mut notes: Vec<(Named, order::NoteKind)> = Vec::new();
+    let mut skipped: Vec<(String, Option<Named>)> = Vec::new();
+    for path in files {
+        let text = match project.snapshot(&path) {
+            Ok(text) => text.to_owned(),
+            Err(message) => return unknown(&message, &[], json),
+        };
+        let mut map = SourceMap::new();
+        let id = map.add(project.shown(&path), text.as_str());
+        match order::of(map.file(id)) {
+            Ok(ordered) => {
+                for note in &ordered.notes {
+                    notes.push((Named::new(&mut project, &path, &note.class), note.kind));
+                }
+                let Some(after) = ordered.text else { continue };
+                let classes = ordered
+                    .moved
+                    .iter()
+                    .map(|class| Named::new(&mut project, &path, class))
+                    .collect();
+                moved.push((path.clone(), classes));
+                rewrites.push(Rewrite {
+                    site: Site {
+                        path,
+                        start: 0,
+                        end: BytePos::try_from(text.len()).unwrap_or(BytePos::MAX),
+                    },
+                    text: after,
+                });
+            }
+            Err(order::Refused::DoesNotParse) => skipped.push((project.shown(&path), None)),
+            Err(order::Refused::Unsafe(class)) => {
+                let named = Named::new(&mut project, &path, &class);
+                skipped.push((project.shown(&path), Some(named)));
+            }
+        }
+    }
+    let rewrites: Vec<&Rewrite> = rewrites.iter().collect();
+    let changes = match planned(&mut project, &rewrites, &[]) {
+        Ok(changes) => changes,
+        Err(message) => return unknown(&message, &[], json),
+    };
+    let written = !check && !dry_run;
+    if written && let Err(message) = committed(&project, &changes, &[]) {
+        return unknown(&message, &[], json);
+    }
+    let status = if check && !moved.is_empty() {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    };
+    if json {
+        let files: Vec<Value> = moved
+            .iter()
+            .map(|(path, classes)| {
+                let classes: Vec<Value> = classes
+                    .iter()
+                    .map(|class| Value::Object(class.json()))
+                    .collect();
+                json!({ "path": project.shown(path), "classes": classes })
+            })
+            .collect();
+        let notes: Vec<Value> = notes
+            .iter()
+            .map(|(class, kind)| {
+                let mut record = class.json();
+                record.insert("note".into(), Value::from(note_text(*kind).0));
+                Value::Object(record)
+            })
+            .collect();
+        let skipped: Vec<Value> = skipped
+            .iter()
+            .map(|(path, class)| {
+                json!({
+                    "path": path,
+                    "reason": if class.is_some() { "doesNotFormat" } else { "syntaxError" },
+                    "symbol": class.as_ref().map(|class| class.symbol.clone()),
+                })
+            })
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "files": files,
+                "notes": notes,
+                "skipped": skipped,
+                "written": written,
+            }))
+        );
+        return status;
+    }
+    for (path, class) in &skipped {
+        match class {
+            None => eprintln!("warning: `{path}` has a syntax error, so it was not ordered."),
+            Some(class) => eprintln!(
+                "warning: {}  {}: the moved members do not format, so `{path}` was not changed.",
+                class.place.position(),
+                class.symbol
+            ),
+        }
+    }
+    if written {
+        for (path, classes) in &moved {
+            let noun = if classes.len() == 1 {
+                "class"
+            } else {
+                "classes"
+            };
+            println!("{}  {} {noun}", project.shown(path), classes.len());
+        }
+    } else {
+        let width = moved
+            .iter()
+            .flat_map(|(_, classes)| classes)
+            .map(|class| class.place.position().len())
+            .max()
+            .unwrap_or(0);
+        for class in moved.iter().flat_map(|(_, classes)| classes) {
+            println!("{:<width$}  {}", class.place.position(), class.symbol);
+        }
+    }
+    if !check {
+        for (class, kind) in &notes {
+            println!(
+                "{}  {}  {}",
+                class.place.position(),
+                class.symbol,
+                note_text(*kind).1
+            );
+        }
+    }
+    status
+}
+
+/// The files `paths` names, each a file the project indexed or a directory
+/// under the project root, sorted. No path is every file of the project.
+fn ordered_files(
+    project: &Project,
+    paths: &[String],
+) -> Result<Vec<PathBuf>, (String, Vec<String>)> {
+    let index = project.workspace.index();
+    let root = project.workspace.root();
+    let mut files: Vec<PathBuf> = if paths.is_empty() {
+        index.files().map(Path::to_owned).collect()
+    } else {
+        Vec::new()
+    };
+    for written in paths {
+        let path = canonical_key(&project.cwd.join(written));
+        if !inside(root, &path) {
+            return Err((
+                format!(
+                    "`{}` is outside the project, so nothing was changed.",
+                    escaped(written)
+                ),
+                Vec::new(),
+            ));
+        }
+        if index.holds(&path) {
+            files.push(path);
+        } else if path.is_dir() {
+            files.extend(
+                index
+                    .files()
+                    .filter(|file| file.starts_with(&path))
+                    .map(Path::to_owned),
+            );
+        } else {
+            return Err((
+                format!(
+                    "no file or directory `{}` in this project",
+                    escaped(written)
+                ),
+                project.nearest_files(written),
+            ));
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
+}
+
 /// `path:line:column` split into the file, the line and the column, and
 /// `None` for anything else, a name such as `Shop\Cart::MAX` included.
 fn split_position(spec: &str) -> Option<(&str, u32, u32)> {
@@ -1058,7 +1341,7 @@ struct Change {
     edits: usize,
 }
 
-/// The one write path of `nvs code`, which `rename` and `move` share.
+/// The write path of `rename` and `move`, and what they print.
 ///
 /// In this order: every edit is applied in memory, and a file that cannot be
 /// read or an edit that does not fit its file writes nothing. Every path and

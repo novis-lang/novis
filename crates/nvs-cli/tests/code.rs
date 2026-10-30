@@ -1104,3 +1104,176 @@ fn code_find_calls_and_reach_json_have_every_key() {
         "{out}"
     );
 }
+
+/// A class whose method, property and constant are written in the reverse of
+/// the member order.
+const BASKET: &str = "<?nvs\nnamespace Shop;\n\nclass Basket\n{\n    \
+                      public function count(): int\n    {\n        return $this->size;\n    }\n\n    \
+                      private int $size = 0;\n\n    public const int LIMIT = 5;\n}\n";
+
+/// A derived class whose `private` field is written before its `public` one,
+/// so ordering it changes its JSON key order.
+const RECEIPT: &str = "<?nvs\nnamespace Shop;\n\nuse Core\\Json\\Derive;\n\n#[Derive]\n\
+                       class Receipt\n{\n    private string $note;\n    public int $id;\n\n    \
+                       public function constructor(int $id, string $note)\n    {\n        \
+                       $this->id = $id;\n        $this->note = $note;\n    }\n}\n";
+
+/// A file with a missing `}`.
+const BROKEN: &str = "<?nvs\nclass Broken\n{\n    public function run(): void\n    {\n}\n";
+
+/// The `Shop` project with `Basket` beside it, and `extra` files.
+fn order_project(name: &str, extra: &[(&str, &str)]) -> nvs_repo::Scratch {
+    project(name, &[&[("src/Basket.nvs", BASKET)][..], extra].concat())
+}
+
+/// Whether each of `parts` is in `text`, in this order.
+fn in_order(text: &str, parts: &[&str]) -> bool {
+    let at: Vec<Option<usize>> = parts.iter().map(|part| text.find(part)).collect();
+    at.iter().all(Option::is_some) && at.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_writes_the_member_order_and_formats_each_file() {
+    let dir = order_project("order-write", &[]);
+    let before = files(&dir);
+    let (out, err, ok) = code(&dir, &["order", "src"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "src/Basket.nvs  1 class\n");
+    let basket = read(&dir, "src/Basket.nvs");
+    assert!(
+        in_order(&basket, &["LIMIT", "$size", "function count"]),
+        "{basket}"
+    );
+    // The written file is in the standard layout, and the ordered files are
+    // as they were.
+    let (_, err, ok) = run(&dir, "fmt", &["--check", "src/Basket.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(files(&dir), before);
+    // A second run finds nothing to move.
+    let (out, err, ok) = code(&dir, &["order", "--check"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_check_lists_each_class_out_of_order_and_writes_nothing() {
+    let dir = order_project("order-check", &[]);
+    let (out, _, ok) = code(&dir, &["order", "--check"]);
+    assert!(!ok, "a class out of order fails the check: {out}");
+    assert_eq!(out, "src/Basket.nvs:4:1  Shop\\Basket\n");
+    assert_eq!(read(&dir, "src/Basket.nvs"), BASKET);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_dry_run_prints_each_class_it_would_move_and_writes_nothing() {
+    let dir = order_project("order-dry-run", &[("src/Receipt.nvs", RECEIPT)]);
+    let (out, err, ok) = code(&dir, &["order", "--dry-run"]);
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 3, "two classes and one note: {out}");
+    assert!(lines[0].starts_with("src/Basket.nvs:4:1 "), "{out}");
+    assert!(lines[0].ends_with("Shop\\Basket"), "{out}");
+    assert!(lines[1].ends_with("Shop\\Receipt"), "{out}");
+    assert!(lines[2].contains("note:"), "{out}");
+    assert_eq!(read(&dir, "src/Basket.nvs"), BASKET);
+    assert_eq!(read(&dir, "src/Receipt.nvs"), RECEIPT);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_prints_a_note_for_a_derived_class_whose_key_order_changes() {
+    let dir = order_project("order-note", &[("src/Receipt.nvs", RECEIPT)]);
+    let (out, err, ok) = code(&dir, &["order", "src/Receipt.nvs"]);
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines[0], "src/Receipt.nvs  1 class", "{out}");
+    assert!(
+        lines[1].starts_with("src/Receipt.nvs:6:1  Shop\\Receipt  note:"),
+        "{out}"
+    );
+    assert!(lines[1].contains("JSON key order"), "{out}");
+    let receipt = read(&dir, "src/Receipt.nvs");
+    assert!(
+        in_order(&receipt, &["public int $id;", "private string $note;"]),
+        "{receipt}"
+    );
+    // Only the file the path names is ordered.
+    assert_eq!(read(&dir, "src/Basket.nvs"), BASKET);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_skips_a_file_with_a_syntax_error_and_names_it() {
+    let dir = order_project("order-broken", &[("src/Broken.nvs", BROKEN)]);
+    let (out, err, ok) = code(&dir, &["order"]);
+    assert!(ok, "{err}");
+    assert!(err.contains("`src/Broken.nvs` has a syntax error"), "{err}");
+    assert_eq!(out, "src/Basket.nvs  1 class\n");
+    assert_eq!(read(&dir, "src/Broken.nvs"), BROKEN);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_refuses_a_file_that_changed_after_it_was_read() {
+    let dir = order_project("order-changed", &[]);
+    // The debug binary changes this file after it orders it and before it
+    // compares the bytes again.
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(&*dir)
+        .env(
+            "NVS_TEST_CODE_CHANGE_BEFORE_WRITE",
+            dir.join("src/Basket.nvs"),
+        )
+        .args(["code", "order"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let err = String::from_utf8(out.stderr).expect("the output is UTF-8");
+    assert!(!out.status.success(), "{err}");
+    assert!(err.contains("src/Basket.nvs"), "{err}");
+    assert!(err.contains("changed while the command ran"), "{err}");
+    // Only the change the hook made is on disk.
+    assert_eq!(read(&dir, "src/Basket.nvs"), format!("{BASKET}\n"));
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_order_json_lists_every_class_and_note() {
+    let dir = order_project(
+        "order-json",
+        &[("src/Receipt.nvs", RECEIPT), ("src/Broken.nvs", BROKEN)],
+    );
+    let (out, err, ok) = code(&dir, &["order", "--dry-run", "--json"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(answer["written"], false, "{out}");
+    let files = answer["files"].as_array().expect("a files list");
+    assert_eq!(files.len(), 2, "{out}");
+    assert_eq!(files[0]["path"], "src/Basket.nvs", "{out}");
+    let class = &files[0]["classes"][0];
+    for key in ["path", "line", "column", "start", "end", "symbol"] {
+        assert!(class.get(key).is_some(), "{key}: {out}");
+    }
+    assert_eq!(class["symbol"], "Shop\\Basket", "{out}");
+    assert_eq!(answer["notes"][0]["symbol"], "Shop\\Receipt", "{out}");
+    assert_eq!(answer["notes"][0]["note"], "keyOrderChanges", "{out}");
+    assert_eq!(
+        answer["skipped"],
+        serde_json::json!([
+            { "path": "src/Broken.nvs", "reason": "syntaxError", "symbol": null },
+        ]),
+        "{out}"
+    );
+    assert_eq!(read(&dir, "src/Basket.nvs"), BASKET);
+
+    let (out, _, ok) = code(&dir, &["order", "--check", "--json"]);
+    assert!(!ok, "a class out of order fails the check: {out}");
+    assert_eq!(parsed(&out)["written"], false, "{out}");
+    let (out, err, ok) = code(&dir, &["order", "--json"]);
+    assert!(ok, "{err}");
+    assert_eq!(parsed(&out)["written"], true, "{out}");
+    assert_ne!(read(&dir, "src/Basket.nvs"), BASKET);
+}
