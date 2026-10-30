@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/process.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/http/stream.rs, crates/nvs-stdlib/src/mail.rs]
   - id: 8
     title: "database rows and directory entries are read no further than the request can hold"
-    status: open
+    status: done
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/tds/rows.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-stdlib/src/db/row.rs, crates/nvs-stdlib/src/db/execute.rs, crates/nvs-ldap/src/conn.rs, crates/nvs-ldap/src/ranged.rs]
   - id: 9
     title: "topic inboxes, core mailboxes, cache slots, spans and idle connections are capped in bytes and charged to who holds them"
@@ -248,7 +248,11 @@ event stream that arrives line by line. Those are Rust tests:
 `lines_that_dispatch_nothing_are_consumed_as_they_are_read`, and the SMTP caps'
 `a_reply_is_capped_per_line_and_per_reply`. `IO::stdin` reads through the same `read_bounded` as
 `IO::read`, and its attack would need an `.in` file larger than a memory limit in the tree, so
-`IO::read`'s attack covers it.
+`IO::read`'s attack covers it. Samba sends a range only when one is asked for (a plain read of
+2000 values arrives as one message), and `select` refuses a range option, so no `.nvs` reaches
+`ranged::complete`. `a_ranged_attribute_that_never_ends_stops_at_the_memory_ceiling` in
+`crates/nvs-ldap/tests/samba.rs` is its attack, a scripted peer whose range never ends.
+`tests/hostile/core/Ldap-Connection/read/02-` reads the same large attribute whole.
 
 **A database read asks before the bytes exist, and SQLite's own buffers are capped too.**
 PostgreSQL asks for a whole frame from its header before `Message::parse` reserves it (the parse
@@ -383,9 +387,9 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [x] SQLite: each cell is checked against `headroom` before its copy, and each connection sets `SQLITE_LIMIT_LENGTH` from the request's memory limit. `crates/nvs-db/src/sqlite.rs:303`, `crates/nvs-db/src/sqlite.rs:740`, `crates/nvs-db/src/sqlite.rs:1083`
 - [x] `Rows::all`, `iterate` and `queryAs` hydration ask per row. `crates/nvs-stdlib/src/db/row.rs:781`
 - [x] LDAP `Cursor::fetch` asks per entry, and the ranged-attribute loop stops when a range does not advance and asks per merge. `crates/nvs-ldap/src/conn.rs:959`, `crates/nvs-ldap/src/ranged.rs:79`
-- [ ] Attacks: a query that returns one huge value for each driver the fixtures run, and an LDAP group with a ranged member list. Each ends at `FATAL` within the bound.
+- [x] Attacks: a query that returns one huge value for each driver the fixtures run, and an LDAP group with a ranged member list. Each ends at `FATAL` within the bound.
   - [x] SQLite, PostgreSQL and SQL Server: `tests/hostile/core/Db-Connection/query/02-`, `03-`, `04-`, run once, each green
-  - [ ] the LDAP ranged member list
+  - [x] the LDAP ranged member list: `a_ranged_attribute_that_never_ends_stops_at_the_memory_ceiling` (no `.nvs` can ask a range), and `tests/hostile/core/Ldap-Connection/read/02-` for a whole large attribute, each run once, green
 
 ### 9. topic inboxes, core mailboxes, cache slots, spans and idle connections are capped in bytes and charged to who holds them
 
@@ -416,13 +420,12 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 done; stage 8 done but its LDAP attack. Build and clippy green, rustfmt clean, no
-full test run. Every database and LDAP reader asks the budget before it grows: `pg.rs` `grow_inbox`
-(before `Message::parse`, which reserves a declared frame itself) and array `elements`,
-`tds/rows.rs` `copy`, `sqlite.rs` `read_row`, `cap_length` and `refused`, `db/row.rs`
-`row_object`, and `nvs-ldap` `receive`, `Cursor::fetch` and `ranged::complete`. `nvs-ldap` depends
-on `nvs-runtime`; rusqlite has `limits`. `tests/hostile/core/Db-Connection/query/02-` to `04-`
-(SQLite, PostgreSQL, SQL Server) end at `FATAL` within the bound, run once.
+Stages 1 to 8 done. Build and clippy green, rustfmt clean, no full test run. Every database and
+LDAP reader asks the budget before it grows. Stage 8's attacks, each run once and green:
+`tests/hostile/core/Db-Connection/query/02-` to `04-`,
+`tests/hostile/core/Ldap-Connection/read/02-` (granted `corp-accounts` by its own `entry` in
+`nvs.toml`), and the Rust test `a_ranged_attribute_that_never_ends_stops_at_the_memory_ceiling`
+in `crates/nvs-ldap/tests/samba.rs`, because `select` takes no range option.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
@@ -434,23 +437,17 @@ reads the new framing; a SQLite `SQLITE_TOOBIG` under a ceiling is the `FATAL`; 
 no value that asks for more is `Kind::Protocol`. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
-The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and its log does
-not exist.
+The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, its log does not
+exist, and this `looper` has no `check` command to run it by name.
 
 ### Next
 
-Finish stage 8 with its LDAP attack, then stage 9 (items at § *9.*). Read one member's bound with
-`bun nv proofs --run --id '<member>' --show`; Docker is up on this host, so a `requires: postgres`,
-`mssql` or `samba-ad` proof runs. An attack that lowers its limit with `Core\Config::set` after
-earlier steps hold much memory reads that holding as its overshoot, so lower it first.
+Stage 9 (items at § *9.*). Read one member's bound with `bun nv proofs --run --id '<member>'
+--show`; Docker is up on this host, so a `requires: postgres`, `mssql` or `samba-ad` proof runs.
+An attack that lowers its limit with `Core\Config::set` after earlier steps hold much memory reads
+that holding as its overshoot, so lower it first. A Rust test arms a ceiling with
+`Ctx::new(OutputSink::Buffer(Vec::new()))` and `set_memory_limit`, as the LDAP test does.
 
-- [ ] The LDAP ranged attack. The `samba-ad` seed (`tests/db/compose.yaml:430`) has five members in
-  `Employees`, and Samba is believed to send a range only when one is asked for (unverified;
-  `tests/hostile/core/Ldap-Connection/read/01-strange-names-and-attributes.nvs:39` asks
-  `member;range=0-1`). Try one `.nvs` under `tests/hostile/core/Ldap-Connection/read/` that asks a
-  ranged attribute after the admin block `[ldap.corp-accounts]` writes large values; if no `.nvs`
-  can make the merged list pass a ceiling, a Rust test in `crates/nvs-ldap/tests/samba.rs` stands in
-  for it, as the standing decision *An attack needs a way in* allows, and the decision names it.
 - [ ] Stage 9, from `crates/nvs-runtime/src/peer.rs:153` and `crates/nvs-stdlib/src/topic.rs:777`.
 
 ### Backlog
