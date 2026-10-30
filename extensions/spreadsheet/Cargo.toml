@@ -27,7 +27,7 @@ wit-bindgen = "0.63"
 # calamine reads the written files back as a second opinion in `tests/excel.rs`. The component's
 # own reader is ours, so calamine stays on the host and out of the `wasm32-wasip2` graph.
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-calamine = "0.36"
+calamine = "0.37"
 
 [profile.release]
 opt-level = 3
