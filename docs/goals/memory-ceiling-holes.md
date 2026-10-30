@@ -461,9 +461,6 @@ pool test that releases under many keys with a small `max` finds fewer idle; a M
 small ceiling is `OutOfMemory` at the chunk header. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
-The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, its log does not
-exist, and this `looper` has no `check` command to run it by name.
-
 ### Next
 
 Stage 10's last run. `bun nv affected --run` with `run_in_background`; steps 1 to 20 are green, so
