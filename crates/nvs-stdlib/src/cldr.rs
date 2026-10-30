@@ -1901,7 +1901,7 @@ impl Operands {
         self.n().is_some_and(|n| values.contains(&(n % modulus)))
     }
 
-    /// The `many` arm `ca`, `es`, `fr`, `it` and `pt` share: a whole number of
+    /// The `many` arm `ca`, `es`, `fr`, `gl`, `it` and `pt` share: a whole number of
     /// millions, and not zero.
     ///
     /// The published rule reads `e = 0 and i != 0 and i % 1000000 = 0 and
@@ -2395,7 +2395,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("fy", RuleSet::Unit),
     ("ga", RuleSet::Irish),
     ("gd", RuleSet::ScottishGaelic),
-    ("gl", RuleSet::Unit),
+    ("gl", RuleSet::UnitAndMillions),
     ("gsw", RuleSet::ExactlyOne),
     ("gu", RuleSet::ZeroOrExactlyOne),
     ("guw", RuleSet::ZeroToOne),
@@ -2525,7 +2525,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("ur", RuleSet::Unit),
     ("uz", RuleSet::ExactlyOne),
     ("ve", RuleSet::ExactlyOne),
-    ("vi", RuleSet::NoDistinction),
+    ("vi", RuleSet::ZeroOrExactlyOne),
     ("vo", RuleSet::ExactlyOne),
     ("vun", RuleSet::ExactlyOne),
     ("wa", RuleSet::ZeroToOne),
@@ -2600,6 +2600,15 @@ enum OrdinalSet {
     Georgian,
     /// Turkmen.
     Turkmen,
+    /// Afrikaans, whose one marked form is the second to the nineteenth of
+    /// every hundred.
+    Afrikaans,
+    /// Bulgarian: [`Self::English`]'s three forms read off `i`, and `few`
+    /// widened to the fourth.
+    Bulgarian,
+    /// Spanish, whose `one` is the first and the third of every ten but the
+    /// eleventh.
+    Spanish,
 }
 
 impl OrdinalSet {
@@ -2769,6 +2778,24 @@ impl OrdinalSet {
             // few: n % 10 = 6,9 or n = 10
             Self::Turkmen if at.n_mod_any(10, &[6, 9]) || at.n_is(10) => Few,
             Self::Turkmen => Other,
+
+            // few: i % 100 = 2..19
+            Self::Afrikaans if (2..=19).contains(&(at.i % 100)) => Few,
+            Self::Afrikaans => Other,
+
+            // one: i % 10 = 1 and i % 100 != 11
+            // two: i % 10 = 2 and i % 100 != 12
+            // few: i % 10 = 3,4 and i % 100 != 13,14
+            Self::Bulgarian if at.i % 10 == 1 && at.i % 100 != 11 => One,
+            Self::Bulgarian if at.i % 10 == 2 && at.i % 100 != 12 => Two,
+            Self::Bulgarian if matches!(at.i % 10, 3 | 4) && !matches!(at.i % 100, 13 | 14) => {
+                Few
+            }
+            Self::Bulgarian => Other,
+
+            // one: n % 10 = 1,3 and n % 100 != 11
+            Self::Spanish if at.n_mod_any(10, &[1, 3]) && !at.n_mod_is(100, 11) => One,
+            Self::Spanish => Other,
         }
     }
 }
@@ -2787,13 +2814,16 @@ impl OrdinalSet {
 /// the other direction, so a published rule this table omits fails there
 /// rather than answering `Other` in a catalog.
 static ORDINALS: &[(&str, OrdinalSet)] = &[
+    ("af", OrdinalSet::Afrikaans),
     ("as", OrdinalSet::Bengali),
     ("az", OrdinalSet::Azerbaijani),
     ("be", OrdinalSet::Belarusian),
+    ("bg", OrdinalSet::Bulgarian),
     ("bn", OrdinalSet::Bengali),
     ("ca", OrdinalSet::Catalan),
     ("cy", OrdinalSet::Welsh),
     ("en", OrdinalSet::English),
+    ("es", OrdinalSet::Spanish),
     ("fil", OrdinalSet::FirstOnly),
     ("fr", OrdinalSet::FirstOnly),
     ("ga", OrdinalSet::FirstOnly),
@@ -4146,6 +4176,9 @@ mod tests {
             (OrdinalSet::Bengali, &["as", "bn"]),
             (OrdinalSet::Odia, &["or"]),
             (OrdinalSet::Welsh, &["cy"]),
+            (OrdinalSet::Afrikaans, &["af"]),
+            (OrdinalSet::Bulgarian, &["bg"]),
+            (OrdinalSet::Spanish, &["es"]),
         ];
 
         for (rules, locales) in published {
