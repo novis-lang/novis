@@ -33,6 +33,14 @@ export const summary = "which CI lanes a diff needs: nv ci-changes --base <sha> 
 
 const USAGE = "usage: nv ci-changes [-h] [--base BASE] [--full] [--files FILE] [--lanes]";
 
+/** Each directory with a lockfile of its own beside the root's. `ci.yml`'s `supply-chain` job and `bun nv
+ * ci --check` run `cargo deny check advisories` on each, under the root's `deny.toml`
+ * (`rule:packaging/a-dependency-move-proves-two-things`). */
+export const LOCKFILE_DIRS = [
+  "extensions/image", "extensions/intl", "extensions/pdf", "extensions/spreadsheet",
+  "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/markdown-extension",
+];
+
 // One entry per gate a job in ci.yml spells as `needs.changes.outputs.<name> == 'true'`. A prefix
 // ending in `/` matches everything beneath it; anything else matches that one path exactly.
 //
@@ -70,11 +78,13 @@ export const LANES: Record<string, string[]> = {
   // (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in the
   // workspace can change what either of them answers. Gates `extension` and `extension-host`.
   editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ".github/workflows/"],
-  // What `cargo deny` and the attribution diff read. Their answer cannot differ in a run that changed
-  // none of these (`rule:packaging/a-dependency-move-proves-two-things`).
+  // What `cargo deny` and the attribution diff read, the other lockfiles' manifests among them. Their
+  // answer cannot differ in a run that changed none of these
+  // (`rule:packaging/a-dependency-move-proves-two-things`).
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
     "tools/nv/cmd/gen-attribution.ts", "viewer/package.json", "bun.lock", ".github/workflows/",
+    ...LOCKFILE_DIRS.flatMap((d) => [`${d}/Cargo.toml`, `${d}/Cargo.lock`]),
   ],
   // The website's `Core` pages and `/llms-full.txt` are rendered from the binary's registry and the
   // chapters, so either side moving can make a committed file stale. Gates `reference`.

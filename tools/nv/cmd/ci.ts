@@ -58,6 +58,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
+import { LOCKFILE_DIRS } from "./ci-changes.ts";
 
 export const summary =
   "pushes main and watches GitHub CI: nv ci --push | --check | --watch [--max-min <n>] [--past <job>] [--next] | --status | --rerun";
@@ -108,6 +109,10 @@ export const PRE_PUSH: PrePush[] = [
   { name: "rendered files", argv: ["bun", "nv", "render", "--check"] },
   { name: "third-party attribution", argv: ["bun", "nv", "gen-attribution", "--check"] },
   { name: "advisories", argv: ["cargo", "deny", "check", "advisories"] },
+  ...LOCKFILE_DIRS.map((d): PrePush => ({
+    name: `advisories (${d})`,
+    argv: ["cargo", "deny", "--all-features", "--manifest-path", `${d}/Cargo.toml`, "--config", "deny.toml", "check", "advisories"],
+  })),
   { name: "build", argv: ["cargo", "build"] },
   { name: "feature proofs", argv: ["bun", "nv", "proofs", "--gate", "--limit", "0", "--nvs", DEBUG_NVS] },
   { name: "website render", argv: ["bun", "nv", "render", "--website", "--check"], env: { NVS_BIN: DEBUG_NVS } },

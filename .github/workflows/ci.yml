@@ -1001,6 +1001,67 @@ jobs:
         with:
           command: check
           rust-version: ${{ steps.toolchain.outputs.channel }}
+      # Every other lockfile in the tree, for advisories and yanked crates
+      # alone, under the root's `deny.toml`. What the binary ships is the
+      # root lock's, so licences, bans and sources stay the step above's
+      # (`rule:packaging/a-dependency-move-proves-two-things`). `bun nv ci
+      # --check` runs the same nine legs.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: extensions/image/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: extensions/intl/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: extensions/pdf/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: extensions/spreadsheet/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: fuzz/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: tools/covwrap/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: tools/nv-scan/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          manifest-path: website/guides/markdown-extension/Cargo.toml
+          arguments: --all-features --config deny.toml
+          command: check
+          command-arguments: advisories
+          rust-version: ${{ steps.toolchain.outputs.channel }}
 
   # ---------------------------------------------------------------------------
   # The other half of `supply-chain`. `cargo deny` decides what Novis may link;
