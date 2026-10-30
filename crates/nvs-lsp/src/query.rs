@@ -376,11 +376,31 @@ pub fn rename(
 /// name. Ties are broken in symbol order, so the list is the same every time.
 #[must_use]
 pub fn nearest<'a>(index: &'a SymbolIndex, name: &str, limit: usize) -> Vec<&'a str> {
+    nearest_of(index, name, limit, |_| true)
+}
+
+/// The methods the index declares that are closest to `name`, as [`nearest`]
+/// ranks them: the names a call-graph question about a non-method suggests.
+#[must_use]
+pub fn nearest_methods<'a>(index: &'a SymbolIndex, name: &str, limit: usize) -> Vec<&'a str> {
+    nearest_of(index, name, limit, |declared| {
+        declared.kind == DeclKind::Method
+    })
+}
+
+/// [`nearest`] over the declarations `keep` accepts.
+fn nearest_of<'a>(
+    index: &'a SymbolIndex,
+    name: &str,
+    limit: usize,
+    keep: impl Fn(&Declaration) -> bool,
+) -> Vec<&'a str> {
     let wanted = folded(name);
     let wanted_last = folded(last_part(name));
     let mut ranked: Vec<(usize, &'a str)> = index
         .files()
         .flat_map(|path| index.declarations_in(path))
+        .filter(|declared| keep(declared))
         .map(|declared| {
             let symbol = declared.symbol.as_str();
             let whole = edit_distance(&wanted, &folded(symbol));

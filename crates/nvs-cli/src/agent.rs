@@ -1651,6 +1651,13 @@ Write a name in full, with its namespace, in single quotes: `nvs code refs 'Shop
 - `nvs code outline <file>` — what one file declares, one line each.
 - `nvs code impls <name>` and `nvs code types <file>` — the types that extend or implement a type,
   and the type of each variable in a file.
+- `nvs code find <text>` — every class, method, property and constant whose name contains the text.
+- `nvs code calls <method>` — the methods that call a method, and the methods it calls.
+- `nvs code reach <method>` — the routes and the tests that reach a method through its callers.
+- `nvs code rename <name> <new-name>` — renames a name everywhere it is used and saves the files.
+  Use `--dry-run` to see each change first.
+- `nvs code move <from> <to>` — moves a file or a directory and changes every `require` that names
+  it.
 
 `index`, `find`, `show` and every `nvs code` command take `--json` when a tool reads the answer
 instead of a person.

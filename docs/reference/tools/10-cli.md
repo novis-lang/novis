@@ -1050,6 +1050,9 @@ When one run finds both, the status is `2`.
     nvs code types [--json] <file>[:<line>[-<line>]]
     nvs code rename [--dry-run] [--json] <symbol|path:line:column> <new-name>
     nvs code move [--dry-run] [--json] <from> <to>
+    nvs code find [--json] <text>
+    nvs code calls [--json] <method>
+    nvs code reach [--json] <method>
 
 Answers questions about the project you are in, from the same index the editor uses. The project is
 the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
@@ -1068,6 +1071,24 @@ when there is none. Every `.nvs` file in it is read. Only `rename` and `move` ch
   position. A class alone in a file with its name also gets a new file name.
 - `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
   `<to>` must exist, and nothing may exist at `<to>` yet.
+- `find` prints every class, method, property, constant and enum case whose name contains the text.
+  Upper and lower case count as the same. The namespace is not part of the name, and `Core` names
+  are not searched. `nvs agent find` searches them.
+- `calls` prints the methods that call a method, and then the methods it calls. Each method has a
+  line with `caller` or `callee`. Each call is on an indented line under it, with its position and
+  its line of code. A test that sends a request with `Core\Test::request` calls the method that
+  handles the route.
+- `reach` prints the routes and the tests that reach a method through a chain of calls. A last line
+  starts with `at least` when there may be more. Some calls are only known when the program runs.
+
+`calls` and `reach` need the name of a method. For any other name, they exit `1` and list the
+nearest method names:
+
+```text
+$ nvs code reach 'Shop\Prices::base'
+route  GET /cart
+test   Shop\CartTest::cartLoads
+```
 
 `rename` and `move` save the changed files. `--dry-run` prints each change and saves nothing. If the
 change is not possible, the command prints why, changes no file and exits `1`. A file that changed

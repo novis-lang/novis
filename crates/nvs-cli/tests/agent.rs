@@ -533,7 +533,9 @@ fn nvs_agent_find_reaches_every_nvs_ext_command() {
 fn the_index_lists_nvs_code_and_each_of_its_verbs() {
     let lines = index();
     let mut words = vec!["nvs code".to_owned()];
-    for verb in ["show", "refs", "impls", "outline", "types"] {
+    for verb in [
+        "show", "refs", "impls", "outline", "types", "rename", "move", "find", "calls", "reach",
+    ] {
         words.push(format!("nvs code {verb}"));
     }
     for words in words {
@@ -1672,14 +1674,22 @@ fn no_adapter_contains_a_member_signature_a_type_name_or_a_refusal() {
 }
 
 /// A question about the project's own code is answered by `nvs code`, so every
-/// pointer names the three verbs an agent reaches for first and says to use
-/// them instead of grep. It names commands and states nothing about the
+/// pointer names each of its verbs and says to use them instead of grep. It names commands and states nothing about the
 /// language, which the test above holds it to.
 // covers: tools:agents/nvs-agent-init
 #[test]
 fn the_protocol_names_nvs_code_for_questions_about_the_project() {
     for (path, text) in pointers("names-nvs-code") {
-        for command in ["nvs code refs", "nvs code show", "nvs code outline"] {
+        for command in [
+            "nvs code refs",
+            "nvs code show",
+            "nvs code outline",
+            "nvs code rename",
+            "nvs code move",
+            "nvs code find",
+            "nvs code calls",
+            "nvs code reach",
+        ] {
             assert!(text.contains(command), "{path} names `{command}`");
         }
         let at = text.find("nvs code").expect("the pointer names `nvs code`");

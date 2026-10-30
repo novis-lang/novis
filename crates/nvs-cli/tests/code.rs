@@ -836,7 +836,12 @@ fn code_move_dry_run_prints_every_edit_and_moves_nothing() {
     assert_eq!(
         lines,
         [
-            ["lib/text/upper.nvs:2:9", "'../helpers.nvs'", "->", "'../greetings.nvs'"],
+            [
+                "lib/text/upper.nvs:2:9",
+                "'../helpers.nvs'",
+                "->",
+                "'../greetings.nvs'"
+            ],
             [
                 "public/app.nvs:2:9",
                 "'../lib/helpers.nvs'",
@@ -878,4 +883,224 @@ fn code_move_json_lists_every_edit_and_the_move() {
     assert_eq!(edits[1]["path"], "public/app.nvs", "{out}");
     assert_eq!(edits[1]["new"], "'../text/upper.nvs'", "{out}");
     assert!(dir.join("text/upper.nvs").exists());
+}
+
+/// A route handler, the methods it calls and two tests: one sends a request
+/// to the route, and one calls a method directly. `Prices::base` is also
+/// taken as a callable value on the last line.
+const CALLS: &str = "<?nvs\nuse Core\\Http\\Method;\nuse Core\\Test;\n\n\
+                     class Prices {\n    public function base(): int {\n        return 3;\n    }\n    \
+                     public function plain(): int {\n        return 5;\n    }\n}\n\n\
+                     class Shop {\n    #[Core\\Route(path: '/cart', method: Method::Get)]\n    \
+                     #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+                     public function cart(): void {\n        var $p = new Prices();\n        \
+                     echo $p->base();\n        echo $p->plain();\n    }\n}\n\n\
+                     class ShopTest {\n    #[Test]\n    public function cartLoads(): void {\n        \
+                     var $page = Test::request(Method::Get, '/cart');\n        \
+                     Test::assertEquals(200, $page->status());\n    }\n    #[Test]\n    \
+                     public function plainIsFive(): void {\n        \
+                     Test::assertEquals(5, new Prices()->plain());\n    }\n}\n\n\
+                     var $f = new Prices()->base(...);\n";
+
+/// A project of one file, [`CALLS`], in a scratch directory.
+fn calls_project(name: &str) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(&format!("code-{name}"));
+    fs::write(dir.join("nvs.toml"), "").expect("a writable scratch file");
+    fs::write(dir.join("app.nvs"), CALLS).expect("a writable scratch file");
+    dir
+}
+
+/// Each line of `out`, its runs of spaces made one.
+fn words(out: &str) -> Vec<String> {
+    out.lines()
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect()
+}
+
+#[test]
+fn code_find_lists_each_declaration_whose_own_name_contains_the_query() {
+    let dir = project("find", &[]);
+    let (out, err, ok) = code(&dir, &["find", "item"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [
+            r"src/Cart.nvs:10:21 method Shop\Cart::addItem",
+            r"src/Wishlist.nvs:5:21 method Shop\Wishlist::addItem",
+        ],
+        "{out}"
+    );
+    // The namespace is not part of a declaration's own name.
+    let (out, err, ok) = code(&dir, &["find", "shop"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "");
+}
+
+#[test]
+fn code_find_ignores_case() {
+    let dir = project("find-case", &[]);
+    let (lower, _, _) = code(&dir, &["find", "additem"]);
+    let (upper, err, ok) = code(&dir, &["find", "ADDITEM"]);
+    assert!(ok, "{err}");
+    assert_eq!(upper.lines().count(), 2, "{upper}");
+    assert_eq!(upper, lower);
+}
+
+#[test]
+fn code_find_with_no_match_prints_nothing_and_succeeds() {
+    let dir = project("find-none", &[]);
+    let (out, err, ok) = code(&dir, &["find", "nowhere"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "");
+    assert_eq!(err, "");
+}
+
+#[test]
+fn code_calls_lists_callers_and_callees_grouped_by_method() {
+    let dir = calls_project("calls");
+    let (out, err, ok) = code(&dir, &["calls", "Prices::plain"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [
+            "Shop::cart caller",
+            "app.nvs:20:18 echo $p->plain();",
+            "ShopTest::plainIsFive caller",
+            "app.nvs:32:45 Test::assertEquals(5, new Prices()->plain());",
+        ],
+        "{out}"
+    );
+    let (out, err, ok) = code(&dir, &["calls", "Shop::cart"]);
+    assert!(ok, "{err}");
+    let lines = words(&out);
+    // The callers come first, then one line per callee and its sites.
+    assert_eq!(lines[0], "ShopTest::cartLoads caller", "{out}");
+    assert_eq!(
+        lines[2..],
+        [
+            "Prices::base callee",
+            "app.nvs:19:18 echo $p->base();",
+            "Prices::plain callee",
+            "app.nvs:20:18 echo $p->plain();",
+        ],
+        "{out}"
+    );
+}
+
+#[test]
+fn code_calls_includes_a_test_request_to_a_route() {
+    let dir = calls_project("calls-request");
+    let (out, err, ok) = code(&dir, &["calls", "Shop::cart"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out)[..2],
+        [
+            "ShopTest::cartLoads caller",
+            "app.nvs:27:48 var $page = Test::request(Method::Get, '/cart');",
+        ],
+        "{out}"
+    );
+    let (out, err, ok) = code(&dir, &["calls", "ShopTest::cartLoads"]);
+    assert!(ok, "{err}");
+    assert_eq!(words(&out)[0], "Shop::cart callee", "{out}");
+}
+
+#[test]
+fn code_calls_of_an_unknown_name_prints_the_nearest() {
+    let dir = calls_project("calls-unknown");
+    // A class is a name of the project, but it is not a method.
+    let (out, err, ok) = code(&dir, &["calls", "Prices"]);
+    assert!(!ok);
+    assert_eq!(out, "");
+    assert!(err.contains("no method `Prices` in this project"), "{err}");
+    assert!(err.contains("  Prices::base\n"), "{err}");
+    assert!(!err.contains("  Prices\n"), "{err}");
+
+    let (out, _, ok) = code(&dir, &["reach", "--json", "Prices::bse"]);
+    assert!(!ok);
+    let answer = parsed(&out);
+    assert_eq!(answer["nearest"][0], "Prices::base", "{out}");
+}
+
+#[test]
+fn code_reach_lists_the_routes_and_the_tests() {
+    let dir = calls_project("reach");
+    let (out, err, ok) = code(&dir, &["reach", "Prices::plain"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [
+            "route GET /cart",
+            "test ShopTest::cartLoads",
+            "test ShopTest::plainIsFive",
+        ],
+        "{out}"
+    );
+}
+
+#[test]
+fn code_reach_says_at_least_when_a_call_is_not_followed() {
+    let dir = calls_project("reach-at-least");
+    let (out, err, ok) = code(&dir, &["reach", "Prices::base"]);
+    assert!(ok, "{err}");
+    let lines = words(&out);
+    assert_eq!(
+        lines[..2],
+        ["route GET /cart", "test ShopTest::cartLoads"],
+        "{out}"
+    );
+    assert_eq!(lines.len(), 3, "{out}");
+    assert!(lines[2].starts_with("at least:"), "{out}");
+    let (out, _, _) = code(&dir, &["reach", "Prices::plain"]);
+    assert!(!out.contains("at least"), "{out}");
+}
+
+#[test]
+fn code_find_calls_and_reach_json_have_every_key() {
+    let dir = calls_project("calls-json");
+    let (out, err, ok) = code(&dir, &["find", "--json", "plain"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(answer["query"], "plain", "{out}");
+    let found = answer["declarations"]
+        .as_array()
+        .expect("a declarations list");
+    assert_eq!(found.len(), 2, "{out}");
+    for key in ["path", "line", "column", "start", "end", "symbol", "kind"] {
+        assert!(found[0].get(key).is_some(), "{key}: {out}");
+    }
+    assert_eq!(found[0]["symbol"], "Prices::plain", "{out}");
+    assert_eq!(found[0]["kind"], "method", "{out}");
+
+    let (out, err, ok) = code(&dir, &["calls", "--json", "Shop::cart"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(answer["symbol"], "Shop::cart", "{out}");
+    assert_eq!(
+        answer["callers"][0]["symbol"], "ShopTest::cartLoads",
+        "{out}"
+    );
+    let callees = answer["callees"].as_array().expect("a callees list");
+    assert_eq!(callees.len(), 2, "{out}");
+    let site = &callees[0]["sites"][0];
+    for key in ["path", "line", "column", "start", "end", "text"] {
+        assert!(site.get(key).is_some(), "{key}: {out}");
+    }
+    assert_eq!(site["text"], "echo $p->base();", "{out}");
+
+    let (out, err, ok) = code(&dir, &["reach", "--json", "Prices::base"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        parsed(&out),
+        serde_json::json!({
+            "schemaVersion": 1,
+            "symbol": "Prices::base",
+            "routes": ["GET /cart"],
+            "tests": ["ShopTest::cartLoads"],
+            "atLeast": true,
+        }),
+        "{out}"
+    );
 }

@@ -1,8 +1,9 @@
-`nvs code` has five read-only verbs over one project: `show`, `refs` and `impls` take a name, and
-`outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and `rename` and
-`move` write.
-Each answers from `nvs_lsp::workspace` through `nvs_lsp::query`, the functions the editor's references,
-implementation and rename requests call, so the command and the editor give one answer to one question
+`nvs code` has ten verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and `reach`
+take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and
+`find` takes part of a name. Two write: `rename` and `move`.
+Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
+rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
+`nvs_lsp::query`, so the command and the editor give one answer to one question
 (`rule:ide/five-features-are-one-reference-index`). It is a command of its own beside `nvs agent`,
 which answers about the language with no project open; this one needs a project and answers about code
 that may not compile.
@@ -57,6 +58,20 @@ that may not compile.
   writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
   move; a move that fails after the edits names the files already changed. The output and `--json`
   are `rename`'s, with the move as the one entry of `moved`.
+- **`find <text>`** is the editor's workspace symbol search, `SymbolIndex::matching`: one line per
+  declaration whose own name (a type's last segment, a member without its `$`) contains the text,
+  upper and lower case alike, with its position, its kind as `outline` prints it, and its full name,
+  in name order. No match prints nothing and exits 0. `Core` is not searched. `--json` gives `query`
+  and `declarations`.
+- **`calls <method>`** is the editor's call hierarchy, `calls::incoming` and then `calls::outgoing`:
+  each method on a line of its own with `caller` or `callee`, and under it one indented line per call
+  site with its position and source line. A `Core\Test::request` the route table matched is a call
+  to the route's handler. `--json` gives `callers` and `callees`, each a `symbol` and its `sites`.
+- **`reach <method>`** is the used-by lens, `reach::reach`
+  (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`): a `route` line per route, a
+  `test` line per test, and an `at least` line last when `Reach::at_least` is set. `--json` gives
+  `routes`, `tests` and `atLeast`. For `calls` and `reach`, a name that is not one of the project's
+  methods fails as an unknown name does, with the nearest method names from `query::nearest_methods`.
 
 A call costs one cold analysis of the project, one `analyse_file` per `.nvs` file under its root, and
 nothing outlives the call. No limit and no setting is added. The walk reads each ignore file once and
@@ -88,5 +103,7 @@ keeps its parsed patterns, a few KiB, until it ends.
 - **A fifth `nvs agent` verb.** `nvs agent` answers about the installed language with no project, and
   every answer it gives is true of the binary; an answer about a project's code is a different kind
   of answer (`rule:tooling/an-agent-asks-the-binary`).
-- **Call hierarchy.** `rule:ide/five-features-are-one-reference-index` declines it for the editor, and
-  this command answers what the editor answers.
+- **An `--in` or `--out` flag on `calls`.** One call answers who uses a method and what it uses, and
+  both directions together are short.
+- **`find` searching `Core`.** `nvs agent find` already searches the installed standard library, and
+  a second search would be a second answer to one question.

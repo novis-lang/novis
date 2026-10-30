@@ -3,6 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "ide/five-features-are-one-reference-index",
+    "ide/used-by-counts-the-routes-and-tests-that-reach-a-method",
     "ide/one-server-two-thin-clients",
     "ide/check-json-is-the-diagnostic-record-as-a-document",
     "tooling/an-agent-asks-the-binary",

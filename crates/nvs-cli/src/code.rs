@@ -1,9 +1,10 @@
 //! `nvs code` — questions about one project, answered from the editor's index.
 //!
 //! `rule:tooling/nvs-code-answers-about-the-project` is the surface. Every
-//! answer is read through [`nvs_lsp::query`] over one [`nvs_lsp::workspace`],
-//! the functions the editor's references, implementation and rename requests
-//! call, so this command and the editor never disagree. This module decides
+//! answer is read over one [`nvs_lsp::workspace`] through the functions the
+//! editor's references, implementation, rename, workspace symbol, call
+//! hierarchy and used-by requests call, most of them in [`nvs_lsp::query`], so
+//! this command and the editor never disagree. This module decides
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
@@ -49,7 +50,7 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 ///
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
-/// `.nvs` file in it is read. Only `rename` changes files.
+/// `.nvs` file in it is read. Only `rename` and `move` change files.
 ///
 /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
 /// Put it in single quotes, so that the shell keeps the backslashes. A
@@ -173,6 +174,48 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Print every class, method, property, constant and enum case whose
+    /// name contains a text. Upper and lower case count as the same.
+    ///
+    /// Each line has the position, the kind and the full name. The lines are
+    /// sorted by name. `Core` names are not searched. Use `nvs agent find`
+    /// for them.
+    Find {
+        /// The text to look for, as `item`. It finds `Shop\Cart::addItem`.
+        query: String,
+        /// Print the answer as one JSON document.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the methods that call a method, and the methods it calls.
+    ///
+    /// The callers come first. Each method has its own line, with `caller`
+    /// or `callee`. Under it, each call has an indented line with the
+    /// position and the line of code. A test that sends a request to a
+    /// route calls the method that handles the route.
+    Calls {
+        /// The method, as `Shop\Cart::addItem`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown method prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the routes and the tests that reach a method through a chain of
+    /// calls.
+    ///
+    /// Each route has a line that starts with `route`, and each test has a
+    /// line that starts with `test`. A last line starts with `at least` when
+    /// a call that is only known when the program runs may also reach the
+    /// method.
+    Reach {
+        /// The method, as `Shop\Cart::addItem`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown method prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Args {
@@ -196,6 +239,9 @@ impl Args {
                 dry_run,
                 json,
             } => move_path(&from, &to, dry_run, json),
+            Command::Find { query, json } => find(&query, json),
+            Command::Calls { symbol, json } => calls(&symbol, json),
+            Command::Reach { symbol, json } => reach(&symbol, json),
         }
     }
 }
@@ -669,6 +715,202 @@ pub(crate) fn types(spec: &str, json: bool) -> ExitCode {
         .unwrap_or(0);
     for (name, ty, place) in &rows {
         println!("{:<width$}  {name}: {ty}", place.position());
+    }
+    ExitCode::SUCCESS
+}
+
+/// `nvs code find`: every declaration whose own name contains `text`, as the
+/// editor's workspace symbol search matches it.
+pub(crate) fn find(text: &str, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let found: Vec<Declaration> = project
+        .workspace
+        .index()
+        .matching(text)
+        .into_iter()
+        .cloned()
+        .collect();
+    let rows: Vec<(&Declaration, Place)> = found
+        .iter()
+        .map(|declared| (declared, project.place(&declared.site)))
+        .collect();
+    if json {
+        let records: Vec<Value> = rows
+            .iter()
+            .map(|(declared, place)| {
+                let mut record = place.json();
+                record.insert("symbol".into(), Value::from(escaped(&declared.symbol)));
+                record.insert("kind".into(), Value::from(kind(declared.kind)));
+                Value::Object(record)
+            })
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "query": escaped(text),
+                "declarations": records,
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    let width = rows
+        .iter()
+        .map(|(_, place)| place.position().len())
+        .max()
+        .unwrap_or(0);
+    for (declared, place) in &rows {
+        println!(
+            "{:<width$}  {}  {}",
+            place.position(),
+            kind(declared.kind),
+            escaped(&declared.symbol)
+        );
+    }
+    ExitCode::SUCCESS
+}
+
+/// Whether the project declares `symbol` as a method, which is what the call
+/// graph answers about.
+fn method(project: &Project, symbol: &str) -> bool {
+    project
+        .workspace
+        .index()
+        .declaration(symbol)
+        .is_some_and(|declared| declared.kind == DeclKind::Method)
+}
+
+/// The failure for a name that is not a method of the project.
+fn unknown_method(project: &Project, symbol: &str, json: bool) -> ExitCode {
+    let nearest: Vec<String> = query::nearest_methods(project.workspace.index(), symbol, NEAREST)
+        .into_iter()
+        .map(escaped)
+        .collect();
+    unknown(
+        &format!("no method `{}` in this project", escaped(symbol)),
+        &nearest,
+        json,
+    )
+}
+
+/// `nvs code calls`: the editor's call hierarchy of one method, the callers
+/// and then the callees, each with the places it calls.
+pub(crate) fn calls(symbol: &str, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    if !method(&project, symbol) {
+        return unknown_method(&project, symbol, json);
+    }
+    let owned = |found: Vec<nvs_lsp::calls::Calls<'_>>| -> Vec<(String, Vec<Site>)> {
+        found
+            .into_iter()
+            .map(|calls| {
+                let sites = calls.sites.into_iter().cloned().collect();
+                (calls.method, sites)
+            })
+            .collect()
+    };
+    let index = project.workspace.index();
+    let found: Vec<(&str, String, Vec<Site>)> = owned(nvs_lsp::calls::incoming(index, symbol))
+        .into_iter()
+        .map(|(method, sites)| ("caller", method, sites))
+        .chain(
+            owned(nvs_lsp::calls::outgoing(index, symbol))
+                .into_iter()
+                .map(|(method, sites)| ("callee", method, sites)),
+        )
+        .collect();
+    let rows: Vec<(&str, String, Vec<Place>)> = found
+        .iter()
+        .map(|(side, method, sites)| {
+            let places = sites.iter().map(|site| project.place(site)).collect();
+            (*side, escaped(method), places)
+        })
+        .collect();
+    if json {
+        let side = |wanted: &str| -> Vec<Value> {
+            rows.iter()
+                .filter(|(side, _, _)| *side == wanted)
+                .map(|(_, method, places)| {
+                    let sites: Vec<Value> = places
+                        .iter()
+                        .map(|place| {
+                            let mut record = place.json();
+                            record.insert("text".into(), Value::from(place.source.clone()));
+                            Value::Object(record)
+                        })
+                        .collect();
+                    json!({ "symbol": method, "sites": sites })
+                })
+                .collect()
+        };
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "symbol": escaped(symbol),
+                "callers": side("caller"),
+                "callees": side("callee"),
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    let width = rows
+        .iter()
+        .flat_map(|(_, _, places)| places)
+        .map(|place| place.position().len())
+        .max()
+        .unwrap_or(0);
+    for (side, method, places) in &rows {
+        println!("{method}  {side}");
+        for place in places {
+            println!("  {:<width$}  {}", place.position(), place.source);
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// `nvs code reach`: the routes and the tests the used-by lens counts for one
+/// method, read off the call graph.
+pub(crate) fn reach(symbol: &str, json: bool) -> ExitCode {
+    let project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    if !method(&project, symbol) {
+        return unknown_method(&project, symbol, json);
+    }
+    let found = nvs_lsp::reach::reach(project.workspace.index(), symbol);
+    let routes: Vec<String> = found.routes.iter().map(|route| escaped(route)).collect();
+    let tests: Vec<String> = found.tests.iter().map(|test| escaped(test)).collect();
+    if json {
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "symbol": escaped(symbol),
+                "routes": routes,
+                "tests": tests,
+                "atLeast": found.at_least,
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    for route in &routes {
+        println!("route  {route}");
+    }
+    for test in &tests {
+        println!("test   {test}");
+    }
+    if found.at_least {
+        println!(
+            "at least: more routes or tests may reach this method. Some calls are only known when the program runs."
+        );
     }
     ExitCode::SUCCESS
 }
