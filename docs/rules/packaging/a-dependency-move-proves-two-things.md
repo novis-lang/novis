@@ -13,3 +13,13 @@ commit.** CI fails otherwise, and correctly: the notice is a licence obligation,
 `--check` run on every push that can change their answer, and unconditionally nightly and at release
 (`rule:testing/ci-lanes`); they are what make a hold, a vendored fork and this rule enforceable
 rather than aspirational.
+
+**`cargo deny` reads every lockfile in the tree, not the root's alone.** The root `Cargo.lock` gets
+the whole check: advisories, licences, bans and sources. The eight others get `check advisories`
+under the root's `deny.toml`: `extensions/image`, `extensions/intl`, `extensions/pdf`,
+`extensions/spreadsheet`, `fuzz`, `tools/covwrap`, `tools/nv-scan` and
+`website/guides/markdown-extension`. Licences stay root-only, because what the binary ships is
+`gen-attribution`'s to judge. CI's `supply-chain` job and `bun nv ci --check` run all nine, and
+`LOCKFILE_DIRS` in `tools/nv/cmd/ci-changes.ts` is the list's home. A lockfile CI does not read can
+carry a live advisory nobody sees. Cost: one advisory pass per lockfile, a few
+seconds each.
