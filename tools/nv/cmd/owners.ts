@@ -33,9 +33,29 @@
 // whose `until` names a state of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
 // The prose scan finds every gap that lives only in prose: a module doc heading that words owed work
 // outside a gap block, a `Known gaps` block that is not the one pointer line to its module's records,
-// and a numbered `gap N` reference. It reads Rust sources and tests, crate manifests and conformance
-// cases. The roster lists its findings, `--prose` lists them alone, and both `--prose` and `--check`
-// exit 1 while any remains, because no owner tag reaches a gap written only in prose.
+// and a numbered `gap N` reference. It reads Rust sources and tests, the extensions' sources, crate
+// manifests and conformance cases. The roster lists its findings, `--prose` lists them alone, and both
+// `--prose` and `--check` exit 1 while any remains, because no owner tag reaches a gap written only in
+// prose.
+//
+// The prose scan also reads each rule fragment, `docs/rules/<topic>/*.md`, and the `//!` and `///`
+// doc comments of every Rust file it reads. There, a paragraph that opens with `**Not on disk.**`,
+// `**Not shipped.**` or `**Not done yet.**` says what is not built, and it must cite each gap record
+// it stands for by the record's id, `gap:<crate>/<slug>`. One that cites none, or cites an id no
+// record has, is the `rule` prose kind. The paragraph runs to the first blank line that no bullet
+// continues, so a list under the lead is part of it and a `Cost:` paragraph after the list is not.
+// The generated chapters, `docs/rules/<topic>.md`, repeat every fragment and are not read. Deleting a
+// record when its work lands makes the paragraph citing it a finding, so the fragment is rewritten
+// in the same slice. The citation mirrors a proof's `// proof: gap <id>` marker
+// (`rule:testing/a-failing-proof-is-fixed-or-recorded`).
+//
+// Declined:
+// - **A `rule` field on the gap record.** The fragment's reader could not see which record backs the
+//   paragraph, and a second link drifts from the first.
+// - **A `partial` rule status.** A shipped rule with one owed corner is still shipped, and the corner
+//   is a gap. A status would also move the whole rule into the designed roster.
+// - **A word scan over unmarked prose.** Running prose such as "not written yet" also describes
+//   bounds, and every such scan grows an allowlist.
 //
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
 //   bun nv owners --check         the gate; exit 1 with a line per refused gap, designed rule or prose gap
@@ -66,8 +86,11 @@ const UNOWNED = "unowned";
 const PLAYBOOK = "docs/agent/playbook";
 
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
-/** What the prose scan reads: every Rust source and test, every crate manifest, every conformance case. */
-const PROSE_SOURCES = ["crates/*/src/**/*.rs", "crates/*/tests/**/*.rs", "crates/*/Cargo.toml", "tests/**/*.nvst"];
+/** What the prose scan reads: every Rust source and test, every extension's source, every crate
+ * manifest, every conformance case. */
+const PROSE_SOURCES = ["crates/*/src/**/*.rs", "crates/*/tests/**/*.rs", "extensions/*/src/**/*.rs", "crates/*/Cargo.toml", "tests/**/*.nvst"];
+/** The rule fragments the not-built scan reads. The chapters, `docs/rules/<topic>.md`, are one level up. */
+const FRAGMENTS = "docs/rules/*/*.md";
 
 export interface Gap {
   slug: string;
@@ -193,25 +216,76 @@ export function classifyRules(found: DesignedRule[], root: string = ROOT): RuleK
   return out;
 }
 
-/** Where a gap can still live only in prose: one of the three kinds `outsideBlocks` reports. */
-type ProseKind = "heading" | "block" | "numbered";
-interface Prose { file: string; line: number; kind: ProseKind; lead: string }
+/** Where a gap can still live only in prose: one of the four kinds `outsideBlocks` reports. */
+type ProseKind = "heading" | "block" | "numbered" | "rule";
+export interface Prose { file: string; line: number; kind: ProseKind; lead: string }
 
 /** What each kind of prose gap is, and the edit that clears it. */
 const PROSE_WHY: Record<ProseKind, string> = {
   heading: "a doc heading words owed work outside a gap block: make it a record, or rewrite the heading to say what the module does",
   block: "a `Known gaps` block is not the one pointer line to its own module's records, or no record names the module: move its prose into records, or delete the block",
   numbered: "a numbered gap reference: cite the record's slug, or say what the code does without it",
+  rule: "a `**Not on disk.**`, `**Not shipped.**` or `**Not done yet.**` paragraph cites no existing gap record: cite each as `gap:<crate>/<slug>`, or rewrite it to say what is on disk",
 };
 
-/** Every place a gap is written down in prose with no record behind it. Three kinds:
+/** The bold lead that opens a paragraph about what is not built. */
+const NOT_BUILT = /^\*\*Not (?:on disk|shipped|done yet)\.\*\*/;
+/** A gap record's id as a paragraph cites it. */
+const CITATION = /\bgap:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
+
+/**
+ * Every not-built paragraph under `root` that cites no gap record, or cites an id no record has: the
+ * `rule` prose kind. It reads each rule fragment, and the `//!` and `///` doc comments of each Rust
+ * file the prose scan reads. A paragraph opens on a line whose text starts with a bold lead, and runs
+ * to the first blank line that no bullet continues, or to the end of the doc comment.
+ */
+export function notBuilt(root: string = ROOT): Prose[] {
+  const ids = new Set(load(gapType, root).map((r) => r.id));
+  const DOC = /^\s*\/\/[!/](?: ?(.*))?$/;
+  const glob = (pattern: string) => [...new Bun.Glob(pattern).scanSync({ cwd: root })].map((f) => f.replaceAll("\\", "/"));
+  const rust = PROSE_SOURCES.filter((p) => p.endsWith(".rs")).flatMap(glob);
+  const out: Prose[] = [];
+  for (const file of [...new Set([...glob(FRAGMENTS), ...rust])].sort()) {
+    const lines = readFileSync(join(root, file), "utf8").split("\n");
+    // A fragment's line is its text. A Rust line is text only inside a doc comment, `null` elsewhere.
+    const texts = file.endsWith(".rs")
+      ? lines.map((l) => { const d = DOC.exec(l.replace(/\r$/, "")); return d ? (d[1] ?? "") : null; })
+      : lines.map((l) => l.replace(/\r$/, ""));
+    for (let n = 0; n < texts.length; n++) {
+      const first = texts[n];
+      if (first == null || !NOT_BUILT.test(first.trim())) continue;
+      let end = n + 1;
+      for (; end < texts.length; end++) {
+        const t = texts[end];
+        if (t == null) break;
+        if (t.trim() !== "") continue;
+        let next = end + 1;
+        while (next < texts.length && texts[next] != null && texts[next]!.trim() === "") next++;
+        if (!/^\s*[-*] /.test(texts[next] ?? "")) break;
+        end = next;
+      }
+      const cited = [...texts.slice(n, end).join("\n").matchAll(CITATION)].map((m) => m[1]!);
+      if (cited.length === 0 || cited.some((id) => !ids.has(id))) {
+        const missing = cited.filter((id) => !ids.has(id));
+        const lead = missing.length > 0 ? `cites no record ${missing.map((id) => `gap:${id}`).join(", ")}: ${first.trim()}` : first.trim();
+        out.push({ file, line: n + 1, kind: "rule", lead: oneLine(lead) });
+      }
+      n = end - 1;
+    }
+  }
+  return out;
+}
+
+/** Every place a gap is written down in prose with no record behind it. Four kinds:
  *
  *  - `heading`: a module doc heading that words owed work while opening no gap block.
  *  - `block`: a `# Known gap(s)` heading in a `//!` or `///` doc comment whose first line is not
  *    `Each gap is a record, and \`bun nv gaps --module <this file>\` lists them.`, or whose file no
  *    record's `module` names.
  *  - `numbered`: `gap N` on any line of a source, test, manifest or conformance case, which cites a
- *    numbered list a record does not keep. */
+ *    numbered list a record does not keep.
+ *  - `rule`: a not-built paragraph in a rule fragment or a doc comment that cites no existing gap
+ *    record, which [`notBuilt`] finds. */
 function outsideBlocks(found: Gap[]): Prose[] {
   const DOC = /^\s*\/\/[!/](?: ?(.*))?$/;
   const HEADING = /^#{1,6}\s+(\S.*?)\s*$/;
@@ -243,7 +317,7 @@ function outsideBlocks(found: Gap[]): Prose[] {
       if (first !== pointer(file) || !recorded.has(file)) out.push({ file, line: n + 1, kind: "block", lead: first === "" ? h[1]! : oneLine(first) });
     }
   }
-  return out;
+  return [...out, ...notBuilt()];
 }
 
 /** `--prose`: every prose gap, one line each, and exit 1 while there is any. */

@@ -461,6 +461,15 @@ says where a reason came from: no report, no date, no "the rule used to say". A
 reason the code or a test contradicts is not written; a still-wanted change becomes a gap under
 `data/gaps/`. Why a crate is built the way it is goes into the crate's module doc instead.
 
+**What the rule does not build yet is a bold-led paragraph that cites its gap records.** It opens
+with `**Not on disk.**`, `**Not shipped.**` or `**Not done yet.**`, and names each record it stands
+for by its id: "**Not on disk.** The registry refuses no git dependency
+(gap:nvs-cli/registry-refuses-a-git-dependency)." A module doc's list of what is not done takes the
+same lead, and the list under it is part of the paragraph. `bun nv owners --check` refuses one that
+cites no record, or an id no record has. So deleting a record when its work lands means rewriting
+the paragraph in the same slice. A permanent limit is not such a paragraph: it is a present-tense
+sentence in the body, or a **Declined:** bullet.
+
 **What the rule spends is a `**Memory:**` bullet**, per request or per task, stated as what is held
 and when: "**Memory:** each read of a match costs one string and one integer. A program that never
 reads a match pays nothing."

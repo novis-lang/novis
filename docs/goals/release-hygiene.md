@@ -6,7 +6,7 @@ context: [tools/nv/cmd/owners.ts, tools/nv/schema/gap.ts]
 stages:
   - id: 1
     title: "bun nv owners refuses a Not-on-disk paragraph that cites no gap record"
-    status: open
+    status: done
     context: [tools/nv/test/owners-rules.test.ts, docs/rules/testing/a-failing-proof-is-fixed-or-recorded.md, docs/agent/conventions.md]
   - id: 2
     title: "every packaging and security fragment says what is on disk, and each gap it names is a record"
@@ -234,12 +234,12 @@ it may run as a side goal beside them. Between stage 1 and the end of stage 3, `
 **Does:** the owners gate reads every bold not-built paragraph in a rule fragment and in a Rust
 module doc, and refuses one that cites no existing gap record.
 
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: a new `ProseKind` `rule`, its `PROSE_WHY` line, and a function that reads `docs/rules/<topic>/*.md` under a `root` argument, finds each paragraph whose first line starts with a bold lead, and reports it when it cites no `gap:<id>` or cites one no record has. `outsideBlocks` calls it. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:197`, `tools/nv/cmd/owners.ts:201`, `tools/nv/cmd/owners.ts:215`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the same check over `//!` and `///` doc comments. `PROSE_SOURCES` gains `extensions/*/src/**/*.rs`, and a doc line starting with a bold lead opens a block. The block runs to the first blank doc line that no bullet continues, and it must cite at least one existing `gap:<id>`. Today that finds `extensions/spreadsheet/src/lib.rs:38`, `extensions/pdf/src/lib.rs:45` and `extensions/pdf/src/layout/table.rs:62`. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:215`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the header says the prose scan reads rule fragments, the citation format, and the three Declined bullets of the standing decision. `tools/nv/cmd/owners.ts:34`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the tests the `owners-fragment-tests` check names, over a temporary root as `owners-rules.test.ts` builds one. Run once by name. `tools/nv/test/owners-fragments.test.ts:1`, `tools/nv/test/owners-rules.test.ts:37`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: conventions.md § *A rule* gains one paragraph: what is not built is a bold-led paragraph that cites its gap records, and `bun nv owners --check` refuses one that does not. `docs/agent/conventions.md:458`
-- [ ] Run `bun nv owners --prose` once and paste its `rule` count into the handoff. It should list the 29 fragment paragraphs and the 3 module-doc lists that stages 2 and 3 take. `tools/nv/cmd/owners.ts:250`
+- [x] `rule:testing/a-failing-proof-is-fixed-or-recorded`: a new `ProseKind` `rule`, its `PROSE_WHY` line, and a function that reads `docs/rules/<topic>/*.md` under a `root` argument, finds each paragraph whose first line starts with a bold lead, and reports it when it cites no `gap:<id>` or cites one no record has. `outsideBlocks` calls it. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:197`, `tools/nv/cmd/owners.ts:201`, `tools/nv/cmd/owners.ts:215`
+- [x] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the same check over `//!` and `///` doc comments. `PROSE_SOURCES` gains `extensions/*/src/**/*.rs`, and a doc line starting with a bold lead opens a block. The block runs to the first blank doc line that no bullet continues, and it must cite at least one existing `gap:<id>`. Today that finds `extensions/spreadsheet/src/lib.rs:38`, `extensions/pdf/src/lib.rs:45` and `extensions/pdf/src/layout/table.rs:62`. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:215`
+- [x] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the header says the prose scan reads rule fragments, the citation format, and the three Declined bullets of the standing decision. `tools/nv/cmd/owners.ts:34`
+- [x] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the tests the `owners-fragment-tests` check names, over a temporary root as `owners-rules.test.ts` builds one. Run once by name. `tools/nv/test/owners-fragments.test.ts:1`, `tools/nv/test/owners-rules.test.ts:37`
+- [x] `rule:testing/a-failing-proof-is-fixed-or-recorded`: conventions.md § *A rule* gains one paragraph: what is not built is a bold-led paragraph that cites its gap records, and `bun nv owners --check` refuses one that does not. `docs/agent/conventions.md:458`
+- [x] Run `bun nv owners --prose` once and paste its `rule` count into the handoff. It should list the 29 fragment paragraphs and the 3 module-doc lists that stages 2 and 3 take. `tools/nv/cmd/owners.ts:250`
 
 ### 2. every packaging and security fragment says what is on disk, and each gap it names is a record
 
@@ -357,26 +357,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing of this goal is on disk. `data/gaps/` holds no record, and `bun nv owners --check` is green
-only because it never reads a rule fragment. Once stage 1 lands, `--check` is red by design until
-stage 3 ends, and `bun nv owners --prose` is the worklist of stages 2 and 3.
+Stage 1 is done. `notBuilt` (`tools/nv/cmd/owners.ts:242`) is the `rule` prose kind, and
+`outsideBlocks` (`tools/nv/cmd/owners.ts:289`) appends its findings. Its eight tests in
+`tools/nv/test/owners-fragments.test.ts` pass. `bun nv owners --prose` lists 32 `rule` findings and
+no other kind: 29 fragment paragraphs and the 3 module-doc lists at `extensions/spreadsheet/src/lib.rs:38`,
+`extensions/pdf/src/lib.rs:45` and `extensions/pdf/src/layout/table.rs:62`. Adding
+`extensions/*/src/**/*.rs` to `PROSE_SOURCES` raised no `heading`, `block` or `numbered` finding.
+`data/gaps/` still holds no record this goal writes.
+
+The acceptance sweep's four reds were checked and need no change. `env-secret-proofs` exits 0 on
+disk. Nightly run 40919832286 was built from `6d280a1ba`. Its Miri failure in
+`floor::tests::a_record_differing_in_its_source_line_is_written_immediately` was fixed by
+`a178403e2`. Its `cost guards / windows-x86_64` result (serve fan-out 0.9x on that runner) and its
+`proofs / linux-x86_64` result (an LDAP `whoami` timeout in
+`tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs`) did not recur
+in the scheduled nightly 41033290883 on `1e28a23c7`, where all three jobs pass.
 
 ### Next
 
-Stage 1, one group over `tools/nv/cmd/owners.ts` and its new test file. No gate: it depends on
-nothing.
+Stage 2, one group over the packaging and security fragments and the `data/gaps/nvs-cli/` records
+they cite. No gate: stage 1 has landed the citation format. The stage's items carry each verdict and
+anchor (`docs/goals/release-hygiene.md:244`). Each record is `data/gaps/nvs-cli/<slug>.json` with the
+shape in § *Standing decisions*, and the paragraph cites it as `gap:nvs-cli/<slug>`.
 
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the `rule` prose kind, its `PROSE_WHY` line, and the fragment reader under a `root` argument, called from `outsideBlocks`. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:197`, `tools/nv/cmd/owners.ts:201`, `tools/nv/cmd/owners.ts:215`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the same check over `//!` and `///` module docs, with `extensions/*/src/**/*.rs` added to `PROSE_SOURCES`. `tools/nv/cmd/owners.ts:70`, `tools/nv/cmd/owners.ts:215`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the header names the fragment and module-doc scan, the `gap:<id>` citation and the three Declined bullets. `tools/nv/cmd/owners.ts:34`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: the eight tests the `owners-fragment-tests` check names, run once by name. `tools/nv/test/owners-fragments.test.ts:1`, `tools/nv/test/owners-rules.test.ts:37`
-- [ ] `rule:testing/a-failing-proof-is-fixed-or-recorded`: conventions.md § *A rule* gains the paragraph on bold-led Not-on-disk paragraphs and their citations. `docs/agent/conventions.md:458`
-- [ ] Run `bun nv owners --prose` once and record its `rule` count here. `tools/nv/cmd/owners.ts:250`
+- [ ] The thirteen fully STALE fragments: confirm each by its anchor's grep, then rewrite to the present and drop the paragraph. `docs/rules/packaging/package-toml-is-a-tool-input.md:53`, `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`
+- [ ] The three partly STALE fragments and their three `registry-service` records. `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:41`, `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44`, `docs/rules/packaging/the-operator-only-withholds.md:36`
+- [ ] The two REAL `registry-service` fragments and the `runtime-leftovers` socket-activation record. `docs/rules/packaging/a-package-cannot-reach-its-host.md:20`, `docs/rules/packaging/a-package-is-its-digest.md:74`, `docs/rules/packaging/the-generated-unit-is-hardened.md:77`
+- [ ] `rule:security/authority-is-the-enclosing-namespace`, which is STALE. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
+- [ ] `bun nv rules --render`, then `bun nv owners --prose` lists no `rule` finding under `docs/rules/packaging/` or `docs/rules/security/`. `tools/nv/cmd/owners.ts:324`
 
-Expected red after stage 1: `bun nv owners --check`, which `bun nv verify` and `bun nv ci --check`
-run, until stage 3 ends.
+Expected red until stage 3 ends: `bun nv owners --check`, which `bun nv verify` and `bun nv ci --check`
+run. Its `--prose` list is the worklist.
 
 ### Backlog
 
 - Sibling goals `registry-service`, `runtime-leftovers`, `spreadsheet-second-wave` and `extension-leftovers` close the
-  records stages 2 and 3 write. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:395`).
+  records stages 2 and 3 write. Their `owners --closes` gates hold them (`tools/nv/cmd/owners.ts:469`).
