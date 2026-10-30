@@ -3640,8 +3640,22 @@ unsafe fn decode_each<'a>(
         },
         Seen::Object(_) => return Err(misread(contract, None)),
     };
-    let mut decoded = NvsArray::new();
+    // Sized once, so the list is never copied into a doubled backing. The
+    // allocation asks the request's budget, as every growth of an array does.
+    let mut decoded = NvsArray::with_capacity(source.count());
     for index in 0..source.count() {
+        // Each instance is several allocations that ask nothing, and a list
+        // of them reaches no poll, so this stops the walk at the crossing
+        // rather than one whole list later. Two thread-local reads per row.
+        // The breach is read before `decoded` is freed, so it names the
+        // reading the request reached.
+        if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
+            return Err(ctx.memory_breach().unwrap_or_else(|| {
+                Fault::fatal(format!(
+                    "{member}: the decoded list does not fit in the request's memory limit"
+                ))
+            }));
+        }
         // A position that is not there is an object arriving at a list
         // decode: `{"a": 1}` has a count of one and no index 0. A wire decode
         // has already refused every JSON object above, and this test is what
