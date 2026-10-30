@@ -1,0 +1,14 @@
+<?nvs
+// Attack: one call joins a list that contains the same long piece many times. The list is small,
+// but the page is much larger than the memory limit. The program must stop at that limit.
+// hostile: ends-early 1 FATAL
+
+// A lower memory limit, so the page is larger than it.
+Core\Config::set('memory', '64M');
+
+// 1. Two hundred copies of one piece of one megabyte, joined in one call.
+echo "step 1\n";
+var $piece = Core\Html::escape(Core\Str::repeat('a', 1000000));
+array<Core\Html\Markup> $pieces = Core\Arr::fill(200, $piece);
+var $page = Core\Html::join($pieces, '<br>' as Core\Html\Markup);
+echo 'the whole page was joined: ', Core\Str::length(Core\Html::toSource($page, 'measuring the page')), "\n";

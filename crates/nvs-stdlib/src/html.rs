@@ -925,10 +925,13 @@ nvs_runtime::nvs_helper! {
     /// carriers, and this allocates one.
     ///
     /// **What it spends:** one string allocation and one object allocation per
-    /// call, both charged to the request, whatever the list holds. No element
+    /// call, both charged to the request, whatever the list holds, and one
+    /// pass over the list that sizes the string. That size is asked of the
+    /// request's memory limit before any byte is copied, so a page that does
+    /// not fit is a `FATAL` and not a buffer past the limit. No element
     /// is touched: a `Markup` is a value type, so every part and the separator
     /// read back exactly as they were passed.
-    fn nvs_core_html_join(_ctx, args: [2]) {
+    fn nvs_core_html_join(ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `array<Core\Html\Markup>` in
         // [`CLASS`] above, so a non-container subject is `E0401` at the
         // checker. `crate::arr`'s `nvs_core_arr_count` states that judgement in
@@ -943,7 +946,27 @@ nvs_runtime::nvs_helper! {
         let separator = markup_slot(args[1], r"`Core\Html::join`'s `$separator`")?;
         let separator = text(&separator, r"`Core\Html::join`'s `$separator`")?;
 
-        let mut out = String::new();
+        // One counting pass sizes the page, so a list that repeats one long
+        // fragment many times is refused before any byte is copied. The ask
+        // is twice the page, because the buffer and the carrier's copy of it
+        // are held at once. The breach is already recorded on a refusal.
+        let mut size = 0_usize;
+        for (at, part) in crate::str::Elements::of(parts).enumerate() {
+            if at > 0 {
+                size = size.saturating_add(separator.len());
+            }
+            let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
+            size = size.saturating_add(text(&held, r"`Core\Html::join`'s `$parts` element")?.len());
+        }
+        if !nvs_runtime::budget::affords(size.saturating_mul(2)) {
+            return Err(ctx.memory_breach().unwrap_or_else(|| {
+                Fault::fatal(
+                    "Core\\Html::join: the page does not fit in the request's memory limit"
+                        .to_owned(),
+                )
+            }));
+        }
+        let mut out = String::with_capacity(size);
         for (at, part) in crate::str::Elements::of(parts).enumerate() {
             if at > 0 {
                 out.push_str(separator);
