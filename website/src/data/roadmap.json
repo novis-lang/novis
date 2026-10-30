@@ -1,5 +1,21 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
-  "internal": [],
-  "themes": []
+  "internal": ["release-hygiene", "dependency-sweep", "release-polish", "release-run"],
+  "themes": [
+    {
+      "title": "The package registry",
+      "text": "You can sign in to the registry with a passkey and manage your packages in the browser. Owners can publish security advisories, and `nvs pkg audit` reports them.",
+      "goals": ["registry-service"]
+    },
+    {
+      "title": "Regular expressions, services and the debugger",
+      "text": "A `[regex]` setting in `nvs.toml` can stop slow patterns from compiling. A service can listen on a port below 1024 through socket activation. The debugger shows your tasks as a tree.",
+      "goals": ["runtime-leftovers"]
+    },
+    {
+      "title": "Spreadsheets and PDF",
+      "text": "`Novis\\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.",
+      "goals": ["spreadsheet-second-wave", "extension-leftovers"]
+    }
+  ]
 }
