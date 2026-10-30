@@ -28,7 +28,7 @@ memory = "16M"
 --EXPECTF--
   LedgerTest
     ✗ aLongLoopOfAssertionsReachesTheCeiling %f ms
-      the program exceeded its memory limit — %d bytes held against a ceiling of %d, of which 1048576 is reserved for the limit handler
+      the program exceeded its memory limit — %d bytes held against a ceiling of %d, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
 help: raise `memory` under `[limits]` in nvs.toml, or call `Core\Config::set('memory', '32M')` in the program
 
   1 failed, 0 passed, 0 skipped, 0 flaky in %d ms

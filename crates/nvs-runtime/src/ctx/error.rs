@@ -811,11 +811,30 @@ impl Ctx {
             self.count_unowned(failure.is_some());
             return;
         }
-        self.assertions.push(AssertionOutcome {
+        self.push_assertion(AssertionOutcome {
             member,
             failure,
             compared: None,
         });
+    }
+
+    /// Appends `entry` to the ledger, asking the request's memory ceiling for
+    /// the whole new block whenever the ledger has to grow.
+    ///
+    /// A doubling holds the old block and the new one at once, so a loop of
+    /// assertions would otherwise pass the ceiling by half a ledger inside one
+    /// call. A refused growth records the breach and drops the entry, and the
+    /// request ends at its next poll. Cost: one comparison per growth.
+    fn push_assertion(&mut self, entry: AssertionOutcome) {
+        let ledger = &mut self.assertions;
+        if ledger.len() == ledger.capacity() {
+            let grown = ledger.capacity().saturating_mul(2).max(4);
+            if !crate::budget::affords(grown.saturating_mul(size_of::<AssertionOutcome>())) {
+                return;
+            }
+            ledger.reserve_exact(grown - ledger.len());
+        }
+        ledger.push(entry);
     }
 
     /// The one entry a context no test owns keeps: a failure counted.
@@ -836,7 +855,7 @@ impl Ctx {
             self.count_unowned(true);
             return;
         }
-        self.assertions.push(AssertionOutcome {
+        self.push_assertion(AssertionOutcome {
             member,
             failure: Some(failure),
             compared: Some(Box::new(compared)),
@@ -850,7 +869,7 @@ impl Ctx {
             self.count_unowned(entry.failure.is_some());
             return;
         }
-        self.assertions.push(entry);
+        self.push_assertion(entry);
     }
 
     /// How many entries the ledger holds — the mark
