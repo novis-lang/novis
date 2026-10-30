@@ -257,6 +257,11 @@ impl Fault {
 /// enforceable, and this is the seam it attaches to for every count-shaped
 /// argument — one place to change rather than one per call site.
 ///
+/// This is the fallback, not the first choice. An array asks when its backing
+/// grows, and the byte writer and `StrWriter` ask when theirs do, so a member
+/// that builds through them needs no call here. A site that calls this does so
+/// because neither fits, and its own comment says why.
+///
 /// An uncapped request is refused nothing here but the unallocatable: `affords`
 /// answers on its sentinel without reading a balance, which is what every
 /// context with no configuration — every test's — costs.
@@ -583,7 +588,9 @@ pub(crate) unsafe fn contain_panic(ctx: *mut Ctx, slow: impl FnOnce(&mut Ctx) ->
 /// calls it under a ceiling reports it. The member's name is the body's
 /// closure type, which names the helper it was written in. Only a call that
 /// raised the mark is checked, so a later call is never blamed for an earlier
-/// one's peak. The panic is contained by [`run_helper`]'s `catch_unwind` as
+/// one's peak. A body that returns `Fault::Pending` is not checked either: it
+/// waits on a callback, so the peak may be the callee's. The panic is
+/// contained by [`run_helper`]'s `catch_unwind` as
 /// any helper bug is, and a result the body returned is not released on that
 /// path.
 ///

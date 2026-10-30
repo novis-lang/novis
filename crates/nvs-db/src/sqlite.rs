@@ -1937,6 +1937,10 @@ const LENGTH_MAX: usize = 1_000_000_000;
 /// binding it must not fail. It is set on every statement, since a pooled
 /// connection serves requests with different ceilings. Cost: one call into
 /// SQLite per statement.
+///
+/// A limit taken from the whole memory limit was declined. A stored value
+/// between the headroom and that limit would be built by the engine first, and
+/// refused only when it is copied out.
 fn cap_length<'a>(
     connection: &rusqlite::Connection,
     headroom: Option<usize>,

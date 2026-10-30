@@ -1147,6 +1147,10 @@ type Heard = (Stream, std::io::Result<Vec<u8>>);
 /// be one. Each reader frees what it read and ends at its next read, so no
 /// reader keeps growing after the request has stopped waiting for it.
 ///
+/// Reading past the limit into a fixed buffer and discarding it was declined.
+/// It keeps a reader thread alive for as long as a grandchild writes, which may
+/// be forever.
+///
 /// **The room** is shared by the two readers, and a reader that has none left
 /// for its next growth stops the wait the same way, with [`CaptureRefused`].
 /// What a reader hands back is charged to this thread, so the request that

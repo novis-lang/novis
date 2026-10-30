@@ -622,7 +622,14 @@ struct Framed {
     ///
     /// A chunk's octets are moved across as they arrive. Waiting for a whole
     /// chunk would let the other end choose how much this reader holds by
-    /// writing one large chunk header.
+    /// writing one large chunk header. A buffered reply is bounded by
+    /// `REPLY_CEILING` as a whole. Refusing a chunk larger than what is left
+    /// under it was declined, because a streamed reply may send a large chunk
+    /// legitimately.
+    ///
+    /// No `.nvs` program reaches this decoder: the answer table gives a
+    /// streamed call its whole body. So its attack is the Rust test
+    /// `a_chunk_header_past_any_reply_fails_without_a_panic`.
     chunk_left: u64,
     /// What delimits this body.
     frame: Frame,

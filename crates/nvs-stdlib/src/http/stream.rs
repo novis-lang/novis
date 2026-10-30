@@ -909,6 +909,11 @@ impl EventScan {
     /// line at a time. A block that is still open returns `0`, because the
     /// lines it read are part of the event it may still dispatch.
     ///
+    /// An id that a block with no `data` set still goes to `lastId` here, as the
+    /// WHATWG event-stream format says. No `.nvs` program sends a stream line
+    /// by line, so the attack is the Rust test
+    /// `lines_that_dispatch_nothing_are_consumed_as_they_are_read`.
+    ///
     /// # Errors
     ///
     /// A `RuntimeError` where the id a finished block set is not text, as at a

@@ -934,6 +934,10 @@ const PARSE_PER_VALUE: usize = 128;
 /// string, so counting those is a bound on the values. One pass, no
 /// allocation. A document of one long string costs its own length, and a
 /// list of two million numbers costs 256 MB.
+///
+/// A flat factor of the text was declined: a factor large enough for a list
+/// of small numbers refused `sign`'s own round trip of a 32 MB single claim.
+/// A visitor that builds no tree was declined as more code for the same bound.
 fn parse_bound(json: &[u8]) -> usize {
     let mut values = 1_usize;
     let mut in_string = false;

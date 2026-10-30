@@ -909,6 +909,10 @@ struct Entries {
     /// takes a new number. Stale slots are taken out by the sweep, which runs
     /// when this queue reaches `sweep_at`, so it holds at most twice the live
     /// keys plus [`SWEEP_FLOOR`] — eight bytes per slot, per shard.
+    ///
+    /// A hash of the key in the slot was declined. The standard map cannot be
+    /// looked up by a hash, so matching a slot to its entry would need a scan.
+    /// The cost of `keys` instead is one map entry per live key.
     order: VecDeque<u64>,
     /// The key of every live slot in [`Entries::order`], by its number: a
     /// handle onto the key the map already holds, so a live key's bytes are

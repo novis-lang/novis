@@ -964,6 +964,14 @@ interface OvershootRow {
  * fails when a reading is past `overshootBound`, when the server's memory filled first, or when the host
  * killed a program before it printed a reading. An attack that stopped at another limit has no reading,
  * and is counted.
+ *
+ * Every member fixed to stop at the ceiling has an attack that builds its amplification (shared
+ * references, a doubling graph, a huge separator, a peer that never ends a frame) and ends here within
+ * the bound. Where no `.nvs` program can reach the code, a Rust test is its attack: the chunked decoder
+ * and an event stream that arrives line by line (the answer table gives a streamed call its whole body),
+ * SMTP's reply caps, and an LDAP range that never ends (Samba sends a range only when asked, and
+ * `select` refuses a range option), in `crates/nvs-ldap/tests/samba.rs`. `IO::stdin` reads through the
+ * same bounded read as `IO::read`, whose attack covers it.
  */
 export async function overshootScan(nvs: string, out: string[]): Promise<number> {
   const files = [...walk("tests/hostile", ".nvs"), ...walk("tests/hostile", ".cmd")]
