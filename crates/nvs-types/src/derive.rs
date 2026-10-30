@@ -41,11 +41,11 @@
 //! [`nvs_stdlib::CodecTy`], and the *constructor position* it fills — `rule:core-classes/derive-property-list`'s "a decode is an ordinary `new`" resolved to an index, so that nothing
 //! below this line looks a parameter up by name.
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AnonObjectField, Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, Modifier,
-    Param, PropertyMember,
+    AnonObjectField, Attribute, AttributeGroup, ClassDecl, ClassMember, ClassMemberKind, ExprKind,
+    Modifier, Param, PropertyMember,
 };
 
 use nvs_stdlib::{CodecElement, CodecTy, EnumCases};
@@ -2463,36 +2463,16 @@ fn check_class_format(
     // Each kept field's wire key and the name it was declared at, for
     // [`check_unique_key`].
     let mut keys: Vec<(String, Span)> = Vec::new();
-    // `rule:core-classes/derive-property-list`'s declaration order, over both spellings of a declaration: the
-    // members in the order they are written, and the constructor's promoted
-    // parameters at the point the constructor itself appears. Walking the
-    // members rather than concatenating two lists is what keeps the encode
-    // order the one a reader sees in the file.
-    for member in &decl.members {
-        let fields: Vec<FieldDecl<'_>> = match &member.kind {
-            ClassMemberKind::Property(p) if p.modifiers.contains(&Modifier::Static) => {
-                continue; // a static property is class storage, not instance storage
+    for field in field_order(&decl.members, env.src) {
+        let at = field.name;
+        match codec_field(&field, class, format, params, ctx, env) {
+            FieldOutcome::Kept(field) => {
+                check_unique_key(&field.key, at, &keys, format, env);
+                keys.push((field.key.clone(), at));
+                codec.fields.push(*field);
             }
-            ClassMemberKind::Property(p) => vec![FieldDecl::property(p)],
-            ClassMemberKind::Method(m) if span_text(env.src, m.name) == CONSTRUCTOR => m
-                .params
-                .iter()
-                .filter(|p| p.is_promoted())
-                .map(FieldDecl::promoted)
-                .collect(),
-            _ => continue,
-        };
-        for field in fields {
-            let at = field.name;
-            match codec_field(&field, class, format, params, ctx, env) {
-                FieldOutcome::Kept(field) => {
-                    check_unique_key(&field.key, at, &keys, format, env);
-                    keys.push((field.key.clone(), at));
-                    codec.fields.push(*field);
-                }
-                FieldOutcome::Skipped => {}
-                FieldOutcome::Refused => refused = true,
-            }
+            FieldOutcome::Skipped => {}
+            FieldOutcome::Refused => refused = true,
         }
     }
     // `rule:core-classes/derive-property-list`'s field list is the declared property list, so no property is an
@@ -2612,6 +2592,42 @@ enum FieldOutcome {
     Refused,
 }
 
+/// `rule:core-classes/derive-property-list`'s declaration order: the field
+/// declarations of `members`, in the order a derived codec encodes them.
+///
+/// It walks both ways to write a field. A property is a field where it is
+/// written, and the constructor's promoted parameters are fields where the
+/// constructor is written. A static property is class storage, so it is not a
+/// field. Walking the members rather than joining two lists keeps the encode
+/// order the one a reader sees in the file.
+///
+/// `members` may be in any order, so a caller can ask what a class's fields
+/// would be after its members move. `nvs_lsp::order` does, so the order the
+/// editor's action protects is the order the codec writes. A field written
+/// with `skip: true` is in the list, because only a resolved attribute says
+/// it is skipped.
+pub fn field_order<'a>(
+    members: impl IntoIterator<Item = &'a ClassMember>,
+    src: &SourceFile,
+) -> Vec<FieldDecl<'a>> {
+    let mut fields = Vec::new();
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(p) if !p.modifiers.contains(&Modifier::Static) => {
+                fields.push(FieldDecl::property(p));
+            }
+            ClassMemberKind::Method(m) if span_text(src, m.name) == CONSTRUCTOR => fields.extend(
+                m.params
+                    .iter()
+                    .filter(|p| p.is_promoted())
+                    .map(FieldDecl::promoted),
+            ),
+            _ => {}
+        }
+    }
+    fields
+}
+
 /// One declaration, as `rule:core-classes/derive-property-list`'s field list reads it.
 ///
 /// A view rather than an enum over the two AST nodes, because the rule asks a
@@ -2622,17 +2638,18 @@ enum FieldOutcome {
 /// those four were written, not in what they mean. That is `rule:core-classes/derive-property-list`'s own
 /// "for a class written with promoted parameters the two lists are literally
 /// the same declaration", made true of this pass rather than assumed by it.
-struct FieldDecl<'a> {
+#[derive(Debug, Clone, Copy)]
+pub struct FieldDecl<'a> {
     /// `#[Json\Field(...)]` and whatever else was written on it.
-    attributes: &'a [AttributeGroup],
+    pub attributes: &'a [AttributeGroup],
     /// `readonly`, `lateinit`, a visibility — the same roster either way.
-    modifiers: &'a [Modifier],
+    pub modifiers: &'a [Modifier],
     /// The declared type, `None` only where the parser already reported its
     /// absence.
-    ty: Option<&'a nvs_syntax::ast::Type>,
+    pub ty: Option<&'a nvs_syntax::ast::Type>,
     /// The name, `$`-sigil included — and the span every refusal of
     /// `rule:core-classes/derive-property-list` points at.
-    name: Span,
+    pub name: Span,
 }
 
 impl<'a> FieldDecl<'a> {
