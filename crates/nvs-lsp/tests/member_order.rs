@@ -240,7 +240,9 @@ class Event
 ";
     let result = ordered(source).expect("the case parses");
     in_order(
-        &result.text.expect("the constructor moves below the properties"),
+        &result
+            .text
+            .expect("the constructor moves below the properties"),
         &["$type;", "$at;", "$note;", "function constructor"],
     );
     assert_eq!(result.notes, []);

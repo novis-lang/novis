@@ -164,8 +164,7 @@ pub fn of(file: &SourceFile) -> Result<Ordered, Refused> {
     let mut map = SourceMap::new();
     let id = map.add(file.name(), rewritten);
     // The formatter parses the moved text, and refuses it where it does not.
-    let formatted =
-        nvs_fmt::format(map.file(id)).map_err(|_| Refused::Unsafe(moved[0].clone()))?;
+    let formatted = nvs_fmt::format(map.file(id)).map_err(|_| Refused::Unsafe(moved[0].clone()))?;
     Ok(Ordered {
         text: Some(formatted),
         moved,
@@ -230,8 +229,11 @@ impl Scope {
             .any(|attr: &Attribute| {
                 attr.member.is_none()
                     && attr.name.as_ref().is_some_and(|name| {
-                        nvs_hir::resolve_ref(text_of(file, name.span), &self.namespace, &self.imports)
-                            == want
+                        nvs_hir::resolve_ref(
+                            text_of(file, name.span),
+                            &self.namespace,
+                            &self.imports,
+                        ) == want
                     })
             })
     }
@@ -265,9 +267,7 @@ fn collect<'a>(stmts: &'a [Stmt], file: &SourceFile, scope: &mut Scope, out: &mu
             }
             StmtKind::UseDecl(decl) => {
                 let target = QName::parse(text_of(file, decl.path.span));
-                scope
-                    .imports
-                    .insert(target.short_name().to_owned(), target);
+                scope.imports.insert(target.short_name().to_owned(), target);
             }
             StmtKind::ClassDecl(decl) => {
                 out.push(Body {
@@ -419,7 +419,9 @@ fn before_trivia(mut at: usize, text: &str, trivia: &[Trivia]) -> usize {
 
 /// The first byte of the line after the one `at` is on, or the end of `text`.
 fn line_end(at: usize, text: &str) -> usize {
-    text[at..].find('\n').map_or(text.len(), |newline| at + newline + 1)
+    text[at..]
+        .find('\n')
+        .map_or(text.len(), |newline| at + newline + 1)
 }
 
 /// Whether `at` falls inside a block comment, after its first byte.
