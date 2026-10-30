@@ -392,36 +392,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6's first verify ran on 2026-10-30. It passed every step before
-`test`, and failed there after 14 m with two failing binaries. Steps 19 to 23 were not reached.
-- `nvs-ext test intl`: ICU4X 2.4 carries CLDR 49, which changed the plural rules of `af`, `bg`,
-  `es` (ordinal), `gl` and `vi` (cardinal). `Core\Cldr` now carries them (commit `8b3957f04`), and
-  the intl test and the `cldr` unit tests pass by name.
-- `nvs-cli test registry_build`: two publish tests failed under load. The cause was a server bug,
-  fixed in commit `a4874f6d7` (*The body wait ends with the body*). `hyper`'s EOF probe read while
-  the service was pending and re-armed `body_idle_timeout`, so a program that read its body and
-  then worked for over 30 s was closed with no reply. The connection now enters `Phase::Run`
-  (`crates/nvs-server/src/io.rs:154`) once the body has ended, or at the head for a request with
-  none (`crates/nvs-server/src/serve.rs:1703`, and after each pump at `serve.rs:2265`). `Run` puts
-  no socket wait on the stream, and the drain does not end it. The new test
-  `a_program_that_works_past_the_body_wait_after_its_body_is_answered`
-  (`crates/nvs-cli/tests/serve_isolation.rs`) fails without the fix with an empty reply, and
-  passes with it. The two publish tests and the `io` unit tests pass by name. The rule is
-  `rule:http-server/four-idle-waits-all-finite`'s new paragraph.
+Every stage is done. The first verify's two reds are fixed: `Core\Cldr` carries CLDR 49's plural
+rules (`8b3957f04`), and the body wait ends with the body (`a4874f6d7`, `Phase::Run` in
+`crates/nvs-server/src/io.rs:154`, with a served test in `crates/nvs-cli/tests/serve_isolation.rs`).
 
-The sweep finding `env-secret-proofs` is stale: its log shows exit 0. No goal file or
-`looper.toml` defines that check, so nothing in the tree can clear it.
+The second verify is green: 23 of 23 steps, 8248 tests and 3173 conformance cases. The goal-end
+gates are green: `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and
+`bun nv ci --check`. That last one first found two reds, both fixed: five extension pages'
+questions restamped after the repacked `.nvsx`, and the `Core\Cldr` benches declaring their one
+Core call (`calls 1`, counted since `4beafef13`) and measured again.
 
-The second verify (`bun nv affected --run`) is green: 23 of 23 steps, 8248 tests and 3173
-conformance cases. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes
-dependency-sweep` (no gap) and `bun nv ci --check`. `ci --check` first found two reds, both fixed:
-- Five extension reference pages' questions were stale, because the engine bump repacked their
-  example `.nvsx` and changed a `sha256` line. No question depends on it, so they are restamped.
-- The two `Core\Cldr` benches declared `calls 0`. Since commit `4beafef13` a Core member called
-  through a runtime helper counts as one call, so they declare `calls 1` and are measured again.
-
-`bun nv deps --check` exits 0: 319 pins current, 18 held, 4 floating. `pack.rs` now says why
-`canonical_names` is `false`, so every standing decision has a home outside this file.
+`bun nv deps --check` exits 0: 319 pins current, 18 held, 4 floating. Every standing decision has
+a home outside this file. The sweep finding `env-secret-proofs` is stale (its log shows exit 0),
+and no file in the tree defines it.
 
 ### Next
 
