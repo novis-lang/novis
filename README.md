@@ -119,7 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **One order for class members.** *Working on it now.* `nvs code order` and the editor's *Order class members* action put the members of every class in one order. `#[Core\Json\KeepKeyOrder]` keeps the JSON key order of a class that needs it.
+
 <!-- roadmap:end -->
 
 ## Contributing

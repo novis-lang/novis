@@ -1,11 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "One order for class members",
-      "text": "`nvs code order` and the editor's *Order class members* action put the members of every class in one order. `#[Core\\Json\\KeepKeyOrder]` keeps the JSON key order of a class that needs it.",
-      "goals": ["member-order"]
-    }
-  ]
+  "themes": []
 }
