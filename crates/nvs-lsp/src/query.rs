@@ -6,12 +6,12 @@
 //! `Shop\Cart::addItem`, `Shop\Cart::$total`. The editor feature that answers
 //! the same question calls the same function — `textDocument/references` is
 //! [`references`], `textDocument/implementation` is [`implementations`] and
-//! `textDocument/rename` is [`rename`] — so the editor and the command never
+//! `textDocument/rename` is [`rename()`] — so the editor and the command never
 //! disagree about an answer (`rule:ide/five-features-are-one-reference-index`).
 //!
 //! Every function reads a [`Workspace`] or the index inside one and builds
 //! nothing: the index is built in `server.rs`, which is the module that owns
-//! one. [`declaration`], [`types`] and [`rename`] analyse one file again,
+//! one. [`declaration`], [`types`] and [`rename()`] analyse one file again,
 //! because the index keeps names and sites and neither a `///` run, an
 //! inferred type nor a file's tokens.
 
@@ -292,7 +292,7 @@ pub fn types(workspace: &Workspace, path: &Path, lines: RangeInclusive<u32>) -> 
     )
 }
 
-/// What [`rename`] renames: a name the index declares, or the symbol at one
+/// What [`rename()`] renames: a name the index declares, or the symbol at one
 /// place in a file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target<'a> {

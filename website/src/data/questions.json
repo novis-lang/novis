@@ -1113,13 +1113,13 @@
   },
   "/reference/cli/nvs-code/": {
     "feature": "tools:cli/nvs-code",
-    "hash": "297019c299abdd1f",
+    "hash": "23112a22cebaf0dd",
     "questions": [
       "Find every place a method is used in my project",
-      "Which classes implement my interface?",
-      "Show the type of each variable in a file from the terminal",
-      "List the classes and methods a file declares",
-      "Where is a class or method declared in my project?"
+      "Rename a class or a method everywhere from the terminal",
+      "Move a file and update every require that loads it",
+      "Which methods call this method, and which routes reach it?",
+      "Find a class or a method when I know only part of its name"
     ]
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {

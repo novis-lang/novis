@@ -15,6 +15,11 @@
 
 crates/nvs-cli/src/service.rs  "../../logs/novis.log"  --  a relative log path a service plan is expected to refuse, never opened
 crates/nvs-cli/tests/code.rs  "../src/Cart.nvs:10:21 "  --  the start of a line `nvs code` is expected to print, never opened
+crates/nvs-cli/tests/code.rs  "../lib/text/upper.nvs"  --  `require` text in a fixture's source, replaced in a string to give the expected file, never opened
+crates/nvs-cli/tests/code.rs  "../text/upper.nvs"  --  `require` text in a fixture's source, replaced in a string to give the expected file, never opened
+crates/nvs-cli/tests/code.rs  "../helpers.nvs"  --  `require` text in a fixture's source, replaced in a string to give the expected file, never opened
+crates/nvs-cli/tests/code.rs  "../lib/helpers.nvs"  --  `require` text in a fixture's source, replaced in a string to give the expected file, never opened
+crates/nvs-cli/tests/code.rs  "../{name}"  --  a move target outside a scratch project, which `nvs code move` is expected to refuse, never opened
 crates/nvs-cli/src/package/fetch.rs  "../escape.nvs"  --  an entry name in an archive built in memory, which unpacking is expected to refuse
 crates/nvs-cli/src/package/pack.rs  "../a.txt"  --  a `files` line a pure function is expected to refuse, never opened
 crates/nvs-cli/tests/package_fetch.rs  "echo Core\\IO::readText('../data/../../../../secret.txt');"  --  Novis source written into a scratch package, whose read the compiler is expected to refuse
