@@ -295,13 +295,13 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 **Split:** as stage 5's.
 
-- [ ] *Confirmed:* `Json::encode`'s `Sink` writes through the shared writer. This also bounds `Response::json`, the HTTP JSON body, SSE, queue job arguments and `Jwt::signObject`. `crates/nvs-stdlib/src/json.rs:781`, `crates/nvs-stdlib/src/json.rs:915`
+- [x] *Confirmed:* `Json::encode`'s `Sink` writes through the shared writer. This also bounds `Response::json`, the HTTP JSON body, SSE, queue job arguments and `Jwt::signObject`. `crates/nvs-stdlib/src/json.rs:781`, `crates/nvs-stdlib/src/json.rs:915`
 - [ ] `Csv::format` and `Html::join` write through a writer that asks. `crates/nvs-stdlib/src/csv.rs:894`, `crates/nvs-stdlib/src/html.rs:931`
 - [ ] `Jwt::sign` asks before its payload and base64 copies. `Jwt::verify` and `KeySet::read` cap the JSON they parse before the parse. `crates/nvs-stdlib/src/jwt.rs:1113`, `crates/nvs-stdlib/src/jwt.rs:1528`, `crates/nvs-stdlib/src/jwt.rs:2245`
 - [x] `Uri::encodeComponent` and `encodeFormValue` (5.2x), now 0.75x: one counting pass sizes the result, written once (`encoded`). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
 - [ ] `Xml\Writer`'s indent is counted in its ask. `crates/nvs-stdlib/src/xml.rs:3049`
-- [ ] `Ast::parse`'s node objects ask (1.27x). `crates/nvs-stdlib/src/ast.rs:454`
-- [ ] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x) and `Response::html` (1.54x), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `jsonAs` reads within the bound since stage 5's array fixes. `crates/nvs-stdlib/src/arr.rs:6462`
+- [x] `Ast::parse`'s node objects ask (1.27x), now 1.24x: the parser asks a keep-going callback per statement (`parse_file_within`). `crates/nvs-stdlib/src/ast.rs:454`
+- [x] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x, now 1.0x) and `Response::html` (1.54x, now 0.79x through the capture buffer's ask), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `jsonAs` reads within the bound since stage 5's array fixes. `crates/nvs-stdlib/src/arr.rs:6462`
 - [ ] An attack step per member above, each ending at `FATAL` within the bound.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
@@ -354,14 +354,16 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done, and stage 6's Uri item. Build and clippy green, no full test run. The
-in-flight collector seats by binary search and skips a walk whose scratch passes the bound
-(`object::collect`'s `room`, from `Ctx::overshoot_bound`, now in every build). `Uri::encoded`
-writes the two encoders' answer once at its exact length.
+Stages 1 to 5 are done. Stage 6 has its Uri, Json, Ast and shapeAs/jsonAs/html items done. Build
+and clippy green, rustfmt clean, no full test run. Every reading the last `--overshoot` scan had
+red is now within the bound by `bun nv proofs --run --id ... --show`: `Arr/shapeAs` 1.0x (list
+decode reads `over_ceiling` per row), `Ast/parse` 1.24x (`nvs_syntax::parse_file_within`'s
+keep-going callback, asked per statement, and per node in `instance_of`), `Response/html` 0.79x
+(a `Core\Out::capture` buffer asks for each growth, `Ctx::write_output`), `Json/encode`'s new
+step 6 0.87x (`Sink` is a `ByteWriter`, which now takes `io::Write`).
 
-`bun nv proofs --overshoot` (before the Uri fix) was red on 5: both `Uri/encode*` (now 0.75x by
-`bun nv proofs --run --id`), `Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Response/html` 1.54x. The
-cart reads 1.25x and `Http-Response/jsonAs` is within the bound.
+A walk stopping on `over_ceiling` reads `ctx.memory_breach()` before it frees what it built. That
+check is not sticky, so a breach read after the free finds the request under its ceiling.
 
 Expected red at the gate, each not a test to loosen: a member that builds an array past its ceiling
 returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `inside one call`
@@ -371,7 +373,9 @@ small ceiling now gets an empty-room array, and `Arr::range` past its ceiling is
 any entry. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. A collector
 test that counts objects reclaimed under a small ceiling may now read 0 where the scratch did not
-fit. The sweep's `env-secret-proofs` red names no check: no goal, floor or `looper.toml` defines one.
+fit. New: a parse a keep-going callback stopped is `walk::STOPPED`, and a capture write the ceiling
+refused writes nothing. The sweep's `env-secret-proofs` red names no check: `bun
+tools/looper/main.ts check --name env-secret` finds none, and its log does not exist.
 
 ### Next
 
@@ -379,9 +383,10 @@ Stage 6. Read the bound with `bun nv proofs --overshoot`, which ignores `--group
 6 minutes, and run one member's proofs with `bun nv proofs --run --id 'Core\Uri::encodeComponent'
 --show` (a class name is not a `--group`).
 
-- [ ] `json::hydrate` for `shapeAs` (1.70x). `crates/nvs-stdlib/src/arr.rs:6462`
-- [ ] `Ast::parse` (1.70x). `crates/nvs-stdlib/src/ast.rs:454`
-- [ ] `Response::html` (1.54x), its attack `tests/hostile/core/Response/html/01-script-and-a-page-without-end.nvs`. `crates/nvs-stdlib/src/response.rs:1327`
-- [ ] `Json::encode`'s `Sink`, then `Csv::format`, `Html::join`, `Jwt` and `Xml\Writer`. `crates/nvs-stdlib/src/json.rs:781`
+- [ ] `crates/nvs-stdlib/src/csv.rs:894` `Csv::format` onto `ByteWriter`, as `json::Sink` is, and a step formatting rows that share one row.
+- [ ] `crates/nvs-stdlib/src/html.rs:931` `Html::join` onto a writer that asks, and a step.
+- [ ] `crates/nvs-stdlib/src/jwt.rs:1113` `Jwt::sign`'s copies ask; `verify` (`jwt.rs:1528`) and `KeySet::read` (`jwt.rs:2245`) cap their parse.
+- [ ] `crates/nvs-stdlib/src/xml.rs:3049` `Xml\Writer`'s indent in its ask.
+- [ ] `tools/nv/proofs/run.ts:1` one `bun nv proofs --overshoot` run confirms stage 6 before stage 7.
 
 ### Backlog
