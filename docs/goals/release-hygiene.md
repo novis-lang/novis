@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/core-classes/spreadsheet-roster.md, extensions/spreadsheet/src/lib.rs, crates/nvs-cli/src/debug.rs, docs/agent/doc-style.md]
   - id: 4
     title: "no checkout path, every crate is publish = false, and the license names its scope"
-    status: open
+    status: done
     context: [README.md, Cargo.toml, tools/nv/cmd/lints.ts, crates/nvs-cli/src/cache.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -196,8 +196,10 @@ them, break a shipped rule. Record `nvs-spreadsheet/spreadsheet-style-enums` nam
 `tools/looper/` included. `tools/looper/` is synced and never hand-edited, so the scope is stated
 outside it: one sentence in README.md § *License* (`README.md:163`) and the `tools/` line of
 CONTRIBUTING.md's layout (`CONTRIBUTING.md:184`). README.md:165 becomes: every third-party component
-has a license `deny.toml` allows. Most are permissive. `avif-parse` is MPL-2.0, whose copyleft covers
-only its own files, and Novis uses them unchanged. The README is text an end user reads, so AGENTS.md
+has a license `deny.toml` allows. Most are permissive. Five are MPL-2.0, whose copyleft covers only
+their own files, and Novis uses them unchanged: `THIRD-PARTY-LICENSES.txt` lists `avif-parse`,
+`cssparser`, `cssparser-macros`, `dtoa-short` and `selectors`, so the README names all five, not
+`avif-parse` alone. The README is text an end user reads, so AGENTS.md
 § *Text an end user reads* holds.
 
 **`publish = false` is inherited.** `[workspace.package]` (`Cargo.toml:36`) gains `publish = false`,
@@ -207,6 +209,9 @@ above `[workspace.package]` says so. `bun nv lints --check` refuses a crate mani
 because `tools/nv/cmd/lints.ts` already owns what each crate manifest inherits. Safe fallback: if
 Cargo refuses `publish.workspace`, each crate writes `publish = false` and the check accepts that
 form. The `extensions/*` manifests are their own workspaces and already say `publish = false`.
+The two bench crates, `benches/abi-probe` and `benches/serve-probe`, are workspace members too, so
+they write the inherited form as well, and the check covers every member with one rule rather than
+a `crates/` special case. The check also refuses a root `[workspace.package]` without the key.
 
 **Crate descriptions say what the crate does.** `crates/nvs-cli/Cargo.toml:3`: "The nvs
 command-line binary: run, test, serve, check, format and the other commands". `crates/nvs-stdlib/Cargo.toml:3`:
@@ -330,20 +335,20 @@ Then:
 crate metadata is plain, and the README states the license scope truthfully.
 
 Paths, one group:
-- [ ] No rule governs this; the standing decision *Checkout paths become `<repo>`* is its spec. Each playbook line's checkout path becomes `<repo>`, its `until:` trailer unchanged. `docs/agent/playbook.md:96`, `docs/agent/playbook.md:165`, `docs/agent/playbook/running-things/nv-reference-runs-its-own-binary-not-target-debug.md:4`, `docs/agent/playbook/running-things/a-windows-path-handed-to-npm-run-nvs-path-from-a-posix-shell.md:3`, `docs/agent/playbook/running-things/a-wsl-build-is-killed-as-a-hang-unless-it-prints.md:7`, `docs/agent/playbook/writing-a-test-case/a-case-that-tries-both-platforms-shells-and-catches-ioerror.md:1`, `docs/agent/playbook/tooling/a-heredoc-in-a-bash-call-arrives-with-each-double-backslash-as-one.md:1`
-- [ ] The same standing decision: the sample path in the doc comment, and "this Windows machine". `tools/nv/accept/mirror.ts:53`, `AGENTS.md:92`
+- [x] No rule governs this; the standing decision *Checkout paths become `<repo>`* is its spec. Each playbook line's checkout path becomes `<repo>`, its `until:` trailer unchanged. `docs/agent/playbook.md:96`, `docs/agent/playbook.md:165`, `docs/agent/playbook/running-things/nv-reference-runs-its-own-binary-not-target-debug.md:4`, `docs/agent/playbook/running-things/a-windows-path-handed-to-npm-run-nvs-path-from-a-posix-shell.md:3`, `docs/agent/playbook/running-things/a-wsl-build-is-killed-as-a-hang-unless-it-prints.md:7`, `docs/agent/playbook/writing-a-test-case/a-case-that-tries-both-platforms-shells-and-catches-ioerror.md:1`, `docs/agent/playbook/tooling/a-heredoc-in-a-bash-call-arrives-with-each-double-backslash-as-one.md:1`
+- [x] The same standing decision: the sample path in the doc comment, and "this Windows machine". `tools/nv/accept/mirror.ts:53`, `AGENTS.md:92`
 
 License, one group:
-- [ ] `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`: README § *License* names the scope and `avif-parse`'s MPL-2.0, and CONTRIBUTING's `tools/` line says the root license covers the looper kit. `README.md:163`, `README.md:165`, `CONTRIBUTING.md:184`
+- [x] `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`: README § *License* names the scope and `avif-parse`'s MPL-2.0, and CONTRIBUTING's `tools/` line says the root license covers the looper kit. `README.md:163`, `README.md:165`, `CONTRIBUTING.md:184`
 
 Crates, one group:
-- [ ] No rule governs this; the standing decision *`publish = false` is inherited* is its spec, and the `[workspace.package]` comment its home. `publish = false` in `[workspace.package]` with its comment, and `publish.workspace = true` in all 21 crate manifests: `nvs-cli`, `nvs-codegen`, `nvs-config`, `nvs-db`, `nvs-diagnostics`, `nvs-ext`, `nvs-fmt`, `nvs-footprint`, `nvs-hir`, `nvs-host`, `nvs-ir`, `nvs-ldap`, `nvs-lsp`, `nvs-render`, `nvs-repo`, `nvs-runtime`, `nvs-server`, `nvs-stdlib`, `nvs-syntax`, `nvs-test`, `nvs-types`. `Cargo.toml:36`, `crates/nvs-repo/Cargo.toml:10`, `crates/nvs-cli/Cargo.toml:1`
-- [ ] The same standing decision: `bun nv lints --check` refuses a crate manifest without the inherited `publish`, its header says so, and the test the `publish-false-test` check names. Run once by name. `tools/nv/cmd/lints.ts:1`, `tools/nv/test/lints.test.ts:28`
-- [ ] No rule governs this: the two descriptions the standing decision *Crate descriptions say what the crate does* gives. `crates/nvs-cli/Cargo.toml:3`, `crates/nvs-stdlib/Cargo.toml:3`
-- [ ] No rule governs this; the standing decision *`cache.rs` allows no dead code wholesale* is its spec. `#![allow(dead_code)]` and its comment go. Each warning `cargo clippy --all-targets -- -D warnings` names is gated to tests or deleted. `crates/nvs-cli/src/cache.rs:194`, `crates/nvs-cli/src/cache.rs:199`
+- [x] No rule governs this; the standing decision *`publish = false` is inherited* is its spec, and the `[workspace.package]` comment its home. `publish = false` in `[workspace.package]` with its comment, and `publish.workspace = true` in all 21 crate manifests: `nvs-cli`, `nvs-codegen`, `nvs-config`, `nvs-db`, `nvs-diagnostics`, `nvs-ext`, `nvs-fmt`, `nvs-footprint`, `nvs-hir`, `nvs-host`, `nvs-ir`, `nvs-ldap`, `nvs-lsp`, `nvs-render`, `nvs-repo`, `nvs-runtime`, `nvs-server`, `nvs-stdlib`, `nvs-syntax`, `nvs-test`, `nvs-types`. `Cargo.toml:36`, `crates/nvs-repo/Cargo.toml:10`, `crates/nvs-cli/Cargo.toml:1`
+- [x] The same standing decision: `bun nv lints --check` refuses a crate manifest without the inherited `publish`, its header says so, and the test the `publish-false-test` check names. Run once by name. `tools/nv/cmd/lints.ts:1`, `tools/nv/test/lints.test.ts:28`
+- [x] No rule governs this: the two descriptions the standing decision *Crate descriptions say what the crate does* gives. `crates/nvs-cli/Cargo.toml:3`, `crates/nvs-stdlib/Cargo.toml:3`
+- [x] No rule governs this; the standing decision *`cache.rs` allows no dead code wholesale* is its spec. `#![allow(dead_code)]` and its comment go. Each warning `cargo clippy --all-targets -- -D warnings` names is gated to tests or deleted. `crates/nvs-cli/src/cache.rs:194`, `crates/nvs-cli/src/cache.rs:199`
 
 Local:
-- [ ] Delete the ignored `a.out` at the repository root. `.gitignore:112`
+- [x] Delete the ignored `a.out` at the repository root. `.gitignore:112`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -362,37 +367,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 3 are done. `bun nv owners --check` passes with 19 gap records, all goal-owned, and
-`bun nv owners --prose` lists nothing. `bun nv rules --render --check` is clean, and the
-`stale-sections-gone` grep matches nothing.
+Stages 1 to 4 are done. `bun nv owners --check` passed at the end of stage 3 with 19 gap records,
+all goal-owned, and stage 4 touched no fragment or record.
 
-Stage 3's verdicts against the code: passkey, web push and the viewer were STALE. The viewer's
-paragraph now names the API, search, replay, settings, to-test, views and fixtures on disk; the
-exceptions view (grouping) and compare exist too, so no `nvs-cli/viewer-views` record was written.
-`rule:core-classes/process-spawn`'s paragraph is a plain present statement. Records written:
-`nvs-config/regex-deny-block`, `nvs-cli/debugger-task-tree` and `nvs-lsp/rename-a-class-scoped-alias`
-(`runtime-leftovers`); seven `nvs-spreadsheet/` records for `spreadsheet-second-wave`, including
-`spreadsheet-unchecked-against-excel`; `nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers`,
-`nvs-pdf/pdf-leftovers` and `nvs-pdf/pdf-table-leftovers` (`extension-leftovers`). The style enums
-are REAL (standing decision *The spreadsheet style enums are REAL*). The spreadsheet module doc no
-longer calls the cut-off download owed, since `rule:core-classes/spreadsheet-writes-as-a-stream` has it
-on disk, and `sheet_part`'s doc says it never returns an error.
+Stage 4 landed in three commits. Paths: every playbook bullet, `tools/nv/accept/mirror.ts` and
+`AGENTS.md` name no checkout path, and the `no-checkout-path` grep matches nothing. License: the
+README names the scope, `tools/looper/` included, and the MPL-2.0 components. The code differed from
+the standing decision: `THIRD-PARTY-LICENSES.txt` lists five MPL-2.0 crates, not `avif-parse` alone,
+so the README names all five and the decision says so. Crates: `[workspace.package]` says
+`publish = false`, every member inherits it (the two bench crates too, recorded in the decision),
+and `bun nv lints --check` refuses a member or a root without it. `tools/nv/test/lints.test.ts`
+passed once (6 tests) and `bun nv lints --check` is clean. The two descriptions are plain. In
+`crates/nvs-cli/src/cache.rs`, `Loaded::script`, `Entry` and `Verified::header` are `#[cfg(test)]`,
+and the fields `Verified::header` and `Loaded::entry` carry the fallback `cfg_attr(not(test),
+expect(dead_code))`, because `load` and `relocate` set them on the production path. `cargo build`
+and `cargo clippy --all-targets -- -D warnings` are green. `a.out` is deleted.
 
-The acceptance sweep's reds were both green on disk: `env-secret-proofs` exits 0, and nightly
-41033290883 is the `ExecutableFileBusy` failure `b9ce9d0e6` fixed.
+The acceptance sweep's reds were green on disk again: `env-secret-proofs`'s log shows exit 0, and
+nightly 41033290883 is the `ExecutableFileBusy` failure `b9ce9d0e6` fixed.
 
 ### Next
 
-Stage 4, three groups and one local step. Items and anchors: `docs/goals/release-hygiene.md:327`.
+Stage 5, the gate. Items and anchors: `docs/goals/release-hygiene.md:353`.
 
-- [ ] Paths: every playbook checkout path becomes `<repo>`, `tools/nv/accept/mirror.ts:53` and
-  `AGENTS.md:92`. `docs/agent/playbook.md:96`
-- [ ] License: README § *License* and CONTRIBUTING's `tools/` line. `README.md:163`, `CONTRIBUTING.md:184`
-- [ ] Crates: `publish = false` inherited, the lints check and its test, the two descriptions, and `cache.rs`'s dead-code allow. `crates/nvs-cli/src/cache.rs:194`, `tools/nv/cmd/lints.ts:1`
-- [ ] Delete the untracked `a.out` at the repository root, whose ignore line stays. `docs/goals/release-hygiene.md:346`
+- [ ] Start `looper verify` with `run_in_background`, then end the turn to wait. `docs/goals/release-hygiene.md:353`
+- [ ] Fix every failure it names in one pass, then run it once more. `docs/goals/release-hygiene.md:353`
+- [ ] The goal-end gates, each red fixed. `tools/nv/cmd/owners.ts:469`
+  `bun nv verify --doc`, `bun nv owners --closes release-hygiene` and `bun nv ci --check`.
 
-Expected red until stage 4 ends: `no-checkout-path`, `publish-false-test`, `lints-check`,
-`manifests-plain`, `license-scope` and `no-permissive-claim`. Nothing from stage 3 is expected red.
+Possible reds: the Rust tests over `cache.rs`, if a test reaches a gated item in a way the
+build did not show (none expected), and `cargo deny` or a manifest check that reads `publish`.
+No stage 4 check is expected red.
 
 ### Backlog
 
