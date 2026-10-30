@@ -2126,7 +2126,20 @@ nvs_runtime::nvs_helper! {
         // A value that rounds to zero, `-0.0` included, is written without a
         // sign, as `number_format` writes it: `-0.4` is `"0"`.
         let is_zero = integer.bytes().chain(fraction.bytes()).all(|b| b == b'0');
-        let mut out = Vec::new();
+        // The exact length, asked of the request's memory ceiling before it is
+        // allocated. A group separator is written once per three digits, and
+        // a `float` has up to 309 of them, so a long separator multiplies.
+        let groups = integer.len().saturating_sub(1) / 3;
+        let length = groups
+            .saturating_mul(group_separator.len())
+            .saturating_add(integer.len() + fraction.len() + 1)
+            .saturating_add(decimal_separator.len());
+        if !nvs_runtime::budget::affords(length) {
+            return Err(Fault::thrown(
+                "Core\\Math::format: the result does not fit in the request's memory limit",
+            ));
+        }
+        let mut out = Vec::with_capacity(length);
         if sign && !is_zero {
             out.push(b'-');
         }

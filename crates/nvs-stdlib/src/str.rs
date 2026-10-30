@@ -47,13 +47,14 @@
 //! `07-string-normalize` from 0.50× to 0.45×. A read is not free, and at these
 //! sizes it is not cheaper than the `memcpy` it saves. Both are arithmetic now.
 //!
-//! **`join` is the member this rule does not reach**, and it is unchanged: its
-//! length costs a walk of the subject's slots, which is the expensive half of
-//! the member, and all three ways round that measured worse than the `String`
-//! it builds — a writer at a guessed capacity grows two or three times per
-//! call (87.3 ms of work to 90.0), a `Vec` of borrowed pieces spends an
-//! allocation per call (105.1), and measuring first walks the slots twice
-//! (92.5).
+//! **`join` writes at a guessed capacity**, because its length costs a walk of
+//! the subject's slots, which is the expensive half of the member. The writer
+//! grows two or three times per call, and measured 90.0 ms of work where a
+//! `String` copied at the end measured 87.3. A `Vec` of borrowed pieces spends
+//! an allocation per call (105.1), and measuring first walks the slots twice
+//! (92.5). The `String` is not taken back for its 3%: it grows without asking
+//! the request's memory ceiling, so one call over shared elements reached 61x
+//! that ceiling (`rule:programs/memory-priority`).
 //!
 //! Every length that *is* computed goes through `nvs_runtime::affordable`,
 //! which is the one seam a per-request ceiling attaches to. That seam refuses
@@ -1799,6 +1800,10 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
     })
 }
 
+/// The capacity [`nvs_core_str_join`]'s writer starts at. Its length is not
+/// known before the walk, so this is a guess the writer doubles from.
+const JOIN_START: usize = 64;
+
 /// A freshly built `string` result, copied out of the borrowed text it is
 /// already sitting in.
 fn produced(text: &str) -> HelperResult {
@@ -2080,22 +2085,31 @@ nvs_runtime::nvs_helper! {
         })?;
         let separator = text(&args[1], "join", "the separator")?;
 
-        // The one member here that is **left as it was**, because all
-        // three alternatives measured slower than accumulating into a `String`
-        // and copying it: a writer at a guessed capacity grows two or three
-        // times per call, a piece list spends a `Vec` per call, and measuring
-        // the length first walks the slots twice. This module's § *A result is
-        // written once* records the numbers. What makes `join` different from
-        // the members above it is that its length costs a slot walk to learn,
-        // and that walk is the expensive part of the member.
-        let mut out = String::new();
-        for (at, value) in Elements::of(parts).enumerate() {
-            if at > 0 {
-                out.push_str(separator);
+        // A writer at a guessed capacity, which asks the request's memory
+        // ceiling at every growth. A `String` measured 3% faster and asked
+        // nothing, so a huge separator over shared elements grew to 61x the
+        // ceiling inside this one call. This module's § *A result is written
+        // once* records the numbers. A refused growth writes no more, and the
+        // rest of the walk costs one slot read per element.
+        let mut failed = None;
+        let joined = built(JOIN_START, |out| {
+            for (at, value) in Elements::of(parts).enumerate() {
+                if at > 0 {
+                    out.push_str(separator);
+                }
+                match text(&value, "join", "an element") {
+                    Ok(piece) => out.push_str(piece),
+                    Err(fault) => {
+                        failed = Some(fault);
+                        return;
+                    }
+                }
             }
-            out.push_str(text(&value, "join", "an element")?);
+        });
+        match failed {
+            Some(fault) => Err(fault),
+            None => joined,
         }
-        produced(&out)
     }
 }
 

@@ -1600,7 +1600,11 @@ fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
                 Repeat::Count(count) => count,
             };
             let end = advanced(at, width, subject.len(), code)?;
-            out.push(Field::Buffer(trimmed(&subject[at..end], code).to_vec()));
+            let field = trimmed(&subject[at..end], code);
+            if !nvs_runtime::budget::affords(field.len()) {
+                return Err(over_memory());
+            }
+            pushed(&mut out, Field::Buffer(field.to_vec()))?;
             at = end;
             continue;
         }
@@ -1617,7 +1621,7 @@ fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
         };
         for _ in 0..times {
             let end = advanced(at, width, subject.len(), code)?;
-            out.push(read_field(&subject[at..end], code, big));
+            pushed(&mut out, read_field(&subject[at..end], code, big))?;
             at = end;
         }
     }
@@ -1630,6 +1634,31 @@ fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
         )));
     }
     Ok(out)
+}
+
+/// Appends `field` to `out`, asking the request's memory ceiling for the whole
+/// new block whenever the list has to grow.
+///
+/// A field is several times wider than the one octet `C*` reads it from, so a
+/// buffer under the ceiling unpacks to a list well past it. Asking at each
+/// growth stops the walk at the ceiling. What it spends: one comparison per
+/// growth, and none per field that fits.
+fn pushed(out: &mut Vec<Field>, field: Field) -> Result<(), Fault> {
+    if out.len() == out.capacity() {
+        let capacity = out.capacity().saturating_mul(2).max(4);
+        if !nvs_runtime::budget::affords(capacity.saturating_mul(size_of::<Field>())) {
+            return Err(over_memory());
+        }
+        out.reserve_exact(capacity - out.len());
+    }
+    out.push(field);
+    Ok(())
+}
+
+/// The error a refused growth returns. The request's memory breach is already
+/// recorded, so the `FATAL` that ends it names the ceiling and not this text.
+fn over_memory() -> Fault {
+    Fault::thrown("Core\\Bytes::unpack: the fields do not fit in the request's memory limit")
 }
 
 nvs_runtime::nvs_helper! {
