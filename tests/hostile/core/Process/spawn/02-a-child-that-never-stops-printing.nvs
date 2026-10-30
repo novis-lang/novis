@@ -1,0 +1,19 @@
+<?nvs
+// Attack: a program starts a child that prints without end and waits for all of its output.
+// The output is kept in memory, so the program should stop at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// 1. The program lowers its memory limit to 32 MiB. It holds very little memory at this point.
+echo 'memory: ', Core\Config::set('memory', '32M') ? 'changed' : 'refused', "\n";
+
+// 2. The child prints the same bytes again and again. `wait` keeps everything it prints, so this
+// step stops the program at its memory limit. On Windows, `cmd.exe` prints its own file in a loop.
+echo "step 2\n";
+Core\Process\Handle $child = Core\Env::OS == Core\Env::Platform::Windows
+    ? Core\Process::spawn(
+        "C:\\Windows\\System32\\cmd.exe",
+        ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe'],
+    )
+    : Core\Process::spawn('/usr/bin/yes', ['a line that repeats']);
+echo 'printed ', Core\Bytes::length($child->wait()->stdout()), " bytes\n";

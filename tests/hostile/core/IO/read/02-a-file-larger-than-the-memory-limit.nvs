@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a program reads a file that is larger than its memory limit, with no `max_output` set.
+// The read should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'large.txt');
+
+// 1. The program writes a file of forty million bytes, one million at a time, and then lowers its
+// memory limit to 16 MiB.
+string $piece = Core\Str::repeat('x', 1000000);
+Core\IO::write($path, '');
+uint $i = 0;
+while ($i < 40) {
+    Core\IO::append($path, $piece);
+    $i = $i + 1;
+}
+echo 'memory: ', Core\Config::set('memory', '16M') ? 'changed' : 'refused', "\n";
+
+// 2. `read` keeps the whole file in memory. The file does not fit, so this step stops the program
+// at its memory limit.
+echo "step 2\n";
+echo Core\Str::length(Core\IO::read($path)), "\n";

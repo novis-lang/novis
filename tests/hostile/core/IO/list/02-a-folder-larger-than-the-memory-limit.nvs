@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a program lists a folder whose names together are larger than its memory limit.
+// The listing should stop the program at its memory limit.
+// hostile: timeout-ms 120000
+// hostile: ends-early 2 FATAL
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+string $many = Core\Path::join($dir, 'many');
+Core\IO::makeDir($many);
+
+// 1. The program writes twenty thousand files with names of two hundred characters. That is about
+// four million bytes of names. Then it lowers its memory limit to 2 MiB.
+string $long = Core\Str::repeat('n', 190);
+uint $count = 0;
+while ($count < 20000) {
+    Core\IO::write(Core\Path::join($many, $long . '-' . $count), '');
+    $count = $count + 1;
+}
+echo 'memory: ', Core\Config::set('memory', '2M') ? 'changed' : 'refused', "\n";
+
+// 2. `list` returns every name in one array. The names do not fit, so this step stops the
+// program at its memory limit.
+echo "step 2\n";
+echo Core\Arr::count(Core\IO::list($many)), "\n";
