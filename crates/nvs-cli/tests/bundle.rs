@@ -377,6 +377,25 @@ fn run_beside(project: &Project) -> std::process::Output {
         .expect("the bundle is an executable this host can run")
 }
 
+/// [`run_beside`] for an executable this process wrote itself. On Linux a process another test
+/// forks while the write was open inherits the file's descriptor until its own `exec` closes it,
+/// and until then running the file fails with `ExecutableFileBusy`. That error ends when the
+/// child's `exec` does, so the run is tried again on it alone, a bounded number of times.
+fn run_rewritten(project: &Project) -> std::process::Output {
+    for _ in 0..10_000 {
+        match nvs_repo::spawn(&project.exe, &[])
+            .current_dir(&project.out)
+            .output()
+        {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::yield_now();
+            }
+            out => return out.expect("the bundle is an executable this host can run"),
+        }
+    }
+    panic!("the rewritten bundle stayed busy: a descriptor to it was never closed")
+}
+
 /// The bundle embeds the `.nvsx` its configuration lists, so it calls the extension with the
 /// file deleted from the project and none beside the executable
 /// (`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`).
@@ -508,7 +527,7 @@ fn a_bundle_whose_embedded_extension_was_altered_refuses_to_start() {
     bytes[at + embedded.len() / 2] ^= 0x01;
     std::fs::write(&project.exe, &bytes).expect("the bundle is rewritten");
 
-    let out = run_beside(&project);
+    let out = run_rewritten(&project);
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
