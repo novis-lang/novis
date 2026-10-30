@@ -408,6 +408,12 @@ memory cache encodes with `nvs_runtime::encode_within` up to its shard cap
 
 The sweep finding `env-secret-proofs` is stale: its log shows exit 0.
 
+A third DONE was refused on `proofs-gate`: `a926faef0` changed `crates/nvs-stdlib/src/cache.rs`, so the
+seven `Core\Cache` features' perf was stale. `bun nv proofs --record-perf --force --reps 9` over
+`Core\Cache`, `Core\Cache\Store` and `Core\Cache\SecretEntry` recorded them again, and
+`looper check --name proofs-gate` is green. Their counts are the same as before. Their ns/op reads
+0.0, as 889 other small benches do: 256 rounds of a cache read now sit under the empty program's floor.
+
 ### Next
 
 The goal is reached. The driver runs the acceptance checks, `floor-debt` among them, and retires
@@ -419,6 +425,7 @@ it. The runtime change makes the debt owe its atoms again, so that check takes a
 - [x] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
 - [x] `floor-debt`'s red atom fixed at its cause. `crates/nvs-runtime/src/graph.rs:661`
 - [x] `floor-debt`'s second red atom, the cache-memory attack, fixed at its cause. `crates/nvs-runtime/src/graph.rs:265`
+- [x] `proofs-gate`'s seven stale `Core\Cache` perf figures recorded again. `data/perf/members.ndjson`
 
 ### Backlog
 
