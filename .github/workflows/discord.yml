@@ -2,7 +2,7 @@
 # `bun nv discord announce`, whose module doc owns what a message says.
 #
 # A release is published by hand from the draft `release.yml` leaves, and `release: published` posts
-# its notes. The dev build (`dev-build.yml` on `landing`) calls this once it has pushed the `dev`
+# its notes. The dev build (`dev-build.yml`) calls this once it has pushed the `dev`
 # image, and the message lists the commits since the dev build before it. That commit is kept as a
 # cache entry keyed by commit: the newest entry is the previous dev build. With none, or one evicted,
 # the message names the one commit.

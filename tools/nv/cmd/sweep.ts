@@ -11,8 +11,8 @@
 // dead or past the newest caches per crate, so the next session's build stays as warm, and waiting for
 // a low disk would let `target/` fill most of the drive first.
 //
-// **It reads the newest nightly CI run back** (`readNightly`): the newest completed `workflow_dispatch`
-// run of `ci.yml` on `main`, which the cron on `landing` dispatches. It asks `gh`, and it only reads.
+// **It reads the newest nightly CI run back** (`readNightly`): the newest completed `schedule` run of
+// `ci.yml` on `main`, which its cron starts. It asks `gh`, and it only reads.
 //
 // What it found goes into `.loop/last-sweep.md`, the file looper writes from its own sweep just before
 // this hook runs, and which its orient prints under "Fix these first". This command owns the lines that
@@ -104,9 +104,9 @@ const REAL: SweepSeams = {
 
 // ---- the nightly CI run ------------------------------------------------------------------------------
 
-/** The nightly run as `ci.yml` makes it: a `workflow_dispatch` run on `main`, which the cron on
- * `landing` starts. A push to `main` is a `push` run, so the event tells the two apart. */
-const NIGHTLY = ["--workflow", "ci.yml", "--branch", "main", "--event", "workflow_dispatch"];
+/** The nightly run as `ci.yml` makes it: a `schedule` run on `main`. A push to `main` is a `push`
+ * run, so the event tells the two apart. */
+const NIGHTLY = ["--workflow", "ci.yml", "--branch", "main", "--event", "schedule"];
 /** How many of the newest nightly runs are read to find the newest completed one. */
 const NIGHTLY_LOOKBACK = 5;
 /** A job conclusion that is no failure. */

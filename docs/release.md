@@ -36,22 +36,20 @@ GitHub is set up for releases: § 1 to § 5 and § 7 are done. They are here for
 repository, and § 6 is the one step left, after the first release. **None of them but § 7 is a
 secret**, and the release itself reads none — see *Credentials* below.
 
-### 1. The code is on `main`, and `landing` is the default branch
+### 1. `main` is the default branch
 
-`origin` is `github.com/novis-lang/novis`. Its default branch is `landing`, an unrelated branch with
-a short README and the files GitHub reads only from the default branch: the issue forms, the
-security policy, the Dependabot configuration and one file per workflow. `landing`'s `ci.yml` has
-the nightly `schedule` and dispatches CI on `main`. `landing`'s `dev-build.yml` starts when a push's
-CI run on `main` finishes, because GitHub reads `workflow_run` only from the default branch. It builds
-that run's commit with `main`'s `build.yml` and `image.yml`, publishes the `dev` image when the
-run is green, and then posts the build to Discord with `main`'s `discord.yml`. Its other workflow
-files exist so the **Run workflow** button appears, and a run
-started on `landing` stops with an error.
+`origin` is `github.com/novis-lang/novis`, and its default branch is `main`. GitHub reads several
+files only from the default branch: the issue forms, the security policy, the Dependabot
+configuration, and the `schedule` and `workflow_run` triggers. So the nightly in `ci.yml` and
+[dev-build.yml](../.github/workflows/dev-build.yml) run only while `main` is the default.
+`dev-build.yml` starts when a push's CI run on `main` finishes. It builds that run's commit with
+`build.yml` and `image.yml`, publishes the `dev` image when the run is green, and then posts the
+build to Discord with `discord.yml`.
 
-Set `landing` in **Settings → General → Default branch**. Cut a release from the Actions tab with
-**Use workflow from → `main`**. The `plan` job refuses to run on any other ref, so a release cut from
-a topic branch or from `landing` is impossible rather than discouraged. Under **Settings →
-Environments → `github-pages`**, the deployment branches must include `main`.
+Set `main` in **Settings → General → Default branch**. Cut a release from the Actions tab on
+`main`. The `plan` job refuses to run on any other ref, so a release cut from a topic branch is
+impossible rather than discouraged. Under **Settings → Environments → `github-pages`**, the
+deployment branches must include `main`.
 
 `Cargo.toml`'s `repository` is `novis-lang/novis` and its `homepage` is `novis-lang.org`.
 `bun nv release` builds commit links from the first of those when it runs outside CI; inside CI the

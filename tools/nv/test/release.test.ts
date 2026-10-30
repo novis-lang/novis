@@ -315,9 +315,9 @@ describe("greenFullRun", () => {
     };
   };
 
-  test("a green run on landing does not count, because landing's ci.yml only dispatches CI on main", () => {
+  test("a green run on another branch does not count, because it ran that branch's ci.yml", () => {
     for (const event of ["schedule", "workflow_dispatch"]) {
-      expect(greenFullRun([ciRun({ event, head_branch: "landing" })], SHA)).toBeNull();
+      expect(greenFullRun([ciRun({ event, head_branch: "topic" })], SHA)).toBeNull();
     }
     expect(greenFullRun([ciRun({ head_branch: null })], SHA)).toBeNull();
   });

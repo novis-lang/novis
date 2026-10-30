@@ -1,7 +1,7 @@
 # The container images, from Linux archives `build.yml` already made in the same run.
 #
-# `release.yml` calls this with the version it released. The dev build (`dev-build.yml` on
-# `landing`) calls it with none once a push's CI run on `main` is green, to publish the `dev` image.
+# `release.yml` calls this with the version it released. The dev build (`dev-build.yml`) calls it
+# with none once a push's CI run on `main` is green, to publish the `dev` image.
 # One file builds both, so the `dev` image is made the way a release's is: the same Dockerfile, the
 # same staging, the same smoke test before any push.
 #

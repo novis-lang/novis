@@ -5,7 +5,7 @@ an image is the website's Docker guide,
 [website/src/content/docs/guides/production/docker.mdx](../website/src/content/docs/guides/production/docker.mdx).
 The release procedure is [docs/release.md](../docs/release.md). Every push to `main` whose CI run is
 green also publishes `:dev` and `:dev-debian`, from that push's release binaries. The dev build,
-`dev-build.yml` on the `landing` branch, runs after CI, and
+[dev-build.yml](../.github/workflows/dev-build.yml), runs after CI, and
 [image.yml](../.github/workflows/image.yml) builds both kinds of image.
 
 ## Building an image locally

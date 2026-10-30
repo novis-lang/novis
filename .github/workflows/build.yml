@@ -2,8 +2,7 @@
 #
 # `release.yml` calls this with the version it is about to release. The dev build calls it with no
 # version once a push's CI run on `main` has finished, so a tester can take that commit's binaries
-# from the dev build's artifacts. The dev build is `dev-build.yml` on `landing`, the default branch,
-# because GitHub starts a `workflow_run` only from there. One file builds both, so a push's archives
+# from the dev build's artifacts. The dev build is `dev-build.yml`. One file builds both, so a push's archives
 # come from the same targets, profile and packaging as a release's, and the two cannot drift apart
 # (`rule:testing/ci-lanes` says why a job is never defined twice).
 #

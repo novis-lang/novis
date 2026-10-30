@@ -81,10 +81,10 @@ describe("bun nv sweep: the disk and its own lines", () => {
 });
 
 describe("bun nv sweep: the nightly CI run", () => {
-  test("it asks gh for the dispatched runs of ci.yml on main, and nothing else", async () => {
+  test("it asks gh for the scheduled runs of ci.yml on main, and nothing else", async () => {
     const g = ghOf([{ databaseId: 1, status: "completed", conclusion: "success" }]);
     await sweep([], hook("nightly-ask", g.gh));
-    expect(g.asked).toEqual([["run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "workflow_dispatch", "--limit", "5", "--json", "databaseId,status,conclusion,url"]]);
+    expect(g.asked).toEqual([["run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "schedule", "--limit", "5", "--json", "databaseId,status,conclusion,url"]]);
   });
 
   test("a failed run writes one line per failed job with the run's URL", async () => {

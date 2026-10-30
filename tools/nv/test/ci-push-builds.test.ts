@@ -1,5 +1,5 @@
 // The release binaries and the container images are built by `build.yml` and `image.yml`, which the
-// release calls with its version and the dev build on `landing` calls with none, at the commit CI
+// release calls with its version and the dev build calls with none, at the commit CI
 // tested. The release's call of `ci.yml` grants every permission a job there asks for, which GitHub
 // checks when the run starts.
 

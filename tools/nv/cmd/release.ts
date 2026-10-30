@@ -683,9 +683,8 @@ export const FULL_CI_EVENTS = ["schedule", "workflow_dispatch"];
  * The first run of `ci.yml` in `runs` that ran every job on `sha` and finished green, or null. The sha is
  * compared whole: a prefix could name another commit.
  *
- * Only a run on `main` counts. `landing`, the default branch, has a `ci.yml` too, and GitHub lists its
- * runs under the same workflow: its nightly `schedule` and its **Run workflow** button only dispatch CI
- * on `main`, so a green run there tested nothing.
+ * Only a run on `main` counts. A `workflow_dispatch` on another branch tested that branch's
+ * workflow file, which is not the definition the release calls.
  */
 export function greenFullRun(runs: WorkflowRun[], sha: string): WorkflowRun | null {
   const want = sha.trim().toLowerCase();

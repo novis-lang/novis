@@ -1,0 +1,91 @@
+name: Dev build
+
+# When a push's CI run on `main` finishes, this builds that commit's release binaries and the VS Code
+# extension, kept 30 days as this run's artifacts. When the run is green, it also publishes the `dev`
+# image, and then posts the build to Discord. CI itself builds neither: its cache and its job slots
+# stay its own. The work is `build.yml`, `image.yml` and `discord.yml`, called at the commit the CI
+# run tested. GitHub reads a `workflow_run` trigger only from the default branch, which is `main`.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+# One dev build at a time, in push order. A newer push waits behind the running build, and replaces
+# an older one that is still waiting.
+concurrency:
+  group: dev-build
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: the commit, and whether CI passed
+    # A push's run only. A pull request from a fork may name its branch `main`, and its run then
+    # matches the filter above; its event is `pull_request`, so this stops it. A cancelled run was
+    # replaced by a newer push, which gets its own dev build.
+    if: >-
+      github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      green: ${{ steps.check.outputs.green }}
+    steps:
+      - id: check
+        name: The commit is on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          # `ahead` or `identical` means `main` contains the commit.
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...main" --jq .status)"
+          case "$status" in
+            ahead|identical) ;;
+            *) echo "::error::$SHA is not on main (compare says $status)"; exit 1 ;;
+          esac
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if [ "$CONCLUSION" = success ]; then
+            echo "green=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "green=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  binaries:
+    name: release binaries
+    needs: check
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.check.outputs.sha }}
+    permissions:
+      contents: read
+
+  image:
+    name: dev image
+    needs: [check, binaries]
+    if: needs.check.outputs.green == 'true'
+    uses: ./.github/workflows/image.yml
+    with:
+      ref: ${{ needs.check.outputs.sha }}
+    permissions:
+      contents: read
+      packages: write
+
+  # Posts the dev build to Discord once its image is pushed: `discord.yml` says what.
+  discord:
+    name: discord message
+    needs: [check, image]
+    uses: ./.github/workflows/discord.yml
+    with:
+      sha: ${{ needs.check.outputs.sha }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    permissions:
+      contents: read

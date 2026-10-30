@@ -13,8 +13,8 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-CI builds no release binaries. The dev build does, after CI: `dev-build.yml` on `landing` starts when
-a push's CI run on `main` finishes, and builds that run's commit through the release's own files.
+CI builds no release binaries. The dev build does, after CI: `dev-build.yml` starts when a push's CI
+run on `main` finishes, and builds that run's commit through the release's own files.
 `build.yml` holds the release binaries and the VS Code extension, and `image.yml` the container
 images; the dev build and `release.yml` both call them. Every finished run gets its binaries as the
 dev build's artifacts, and a green run also gets the `dev` image. What that spends: six cold release
