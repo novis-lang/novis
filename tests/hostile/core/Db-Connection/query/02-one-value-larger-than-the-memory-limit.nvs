@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a table has one value of forty million bytes, and the program reads it with a memory
+// limit of 16 MiB. The read should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table big (id integer primary key, body blob not null)', []);
+$db->execute('insert into big (body) values (?)', ['']);
+
+// 1. The program adds to the value one million bytes at a time, forty times.
+string $piece = Core\Str::repeat('x', 1000000);
+uint $i = 0;
+while ($i < 40) {
+    $db->execute('update big set body = body || ?', [$piece]);
+    $i = $i + 1;
+}
+echo "1 the value has forty million bytes\n";
+
+// 2. The program lowers its memory limit to 16 MiB.
+echo '2 memory: ', Core\Config::set('memory', '16M') ? 'changed' : 'refused', "\n";
+
+// 3. `query` keeps every value it reads in memory. This value does not fit, so this step stops
+// the program at its memory limit.
+echo "step 3\n";
+$db->query('select body from big', []);
+echo "3 a forty million byte value fitted in a 16 MiB limit\n";

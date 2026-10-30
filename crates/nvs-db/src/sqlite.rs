@@ -599,10 +599,14 @@ impl Drop for SqliteRows<'_> {
 /// One question for the thread a parked walk is holding.
 #[derive(Debug, Clone, Copy)]
 enum Step {
-    /// Prepare, bind and describe. Asked once, by [`SqliteConn::stream`].
-    Open,
-    /// Step the cursor once.
-    Next,
+    /// Prepare, bind and describe. Asked once, by [`SqliteConn::stream`], with
+    /// the request's headroom, which [`cap_length`] sets the walk's length
+    /// limit from.
+    Open(Option<usize>),
+    /// Step the cursor once, copying no more than the request's headroom
+    /// ([`read_row`]). The pool thread has no ceiling, so the request's thread
+    /// reads it for each step.
+    Next(Option<usize>),
     /// File `rule:core-classes/db-statement-members`'s deadline as `sqlite3_busy_timeout`, which on a
     /// connection a walk is holding only this thread can do —
     /// [`set_busy_timeout`] owns why.
@@ -1101,12 +1105,7 @@ impl SqliteConn {
                 // there is no half-written message to be lost in. This is the
                 // one driver whose failure path can honestly return to `Idle`.
                 self.state.set(State::Idle);
-                // The rows were freed on the pool thread, so this balance never
-                // held them. Asking for them here records the refusal on the
-                // thread whose poll reports the request's breach.
-                if let Some(Overran(held)) = e.get_ref().and_then(|why| why.downcast_ref()) {
-                    let _ = nvs_runtime::budget::affords(*held);
-                }
+                charge_overrun(&e);
                 Err(e)
             }
         }
@@ -1149,7 +1148,7 @@ impl SqliteConn {
         let owned = sql.to_owned();
         let walking = nvs_host::blocking::pin(move |asked| walk(&handle, &owned, &params, asked));
 
-        match walking.ask(Step::Open) {
+        match walking.ask(Step::Open(nvs_runtime::budget::headroom())) {
             Some(Answered::Opened(columns)) => {
                 self.state.set(State::Streaming);
                 let reading = self.reading.insert(SqliteCursor {
@@ -1166,6 +1165,7 @@ impl SqliteConn {
             // reason.
             Some(Answered::Failed(refused)) => {
                 self.state.set(State::Idle);
+                charge_overrun(&refused);
                 Err(refused)
             }
             Some(_) | None => {
@@ -1206,7 +1206,7 @@ impl SqliteConn {
             return Ok(None);
         };
         let answer = match reading.walk.as_ref() {
-            Some(walk) => walk.ask(Step::Next),
+            Some(walk) => walk.ask(Step::Next(nvs_runtime::budget::headroom())),
             None => return Ok(None),
         };
 
@@ -1225,6 +1225,7 @@ impl SqliteConn {
                 reading.walk = None;
                 reading.span.finished(None);
                 self.state.set(State::Idle);
+                charge_overrun(&refused);
                 Err(refused)
             }
             Some(Answered::Opened(_) | Answered::Bound) | None => {
@@ -1297,18 +1298,22 @@ impl SqliteConn {
 
         let handle = Arc::clone(&self.handle);
         let owned = sql.to_owned();
+        let headroom = nvs_runtime::budget::headroom();
         let applied = nvs_host::blocking::run(move || {
             let guard = lock(&handle);
-            let mut statement = guard.prepare_cached(&owned)?;
+            let capped = cap_length(&guard, headroom, sets.iter().flatten());
+            let mut statement = guard.prepare_cached(&owned).map_err(server_error)?;
             let mut affected = 0_u64;
             for set in &sets {
-                affected += statement.execute(rusqlite::params_from_iter(set))? as u64;
+                affected += statement
+                    .execute(rusqlite::params_from_iter(set))
+                    .map_err(|e| refused(e, capped))? as u64;
             }
             Ok(affected)
         });
 
         self.state.set(State::Idle);
-        applied.map_err(server_error)
+        applied.inspect_err(charge_overrun)
     }
 
     /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
@@ -1698,10 +1703,11 @@ impl std::error::Error for Overran {}
 ///
 /// **`headroom` is the caller's, because this thread has no ceiling.** It is
 /// what the request may still allocate ([`nvs_runtime::budget::headroom`]), and
-/// the rows are measured against it after each one is read. A result that
-/// grows past it stops with [`Overran`], so the pool thread holds at most one
-/// row more than the request could. The check is two thread-local reads per
-/// row. `None` steps to the end.
+/// each row is measured against what is left of it before its cells are copied
+/// ([`read_row`]). A result that would grow past it stops with [`Overran`], so
+/// the pool thread holds no more than the request could. The check is two
+/// thread-local reads per row and one comparison per cell. `None` steps to the
+/// end.
 fn step(
     handle: &Mutex<rusqlite::Connection>,
     inserted: &InsertedRow,
@@ -1710,6 +1716,7 @@ fn step(
     headroom: Option<usize>,
 ) -> io::Result<Read> {
     let guard = lock(handle);
+    let capped = cap_length(&guard, headroom, params.iter());
     let mut statement = guard.prepare_cached(sql).map_err(server_error)?;
     // Read before the statement runs, because what `sqlite3_changes` answers
     // afterwards is only this statement's where this statement changed rows.
@@ -1726,13 +1733,22 @@ fn step(
         .query(rusqlite::params_from_iter(params))
         .map_err(server_error)?;
     let start = nvs_runtime::budget::live_bytes();
-    while let Some(cells) = read_row(&mut cursor, width)? {
-        rows.push(cells);
-        if let Some(room) = headroom {
-            let held =
-                usize::try_from(nvs_runtime::budget::live_bytes().wrapping_sub(start)).unwrap_or(0);
-            if held > room {
-                return Err(io::Error::new(io::ErrorKind::OutOfMemory, Overran(held)));
+    loop {
+        let held =
+            usize::try_from(nvs_runtime::budget::live_bytes().wrapping_sub(start)).unwrap_or(0);
+        if headroom.is_some_and(|room| held > room) {
+            return Err(overran(held));
+        }
+        let left = headroom.map(|room| room - held);
+        match read_row(&mut cursor, width, left, capped) {
+            Ok(Some(cells)) => rows.push(cells),
+            Ok(None) => break,
+            Err(e) => {
+                // A row refused part way counts what the rows before it held.
+                return Err(match e.get_ref().and_then(|why| why.downcast_ref()) {
+                    Some(Overran(needed)) => overran(held.saturating_add(*needed)),
+                    None => e,
+                });
             }
         }
     }
@@ -1781,7 +1797,14 @@ fn walk(
     let Some(open) = asked.next_question() else {
         return;
     };
+    let Step::Open(headroom) = *open.question() else {
+        open.answer(Answered::Failed(io::Error::other(
+            "a SQLite walk was asked a step before it was opened",
+        )));
+        return;
+    };
     let guard = lock(handle);
+    let capped = cap_length(&guard, headroom, params.iter());
     let mut statement = match guard.prepare_cached(sql) {
         Ok(statement) => statement,
         Err(refused) => {
@@ -1808,7 +1831,7 @@ fn walk(
         // a question read through a borrow of it would still be borrowing it.
         let question = *step.question();
         match question {
-            Step::Next => match read_row(&mut cursor, width) {
+            Step::Next(room) => match read_row(&mut cursor, width, room, capped) {
                 Ok(Some(cells)) => step.answer(Answered::Row(cells)),
                 Ok(None) => break Some((step, Answered::Done)),
                 Err(refused) => break Some((step, Answered::Failed(refused))),
@@ -1821,7 +1844,7 @@ fn walk(
             // One walk is opened once, by [`SqliteConn::stream`], and it is the
             // question that got this frame running. A second is this crate's
             // paste error rather than anything a program can reach.
-            Step::Open => {
+            Step::Open(_) => {
                 break Some((
                     step,
                     Answered::Failed(io::Error::other(
@@ -1864,19 +1887,105 @@ fn describe(statement: &rusqlite::Statement<'_>) -> Vec<SqliteColumn> {
 ///
 /// # Errors
 ///
-/// [`server_error`] for anything SQLite refused mid-set, and `InvalidData` for a
-/// `TEXT` cell that is not UTF-8 ([`SqliteValue::read`]).
-fn read_row(cursor: &mut rusqlite::Rows<'_>, width: usize) -> io::Result<Option<Vec<SqliteValue>>> {
-    let Some(row) = cursor.next().map_err(server_error)? else {
+/// **Each cell is measured before it is copied.** `room` is what the request
+/// may still hold, and a row whose text and blob cells add up past it stops
+/// with [`Overran`] before the cell that crosses it is copied, so a single huge
+/// value is never held on this thread. `capped` is the length limit
+/// [`cap_length`] set, which [`refused`] reads.
+///
+/// # Errors
+///
+/// [`refused`] for anything SQLite refused mid-set, [`Overran`] for a row past
+/// `room`, and `InvalidData` for a `TEXT` cell that is not UTF-8
+/// ([`SqliteValue::read`]).
+fn read_row(
+    cursor: &mut rusqlite::Rows<'_>,
+    width: usize,
+    room: Option<usize>,
+    capped: Option<usize>,
+) -> io::Result<Option<Vec<SqliteValue>>> {
+    let Some(row) = cursor.next().map_err(|e| refused(e, capped))? else {
         return Ok(None);
     };
     let mut cells = Vec::with_capacity(width);
+    let mut needed = 0usize;
     for index in 0..width {
-        cells.push(SqliteValue::read(
-            row.get_ref(index).map_err(server_error)?,
-        )?);
+        let cell = row.get_ref(index).map_err(|e| refused(e, capped))?;
+        if let ValueRef::Text(bytes) | ValueRef::Blob(bytes) = cell {
+            needed = needed.saturating_add(bytes.len());
+            if room.is_some_and(|room| needed > room) {
+                return Err(overran(needed));
+            }
+        }
+        cells.push(SqliteValue::read(cell)?);
     }
     Ok(Some(cells))
+}
+
+/// The hard maximum of `SQLITE_LIMIT_LENGTH` in the bundled build, and the
+/// value a connection keeps while no ceiling holds the request.
+const LENGTH_MAX: usize = 1_000_000_000;
+
+/// Sets `SQLITE_LIMIT_LENGTH`, the longest string or blob a statement may
+/// build, to what the request may still hold, and returns that limit where it
+/// is the request's.
+///
+/// SQLite's own buffers are not counted against any request, so without this a
+/// `randomblob`, a `group_concat` or a stored value read into the engine could
+/// hold far more than the ceiling. The limit is the `headroom` plus the
+/// longest parameter, because a parameter is already held by the request and
+/// binding it must not fail. It is set on every statement, since a pooled
+/// connection serves requests with different ceilings. Cost: one call into
+/// SQLite per statement.
+fn cap_length<'a>(
+    connection: &rusqlite::Connection,
+    headroom: Option<usize>,
+    params: impl Iterator<Item = &'a SqliteValue>,
+) -> Option<usize> {
+    let longest = params
+        .map(|param| match param {
+            SqliteValue::Text(text) => text.len(),
+            SqliteValue::Blob(bytes) => bytes.len(),
+            SqliteValue::Null | SqliteValue::Int(_) | SqliteValue::Real(_) => 0,
+        })
+        .max()
+        .unwrap_or(0);
+    let limit = headroom.map_or(LENGTH_MAX, |room| {
+        room.saturating_add(longest).clamp(1, LENGTH_MAX)
+    });
+    let value = i32::try_from(limit).unwrap_or(i32::MAX);
+    // `sqlite3_limit` cannot fail on a valid category, so the result is only
+    // the previous value.
+    let _ = connection.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH, value);
+    (limit < LENGTH_MAX).then_some(limit)
+}
+
+/// [`server_error`], except that a `SQLITE_TOOBIG` under a limit
+/// [`cap_length`] set from the request's headroom is [`Overran`]: the value
+/// was larger than the request could hold, which is its memory limit and not
+/// the statement's fault.
+fn refused(error: rusqlite::Error, capped: Option<usize>) -> io::Error {
+    if let (Some(limit), rusqlite::Error::SqliteFailure(failure, _)) = (capped, &error)
+        && failure.code == rusqlite::ErrorCode::TooBig
+    {
+        return overran(limit.saturating_add(1));
+    }
+    server_error(error)
+}
+
+/// The error a read past the request's headroom stops with.
+fn overran(held: usize) -> io::Error {
+    io::Error::new(io::ErrorKind::OutOfMemory, Overran(held))
+}
+
+/// Records the breach for an [`Overran`] the pool thread stopped with, on the
+/// request's thread, whose poll reports it. The bytes were freed on the pool
+/// thread, so this balance never held them, and asking for them is what
+/// refuses.
+fn charge_overrun(error: &io::Error) {
+    if let Some(Overran(held)) = error.get_ref().and_then(|why| why.downcast_ref()) {
+        let _ = nvs_runtime::budget::affords(*held);
+    }
 }
 
 /// `rule:core-classes/db-statement-members`'s statement deadline, spelled as the only wait this backend

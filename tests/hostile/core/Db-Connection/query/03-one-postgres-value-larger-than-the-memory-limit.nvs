@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a PostgreSQL server sends one value of forty million bytes to a program with a memory
+// limit of 16 MiB. The read should stop the program at its memory limit.
+// requires: postgres
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+var $db = Core\Db::connect('main');
+
+// 1. The program lowers its memory limit to 16 MiB.
+echo '1 memory: ', Core\Config::set('memory', '16M') ? 'changed' : 'refused', "\n";
+
+// 2. The server builds the value, so the program holds nothing before it reads. The value does
+// not fit, so this step stops the program at its memory limit.
+echo "step 2\n";
+$db->query("select repeat('x', 40000000) as body", []);
+echo "2 a forty million byte value fitted in a 16 MiB limit\n";

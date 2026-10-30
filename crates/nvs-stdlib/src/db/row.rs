@@ -64,8 +64,15 @@ pub(super) fn rows_class(
 /// the very array the receiver holds, or — where [`rows_class`] named one — an
 /// instance of the class `queryAs<T>`'s call site wrote.
 ///
+/// **Each row asks the request's ceiling first.** `all`, `iterate` and a
+/// `queryAs` build one object per row in a loop that reaches no poll, so a
+/// request already past its ceiling, or refused a growth, stops here with the
+/// memory `FATAL` before the next object. The check is three thread-local reads
+/// per row.
+///
 /// # Errors
 ///
+/// The memory `FATAL` once the request holds more than its ceiling,
 /// [`hydrate`]'s, for the second shape, and a [`Fault::fatal`] for a row slot
 /// holding anything but an array, which is [`row_at`]'s paste error.
 pub(super) fn row_object(
@@ -74,6 +81,13 @@ pub(super) fn row_object(
     class: Option<*const nvs_runtime::ClassDesc>,
     member: &str,
 ) -> Result<Value, Fault> {
+    if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
+        return Err(ctx.memory_breach().unwrap_or_else(|| {
+            Fault::fatal(format!(
+                "{ROWS_NAME}::{member}: the rows do not fit in the request's memory limit"
+            ))
+        }));
+    }
     let Some(class) = class else {
         return Ok(crate::instance::build(&ROW, [owned(row)]));
     };

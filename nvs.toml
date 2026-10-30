@@ -1241,6 +1241,24 @@ entry = "tests/hostile/core/Db-Connection/query/01-values-that-do-not-match-and-
 connect = ["notes"]
 
 [[app]]
+entry = "tests/hostile/core/Db-Connection/query/02-one-value-larger-than-the-memory-limit.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/query/03-one-postgres-value-larger-than-the-memory-limit.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/query/04-one-sql-server-value-larger-than-the-memory-limit.nvs"
+
+[app.capabilities.db]
+connect = ["mssql"]
+
+[[app]]
 entry = "benches/members/core/Db-Connection/query.nvs"
 
 [app.capabilities.db]

@@ -600,6 +600,46 @@ impl<S: Read + Write> Wire<S> {
         result
     }
 
+    /// The length of the frame at the head of the inbox, tag included, once
+    /// its five-byte header has arrived.
+    fn frame_len(&self) -> Option<usize> {
+        let header = self.inbox.get(..5)?;
+        let length = u32::from_be_bytes([header[1], header[2], header[3], header[4]]);
+        Some(1 + length as usize)
+    }
+
+    /// Asks the request's budget before the inbox grows to `wanted` bytes,
+    /// and makes that room.
+    ///
+    /// [`Self::read_message`] asks for a whole frame once its header has
+    /// arrived, before `Message::parse` reserves it. So a frame that declares
+    /// more than the request can hold is refused before any of it is read, and
+    /// a large one is not copied at each doubling. The ask is for the whole
+    /// new block, at least twice the old capacity, because the old block is
+    /// held while it is copied. Cost: one comparison per read that fits.
+    ///
+    /// # Errors
+    ///
+    /// `OutOfMemory` when the request cannot afford the growth. The breach is
+    /// recorded, so the request ends at its next poll, and the connection is
+    /// not reused: the rest of the frame is still on the wire.
+    fn grow_inbox(&mut self, wanted: usize) -> io::Result<()> {
+        let filled = self.inbox.len();
+        let capacity = self.inbox.capacity();
+        if wanted <= capacity {
+            return Ok(());
+        }
+        if !nvs_runtime::budget::affords(wanted.max(capacity.saturating_mul(2))) {
+            self.stalled = false;
+            return Err(io::Error::new(
+                io::ErrorKind::OutOfMemory,
+                format!("a message of {wanted} bytes is larger than the request's memory limit"),
+            ));
+        }
+        self.inbox.reserve(wanted - filled);
+        Ok(())
+    }
+
     /// Reads until the inbox holds a whole message, and takes it.
     ///
     /// Bytes that arrived after this message — or the head of one that has not
@@ -611,6 +651,12 @@ impl<S: Read + Write> Wire<S> {
     /// frame that does not decode, and whatever the stream reported.
     pub(crate) fn read_message(&mut self) -> io::Result<backend::Message> {
         loop {
+            // Asked before the parse, because `Message::parse` reserves the
+            // whole frame its header declares.
+            let frame = self.frame_len();
+            if let Some(total) = frame {
+                self.grow_inbox(total)?;
+            }
             if let Some(message) = backend::Message::parse(&mut self.inbox).inspect_err(|_| {
                 self.stalled = false;
             })? {
@@ -618,7 +664,13 @@ impl<S: Read + Write> Wire<S> {
             }
 
             let filled = self.inbox.len();
-            self.inbox.resize(filled + READ_CHUNK, 0);
+            // A read stops at the end of a known frame, so the room asked for
+            // that frame is never asked for again.
+            let window = frame.map_or(READ_CHUNK, |total| {
+                total.saturating_sub(filled).clamp(1, READ_CHUNK)
+            });
+            self.grow_inbox(filled + window)?;
+            self.inbox.resize(filled + window, 0);
             let read = self.stream.read(&mut self.inbox[filled..]);
             // Restore the length before the `?`: a failed read must not leave
             // the inbox claiming the zeroes it was given room in.
@@ -2308,6 +2360,22 @@ impl PgColumn {
                 },
                 _ => self.unquoted(text, at)?,
             };
+            if items.len() == items.capacity() {
+                // An element is many times the bytes of its text, so the list
+                // asks the request's budget for each new block, old and new
+                // held at once. A refusal has recorded the breach.
+                let grown = items.capacity().max(2) * 2;
+                if !nvs_runtime::budget::affords(grown * std::mem::size_of::<PgScalar<'_>>()) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::OutOfMemory,
+                        format!(
+                            "column \"{}\": an array larger than the request's memory limit",
+                            self.name
+                        ),
+                    ));
+                }
+                items.reserve_exact(grown - items.len());
+            }
             items.push(item);
             skip_space(bytes, at);
 

@@ -840,6 +840,19 @@ impl<S: Read + Write> Walk<'_, S> {
                 continue;
             }
             let take = left.min(self.reading.buffer.len() - self.reading.at);
+            let wanted = out.len() + take;
+            // Every value of the row lands in `out`, so this is the one place
+            // a long or `PLP` value asks the request's budget as it grows. The
+            // ask is the whole new block, old and new held at once. A refusal
+            // has recorded the breach, and the request ends at its next poll.
+            if wanted > out.capacity()
+                && !nvs_runtime::budget::affords(wanted.max(out.capacity().saturating_mul(2)))
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::OutOfMemory,
+                    format!("a row of {wanted} bytes is larger than the request's memory limit"),
+                ));
+            }
             let at = self.reading.at;
             out.extend_from_slice(&self.reading.buffer[at..at + take]);
             self.reading.at += take;

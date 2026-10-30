@@ -1133,8 +1133,10 @@ fallible-iterator = "0.2"
 # whoever wrote it. `crates/nvs-db/src/sqlite.rs` § *Which statement inserted a
 # row* is the choice and what it costs. The feature is Rust alone -- it adds no
 # C to the graph, since the amalgamation `bundled` compiles already carries the
-# hook.
-rusqlite = { version = "0.41", features = ["bundled", "column_decltype", "hooks"] }
+# hook. `limits` is the fourth, and is Rust alone too: `sqlite3_limit` caps the
+# longest string or blob a statement builds at what the request may still hold
+# (`crates/nvs-db/src/sqlite.rs`'s `cap_length`).
+rusqlite = { version = "0.41", features = ["bundled", "column_decltype", "hooks", "limits"] }
 
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in nvs-diagnostics (the output format is
