@@ -26,7 +26,7 @@ stages:
     context: [.github/workflows/ci.yml, tests/db/compose.yaml, tools/nv/cmd/ci-changes.ts, tools/nv/cmd/ci.ts, docs/setup.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: engine-guards
@@ -382,11 +382,11 @@ the failures by cause. A group whose fix touches files no other group touches ma
 subagent. Such subagents run side by side, and none of them builds.
 
 - [x] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
   - [x] `Core\Cldr`'s plural rules are CLDR 49's, so `plural_rules_agree_with_core_cldr_on_its_whole_roster` passes.
   - [x] The body wait ends with the body, as the standing decision says, with a server test for the reproduced shape.
   - [x] `the_publishing_commands_work_against_the_registry_service` and `the_website_shows_a_published_package_and_search_finds_it_once_released` pass, run once by name.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -412,27 +412,25 @@ Stages 1 to 5 are done. Stage 6's first verify ran on 2026-10-30. It passed ever
 The sweep finding `env-secret-proofs` is stale: its log shows exit 0. No goal file or
 `looper.toml` defines that check, so nothing in the tree can clear it.
 
-The second `bun nv affected --run` was started at the end of this session. Its report starts the
-next session.
+The second verify (`bun nv affected --run`) is green: 23 of 23 steps, 8248 tests and 3173
+conformance cases. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes
+dependency-sweep` (no gap) and `bun nv ci --check`. `ci --check` first found two reds, both fixed:
+- Five extension reference pages' questions were stale, because the engine bump repacked their
+  example `.nvsx` and changed a `sha256` line. No question depends on it, so they are restamped.
+- The two `Core\Cldr` benches declared `calls 0`. Since commit `4beafef13` a Core member called
+  through a runtime helper counts as one call, so they declare `calls 1` and are measured again.
+
+`bun nv deps --check` exits 0: 319 pins current, 18 held, 4 floating. `pack.rs` now says why
+`canonical_names` is `false`, so every standing decision has a home outside this file.
 
 ### Next
 
-Stage 6: read the verify report, fix every failure in one pass, and run it once more. Then the
-goal-end gates: `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and
-`bun nv ci --check`, which now runs nine advisory legs.
+The goal is reached. The driver runs the acceptance checks and retires it. `editors/vscode/`
+changed, so the goal-end hook rebuilds the `.vsix`, and `bun nv relink --build --hook` rebuilds the
+release binary.
 
-- [ ] Read the report of the `bun nv affected --run` this session started, and group the failures by cause. `tools/nv/cmd/ci.ts:103`
-- [ ] Fix each group, never loosening a test, and run each fixed test once by name. `crates/nvs-ext/tests/spreadsheet_read.rs:844`
-- [ ] Run `bun nv affected --run` again if anything was fixed, and it is green. `tools/nv/cmd/ci.ts:103`
-- [ ] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
-
-Steps 19 to 23 of verify have not run yet, so they can still fail. Possible red in the next run:
-`a_header_of_every_column_equal_is_numbered_in_linear_time`
-(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) under load. It passed in this run, but it took
-12.6 s against its 10 s bound in stage 1. If it fails, bound the work with a count, never with a
-longer time. The database matrix runs on the new images for the first time. For Samba, recreate
-the service as the playbook's `Core\Ldap` bullet says. `editors/vscode/` changed, so the goal-end
-hook rebuilds the `.vsix`.
+- [x] Read the second verify's report: green. `tools/nv/cmd/ci.ts:103`
+- [x] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
 
 ### Backlog
 
