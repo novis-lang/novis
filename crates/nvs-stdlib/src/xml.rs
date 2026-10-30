@@ -3045,7 +3045,8 @@ impl Pen {
     ///
     /// # Errors
     ///
-    /// [`Self::count`]'s.
+    /// [`Self::count`]'s, and a `FATAL` where the lead does not fit in the
+    /// request's memory limit.
     fn lead(&self, depth: usize) -> Result<(), Fault> {
         let held = crate::instance::slot(self.object, INDENT_SLOT);
         let indent = held
@@ -3054,7 +3055,17 @@ impl Pen {
         if indent.is_empty() || self.count(MIXED_SLOT)? != 0 {
             return Ok(());
         }
-        let mut lead = String::with_capacity(1 + indent.len() * depth);
+        // A long indent at a deep level is a long lead, so its buffer asks the
+        // request's memory limit before it is made. The refusal is recorded,
+        // so the program sees the memory limit's own message.
+        let size = indent.len().saturating_mul(depth).saturating_add(1);
+        if !nvs_runtime::budget::affords(size) {
+            return Err(Fault::fatal(format!(
+                "{}: the indentation does not fit in the request's memory limit",
+                self.member
+            )));
+        }
+        let mut lead = String::with_capacity(size);
         lead.push('\n');
         for _ in 0..depth {
             lead.push_str(indent);

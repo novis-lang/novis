@@ -1,6 +1,8 @@
 <?nvs
 // Attack: a program calls the writer in the wrong order, with bad names and text, and nests very deep.
 // Each wrong call should throw a `LogicError`, and the writer should never write a broken document.
+// The last step should stop the program at its memory limit.
+// hostile: ends-early 9 FATAL
 // hostile: timeout-ms 20000
 
 class Try
@@ -77,3 +79,16 @@ echo Core\Str::length($big->endDocument()), "\n";
 
 // 8. Writing after `endDocument`. This prints LogicError.
 Try::call(fn(): void => { $big->startElement('again'); });
+
+// 9. An indent of one million spaces, with elements nested one hundred levels deep.
+// The indented document is far larger than the memory limit. The program stops at that limit.
+Core\Config::set('memory', '64M');
+echo "step 9\n";
+Core\Xml\Writer $wide = Core\Xml::writer({ indent: Core\Str::repeat(' ', 1000000) });
+$wide->startDocument();
+$i = 0;
+while ($i < 100) {
+    $wide->startElement('a');
+    $i = $i + 1;
+}
+echo "the whole document was written\n";
