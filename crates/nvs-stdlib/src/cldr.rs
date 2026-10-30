@@ -2788,9 +2788,7 @@ impl OrdinalSet {
             // few: i % 10 = 3,4 and i % 100 != 13,14
             Self::Bulgarian if at.i % 10 == 1 && at.i % 100 != 11 => One,
             Self::Bulgarian if at.i % 10 == 2 && at.i % 100 != 12 => Two,
-            Self::Bulgarian if matches!(at.i % 10, 3 | 4) && !matches!(at.i % 100, 13 | 14) => {
-                Few
-            }
+            Self::Bulgarian if matches!(at.i % 10, 3 | 4) && !matches!(at.i % 100, 13 | 14) => Few,
             Self::Bulgarian => Other,
 
             // one: n % 10 = 1,3 and n % 100 != 11

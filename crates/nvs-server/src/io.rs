@@ -845,9 +845,17 @@ mod tests {
         // EOF probe reads while the program runs does not put it back.
         io.phase().set(Phase::Run);
         io.arm(false);
-        assert_eq!(deadline(&mut io), None, "a running program kept a socket wait");
+        assert_eq!(
+            deadline(&mut io),
+            None,
+            "a running program kept a socket wait"
+        );
         io.arm(true);
-        assert_eq!(deadline(&mut io), None, "a probe's byte armed a socket wait");
+        assert_eq!(
+            deadline(&mut io),
+            None,
+            "a probe's byte armed a socket wait"
+        );
 
         io.phase().set(Phase::KeepAlive);
         io.arm(false);
