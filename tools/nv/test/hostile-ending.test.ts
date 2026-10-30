@@ -98,6 +98,46 @@ describe("an attack that ends early", () => {
   });
 });
 
+describe("an attack that ends at its memory limit", () => {
+  const MIB = 1024 * 1024;
+  const fatal = (held: number, ceiling: number) =>
+    `FATAL: the program exceeded its memory limit — ${held} bytes held against a ceiling of ${ceiling}, when an allocation of 64 bytes was refused\n`;
+  const atCeiling = (held: number, ceiling: number) => judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", fatal(held, ceiling)));
+
+  test("a memory FATAL within the bound passes", () => {
+    expect(atCeiling(305_030_518, 256 * MIB)).toEqual(["ok", ""]);
+    expect(atCeiling(1.5 * 256 * MIB + 8 * MIB, 256 * MIB)).toEqual(["ok", ""]);
+  });
+
+  test("a memory FATAL past 1.5x its ceiling fails and names the reading and the ceiling", () => {
+    const [verdict, why] = atCeiling(21_127_622_806, 268_435_456);
+    expect(verdict).toBe("fail");
+    expect(why).toContain("held 21127622806 bytes");
+    expect(why).toContain("against a ceiling of 268435456");
+    expect(why).toContain("78.71x");
+    expect(atCeiling(1.5 * 256 * MIB + 8 * MIB + 1, 256 * MIB)[0]).toBe("fail");
+    // The server's memory filling first names no ceiling, and the request's own ceiling never stopped it.
+    const full = "FATAL: the server's memory is full, so the request was stopped while it held 9000000000 bytes\n";
+    expect(judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", full))[1]).toContain("the server's memory filled");
+  });
+
+  test("a small ceiling gets the 8 MiB allowance", () => {
+    expect(atCeiling(27_067, 1)).toEqual(["ok", ""]);
+    expect(atCeiling(8 * MIB, 1)).toEqual(["ok", ""]);
+    expect(atCeiling(9 * MIB, 1)[0]).toBe("fail");
+  });
+
+  test("a program the host killed counts as red", () => {
+    const [verdict, why] = judge("ends-early 3 FATAL", ran(9, "caught\nstep 3\n", ""));
+    expect(verdict).toBe("fail");
+    expect(why).toContain("the host ran out of memory");
+    const signalled: Ran = { ...ran(-1, "caught\n", ""), signal: "SIGKILL" };
+    expect(judge("ends-early 3 FATAL", signalled)[1]).toContain("the host ran out of memory");
+    // A program that ends with `exit(9)` itself is judged by its own ending.
+    expect(judge("ends-early 3 exit", ran(9, "caught\nstep 3\n", ""))).toEqual(["ok", ""]);
+  });
+});
+
 describe("an attack that runs under nvs test", () => {
   const tested = "<?nvs\n// Attack: a test is given a very large input.\n// proof: test\n";
   const judgeTest = (out: Ran) => judgeHostile(PATH, tested, out, 10_000, false);

@@ -12,6 +12,9 @@
 //     bun nv proofs --verify               --gate, then --run, for each scope in one pass
 //     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
 //                                          line, its output, its exit status and time
+//     bun nv proofs --overshoot            run every attack whose `ends-early` names `FATAL`, two at a time,
+//                                          and print how far past its memory ceiling each got, worst
+//                                          first; exit 1 when one is past the bound or the host killed it
 //     bun nv proofs --bless FILE...        write each example's `.out` from what it prints, and show it
 //     bun nv proofs --comments PATH...     judge the comments of these programs and `details.md` files, or
 //                                          of every one under a directory, against the plain-comment
@@ -59,18 +62,18 @@ import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, known
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { newestNvs } from "../lib/nvs-binary.ts";
-import { bless, namedBinary, type Pass, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { bless, namedBinary, overshootScan, type Pass, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
   "                 [--only-as LABEL ID [ID ...]]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate] [--no-skip PROOF]",
-  "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
+  "                 [--run] [--verify] [--overshoot] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
   "                 [--record-perf] [--reps REPS] [--force] [--note NOTE] [--no-callgrind]",
@@ -439,7 +442,7 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: blessed } = takeList(rest, "--bless"));
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
-      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--no-callgrind"],
+      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--overshoot", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--no-callgrind"],
       valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip"],
     }));
     const noSkip = values.get("--no-skip");
@@ -487,7 +490,7 @@ export async function run(args: string[]): Promise<number> {
   }
   const measures = flags.has("--record-perf");
   if (flags.has("--perf-report") && !measures) return flush(perfReport(out));
-  const executes = blessed !== null || flags.has("--run") || flags.has("--verify");
+  const executes = blessed !== null || flags.has("--run") || flags.has("--verify") || flags.has("--overshoot");
   let bin: Binary | null = null;
   const named = values.get("--nvs");
   if ((executes || measures) && named === undefined) {
@@ -504,6 +507,7 @@ export async function run(args: string[]): Promise<number> {
     return flush(1);
   }
   if (executes && bin === null) bin = namedBinary(nvs);
+  if (flags.has("--overshoot")) return flush(await overshootScan(nvs, out));
   if (blessed !== null) {
     const done = await bless(nvs, blessed.map(repoPath));
     out.push(...done.lines);

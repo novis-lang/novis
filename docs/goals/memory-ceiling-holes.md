@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/abi.rs, tools
 stages:
   - id: 1
     title: "the attack checker fails a memory FATAL past 1.5x its ceiling, and bun nv proofs --overshoot lists every attack's reading"
-    status: open
+    status: done
     context: [tools/nv/proofs/run.ts, tools/nv/cmd/proofs.ts, tools/nv/test/hostile-ending.test.ts, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 2
     title: "a memory FATAL names the peak the request held, and a debug build stops a member that passes its ceiling inside one call"
@@ -135,6 +135,10 @@ is never raised to make an attack pass: a site that needs a reallocation asks fo
 (old and new held at once), as `Encode::put` does. The bound is a constant in `run.ts`, and its doc
 comment says why it is 1.5.
 
+**A server-full `FATAL` in an attack is red.** That line names no ceiling. In a proof run the request
+is the only one, so the server's memory filling first means the request's own ceiling never stopped
+it. No attack targets the server's limit, and the scan saw none of these lines.
+
 **The reading is the peak.** Stage 2 makes `budget` remember the highest balance since the breach. It
 costs nothing under the ceiling, because the tracking runs only on the path that has already crossed
 it. The `FATAL` reports that peak, so a member that grew to 20 GB and freed most of it before the poll
@@ -225,12 +229,12 @@ the fixtures the member's attacks already use. Attacks are text an end user read
 **Does:** the oracle reads the number, and the scan is a command. Once this lands, the attacks in the
 table above go red. That is expected: this goal's later stages turn them green.
 
-- [ ] `judgeHostile` parses `N bytes held against a ceiling of C` and the "server's memory is full" line, and fails past `1.5 x C + 8 MiB`, naming both numbers. The bound is one exported constant with its reason. `tools/nv/proofs/run.ts:822`
-- [ ] An exit of 9 or a signal with no reading fails as "the host ran out of memory". `tools/nv/proofs/run.ts:844`
-- [ ] `bun nv proofs --overshoot` runs every attack whose `ends-early` names `FATAL`, two at a time through `spawnProof` and `proofArgv`, and prints worst first. Exit 1 past the bound or on a killed program. `USAGE` and the module doc name it. `tools/nv/cmd/proofs.ts:8`, `tools/nv/proofs/run.ts:622`
-- [ ] The four tests the `overshoot-judge` check names. Run once by name: `bun test tools/nv/test/hostile-ending.test.ts`. `tools/nv/test/hostile-ending.test.ts:1`
-- [ ] Delete `.agent-tmp/overshoot/`. `.agent-tmp/overshoot/scan.ts:1`
-- [ ] Replace the playbook bullet on `floor-debt`'s red atom with one line: the checker now reads the number. `docs/agent/playbook.md:92`
+- [x] `judgeHostile` parses `N bytes held against a ceiling of C` and the "server's memory is full" line, and fails past `1.5 x C + 8 MiB`, naming both numbers. The bound is one exported constant with its reason. `tools/nv/proofs/run.ts:822`
+- [x] An exit of 9 or a signal with no reading fails as "the host ran out of memory". `tools/nv/proofs/run.ts:844`
+- [x] `bun nv proofs --overshoot` runs every attack whose `ends-early` names `FATAL`, two at a time through `spawnProof` and `proofArgv`, and prints worst first. Exit 1 past the bound or on a killed program. `USAGE` and the module doc name it. `tools/nv/cmd/proofs.ts:8`, `tools/nv/proofs/run.ts:622`
+- [x] The four tests the `overshoot-judge` check names. Run once by name: `bun test tools/nv/test/hostile-ending.test.ts`. `tools/nv/test/hostile-ending.test.ts:1`
+- [x] Delete `.agent-tmp/overshoot/`. `.agent-tmp/overshoot/scan.ts:1`
+- [x] Replace the playbook bullet on `floor-debt`'s red atom with one line: the checker now reads the number. `docs/agent/playbook.md:92`
 
 ### 2. a memory FATAL names the peak the request held, and a debug build stops a member that passes its ceiling inside one call
 
@@ -329,22 +333,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built. The goal file is written, and stage 1 is next. The 2026-10-30 scan's results are in
-`.agent-tmp/overshoot/results.json`, and the table in § *Why* is its summary.
+Stage 1 is done. `judgeHostile` fails a memory reading past `overshootBound` (`OVERSHOOT_FACTOR`,
+`OVERSHOOT_SLACK_BYTES` in `tools/nv/proofs/run.ts`), a server-full `FATAL`, and a program the host
+killed with no reading. `Ran` carries the `signal`. An exit of 9 or 137 counts as a host kill only in
+an attack whose ending is `FATAL`, because `tests/hostile/core/Script/onExit/01-*.nvs` calls `exit(9)`
+itself. `overshoot-judge`'s tests pass (13 in the file).
+
+`bun nv proofs --overshoot --nvs target/release/nvs.exe` ran: 225 attacks, 211 with a reading, 14
+stopped at another limit. It exits 1 on 9 red, worst first: `Task/map` 78.71x, `Str/join` 61.04x,
+`Compress-Compressor/finish` 32.05x, `lang/concurrency/core-task-map-one-task-per-element` 31.55x,
+`Compress-Compressor/add` 8.02x, `Compress/compressor` 4.02x, `Uri/encodeComponent` and
+`Uri/encodeFormValue` 3.73x, `Bytes/unpack` 2.00x. The Serialize encode attack the host killed before
+read within the bound this run.
+
+Those 9 attacks are red in `bun nv proofs --run`, and so are the floor's `floor-debt` and
+`proofs-gate`, until stages 4 and 5 fix them. The sweep's `env-secret-proofs` red was stale: no check
+by that name is defined, and `bun nv proofs --gate --only 'Core\Env::secret'` owes nothing.
 
 ### Next
 
-Stage 1, one group: `tools/nv/proofs/run.ts`, `tools/nv/cmd/proofs.ts` and
-`tools/nv/test/hostile-ending.test.ts`. No gate.
+Stage 2, one group: `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/limits.rs` and
+`crates/nvs-runtime/src/abi.rs`. No gate.
 
-- [ ] `judgeHostile` reads the reading and fails past the bound. `tools/nv/proofs/run.ts:822`
-- [ ] A host-killed program is red. `tools/nv/proofs/run.ts:844`
-- [ ] `bun nv proofs --overshoot`. `tools/nv/cmd/proofs.ts:8`
-- [ ] The four tests, run once by name. `tools/nv/test/hostile-ending.test.ts:1`
-- [ ] Delete `.agent-tmp/overshoot/`. `.agent-tmp/overshoot/scan.ts:1`
-- [ ] The playbook bullet. `docs/agent/playbook.md:92`
+- [ ] `budget::add` keeps the peak since the breach, on the over-ceiling path only. `crates/nvs-runtime/src/budget.rs:1243`
+- [ ] `memory_fault` reports the peak. `crates/nvs-runtime/src/ctx/limits.rs:628`
+- [ ] `run_helper`'s debug backstop. `crates/nvs-runtime/src/abi.rs:496`
+- [ ] The two `past_its_ceiling` tests, run once: `cargo test --lib past_its_ceiling`. `crates/nvs-runtime/src/budget.rs:1161`
+- [ ] The budget module doc's cost paragraph. `crates/nvs-runtime/src/budget.rs:1`
 
-Once stage 1 lands, the attacks in § *Why*'s table are red, and so are the floor's `floor-debt` and
-`proofs-gate`. They stay red until stages 4 to 6 fix them.
+Once the peak is reported, readings rise, so expect more attacks past the bound in `--overshoot`. The
+debug backstop may turn Rust tests that set a ceiling red. Each one it names is a member for stages 4
+to 8, not a test to loosen.
 
 ### Backlog

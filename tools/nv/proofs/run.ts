@@ -36,7 +36,7 @@ import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
 import { linked, pinned, RELEASE_ARGV } from "../lib/relink.ts";
-import { gapTitle, knownGap } from "./collect.ts";
+import { gapTitle, knownGap, walk } from "./collect.ts";
 import { read } from "./roster.ts";
 
 export type What = "examples" | "hostile";
@@ -267,6 +267,68 @@ const CRASH_MARKERS = [
 const EXAMPLE_TIMEOUT_MS = 60_000;
 export const HOSTILE_TIMEOUT_MS = 10_000;
 
+/** How far past its ceiling a request may get before its memory `FATAL` is red: 1.5 times the ceiling,
+ * plus `OVERSHOOT_SLACK_BYTES`. The ceiling is checked at a poll, so a request legitimately reads a little
+ * over it: the one allocation the poll comes after, and a reallocation that holds the old block and the
+ * new one at once. The worst such reading measured is 1.14x, so 1.5 has room for that and none for a
+ * member that grows a buffer the budget never sees. The bound is never raised to make an attack pass. */
+export const OVERSHOOT_FACTOR = 1.5;
+/** The allowance on top of `OVERSHOOT_FACTOR`, for an attack that sets a ceiling of a few bytes: the
+ * runtime's own bytes at the first poll are more than such a ceiling. */
+export const OVERSHOOT_SLACK_BYTES = 8 * 1024 * 1024;
+/** The highest reading a memory `FATAL` may carry against `ceiling` and still be green. */
+export const overshootBound = (ceiling: number) => OVERSHOOT_FACTOR * ceiling + OVERSHOOT_SLACK_BYTES;
+/** The reading of a memory `FATAL`: `N bytes held against a ceiling of C`. */
+const HELD_RE = /([0-9]+) bytes held against a ceiling of ([0-9]+)/g;
+/** The reading of a `FATAL` that the server's own memory limit raised, which names no ceiling. */
+const FULL_RE = /the server's memory is full, so the request was stopped while it held ([0-9]+) bytes/;
+/** The exit statuses a host's out-of-memory killer leaves: 9 is `SIGKILL`'s number, and 137 is a shell's
+ * `128 + 9`. */
+const HOST_KILLED_EXITS = [9, 137];
+
+/** How far a run got into its memory: the worst `held`/`ceiling` reading it printed, or the server's
+ * memory filling (`full`, which has no ceiling), or null when it printed neither. */
+export interface MemoryReading {
+  held: number;
+  ceiling: number | null;
+}
+
+/** The worst memory reading in a run's output. A server-full reading is worse than any ceiling reading,
+ * because the request's own ceiling never stopped it. */
+export function memoryReading(out: Ran): MemoryReading | null {
+  const blob = out.stderr + out.stdout;
+  const full = FULL_RE.exec(blob);
+  if (full) return { held: Number(full[1]), ceiling: null };
+  let worst: MemoryReading | null = null;
+  for (const m of blob.matchAll(HELD_RE)) {
+    const reading = { held: Number(m[1]), ceiling: Number(m[2]) };
+    if (worst === null || reading.held / Math.max(1, reading.ceiling) > worst.held / Math.max(1, worst.ceiling!)) worst = reading;
+  }
+  return worst;
+}
+
+/** Why a reading is red, or null when it is within `overshootBound`. A run with no ceiling of its own in
+ * the reading filled the server's memory: in a proof run the request is the only one, so its own ceiling
+ * let it through. */
+export function overshoot(reading: MemoryReading): string | null {
+  const mb = (n: number) => `${(n / 1048576).toFixed(1)} MiB`;
+  if (reading.ceiling === null) {
+    return `the server's memory filled while the request held ${reading.held} bytes (${mb(reading.held)}), so its own ceiling never stopped it`;
+  }
+  if (reading.held <= overshootBound(reading.ceiling)) return null;
+  return (
+    `held ${reading.held} bytes (${mb(reading.held)}) against a ceiling of ${reading.ceiling} (${mb(reading.ceiling)}), ` +
+    `${(reading.held / reading.ceiling).toFixed(2)}x -- past the bound of ${OVERSHOOT_FACTOR}x the ceiling plus ${mb(OVERSHOOT_SLACK_BYTES)}`
+  );
+}
+
+/** Whether the host killed the program. With no memory reading of its own, that means the host ran out
+ * of memory before the request's ceiling stopped it. A status of 9 or 137 counts only for an attack that
+ * expects a `FATAL`, because a program may also `exit(9)` itself. */
+export function hostKilled(out: Ran, expectsFatal: boolean): boolean {
+  return out.signal === "SIGKILL" || (expectsFatal && HOST_KILLED_EXITS.includes(out.code));
+}
+
 /** The proof binary of the tree as it stands, uninstrumented, which verdicts are taken on. A string is
  * why there is none. */
 export const proofBinary = () => builtBinary(PROOF_BUILD, true);
@@ -299,6 +361,8 @@ export interface Ran {
   stderr: string;
   timedOut: boolean;
   ms: number;
+  /** The signal that ended the program, such as `SIGKILL`, when one did. Its `code` is then -1. */
+  signal?: string;
   /** The binary that ran, `argv[0]`: its default data folder is `.nvsdata` beside it. A verdict kept
    * from before the field existed has none. */
   exe?: string;
@@ -526,8 +590,9 @@ async function spawnTimed(argv: string[], env: Record<string, string | undefined
     if (exited !== 0 || timedOut) tree.reap();
     const [stdout, stderr] = await reading;
     // A program ended by a signal has no exit status of its own, and that is crash-shaped.
-    const code = child.signalCode && !timedOut ? -1 : exited;
-    return { code, stdout, stderr, timedOut, ms: performance.now() - started, exe: argv[0]! };
+    const signal = child.signalCode && !timedOut ? String(child.signalCode) : undefined;
+    const code = signal ? -1 : exited;
+    return { code, stdout, stderr, timedOut, ms: performance.now() - started, exe: argv[0]!, ...(signal ? { signal } : {}) };
   } finally {
     clearTimeout(timer);
     tree.close();
@@ -838,6 +903,14 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
     return ["fail", `never ran -- it does not compile: ${first}`];
   }
   if (valgrind && out.code === 97) return ["fail", "valgrind reports a definite leak or an invalid access"];
+  // The ceiling is a promise about how much a request holds, so a run that stopped far past it is red,
+  // however it ended. A run the host killed with no reading never reached its ceiling's poll.
+  const reading = memoryReading(out);
+  const past = reading === null ? null : overshoot(reading);
+  if (past !== null) return ["fail", past];
+  if (reading === null && hostKilled(out, declared?.ending === "FATAL")) {
+    return ["fail", `the host ran out of memory: the program was killed (${out.signal ?? `exit ${out.code}`}) before its memory limit stopped it`];
+  }
   // A negative status is a signal; anything past 255 on Windows is a structured exception.
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
   // Under `nvs test` every test runs in its own isolate, so a test that fails stops nothing after it.
@@ -870,6 +943,79 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   }
   if (seen.ending !== declared.ending) return ["fail", `stopped at step ${declared.step} with ${seen.ending}, ${wants}`];
   return ["ok", ""];
+}
+
+/** How many attacks `overshootScan` runs at once: each may grow to its ceiling and past it, so two keep
+ * the host's memory for the readings rather than for the scan. */
+const OVERSHOOT_JOBS = 2;
+
+/** One attack's row in `overshootScan`: its reading, or why it has none. */
+interface OvershootRow {
+  path: string;
+  ms: number;
+  reading: MemoryReading | null;
+  note?: string;
+  red: boolean;
+}
+
+/**
+ * `bun nv proofs --overshoot`: runs every attack under `tests/hostile/` whose `ends-early` names `FATAL`,
+ * `OVERSHOOT_JOBS` at a time, and prints how far past its memory ceiling each one got, worst first. It
+ * fails when a reading is past `overshootBound`, when the server's memory filled first, or when the host
+ * killed a program before it printed a reading. An attack that stopped at another limit has no reading,
+ * and is counted.
+ */
+export async function overshootScan(nvs: string, out: string[]): Promise<number> {
+  const files = [...walk("tests/hostile", ".nvs"), ...walk("tests/hostile", ".cmd")]
+    .filter((p) => {
+      const declared = declaredEnding(read(p));
+      return declared !== null && typeof declared !== "string" && declared.ending === "FATAL";
+    })
+    .sort();
+  progress(`proofs: ${files.length} attacks end at a FATAL; running ${OVERSHOOT_JOBS} at a time`);
+  const rows: OvershootRow[] = [];
+  let skipped = 0;
+  let next = 0;
+  const worker = async () => {
+    while (next < files.length) {
+      const path = files[next++]!;
+      const source = read(path);
+      if (skipReason(source) ?? (await serviceSkipReason(source))) {
+        skipped++;
+        continue;
+      }
+      try {
+        // Two programs at once may slow each other, so each gets twice its own time limit.
+        const ran = await spawnProof(proofArgv(nvs, path, source), path, 2 * hostileLimitMs(source), { unlogged: true });
+        const reading = memoryReading(ran);
+        const killed = reading === null && hostKilled(ran, true);
+        const note = killed ? `killed by the host (${ran.signal ?? `exit ${ran.code}`})` : ran.timedOut ? "still running at its time limit" : undefined;
+        rows.push({ path, ms: Math.round(ran.ms), reading, red: killed || (reading !== null && overshoot(reading) !== null), ...(note ? { note } : {}) });
+      } catch (e) {
+        rows.push({ path, ms: 0, reading: null, note: `could not run: ${e instanceof Error ? e.message : String(e)}`, red: false });
+      }
+      progress(`proofs: ${rows.length + skipped}/${files.length}`);
+    }
+  };
+  await Promise.all(Array.from({ length: OVERSHOOT_JOBS }, worker));
+  const mb = (n: number) => `${(n / 1048576).toFixed(1)} MiB`;
+  const ratio = (r: MemoryReading) => (r.ceiling === null ? Number.POSITIVE_INFINITY : r.held / Math.max(1, r.ceiling));
+  const measured = rows.filter((r) => r.reading !== null).sort((a, b) => ratio(b.reading!) - ratio(a.reading!) || a.path.localeCompare(b.path));
+  out.push(`nv proofs overshoot: ${measured.length} attack(s) stopped at a memory limit, worst first (the bound is ${OVERSHOOT_FACTOR}x the ceiling plus ${mb(OVERSHOOT_SLACK_BYTES)}):`);
+  for (const r of measured) {
+    const { held, ceiling } = r.reading!;
+    const figure = ceiling === null ? `server full at ${mb(held)}` : `${ratio(r.reading!).toFixed(2)}x  ${mb(held)} / ${mb(ceiling)}`;
+    out.push(`  ${r.red ? "FAIL" : "ok  "}  ${figure}  ${r.ms} ms  ${r.path}`);
+  }
+  for (const r of rows.filter((r) => r.reading === null && r.note).sort((a, b) => a.path.localeCompare(b.path))) {
+    out.push(`  ${r.red ? "FAIL" : "-   "}  ${r.note}  ${r.path}`);
+  }
+  const red = rows.filter((r) => r.red).length;
+  const other = rows.filter((r) => r.reading === null && !r.note).length;
+  out.push(
+    `nv proofs overshoot: ${red} red of ${rows.length} run; ${other} stopped at another limit, and ${skipped} skipped on this host.`,
+  );
+  return red ? 1 : 0;
 }
 
 /** One verdict re-judged against the file's `proof: gap` marker. The marker must name a gap record. A

@@ -89,11 +89,8 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
-- **`floor-debt`'s log names a red proof atom, never why it was red.** Run the feature alone with
-  `bun nv proofs --run --id '<feature>' --show` and read the numbers it prints, not only its verdict.
-  The Serialize encode attack passed alone while its `FATAL` named 17.9 GB held against 256 MB: the
-  encoder grew a `Vec` the ceiling never saw, and under the debt's parallel load the host ran out.
-  See `tools/nv/cmd/debt.ts`. `until: gone crates/nvs-runtime/src/graph.rs:fn put(`
+- **An attack's memory `FATAL` is red past 1.5x its ceiling plus 8 MiB, and `bun nv proofs --overshoot`
+  lists every reading, worst first.** See `tools/nv/proofs/run.ts`. `until: gone tools/nv/proofs/run.ts:OVERSHOOT_FACTOR`
 - **Never end a shell call inside a scratch git repository under `.agent-tmp/`.** The guard hook
   finds `tools/looper/main.ts` from the working directory's git root, so once the shell's directory
   stays in a nested `git init` folder, every later Bash call fails with *Module not found*, and
