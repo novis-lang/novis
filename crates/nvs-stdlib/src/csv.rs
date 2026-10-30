@@ -192,6 +192,7 @@
 use std::cell::RefCell;
 use std::io::Read;
 
+use nvs_runtime::budget::ByteWriter;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
@@ -890,14 +891,19 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`dialect_byte`]'s and [`distinct`]'s for the dialect, and a
     /// [`Fault::thrown`] for a row that is not an array of `string`s — which
-    /// [`write_record`] holds no source program can produce, and says why.
-    fn nvs_core_csv_format(_ctx, args: [4]) {
+    /// [`write_record`] holds no source program can produce, and says why. A
+    /// `FATAL` where the document does not fit in the request's memory limit:
+    /// the buffer is a [`ByteWriter`], so each growth asks the budget first.
+    ///
+    /// **What it spends:** the buffer, at most twice the document, and one copy
+    /// of the document as the answer, both charged to the request.
+    fn nvs_core_csv_format(ctx, args: [4]) {
         let rows = array_of(&args[0], "format", "the rows")?;
         let separator = dialect_byte(&args[1], "format", "separator")?;
         let quote = dialect_byte(&args[2], "format", "quote")?;
         distinct(&[separator, quote], "format")?;
 
-        let mut out: Vec<u8> = Vec::new();
+        let mut out = ByteWriter::new();
         if args[3].tag() != Some(Tag::Null) {
             let names = array_of(&args[3], "format", "the `header` option")?;
             write_record(&mut out, &names, separator, quote)?;
@@ -905,11 +911,23 @@ nvs_runtime::nvs_helper! {
 
         let mut slot = 0;
         while let Some(live) = rows.next_slot(slot) {
+            // A refusal stops the walk and not only the writes, so a list that
+            // repeats one long row many times costs no more rows.
+            if out.stopped().is_some() {
+                break;
+            }
             slot = live + 1;
             let value = rows.value_at(live).expect("a live slot has a value");
             let record = array_of(&value, "format", "a row")?;
             write_record(&mut out, &record, separator, quote)?;
         }
+        // The document is copied once more into the string, so that copy asks
+        // too. The breach is read before the buffer is freed, so it names the
+        // reading the request reached.
+        let out = match out.finish() {
+            Ok(out) if nvs_runtime::budget::affords(out.len()) => out,
+            _ => return Err(ctx.memory_breach().unwrap_or_else(|| over_memory("format"))),
+        };
 
         // Every byte written is either one of the argument's — which are UTF-8
         // by `rule:types/bytes` — or the separator, the quote or an `LF`, each of which
@@ -930,7 +948,7 @@ nvs_runtime::nvs_helper! {
 /// A [`Fault::thrown`] naming the column, for a cell that is not a `string` —
 /// which no source program produces, for the reason the guard itself states.
 fn write_record(
-    out: &mut Vec<u8>,
+    out: &mut ByteWriter,
     record: &NvsArray,
     separator: u8,
     quote: u8,
@@ -938,6 +956,9 @@ fn write_record(
     let mut slot = 0;
     let mut column = 0;
     while let Some(live) = record.next_slot(slot) {
+        if out.stopped().is_some() {
+            return Ok(());
+        }
         slot = live + 1;
         let value = record.value_at(live).expect("a live slot has a value");
         // Both call sites are `array<string>` — `format`'s rows are
@@ -954,31 +975,34 @@ fn write_record(
             ))
         })?;
         if column > 0 {
-            out.push(separator);
+            out.put_byte(separator);
         }
         write_field(out, field, separator, quote);
         column += 1;
     }
-    out.push(b'\n');
+    out.put_byte(b'\n');
     Ok(())
 }
 
 /// One field, quoted only where a byte in it would otherwise change the parse.
-fn write_field(out: &mut Vec<u8>, field: &[u8], separator: u8, quote: u8) {
+///
+/// A quoted field is written a run at a time, cut after each quote, so the
+/// writer is asked once per quote and not once per byte.
+fn write_field(out: &mut ByteWriter, field: &[u8], separator: u8, quote: u8) {
     let structural =
         |byte: u8| byte == separator || byte == quote || byte == b'\r' || byte == b'\n';
     if !field.iter().copied().any(structural) {
-        out.extend_from_slice(field);
+        out.put(field);
         return;
     }
-    out.push(quote);
-    for byte in field.iter().copied() {
-        if byte == quote {
-            out.push(quote);
+    out.put_byte(quote);
+    for run in field.split_inclusive(|&byte| byte == quote) {
+        out.put(run);
+        if run.last() == Some(&quote) {
+            out.put_byte(quote);
         }
-        out.push(byte);
     }
-    out.push(quote);
+    out.put_byte(quote);
 }
 
 // ============================================================================
@@ -1606,15 +1630,16 @@ mod tests {
     /// The writer's one rule, over every byte that triggers it.
     #[test]
     fn a_field_is_quoted_only_where_a_byte_would_change_the_parse() {
-        let mut out = Vec::new();
+        let mut out = nvs_runtime::budget::ByteWriter::new();
         write_field(&mut out, b"plain text", b',', b'"');
         write_field(&mut out, b"|", b',', b'"');
         write_field(&mut out, b"a,b", b',', b'"');
         write_field(&mut out, b"a\"b", b',', b'"');
         write_field(&mut out, b"a\nb", b',', b'"');
+        write_field(&mut out, b"\"\"", b',', b'"');
         assert_eq!(
-            String::from_utf8(out).expect("ascii"),
-            "plain text|\"a,b\"\"a\"\"b\"\"a\nb\""
+            String::from_utf8(out.finish().expect("no ceiling")).expect("ascii"),
+            "plain text|\"a,b\"\"a\"\"b\"\"a\nb\"\"\"\"\"\"\""
         );
     }
 
