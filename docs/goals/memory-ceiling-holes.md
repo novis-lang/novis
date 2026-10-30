@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-runtime/src/peer.rs, crates/nvs-stdlib/src/topic.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-server/src/otlp.rs, crates/nvs-server/src/trace.rs, crates/nvs-runtime/src/pool.rs, crates/nvs-stdlib/src/regex.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: overshoot-judge
@@ -427,50 +427,45 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
+- [x] Run `looper verify` over the whole goal.
   - [x] Started in the background as `bun nv affected --run`, on the tree at `da8ac348f`.
   - [x] Its report read, and its failures grouped by cause.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
   - [x] Five undeclared memory-limit texts get tests; `process.rs`'s cast; the group test (`956669248`).
   - [x] The assertion ledger asks before it grows (`94a9b434f`).
   - [x] The reference bench count and the website render (`cea8e01ad`).
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` once more, and it is green.
+  - [x] `bun nv affected --run`: 23 of 23 green.
+  - [x] The goal-end gates: the website stamps (`b31d46005`), the WSL build's hang (`13d5cb3a4`),
+    the stale perf and nine `calls 0` benches (`bd2749c65`), the decisions homed (`abda92ad6`).
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 done; overshoot exits 0 (worst 1.45x). The installed `looper` has no `verify`, so
-the gate is `bun nv affected --run`. Run 1 found three reds, fixed in `956669248`. Run 2 reached
-step 19 (conformance): the assertion ledger, fixed in `94a9b434f`, and six `image-*` cases that
-aborted with `memory allocation of ~1.5 MB failed`. Those six pass alone and together on the same
-binary, and no job limit exists, so they read as host commit running out under the gate's load.
-Run 3 passed conformance, the six included, and stopped at step 20 (reference): `Str::join`'s
-bench count fell. That is re-rendered in `cea8e01ad`, and `bun nv reference` holds 678 of 678. Steps
-21 to 23 have not run yet.
+Every stage is done. The last `bun nv affected --run` is 23 of 23 green, and `bun nv verify --doc`,
+`bun nv owners --closes memory-ceiling-holes` and `bun nv ci --check` are green. The goal-end
+`ci --check` first found two reds. The website had three stale stamps, fixed in `b31d46005`. The
+goal's member changes left 318 features' perf stale. Recording them was killed as a hang, because
+the WSL build for callgrind printed nothing for 90 s; `13d5cb3a4` declares that build to the hang
+watch. The recording then found eight `Core\Compress` benches and `Process\Handle::writeStdin`
+still declaring `calls 0` from before every `Core` call was counted. `bd2749c65` declares the
+measured counts and appends 327 records. Every standing decision is now stated in the code it
+governs (`abda92ad6`), so the file can be deleted.
 
-Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
-call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
-a partial `copy_graph` or `Some(empty)` from `encode_within`; `NvsArray::with_capacity` under a
-small ceiling is empty; `Arr::range` past it is a `FATAL` first; a collector test may reclaim 0; a
-stopped parse is `walk::STOPPED`; a refused capture write writes nothing; JWT caps throw; a file,
-stdin or child output past a small limit throws or is the `FATAL`; a chunk or event-stream test
-reads the new framing; a SQLite `SQLITE_TOOBIG` under a ceiling is the `FATAL`; an LDAP range with
-no value that asks for more is `Kind::Protocol`; a test that reads `Inbox`'s `Debug` sees `held`; a
-pool test that releases under many keys with a small `max` finds fewer idle; a MySQL read under a
-small ceiling is `OutOfMemory` at the chunk header. Look first at `crates/nvs-runtime/tests/refusal.rs`,
-`tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
+The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and
+`bun nv proofs --verify --only 'Core\Env::secret'` is green.
+
+No test is expected to go red.
 
 ### Next
 
-Stage 10's last run. `bun nv affected --run` with `run_in_background`; steps 1 to 20 are green, so
-it runs little more than 21 to 23. Fix what it names, never loosening a test. Then the goal-end gates:
-`bun nv verify --doc`, `bun nv owners --closes memory-ceiling-holes`, and `bun nv ci --check`.
-
-- [ ] `bun nv affected --run` green from `tests/conformance/novis/image-a-barcode-renders-as-png.nvst:1`.
-- [ ] The goal-end gates, then `DONE`. The owners check is `tools/nv/cmd/owners.ts:1`.
+None: the goal is reached. The driver runs the acceptance checks and retires it.
 
 ### Backlog
 
 - `tools/looper/` names `looper verify` and `looper check --name`, and the installed `looper.exe`
   has neither. `bun tools/looper/main.ts verify` may be the project's copy of it.
+- `tools/looper/src/jobs/hang.ts` has no WSL rule: a call with `wsl.exe` in its tree is judged
+  stalled on idle CPU. `tools/nv/lib/hang.ts`'s `OUTSIDE` set is the rule, and it belongs in
+  looper's kit.
