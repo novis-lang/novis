@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/graph.rs, crates/nvs-stdlib/src/task.rs, crates/nvs-host/src/group.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/cache.rs]
   - id: 5
     title: "the string, array, bytes, math and regex members stop at the ceiling"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/src/math.rs, crates/nvs-stdlib/src/regex.rs]
   - id: 6
     title: "the JSON, CSV, HTML, JWT, URI, XML and AST builders stop at the ceiling"
@@ -279,17 +279,17 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [x] `Arr::flattenDeep`, `flatten`, `appendAll` and `chunk` over shared rows, and `fromKeysAndValues` (1.45x). `append_values` asks. `crates/nvs-stdlib/src/arr.rs:3902`, `crates/nvs-stdlib/src/arr.rs:3862`, `crates/nvs-stdlib/src/arr.rs:5804`, `crates/nvs-stdlib/src/arr.rs:3438`, `crates/nvs-stdlib/src/arr.rs:3024`, `crates/nvs-stdlib/src/arr.rs:4244`
 - [x] `Bytes::unpack` asks for its `Vec<Field>` and its array (2.0x). `crates/nvs-stdlib/src/bytes.rs:1575`
 - [x] `Math::format`'s group separator is counted in its ask. `crates/nvs-stdlib/src/math.rs:2113`
-- [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
+- [x] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
   - [x] `matchAll` returns at a refusal, and `replaceWith` asks per kept match (`kept`).
-  - [ ] `replaceWith` with `.` over `Str::repeat('a', 50000000)` and a callback giving `'b'` still reads 12x of 256 MiB, about 81 bytes per match, and the refused allocation is a 41-byte string inside a callback. So `kept` never refused. Find where those bytes go, then add its attack step.
+  - [x] `replaceWith` with `.` over 50 million characters reads 0.94x of 256 MiB on the proof binary, refused at `found`'s growth. The 12x reading came before stage 5's array fixes. Its attack is `tests/hostile/core/Regex/replaceWith/02-a-match-at-every-character.nvs`.
 - [x] `Arr::fillKeys` (2.81x) and `range` (runs out of time before its `FATAL`), which the peak reading of stage 2 put on the scan. `shapeAs` (1.70x) is `json::hydrate`, and moved to stage 6 beside `jsonAs`. `crates/nvs-stdlib/src/arr.rs:4088`, `crates/nvs-stdlib/src/arr.rs:4166`
   - [x] `NvsArray::with_capacity` and the packed-to-hash conversion ask for their room. `crates/nvs-runtime/src/array.rs:481`, `crates/nvs-runtime/src/array.rs:1071`
   - [x] `range` asks for its whole list once. `crates/nvs-stdlib/src/arr.rs:4166`
-- [ ] `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs` reads 1.78x of 64 MiB. No member: it is the cycle collector's scratch at the poll that finds the breach (see *The collector's scratch* under Standing decisions). `crates/nvs-runtime/src/object.rs:3243`
-  - [ ] `reclaim` keeps no `HashMap` seat table: each member's seat is its position in a `Vec` sorted by address, found by binary search.
-  - [ ] Before the in-flight walk, ask whether the scratch fits under the bound; where it does not, skip the walk and report the breach.
-  - [ ] The cart attack reads within the bound under `bun nv proofs --overshoot`.
-- [ ] An attack step per member above that has none, each ending at `FATAL` within the bound.
+- [x] `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs` reads 1.78x of 64 MiB. No member: it is the cycle collector's scratch at the poll that finds the breach (see *The collector's scratch* under Standing decisions). `crates/nvs-runtime/src/object.rs:3243`
+  - [x] `reclaim` keeps no `HashMap` seat table: each member's seat is its position in a `Vec` sorted by address, found by binary search.
+  - [x] Before the in-flight walk, ask whether the scratch fits under the bound; where it does not, skip the walk and report the breach.
+  - [x] The cart attack reads within the bound under `bun nv proofs --overshoot`: 1.25x.
+- [x] An attack step per member above that has none, each ending at `FATAL` within the bound. `Arr::chunk` gained step 7.
 
 ### 6. the JSON, CSV, HTML, JWT, URI, XML and AST builders stop at the ceiling
 
@@ -298,10 +298,10 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [ ] *Confirmed:* `Json::encode`'s `Sink` writes through the shared writer. This also bounds `Response::json`, the HTTP JSON body, SSE, queue job arguments and `Jwt::signObject`. `crates/nvs-stdlib/src/json.rs:781`, `crates/nvs-stdlib/src/json.rs:915`
 - [ ] `Csv::format` and `Html::join` write through a writer that asks. `crates/nvs-stdlib/src/csv.rs:894`, `crates/nvs-stdlib/src/html.rs:931`
 - [ ] `Jwt::sign` asks before its payload and base64 copies. `Jwt::verify` and `KeySet::read` cap the JSON they parse before the parse. `crates/nvs-stdlib/src/jwt.rs:1113`, `crates/nvs-stdlib/src/jwt.rs:1528`, `crates/nvs-stdlib/src/jwt.rs:2245`
-- [ ] `Uri::encodeComponent` and `encodeFormValue` (3.7x). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
+- [x] `Uri::encodeComponent` and `encodeFormValue` (5.2x), now 0.75x: one counting pass sizes the result, written once (`encoded`). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
 - [ ] `Xml\Writer`'s indent is counted in its ask. `crates/nvs-stdlib/src/xml.rs:3049`
 - [ ] `Ast::parse`'s node objects ask (1.27x). `crates/nvs-stdlib/src/ast.rs:454`
-- [ ] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x) and `Response::html` (1.54x), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `crates/nvs-stdlib/src/arr.rs:6462`
+- [ ] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x) and `Response::html` (1.54x), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `jsonAs` reads within the bound since stage 5's array fixes. `crates/nvs-stdlib/src/arr.rs:6462`
 - [ ] An attack step per member above, each ending at `FATAL` within the bound.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
@@ -354,15 +354,14 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done; stage 5's members are fixed but `replaceWith` and the cart. Build and
-clippy green, no full test run. `NvsArray::with_capacity` and `hashed_mut` ask for their room;
-`budget::refused` is `pub`, and `append_values`, `flattenDeep` and `matchAll` return at a refusal.
+Stages 1 to 5 are done, and stage 6's Uri item. Build and clippy green, no full test run. The
+in-flight collector seats by binary search and skips a walk whose scratch passes the bound
+(`object::collect`'s `room`, from `Ctx::overshoot_bound`, now in every build). `Uri::encoded`
+writes the two encoders' answer once at its exact length.
 
-`bun nv proofs --overshoot` is red on 7, down from 11: both `Uri/encode*` 5.2x, the cart 1.78x,
-`Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Http-Response/jsonAs` 1.64x, `Response/html` 1.54x. New
-steps for `codePoints`, `graphemes`, `chunk`, `Math::format`, `flatten`, `flattenDeep` and
-`appendAll` read 0.05x to 1.00x. `shapeAs` hydrates through `json::hydrate`, so it moved to stage 6.
-The cart is the cycle collector's scratch (Standing decisions, *The collector's scratch*).
+`bun nv proofs --overshoot` (before the Uri fix) was red on 5: both `Uri/encode*` (now 0.75x by
+`bun nv proofs --run --id`), `Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Response/html` 1.54x. The
+cart reads 1.25x and `Http-Response/jsonAs` is within the bound.
 
 Expected red at the gate, each not a test to loosen: a member that builds an array past its ceiling
 returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `inside one call`
@@ -370,18 +369,19 @@ returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `
 `Some(empty)` from `encode_within`. New: a Rust test that fills `NvsArray::with_capacity` under a
 small ceiling now gets an empty-room array, and `Arr::range` past its ceiling is a `FATAL` before
 any entry. Look first at `crates/nvs-runtime/tests/refusal.rs`,
-`crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. The sweep's
-`env-secret-proofs` red names no check: no goal, floor or `looper.toml` defines one.
+`crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. A collector
+test that counts objects reclaimed under a small ceiling may now read 0 where the scratch did not
+fit. The sweep's `env-secret-proofs` red names no check: no goal, floor or `looper.toml` defines one.
 
 ### Next
 
-Finish stage 5, then stage 6. Read the bound with `bun nv proofs --overshoot`, which ignores
-`--group` and takes about 6 minutes, and run each class's attacks with
-`bun nv proofs --run --group '<class>'`.
+Stage 6. Read the bound with `bun nv proofs --overshoot`, which ignores `--group` and takes about
+6 minutes, and run one member's proofs with `bun nv proofs --run --id 'Core\Uri::encodeComponent'
+--show` (a class name is not a `--group`).
 
-- [ ] The cart: `reclaim` seats by a sorted `Vec`, and the in-flight walk is skipped when its scratch does not fit under the bound. `crates/nvs-runtime/src/object.rs:3243`, `crates/nvs-runtime/src/object.rs:3170`
-- [ ] `Regex::replaceWith` past its ceiling: `kept` does not refuse, though it is the only collection loop (measurements under stage 5). Its attack step follows the fix. `crates/nvs-stdlib/src/regex.rs:2166`, `crates/nvs-stdlib/src/regex.rs:1714`
-- [ ] Stage 6: `Uri::encodeComponent` and `encodeFormValue` (5.2x). `crates/nvs-stdlib/src/uri.rs:3143`
-- [ ] Stage 6: `json::hydrate` for `jsonAs` and `shapeAs`. `crates/nvs-stdlib/src/arr.rs:6462`
+- [ ] `json::hydrate` for `shapeAs` (1.70x). `crates/nvs-stdlib/src/arr.rs:6462`
+- [ ] `Ast::parse` (1.70x). `crates/nvs-stdlib/src/ast.rs:454`
+- [ ] `Response::html` (1.54x), its attack `tests/hostile/core/Response/html/01-script-and-a-page-without-end.nvs`. `crates/nvs-stdlib/src/response.rs:1327`
+- [ ] `Json::encode`'s `Sink`, then `Csv::format`, `Html::join`, `Jwt` and `Xml\Writer`. `crates/nvs-stdlib/src/json.rs:781`
 
 ### Backlog
