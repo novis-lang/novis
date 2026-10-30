@@ -193,6 +193,8 @@ fn componentize(
         .select_world(&[package], Some("extension"))
         .map_err(|err| malformed(format!("the WIT does not resolve: {err:#}")))?;
     let mut module = module.to_vec();
+    // `false` is `canonical_names`: the full interface names are encoded, so a
+    // packed `.nvsx` names its imports as every earlier packer did.
     embed_component_metadata(&mut module, &resolve, world, StringEncoding::UTF8, false)
         .map_err(|err| malformed(format!("the module's type does not encode: {err:#}")))?;
     ComponentEncoder::default()
