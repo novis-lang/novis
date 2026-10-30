@@ -47,7 +47,7 @@ one home and the row of [dependency-update.md](agent/dependency-update.md) that 
 
 | Tool | Version | Used by |
 |---|---|---|
-| MSVC build tools, with the Windows SDK | 14.50, SDK 10.0.26100 | linking on Windows |
+| MSVC build tools, with the Windows SDK | 14.50, SDK 10.0.26100 or newer | linking on Windows |
 | `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows |
 | `valgrind` | the distro's package | the leak sweep and callgrind, inside WSL on Windows |
 
