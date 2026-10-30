@@ -1,6 +1,8 @@
 <?nvs
 // Attack: a program signs very large claims, claims with difficult characters, and bad keys and
-// lifetimes. Each call must return a token or throw an error, and must not crash.
+// lifetimes. Each call must return a token or throw an error, and must not crash. The last step
+// should stop the program at its memory limit.
+// hostile: ends-early 7 FATAL
 // hostile: timeout-ms 30000
 
 secret bytes $key = Core\Crypto::generateKey();
@@ -88,3 +90,16 @@ while ($i < 100000) {
     $i = $i + 1;
 }
 echo 'step 6: done ', $first > 0 ? 'ok' : 'empty', "\n";
+
+// 7. Two hundred claims that all have the same value of one million characters. The claims are
+// small in memory, but the token is much larger than the memory limit. The program stops at that limit.
+echo "step 7\n";
+string $value = Core\Str::repeat('x', 1000000);
+array<string> $claims = [];
+$i = 0;
+while ($i < 200) {
+    $claims['c' . $i] = $value;
+    $i = $i + 1;
+}
+Core\Jwt::sign($claims, 1h, $key);
+echo "the whole token was signed\n";

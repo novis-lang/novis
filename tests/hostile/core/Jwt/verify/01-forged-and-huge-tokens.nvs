@@ -1,6 +1,8 @@
 <?nvs
 // Attack: a client sends forged, broken and very large tokens. Each one must throw a
-// `RuntimeError`, and the program must not crash.
+// `RuntimeError`, and the program must not crash. The last step should stop the program at
+// its memory limit.
+// hostile: ends-early 8 FATAL
 // hostile: timeout-ms 30000
 
 secret bytes $key = Core\Crypto::generateKey();
@@ -74,3 +76,16 @@ try {
 } catch (LogicError $short) {
 }
 echo 'step 7: done', "\n";
+
+// 8. A signed token with three hundred thousand short claims. Its claims are larger than the
+// memory limit when they are read, so the program stops at that limit.
+Core\Config::set('memory', '64M');
+echo "step 8\n";
+array<string> $many = [];
+$i = 0;
+while ($i < 300000) {
+    $many['c' . $i] = '0';
+    $i = $i + 1;
+}
+Core\Jwt::verify(Core\Jwt::sign($many, 1h, $key), $key);
+echo "the whole payload was read\n";

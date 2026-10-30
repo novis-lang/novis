@@ -71,3 +71,9 @@ try {
 } catch (LogicError $wrong) {
 }
 echo 'step 9: done', "\n";
+
+// 10. A key set of four megabytes with two million numbers in its `keys` list. Read whole, it
+// would be much larger than the memory limit. It throws an error before it is read.
+Core\Config::set('memory', '64M');
+$n = Check::refused('{"keys":[' . Core\Str::repeat('0,', 2000000) . '0]}');
+echo 'step 10: done ', $n, "\n";

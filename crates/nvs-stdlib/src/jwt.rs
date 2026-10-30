@@ -238,6 +238,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use subtle::ConstantTimeEq as _;
 
+use nvs_runtime::budget::ByteWriter;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
@@ -783,6 +784,14 @@ const KEY_SET_KEYS_SLOT: usize = 0;
 /// property of this program rather than of the document it fetched.
 const MAX_KEYS: usize = 16;
 
+/// The longest key set document, in bytes, that [`admitted_set`] parses.
+///
+/// [`MAX_KEYS`] keys of the largest kind this roster reads are a few
+/// kilobytes each, so a real document is far below this. A longer one throws
+/// [`not_a_key_set`], which a program can catch. Without it, a document from
+/// a hostile URL builds a parse tree many times its own size.
+const MAX_KEY_SET: usize = 1024 * 1024;
+
 /// The members a *public* key never carries, any one of which means the
 /// document handed over a private one.
 ///
@@ -876,7 +885,7 @@ const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
                    array. A key has a private field, or a `kid` that is not a string. A key does \
                    not match its kind, such as an RSA modulus outside 2048 to 8192 bits. An \
                    `alg` does not fit its key's kind. Two keys have the same `kid`. The document \
-                   has more than 16 keys that can be used.",
+                   has more than 16 keys that can be used. The document is longer than 1 MiB.",
         },
     ],
 };
@@ -906,6 +915,99 @@ fn refused() -> Fault {
          that is not {ALG}, a signature under another key, and an altered payload — is this one \
          sentence, so a forgery says nothing about which half of it failed."
     ))
+}
+
+/// The most bytes `serde_json` builds for one value of the JSON it reads,
+/// beside the text of its strings.
+///
+/// A value is a 32-byte `serde_json::Value`, which a list holds in a `Vec`
+/// that doubles, so up to 64 bytes. An object entry adds its key's `String`
+/// and its share of a `BTreeMap` node, which stays under 128. The reallocation
+/// that holds the old list and the new one at once reaches 1.5 times the list,
+/// which is inside the memory limit's own bound.
+const PARSE_PER_VALUE: usize = 128;
+
+/// An upper bound on the bytes a parse of `json` builds: its text, for the
+/// strings it copies, and [`PARSE_PER_VALUE`] for each value.
+///
+/// Every value after the first follows a `,`, a `[`, a `{` or a `:` outside a
+/// string, so counting those is a bound on the values. One pass, no
+/// allocation. A document of one long string costs its own length, and a
+/// list of two million numbers costs 256 MB.
+fn parse_bound(json: &[u8]) -> usize {
+    let mut values = 1_usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for &byte in json {
+        if in_string {
+            match byte {
+                _ if escaped => escaped = false,
+                b'\\' => escaped = true,
+                b'"' => in_string = false,
+                _ => {}
+            }
+        } else {
+            match byte {
+                b'"' => in_string = true,
+                b',' | b'[' | b'{' | b':' => values = values.saturating_add(1),
+                _ => {}
+            }
+        }
+    }
+    json.len()
+        .saturating_add(values.saturating_mul(PARSE_PER_VALUE))
+}
+
+/// The longest header, in bytes of JSON, either verifying member reads.
+///
+/// A header is read before its signature is checked, so a forger chooses its
+/// size, and its parse builds many times that ([`parse_bound`]). The members
+/// a header may carry here are `alg`, `kid` and `typ`, because
+/// [`REFUSED_HEADER`] refuses the ones that carry a key or a chain, so a real
+/// header is a few hundred bytes. A longer one is the ordinary refusal, which
+/// a program can catch, and never a parse.
+const MAX_HEADER: usize = 8 * 1024;
+
+/// Whether a header's base64url text is short enough to be one of
+/// [`MAX_HEADER`]'s, read before it is decoded.
+fn header_fits(header_b64: &str) -> bool {
+    header_b64.len() <= MAX_HEADER.div_ceil(3).saturating_mul(4)
+}
+
+/// Asks the request's memory limit for the tree a parse of `json` may build,
+/// before the parse starts. A payload and a key set are each parsed whole, so
+/// a document many times larger than its use is refused here and never built.
+///
+/// **What it spends:** one pass over the document per parse, which is cheaper
+/// than the parse it comes before.
+///
+/// # Errors
+///
+/// [`nvs_runtime::affordable`]'s: the memory limit's `FATAL`.
+fn affords_parse(json: &[u8], member: &str) -> Result<(), Fault> {
+    nvs_runtime::affordable(Some(parse_bound(json)), member).map(|_| ())
+}
+
+/// `base64url(header) . base64url(payload)`, the bytes a token's signature is
+/// over, written once into a string sized for it.
+///
+/// The size is asked of the request's memory limit first, because a payload
+/// of claims that share one long text is many times larger than the claims.
+///
+/// # Errors
+///
+/// [`nvs_runtime::affordable`]'s: the memory limit's `FATAL`.
+fn signing_input_of(header: &str, payload: &[u8], member: &str) -> Result<String, Fault> {
+    let encoded = |len: usize| len.div_ceil(3).saturating_mul(4);
+    let len = encoded(header.len())
+        .saturating_add(1)
+        .saturating_add(encoded(payload.len()));
+    nvs_runtime::affordable(Some(len), member)?;
+    let mut input = String::with_capacity(len);
+    URL_SAFE_NO_PAD.encode_string(header, &mut input);
+    input.push('.');
+    URL_SAFE_NO_PAD.encode_string(payload, &mut input);
+    Ok(input)
 }
 
 /// The signing key at `slot`, checked for length.
@@ -1110,10 +1212,16 @@ fn embedded_jwk(pair: &PrivateKey, member: &str) -> Result<String, Fault> {
 /// A `LogicError` for a positional entry or for either registered name, and a
 /// [`Fault::fatal`] for a claim that is not a `string`, which the row's
 /// `array<string>` has already refused.
-fn payload_of(claims: &NvsArray, now: i64, exp: i64) -> Result<String, Fault> {
-    let mut payload = String::from("{");
+fn payload_of(claims: &NvsArray, now: i64, exp: i64) -> Result<Vec<u8>, Fault> {
+    // The payload grows through the budget's byte writer, so claims that share
+    // one long text stop at the memory limit and not past it.
+    let mut payload = ByteWriter::new();
+    payload.put_byte(b'{');
     let mut from = 0_usize;
     while let Some(slot) = claims.next_slot(from) {
+        if payload.stopped().is_some() {
+            break;
+        }
         from = slot + 1;
         let key = claims
             .key_at(slot)
@@ -1151,13 +1259,17 @@ fn payload_of(claims: &NvsArray, now: i64, exp: i64) -> Result<String, Fault> {
                 held.tag_byte()
             ))
         })?;
-        payload.push_str(&quoted(name));
-        payload.push(':');
-        payload.push_str(&quoted(value));
-        payload.push(',');
+        payload.put(quoted(name).as_bytes());
+        payload.put_byte(b':');
+        payload.put(quoted(value).as_bytes());
+        payload.put_byte(b',');
     }
-    payload.push_str(&format!(r#""iat":{now},"exp":{exp}}}"#));
-    Ok(payload)
+    payload.put(format!(r#""iat":{now},"exp":{exp}}}"#).as_bytes());
+    payload.finish().map_err(|_| {
+        Fault::fatal(format!(
+            "{NAME}::sign: the claims do not fit in the request's memory limit"
+        ))
+    })
 }
 
 /// One pair's signature over a signing input, base64url with no padding.
@@ -1394,11 +1506,7 @@ fn signed_token(asked: Signing<'_>) -> Result<String, Fault> {
     };
     let header = header_of(alg, jwk.as_deref(), kid, typ);
     let payload = payload_of(claims, now, exp)?;
-    let signing_input = format!(
-        "{}.{}",
-        URL_SAFE_NO_PAD.encode(&header),
-        URL_SAFE_NO_PAD.encode(&payload)
-    );
+    let signing_input = signing_input_of(&header, &payload, "Core\\Jwt::sign")?;
     let signature = match signer {
         Signer::Shared(key) => {
             URL_SAFE_NO_PAD.encode(crate::hash::hmac_sha256(key, signing_input.as_bytes()))
@@ -1496,11 +1604,8 @@ nvs_runtime::nvs_helper! {
         let (now, exp) = registered_pair(ctx, lifetime, "signObject")?;
         let payload = object_payload_of(ctx, claims, now, exp)?;
 
-        let signing_input = format!(
-            "{}.{}",
-            URL_SAFE_NO_PAD.encode(&header),
-            URL_SAFE_NO_PAD.encode(&payload)
-        );
+        let signing_input =
+            signing_input_of(&header, payload.as_bytes(), "Core\\Jwt::signObject")?;
         let signature = pair_signature(pair, signing_input.as_bytes(), "signObject")?;
 
         // Asked once with the real number, as `sign` does: the answer's size is
@@ -1539,6 +1644,9 @@ nvs_runtime::nvs_helper! {
         // The header is read to *compare*, never to choose. Anything other
         // than an object whose `alg` is the one algorithm this class has is
         // the same refusal as a bad signature.
+        if !header_fits(header_b64) {
+            return Err(refused());
+        }
         let header_json = URL_SAFE_NO_PAD.decode(header_b64).map_err(|_| refused())?;
         let header: serde_json::Value =
             serde_json::from_slice(&header_json).map_err(|_| refused())?;
@@ -1557,6 +1665,7 @@ nvs_runtime::nvs_helper! {
         // wrong with it: the only reader who can reach one of these already
         // holds a token this key signed.
         let payload_json = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| refused())?;
+        affords_parse(&payload_json, "Core\\Jwt::verify")?;
         let payload: serde_json::Value =
             serde_json::from_slice(&payload_json).map_err(|_| refused())?;
         let Some(claims) = payload.as_object() else {
@@ -1878,6 +1987,9 @@ fn issued_claims(
     };
 
     // The header is read to *compare* and to refuse, never to choose.
+    if !header_fits(header_b64) {
+        return Err(not_issued());
+    }
     let header_json = URL_SAFE_NO_PAD
         .decode(header_b64)
         .map_err(|_| not_issued())?;
@@ -1912,6 +2024,7 @@ fn issued_claims(
         .decode(payload_b64)
         .map_err(|_| not_issued())?;
     let document = String::from_utf8(payload_json).map_err(|_| not_issued())?;
+    affords_parse(document.as_bytes(), "Core\\Jwt::verifyIssued")?;
     let payload: serde_json::Value = serde_json::from_str(&document).map_err(|_| not_issued())?;
     let Some(claims) = payload.as_object() else {
         return Err(not_issued());
@@ -2243,6 +2356,12 @@ fn carries_a_foreign_alg(alg: &str) -> Fault {
 /// [`admitted_key`]'s refusals, and for the two the set as a whole has: two
 /// keys under one name, and more keys than [`MAX_KEYS`].
 fn admitted_set(jwks: &str, scheme: Option<KeyKind>) -> Result<Vec<Admitted>, Fault> {
+    if jwks.len() > MAX_KEY_SET {
+        return Err(not_a_key_set(
+            "it is longer than 1 MiB, and sixteen keys need only a few kilobytes",
+        ));
+    }
+    affords_parse(jwks.as_bytes(), "Core\\Jwt\\KeySet::read")?;
     let document: serde_json::Value =
         serde_json::from_str(jwks).map_err(|_| not_a_key_set("it is not JSON"))?;
     let keys = document
@@ -2565,6 +2684,23 @@ mod tests {
                 "the claim value {json} comes back as {want:?}"
             );
         }
+    }
+
+    /// One long string costs its own length, and a list costs per value, so a
+    /// claim of many megabytes is asked for once and a dense list is refused.
+    /// A `,` inside a string, escaped quote or not, is not a value.
+    #[test]
+    fn a_parse_is_bounded_by_its_text_and_its_values() {
+        let long = format!(r#"{{"sub":"{}"}}"#, "a,b\\\",".repeat(1000));
+        assert_eq!(
+            parse_bound(long.as_bytes()),
+            long.len() + 3 * PARSE_PER_VALUE
+        );
+        let list = format!("[{}0]", "0,".repeat(1000));
+        assert_eq!(
+            parse_bound(list.as_bytes()),
+            list.len() + 1002 * PARSE_PER_VALUE
+        );
     }
 
     /// The hand-written header and the assembled one are the same bytes, so
