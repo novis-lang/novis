@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/src/rename.rs]
   - id: 3
     title: "nvs code find, calls and reach read the index, and the agent pointer names all five verbs"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/calls.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/src/index.rs, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md, docs/rules/ide/five-features-are-one-reference-index.md, crates/nvs-cli/src/agent.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -253,14 +253,14 @@ still finds it.
 callees, and the routes and tests that reach it. The pointer `nvs agent init` writes names the five
 new verbs.
 
-- [ ] The `Find` verb: one line per match from `SymbolIndex::matching`, with its position, kind and full name. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/index.rs:544`
-- [ ] The `Calls` verb: both directions in one answer, each site with its position and its line. A name that is not a method prints the nearest method names. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/calls.rs:47`
-- [ ] The `Reach` verb: routes, tests and the `at least` line. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/reach.rs:51`
-- [ ] The tests the `code-calls-tests` check names. `crates/nvs-cli/tests/code.rs:1`
-- [ ] `PROTOCOL` names `rename`, `move`, `find`, `calls` and `reach`, one line each, and any `agent init` test that pins the text is updated. `crates/nvs-cli/src/agent.rs:1644`
-- [ ] The rule fragment describes `find`, `calls` and `reach`, and its Declined list loses call hierarchy and gains the `--in`/`--out` and `Core` entries. Then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:67`
-- [ ] `bun nv render --website` writes the new help into the website's command reference. `website/src/data/reference.json:1195`
-- [ ] `bun nv owners --closes code-rename-and-calls` passes. `tools/nv/cmd/owners.ts:1`
+- [x] The `Find` verb: one line per match from `SymbolIndex::matching`, with its position, kind and full name. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/index.rs:544`
+- [x] The `Calls` verb: both directions in one answer, each site with its position and its line. A name that is not a method prints the nearest method names. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/calls.rs:47`
+- [x] The `Reach` verb: routes, tests and the `at least` line. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/reach.rs:51`
+- [x] The tests the `code-calls-tests` check names. `crates/nvs-cli/tests/code.rs:1`
+- [x] `PROTOCOL` names `rename`, `move`, `find`, `calls` and `reach`, one line each, and any `agent init` test that pins the text is updated. `crates/nvs-cli/src/agent.rs:1644`
+- [x] The rule fragment describes `find`, `calls` and `reach`, and its Declined list loses call hierarchy and gains the `--in`/`--out` and `Core` entries. Then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:67`
+- [x] `bun nv render --website` writes the new help into the website's command reference. `website/src/data/reference.json:1195`
+- [x] `bun nv owners --closes code-rename-and-calls` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -279,37 +279,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs code rename` and `nvs code move` both write through `write_out`, the
-one write path. `move_path` judges both paths in `judged_move` (from exists and is inside the root;
-to is inside it, does not exist, is not inside from, and its directory exists), then calls
-`rename::moved` and `write_out` with the one move. The seven `code-move-tests` tests pass, and so
-does clippy. The rule's title (in `data/rules/tooling/nvs-code-answers-about-the-project.json`),
-body and Declined list describe `move`, and `docs/reference/tools/10-cli.md` lists `rename` and
-`move`. The full `.lspt` suite has not run; stage 4 runs it.
+Stages 1 to 3 are done. `nvs code find`, `calls` and `reach` are in `crates/nvs-cli/src/code.rs`
+beside `move`. `find` reads `SymbolIndex::matching`; `calls` reads `calls::incoming` then
+`calls::outgoing`; `reach` reads `reach::reach`. A non-method name for `calls` or `reach` fails
+with `query::nearest_methods`, a new reader in `crates/nvs-lsp/src/query.rs` beside `nearest`
+(both call `nearest_of`). The nine `code-calls-tests` tests pass, run once by name, over the
+`CALLS` one-file fixture at the end of `crates/nvs-cli/tests/code.rs`. `PROTOCOL` names all ten
+`nvs code` verbs, and the two `tests/agent.rs` tests that pin it pass. The rule fragment, its
+record's `seeAlso`, `docs/reference/tools/10-cli.md` and `website/public/llms-full.txt` describe the
+new verbs; `website/src/data/reference.json` needed no change. `bun nv owners --closes` passes,
+clippy is clean and rustfmt was run.
 
-The sweep's reds: `env-secret-proofs` passes when run again (its log is green). Of the full CI run
-on 6d280a1ba: the Miri `floor` failure has its fix after that sha, in a178403e2. The other two are
-first failures in six weeks of full runs, and nothing reaching them changed since the green run that
-morning. `serve_throughput_scales_from_one_core_to_four...` gave 0.90x to 0.99x on the Windows
-runner and passes here in release on the same code, so the runner gave no parallelism. The Ldap
-attack `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs` hit the
-5 s `[ldap.corp-accounts] timeout` on a `whoami`, under two hostile files at a time. If either fails
-again in the next full run, it is a real cause: for the Ldap one, find which `whoami` (the start or
-step 4) and whether the 1 MB login or password keeps Samba busy.
+The sweep's reds were the same CI run on 6d280a1ba the last handoff triaged, and
+`env-secret-proofs` is green when run again. If the Windows throughput cost guard or the Ldap
+attack fails again in the next full run, it is a real cause: for the Ldap one, find which `whoami`
+(the start or step 4) and whether the 1 MB login or password keeps Samba busy.
 
 ### Next
 
-Stage 3, in item order. Every verb is in `crates/nvs-cli/src/code.rs` beside `Move`.
+Stage 4, the gate: start `looper verify` with `run_in_background`, end the turn, and fix every
+failure it names in one pass. Then the goal-end gates AGENTS.md names: `bun nv verify --doc`,
+`bun nv owners --closes code-rename-and-calls` and `bun nv ci --check`.
 
-- [ ] The `Find` verb over `SymbolIndex::matching`. `crates/nvs-cli/src/code.rs:67`, `crates/nvs-lsp/src/index.rs:544`
-- [ ] The `Calls` verb over `calls::incoming` and `calls::outgoing`. `crates/nvs-lsp/src/calls.rs:47`, `crates/nvs-lsp/src/calls.rs:61`
-- [ ] The `Reach` verb over `reach::reach`. `crates/nvs-lsp/src/reach.rs:51`
-- [ ] The `code-calls-tests` tests, after the move ones. `crates/nvs-cli/tests/code.rs:661`
-- [ ] `PROTOCOL` names the five verbs. `crates/nvs-cli/src/agent.rs:1629`
-- [ ] The rule fragment: `find`, `calls` and `reach` after the `move` line, and the Declined edits, then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:40`, `docs/rules/tooling/nvs-code-answers-about-the-project.md:91`
-- [ ] Add `find`, `calls` and `reach` to the `nvs code` section of `docs/reference/tools/10-cli.md:1044`, then `bun nv render --website`. `website/src/data/reference.json:1195`
-- [ ] `bun nv owners --closes code-rename-and-calls` passes. `tools/nv/cmd/owners.ts:1`
+- [ ] `looper verify` over the whole goal. `crates/nvs-cli/tests/code.rs:1`
+- [ ] Fix every failure in one pass. `crates/nvs-cli/src/code.rs:1`
+- [ ] `looper verify` once more, green, then the goal-end gates. `docs/goals/code-rename-and-calls.md:1`
 
-No test should go red. Stage 4 runs the whole `.lspt` suite, which reads the new `NOTHING` text.
+No test should go red. The full `.lspt` suite under `tests/lsp/rename/` reads the reworded
+`NOTHING` text for the first time, and `tests/agent.rs` reads the longer `PROTOCOL`.
 
 ### Backlog
