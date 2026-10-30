@@ -151,7 +151,7 @@ export const PEERS: Peer[] = [
     stack: "compose.go.yaml",
     nginx: "http.conf",
     port: 18444,
-    image: "golang:1.27.2-alpine, run on alpine:3.24.2",
+    image: "golang:1.27.3-alpine, run on alpine:3.24.2",
     env: () => ({}),
     settings: (ctx) => ({ server: "net/http", GOMAXPROCS: ctx.cpus }),
     compiled: true,

@@ -4,7 +4,7 @@
 # The build context is `benches/compare/`, and each tree is its own module. A folder with no `main.go`
 # is skipped, so a case or a row is added by writing its four programs and nothing here changes.
 
-FROM golang:1.27.2-alpine AS build
+FROM golang:1.27.3-alpine AS build
 
 WORKDIR /src
 COPY cases/ ./cases/
