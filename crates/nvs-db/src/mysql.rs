@@ -812,6 +812,65 @@ impl<S: Read + Write> Wire<S> {
         &self.stream
     }
 
+    /// The bytes of the chunk at the head of the inbox, its 4-byte header
+    /// included, once that header has arrived.
+    fn chunk_len(&self) -> Option<usize> {
+        let header = self.inbox.get(..4)?;
+        let length = u32::from_le_bytes([header[0], header[1], header[2], 0]);
+        Some(4 + length as usize)
+    }
+
+    /// Asks the request's budget before the inbox grows to `wanted` bytes,
+    /// and makes that room.
+    ///
+    /// [`crate::pg`]'s `grow_inbox`, for the same reason. [`Self::read_packet`]
+    /// asks for a whole chunk once its header has arrived, so a chunk larger
+    /// than the request can hold is refused before any of it is read. The ask
+    /// is for the whole new block, at least twice the old capacity, because
+    /// the old block is held while it is copied. Cost: one comparison per read
+    /// that fits.
+    ///
+    /// # Errors
+    ///
+    /// `OutOfMemory` when the request cannot afford the growth. The breach is
+    /// recorded, so the request ends at its next poll, and the connection is
+    /// not reused: the rest of the packet is still on the wire.
+    fn grow_inbox(&mut self, wanted: usize) -> io::Result<()> {
+        let filled = self.inbox.len();
+        let capacity = self.inbox.capacity();
+        if wanted <= capacity {
+            return Ok(());
+        }
+        if !nvs_runtime::budget::affords(wanted.max(capacity.saturating_mul(2))) {
+            self.stalled = false;
+            return Err(packet_refused(wanted));
+        }
+        self.inbox.reserve(wanted - filled);
+        Ok(())
+    }
+
+    /// Asks the request's budget before `packet` takes `chunk` more bytes,
+    /// and makes exactly that room.
+    ///
+    /// A packet of several chunks grows once per chunk. A total past
+    /// [`MAX_PACKET`] is left to the codec, which refuses it as it always has.
+    ///
+    /// # Errors
+    ///
+    /// `OutOfMemory`, as [`Self::grow_inbox`].
+    fn grow_packet(&mut self, packet: &mut Vec<u8>, chunk: usize) -> io::Result<()> {
+        let wanted = packet.len() + chunk;
+        if wanted <= packet.capacity() || wanted > MAX_PACKET as usize {
+            return Ok(());
+        }
+        if !nvs_runtime::budget::affords(wanted) {
+            self.stalled = false;
+            return Err(packet_refused(wanted));
+        }
+        packet.reserve_exact(chunk);
+        Ok(())
+    }
+
     /// Frames `payload` as the next packet in sequence, writes all of it, and
     /// flushes.
     ///
@@ -852,6 +911,15 @@ impl<S: Read + Write> Wire<S> {
     pub(crate) fn read_packet(&mut self) -> io::Result<Vec<u8>> {
         let mut packet = Vec::new();
         loop {
+            // Asked before the codec moves a chunk, because the chunk is held
+            // twice for a moment: whole in the inbox, then copied into `packet`.
+            let chunk = self.chunk_len();
+            if let Some(total) = chunk {
+                self.grow_inbox(total)?;
+                if self.inbox.len() >= total {
+                    self.grow_packet(&mut packet, total - 4)?;
+                }
+            }
             let decoded = self.codec.decode(&mut self.inbox, &mut packet);
             match decoded {
                 Ok(true) => return Ok(packet),
@@ -863,7 +931,13 @@ impl<S: Read + Write> Wire<S> {
             }
 
             let filled = self.inbox.len();
-            self.inbox.resize(filled + READ_CHUNK, 0);
+            // A read stops at the end of a known chunk, so the room asked for
+            // that chunk is never asked for again.
+            let window = chunk.map_or(READ_CHUNK, |total| {
+                total.saturating_sub(filled).clamp(1, READ_CHUNK)
+            });
+            self.grow_inbox(filled + window)?;
+            self.inbox.resize(filled + window, 0);
             let read = self.stream.read(&mut self.inbox[filled..]);
             // Restore the length before the `?`: a failed read must not leave
             // the inbox claiming the zeroes it was given room in.
@@ -907,6 +981,14 @@ fn codec_failed(error: PacketCodecError) -> io::Error {
         PacketCodecError::Io(inner) => inner,
         other => io::Error::new(io::ErrorKind::InvalidData, other.to_string()),
     }
+}
+
+/// A packet of `wanted` bytes the request's memory limit could not hold.
+fn packet_refused(wanted: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::OutOfMemory,
+        format!("a packet of {wanted} bytes is larger than the request's memory limit"),
+    )
 }
 
 /// What the server said before anything of ours was sent, kept only as long as
@@ -4586,6 +4668,30 @@ mod tests {
             &[0, 0, 0],
             "the packet the client terminated the transfer with is not empty"
         );
+    }
+
+    /// A packet whose header declares more than the request can hold is
+    /// refused at its header, before any of its payload is read.
+    #[test]
+    fn a_packet_past_the_memory_ceiling_is_refused_before_it_is_read() {
+        const CEILING: usize = 1 << 20;
+        let mut header = 0x00ff_ffff_u32.to_le_bytes()[..3].to_vec();
+        header.push(0);
+        let mut peer = Peer::new(|_sent: &[u8]| Vec::new());
+        peer.inbound = vec![0; 64 * 1024];
+        let mut wire = Wire::new(peer);
+        wire.inbox.extend_from_slice(&header);
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        ctx.set_memory_limit(CEILING);
+
+        let refused = wire
+            .read_packet()
+            .expect_err("a 16 MiB packet does not fit under a 1 MiB ceiling");
+
+        assert_eq!(refused.kind(), io::ErrorKind::OutOfMemory, "{refused}");
+        assert!(nvs_runtime::budget::refused(), "the breach is recorded");
+        assert_eq!(wire.peer().read, 0, "no byte of the payload was read");
+        drop(ctx);
     }
 
     /// `rule:core-classes/db-column-types`'s zone, as the numeric offset the section requires and
