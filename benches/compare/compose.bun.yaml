@@ -7,7 +7,7 @@ name: nvs-compare-bun
 
 services:
   app:
-    image: oven/bun:1.4.3-slim
+    image: oven/bun:1.4.4-slim
 
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 

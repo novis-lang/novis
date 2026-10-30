@@ -141,7 +141,7 @@ export const PEERS: Peer[] = [
     stack: "compose.bun.yaml",
     nginx: "http.conf",
     port: 18443,
-    image: "oven/bun:1.4.3-slim",
+    image: "oven/bun:1.4.4-slim",
     env: () => ({}),
     settings: (ctx) => ({ server: "Bun.serve", processes: ctx.cpus, reusePort: true }),
   },
