@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (739)
+COMPONENTS (752)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -210,7 +210,7 @@ platform Novis builds for, so one may appear that a given build omits.
   fiat-crypto                                0.3.0                          MIT                             (MIT OR Apache-2.0 OR BSD-1-Clause)
   filetime                                   0.2.29                         MIT                             (MIT/Apache-2.0)
   find-msvc-tools                            0.1.15                         MIT                             (MIT OR Apache-2.0)
-  fixed_decimal                              0.7.2                          Unicode-3.0
+  fixed_decimal                              0.7.3                          Unicode-3.0
   fixedbitset                                0.4.2                          MIT                             (MIT/Apache-2.0)
   flagset                                    0.4.7                          Apache-2.0
   flate2                                     1.1.10                         MIT                             (MIT OR Apache-2.0)
@@ -329,38 +329,49 @@ platform Novis builds for, so one may appear that a given build omits.
   hybrid-array                               0.4.15                         MIT                             (MIT OR Apache-2.0)
   hyper                                      1.12.0                         MIT
   hypher                                     0.1.8                          MIT                             (MIT OR Apache-2.0)
-  icu_calendar                               2.3.0                          Unicode-3.0
-  icu_calendar_data                          2.3.0                          Unicode-3.0
-  icu_casemap                                2.3.0                          Unicode-3.0
-  icu_casemap_data                           2.3.0                          Unicode-3.0
-  icu_collator                               2.3.1                          Unicode-3.0
-  icu_collator_data                          2.3.0                          Unicode-3.0
+  icu_calendar                               2.4.0                          Unicode-3.0
+  icu_calendar_data                          2.4.0                          Unicode-3.0
+  icu_casemap                                2.4.0                          Unicode-3.0
+  icu_casemap_data                           2.4.0                          Unicode-3.0
+  icu_collator                               2.4.0                          Unicode-3.0
+  icu_collator_data                          2.4.0                          Unicode-3.0
   icu_collections                            2.3.0                          Unicode-3.0
-  icu_datetime                               2.3.0                          Unicode-3.0
-  icu_datetime_data                          2.3.0                          Unicode-3.0
-  icu_decimal                                2.3.0                          Unicode-3.0
-  icu_decimal_data                           2.3.0                          Unicode-3.0
-  icu_experimental                           0.6.0                          Unicode-3.0
-  icu_experimental_data                      0.6.0                          Unicode-3.0
-  icu_list                                   2.3.0                          Unicode-3.0
-  icu_list_data                              2.3.0                          Unicode-3.0
-  icu_locale                                 2.3.1                          Unicode-3.0
+  icu_collections                            2.4.0                          Unicode-3.0
+  icu_datetime                               2.4.0                          Unicode-3.0
+  icu_datetime_data                          2.4.0                          Unicode-3.0
+  icu_decimal                                2.4.0                          Unicode-3.0
+  icu_decimal_data                           2.4.0                          Unicode-3.0
+  icu_experimental                           0.7.0                          Unicode-3.0
+  icu_experimental_data                      0.7.0                          Unicode-3.0
+  icu_list                                   2.4.0                          Unicode-3.0
+  icu_list_data                              2.4.0                          Unicode-3.0
+  icu_locale                                 2.4.0                          Unicode-3.0
   icu_locale_core                            2.3.0                          Unicode-3.0
-  icu_locale_data                            2.3.0                          Unicode-3.0
+  icu_locale_core                            2.4.0                          Unicode-3.0
+  icu_locale_data                            2.4.0                          Unicode-3.0
   icu_locale_fallback                        2.3.0                          Unicode-3.0
+  icu_locale_fallback                        2.4.0                          Unicode-3.0
   icu_locale_fallback_data                   2.3.0                          Unicode-3.0
+  icu_locale_fallback_data                   2.4.0                          Unicode-3.0
   icu_normalizer                             2.3.0                          Unicode-3.0
+  icu_normalizer                             2.4.0                          Unicode-3.0
   icu_normalizer_data                        2.3.0                          Unicode-3.0
-  icu_pattern                                0.5.0                          Unicode-3.0
-  icu_plurals                                2.3.0                          Unicode-3.0
-  icu_plurals_data                           2.3.0                          Unicode-3.0
+  icu_normalizer_data                        2.4.0                          Unicode-3.0
+  icu_pattern                                0.5.1                          Unicode-3.0
+  icu_plurals                                2.4.0                          Unicode-3.0
+  icu_plurals_data                           2.4.0                          Unicode-3.0
   icu_properties                             2.3.0                          Unicode-3.0
+  icu_properties                             2.4.0                          Unicode-3.0
   icu_properties_data                        2.3.0                          Unicode-3.0
+  icu_properties_data                        2.4.0                          Unicode-3.0
   icu_provider                               2.3.1                          Unicode-3.0
+  icu_provider                               2.4.0                          Unicode-3.0
   icu_segmenter                              2.3.0                          Unicode-3.0
+  icu_segmenter                              2.4.0                          Unicode-3.0
   icu_segmenter_data                         2.3.0                          Unicode-3.0
-  icu_time                                   2.3.0                          Unicode-3.0
-  icu_time_data                              2.3.1                          Unicode-3.0
+  icu_segmenter_data                         2.4.0                          Unicode-3.0
+  icu_time                                   2.4.0                          Unicode-3.0
+  icu_time_data                              2.4.0                          Unicode-3.0
   id-arena                                   2.3.0                          MIT                             (MIT/Apache-2.0)
   ignore                                     0.4.34                         MIT                             (Unlicense OR MIT)
   image                                      0.25.10                        MIT                             (MIT OR Apache-2.0)
@@ -376,7 +387,7 @@ platform Novis builds for, so one may appear that a given build omits.
   itoa                                       1.0.18                         MIT                             (MIT OR Apache-2.0)
   ittapi                                     0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
   ittapi-sys                                 0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
-  ixdtf                                      0.6.6                          Unicode-3.0
+  ixdtf                                      0.6.7                          Unicode-3.0
   jiff                                       0.2.38                         MIT                             (Unlicense OR MIT)
   jiff-core                                  0.1.1                          MIT                             (Unlicense OR MIT)
   jiff-static                                0.2.38                         MIT                             (Unlicense OR MIT)
@@ -566,7 +577,6 @@ platform Novis builds for, so one may appear that a given build omits.
   serde                                      1.0.229                        MIT                             (MIT OR Apache-2.0)
   serde_core                                 1.0.229                        MIT                             (MIT OR Apache-2.0)
   serde_derive                               1.0.229                        MIT                             (MIT OR Apache-2.0)
-  serde_json                                 1.0.151                        MIT                             (MIT OR Apache-2.0)
   serde_json                                 1.0.154                        MIT                             (MIT OR Apache-2.0)
   serde_repr                                 0.1.21                         MIT                             (MIT OR Apache-2.0)
   serde_spanned                              1.1.2                          MIT                             (MIT OR Apache-2.0)
@@ -592,7 +602,6 @@ platform Novis builds for, so one may appear that a given build omits.
   skrifa                                     0.46.2                         MIT                             (MIT OR Apache-2.0)
   slab                                       0.4.12                         MIT
   slotmap                                    1.1.1                          Zlib
-  smallvec                                   1.16.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.3                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.4                         MIT                             (MIT OR Apache-2.0)
   solid-js                                   1.9.17                         MIT
@@ -611,7 +620,6 @@ platform Novis builds for, so one may appear that a given build omits.
   subtle                                     2.6.1                          BSD-3-Clause
   svgtypes                                   0.16.1                         MIT                             (Apache-2.0 OR MIT)
   syn                                        2.0.119                        MIT                             (MIT OR Apache-2.0)
-  syn                                        3.0.6                          MIT                             (MIT OR Apache-2.0)
   syn                                        3.0.8                          MIT                             (MIT OR Apache-2.0)
   syn                                        3.0.9                          MIT                             (MIT OR Apache-2.0)
   synstructure                               0.13.2                         MIT
@@ -631,6 +639,7 @@ platform Novis builds for, so one may appear that a given build omits.
   tiny-skia                                  0.12.0                         BSD-3-Clause
   tiny-skia-path                             0.12.0                         BSD-3-Clause
   tinystr                                    0.8.4                          Unicode-3.0
+  tinystr                                    0.8.5                          Unicode-3.0
   tinyvec                                    1.13.3                         MIT                             (Zlib OR Apache-2.0 OR MIT)
   to_method                                  1.1.0                          CC0-1.0
   tokio                                      1.54.1                         MIT
@@ -661,9 +670,11 @@ platform Novis builds for, so one may appear that a given build omits.
   untrusted                                  0.9.0                          ISC
   usvg                                       0.47.0                         MIT                             (Apache-2.0 OR MIT)
   usvg                                       0.49.0                         MIT                             (Apache-2.0 OR MIT)
-  utf16_iter                                 1.0.5                          MIT                             (Apache-2.0 OR MIT)
+  utf16_iter                                 1.1.0                          MIT                             (Apache-2.0 OR MIT)
   utf8_iter                                  1.0.4                          MIT                             (Apache-2.0 OR MIT)
+  utf8_iter                                  1.1.0                          MIT                             (Apache-2.0 OR MIT)
   utf8parse                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
+  utf_types                                  1.0.0                          MIT                             (Apache-2.0 OR MIT)
   uuid                                       1.29.0                         MIT                             (Apache-2.0 OR MIT)
   v_frame                                    0.3.9                          BSD-2-Clause
   vcpkg                                      0.2.15                         MIT                             (MIT/Apache-2.0)
@@ -751,7 +762,9 @@ platform Novis builds for, so one may appear that a given build omits.
   zeroize                                    1.9.1                          MIT                             (Apache-2.0 OR MIT)
   zerotrie                                   0.2.5                          Unicode-3.0
   zerovec                                    0.11.8                         Unicode-3.0
+  zerovec                                    0.11.9                         Unicode-3.0
   zerovec-derive                             0.11.6                         Unicode-3.0
+  zerovec-derive                             0.11.7                         Unicode-3.0
   zlib-rs                                    0.6.8                          Zlib
   zmij                                       1.0.23                         MIT
   zune-core                                  0.5.3                          MIT                             (MIT OR Apache-2.0 OR Zlib)
@@ -880,12 +893,10 @@ Applies to:
   serde 1.0.229
   serde_core 1.0.229
   serde_derive 1.0.229
-  serde_json 1.0.151
   serde_json 1.0.154
   serde_repr 0.1.21
   servo_arc 0.5.0
   syn 2.0.119
-  syn 3.0.6
   syn 3.0.8
   syn 3.0.9
   thiserror 2.0.21
@@ -3715,8 +3726,10 @@ DEALINGS IN THE SOFTWARE.
 Applies to:
   encoding_rs 0.8.43
   multiversion_no_op 1.0.0
-  utf16_iter 1.0.5
+  utf16_iter 1.1.0
   utf8_iter 1.0.4
+  utf8_iter 1.1.0
+  utf_types 1.0.0
   write16 1.0.0
 
 ------------------------------------------------------------------------------
@@ -7570,7 +7583,6 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  smallvec 1.16.2
   smallvec 1.16.3
   smallvec 1.16.4
 
@@ -11945,43 +11957,55 @@ freely, subject to the following restrictions:
 ==============================================================================
 
 Applies to:
-  fixed_decimal 0.7.2
-  icu_calendar 2.3.0
-  icu_calendar_data 2.3.0
-  icu_casemap 2.3.0
-  icu_casemap_data 2.3.0
-  icu_collator 2.3.1
-  icu_collator_data 2.3.0
+  fixed_decimal 0.7.3
+  icu_calendar 2.4.0
+  icu_calendar_data 2.4.0
+  icu_casemap 2.4.0
+  icu_casemap_data 2.4.0
+  icu_collator 2.4.0
+  icu_collator_data 2.4.0
   icu_collections 2.3.0
-  icu_datetime 2.3.0
-  icu_datetime_data 2.3.0
-  icu_decimal 2.3.0
-  icu_decimal_data 2.3.0
-  icu_experimental 0.6.0
-  icu_experimental_data 0.6.0
-  icu_list 2.3.0
-  icu_list_data 2.3.0
-  icu_locale 2.3.1
+  icu_collections 2.4.0
+  icu_datetime 2.4.0
+  icu_datetime_data 2.4.0
+  icu_decimal 2.4.0
+  icu_decimal_data 2.4.0
+  icu_experimental 0.7.0
+  icu_experimental_data 0.7.0
+  icu_list 2.4.0
+  icu_list_data 2.4.0
+  icu_locale 2.4.0
   icu_locale_core 2.3.0
-  icu_locale_data 2.3.0
+  icu_locale_core 2.4.0
+  icu_locale_data 2.4.0
   icu_locale_fallback 2.3.0
+  icu_locale_fallback 2.4.0
   icu_locale_fallback_data 2.3.0
+  icu_locale_fallback_data 2.4.0
   icu_normalizer 2.3.0
+  icu_normalizer 2.4.0
   icu_normalizer_data 2.3.0
-  icu_pattern 0.5.0
-  icu_plurals 2.3.0
-  icu_plurals_data 2.3.0
+  icu_normalizer_data 2.4.0
+  icu_pattern 0.5.1
+  icu_plurals 2.4.0
+  icu_plurals_data 2.4.0
   icu_properties 2.3.0
+  icu_properties 2.4.0
   icu_properties_data 2.3.0
+  icu_properties_data 2.4.0
   icu_provider 2.3.1
+  icu_provider 2.4.0
   icu_segmenter 2.3.0
+  icu_segmenter 2.4.0
   icu_segmenter_data 2.3.0
-  icu_time 2.3.0
-  icu_time_data 2.3.1
-  ixdtf 0.6.6
+  icu_segmenter_data 2.4.0
+  icu_time 2.4.0
+  icu_time_data 2.4.0
+  ixdtf 0.6.7
   litemap 0.8.3
   potential_utf 0.1.6
   tinystr 0.8.4
+  tinystr 0.8.5
   writeable 0.6.4
   yoke 0.8.3
   yoke 0.8.4
@@ -11990,7 +12014,9 @@ Applies to:
   zerofrom-derive 0.1.8
   zerotrie 0.2.5
   zerovec 0.11.8
+  zerovec 0.11.9
   zerovec-derive 0.11.6
+  zerovec-derive 0.11.7
 
 ------------------------------------------------------------------------------
 

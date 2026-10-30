@@ -96,7 +96,7 @@ pub fn resolve(tags: &[String], service: Service) -> Result<Vec<String>, Error> 
                     "5",
                 ),
                 Service::RelativeTime => answered::<
-                    icu_experimental::relativetime::provider::LongDayRelativeV1,
+                    icu_experimental::relativetime::provider::DatetimeRelativeDayLongV1,
                 >(&icu_experimental::provider::Baked, locale, ""),
                 Service::Lists => answered::<icu_list::provider::ListAndV1>(
                     &icu_list::provider::Baked,

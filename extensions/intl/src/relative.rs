@@ -97,10 +97,10 @@ pub fn format(items: &[Item], tag: &str, options: Options) -> Result<Vec<String>
     let locale = crate::locale(tag)?;
     let width = options.width.unwrap_or(Width::Wide);
     let mut icu_options = RelativeTimeFormatterOptions::default();
-    icu_options.numeric = match options.numeric.unwrap_or(Numeric::Always) {
+    icu_options.numeric = Some(match options.numeric.unwrap_or(Numeric::Always) {
         Numeric::Always => IcuNumeric::Always,
         Numeric::Auto => IcuNumeric::Auto,
-    };
+    });
     let mut formatters: [Option<RelativeTimeFormatter>; 8] = Default::default();
     items
         .iter()

@@ -14,19 +14,19 @@ crate-type = ["cdylib", "rlib"]
 # ICU4X at one version, with the data `compiled_data` bakes in. `icu_experimental`
 # is pinned with `=` because nothing in it is stable, and only this crate uses it.
 [dependencies]
-icu_collator = "2.3"
-icu_decimal = "2.3"
+icu_collator = "2.4"
+icu_decimal = "2.4"
 # `serde` compiles the rule parser in, for the languages `plurals.rs` carries rules for itself.
-icu_plurals = { version = "2.3", features = ["serde"] }
-icu_datetime = "2.3"
+icu_plurals = { version = "2.4", features = ["serde"] }
+icu_datetime = "2.4"
 # The ISO calendar a date crosses in, which `icu_datetime` names but does not re-export.
-icu_calendar = "2.3"
-icu_list = "2.3"
-icu_segmenter = "2.3"
-icu_locale = "2.3"
-icu_experimental = "=0.6.0"
-icu_provider = "2.3"
-# The exact decimal a number crosses as; the version `icu_decimal` 2.3 uses.
+icu_calendar = "2.4"
+icu_list = "2.4"
+icu_segmenter = "2.4"
+icu_locale = "2.4"
+icu_experimental = "=0.7.0"
+icu_provider = "2.4"
+# The exact decimal a number crosses as; the version `icu_decimal` 2.4 uses.
 fixed_decimal = "0.7"
 # The deserializer that hands a rule string to `icu_plurals`' parser.
 serde = "1"
