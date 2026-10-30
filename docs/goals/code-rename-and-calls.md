@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-lsp/src/rename.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, crates/nvs-cli/src/fmt.rs]
   - id: 2
     title: "nvs code move moves a file or a directory and rewrites every require that names it"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/rename.rs]
   - id: 3
     title: "nvs code find, calls and reach read the index, and the agent pointer names all five verbs"
@@ -242,10 +242,10 @@ does them while the session writes the Rust. The subagent builds nothing.
 **Does:** an agent moves a file or a directory with one command, and every `require` that named it
 still finds it.
 
-- [ ] The `Move` verb with `--dry-run` and `--json`, and its help text. Its checks of `<from>` and `<to>` run before `rename::moved` is called. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/rename.rs:210`
-- [ ] It writes through stage 1's write path, then moves with `fs::rename`, and names the changed files when the move fails. `crates/nvs-cli/src/code.rs:125`
-- [ ] The tests the `code-move-tests` check names. `crates/nvs-cli/tests/code.rs:1`
-- [ ] The rule fragment describes `move`, and its Declined list gains the entry on types and missing directories. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`
+- [x] The `Move` verb with `--dry-run` and `--json`, and its help text. Its checks of `<from>` and `<to>` run before `rename::moved` is called. `crates/nvs-cli/src/code.rs:59`, `crates/nvs-lsp/src/rename.rs:210`
+- [x] It writes through stage 1's write path, then moves with `fs::rename`, and names the changed files when the move fails. `crates/nvs-cli/src/code.rs:125`
+- [x] The tests the `code-move-tests` check names. `crates/nvs-cli/tests/code.rs:1`
+- [x] The rule fragment describes `move`, and its Declined list gains the entry on types and missing directories. `docs/rules/tooling/nvs-code-answers-about-the-project.md:57`
 
 ### 3. nvs code find, calls and reach read the index, and the agent pointer names all five verbs
 
@@ -279,27 +279,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs_lsp::query::rename` takes a `query::Target` (a name or a position), and
-`nvs code rename` writes through `write_out`, the one write path. `planned` applies the edits in
-memory and judges every path inside the root. `committed` reads each file again, writes, and moves
-last. A debug build reads `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, which the changed-file test uses.
-The JSON is `edits`, `moved` (an array of `{from, to}`, so a directory move fits) and `written`.
-`NOTHING` has its new wording, and so do the 32 `.lspt` cases. Both stage 1 checks pass, and so does
-clippy. The full `.lspt` suite has not run; stage 4 runs it.
+Stages 1 and 2 are done. `nvs code rename` and `nvs code move` both write through `write_out`, the
+one write path. `move_path` judges both paths in `judged_move` (from exists and is inside the root;
+to is inside it, does not exist, is not inside from, and its directory exists), then calls
+`rename::moved` and `write_out` with the one move. The seven `code-move-tests` tests pass, and so
+does clippy. The rule's title (in `data/rules/tooling/nvs-code-answers-about-the-project.json`),
+body and Declined list describe `move`, and `docs/reference/tools/10-cli.md` lists `rename` and
+`move`. The full `.lspt` suite has not run; stage 4 runs it.
 
-The sweep's reds: `env-secret-proofs` exits 0 when run again (its log is green). Each nightly CI
-failure has its fix on main already, after the sha the run tested: the overload job's
-`CHANGELOG.md` in ef7e629e2, the passkey Miri ignores in df208a541, and the spool wake test in
-dafe6c98d. The next nightly shows whether they hold.
+The sweep's reds: `env-secret-proofs` passes when run again (its log is green). Of the full CI run
+on 6d280a1ba: the Miri `floor` failure has its fix after that sha, in a178403e2. The other two are
+first failures in six weeks of full runs, and nothing reaching them changed since the green run that
+morning. `serve_throughput_scales_from_one_core_to_four...` gave 0.90x to 0.99x on the Windows
+runner and passes here in release on the same code, so the runner gave no parallelism. The Ldap
+attack `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs` hit the
+5 s `[ldap.corp-accounts] timeout` on a `whoami`, under two hostile files at a time. If either fails
+again in the next full run, it is a real cause: for the Ldap one, find which `whoami` (the start or
+step 4) and whether the 1 MB login or password keeps Samba busy.
 
 ### Next
 
-Stage 2, in item order. Every item is in `crates/nvs-cli/src/code.rs` and its tests.
+Stage 3, in item order. Every verb is in `crates/nvs-cli/src/code.rs` beside `Move`.
 
-- [ ] The `Move` verb and its checks of `<from>` and `<to>`, then `rename::moved`. `crates/nvs-cli/src/code.rs:67`, `crates/nvs-lsp/src/rename.rs:211`
-- [ ] Write through `write_out` with the move as its one `(from, to)`. `fs::rename` moves a directory as it moves a file. `crates/nvs-cli/src/code.rs:721`, `crates/nvs-cli/src/code.rs:882`
-- [ ] The `code-move-tests` tests, beside the rename ones. `crates/nvs-cli/tests/code.rs:640`
-- [ ] The rule fragment's `move` line and its Declined entry. `docs/rules/tooling/nvs-code-answers-about-the-project.md:39`
+- [ ] The `Find` verb over `SymbolIndex::matching`. `crates/nvs-cli/src/code.rs:67`, `crates/nvs-lsp/src/index.rs:544`
+- [ ] The `Calls` verb over `calls::incoming` and `calls::outgoing`. `crates/nvs-lsp/src/calls.rs:47`, `crates/nvs-lsp/src/calls.rs:61`
+- [ ] The `Reach` verb over `reach::reach`. `crates/nvs-lsp/src/reach.rs:51`
+- [ ] The `code-calls-tests` tests, after the move ones. `crates/nvs-cli/tests/code.rs:661`
+- [ ] `PROTOCOL` names the five verbs. `crates/nvs-cli/src/agent.rs:1629`
+- [ ] The rule fragment: `find`, `calls` and `reach` after the `move` line, and the Declined edits, then `bun nv rules --render`. `docs/rules/tooling/nvs-code-answers-about-the-project.md:40`, `docs/rules/tooling/nvs-code-answers-about-the-project.md:91`
+- [ ] Add `find`, `calls` and `reach` to the `nvs code` section of `docs/reference/tools/10-cli.md:1044`, then `bun nv render --website`. `website/src/data/reference.json:1195`
+- [ ] `bun nv owners --closes code-rename-and-calls` passes. `tools/nv/cmd/owners.ts:1`
 
 No test should go red. Stage 4 runs the whole `.lspt` suite, which reads the new `NOTHING` text.
 
