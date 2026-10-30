@@ -6,7 +6,7 @@ context: [docs/agent/dependency-update.md, docs/rules/packaging/the-sweep-is-fir
 stages:
   - id: 1
     title: "the JIT and the sandbox run on cranelift 0.137 and wasmtime 50"
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-ext/src/call.rs, crates/nvs-codegen/src/lib.rs, docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md, docs/rules/packaging/a-dependency-move-proves-two-things.md]
   - id: 2
     title: "the host's leaf crates are current, and every tool lockfile is at its latest in range"
@@ -260,6 +260,17 @@ lists every `[workspace.dependencies]` row that no member manifest names.
 order. Stages 4 and 5 touch files no other stage touches, and could run as side goals. The goal runs
 them in order, because one sweep moves one tree. The goal depends on no other chain goal.
 
+**The hostcall fuel is set at each call's start, and no longer at each tick.** wasmtime 50's epoch
+callback gets a `StoreHookState`, which cannot set the store's hostcall fuel. The tick refresh never
+bounded the worst case: a guest can grow its memory by any amount between two ticks. The bound is
+still the charge each lifted value makes after its crossing. Cost: one crossing's bytes, held until
+that charge. The home is `crates/nvs-ext/src/call.rs`'s module doc. Declined: refreshing the fuel
+in every host import, which is about twenty sites in `handle.rs` and `wasi.rs` and still misses the
+guest's own growth.
+
+**`embed_component_metadata` passes `canonical_names: false`.** wit-component 0.261 added the
+argument. `false` encodes the full interface names, as 0.258 did, so a packed `.nvsx` is the same.
+
 **Trade-offs.** Security: four lockfiles lose their live advisories, and CI judges every lockfile
 from now on. Latency: the JIT and the sandbox move one cranelift and wasmtime release, so the
 callgrind figures may move. CI's cost guards judge that on the push. Memory: nothing changes per
@@ -274,14 +285,14 @@ Usability: the editor client needs no newer VS Code, and a program author sees w
 **Does:** the engine group moves as one commit, its stale hold is lifted, and the premise guards
 pass on it.
 
-- [ ] Lift the wasmtime hold and move `wasmtime` to `50.0.1`. Rewrite the comment above it as a whole: the minimum is the release this commit takes, and the `cache` and `zstd` paragraph is checked again against 50's features. Adapt the feature list to what 50 names (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`). `Cargo.toml:346`, `Cargo.toml:356`
-- [ ] Move the five `cranelift-*` rows to `0.137.1`. `Cargo.toml:98`, `Cargo.toml:99`, `Cargo.toml:100`, `Cargo.toml:101`, `Cargo.toml:107`
-- [ ] Move `wasmtime-wasi-io` and `wasmtime-internal-jit-icache-coherence` to `50.0.1`. `Cargo.toml:414`, `Cargo.toml:544`
-- [ ] Move `wit-parser`, `wasmparser` and `wit-component` to the version wasmtime 50.0.1 parses with, and write their holds as the standing decision says. Check the `sha2` and `generic-array` line again against 50, and rewrite or delete it. `Cargo.toml:388`, `Cargo.toml:395`, `Cargo.toml:405`, `Cargo.toml:406`
-- [ ] Hold `region` on 3 with the reason the standing decision gives. `Cargo.toml:549`
-- [ ] Adapt the call sites the moved APIs break. The engine config keeps naming every wasm proposal through `PROPOSALS`, so a new default in 50 stays off. `crates/nvs-ext/src/call.rs:872`, `crates/nvs-ext/src/call.rs:895`, `crates/nvs-ext/src/section.rs:1`, `crates/nvs-ext/src/pack.rs:1`, `crates/nvs-ext/src/wasi.rs:1`, `crates/nvs-codegen/src/lib.rs:513`, `crates/nvs-codegen/src/emit.rs:1`, `crates/nvs-runtime/src/helpers.rs:1`
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean. `bun nv gen-attribution` regenerates the notice. One commit holds the group, its lock and the notice (`rule:packaging/one-bump-one-commit`). `Cargo.lock:1`, `THIRD-PARTY-LICENSES.txt:1`
-- [ ] Run the `engine-guards` check's command once, with `run_in_background`, then the `components-load` check's. A guard that fails is handled as the standing decision says, never by its threshold (`rule:packaging/a-dependency-move-proves-two-things`). `benches/abi-probe/tests/unwind_unavailable.rs:43`, `crates/nvs-ext/tests/load.rs:93`
+- [x] Lift the wasmtime hold and move `wasmtime` to `50.0.1`. Rewrite the comment above it as a whole: the minimum is the release this commit takes, and the `cache` and `zstd` paragraph is checked again against 50's features. Adapt the feature list to what 50 names (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`). `Cargo.toml:346`, `Cargo.toml:356`
+- [x] Move the five `cranelift-*` rows to `0.137.1`. `Cargo.toml:98`, `Cargo.toml:99`, `Cargo.toml:100`, `Cargo.toml:101`, `Cargo.toml:107`
+- [x] Move `wasmtime-wasi-io` and `wasmtime-internal-jit-icache-coherence` to `50.0.1`. `Cargo.toml:414`, `Cargo.toml:544`
+- [x] Move `wit-parser`, `wasmparser` and `wit-component` to the version wasmtime 50.0.1 parses with, and write their holds as the standing decision says. Check the `sha2` and `generic-array` line again against 50, and rewrite or delete it. `Cargo.toml:388`, `Cargo.toml:395`, `Cargo.toml:405`, `Cargo.toml:406`
+- [x] Hold `region` on 3 with the reason the standing decision gives. `Cargo.toml:549`
+- [x] Adapt the call sites the moved APIs break. The engine config keeps naming every wasm proposal through `PROPOSALS`, so a new default in 50 stays off. `crates/nvs-ext/src/call.rs:872`, `crates/nvs-ext/src/call.rs:895`, `crates/nvs-ext/src/section.rs:1`, `crates/nvs-ext/src/pack.rs:1`, `crates/nvs-ext/src/wasi.rs:1`, `crates/nvs-codegen/src/lib.rs:513`, `crates/nvs-codegen/src/emit.rs:1`, `crates/nvs-runtime/src/helpers.rs:1`
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean. `bun nv gen-attribution` regenerates the notice. One commit holds the group, its lock and the notice (`rule:packaging/one-bump-one-commit`). `Cargo.lock:1`, `THIRD-PARTY-LICENSES.txt:1`
+- [x] Run the `engine-guards` check's command once, with `run_in_background`, then the `components-load` check's. A guard that fails is handled as the standing decision says, never by its threshold (`rule:packaging/a-dependency-move-proves-two-things`). `benches/abi-probe/tests/unwind_unavailable.rs:43`, `crates/nvs-ext/tests/load.rs:93`
 
 ### 2. the host's leaf crates are current, and every tool lockfile is at its latest in range
 
@@ -359,26 +370,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal was written on 2026-10-30, and nothing has landed. `bun nv deps` read 335 pins: 51 behind,
-15 held (each hold's revisit date is 2026-11-16), 4 floating and 265 current. Root `cargo deny check
-advisories` passes. The lockfiles of `extensions/spreadsheet`, `extensions/pdf`, `fuzz` and
-`website/guides/markdown-extension` fail it, as the standing decisions list.
+Stage 1 is done in one commit (`build(deps): the JIT and the sandbox run on cranelift 0.137.1 and
+wasmtime 50.0.1`). The engine group is on cranelift 0.137.1, wasmtime 50.0.1 and `wit-*` 0.261, with
+`region` and the three `wit-*` rows held to 2026-11-30. Two API breaks were absorbed, as the two new
+standing decisions say: `embed_component_metadata`'s `canonical_names`, and the hostcall fuel set at
+each call's start only. wit-component 0.261 writes different bytes, so the fixture `.nvsx` files were
+packed again (`NVS_WRITE_FIXTURES=1`), and the 11 `nvs.toml` files that pin them carry the new pins.
+
+`engine-guards` passed. `components-load` (`bun nv verify -p nvs-ext`) passed every load and call
+test. One test failed under the run's load only: `a_header_of_every_column_equal_is_numbered_in_linear_time`
+(`crates/nvs-ext/tests/spreadsheet_read.rs:844`) took 12.6 s against its 10 s wall-clock bound. It
+passes in 0.21 s alone, on the new engine as well, so the bump is not the cause.
+
+The two sweep findings were already fixed: `env-secret-proofs` passes, and the nightly's `bundle`
+failure (`ExecutableFileBusy`) predates `b9ce9d0e6`, which retries it.
 
 ### Next
 
-Stage 1, the engine group. Files: `Cargo.toml`, `Cargo.lock`, `crates/nvs-ext/src/`,
-`crates/nvs-codegen/src/`, `THIRD-PARTY-LICENSES.txt`. No gate.
+Stage 2, the host's leaf crates. Files: `Cargo.toml`, `Cargo.lock`, `crates/nvs-stdlib/src/regex.rs`,
+`crates/nvs-db/src/`, the four tool lockfiles, `deny.toml`. No gate. Start with the stage's `Explore`
+split for the unused workspace rows.
 
-- [ ] Lift the wasmtime hold and move `wasmtime` to `50.0.1`, rewriting its comment and adapting its features (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`). `Cargo.toml:346`, `Cargo.toml:356`
-- [ ] The five `cranelift-*` rows to `0.137.1`. `Cargo.toml:98`, `Cargo.toml:107`
-- [ ] `wasmtime-wasi-io` and `wasmtime-internal-jit-icache-coherence` to `50.0.1`. `Cargo.toml:414`, `Cargo.toml:544`
-- [ ] `wit-parser`, `wasmparser` and `wit-component` to `0.261` with their holds. `Cargo.toml:389`, `Cargo.toml:396`, `Cargo.toml:407`
-- [ ] Hold `region` on 3. `Cargo.toml:549`
-- [ ] Adapt the call sites, with `PROPOSALS` still naming every proposal. `crates/nvs-ext/src/call.rs:872`, `crates/nvs-codegen/src/lib.rs:513`
-- [ ] Build, clippy, the notice and one commit (`rule:packaging/one-bump-one-commit`). `THIRD-PARTY-LICENSES.txt:1`
-- [ ] The `engine-guards` and `components-load` commands, once each (`rule:packaging/a-dependency-move-proves-two-things`). `benches/abi-probe/tests/unwind_unavailable.rs:43`
+- [ ] `fancy-regex` to `0.20`. `Cargo.toml:618`, `crates/nvs-stdlib/src/regex.rs:922`
+- [ ] `rusqlite` to `0.41`, with `--check-c-deps`. `Cargo.toml:1136`, `crates/nvs-db/src/sqlite.rs:1`
+- [ ] Re-date the `fallible-iterator` hold. `Cargo.toml:1107`
+- [ ] Remove the unused workspace rows the `Explore` list names. `Cargo.toml:1`
+- [ ] Root `cargo update`, then the four tool lockfiles, one commit each. `fuzz/Cargo.lock:1`
+- [ ] Build, clippy and `cargo deny check` on the tip. `deny.toml:1`
 
-No existing test is expected to go red, except where a moved API changes a message the test pins.
+Expected red in the gate stage: the spreadsheet test above, under load. Its fix is to bound the
+work with a count, not wall-clock time (`docs/agent/testing.md` § *A test holds on every CI runner*).
+A threshold change is not a fix.
 
 ### Backlog
 
