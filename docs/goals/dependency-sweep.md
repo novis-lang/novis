@@ -406,14 +406,25 @@ Core call (`calls 1`, counted since `4beafef13`) and measured again.
 a home outside this file. The sweep finding `env-secret-proofs` is stale (its log shows exit 0),
 and no file in the tree defines it.
 
+The first DONE was refused on `floor-debt`: one red atom, the Serialize encode attack
+(`tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-callables.nvs`). Alone it
+passed, but its `FATAL` named 17.9 GB held against a 256 MB ceiling. `Core\Serialize::encode`
+grew a plain `Vec` the ceiling never asked about, so under the debt's parallel load the host ran
+out. `ed76b4102` makes `Encode::put` (`crates/nvs-runtime/src/graph.rs:661`) ask
+`budget::affords` before each growth. The attack now stops at 175 MB in 0.9 s, and the unit test
+`an_encode_past_the_ceiling_writes_nothing_and_reports_the_breach` pins it. Build, clippy and that
+test are green, and the attack's proof ran green with the fix. No test is expected to go red.
+
 ### Next
 
-The goal is reached. The driver runs the acceptance checks and retires it. `editors/vscode/`
-changed, so the goal-end hook rebuilds the `.vsix`, and `bun nv relink --build --hook` rebuilds the
-release binary.
+The goal is reached. The driver runs the acceptance checks, `floor-debt` among them, and retires
+it. The runtime change makes the debt owe its atoms again, so that check takes about 30 minutes.
+`editors/vscode/` changed, so the goal-end hook rebuilds the `.vsix`, and
+`bun nv relink --build --hook` rebuilds the release binary.
 
 - [x] Read the second verify's report: green. `tools/nv/cmd/ci.ts:103`
 - [x] `bun nv verify --doc`, `bun nv owners --closes dependency-sweep` and `bun nv ci --check`, each red fixed. `tools/nv/cmd/ci.ts:104`
+- [x] `floor-debt`'s red atom fixed at its cause. `crates/nvs-runtime/src/graph.rs:661`
 
 ### Backlog
 
