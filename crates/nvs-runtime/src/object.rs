@@ -2963,10 +2963,30 @@ impl LiveList {
         self.head.set(object);
     }
 
+    /// How many objects are on the list, counted without allocating — what
+    /// [`reclaim`] sizes its scratch by before it takes any.
+    fn len(&self) -> usize {
+        let mut count = 0;
+        let mut member = self.head.get();
+        while !member.is_null() {
+            count += 1;
+            #[expect(
+                unsafe_code,
+                reason = "every member was linked from a live allocation and \
+                          leaves the list in `unlink` before it is freed"
+            )]
+            unsafe {
+                member = (*member).next.get();
+            }
+        }
+        count
+    }
+
     /// Every object on the list, head first — [`sweep`]'s snapshot, taken
-    /// before anything it does can free one.
-    fn members(&self) -> Vec<*mut ObjHeader> {
-        let mut members = Vec::new();
+    /// before anything it does can free one. `len` is [`Self::len`], so the
+    /// snapshot is allocated once at its exact size.
+    fn members(&self, len: usize) -> Vec<*mut ObjHeader> {
+        let mut members = Vec::with_capacity(len);
         let mut member = self.head.get();
         while !member.is_null() {
             members.push(member);
@@ -2986,7 +3006,7 @@ impl LiveList {
     /// consider if the context ended now.
     #[cfg(test)]
     pub(crate) fn count(&self) -> usize {
-        self.members().len()
+        self.len()
     }
 }
 
@@ -3142,7 +3162,7 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 pub(crate) fn sweep(list: &LiveList) {
     // Survivors are detached before this returns, whichever way it leaves.
     let _detach = Detach(list);
-    reclaim(list);
+    reclaim(list, None);
 }
 
 /// Reclaims the cyclic garbage on `list` **while its context is still
@@ -3167,8 +3187,14 @@ pub(crate) fn sweep(list: &LiveList) {
 /// held from outside the list and is marked live along with everything under
 /// it. A borrow reaches its value through a root that some frame counts, so
 /// keeping the root is what keeps what the borrow names.
-pub(crate) fn collect(list: &LiveList) -> usize {
-    reclaim(list)
+///
+/// **`room` is what the walk's scratch may take**: `bun nv proofs
+/// --overshoot`'s bound less what the request already held, or `None` under no
+/// ceiling. Where the scratch does not fit, nothing is walked and the request
+/// ends on its breach, as it would with no collector. The walk would otherwise
+/// carry a request past the bound that the collector exists to keep it under.
+pub(crate) fn collect(list: &LiveList, room: Option<usize>) -> usize {
+    reclaim(list, room)
 }
 
 /// Dismantles the members of `list` that nothing outside it can reach, and
@@ -3187,8 +3213,8 @@ pub(crate) fn collect(list: &LiveList) -> usize {
 ///
 /// # The five walks
 ///
-/// 1. **Snapshot the list**, so the tallies below can be indexed rather than
-///    hashed twice.
+/// 1. **Snapshot the list and sort it by address**, so the tallies below are
+///    indexed by a member's position, found by binary search.
 /// 2. **Tally, per member, how many of its references come from another
 ///    member's field slot or from an array that member solely owns.** A
 ///    member whose count that tally does not
@@ -3233,14 +3259,16 @@ pub(crate) fn collect(list: &LiveList) -> usize {
 /// statements, on the same terms. What that code must not do is re-enter this
 /// walk, and [`LiveList::walking`] is what stops it.
 ///
-/// **What it spends:** one `Vec` and one `HashMap` sized by the number of live
-/// objects, plus one pass over their field slots per walk — spent only where
-/// the request was about to stop anyway. At teardown, which is already
-/// O(live values) by `rule:security/isolate-teardown-is-a-drain-then-a-sweep`;
-/// and in flight at a poll whose ceiling the allocator had already crossed,
-/// where the alternative was a `FATAL`. A request inside its ceiling pays
-/// nothing, per `rule:programs/memory-priority`.
-fn reclaim(list: &LiveList) -> usize {
+/// **What it spends:** [`SCRATCH_PER_MEMBER`] bytes per live object at its
+/// peak, and O(n log n) for the sort and the lookups, spent only where the
+/// request was about to stop anyway. At teardown, which is already O(live
+/// values) by `rule:security/isolate-teardown-is-a-drain-then-a-sweep`; and in
+/// flight at a poll whose ceiling the allocator had already crossed, where the
+/// alternative was a `FATAL`. A request inside its ceiling pays nothing, per
+/// `rule:programs/memory-priority`. A `HashMap` from address to position cost
+/// about twice the bytes per object, and at a million live objects that put a
+/// 64 MiB request at 1.78 times its ceiling. `room` is [`collect`]'s.
+fn reclaim(list: &LiveList, room: Option<usize>) -> usize {
     if list.walking.replace(true) {
         // Reached from inside walk 5's own dismantling — see
         // [`LiveList::walking`]. The outer walk owns every member it condemned
@@ -3248,12 +3276,16 @@ fn reclaim(list: &LiveList) -> usize {
         return 0;
     }
     let _walking = Walking(list);
-    let members = list.members();
-    if members.is_empty() {
+    let len = list.len();
+    if len == 0 {
         return 0;
     }
-    let mut seat = std::collections::HashMap::with_capacity(members.len());
-    for (at, &member) in members.iter().enumerate() {
+    if room.is_some_and(|room| len.saturating_mul(SCRATCH_PER_MEMBER) > room) {
+        return 0;
+    }
+    let mut members = list.members(len);
+    #[cfg(debug_assertions)]
+    for &member in &members {
         // The other half of the stamp, and the exact one: every member of this
         // list says this list is where it belongs. A member that says
         // otherwise was moved between lists by something other than
@@ -3268,13 +3300,14 @@ fn reclaim(list: &LiveList) -> usize {
                  — see `crates/nvs-runtime/src/object.rs`'s module docs"
             );
         }
-        seat.insert(member, at);
     }
+    members.sort_unstable();
+    let seat = |target: *mut ObjHeader| members.binary_search(&target).ok();
 
     let mut held = vec![0_usize; members.len()];
     for &member in &members {
         for target in member_targets(member) {
-            if let Some(&at) = seat.get(&target) {
+            if let Some(at) = seat(target) {
                 held[at] += 1;
             }
         }
@@ -3295,31 +3328,39 @@ fn reclaim(list: &LiveList) -> usize {
         );
     }
 
-    let mut live = vec![false; members.len()];
-    let mut reachable: Vec<usize> = (0..members.len())
-        .filter(|&at| refcount(members[at]) != held[at])
+    // A member is marked as it is pushed, so each is pushed at most once and
+    // the stack never outgrows the tally it replaces.
+    let mut live: Vec<bool> = (0..members.len())
+        .map(|at| refcount(members[at]) != held[at])
         .collect();
+    drop(held);
+    let mut reachable = Vec::with_capacity(members.len());
+    reachable.extend((0..members.len()).filter(|&at| live[at]));
     while let Some(at) = reachable.pop() {
-        if std::mem::replace(&mut live[at], true) {
-            continue;
-        }
         for target in member_targets(members[at]) {
-            if let Some(&next) = seat.get(&target)
-                && !live[next]
+            if let Some(next) = seat(target)
+                && !std::mem::replace(&mut live[next], true)
             {
                 reachable.push(next);
             }
         }
     }
+    drop(reachable);
 
-    let garbage: Vec<*mut ObjHeader> = members
-        .into_iter()
-        .enumerate()
-        .filter_map(|(at, member)| (!live[at]).then_some(member))
-        .collect();
-    if garbage.is_empty() {
+    // Taken in list order, not address order: walk 5 runs Novis code in
+    // flight, so the order it dismantles in is observable.
+    let dead = live.iter().filter(|&&live| !live).count();
+    if dead == 0 {
         return 0;
     }
+    let mut garbage = Vec::with_capacity(dead);
+    for member in list.members(len) {
+        if seat(member).is_some_and(|at| !live[at]) {
+            garbage.push(member);
+        }
+    }
+    drop(live);
+    drop(members);
     let reclaimed = garbage.len();
     for &member in &garbage {
         bump(member);
@@ -3351,6 +3392,12 @@ fn reclaim(list: &LiveList) -> usize {
     }
     reclaimed
 }
+
+/// The most [`reclaim`]'s scratch holds per live object: the sorted snapshot,
+/// and then either the tally or the mark stack beside it, plus one mark byte.
+/// The list of garbage is taken after the tally and the stack are freed, and
+/// is never larger than either.
+const SCRATCH_PER_MEMBER: usize = 2 * size_of::<usize>() + size_of::<bool>();
 
 /// Lowers [`LiveList::walking`] however the walk it brackets leaves, so that a
 /// panic out of a dismantle does not leave a context unable to collect again.
@@ -7414,7 +7461,7 @@ mod tests {
         }
         assert_eq!(ctx.live_objects(), 2);
         #[expect(unsafe_code, reason = "the installed context's list is live")]
-        let freed = collect(unsafe { &*crate::ctx::current_live_list() });
+        let freed = collect(unsafe { &*crate::ctx::current_live_list() }, None);
         assert_eq!(freed, 2, "the cycle is garbage");
         assert_eq!(
             FINALLY_RUNS.get(),

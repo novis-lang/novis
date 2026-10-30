@@ -674,15 +674,16 @@ impl Ctx {
         self.memory_share(live.max(crate::budget::peak_bytes()))
     }
 
-    /// The most a debug build lets this request hold inside one member call,
-    /// or `None` for a request with no memory ceiling.
+    /// The most this request may hold at its breach, or `None` for a request
+    /// with no memory ceiling.
     ///
     /// `bun nv proofs --overshoot`'s bound, written again: one and a half
     /// times the whole ceiling plus 8 MiB. [`crate::run_helper`] checks it
     /// after each body in a debug build, so a member that grows past its
     /// ceiling without asking the budget panics in the first Rust test that
-    /// runs it under one. A release build never reads it.
-    #[cfg(debug_assertions)]
+    /// runs it under one. In every build, the in-flight collector skips a walk
+    /// whose scratch would carry the request past it
+    /// ([`crate::object::collect`]).
     pub(crate) fn overshoot_bound(&self) -> Option<usize> {
         const SLACK: usize = 8 << 20;
         if self.memory_limit == 0 {

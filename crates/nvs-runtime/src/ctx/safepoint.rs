@@ -400,7 +400,10 @@ impl Ctx {
         // only where something records it — [`Ctx::open_gc_pause`].
         let started = self.open_gc_pause();
         self.count_gc_cycle();
-        let freed = crate::object::collect(&self.live);
+        let room = self
+            .overshoot_bound()
+            .map(|bound| bound.saturating_sub(self.memory_held(crate::budget::live_bytes())));
+        let freed = crate::object::collect(&self.live, room);
         if let Some(started) = started {
             self.close_gc_pause(started, freed);
         }
