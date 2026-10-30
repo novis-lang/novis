@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [code-rename-and-calls]
+chain: [code-rename-and-calls, member-order]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -23,11 +23,12 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `code-rename-and-calls` is live.
+The chain holds 2 goal(s). `code-rename-and-calls` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`code-rename-and-calls`](code-rename-and-calls.md) **live** | nvs code rename, move, find, calls and reach answer from the editor's own rename, file move, workspace symbol, call hierarchy and used-by functions, the rules say so, the agent pointer names them, and the checks below pass. | 1 ✓ nvs code rename writes the editor's rename to disk · 2 ✓ nvs code move moves a file or a directory and rewrites every require that names it · 3 ✓ nvs code find, calls and reach read the index, and the agent pointer names all five verbs · 4 ✓ the goal is verified once, and every failure is fixed |
+| 2 | [`member-order`](member-order.md) | nvs code order and the editor's Order class members action write the member order the rule gives, Core\Json\KeepKeyOrder keeps a derived class's JSON key order, the rules say so, and the checks below pass. | **1 the order is a rule, and Core\Json\KeepKeyOrder compiles only beside Core\Json\Derive** · 2 nvs_lsp::order writes the member order, and the editor offers it as a source action · 3 nvs code order writes, checks and prints the member order · 4 the goal is verified once, and every failure is fixed |
 
 The floor holds 3 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
