@@ -1172,7 +1172,7 @@
   },
   "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
     "feature": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
-    "hash": "4dbbbca14ffb4393",
+    "hash": "7ea2fdc06ba7b463",
     "questions": [
       "Is it safe to load an extension somebody else built?",
       "See which folders and hosts an extension wants to access",
@@ -1183,7 +1183,7 @@
   },
   "/reference/cli/nvs-ext-new-and-nvs-ext-build/": {
     "feature": "tools:cli/nvs-ext-new-and-nvs-ext-build",
-    "hash": "c6f49a79bd0ee38a",
+    "hash": "9218095f4c921bf3",
     "questions": [
       "How do I write an extension in C or another compiled language?",
       "Create a new WebAssembly extension project",
@@ -1194,7 +1194,7 @@
   },
   "/reference/cli/nvs-ext-test/": {
     "feature": "tools:cli/nvs-ext-test",
-    "hash": "3ed910e55db3a90b",
+    "hash": "96e526cbf9193054",
     "questions": [
       "How do I run unit tests for my extension?",
       "Test an extension with folder and network permissions",
@@ -1485,7 +1485,7 @@
   },
   "/reference/config/ext/": {
     "feature": "directive:ext",
-    "hash": "a85e0b0467f5977c",
+    "hash": "469ec36d11048663",
     "questions": [
       "How do I configure options for a loaded extension?",
       "Pass settings to an extension from the configuration file",
@@ -1507,7 +1507,7 @@
   },
   "/reference/config/extension-grants-what-a-component-may-reach/": {
     "feature": "tools:config/extension-grants-what-a-component-may-reach",
-    "hash": "b90bd27e36bee37b",
+    "hash": "fc4e3c4ebd70e1fe",
     "questions": [
       "How do I let an extension read files in a folder?",
       "Allow an extension to send HTTP requests to one host",
