@@ -569,7 +569,7 @@
     "package": "node -e \"require('node:fs').copyFileSync('../../LICENSE', 'LICENSE')\" && vsce package --no-dependencies --out nvs.vsix"
   },
   "dependencies": {
-    "vscode-languageclient": "^10.1.2"
+    "vscode-languageclient": "^11.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
