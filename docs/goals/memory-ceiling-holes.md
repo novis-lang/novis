@@ -275,11 +275,13 @@ table above go red. That is expected: this goal's later stages turn them green.
 **Split:** the attacks go to one writing subagent once the fixes are in.
 
 - [x] `Core\Str::join` writes through `StrWriter`, not a `String` (measured at 61x). `crates/nvs-stdlib/src/str.rs:2069`
-- [ ] `Str::codePoints`, `graphemes` and `chunk` are bounded through stage 3's array growth. Each gets an attack step. `crates/nvs-stdlib/src/str.rs:2452`, `crates/nvs-stdlib/src/str.rs:2425`, `crates/nvs-stdlib/src/str.rs:2283`
+- [x] `Str::codePoints`, `graphemes` and `chunk` are bounded through stage 3's array growth. Each gets an attack step. `crates/nvs-stdlib/src/str.rs:2452`, `crates/nvs-stdlib/src/str.rs:2425`, `crates/nvs-stdlib/src/str.rs:2283`
 - [x] `Arr::flattenDeep`, `flatten`, `appendAll` and `chunk` over shared rows, and `fromKeysAndValues` (1.45x). `append_values` asks. `crates/nvs-stdlib/src/arr.rs:3902`, `crates/nvs-stdlib/src/arr.rs:3862`, `crates/nvs-stdlib/src/arr.rs:5804`, `crates/nvs-stdlib/src/arr.rs:3438`, `crates/nvs-stdlib/src/arr.rs:3024`, `crates/nvs-stdlib/src/arr.rs:4244`
 - [x] `Bytes::unpack` asks for its `Vec<Field>` and its array (2.0x). `crates/nvs-stdlib/src/bytes.rs:1575`
 - [x] `Math::format`'s group separator is counted in its ask. `crates/nvs-stdlib/src/math.rs:2113`
-- [x] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
+- [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
+  - [x] `matchAll` returns at a refusal, and `replaceWith` asks per kept match (`kept`).
+  - [ ] `replaceWith` with `.` over `Str::repeat('a', 50000000)` and a callback giving `'b'` still reads 12x of 256 MiB, about 81 bytes per match, and the refused allocation is a 41-byte string inside a callback. So `kept` never refused. Find where those bytes go, then add its attack step.
 - [x] `Arr::fillKeys` (2.81x) and `range` (runs out of time before its `FATAL`), which the peak reading of stage 2 put on the scan. `shapeAs` (1.70x) is `json::hydrate`, and moved to stage 6 beside `jsonAs`. `crates/nvs-stdlib/src/arr.rs:4088`, `crates/nvs-stdlib/src/arr.rs:4166`
   - [x] `NvsArray::with_capacity` and the packed-to-hash conversion ask for their room. `crates/nvs-runtime/src/array.rs:481`, `crates/nvs-runtime/src/array.rs:1071`
   - [x] `range` asks for its whole list once. `crates/nvs-stdlib/src/arr.rs:4166`
@@ -362,7 +364,9 @@ kept match (`kept`, `crates/nvs-stdlib/src/regex.rs`).
 
 `bun nv proofs --overshoot` is red on 7, down from 11: both `Uri/encode*` 5.2x, the cart 1.78x,
 `Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Http-Response/jsonAs` 1.64x, `Response/html` 1.54x. Every
-`Str`, `Bytes`, `Math` and `Arr` member attack but `shapeAs` is green. `shapeAs` hydrates through
+`Str`, `Bytes`, `Math` and `Arr` member attack but `shapeAs` is green, and new steps for
+`codePoints`, `graphemes`, `chunk`, `Math::format`, `flatten`, `flattenDeep` and `appendAll` read
+0.05x to 1.00x. `Regex::replaceWith` is not bounded yet: see its sub-item under stage 5. `shapeAs` hydrates through
 `json::hydrate`, as `jsonAs` does, so it moved to stage 6. The cart has no member: it is the cycle
 collector's scratch (Standing decisions, *The collector's scratch*).
 
@@ -382,7 +386,7 @@ Finish stage 5, then stage 6. Read the bound with `bun nv proofs --overshoot`, w
 `bun nv proofs --run --group '<class>'`.
 
 - [ ] The cart: `reclaim` seats by a sorted `Vec`, and the in-flight walk is skipped when its scratch does not fit under the bound. `crates/nvs-runtime/src/object.rs:3243`, `crates/nvs-runtime/src/object.rs:3170`
-- [ ] Commit the attack steps for `Str::codePoints`, `graphemes`, `chunk`, `Math::format`, `Arr::flatten`, `flattenDeep`, `appendAll` and `Regex::replaceWith` if this session left them uncommitted. `tests/hostile/core/Arr/fillKeys/01-more-keys-than-memory.nvs:1`
+- [ ] `Regex::replaceWith` past its ceiling: `kept` does not refuse, though it is the only collection loop (measurements under stage 5). Its attack step follows the fix. `crates/nvs-stdlib/src/regex.rs:2166`, `crates/nvs-stdlib/src/regex.rs:1714`
 - [ ] Stage 6: `Uri::encodeComponent` and `encodeFormValue` (5.2x). `crates/nvs-stdlib/src/uri.rs:3143`
 - [ ] Stage 6: `json::hydrate` for `jsonAs` and `shapeAs`. `crates/nvs-stdlib/src/arr.rs:6462`
 
