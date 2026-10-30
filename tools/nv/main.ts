@@ -38,6 +38,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   deps: () => import("./cmd/deps.ts"),
 
   directives: () => import("./cmd/directives.ts"),
+  discord: () => import("./cmd/discord.ts"),
   disk: () => import("./cmd/disk.ts"),
   "exe-icons": () => import("./cmd/exe-icons.ts"),
   "ext-templates": () => import("./cmd/ext-templates.ts"),

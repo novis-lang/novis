@@ -34,6 +34,8 @@ const HOMES: [string, string, string][] = [
     "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"],
   ["report reports issue issues feedback triage reporter", "docs/agent/user-report.md",
     "a report from somebody using Novis: intake, classify, search the plans, ask, place, neutral names"],
+  ["discord server community moderation", "tools/nv/cmd/discord.ts",
+    "the project's Discord server, changed on the user's request: nv discord check, api, snapshot, diff, bits"],
 ];
 
 /** The home whose answer adds a line about the gap register. */
