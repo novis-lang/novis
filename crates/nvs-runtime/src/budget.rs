@@ -932,8 +932,13 @@ pub(crate) struct Refusal {
 /// brings it back under a ceiling it never held the bytes against.
 /// [`take_refusal`] is the only way back, and its two callers are the context
 /// that ends and the handler that is lent a slice to report with.
+///
+/// Public for a `Core` member's walk: a refused write stores nothing, so a
+/// walk that keeps going after one spends its time for no result. Reading
+/// this once per row or per nested array, and returning, is what stops it.
 #[inline]
-pub(crate) fn refused() -> bool {
+#[must_use]
+pub fn refused() -> bool {
     REFUSED.with(Cell::get).is_some()
 }
 

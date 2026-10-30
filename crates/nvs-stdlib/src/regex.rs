@@ -1704,6 +1704,35 @@ nvs_runtime::nvs_helper! {
 /// participating one's byte offset into the subject plus its text.
 type Captured<'a> = Vec<Option<(usize, &'a str)>>;
 
+/// Appends one match's groups to `found`, asking the request's memory ceiling
+/// for them first.
+///
+/// `replaceWith` keeps every match before it calls back once per match, and
+/// each one is a list of its own. A pattern that matches at every character
+/// keeps many times the subject's size. What it spends: one comparison per
+/// match, beside a search that costs far more.
+fn kept<'a>(found: &mut Vec<Captured<'a>>, groups: Captured<'a>) -> Result<(), Fault> {
+    let mut ask = groups.capacity().saturating_mul(size_of::<Option<(usize, &str)>>());
+    if found.len() == found.capacity() {
+        let capacity = found.capacity().saturating_mul(2).max(4);
+        ask = ask.saturating_add(capacity.saturating_mul(size_of::<Captured<'_>>()));
+    }
+    if !nvs_runtime::budget::affords(ask) {
+        return Err(over_memory("replaceWith"));
+    }
+    found.push(groups);
+    Ok(())
+}
+
+/// The error a member returns once the request's memory ceiling refused it.
+/// The breach is already recorded, so the `FATAL` that ends the request names
+/// the ceiling and not this text.
+fn over_memory(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "Core\\Regex::{member}: the matches do not fit in the request's memory limit"
+    ))
+}
+
 /// [`Captured`] from the linear tier's own capture set.
 fn linear_groups<'a>(caps: &regex::Captures<'a>) -> Captured<'a> {
     (0..caps.len())
@@ -1869,13 +1898,22 @@ nvs_runtime::nvs_helper! {
         let mut offsets = DEFAULT.cursor(subject);
         let mut out = NvsArray::new();
         match &*compiled {
+            // Each `Match` asks for its own strings and its slot in `out`. A
+            // refused one stores nothing, and the search stops at the next
+            // match.
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject) {
+                    if nvs_runtime::budget::refused() {
+                        return Err(over_memory("matchAll"));
+                    }
                     out.append(built_match(&mut offsets, &names, &linear_groups(&caps)));
                 }
             }
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject) {
+                    if nvs_runtime::budget::refused() {
+                        return Err(over_memory("matchAll"));
+                    }
                     let caps =
                         caps.map_err(|err| budget_exhausted("matchAll", pattern, budget.steps(), &err))?;
                     out.append(built_match(&mut offsets, &names, &backtracking_groups(&caps)));
@@ -2142,14 +2180,14 @@ nvs_runtime::nvs_helper! {
         match &*compiled {
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject).take(count) {
-                    found.push(linear_groups(&caps));
+                    kept(&mut found, linear_groups(&caps))?;
                 }
             }
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject).take(count) {
                     let caps =
                         caps.map_err(|err| budget_exhausted("replaceWith", pattern, budget.steps(), &err))?;
-                    found.push(backtracking_groups(&caps));
+                    kept(&mut found, backtracking_groups(&caps))?;
                 }
             }
         }

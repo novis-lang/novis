@@ -3021,7 +3021,16 @@ fn append_borrowed_or_refuse(out: &mut NvsArray, value: Value) -> Result<(), Fau
 /// padding members because each one wraps it in padding on a different side,
 /// and by [`nvs_core_arr_append_all`], which is that walk over every argument
 /// in turn and nothing else.
-fn append_values(subject: &NvsArray, out: &mut NvsArray) {
+///
+/// **A refused write stops the caller.** The request's memory ceiling refuses
+/// a growth of `out` and records the breach, and this returns an error at the
+/// start of the next call. So `flatten` over many references to one long row
+/// walks that row once after the refusal, and not once per reference. What it
+/// spends: one thread-local read per call.
+fn append_values(subject: &NvsArray, out: &mut NvsArray) -> Result<(), Fault> {
+    if nvs_runtime::budget::refused() {
+        return Err(over_memory());
+    }
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
         let value = subject
@@ -3039,6 +3048,14 @@ fn append_values(subject: &NvsArray, out: &mut NvsArray) {
         out.append(value);
         from = slot + 1;
     }
+    Ok(())
+}
+
+/// The error a walk returns once the request's memory ceiling refused it. The
+/// breach is already recorded, so the `FATAL` that ends the request names the
+/// ceiling and not this text.
+fn over_memory() -> Fault {
+    Fault::thrown("Core\\Arr: the result does not fit in the request's memory limit")
 }
 
 /// Copies the entry at `slot` — key and value both — from a borrowed subject
@@ -3377,7 +3394,7 @@ nvs_runtime::nvs_helper! {
             carry_entry(&base, slot, &mut out, false);
             position += 1;
         }
-        append_values(&replacement, &mut out);
+        append_values(&replacement, &mut out)?;
         while position < end {
             let Some(slot) = base.next_slot(from) else {
                 break;
@@ -3529,7 +3546,7 @@ nvs_runtime::nvs_helper! {
             append_borrowed(&mut out, value);
             Ok(())
         })?;
-        append_values(&base, &mut out);
+        append_values(&base, &mut out)?;
         Ok(Value::array(out))
     }
 }
@@ -3710,7 +3727,7 @@ nvs_runtime::nvs_helper! {
         let (subject, missing, value) = padding(args, "padStart")?;
         let mut out = NvsArray::new();
         append_copies(&mut out, value, missing, "Core\\Arr::padStart")?;
-        append_values(&subject, &mut out);
+        append_values(&subject, &mut out)?;
         Ok(Value::array(out))
     }
 }
@@ -3726,7 +3743,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_pad_end(_ctx, args: [3]) {
         let (subject, missing, value) = padding(args, "padEnd")?;
         let mut out = NvsArray::new();
-        append_values(&subject, &mut out);
+        append_values(&subject, &mut out)?;
         append_copies(&mut out, value, missing, "Core\\Arr::padEnd")?;
         Ok(Value::array(out))
     }
@@ -3869,7 +3886,7 @@ nvs_runtime::nvs_helper! {
                 .value_at(slot)
                 .expect("next_slot only names live entries");
             let inner = array_at(&value, "flatten", "every element")?;
-            append_values(&inner, &mut out);
+            append_values(&inner, &mut out)?;
         }
         Ok(Value::array(out))
     }
@@ -3913,6 +3930,9 @@ nvs_runtime::nvs_helper! {
                 .value_at(slot)
                 .expect("next_slot only names live entries");
             match value.array_ptr() {
+                // Read once per nested array, as `append_values` does, so
+                // a refused result stops the walk over shared rows.
+                Some(_) if nvs_runtime::budget::refused() => return Err(over_memory()),
                 Some(nested) => stack.push((borrowed(nested), 0)),
                 None => append_borrowed(&mut out, value),
             }
@@ -4173,14 +4193,18 @@ nvs_runtime::nvs_helper! {
             )));
         }
 
-        let mut out = NvsArray::new();
+        // The count is known before the first entry, so the whole list is
+        // asked of the request's memory ceiling once. A list past it stops
+        // here, before any of the loop runs.
+        let span = (i128::from(end) - i128::from(start)).unsigned_abs();
+        let count = usize::try_from(span / u128::from(step.unsigned_abs()) + 1).ok();
+        let count = nvs_runtime::affordable(
+            count.and_then(|count| count.checked_mul(size_of::<Value>())),
+            r"Core\Arr::range",
+        )? / size_of::<Value>();
+        let mut out = NvsArray::with_capacity(count);
         let mut cursor = start;
         loop {
-            // Asked in front of the append, so the entry that would cross the
-            // ceiling is never stored: the balance already carries every entry
-            // this loop has appended, and this is the only thing in it that
-            // reads that balance.
-            nvs_runtime::affordable(Some(size_of::<Value>()), r"Core\Arr::range")?;
             out.append(Value::int(cursor));
             let next = if start <= end {
                 match cursor.checked_add(step) {
@@ -5804,11 +5828,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_append_all(_ctx, args: [2]) {
         let base = subject(args, "appendAll")?;
         let mut out = NvsArray::new();
-        append_values(&base, &mut out);
-        for_each_layer(&args[1], "appendAll", |layer| {
-            append_values(layer, &mut out);
-            Ok(())
-        })?;
+        append_values(&base, &mut out)?;
+        for_each_layer(&args[1], "appendAll", |layer| append_values(layer, &mut out))?;
         Ok(Value::array(out))
     }
 }

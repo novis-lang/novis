@@ -478,12 +478,25 @@ impl Table {
     /// array built with [`NvsArray::with_capacity`] keeps its room when its
     /// first key is not `"0"`. **What it spends:** an index sized to the
     /// vector's capacity, which is at most twice its length.
+    ///
+    /// That room is asked of the request's memory ceiling first. A refused
+    /// ask reserves the live entries alone, and every growth past them asks
+    /// again, so a builder that reserved a long list and then writes string
+    /// keys is stopped at the ceiling and not at several times it.
     fn hashed_mut(&mut self) -> &mut Hashed {
         if let Shape::Packed(values) = &mut self.shape {
             let packed = std::mem::take(values);
+            let room = packed
+                .capacity()
+                .saturating_mul(size_of::<Option<Entry>>() + INDEX_BUCKET);
+            let reserve = if crate::budget::affords(room) {
+                packed.capacity()
+            } else {
+                packed.len()
+            };
             let mut hashed = Hashed {
-                entries: Vec::with_capacity(packed.capacity()),
-                index: Index::with_capacity_and_hasher(packed.capacity(), Default::default()),
+                entries: Vec::with_capacity(reserve),
+                index: Index::with_capacity_and_hasher(reserve, Default::default()),
                 live: 0,
             };
             for (index, value) in packed.into_iter().enumerate() {
@@ -1067,8 +1080,17 @@ impl NvsArray {
     /// result is freed. Each caller passes a count no larger than an array it
     /// already holds, so the reserve is bounded by memory the request has
     /// already been charged for.
+    ///
+    /// The room is asked of the request's memory ceiling, as every growth is.
+    /// A refused ask starts the array with no room, and the breach is already
+    /// recorded, so the appends that follow store nothing.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
+        let capacity = if crate::budget::affords(capacity.saturating_mul(size_of::<Value>())) {
+            capacity
+        } else {
+            0
+        };
         let boxed = Box::new(ArrayHeader {
             refcount: Cell::new(1),
             table: RefCell::new(Table {
