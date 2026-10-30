@@ -12,12 +12,14 @@
 //! tests/db/compose.yaml up` brings the server up, and then these assert. CI's
 //! `database` job sets `NVS_LDAP_SAMBA`, which turns the skip into a failure.
 //!
-//! **Five cases use a local listener and always run.** Three prove that
+//! **Six cases use a local listener and always run.** Three prove that
 //! nothing reached the wire, which only a listener on our side can show. The
 //! fourth is a scripted peer that answers a cleartext bind
 //! `strongerAuthRequired`: this Samba is configured to accept one, so that
 //! refusal has to come from somewhere else. The fifth is a peer that answers
-//! late, which no real server does on demand.
+//! late, which no real server does on demand. The sixth is a peer whose ranged
+//! attribute never ends: Samba sends a range only when one is asked for, and
+//! `Core\Ldap`'s `select` takes no range option, so no program can make it.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
@@ -386,6 +388,99 @@ fn a_late_answer_to_a_request_that_timed_out_is_dropped() {
     connection
         .bind(ADMIN, PASSWORD)
         .expect("the second bind reads past the late answer");
+}
+
+#[test]
+fn a_ranged_attribute_that_never_ends_stops_at_the_memory_ceiling() {
+    const CEILING: usize = 8 << 20;
+    const PER_ANSWER: u64 = 100;
+    // Answers the search with one value of a range, and every follow-up with
+    // the next hundred values of 10 KB each, never with the range's end. Past
+    // 200 answers it stops answering, so a loop the ceiling did not stop
+    // ends at its deadline instead of filling the machine.
+    fn endless(id: i64) -> Option<Vec<u8>> {
+        let id = u64::try_from(id).ok()?;
+        if id > 200 {
+            return None;
+        }
+        let (name, count) = if id == 1 {
+            ("description;range=0-0".to_owned(), 1)
+        } else {
+            let from = 1 + (id - 2) * PER_ANSWER;
+            (
+                format!("description;range={from}-{}", from + PER_ANSWER - 1),
+                PER_ANSWER,
+            )
+        };
+        let value = vec![b'x'; 10_000];
+        let mut out = Writer::new();
+        out.constructed(tag::SEQUENCE, |msg| {
+            msg.integer(tag::INTEGER, i64::try_from(id).unwrap_or(0));
+            msg.constructed(0x64, |entry| {
+                entry.octets(tag::OCTET_STRING, b"OU=Range,DC=example,DC=test");
+                entry.constructed(tag::SEQUENCE, |attributes| {
+                    attributes.constructed(tag::SEQUENCE, |attribute| {
+                        attribute.octets(tag::OCTET_STRING, name.as_bytes());
+                        attribute.constructed(tag::SET, |values| {
+                            for _ in 0..count {
+                                values.octets(tag::OCTET_STRING, &value);
+                            }
+                        });
+                    });
+                });
+            });
+        });
+        out.constructed(tag::SEQUENCE, |msg| {
+            msg.integer(tag::INTEGER, i64::try_from(id).unwrap_or(0));
+            msg.constructed(0x65, |result| {
+                result.integer(tag::ENUMERATED, 0);
+                result.octets(tag::OCTET_STRING, b"");
+                result.octets(tag::OCTET_STRING, b"");
+            });
+        });
+        Some(out.into_bytes())
+    }
+    let (port, received_by_peer) = peer(endless);
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+    ctx.set_memory_limit(CEILING);
+    let mut connection =
+        open(&format!("ldap://127.0.0.1:{port}"), Tls::None, true, None).expect("the peer accepts");
+    let filter = Filter::Present("objectClass".into());
+    let error = connection
+        .search(&SearchRequest {
+            base: BASE,
+            scope: Scope::Base,
+            filter: &filter,
+            attributes: &["description"],
+            page_size: 1,
+            size_limit: 0,
+            time_limit: 0,
+            sort: None,
+            window: None,
+            show_deleted: false,
+        })
+        .next()
+        .expect("the search returns its entry or an error")
+        .expect_err("a range that never ends cannot fit under the ceiling");
+    assert_eq!(error.kind(), Kind::SizeLimitExceeded, "{error}");
+    let peak = usize::try_from(nvs_runtime::budget::peak_bytes()).unwrap_or(0);
+    assert!(
+        peak <= CEILING + CEILING / 2 + (8 << 20),
+        "the merged list reached {peak} bytes under a ceiling of {CEILING}"
+    );
+    drop(connection);
+    let received = received_by_peer
+        .recv()
+        .expect("the peer reports what it read");
+    let asked = received
+        .windows(b"description;range=".len())
+        .filter(|window| *window == b"description;range=")
+        .count();
+    assert!(
+        asked > 2,
+        "the client asked {asked} follow-up range(s), so the merge never grew"
+    );
+    drop(ctx);
 }
 
 #[test]

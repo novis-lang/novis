@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a unit has two thousand descriptions of one thousand bytes each, and the program reads
+// them with a memory limit of 1 MiB. The read should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Range,DC=example,DC=test';
+
+// A run that stopped early can leave the unit behind, so the program deletes it first.
+try {
+    $corp->delete($unit);
+} catch (Core\Ldap\LdapError $missing) {
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit', 'description' => 'start']);
+
+// 1. The program adds one hundred descriptions at a time, twenty times.
+uint $round = 0;
+while ($round < 20) {
+    array<string> $batch = [];
+    uint $i = 0;
+    while ($i < 100) {
+        $batch[] = $round . '-' . $i . ' ' . Core\Str::repeat('x', 1000);
+        $i = $i + 1;
+    }
+    $corp->modify($unit, [Core\Ldap\Change::add('description', $batch)]);
+    $round = $round + 1;
+}
+echo "1 the unit has two thousand descriptions\n";
+
+// 2. The program lowers its memory limit to 1 MiB.
+echo '2 memory: ', Core\Config::set('memory', '1M') ? 'changed' : 'refused', "\n";
+
+// 3. `read` keeps every value of the entry in memory. The values do not fit, so this step stops
+// the program at its memory limit.
+echo "step 3\n";
+$corp->read($unit, { select: ['description'] });
+echo "3 two million bytes of descriptions fitted in a 1 MiB limit\n";

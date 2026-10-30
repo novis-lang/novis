@@ -784,7 +784,14 @@ connect = ["corp"]
 # The proof programs of `setPassword`, `changePassword`, `authenticate`, `rename`, `add`, `modify`,
 # `delete` and `isDeleted` write to the directory, so they open `[ldap.corp-accounts]`, which logs in as the
 # administrator, and no other program is granted it. Each program adds its own unit and user outside `OU=Company` and deletes both again,
-# so a reader of the seed never sees them.
+# so a reader of the seed never sees them. `read`'s large-attribute attack is the one reader among them: it
+# writes the large unit it then reads, and deletes it at its next run, because it ends at its memory limit.
+[[app]]
+entry = "tests/hostile/core/Ldap-Connection/read/02-an-attribute-larger-than-the-memory-limit.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
 [[app]]
 root = "docs/examples/core/Ldap-Connection/setPassword"
 
