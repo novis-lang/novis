@@ -71,7 +71,8 @@
 //! **What it spends:** one walk of the arrived header lines per request, and
 //! the bytes the carrier holds for the answer. A sampled request additionally
 //! holds the events it files and the spans derived from them, capped at
-//! [`SPAN_CEILING`] of them, for as long as it takes to hand them on. An
+//! [`SPAN_CEILING`] of them with each detail cut to [`SPAN_DETAIL_CEILING`]
+//! bytes, for as long as it takes to hand them on. An
 //! unsampled one holds none, and nothing outlives the request either way.
 //!
 //! # What a filing site asks
@@ -158,6 +159,21 @@ pub fn take(inbound: &mut Inbound, sample: Option<f64>) {
 /// A graph built from a real run therefore never reaches this, and the walk that
 /// enforces it is the backstop for a `Completion` assembled by hand.
 pub const SPAN_CEILING: usize = nvs_runtime::SPAN_EVENT_CEILING + 1;
+
+/// The most bytes of a span's detail kept, a cut at a character boundary below
+/// it: the root's method and path, or an event's callee.
+///
+/// A path is the caller's to choose, up to the request line's own limit, and a
+/// span outlives its request in the exporter's queue. So the queue's bytes are
+/// [`crate::otlp::QUEUE_CEILING`] times this, plus a span's fixed fields,
+/// whatever the requests sent. 1 KiB is the cut `nvs_db::QuerySpan` makes of
+/// its SQL, and a path past it names nothing a trace reader still reads.
+pub const SPAN_DETAIL_CEILING: usize = 1024;
+
+/// `text` cut to [`SPAN_DETAIL_CEILING`] bytes at a character boundary.
+fn clipped(text: &str) -> String {
+    text[..text.floor_char_boundary(SPAN_DETAIL_CEILING)].to_owned()
+}
 
 /// Which of `rule:observability/four-kinds-become-a-span`'s four a [`Span`] is.
 ///
@@ -247,7 +263,7 @@ pub fn spans(
         trace_id: trace.trace_id(),
         span_id: trace.span_id(),
         parent: trace.parent_span_id(),
-        detail: request.to_owned(),
+        detail: clipped(request),
         start: root.0,
         end: root.1,
     }];
@@ -277,7 +293,7 @@ pub fn spans(
             // one clock for, and needs the child's events, which this list
             // does not carry.
             parent: Some(trace.span_id()),
-            detail: event.callee.clone(),
+            detail: clipped(&event.callee),
             start: event.start,
             end: event.end,
         });
@@ -492,7 +508,7 @@ fn draw_span_id() -> [u8; 8] {
 mod tests {
     #[cfg(feature = "exporter")]
     use super::record;
-    use super::{SPAN_CEILING, SpanKind, spans, take};
+    use super::{SPAN_CEILING, SPAN_DETAIL_CEILING, SpanKind, spans, take};
     use nvs_render::Level;
     use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, TraceEvent, TraceKind, floor};
     use std::time::Duration;
@@ -946,6 +962,27 @@ mod tests {
             SPAN_CEILING,
             "a request in a loop held an unbounded number of spans"
         );
+    }
+
+    /// A long path makes a root span of [`SPAN_DETAIL_CEILING`] bytes, and a
+    /// long callee an event span no longer, each cut at a character boundary.
+    #[test]
+    fn a_long_path_makes_a_span_of_at_most_one_kibibyte() {
+        let sampled = decided(&[("traceparent", INBOUND)]);
+        let path = format!("GET /{}", "é".repeat(64 * 1024));
+        let url = format!("GET https://example.com/{}", "a".repeat(64 * 1024));
+        let derived = spans(&path, &sampled, ROOT, &[event(TraceKind::Http, &url)]);
+
+        assert_eq!(derived.len(), 2);
+        for span in &derived {
+            assert!(
+                span.detail.len() <= SPAN_DETAIL_CEILING
+                    && span.detail.len() > SPAN_DETAIL_CEILING - 4,
+                "a span kept {} bytes of its detail",
+                span.detail.len()
+            );
+        }
+        assert!(derived[0].detail.starts_with("GET /é"));
     }
 
     /// [`record`]'s whole claim: what a finished run derived reaches the queue

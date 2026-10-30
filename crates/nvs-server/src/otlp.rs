@@ -95,9 +95,10 @@ use crate::trace::{Span, SpanKind};
 ///
 /// A count rather than a share of anything, for [`crate::trace::SPAN_CEILING`]'s
 /// reason: the worst case is arithmetic an operator can do, and it is this many
-/// spans and the strings in them. A collector that keeps up leaves the queue at
-/// or near empty, so the bound is what a *stall* costs and not what tracing
-/// does.
+/// spans and the strings in them, each at most
+/// [`crate::trace::SPAN_DETAIL_CEILING`] bytes, so about 9 MiB. A collector that
+/// keeps up leaves the queue at or near empty, so the bound is what a *stall*
+/// costs and not what tracing does.
 pub const QUEUE_CEILING: usize = 8 * 1024;
 
 /// The most spans one push carries.
