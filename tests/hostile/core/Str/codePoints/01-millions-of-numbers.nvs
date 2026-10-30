@@ -1,7 +1,9 @@
 <?nvs
 // Attack: `Core\Str::codePoints` reads very long strings that give millions of numbers, and code points at both ends of Unicode.
 // Each call should return an array or throw an error, and must not crash or hang.
+// The last step should stop the program at its memory limit with an error.
 // hostile: timeout-ms 20000
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -47,6 +49,15 @@ class Attack
         }
         return $total;
     }
+
+    /// 6. Reads twenty million accented letters. The string fits in memory.
+    /// The array of numbers does not, so the memory limit stops the program here.
+    public static function tooManyPoints(uint $count): uint
+    {
+        echo "step 6\n";
+        var $s = Core\Str::repeat('é', $count);
+        return Core\Arr::count(Core\Str::codePoints($s));
+    }
 }
 
 echo Attack::manyPoints(4), "\n";
@@ -54,3 +65,4 @@ echo Attack::oneCharacterManyPoints(100000), "\n";
 echo Attack::largestPoint(1000000), "\n";
 echo Attack::edges(200000), "\n";
 echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooManyPoints(20000000), "\n";

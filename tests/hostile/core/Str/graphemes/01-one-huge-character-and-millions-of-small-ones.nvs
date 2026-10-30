@@ -1,7 +1,9 @@
 <?nvs
 // Attack: `Core\Str::graphemes` divides very long strings, and strings where one character is very long.
 // Each call should return an array, and must not crash, hang or leak memory.
+// The last step should stop the program at its memory limit with an error.
 // hostile: timeout-ms 20000
+// hostile: ends-early 7 FATAL
 
 class Attack
 {
@@ -46,6 +48,15 @@ class Attack
         var $s = Core\Str::repeat("\r\r\n\n\n\r", $count);
         return Core\Arr::count(Core\Str::graphemes($s));
     }
+
+    /// 7. Divides twenty million accented letters. The string fits in memory.
+    /// The array of pieces does not, so the memory limit stops the program here.
+    public static function tooManyPieces(uint $count): uint
+    {
+        echo "step 7\n";
+        var $s = Core\Str::repeat('é', $count);
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
 }
 
 echo Attack::millionsOfPieces(4), "\n";
@@ -54,3 +65,4 @@ echo Attack::joinedEmoji(100000), "\n";
 echo Attack::oddFlagLetters(500000), "\n";
 echo Attack::longKoreanSyllable(100000), "\n";
 echo Attack::lineBreaks(500000), "\n";
+echo Attack::tooManyPieces(20000000), "\n";

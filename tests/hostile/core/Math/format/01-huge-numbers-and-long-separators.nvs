@@ -1,7 +1,8 @@
 <?nvs
 // Attack: `Core\Math::format` is given the largest numbers, values with no digits, too many
-// decimals and separators of one million characters. Each bad call should throw an error that
-// the program catches, and the program should run to its end.
+// decimals and separators of millions of characters. Each bad call should throw an error that
+// the program catches. The last step should stop the program at its memory limit.
+// hostile: ends-early 6 FATAL
 
 // 1. The largest `float` with 100 decimals, and the smallest `int` with groups.
 echo Core\Str::length(Core\Math::format(Core\Math::FLOAT_MAX, { decimals: 100, groupSeparator: ',' })), "\n";
@@ -48,3 +49,9 @@ while ($round < 1000000) {
     $round = $round + 1;
 }
 echo $total, "\n";
+
+// 6. A separator of four million characters between the groups of `1.0e300`.
+// The result has about 100 separators, so the memory limit stops the program here.
+echo "step 6\n";
+string $huge = Core\Str::repeat('-', 4000000);
+echo Core\Str::length(Core\Math::format(1.0e300, { groupSeparator: $huge })), "\n";

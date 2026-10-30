@@ -1,7 +1,9 @@
 <?nvs
 // Attack: `Core\Str::chunk` divides very long strings into millions of pieces, and gets sizes at both ends of the range.
 // Each call should return an array or throw an error, and must not crash or hang.
+// The last step should stop the program at its memory limit with an error.
 // hostile: timeout-ms 20000
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -47,6 +49,15 @@ class Attack
         }
         return $thrown;
     }
+
+    /// 6. Divides twenty million accented letters into pieces of one character.
+    /// The string fits in memory. The array of pieces does not, so the memory limit stops the program.
+    public static function tooManyPieces(uint $count): uint
+    {
+        echo "step 6\n";
+        var $s = Core\Str::repeat('é', $count);
+        return Core\Arr::count(Core\Str::chunk($s, 1));
+    }
 }
 
 echo Attack::onePerCharacter(4), "\n";
@@ -54,3 +65,4 @@ echo Attack::oneLongCharacter(100000), "\n";
 echo Attack::flags(500000), "\n";
 echo Attack::largestSize(), "\n";
 echo Attack::zeroSize(100000), "\n";
+echo Attack::tooManyPieces(20000000), "\n";
