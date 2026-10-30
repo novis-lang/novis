@@ -196,8 +196,18 @@ publishing core.
 distinct from "past the limit". `put` stores nothing and returns. Today it stores an empty payload,
 and every later `get` on that key throws a decode error (`crates/nvs-stdlib/src/cache.rs:2668`).
 
-**A stale cache slot holds no key bytes.** The `order` slot keeps the key's hash and a generation
-number, and `sweep` matches on those. Safe fallback: `forget` removes its slot at once.
+**A stale cache slot holds no key bytes.** The `order` queue holds slot numbers alone, and a map from
+a live slot's number to its key handle names the key. `forget` takes the key out of that map at once,
+so a stale slot is eight bytes until the sweep. A hash in the slot was declined: the standard map
+cannot be looked up by a hash, so matching on one needs a scan. Cost: one map entry per live key.
+
+**A delivery's bytes move between trees in O(1).** The publisher measures each copy as the rise of
+`budget::live_bytes()` across it, and `Inbox::push_sized` hands that many bytes to the subscriber's
+tree with `budget::hand_to`: `credit_turn` on the running turn and a relaxed add to the parked tree's
+`balance`. The inbox records the subscriber's tree at `Ctx::inbox` only where the subscribing stack
+runs that tree's turn, and nothing moves where the publisher runs no turn or the subscriber's own, so
+a CLI or a self-publish stays as before. The byte cap is the subscriber's `memory_limit` at its last
+subscribe. A core mailbox's byte cap is the publishing request's `memory_limit`, `0` for none.
 
 **Every fix has an attack.** Each fixed member gets a hostile step that builds the amplification
 (shared references, a doubling graph, a huge separator, a peer that never ends a frame) and ends at
@@ -393,14 +403,19 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 9. topic inboxes, core mailboxes, cache slots, spans and idle connections are capped in bytes and charged to who holds them
 
-- [ ] The topic inbox's byte cap and its charge to the subscriber's tree. `crates/nvs-runtime/src/peer.rs:153`, `crates/nvs-stdlib/src/topic.rs:777`
-- [ ] `Topic::publish` asks before each copy per subscriber. `receive` asks per decoded envelope. `crates/nvs-stdlib/src/topic.rs:799`, `crates/nvs-stdlib/src/topic.rs:689`
-- [ ] The core mailbox's byte cap. `crates/nvs-stdlib/src/bus.rs:101`
-- [ ] A stale cache slot holds no key bytes. `crates/nvs-stdlib/src/cache.rs:912`, `crates/nvs-stdlib/src/cache.rs:974`
-- [ ] A span name keeps at most 1 KiB. `crates/nvs-server/src/trace.rs:238`, `crates/nvs-server/src/otlp.rs:101`
-- [ ] The idle pool per core holds at most the block's `max`, and `release` retires expired entries. `crates/nvs-runtime/src/pool.rs:564`
-- [ ] The regex cache counts pattern bytes beside its 256 entries. `crates/nvs-stdlib/src/regex.rs:908`
-- [ ] Tests: a subscriber that never reads holds at most its limit; a forgotten cache key leaves no key bytes; a long path makes a 1 KiB span. Run each once by name.
+- [x] The topic inbox's byte cap and its charge to the subscriber's tree. `crates/nvs-runtime/src/peer.rs:153`, `crates/nvs-stdlib/src/topic.rs:777`
+- [x] `Topic::publish` asks before each copy per subscriber. `receive` asks per decoded envelope. `crates/nvs-stdlib/src/topic.rs:799`, `crates/nvs-stdlib/src/topic.rs:689`
+- [x] The core mailbox's byte cap. `crates/nvs-stdlib/src/bus.rs:101`
+- [x] A stale cache slot holds no key bytes. `crates/nvs-stdlib/src/cache.rs:912`, `crates/nvs-stdlib/src/cache.rs:974`
+- [x] A span name keeps at most 1 KiB. `crates/nvs-server/src/trace.rs:238`, `crates/nvs-server/src/otlp.rs:101`
+- [x] The idle pool per core holds at most the block's `max`, and `release` retires expired entries. `crates/nvs-runtime/src/pool.rs:564`
+- [x] The regex cache counts pattern bytes beside its 256 entries. `crates/nvs-stdlib/src/regex.rs:908`
+- [x] Tests: a subscriber that never reads holds at most its limit; a forgotten cache key leaves no key bytes; a long path makes a 1 KiB span. Run each once by name.
+  - [x] `a_subscriber_that_never_reads_holds_at_most_its_memory_limit` and `a_copy_handed_to_a_parked_tree_is_charged_to_that_tree`
+  - [x] `a_mailbox_refuses_an_envelope_past_the_publishers_memory_limit`
+  - [x] `a_forgotten_key_leaves_no_key_bytes_behind`
+  - [x] `a_long_path_makes_a_span_of_at_most_one_kibibyte`
+  - [x] `the_idle_store_holds_at_most_max_and_a_release_retires_expired_entries` and `the_cache_keeps_at_most_its_bound_in_pattern_text`
 - [ ] `bun nv proofs --overshoot` exits 0.
 
 ### 10. the goal is verified once, and every failure is fixed
@@ -420,12 +435,15 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 8 done. Build and clippy green, rustfmt clean, no full test run. Every database and
-LDAP reader asks the budget before it grows. Stage 8's attacks, each run once and green:
-`tests/hostile/core/Db-Connection/query/02-` to `04-`,
-`tests/hostile/core/Ldap-Connection/read/02-` (granted `corp-accounts` by its own `entry` in
-`nvs.toml`), and the Rust test `a_ranged_attribute_that_never_ends_stops_at_the_memory_ceiling`
-in `crates/nvs-ldap/tests/samba.rs`, because `select` takes no range option.
+Stages 1 to 8 done. Stage 9's seven code items and its tests are in, one commit each, and each new
+test was run once by name and passes (listed under § *9.*). Build and clippy green, rustfmt clean, no
+full test run. Left of stage 9: `bun nv proofs --overshoot`, stopped at the hand-off unread.
+
+Stage 9 has no new `.nvs` attack, and needs none. Two connections cannot meet in one hostile `.nvs`,
+so the Rust tests above are the attacks for the inbox and the mailbox (the decision *An attack needs a
+way in*). `tests/hostile/core/Topic/publish/01-` step 4 is a connection publishing to itself: the
+copy passes the tree's ceiling about 10 MB before the inbox's byte cap would refuse it, so it still
+ends at `FATAL`.
 
 Expected red at the gate, none a test to loosen: an array built past its ceiling is shorter; one
 call past 1.5x plus 8 MiB is an `inside one call` `FATAL`; `N bytes held` may read the higher peak;
@@ -434,7 +452,8 @@ small ceiling is empty; `Arr::range` past it is a `FATAL` first; a collector tes
 stopped parse is `walk::STOPPED`; a refused capture write writes nothing; JWT caps throw; a file,
 stdin or child output past a small limit throws or is the `FATAL`; a chunk or event-stream test
 reads the new framing; a SQLite `SQLITE_TOOBIG` under a ceiling is the `FATAL`; an LDAP range with
-no value that asks for more is `Kind::Protocol`. Look first at `crates/nvs-runtime/tests/refusal.rs`,
+no value that asks for more is `Kind::Protocol`; a test that reads `Inbox`'s `Debug` sees `held`; a
+pool test that releases under many keys with a small `max` finds fewer idle. Look first at `crates/nvs-runtime/tests/refusal.rs`,
 `tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`.
 
 The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, its log does not
@@ -442,13 +461,14 @@ exist, and this `looper` has no `check` command to run it by name.
 
 ### Next
 
-Stage 9 (items at § *9.*). Read one member's bound with `bun nv proofs --run --id '<member>'
---show`; Docker is up on this host, so a `requires: postgres`, `mssql` or `samba-ad` proof runs.
-An attack that lowers its limit with `Core\Config::set` after earlier steps hold much memory reads
-that holding as its overshoot, so lower it first. A Rust test arms a ceiling with
-`Ctx::new(OutputSink::Buffer(Vec::new()))` and `set_memory_limit`, as the LDAP test does.
+Stage 9's last item, then stage 10. Run `bun nv proofs --overshoot` with `run_in_background`,
+because it runs about 6.5 minutes of programs plus a proof-binary build. Fix any reading past the
+bound at its member, never the bound. Read one member's bound with `bun nv proofs --run --id
+'<member>' --show`. Docker is up on this host, so a `requires: postgres`, `mssql` or `samba-ad` proof
+runs. Once it exits 0, set stage 9 to `done` and take stage 10.
 
-- [ ] Stage 9, from `crates/nvs-runtime/src/peer.rs:153` and `crates/nvs-stdlib/src/topic.rs:777`.
+- [ ] `bun nv proofs --overshoot` exits 0 (§ *9.*, last item). The bound is `tools/nv/proofs/run.ts:1`.
+- [ ] Stage 10: `looper verify` in the background, from `crates/nvs-runtime/tests/refusal.rs:1`.
 
 ### Backlog
 
