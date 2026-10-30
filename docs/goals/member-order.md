@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs, docs/rules/tooling/nvs-code-answers-about-the-project.md, crates/nvs-cli/src/agent.rs, docs/reference/tools/10-cli.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: member-order-tests
@@ -287,43 +287,38 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done. `nvs code order` (`crates/nvs-cli/src/code.rs`, `fn order` and
-`fn ordered_files`) runs `nvs_lsp::order::of` over each file a path names, or every indexed file,
-and writes each changed file as one whole-file `Rewrite` through `planned` and `committed`, the
-write path `write_out` also wraps. `write_out` itself prints by edit, so `order` prints by class
-instead. `--check` prints class lines only and exits 1; `--dry-run` prints class lines then notes;
-a syntax error or a moved text that does not format goes to standard error and the file is skipped.
-`--json` gives `files`, `notes`, `skipped` and `written`. The seven `code-order-tests` pass by name,
-and so does the `tests/agent.rs` protocol pin.
+Stages 1 to 3 are done, and stage 4's first `looper verify` was green (`bun nv verify`, 485s). The
+installed `looper` binary has no `verify`, so the gate ran `bun tools/looper/main.ts verify`.
 
-`PROTOCOL`, the CLI reference (`docs/reference/tools/10-cli.md`, `# nvs code`), the feature's
-`about.md` and its `02-order-class-members.nvs` example describe `order`; `bun nv proofs --id
-'tools:cli/nvs-code'` owes nothing. Both new rules are `shipped`, the `nvs code` rule names three
-writers, the member-order rule no longer names an anonymous class, the chapters and
-`llms-full.txt` are rendered, and `bun nv owners --closes member-order` passes.
+The goal-end gates found two things, both fixed:
+- `bun nv verify --doc`: `[`order`]` in `crates/nvs-cli/src/code.rs`'s module doc was both the
+  function and the `order` module. It is `[`order()`]` now, and every link resolves.
+- `bun nv ci --check`'s website stale guard. `syntax/attributes/json.mdx` gained a *Do* bullet for
+  `Core\Json\KeepKeyOrder`, and `tools/editor/index.mdx` a paragraph on *Order class members*. Both
+  are stamped. The questions of those two pages and of `/reference/cli/nvs-code/` name the new
+  feature, and the questions of `/reference/cli/nvs-lsp/` are restamped unchanged. The roadmap has a
+  theme for `member-order`, and `README.md` carries it.
 
-The sweep's `env-secret-proofs` log exits 0 and its nightly run (`40919832286`) is the one the
-handoffs before read. Nothing new to fix there.
+`bun nv owners --closes member-order` passes, and `bun nv ci --check` is green. The sweep's
+`env-secret-proofs` log exits 0, and its nightly run (`40919832286`) is the one earlier handoffs
+read.
+
+The second `looper verify` run is green (a first try stopped once because a locked
+`target/covws/.../nvs.exe` could not be removed, and the rerun built it). Stage 4 is done, and the
+goal is reached.
 
 ### Next
 
-Stage 4, the gate.
+Nothing. The goal retires.
 
-- [ ] Start `looper verify` with `run_in_background`, end the turn, and group its failures by cause. `crates/nvs-cli/tests/code.rs:1`
-- [ ] Fix every failure in one pass, then run it once more. `crates/nvs-lsp/tests/coverage.rs:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes member-order`, `bun nv ci --check`. `docs/goals/member-order.md:1`
-
-Tests that may go red: a help or index snapshot that lists every `nvs code` verb (the new `order`
-verb and its flags reach `nvs agent index`), `crates/nvs-lsp/tests/coverage.rs` if it wants the
-three `order-members` `.lspt` cases in its matrix, and the website stale guard if a rendered page
-quotes the CLI reference.
+No test is expected to go red.
 
 ### Backlog

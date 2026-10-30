@@ -27,7 +27,7 @@ The chain holds 1 goal(s). `member-order` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`member-order`](member-order.md) **live** | nvs code order and the editor's Order class members action write the member order the rule gives, Core\Json\KeepKeyOrder keeps a derived class's JSON key order, the rules say so, and the checks below pass. | 1 ✓ the order is a rule, and Core\Json\KeepKeyOrder compiles only beside Core\Json\Derive · 2 ✓ nvs_lsp::order writes the member order, and the editor offers it as a source action · 3 ✓ nvs code order writes, checks and prints the member order · **4 the goal is verified once, and every failure is fixed** |
+| 1 | [`member-order`](member-order.md) **live** | nvs code order and the editor's Order class members action write the member order the rule gives, Core\Json\KeepKeyOrder keeps a derived class's JSON key order, the rules say so, and the checks below pass. | 1 ✓ the order is a rule, and Core\Json\KeepKeyOrder compiles only beside Core\Json\Derive · 2 ✓ nvs_lsp::order writes the member order, and the editor offers it as a source action · 3 ✓ nvs code order writes, checks and prints the member order · 4 ✓ the goal is verified once, and every failure is fixed |
 
 The floor holds 3 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
