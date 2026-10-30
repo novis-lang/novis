@@ -124,22 +124,22 @@ platform Novis builds for, so one may appear that a given build omits.
   cpufeatures                                0.2.17                         MIT                             (MIT OR Apache-2.0)
   cpufeatures                                0.3.1                          MIT                             (MIT OR Apache-2.0)
   cranelift                                  0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64                    0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64-meta               0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-bforest                          0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-bitset                           0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen                          0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-meta                     0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-shared                   0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-control                          0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-entity                           0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-frontend                         0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-isle                             0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-jit                              0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-module                           0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-native                           0.136.4                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64                    0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64-meta               0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-bforest                          0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-bitset                           0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen                          0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-meta                     0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-shared                   0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-control                          0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-entity                           0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-frontend                         0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-isle                             0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-jit                              0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-module                           0.136.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-native                           0.136.5                        Apache-2.0 WITH LLVM-exception
   cranelift-object                           0.136.4                        Apache-2.0 WITH LLVM-exception
-  cranelift-srcgen                           0.136.4                        Apache-2.0 WITH LLVM-exception
+  cranelift-srcgen                           0.136.5                        Apache-2.0 WITH LLVM-exception
   crc32c                                     0.6.8                          MIT                             (Apache-2.0/MIT)
   crc32fast                                  1.5.2                          MIT                             (MIT OR Apache-2.0)
   crossbeam-channel                          0.5.17                         MIT                             (MIT OR Apache-2.0)
@@ -507,8 +507,8 @@ platform Novis builds for, so one may appear that a given build omits.
   prodash                                    31.0.1                         MIT
   profiling                                  1.0.18                         MIT                             (MIT OR Apache-2.0)
   profiling-procmacros                       1.0.18                         MIT                             (MIT OR Apache-2.0)
-  pulley-interpreter                         49.0.4                         Apache-2.0 WITH LLVM-exception
-  pulley-macros                              49.0.4                         Apache-2.0 WITH LLVM-exception
+  pulley-interpreter                         49.0.5                         Apache-2.0 WITH LLVM-exception
+  pulley-macros                              49.0.5                         Apache-2.0 WITH LLVM-exception
   pxfm                                       0.1.30                         Apache-2.0                      (BSD-3-Clause OR Apache-2.0)
   qrcode                                     0.14.1                         MIT                             (MIT OR Apache-2.0)
   quick-error                                2.0.1                          MIT                             (MIT/Apache-2.0)
@@ -680,19 +680,19 @@ platform Novis builds for, so one may appear that a given build omits.
   wasmparser                                 0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmparser                                 0.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmprinter                                0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasmtime                                   49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-environ                           49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-component-macro          49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-component-util           49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-core                     49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-cranelift                49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-fiber                    49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-jit-debug                49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-jit-icache-coherence     49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-unwinder                 49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-versioned-export-macros  49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-wit-bindgen              49.0.4                         Apache-2.0 WITH LLVM-exception
-  wasmtime-wasi-io                           49.0.4                         Apache-2.0 WITH LLVM-exception
+  wasmtime                                   49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-environ                           49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-component-macro          49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-component-util           49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-core                     49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-cranelift                49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-fiber                    49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-jit-debug                49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-jit-icache-coherence     49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-unwinder                 49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-versioned-export-macros  49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-wit-bindgen              49.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-wasi-io                           49.0.5                         Apache-2.0 WITH LLVM-exception
   wast                                       262.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wat                                        1.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.3.0                          MIT                             (MIT OR Apache-2.0)
@@ -8892,21 +8892,21 @@ SOFTWARE.
 
 Applies to:
   blake3 1.8.7
-  cranelift-assembler-x64 0.136.4
-  cranelift-assembler-x64-meta 0.136.4
-  cranelift-bitset 0.136.4
-  cranelift-isle 0.136.4
-  cranelift-srcgen 0.136.4
-  pulley-interpreter 49.0.4
-  pulley-macros 49.0.4
-  wasmtime-internal-component-macro 49.0.4
-  wasmtime-internal-component-util 49.0.4
-  wasmtime-internal-core 49.0.4
-  wasmtime-internal-jit-debug 49.0.4
-  wasmtime-internal-jit-icache-coherence 49.0.4
-  wasmtime-internal-versioned-export-macros 49.0.4
-  wasmtime-internal-wit-bindgen 49.0.4
-  wasmtime-wasi-io 49.0.4
+  cranelift-assembler-x64 0.136.5
+  cranelift-assembler-x64-meta 0.136.5
+  cranelift-bitset 0.136.5
+  cranelift-isle 0.136.5
+  cranelift-srcgen 0.136.5
+  pulley-interpreter 49.0.5
+  pulley-macros 49.0.5
+  wasmtime-internal-component-macro 49.0.5
+  wasmtime-internal-component-util 49.0.5
+  wasmtime-internal-core 49.0.5
+  wasmtime-internal-jit-debug 49.0.5
+  wasmtime-internal-jit-icache-coherence 49.0.5
+  wasmtime-internal-versioned-export-macros 49.0.5
+  wasmtime-internal-wit-bindgen 49.0.5
+  wasmtime-wasi-io 49.0.5
 
 ------------------------------------------------------------------------------
 
@@ -9136,24 +9136,24 @@ Software.
 
 Applies to:
   cranelift 0.136.4
-  cranelift-bforest 0.136.4
-  cranelift-codegen 0.136.4
-  cranelift-codegen-meta 0.136.4
-  cranelift-codegen-shared 0.136.4
-  cranelift-control 0.136.4
-  cranelift-entity 0.136.4
-  cranelift-frontend 0.136.4
-  cranelift-jit 0.136.4
-  cranelift-module 0.136.4
-  cranelift-native 0.136.4
+  cranelift-bforest 0.136.5
+  cranelift-codegen 0.136.5
+  cranelift-codegen-meta 0.136.5
+  cranelift-codegen-shared 0.136.5
+  cranelift-control 0.136.5
+  cranelift-entity 0.136.5
+  cranelift-frontend 0.136.5
+  cranelift-jit 0.136.5
+  cranelift-module 0.136.5
+  cranelift-native 0.136.5
   cranelift-object 0.136.4
   regalloc2 0.15.2
   target-lexicon 0.13.5
-  wasmtime 49.0.4
-  wasmtime-environ 49.0.4
-  wasmtime-internal-cranelift 49.0.4
-  wasmtime-internal-fiber 49.0.4
-  wasmtime-internal-unwinder 49.0.4
+  wasmtime 49.0.5
+  wasmtime-environ 49.0.5
+  wasmtime-internal-cranelift 49.0.5
+  wasmtime-internal-fiber 49.0.5
+  wasmtime-internal-unwinder 49.0.5
 
 ------------------------------------------------------------------------------
 

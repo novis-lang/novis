@@ -351,13 +351,13 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
 # HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1. The minimum is
-# 49.0.4, with cranelift's 0.136.4: the first releases with RUSTSEC-2026-0379's
-# fix, so a `cargo update` cannot resolve back to a vulnerable patch release.
+# 49.0.5: the first release with the fixes for RUSTSEC-2026-0379, -0422, -0423
+# and -0424, so a `cargo update` cannot resolve back to a vulnerable patch release.
 # Every default feature but `cache`: Novis keeps a compiled module in its own
 # artifact cache (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`)
 # and never configures wasmtime's, and `cache` is the one path to `zstd` 0.13,
 # whose RUSTSEC-2026-0391, -0398, -0403 and -0410 are fixed only in 0.14.
-wasmtime = { version = "49.0.4", default-features = false, features = [
+wasmtime = { version = "49.0.5", default-features = false, features = [
     "addr2line",
     "anyhow",
     "async",
@@ -415,7 +415,7 @@ wit-component = { version = "0.258", default-features = false }
 # `rule:concurrency/one-scheduler` refuses, and this one is `no_std` with no
 # executor. It adds `tracing`, with no subscriber and no `log` bridge.
 # `crates/nvs-ext/src/wasi.rs` is the one caller.
-wasmtime-wasi-io = "49.0.4"
+wasmtime-wasi-io = "49.0.5"
 
 # --- the language server's wire and its vocabulary ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
@@ -545,7 +545,7 @@ memmap2 = "0.9"
 # that crate's own dependency, so naming it here adds no crate and no C.
 # Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
-wasmtime-internal-jit-icache-coherence = "49.0.4"
+wasmtime-internal-jit-icache-coherence = "49.0.5"
 # Dev-only: asks the OS for a code page's protection, so `nvs-codegen`'s and
 # `nvs-cli`'s tests check that a page Novis made executable is not writable
 # (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`).
