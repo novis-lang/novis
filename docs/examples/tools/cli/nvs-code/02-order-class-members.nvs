@@ -1,0 +1,42 @@
+<?nvs
+// Shows a class after `nvs code order` put its members in the standard order.
+
+namespace Shop;
+
+// The command put the constant first, then the property, then the methods.
+// The static method is before the constructor, and the private method is last.
+class Cart
+{
+    public const int MAX = 10;
+
+    private int $count = 0;
+
+    public static function empty(): Cart
+    {
+        return new Cart(0);
+    }
+
+    public function constructor(int $count)
+    {
+        $this->count = $this->limited($count);
+    }
+
+    public function count(): int
+    {
+        return $this->count;
+    }
+
+    private function limited(int $count): int
+    {
+        return $count > self::MAX ? self::MAX : $count;
+    }
+}
+
+// `nvs code order --check` prints nothing for this file, because the class is in order.
+Cart $cart = new Cart(12);
+
+// This prints `10`, because the constructor limits the count to `MAX`.
+echo $cart->count(), "\n";
+
+// This prints `0`.
+echo Cart::empty()->count(), "\n";

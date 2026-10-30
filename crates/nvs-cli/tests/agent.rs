@@ -1686,6 +1686,7 @@ fn the_protocol_names_nvs_code_for_questions_about_the_project() {
             "nvs code outline",
             "nvs code rename",
             "nvs code move",
+            "nvs code order",
             "nvs code find",
             "nvs code calls",
             "nvs code reach",

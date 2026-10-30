@@ -1658,6 +1658,8 @@ Write a name in full, with its namespace, in single quotes: `nvs code refs 'Shop
   Use `--dry-run` to see each change first.
 - `nvs code move <from> <to>` — moves a file or a directory and changes every `require` that names
   it.
+- `nvs code order [paths]` — puts the members of each class in the standard order and saves the
+  files. Use `--check` to list each class that is not in order.
 
 `index`, `find`, `show` and every `nvs code` command take `--json` when a tool reads the answer
 instead of a person.

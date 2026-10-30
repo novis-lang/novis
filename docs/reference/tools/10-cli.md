@@ -1050,13 +1050,15 @@ When one run finds both, the status is `2`.
     nvs code types [--json] <file>[:<line>[-<line>]]
     nvs code rename [--dry-run] [--json] <symbol|path:line:column> <new-name>
     nvs code move [--dry-run] [--json] <from> <to>
+    nvs code order [--check] [--dry-run] [--json] [paths]...
     nvs code find [--json] <text>
     nvs code calls [--json] <method>
     nvs code reach [--json] <method>
 
 Answers questions about the project you are in, from the same index the editor uses. The project is
 the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
-when there is none. Every `.nvs` file in it is read. Only `rename` and `move` change files.
+when there is none. Every `.nvs` file in it is read. Only `rename`, `move` and `order` change
+files.
 
 - `show` prints where a name is declared, its signature and its `///` comment. For a `Core` name it
   prints the card `nvs agent show` prints.
@@ -1071,6 +1073,9 @@ when there is none. Every `.nvs` file in it is read. Only `rename` and `move` ch
   position. A class alone in a file with its name also gets a new file name.
 - `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
   `<to>` must exist, and nothing may exist at `<to>` yet.
+- `order` puts the members of each class and interface in the standard order. It is the editor's
+  *Order class members* action. A path is a file or a folder, and with no path every file is
+  ordered. Each changed file is also formatted, as `nvs fmt` does.
 - `find` prints every class, method, property, constant and enum case whose name contains the text.
   Upper and lower case count as the same. The namespace is not part of the name, and `Core` names
   are not searched. `nvs agent find` searches them.
@@ -1093,6 +1098,32 @@ test   Shop\CartTest::cartLoads
 `rename` and `move` save the changed files. `--dry-run` prints each change and saves nothing. If the
 change is not possible, the command prints why, changes no file and exits `1`. A file that changed
 after the command read it also stops the command, and no file is changed.
+
+`order` uses this order, from the top of the class to the bottom:
+
+1. `enum` and `type` declarations, then constants, then properties, then methods.
+2. In each group, every `static` member comes first.
+3. Then `public` comes before `protected`, and `protected` before `private`.
+4. Then `abstract` comes before `final`, and `final` before the rest.
+
+The constructor is the first method that is not `static`. Members that are equal in this order keep
+the order you wrote. A member moves with its `///` comment, its attributes and the comments above
+it. Enum cases and promoted constructor parameters do not move.
+
+A class with `#[Core\Json\Derive]` writes its JSON keys in the order of its properties. When `order`
+changes that order, it prints a note that names the class. With `#[Core\Json\KeepKeyOrder]`, the
+properties keep the order you wrote. If no member order keeps them, the class is not changed and a
+note names it.
+
+`order` prints one line for each changed file, with the number of classes it changed. `--dry-run`
+prints one line for each class that would change, and saves nothing. `--check` prints the same lines
+and saves nothing. It exits `1` when a class is not in order, so a CI job can run it. A file with a
+syntax error is not changed, and standard error gets a line that names it.
+
+```text
+$ nvs code order --check
+src/Cart.nvs:4:1  Shop\Cart
+```
 
 A name is written in full, with its namespace: `Shop\Cart`, `Shop\Cart::addItem`,
 `Shop\Cart::$total` or `Shop\Cart::MAX`. Put it in single quotes, so the shell keeps the
