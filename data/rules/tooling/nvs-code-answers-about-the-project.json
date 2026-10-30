@@ -1,5 +1,5 @@
 {
-  "title": "`nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` and `move` write",
+  "title": "`nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename`, `move` and `order` write",
   "status": "shipped",
   "seeAlso": [
     "ide/five-features-are-one-reference-index",
@@ -7,7 +7,8 @@
     "ide/one-server-two-thin-clients",
     "ide/check-json-is-the-diagnostic-record-as-a-document",
     "tooling/an-agent-asks-the-binary",
-    "tooling/meta-json-takes-a-program"
+    "tooling/meta-json-takes-a-program",
+    "tooling/class-members-have-one-order"
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/code.rs",

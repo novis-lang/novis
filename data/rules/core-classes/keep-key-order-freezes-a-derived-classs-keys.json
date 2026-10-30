@@ -1,11 +1,15 @@
 {
   "title": "`#[Core\\Json\\KeepKeyOrder]` freezes a derived class's JSON key order, and compiles only beside `#[Core\\Json\\Derive]`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/derive-attribute",
     "core-classes/derive-property-list",
     "tooling/class-members-have-one-order"
   ],
-  "guardedBy": [],
-  "goal": "member-order"
+  "guardedBy": [
+    "tests/conformance/core/json-keep-key-order-compiles-beside-json-derive.nvst",
+    "tests/conformance/reject/json-keep-key-order-needs-json-derive.nvst",
+    "tests/conformance/reject/json-keep-key-order-needs-a-reason.nvst",
+    "crates/nvs-lsp/tests/member_order.rs"
+  ]
 }

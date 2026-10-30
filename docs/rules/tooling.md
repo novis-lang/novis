@@ -3,8 +3,6 @@
 
 # Tooling
 
-*1 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="tooling-shebang-opens-code-mode"></a>
 
 ## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
@@ -1465,12 +1463,12 @@ reordering.
 
 <a id="tooling-class-members-have-one-order"></a>
 
-## Class members have one order, and an editor action and `nvs code order` write it on request  *(designed — owned by goal member-order)*
+## Class members have one order, and an editor action and `nvs code order` write it on request
 
 `rule:tooling/class-members-have-one-order`
 
-The body of a class, an interface and an anonymous class has one member order, the same in every
-project. Top to bottom:
+The body of a class and of an interface has one member order, the same in every project. Novis has
+no anonymous class (`new class { … }` is `E0244` at the parse). Top to bottom:
 
 1. **Group:** `enum` and `type` declarations, then constants, then properties (hooked ones included),
    then methods.
@@ -2358,13 +2356,13 @@ deliberate commit.
 
 <a id="tooling-nvs-code-answers-about-the-project"></a>
 
-## `nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename` and `move` write
+## `nvs code` answers questions about one project by name from the editor's own index, reads every file, and only `rename`, `move` and `order` write
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
-`nvs code` has ten verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and `reach`
-take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and
-`find` takes part of a name. Two write: `rename` and `move`.
+`nvs code` has eleven verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and
+`reach` take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
+and `find` takes part of a name. Three write: `rename`, `move` and `order`.
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question
@@ -2422,6 +2420,17 @@ that may not compile.
   writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
   move; a move that fails after the edits names the files already changed. The output and `--json`
   are `rename`'s, with the move as the one entry of `moved`.
+- **`order [paths...]`** is the editor's *Order class members* action, `nvs_lsp::order::of`, run
+  over each file a path names (a file or a directory under the root) or every file of the project
+  ([`tooling/class-members-have-one-order`](tooling.md#tooling-class-members-have-one-order)). Each changed file is one whole-file edit through the
+  same write path as `rename`, so a file changed since the call read it fails, named, and nothing is
+  written. It prints one line per changed file with its number of moved classes, then one note per
+  derived class whose JSON key order changes or that `Core\Json\KeepKeyOrder` leaves as written.
+  `--dry-run` prints one line per class it would move, then the notes. `--check` prints the same
+  class lines and no notes, writes nothing, and exits 1 when there is one. A file with a syntax
+  error, or whose moved text does not format, is skipped with one line on standard error, and the
+  others are still ordered. `--json` gives `files` (each a `path` and its `classes`), `notes` (each
+  a class and its `note`), `skipped` and `written`.
 - **`find <text>`** is the editor's workspace symbol search, `SymbolIndex::matching`: one line per
   declaration whose own name (a type's last segment, a member without its `$`) contains the text,
   upper and lower case alike, with its position, its kind as `outline` prints it, and its full name,
@@ -2472,7 +2481,7 @@ keeps its parsed patterns, a few KiB, until it ends.
 - **`find` searching `Core`.** `nvs agent find` already searches the installed standard library, and
   a second search would be a second answer to one question.
 
-<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program).</sub>
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/class-members-have-one-order`](tooling.md#tooling-class-members-have-one-order).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

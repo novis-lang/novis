@@ -1,6 +1,6 @@
-`nvs code` has ten verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and `reach`
-take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`), and
-`find` takes part of a name. Two write: `rename` and `move`.
+`nvs code` has eleven verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and
+`reach` take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
+and `find` takes part of a name. Three write: `rename`, `move` and `order`.
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question
@@ -58,6 +58,17 @@ that may not compile.
   writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
   move; a move that fails after the edits names the files already changed. The output and `--json`
   are `rename`'s, with the move as the one entry of `moved`.
+- **`order [paths...]`** is the editor's *Order class members* action, `nvs_lsp::order::of`, run
+  over each file a path names (a file or a directory under the root) or every file of the project
+  (`rule:tooling/class-members-have-one-order`). Each changed file is one whole-file edit through the
+  same write path as `rename`, so a file changed since the call read it fails, named, and nothing is
+  written. It prints one line per changed file with its number of moved classes, then one note per
+  derived class whose JSON key order changes or that `Core\Json\KeepKeyOrder` leaves as written.
+  `--dry-run` prints one line per class it would move, then the notes. `--check` prints the same
+  class lines and no notes, writes nothing, and exits 1 when there is one. A file with a syntax
+  error, or whose moved text does not format, is skipped with one line on standard error, and the
+  others are still ordered. `--json` gives `files` (each a `path` and its `classes`), `notes` (each
+  a class and its `note`), `skipped` and `written`.
 - **`find <text>`** is the editor's workspace symbol search, `SymbolIndex::matching`: one line per
   declaration whose own name (a type's last segment, a member without its `$`) contains the text,
   upper and lower case alike, with its position, its kind as `outline` prints it, and its full name,

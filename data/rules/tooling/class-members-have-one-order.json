@@ -1,6 +1,6 @@
 {
   "title": "Class members have one order, and an editor action and `nvs code order` write it on request",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-never-reorders-members",
     "tooling/fmt-base-style-is-per",
@@ -8,6 +8,11 @@
     "core-classes/derive-property-list",
     "tooling/nvs-code-answers-about-the-project"
   ],
-  "guardedBy": [],
-  "goal": "member-order"
+  "guardedBy": [
+    "crates/nvs-lsp/tests/member_order.rs",
+    "crates/nvs-cli/tests/code.rs",
+    "tests/lsp/actions/order-members-orders-a-class.lspt",
+    "tests/lsp/actions/order-members-is-not-offered-for-an-ordered-file.lspt",
+    "tests/lsp/actions/order-members-is-never-a-fix-all.lspt"
+  ]
 }

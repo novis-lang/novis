@@ -3,8 +3,6 @@
 
 # The Core classes
 
-*1 of 119 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-classes-cli-arguments"></a>
 
 ## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
@@ -2404,7 +2402,7 @@ the decode tells them apart by what the document wrote.
 
 <a id="core-classes-keep-key-order-freezes-a-derived-classs-keys"></a>
 
-## `#[Core\Json\KeepKeyOrder]` freezes a derived class's JSON key order, and compiles only beside `#[Core\Json\Derive]`  *(designed — owned by goal member-order)*
+## `#[Core\Json\KeepKeyOrder]` freezes a derived class's JSON key order, and compiles only beside `#[Core\Json\Derive]`
 
 `rule:core-classes/keep-key-order-freezes-a-derived-classs-keys`
 

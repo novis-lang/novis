@@ -1,5 +1,5 @@
-The body of a class, an interface and an anonymous class has one member order, the same in every
-project. Top to bottom:
+The body of a class and of an interface has one member order, the same in every project. Novis has
+no anonymous class (`new class { … }` is `E0244` at the parse). Top to bottom:
 
 1. **Group:** `enum` and `type` declarations, then constants, then properties (hooked ones included),
    then methods.
