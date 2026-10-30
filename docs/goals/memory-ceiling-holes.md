@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-runtime/src/budget.rs]
   - id: 4
     title: "the graph walk, Core\\Task::map and Core\\Compress stop at the ceiling"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/graph.rs, crates/nvs-stdlib/src/task.rs, crates/nvs-host/src/group.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/cache.rs]
   - id: 5
     title: "the string, array, bytes, math and regex members stop at the ceiling"
@@ -256,12 +256,12 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 ### 4. the graph walk, Core\Task::map and Core\Compress stop at the ceiling
 
-- [ ] `copy_graph`'s `Live` carrier asks for each copied string and array, so a string held in many slots is not copied unasked. This covers topics, SSE, sockets, isolate hand-off and `clone`. `crates/nvs-runtime/src/graph.rs:537`
-- [ ] The walk returns at the first refusal, in `encode`, `encode_within` and `copy_graph`. `crates/nvs-runtime/src/graph.rs:238`
-- [ ] `encode_within`'s refused outcome, and `put` stores nothing on it. `crates/nvs-runtime/src/graph.rs:855`, `crates/nvs-stdlib/src/cache.rs:2668`
-- [ ] `Core\Task::map` and `Task::all` ask for each task's stack charge before starting it. Step 7 of the Task::map attack (20,000 tasks of 1 MiB) stops at the bound. `crates/nvs-stdlib/src/task.rs:513`, `crates/nvs-host/src/group.rs:428`, `crates/nvs-host/src/group.rs:770`
-- [ ] `Compressor::add` retains a value that `finish` then copies N times: `finish` writes through the shared writer, and the decompression ceiling is computed before that copy. `crates/nvs-stdlib/src/compress.rs:1175`, `crates/nvs-stdlib/src/compress.rs:1204`, `crates/nvs-stdlib/src/compress.rs:1351`
-- [ ] Attacks: a doubling graph through `Core\Serialize::encode` and through a topic publish, both ending at `FATAL` within the bound. The Compressor and Task attacks pass unchanged.
+- [x] `copy_graph`'s `Live` carrier asks for each copied string and array, so a string held in many slots is not copied unasked. This covers topics, SSE, sockets, isolate hand-off and `clone`. `crates/nvs-runtime/src/graph.rs:537`
+- [x] The walk returns at the first refusal, in `encode`, `encode_within` and `copy_graph`. `crates/nvs-runtime/src/graph.rs:238`
+- [x] `encode_within`'s refused outcome, and `put` stores nothing on it. `crates/nvs-runtime/src/graph.rs:855`, `crates/nvs-stdlib/src/cache.rs:2668`
+- [x] `Core\Task::map` and `Task::all` ask for each task's stack charge before starting it. Step 7 of the Task::map attack (20,000 tasks of 1 MiB) stops at the bound. `crates/nvs-stdlib/src/task.rs:513`, `crates/nvs-host/src/group.rs:428`, `crates/nvs-host/src/group.rs:770`
+- [x] `Compressor::add` retains a value that `finish` then copies N times: `finish` writes through the shared writer, and the decompression ceiling is computed before that copy. `crates/nvs-stdlib/src/compress.rs:1175`, `crates/nvs-stdlib/src/compress.rs:1204`, `crates/nvs-stdlib/src/compress.rs:1351`
+- [x] Attacks: a doubling graph through `Core\Serialize::encode` and through a topic publish, both ending at `FATAL` within the bound. The Compressor and Task attacks pass unchanged.
 
 ### 5. the string, array, bytes, math and regex members stop at the ceiling
 
@@ -273,6 +273,8 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [ ] `Bytes::unpack` asks for its `Vec<Field>` and its array (2.0x). `crates/nvs-stdlib/src/bytes.rs:1575`
 - [ ] `Math::format`'s group separator is counted in its ask. `crates/nvs-stdlib/src/math.rs:2113`
 - [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
+- [ ] `Arr::fillKeys` (2.81x), `shapeAs` (1.70x) and `range` (runs out of time before its `FATAL`), which the peak reading of stage 2 put on the scan. `crates/nvs-stdlib/src/arr.rs:4088`, `crates/nvs-stdlib/src/arr.rs:6441`, `crates/nvs-stdlib/src/arr.rs:4166`
+- [ ] `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs` reads 1.78x of 64 MiB: find the member it grows through and bound it there.
 - [ ] An attack step per member above that has none, each ending at `FATAL` within the bound.
 
 ### 6. the JSON, CSV, HTML, JWT, URI, XML and AST builders stop at the ceiling
@@ -285,6 +287,7 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [ ] `Uri::encodeComponent` and `encodeFormValue` (3.7x). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
 - [ ] `Xml\Writer`'s indent is counted in its ask. `crates/nvs-stdlib/src/xml.rs:3049`
 - [ ] `Ast::parse`'s node objects ask (1.27x). `crates/nvs-stdlib/src/ast.rs:454`
+- [ ] `Http\Response::jsonAs` (1.64x) and `Response::html` (1.54x), which the peak reading put on the scan.
 - [ ] An attack step per member above, each ending at `FATAL` within the bound.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
@@ -337,35 +340,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 3 are done; build and clippy green, no full test run. `NvsArray::append`, `replace` and
-`set_index` ask `may_grow` (`crates/nvs-runtime/src/array.rs:1173`): nothing for a unique array with
-room, `affords_write` otherwise. A refused write releases its value and leaves the array as it was.
-`budget::ByteWriter` (`crates/nvs-runtime/src/budget.rs:1253`) is `Encode::put` moved out, and
-`finish` gives `Err(Stopped::Refused | Stopped::Over)`. `encode_within` still maps a refusal to
-`Some(empty)`. `StrWriter::grow` is unchanged: asking the difference keeps a doubling within 1.5x.
-A memory `FATAL` reports the peak (`crates/nvs-runtime/src/ctx/limits.rs:673`), and a debug build's
-`overshoot_backstop` (`crates/nvs-runtime/src/abi.rs:593`) panics naming a member past the bound.
+Stages 1 to 4 are done; build and clippy green, no full test run. The graph walk returns at the
+first refusal (`Carrier::stopped`, `crates/nvs-runtime/src/graph.rs:233`): `Live` reads
+`budget::refused()` and asks before each copied string, `Encode` stops on `Stopped::Refused`.
+`copy_graph` then gives a `GraphError`, so no partial copy reaches a topic, socket or isolate.
+`encode_within` returns `Ok(Err(Stopped::Over | Stopped::Refused))`, and the cache's `put` stores
+nothing on a refusal. A `Core\Task` group asks for each child's stack before starting it, and a
+refusal ends the group on the request's memory `FATAL` (`refuse_the_rest`,
+`crates/nvs-host/src/group.rs`). A stream's `finish` concatenates through `ByteWriter`. New
+attacks: `Serialize/encode/02-…` and `Topic/publish/02-…`, both green.
 
-Expected red at the gate, each a member for stages 4 to 8 and not a test to loosen: a member that
+`bun nv proofs --overshoot` is red on 11 attacks, worst first: `Str/join` 91x, both `Uri/encode*`
+5.2x, `Bytes/unpack` 4.6x, `Arr/fillKeys` 2.8x, the `porting-a-program/02` cart 1.78x,
+`Arr/shapeAs`, `Ast/parse`, `Arr/fromKeysAndValues`, `Http-Response/jsonAs`, `Response/html`; and
+`Arr/range` runs out of time. Every `Task`, `Compress`, `Serialize` and `Topic` attack is green.
+Stages 5 and 6 list each red, which keeps `floor-debt` and `proofs-gate` red until then.
+
+Expected red at the gate, each a member for stages 5 to 8 and not a test to loosen: a member that
 builds an array past its ceiling now returns a shorter one; a test growing past 1.5x plus 8 MiB in one
-call gets an `inside one call` `FATAL`; an exact `N bytes held` figure may read the higher peak. Look
+call gets an `inside one call` `FATAL`; an exact `N bytes held` figure may read the higher peak; a
+test that expected a partial `copy_graph` or a `Some(empty)` from `encode_within` at the ceiling. Look
 first at `crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/server_memory.rs` and
-`crates/nvs-stdlib/src/budget.rs`. `bun nv proofs --overshoot` was red on 9 attacks, worst first:
-`Task/map`, `Str/join`, `Compress-Compressor/finish`, `core-task-map-one-task-per-element`,
-`Compress-Compressor/add`, `Compress/compressor`, both `Uri/encode*`, `Bytes/unpack`. They keep
-`floor-debt` and `proofs-gate` red until stages 4 and 5. The sweep's `env-secret-proofs` red was an
-orphan log with no check behind it, now deleted.
+`crates/nvs-stdlib/src/budget.rs`. The sweep's `env-secret-proofs` red has no check behind it.
 
 ### Next
 
-Stage 4, two groups. First `graph.rs` and `cache.rs`, then `task.rs`, `group.rs` and `compress.rs`.
-After the `Core\Task` change, run `bun nv proofs --run --group 'Core\Task'`.
+Stage 5, in two groups. First `str.rs` and `bytes.rs` and `math.rs`, then `arr.rs` and `regex.rs`.
+Its attacks go to one writing subagent once the fixes are in. Check each with
+`bun nv proofs --run --group '<the member's class>'`, which judges the bound.
 
-- [ ] `Live` asks for each copied string and array. `crates/nvs-runtime/src/graph.rs:538`
-- [ ] `walk` returns at the first refusal: `Encode` checks `self.out.stopped()`, and `Live` its own flag. `crates/nvs-runtime/src/graph.rs:239`
-- [ ] `encode_within` gives a third outcome for `Stopped::Refused`, and the cache's `put` stores nothing on it. `crates/nvs-runtime/src/graph.rs:838`, `crates/nvs-stdlib/src/cache.rs:2668`
-- [ ] `Core\Task::map` and `Task::all` ask for each stack charge first. `crates/nvs-stdlib/src/task.rs:513`
-- [ ] `Compressor::finish` writes through `ByteWriter`. `crates/nvs-stdlib/src/compress.rs:1204`
-- [ ] The two doubling-graph attacks, as steps of the existing `Serialize/encode` and `Topic/publish` attacks. `tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-callables.nvs:1`
+- [ ] `Core\Str::join` writes through `StrWriter`. `crates/nvs-stdlib/src/str.rs:2069`
+- [ ] `Str::codePoints`, `graphemes` and `chunk` attack steps. `crates/nvs-stdlib/src/str.rs:2452`
+- [ ] `Bytes::unpack` asks for its `Vec<Field>`. `crates/nvs-stdlib/src/bytes.rs:1575`
+- [ ] `Math::format`'s group separator in its ask. `crates/nvs-stdlib/src/math.rs:2113`
+- [ ] `Arr::fillKeys`, `fromKeysAndValues`, `shapeAs`, `range`, and `append_values`. `crates/nvs-stdlib/src/arr.rs:4088`
+- [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`
+- [ ] The cart attack's member. `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs:1`
 
 ### Backlog
