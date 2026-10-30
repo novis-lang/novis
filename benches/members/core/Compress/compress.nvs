@@ -2,7 +2,7 @@
 // Measures compressing one short record. A program meets this every time it
 // puts a value in a cache or writes one to a log that is kept compressed.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench

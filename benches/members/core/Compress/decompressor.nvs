@@ -3,7 +3,7 @@
 // finishing it. A program meets this every time it reads one compressed record
 // that arrived in parts.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 8
 // bench: complexity linear
 
 class Bench

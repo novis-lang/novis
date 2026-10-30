@@ -1,6 +1,6 @@
 <?nvs
 // Measures reading the output of a running program part by part, as a server does to show the log of a long job.
-// bench: iterations 512 -- each round also writes the line it reads back, and the ramp needs a batch of 256 on some runs
+// bench: iterations 256 callgrind
 // bench: calls 3
 // bench: complexity constant
 
@@ -41,4 +41,4 @@ class Bench
     }
 }
 
-echo Bench::run(512), "\n";
+echo Bench::run(256), "\n";

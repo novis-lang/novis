@@ -1,7 +1,7 @@
 <?nvs
 // Measures sending a running program its input one line at a time, as a server does when it passes a file to a converter.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench

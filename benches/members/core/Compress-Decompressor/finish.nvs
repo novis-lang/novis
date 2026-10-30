@@ -2,7 +2,7 @@
 // Measures closing a decompression stream that was given its download in
 // pieces of eight bytes: the join and the reading a program pays for once.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 17
 // bench: complexity linear
 
 class Bench

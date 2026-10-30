@@ -2,7 +2,7 @@
 // Measures closing a compression stream that was given sixteen pieces: the
 // join and the compression a program pays for once per compressed file.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 19
 // bench: complexity linear
 
 class Bench

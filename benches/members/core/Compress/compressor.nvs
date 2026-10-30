@@ -3,7 +3,7 @@
 // program meets this every time it writes one compressed record from parts it
 // built separately.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 5
 // bench: complexity linear
 
 class Bench
