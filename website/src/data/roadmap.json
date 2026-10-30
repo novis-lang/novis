@@ -6,6 +6,13 @@
   ],
   "themes": [
     {
+      "title": "Memory limits",
+      "text": "A request stops at its memory limit, also when a single `Core` method builds a very large value. Queues, caches and database connections that are kept after a request ends have a limit in bytes.",
+      "goals": [
+        "memory-ceiling-holes"
+      ]
+    },
+    {
       "title": "The package registry",
       "text": "You can sign in to the registry with a passkey and manage your packages in the browser. Owners can publish security advisories, and `nvs pkg audit` reports them.",
       "goals": [
