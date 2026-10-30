@@ -180,7 +180,7 @@ services:
   # the matrix reports `n/a` rather than runs.
   # ---------------------------------------------------------------------------------------------------
   mariadb:
-    # HOLD (revisit 2026-11-16): 12.3 is MariaDB's LTS line, which the `lts` tag names; 13.0 is a rolling release, supported only until the next one.
+    # HOLD (revisit 2026-11-30): 12.3 is MariaDB's LTS line, which the `lts` tag names at 12.3.3; 13.0.2 is a rolling release, supported only until the next one.
     image: mariadb:12.3.3
     depends_on:
       certs:
