@@ -570,6 +570,17 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
     loop {
         // 1. Start what the limit allows.
         while ending.is_none() && group.borrow().outstanding < limit {
+            if queue.is_empty() {
+                break;
+            }
+            // The stack is asked for before the child exists, so a group of
+            // many children stops at the request's ceiling, not one stack past
+            // it per child the next poll would have found.
+            if !nvs_runtime::budget::affords(crate::stack::TASK_STACK_SIZE) {
+                refuse_the_rest(ctx, &group, &mut queue, &mut running);
+                ending = Some(Ending::Threw);
+                break;
+            }
             let Some((index, job)) = queue.pop_front() else {
                 break;
             };
@@ -662,6 +673,31 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         ctx.close_spawn(open, wall);
     }
     collect(ctx, &group, ending)
+}
+
+/// Ends the group on a stack the request's memory ceiling refused: the jobs not
+/// yet started are dropped, the children running are cancelled, and the
+/// request's memory `FATAL` is the group's.
+fn refuse_the_rest(
+    ctx: &Ctx,
+    group: &Rc<RefCell<Group>>,
+    queue: &mut VecDeque<(usize, Job)>,
+    running: &mut Vec<TaskId>,
+) {
+    // Dropped unrun, which `Job`'s own docs make safe.
+    queue.clear();
+    for id in running.drain(..) {
+        cancel_task(id);
+    }
+    // `affords` recorded the breach, so the poll finds it.
+    let message = match ctx.memory_breach() {
+        Some(nvs_runtime::Fault::Fatal(message)) => message.into_owned(),
+        _ => "the request's memory limit refused a task's stack".to_owned(),
+    };
+    let mut group = group.borrow_mut();
+    if group.fatal.is_none() {
+        group.fatal = Some(message);
+    }
 }
 
 /// Files the parent's own deadline with the core's timers, so the wait ends on

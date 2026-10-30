@@ -96,6 +96,7 @@
 
 use std::io::Read;
 
+use nvs_runtime::budget::ByteWriter;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
@@ -1197,6 +1198,11 @@ fn add_chunk(args: &[Value], class: &CoreClass, member: &str) -> Result<Value, F
 /// twice — which is why [`close`] runs on the result of this rather than after
 /// the backend, releasing the chunks before a codec allocates anything.
 ///
+/// One chunk retained many times is copied once per time, so the copy is
+/// written through a [`ByteWriter`], which asks the request's budget whenever
+/// it grows. `None` is a growth the budget refused: the breach is recorded,
+/// and the request's next poll stops it.
+///
 /// # Errors
 ///
 /// A [`Fault::fatal`] for a `chunks` slot holding anything but the array `add`
@@ -1205,8 +1211,8 @@ fn concatenated(
     receiver: *mut ObjHeader,
     class: &CoreClass,
     member: &str,
-) -> Result<Vec<u8>, Fault> {
-    let mut data: Vec<u8> = Vec::new();
+) -> Result<Option<Vec<u8>>, Fault> {
+    let mut data = ByteWriter::new();
     let chunks = crate::identity_store::borrow(receiver, CHUNKS_SLOT, class, member)?;
     let mut from = 0_usize;
     while let Some(slot) = chunks.next_slot(from) {
@@ -1226,10 +1232,13 @@ fn concatenated(
                     held.tag_byte()
                 ))
             })?;
-        data.extend_from_slice(octets);
+        data.put(octets);
+        if data.stopped().is_some() {
+            break;
+        }
         from = slot + 1;
     }
-    Ok(data)
+    Ok(data.finish().ok())
 }
 
 /// Closes `receiver` and releases the chunks it was holding.
@@ -1329,6 +1338,9 @@ nvs_runtime::nvs_helper! {
         let (receiver, codec) = open_stream(args[0], &COMPRESSOR, "finish")?;
         let data = concatenated(receiver, &COMPRESSOR, "finish")?;
         close(receiver);
+        let Some(data) = data else {
+            return Ok(Value::bytes(NvsStr::new(b"")));
+        };
         Ok(Value::bytes(NvsStr::new(&compress_to(codec, &data)?)))
     }
 }
@@ -1356,6 +1368,9 @@ nvs_runtime::nvs_helper! {
         };
         let data = concatenated(receiver, &DECOMPRESSOR, "finish")?;
         close(receiver);
+        let Some(data) = data else {
+            return Ok(Value::bytes(NvsStr::new(b"")));
+        };
         Ok(Value::bytes(NvsStr::new(&decompress_within(
             codec,
             &data,
