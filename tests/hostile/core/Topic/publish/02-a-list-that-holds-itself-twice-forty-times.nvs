@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a script publishes a list that contains the same smaller list twice,
+// forty levels deep. Each subscriber gets its own copy, and that copy would need
+// a thousand terabytes. The program should stop at its memory limit.
+// hostile: ends-early 2 FATAL
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe('room:lobby');
+
+// 1. Publish the same shape three levels deep. It has 8 texts, and it arrives.
+mixed $small = 'x';
+uint $i = 0;
+while ($i < 3) {
+    $small = [$small, $small];
+    $i = $i + 1;
+}
+Core\Topic::publish('room:lobby', $small);
+echo "small list published\n";
+
+// 2. Publish it forty levels deep, with a text of 1,000 characters at the bottom.
+// The copy does not fit, so the program stops at its memory limit with an error.
+echo "step 2\n";
+mixed $huge = Core\Str::repeat('x', 1000);
+$i = 0;
+while ($i < 40) {
+    $huge = [$huge, $huge];
+    $i = $i + 1;
+}
+Core\Topic::publish('room:lobby', $huge);
+echo "huge list published\n";

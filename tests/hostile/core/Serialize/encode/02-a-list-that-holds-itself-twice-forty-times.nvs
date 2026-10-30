@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a program builds a list that contains the same smaller list twice, forty
+// levels deep. It is small in memory, but its encoded bytes would need a thousand
+// terabytes. The program should stop at its memory limit, without a crash.
+// hostile: ends-early 2 FATAL
+
+// Step 1: the same shape, three levels deep, has 8 texts. This prints the length
+// of its encoded bytes.
+mixed $small = 'x';
+uint $i = 0;
+while ($i < 3) {
+    $small = [$small, $small];
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Bytes::length(Core\Serialize::encode($small)), "\n";
+
+// Step 2: forty levels deep, with a text of 1,000 characters at the bottom.
+// The encoded bytes do not fit, so the program stops at its memory limit.
+echo "step 2\n";
+mixed $huge = Core\Str::repeat('x', 1000);
+$i = 0;
+while ($i < 40) {
+    $huge = [$huge, $huge];
+    $i = $i + 1;
+}
+echo 'step 2: ', Core\Bytes::length(Core\Serialize::encode($huge)), "\n";
