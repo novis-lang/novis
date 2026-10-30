@@ -205,12 +205,19 @@ number, and `sweep` matches on those. Safe fallback: `forget` removes its slot a
 the fixtures the member's attacks already use. Attacks are text an end user reads, held to AGENTS.md
 § *Text an end user reads*.
 
+**The collector's scratch is bounded, not out of scope.** The cart attack has no member in its
+loop. At about 1.1M live objects, `reclaim`'s members `Vec`, its `HashMap` seat table (rounded to
+2M buckets) and its `held` `Vec` take about 50 MiB, which is the cart's 114 MiB reading against
+64 MiB. The goal cannot be reached while that attack is red, so the scratch is this goal's. The
+fix keeps the collector: a sorted `Vec` and a binary search replace the `HashMap`, which takes the
+scratch from about 35 to 16 bytes per live object. Cost: O(n log n) for the walk, which runs only at
+the ceiling. Where even that scratch does not fit under the bound, the in-flight walk is skipped and
+the request ends on its breach, as it would without a collector. The teardown walk is unchanged.
+
 **Out of scope, decided elsewhere.**
 - No cap on open connections before admission
   (`docs/rules/http-server/admission-is-arithmetic-not-a-number.md`).
-- The cycle collector's scratch at the ceiling (`crates/nvs-runtime/src/object.rs:3243`): its doc
-  states the trade-off. It goes in the Backlog with a gap record, if stage 2's backstop shows it past
-  the bound.
+
 
 **Trade-offs.**
 - Security: every request's memory is bounded within one native call. That is what the security
@@ -267,14 +274,19 @@ table above go red. That is expected: this goal's later stages turn them green.
 
 **Split:** the attacks go to one writing subagent once the fixes are in.
 
-- [ ] `Core\Str::join` writes through `StrWriter`, not a `String` (measured at 61x). `crates/nvs-stdlib/src/str.rs:2069`
+- [x] `Core\Str::join` writes through `StrWriter`, not a `String` (measured at 61x). `crates/nvs-stdlib/src/str.rs:2069`
 - [ ] `Str::codePoints`, `graphemes` and `chunk` are bounded through stage 3's array growth. Each gets an attack step. `crates/nvs-stdlib/src/str.rs:2452`, `crates/nvs-stdlib/src/str.rs:2425`, `crates/nvs-stdlib/src/str.rs:2283`
-- [ ] `Arr::flattenDeep`, `flatten`, `appendAll` and `chunk` over shared rows, and `fromKeysAndValues` (1.45x). `append_values` asks. `crates/nvs-stdlib/src/arr.rs:3902`, `crates/nvs-stdlib/src/arr.rs:3862`, `crates/nvs-stdlib/src/arr.rs:5804`, `crates/nvs-stdlib/src/arr.rs:3438`, `crates/nvs-stdlib/src/arr.rs:3024`, `crates/nvs-stdlib/src/arr.rs:4244`
-- [ ] `Bytes::unpack` asks for its `Vec<Field>` and its array (2.0x). `crates/nvs-stdlib/src/bytes.rs:1575`
-- [ ] `Math::format`'s group separator is counted in its ask. `crates/nvs-stdlib/src/math.rs:2113`
-- [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
-- [ ] `Arr::fillKeys` (2.81x), `shapeAs` (1.70x) and `range` (runs out of time before its `FATAL`), which the peak reading of stage 2 put on the scan. `crates/nvs-stdlib/src/arr.rs:4088`, `crates/nvs-stdlib/src/arr.rs:6441`, `crates/nvs-stdlib/src/arr.rs:4166`
-- [ ] `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs` reads 1.78x of 64 MiB: find the member it grows through and bound it there.
+- [x] `Arr::flattenDeep`, `flatten`, `appendAll` and `chunk` over shared rows, and `fromKeysAndValues` (1.45x). `append_values` asks. `crates/nvs-stdlib/src/arr.rs:3902`, `crates/nvs-stdlib/src/arr.rs:3862`, `crates/nvs-stdlib/src/arr.rs:5804`, `crates/nvs-stdlib/src/arr.rs:3438`, `crates/nvs-stdlib/src/arr.rs:3024`, `crates/nvs-stdlib/src/arr.rs:4244`
+- [x] `Bytes::unpack` asks for its `Vec<Field>` and its array (2.0x). `crates/nvs-stdlib/src/bytes.rs:1575`
+- [x] `Math::format`'s group separator is counted in its ask. `crates/nvs-stdlib/src/math.rs:2113`
+- [x] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`, `crates/nvs-stdlib/src/regex.rs:2128`
+- [x] `Arr::fillKeys` (2.81x) and `range` (runs out of time before its `FATAL`), which the peak reading of stage 2 put on the scan. `shapeAs` (1.70x) is `json::hydrate`, and moved to stage 6 beside `jsonAs`. `crates/nvs-stdlib/src/arr.rs:4088`, `crates/nvs-stdlib/src/arr.rs:4166`
+  - [x] `NvsArray::with_capacity` and the packed-to-hash conversion ask for their room. `crates/nvs-runtime/src/array.rs:481`, `crates/nvs-runtime/src/array.rs:1071`
+  - [x] `range` asks for its whole list once. `crates/nvs-stdlib/src/arr.rs:4166`
+- [ ] `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs` reads 1.78x of 64 MiB. No member: it is the cycle collector's scratch at the poll that finds the breach (see *The collector's scratch* under Standing decisions). `crates/nvs-runtime/src/object.rs:3243`
+  - [ ] `reclaim` keeps no `HashMap` seat table: each member's seat is its position in a `Vec` sorted by address, found by binary search.
+  - [ ] Before the in-flight walk, ask whether the scratch fits under the bound; where it does not, skip the walk and report the breach.
+  - [ ] The cart attack reads within the bound under `bun nv proofs --overshoot`.
 - [ ] An attack step per member above that has none, each ending at `FATAL` within the bound.
 
 ### 6. the JSON, CSV, HTML, JWT, URI, XML and AST builders stop at the ceiling
@@ -287,7 +299,7 @@ table above go red. That is expected: this goal's later stages turn them green.
 - [ ] `Uri::encodeComponent` and `encodeFormValue` (3.7x). `parseQuery`'s top-level `out.set` is bounded through stage 3. `crates/nvs-stdlib/src/uri.rs:3143`, `crates/nvs-stdlib/src/uri.rs:3368`
 - [ ] `Xml\Writer`'s indent is counted in its ask. `crates/nvs-stdlib/src/xml.rs:3049`
 - [ ] `Ast::parse`'s node objects ask (1.27x). `crates/nvs-stdlib/src/ast.rs:454`
-- [ ] `Http\Response::jsonAs` (1.64x) and `Response::html` (1.54x), which the peak reading put on the scan.
+- [ ] `Http\Response::jsonAs` (1.64x), `Core\Arr::shapeAs` (1.70x) and `Response::html` (1.54x), which the peak reading put on the scan. `jsonAs` and `shapeAs` both hydrate through `json::hydrate`. `crates/nvs-stdlib/src/arr.rs:6462`
 - [ ] An attack step per member above, each ending at `FATAL` within the bound.
 
 ### 7. files, processes, HTTP replies and mail replies are read no further than the request can hold
@@ -340,41 +352,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done; build and clippy green, no full test run. The graph walk returns at the
-first refusal (`Carrier::stopped`, `crates/nvs-runtime/src/graph.rs:233`): `Live` reads
-`budget::refused()` and asks before each copied string, `Encode` stops on `Stopped::Refused`.
-`copy_graph` then gives a `GraphError`, so no partial copy reaches a topic, socket or isolate.
-`encode_within` returns `Ok(Err(Stopped::Over | Stopped::Refused))`, and the cache's `put` stores
-nothing on a refusal. A `Core\Task` group asks for each child's stack before starting it, and a
-refusal ends the group on the request's memory `FATAL` (`refuse_the_rest`,
-`crates/nvs-host/src/group.rs`). A stream's `finish` concatenates through `ByteWriter`. New
-attacks: `Serialize/encode/02-…` and `Topic/publish/02-…`, both green.
+Stages 1 to 4 are done, and stage 5's members are fixed; build and clippy green, no full test run.
+`Str::join` writes through `StrWriter`, `Bytes::unpack` asks per field-list growth (`pushed`),
+`Math::format` asks for its exact length. `NvsArray::with_capacity` and the packed-to-hash
+conversion (`hashed_mut`) ask for their room, which fixed `fillKeys` and `fromKeysAndValues`.
+`range` asks for its whole list once. `budget::refused` is now `pub`: `append_values` (flatten,
+appendAll, padding), `flattenDeep` and `matchAll` return at a refusal, and `replaceWith` asks per
+kept match (`kept`, `crates/nvs-stdlib/src/regex.rs`).
 
-`bun nv proofs --overshoot` is red on 11 attacks, worst first: `Str/join` 91x, both `Uri/encode*`
-5.2x, `Bytes/unpack` 4.6x, `Arr/fillKeys` 2.8x, the `porting-a-program/02` cart 1.78x,
-`Arr/shapeAs`, `Ast/parse`, `Arr/fromKeysAndValues`, `Http-Response/jsonAs`, `Response/html`; and
-`Arr/range` runs out of time. Every `Task`, `Compress`, `Serialize` and `Topic` attack is green.
-Stages 5 and 6 list each red, which keeps `floor-debt` and `proofs-gate` red until then.
+`bun nv proofs --overshoot` is red on 7, down from 11: both `Uri/encode*` 5.2x, the cart 1.78x,
+`Arr/shapeAs` 1.70x, `Ast/parse` 1.70x, `Http-Response/jsonAs` 1.64x, `Response/html` 1.54x. Every
+`Str`, `Bytes`, `Math` and `Arr` member attack but `shapeAs` is green. `shapeAs` hydrates through
+`json::hydrate`, as `jsonAs` does, so it moved to stage 6. The cart has no member: it is the cycle
+collector's scratch (Standing decisions, *The collector's scratch*).
 
-Expected red at the gate, each a member for stages 5 to 8 and not a test to loosen: a member that
-builds an array past its ceiling now returns a shorter one; a test growing past 1.5x plus 8 MiB in one
-call gets an `inside one call` `FATAL`; an exact `N bytes held` figure may read the higher peak; a
-test that expected a partial `copy_graph` or a `Some(empty)` from `encode_within` at the ceiling. Look
-first at `crates/nvs-runtime/tests/refusal.rs`, `crates/nvs-runtime/tests/server_memory.rs` and
-`crates/nvs-stdlib/src/budget.rs`. The sweep's `env-secret-proofs` red has no check behind it.
+Expected red at the gate, each not a test to loosen: a member that builds an array past its ceiling
+returns a shorter one; a test growing past 1.5x plus 8 MiB in one call gets an `inside one call`
+`FATAL`; an exact `N bytes held` may read the higher peak; a test expecting a partial `copy_graph` or
+`Some(empty)` from `encode_within`. New: a Rust test that fills `NvsArray::with_capacity` under a
+small ceiling now gets an empty-room array, and `Arr::range` past its ceiling is a `FATAL` before
+any entry. Look first at `crates/nvs-runtime/tests/refusal.rs`,
+`crates/nvs-runtime/tests/server_memory.rs` and `crates/nvs-stdlib/src/budget.rs`. The sweep's
+`env-secret-proofs` red names no check: no goal, floor or `looper.toml` defines one.
 
 ### Next
 
-Stage 5, in two groups. First `str.rs` and `bytes.rs` and `math.rs`, then `arr.rs` and `regex.rs`.
-Its attacks go to one writing subagent once the fixes are in. Check each with
-`bun nv proofs --run --group '<the member's class>'`, which judges the bound.
+Finish stage 5, then stage 6. Read the bound with `bun nv proofs --overshoot`, which ignores
+`--group` and takes about 6 minutes, and run each class's attacks with
+`bun nv proofs --run --group '<class>'`.
 
-- [ ] `Core\Str::join` writes through `StrWriter`. `crates/nvs-stdlib/src/str.rs:2069`
-- [ ] `Str::codePoints`, `graphemes` and `chunk` attack steps. `crates/nvs-stdlib/src/str.rs:2452`
-- [ ] `Bytes::unpack` asks for its `Vec<Field>`. `crates/nvs-stdlib/src/bytes.rs:1575`
-- [ ] `Math::format`'s group separator in its ask. `crates/nvs-stdlib/src/math.rs:2113`
-- [ ] `Arr::fillKeys`, `fromKeysAndValues`, `shapeAs`, `range`, and `append_values`. `crates/nvs-stdlib/src/arr.rs:4088`
-- [ ] `Regex::matchAll` and `replaceWith` ask per match. `crates/nvs-stdlib/src/regex.rs:1861`
-- [ ] The cart attack's member. `tests/hostile/tools/php-differences/porting-a-program/02-a-cart-that-grows-past-the-memory-limit.nvs:1`
+- [ ] The cart: `reclaim` seats by a sorted `Vec`, and the in-flight walk is skipped when its scratch does not fit under the bound. `crates/nvs-runtime/src/object.rs:3243`, `crates/nvs-runtime/src/object.rs:3170`
+- [ ] Commit the attack steps for `Str::codePoints`, `graphemes`, `chunk`, `Math::format`, `Arr::flatten`, `flattenDeep`, `appendAll` and `Regex::replaceWith` if this session left them uncommitted. `tests/hostile/core/Arr/fillKeys/01-more-keys-than-memory.nvs:1`
+- [ ] Stage 6: `Uri::encodeComponent` and `encodeFormValue` (5.2x). `crates/nvs-stdlib/src/uri.rs:3143`
+- [ ] Stage 6: `json::hydrate` for `jsonAs` and `shapeAs`. `crates/nvs-stdlib/src/arr.rs:6462`
 
 ### Backlog
