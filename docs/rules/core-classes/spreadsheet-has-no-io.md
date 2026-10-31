@@ -23,14 +23,30 @@ a linked image or a data connection in a read file comes back as **data** — th
 is never resolved, and an image placed on write is bytes the caller supplies.
 
 **CSV goes through the same classes and is parsed and formatted by `Core\Csv` in the Novis half**, so
-CSV has one parser and one API for the job. `Reader::open` reads a source as CSV when it does not
-start with a zip's `PK` and a control byte and its start is UTF-8 (`bytes` decoded whole, a file's
-first four bytes); anything else goes to the engine, which throws for a file that is no workbook. A
-CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
+CSV has one parser and one API for the job. **A workbook reads as a workbook**: a source that starts
+with a zip's `PK` and a control byte, or with a compound file's `D0 CF 11 E0`, goes to the engine
+whatever the options say. `Reader::open`'s second argument is `{csv?: {separator?, quote?, escape?,
+encoding?: Core\Charset}}`, and each field means what `Core\Csv`'s or `Core\Encoding`'s option of
+that name means; `Core\Csv` checks the dialect once at `open`, so a wrong one throws there. The
+options are a `csv` field so that a reader of the call knows they apply to CSV alone. **The charset
+is the program's or the byte order mark's, and nothing guesses it.** With an `encoding` other than
+UTF-8, or with no `encoding` and a UTF-16 byte order mark, the source is decoded whole with
+`Core\Encoding::decodeText`, its mark dropped, and parsed with `Core\Csv::parse`; a file is read
+whole first through the engine's `sourceBytes`, because `Core\IO\File` reads text only, and keeps
+its position. A byte that is not text in that charset throws `decodeText`'s `RuntimeError`.
+Otherwise a source is CSV when its start is UTF-8 (`bytes` decoded whole, a file's first four
+bytes, walked with `Core\Csv::rows`), and anything else goes to the engine, which throws for a file
+that is no workbook. A CSV is one sheet, `Sheet1`, with no extras. `rows` takes every option and gives the xlsx row shape:
 the header keys numbered and lettered as the engine does, an empty field an empty cell, a short
 record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
 `Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
-through `Core\Csv::format` with each value as its text, and a second sheet throws naming both. The
+through `Core\Csv::format` with each value as its text, and a second sheet throws naming both.
+`Workbook`'s options and `fromRows`'s take `csv?: {separator?, quote?, encoding?: Core\Charset}`,
+checked by `Core\Csv` at create. With an `encoding` other than UTF-8, each batch's text is encoded
+with `Core\Encoding::encodeText`, a UTF-16 file starts with a byte order mark so that it reads back
+with no option, and a download's `Content-Type` names no charset. **A character the charset lacks
+throws `LogicError` naming its cell**, such as `B3`, counted from the file's first row: the batch is
+encoded whole, and only when that throws is each field encoded alone to find the cell. The
 engine still opens a writer, which checks the sheet name and logs a workbook never finished, and its
 bytes are dropped, so styles, widths and every sheet-end part are left out. **A string that starts
 with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a `'` first**, because Excel reads
@@ -70,9 +86,11 @@ surfaced as data and nothing resolved.
 - **Memory:** nothing until a program first uses `Novis\Spreadsheet`. Then the compiled module, held
   once per process and shared by every core, and per calling request one instance under the request's
   cap, freed when the request ends. What a write and a read hold inside it are their own fragments'.
-
-**Not shipped.** A CSV dialect other than `,` and `"`, and a CSV in another encoding than UTF-8
-(gap:nvs-spreadsheet/spreadsheet-csv-dialects).
+  A CSV read in another charset holds the source's bytes, its decoded text and, for each walk, its
+  records, per request; a UTF-8 file is still walked a record at a time. A CSV write in another
+  charset holds one batch's text and its encoded bytes.
+- **Latency:** none on a UTF-8 CSV. Another charset costs one decode of the whole source at `open`,
+  or one encode per batch; a file's head is one guest call at `open`.
 
 **Declined:**
 - **A first-party `[[extension]]` package, `nvs/spreadsheet`.** It is one configuration step for a
@@ -85,6 +103,11 @@ surfaced as data and nothing resolved.
   formula in Excel, and the program wrote a string, which is always text.
 - **Typed CSV values, a number read as `int`.** CSV has no types, so a guess would read `00123` as
   `123`; a program converts the `string` it expects with `as ?int`.
+- **Guessing a CSV's charset or separator.** Every Windows-1252 text is also valid Latin-1 and
+  Windows-1250 text, so a guess turns `€` into another character in silence; the program knows where
+  its files come from and names the charset.
+- **A `Core\IO\File` member that reads `bytes`, for a CSV file in another charset.** It is new `Core`
+  surface for one reader, and the engine already reads the file's ranges through the call it is lent.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
   carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
   belongs in the builder.

@@ -12,6 +12,9 @@
     "crates/nvs-ext/tests/spreadsheet_read.rs",
     "crates/nvs-ext/tests/spreadsheet_hostile.rs",
     "tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst",
-    "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst"
+    "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst",
+    "tests/conformance/novis/spreadsheet-reads-csv-in-another-dialect-and-charset.nvst",
+    "tests/conformance/novis/spreadsheet-writes-csv-in-another-dialect-and-charset.nvst",
+    "tests/conformance/novis/spreadsheet-a-character-the-charset-lacks-throws-naming-its-cell.nvst"
   ]
 }

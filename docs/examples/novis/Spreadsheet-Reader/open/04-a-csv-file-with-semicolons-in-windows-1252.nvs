@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a CSV file that uses `;` between values and is not UTF-8 text.
+use Novis\Spreadsheet\Reader;
+
+// Excel in many European countries saves CSV files like this one.
+bytes $file = Core\Encoding::encodeText("Artikel;Preis\nMüsli;3,50\nKäse;4,20\n", Core\Charset::Windows1252);
+
+// `csv` sets the separator and the charset of the file.
+var $reader = Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } });
+foreach ($reader->rows(0, { header: true }) as var $row) {
+    echo $row->values['Artikel'], ' costs ', $row->values['Preis'], "\n";
+}

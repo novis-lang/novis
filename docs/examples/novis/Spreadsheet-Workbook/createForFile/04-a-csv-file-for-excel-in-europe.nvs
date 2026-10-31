@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to save a CSV file with `;` between values, in the Windows-1252 charset.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'prices.csv');
+
+// `csv` sets the separator and the charset that the file is written in.
+var $book = Workbook::createForFile($path, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } });
+$book->sheet('Prices')->addAll([
+    ['Item' => 'Müsli', 'Price' => '3,50 €'],
+    ['Item' => 'Käse', 'Price' => '4,20 €'],
+]);
+echo $book->finish()->size, " bytes\n";
+
+// Each of `ü`, `ä` and `€` is one byte in Windows-1252. Read the file back with the same options.
+Core\IO\File $file = Core\IO::open($path,Core\IO::FileMode::Read);
+foreach (Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } })->rows(0, { header: true }) as var $row) {
+    echo $row->values['Item'], ' costs ', $row->values['Price'], "\n";
+}
+$file->close();

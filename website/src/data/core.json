@@ -28791,7 +28791,7 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant } }"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset } }"
         }
       ],
       "constants": [],
@@ -29080,6 +29080,10 @@
         {
           "name": "Properties",
           "type": "{ title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\\Time\\Instant }"
+        },
+        {
+          "name": "OpenOptions",
+          "type": "?{ csv?: { separator?: string, quote?: string, escape?: string, encoding?: Core\\Charset } }"
         }
       ],
       "constants": [],
@@ -29090,7 +29094,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(tainted bytes|Core\\IO\\File $source): Reader",
+          "signature": "open(tainted bytes|Core\\IO\\File $source, OpenOptions $options = null): Reader",
           "params": [
             {
               "kind": "param",
@@ -29099,12 +29103,20 @@
               "default": null,
               "optional": false,
               "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "OpenOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
             }
           ],
           "options": [],
           "returnType": "Reader",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>, the bytes of the file or a file your program opened. Another file type throws an error.\nAn xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, <code>Sheet1</code>, and each value in it is a <code>string</code>."
+            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>, the bytes of the file or a file your program opened. Another file type throws an error.\nAn xls or ods file is read whole here. A CSV file has one sheet, <code>Sheet1</code>, and each value in it is a <code>string</code>.\nA CSV file is UTF-8 text, or UTF-16 text that starts with a byte order mark. <code>csv</code> sets its <code>separator</code>, <code>quote</code>, <code>escape</code> and <code>encoding</code>."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-reader/open/",
@@ -30263,7 +30275,7 @@
       "types": [
         {
           "name": "Options",
-          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant } }"
+          "type": "?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset } }"
         },
         {
           "name": "Column",
@@ -30275,7 +30287,7 @@
         },
         {
           "name": "ExportOptions",
-          "type": "?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
+          "type": "?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\\Time\\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool }"
         },
         {
           "name": "RowOptions",

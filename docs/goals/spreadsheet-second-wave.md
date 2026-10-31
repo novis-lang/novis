@@ -14,7 +14,7 @@ stages:
     context: [extensions/spreadsheet/nvs/Cell.nvs, extensions/spreadsheet/nvs/Workbook.nvs, extensions/spreadsheet/src/cells.rs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 3
     title: "a CSV reads and writes in any dialect Core\\Csv takes and in any Core\\Charset"
-    status: open
+    status: done
     context: [extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Workbook.nvs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/encoding.rs, docs/rules/core-classes/spreadsheet-has-no-io.md]
   - id: 4
     title: "an ods reads every extra, its own number styles and its formula text, and names are in the read's locale"
@@ -253,6 +253,14 @@ first. Memory: the decoded text and its records, per request. A write encodes ea
 `Core\Encoding::encodeText`. A character the charset lacks throws `LogicError` naming the row and
 the column. Home: `rule:core-classes/spreadsheet-has-no-io`.
 
+**A file read whole goes through the engine.** `Core\IO\File::read` returns text only, so Novis
+cannot read a non-UTF-8 file's bytes. The engine export `sourceBytes(source, offset, ?length)`
+returns a range of the lent source through the host's `range`, as every reader call reads it.
+`Reader::open` reads a file's first four bytes and a file in another charset through it. A new
+`Core\IO\File` byte read was declined, because it is `Core` surface for one reader. The error names
+the cell (`B3`), and no charset name, because an enum case has no name at run time. Home:
+`rule:core-classes/spreadsheet-has-no-io`.
+
 **Reading extras from every format.** Each extra returns the shape it returns for xlsx.
 - **ods:** links are `text:a` in a cell, notes are `office:annotation`, names are
   `table:named-expressions`, tables are `table:database-ranges`, images are `draw:frame` with
@@ -480,11 +488,11 @@ reached from Novis.
 
 **Does:** `Reader::open` and `Workbook` take the `csv` options the standing decision gives.
 
-- [ ] `rule:core-classes/spreadsheet-has-no-io`: `Reader::open`'s options, the UTF-16 BOM, the whole-text decode, and the dialect passed to `Core\Csv::parse` and `Core\Csv::rows`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:291`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/nvs/Reader.nvs:396`
-- [ ] `Workbook`'s and `fromRows`'s `csv` options, the dialect passed to `Core\Csv::format`, and the encode with its error. `extensions/spreadsheet/nvs/Workbook.nvs:12`, `extensions/spreadsheet/nvs/Workbook.nvs:15`, `extensions/spreadsheet/nvs/Workbook.nvs:599`
-- [ ] The conformance cases the `csv-dialect-and-encoding` check names. `tests/conformance/novis/spreadsheet-reads-csv-in-another-dialect-and-charset.nvst:1`, `tests/conformance/novis/spreadsheet-writes-csv-in-another-dialect-and-charset.nvst:1`, `tests/conformance/novis/spreadsheet-a-character-the-charset-lacks-throws-naming-its-cell.nvst:1`
-- [ ] A fourth example and an `about.md` paragraph for `Reader::open`, `Workbook::createForFile` and `Workbook::fromRows`. `docs/examples/novis/Spreadsheet-Reader/open/about.md:4`, `docs/examples/novis/Spreadsheet-Workbook/createForFile/about.md:1`, `docs/examples/novis/Spreadsheet-Workbook/fromRows/about.md:1`
-- [ ] The fragment states the options, the cost and the charset rule, and drops its Not-shipped line. Delete the record. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
+- [x] `rule:core-classes/spreadsheet-has-no-io`: `Reader::open`'s options, the UTF-16 BOM, the whole-text decode, and the dialect passed to `Core\Csv::parse` and `Core\Csv::rows`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:291`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/nvs/Reader.nvs:396`
+- [x] `Workbook`'s and `fromRows`'s `csv` options, the dialect passed to `Core\Csv::format`, and the encode with its error. `extensions/spreadsheet/nvs/Workbook.nvs:12`, `extensions/spreadsheet/nvs/Workbook.nvs:15`, `extensions/spreadsheet/nvs/Workbook.nvs:599`
+- [x] The conformance cases the `csv-dialect-and-encoding` check names. `tests/conformance/novis/spreadsheet-reads-csv-in-another-dialect-and-charset.nvst:1`, `tests/conformance/novis/spreadsheet-writes-csv-in-another-dialect-and-charset.nvst:1`, `tests/conformance/novis/spreadsheet-a-character-the-charset-lacks-throws-naming-its-cell.nvst:1`
+- [x] A fourth example and an `about.md` paragraph for `Reader::open`, `Workbook::createForFile` and `Workbook::fromRows`. `docs/examples/novis/Spreadsheet-Reader/open/about.md:4`, `docs/examples/novis/Spreadsheet-Workbook/createForFile/about.md:1`, `docs/examples/novis/Spreadsheet-Workbook/fromRows/about.md:1`
+- [x] The fragment states the options, the cost and the charset rule, and drops its Not-shipped line. Delete the record. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
 
 ### 4. an ods reads every extra, its own number styles and its formula text, and names are in the read's locale
 
@@ -622,40 +630,51 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Cell::rich` makes one text cell of runs, and `Cell` has a readonly
-`runs` (`?array<Run>`, `null` for every other cell). A run's style that sets a non-font field, or
-an empty list, throws `LogicError`. `Workbook::queue` sends a rich cell as `{ runs: … }` with each
-run's `styleId`, and `csvField` writes the runs' text joined, through the same formula guard. The
-`rich-cell` check is green (`bun nv suite` over its two cases), and so is the new Rust test
-`a_rich_cell_writes_each_run_with_its_own_font` in `crates/nvs-cli/tests/spreadsheet_values.rs`.
-`bun nv proofs --id 'Novis\Spreadsheet\Cell::rich'` owes nothing, and its bench is recorded. The
-roster states the rich cell, the sheet-end parts fragment has no Not-shipped line, the record
-`spreadsheet-cell-rich` is deleted, and the website is rendered.
+Stages 1 to 3 are done. `Reader::open($source, {csv?: {separator?, quote?, escape?, encoding?}})`
+reads a CSV in that dialect. A zip or compound-file start reads as a workbook whatever `csv` says.
+An `encoding` other than UTF-8, or a UTF-16 BOM with no `encoding`, decodes the source whole. A file
+is read whole through the new engine export `sourceBytes` (WIT `source-bytes`, `lib.rs`'s
+`source_bytes`, the manifest). `Workbook`'s, `Export`'s and `fromRows`'s options take
+`csv?: {separator?, quote?, encoding?}`. A write encodes each batch, starts UTF-16 with a BOM, and
+throws `LogicError` naming the cell (`B3`) of a character the charset lacks. `Core\Csv` checks the
+dialect at `open` and at create, and a bad one throws its `RuntimeError` there.
 
-`runs` is nullable because a constructor parameter's default must be a constant, and `[]` is not
-one (E0451). `new Cell($value, $style)` still works.
+The `csv-dialect-and-encoding` check is green. `bun nv proofs --id` owes nothing for `Reader::open`,
+`Workbook::createForFile` and `Workbook::fromRows`, and each has a fourth example. The fragment
+states the options, the cost and the charset rule, with two new Declined bullets. The record
+`spreadsheet-csv-dialects` is deleted, and the rules and the website are rendered. The standing
+decision **A file read whole goes through the engine** records why `sourceBytes` exists.
+
+`cargo fmt --manifest-path extensions/spreadsheet/Cargo.toml -- --check` lists diffs in files no
+session of this goal touched (`format/`, `read/ods.rs`, `read/sheet.rs`, `width.rs`,
+`tests/format.rs`). The root's rustfmt config is likely not read through `--manifest-path`, so
+`bun nv ci --check` at the gate decides whether that is real.
 
 The sweep's `env-secret-proofs` red is stale again: nothing defines it, and its log file does not
 exist.
 
 ### Next
 
-Stage 3, the CSV dialect and charset, over `extensions/spreadsheet/nvs/Reader.nvs`,
-`extensions/spreadsheet/nvs/Workbook.nvs` and `docs/rules/core-classes/spreadsheet-has-no-io.md`.
-Read `Core\Csv`'s and `Core\Encoding`'s option names from `crates/nvs-stdlib/src/csv.rs` and
-`crates/nvs-stdlib/src/encoding.rs` first.
+Stage 4, ods extras, number styles, OpenFormula and month and day names. Its files are
+`extensions/spreadsheet/src/read/ods.rs`, `read/extras.rs`, `format/` and the new
+`openformula.rs` and `format/names.rs`. The stage's `**Split:**` line and the standing decisions
+**Reading extras from every format**, **Month and day names** and **One token decoder** settle it.
 
-- [ ] `Reader::open`'s `csv` options, the UTF-16 BOM, the whole-text decode, and the dialect passed to `Core\Csv`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:291`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/nvs/Reader.nvs:396`
-- [ ] `Workbook`'s and `fromRows`'s `csv` options, passed to `Core\Csv::format`, and the encode with its error. `extensions/spreadsheet/nvs/Workbook.nvs:12`, `extensions/spreadsheet/nvs/Workbook.nvs:15`, `extensions/spreadsheet/nvs/Workbook.nvs:611`
-- [ ] The three conformance cases the `csv-dialect-and-encoding` check names. `tests/conformance/novis/spreadsheet-reads-csv-in-another-dialect-and-charset.nvst:1`
-- [ ] A fourth example and an `about.md` paragraph for `Reader::open`, `Workbook::createForFile` and `Workbook::fromRows`. `docs/examples/novis/Spreadsheet-Reader/open/about.md:4`
-- [ ] The fragment states the options, the cost and the charset rule, and drops its Not-shipped line. Delete the record. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
+- [ ] `ods::read` keeps each cell's links, annotation and image frames, and each sheet's named expressions and database ranges. `extensions/spreadsheet/src/read/ods.rs:116`, `extensions/spreadsheet/src/read/ods.rs:183`
+- [ ] The extras answer an ods, and `properties` reads `meta.xml`. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:475`
+- [ ] `number:*-style` to a format code, and each cell's `text` rendered under it. `extensions/spreadsheet/src/format/mod.rs:401`
+- [ ] `openformula.rs` both ways, and an ods formula as a `Formula`. `extensions/spreadsheet/src/openformula.rs:1`
+- [ ] `names.rs` and the date renderer by locale and by `[$-…]`. `extensions/spreadsheet/src/format/date.rs:18`, `extensions/spreadsheet/src/format/locale.rs:82`
+- [ ] The tests of `ods-reads-every-extra` and `names-follow-the-locale`, the `about.md`s, the fragment and the records. `crates/nvs-ext/tests/spreadsheet_read.rs:1797`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
 `CellError`, and `crates/nvs-cli/tests/spreadsheet_reader.rs`, which now writes
 `Reader::Visibility`. From stage 2, `crates/nvs-stdlib/tests/ext_world.rs` and `meta.rs` if either
-lists `Cell`'s members or its constructor's parameters. None of them ran this session.
+lists `Cell`'s members or its constructor's parameters. From stage 3, `meta.rs`'s Engine method list
+and `ext_world.rs`'s export list, which now name `sourceBytes` and `source-bytes`. The new
+`source_bytes` row in `crates/nvs-ext/src/typed/spreadsheet.rs` also builds. `meta.rs` may also
+list `Reader::open`'s parameters. None of these tests ran this session.
 
 ### Backlog
 

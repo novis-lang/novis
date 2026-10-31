@@ -10,5 +10,7 @@ Its `bytes` is `null`, because the file is on the disk.
 program needs the `fs.write` capability in `nvs.toml` for the path. Without it, `createForFile`
 throws an error and writes nothing.
 
-**The examples below** save an Excel file and read it back, save a CSV file, and save two sheets with
-the summary as the first tab.
+A CSV file is UTF-8 with `,` between values. `csv` sets its `separator`, `quote` and `encoding`.
+
+**The examples below** save an Excel file and read it back, save a CSV file, save two sheets with
+the summary as the first tab, and save a CSV file with `;` in Windows-1252.

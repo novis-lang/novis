@@ -7,6 +7,7 @@ sends it to the browser, and `save` writes it to a path. `to` writes it to an op
 returns the whole file.
 
 The options are the options of `createInMemory` and of `sheet` together. `sheet` is the name of the
-sheet, and the default is `Sheet1`.
+sheet, and the default is `Sheet1`. For a CSV file, `csv` sets the `separator`, the `quote` and the
+`encoding`.
 
 **Good to know:** for more than one sheet, start with a `create` method and call `sheet` for each one.

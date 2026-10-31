@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to write rows as a file with a tab between the values.
+use Novis\Spreadsheet\Workbook;
+
+var $rows = [
+    ['Item' => 'Widget', 'Note' => 'red, large'],
+    ['Item' => 'Gadget', 'Note' => 'blue'],
+];
+
+// A comma is not special in this file, so `red, large` has no quotes.
+echo Workbook::fromRows($rows, { format: 'csv', csv: { separator: "\t" } })->bytes() as string;

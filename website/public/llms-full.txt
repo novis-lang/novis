@@ -54274,7 +54274,7 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, images, pro
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(tainted bytes\|Core\IO\File $source): Reader` |
+| [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(tainted bytes\|Core\IO\File $source, OpenOptions $options = null): Reader` |
 | [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
 | [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<tainted string>` |
 | [`Novis\Spreadsheet\Reader->merged`](#core-novis-spreadsheet-reader-merged) | `merged(string\|int $sheet): array<tainted string>` |
@@ -54290,11 +54290,12 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, images, pro
 #### `Novis\Spreadsheet\Reader::open`
 
 ```nvs skip
-Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source): Reader
+Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
 ```
 
 `Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
-An xls or ods file is read whole here. A CSV file is UTF-8 text with one sheet, `Sheet1`, and each value in it is a `string`.
+An xls or ods file is read whole here. A CSV file has one sheet, `Sheet1`, and each value in it is a `string`.
+A CSV file is UTF-8 text, or UTF-16 text that starts with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
 
 **Returns** `Reader`
 
@@ -54857,7 +54858,7 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, sourceBytes, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
 
 | Member | Signature |
 |---|---|
@@ -54880,6 +54881,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerTables`](#core-novis-spreadsheet-engine-readertables) | `readerTables(Reading $reader, mixed $source, string $sheet): array<{ table: string, name: string, sheet: string }>` |
 | [`Novis\Spreadsheet\Engine::readerImages`](#core-novis-spreadsheet-engine-readerimages) | `readerImages(Reading $reader, mixed $source, string $sheet): array<{ at: string, image: bytes, format: string, link: ?string }>` |
 | [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }` |
+| [`Novis\Spreadsheet\Engine::sourceBytes`](#core-novis-spreadsheet-engine-sourcebytes) | `sourceBytes(mixed $source, uint $offset, ?uint $length): bytes` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options, uint $max): { rows: array<{ number: uint, cells: array<{ column: uint, value: ?ReadValue, formula: ?string, display: ?string }> }>, done: bool }` |
 | [`Novis\Spreadsheet\Engine::templateOpen`](#core-novis-spreadsheet-engine-templateopen) | `templateOpen(mixed $source, { maxBytes: ?uint, maxRatio: ?uint } $bound): Filling` |
@@ -55197,6 +55199,23 @@ Returns the document properties of the workbook. `created` is the time it was cr
 | `$source` | `mixed` |  |
 
 **Returns** `{ title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }`
+
+<a id="core-novis-spreadsheet-engine-sourcebytes"></a>
+#### `Novis\Spreadsheet\Engine::sourceBytes`
+
+```nvs skip
+Novis\Spreadsheet\Engine::sourceBytes(mixed $source, uint $offset, ?uint $length): bytes
+```
+
+Returns at most `length` bytes of `source` from `offset`. When `length` is `null`, it returns every byte from `offset` to the end. `source` is `bytes` or an open `Core\IO\File`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `mixed` |  |
+| `$offset` | `uint` |  |
+| `$length` | `?uint` |  |
+
+**Returns** `bytes`
 
 <a id="core-novis-spreadsheet-engine-readerheader"></a>
 #### `Novis\Spreadsheet\Engine::readerHeader`
