@@ -1,0 +1,140 @@
+<?nvs
+// Attack: a stolen publish token tries to put a false advisory in the feed at once.
+// An advisory sent with a token should wait seven days, so the owners get a message first. Every step below should be stopped.
+
+// The time of the check, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+// The stolen token. It may publish only packages of the vendor `Acme`.
+string $token = 'nvsreg_' . Core\Str::repeat('3f', 32);
+
+// A token of another vendor, `Other`.
+string $otherToken = 'nvsreg_' . Core\Str::repeat('a7', 32);
+
+// The registry's checks for an advisory for `Acme\Http`.
+class Registry
+{
+    // The scope of each token. The key is the SHA-256 hash of the token.
+    private array<string> $scopes = [];
+
+    // The time the advisory is in the feed, or `null` when there is no advisory.
+    public ?int $inFeedFrom = null;
+
+    // The number of messages sent to the owners of the package.
+    public int $notices = 0;
+
+    public function constructor()
+    {
+    }
+
+    // Saves the hash of a token with its scope.
+    public function add(string $token, string $scope): void
+    {
+        $this->scopes[Registry::hashOf($token)] = $scope;
+    }
+
+    // Returns the SHA-256 hash of a token as 64 hex characters.
+    public static function hashOf(string $token): string
+    {
+        return Core\Encoding::toHex(Core\Hash::of($token, Core\Hash::Digest::Sha256));
+    }
+
+    // Returns `true` when the token is known and covers the package `Acme\Http`.
+    public function allows(string $token): bool
+    {
+        string $hash = Registry::hashOf($token);
+        if (!Core\Arr::hasKey($this->scopes, $hash)) {
+            return false;
+        }
+        string $scope = Core\Str::lower($this->scopes[$hash]);
+        return $scope == 'acme\\http' || $scope == 'acme';
+    }
+
+    // Saves the advisory, and returns the time it is in the feed.
+    // It reads only `versions` and `summary` from the body. `$passkey` is a recent passkey sign-in of an owner.
+    public function advise(string $body, ?string $token, bool $signedIn, bool $passkey, int $now): int
+    {
+        var $sent = Core\Json::decode($body) as array<mixed>;
+        tainted string $summary = Core\Str::trim(($sent['summary'] ?? '') as string);
+        if ($summary == '' || Core\Str::length($summary) > 500) {
+            throw new RuntimeError('422, the summary must have 1 to 500 characters');
+        }
+        int $from = $now;
+        if (!$passkey) {
+            if ($signedIn) {
+                throw new RuntimeError('403, sign in with a passkey as an owner of the package first');
+            }
+            if ($token == null || !$this->allows($token)) {
+                throw new RuntimeError('401, send a publish token for this package');
+            }
+            $from = $now + 7 * 86400;
+            $this->notices++;
+        }
+        $this->inFeedFrom = $from;
+        return $from;
+    }
+
+    // Returns `true` when the feed shows the advisory at the time `$now`.
+    public function inFeed(int $now): bool
+    {
+        return $this->inFeedFrom != null && $this->inFeedFrom <= $now;
+    }
+}
+
+Registry $registry = new Registry();
+$registry->add($token, 'Acme');
+$registry->add($otherToken, 'Other');
+
+// 1. The token sends a false advisory for every version from 1.0.0, and checks the feed at once.
+// Each step below catches its error, so the next step still runs.
+try {
+    int $from = $registry->advise('{"versions":"1.0.0..","summary":"It deletes files."}', $token, false, false, $now);
+    if ($registry->inFeed($now)) {
+        echo "1. the advisory is in the feed at once\n";
+    } else {
+        echo '1. stopped: the feed shows the advisory only from ', Core\Time::fromEpoch($from)->toIso(),
+            ', and the owners got ', $registry->notices, " message\n";
+    }
+} catch (Throwable $e) {
+    echo '1. stopped: ', $e->message, "\n";
+}
+
+// 2. The token sends the advisory again, with a time of its own and a claim of a passkey in the body.
+try {
+    $registry->advise('{"versions":"1.0.0..","summary":"Now.","from":1793000600,"passkey":true}', $token, false, false, $now);
+    if ($registry->inFeed($now)) {
+        echo "2. the earlier time was accepted\n";
+    } else {
+        echo "2. stopped: the feed still shows the advisory only after seven days\n";
+    }
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. The attacker sends a session cookie of an account without a passkey sign-in, together with the token.
+try {
+    $registry->advise('{"versions":"1.0.0..","summary":"Now."}', $token, true, false, $now);
+    echo "3. the advisory by a session without a passkey was accepted\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. The token of another vendor sends an advisory for `Acme\Http`.
+try {
+    $registry->advise('{"versions":"1.0.0..","summary":"Now."}', $otherToken, false, false, $now);
+    echo "4. the token of another vendor was accepted\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The file host changes the time of the advisory in the signed feed to now.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $entry = '{"in_feed_from":' . ($registry->inFeedFrom ?? 0) . ',"versions":"1.0.0.."}';
+bytes $signature = Core\Crypto::sign($entry as bytes, $key);
+string $changed = Core\Str::replace($entry, ($registry->inFeedFrom ?? 0) as string, $now as string);
+try {
+    Core\Crypto::verify($changed as bytes, $signature, $key->publicKey());
+    echo "5. the changed feed entry was accepted\n";
+} catch (Throwable $e) {
+    echo "5. stopped: the changed text does not match the signature\n";
+}

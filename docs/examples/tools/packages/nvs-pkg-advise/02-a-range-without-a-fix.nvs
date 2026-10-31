@@ -1,0 +1,28 @@
+<?nvs
+// Shows what `nvs pkg audit` prints for an advisory whose range has no end.
+
+// The versions in `package.lock`.
+array<string> $locked = ['Acme\\Http' => '1.2.1', 'Acme\\Cache' => '2.1.0'];
+
+// Two advisories that owners sent with `nvs pkg advise`.
+// `1.2.0..1.2.4` ends at the version that fixes it. `2.0.0..` has no end, so no version fixes it yet.
+string $feed = '{"advisories":['
+    . '{"id":"acme/http-1","package":"Acme\\\\Http","versions":"1.2.0..1.2.4","summary":"Client::send logs the session cookie."},'
+    . '{"id":"acme/cache-1","package":"Acme\\\\Cache","versions":"2.0.0..","summary":"Store::get returns the entry of another key."}'
+    . ']}';
+
+array<mixed> $file = Core\Json::decode($feed) as array<mixed>;
+foreach (($file['advisories'] as array<mixed>) as mixed $item) {
+    array<mixed> $advisory = $item as array<mixed>;
+    tainted string $package = $advisory['package'] as tainted string;
+    array<tainted string> $range = Core\Str::split($advisory['versions'] as tainted string, '..');
+    echo '`', $package, '` ', $locked[$package], ' has the advisory `', $advisory['id'] as tainted string, '`: ',
+        $advisory['summary'] as tainted string, "\n";
+
+    // The second version of the range is the fix. An empty second version means there is no fix.
+    if ($range[1] == '') {
+        echo "  No released version fixes it yet.\n";
+    } else {
+        echo '  Update to ', $range[1], " or newer.\n";
+    }
+}

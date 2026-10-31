@@ -1,0 +1,33 @@
+<?nvs
+// Shows which versions an advisory for the range `1.2.0..1.2.4` covers.
+
+final class Version
+{
+    // Returns `true` when version `$a` is smaller than version `$b`.
+    public static function older(string $a, string $b): bool
+    {
+        array<string> $left = Core\Str::split($a, '.');
+        array<string> $right = Core\Str::split($b, '.');
+        for (int $i = 0; $i < 3; $i++) {
+            int $x = $left[$i] as int;
+            int $y = $right[$i] as int;
+            if ($x != $y) {
+                return $x < $y;
+            }
+        }
+        return false;
+    }
+
+    // Returns `true` when the range covers the version.
+    // `A..B` covers the versions from `A` up to `B`, without `B`.
+    public static function inRange(string $version, string $from, string $until): bool
+    {
+        return !Version::older($version, $from) && Version::older($version, $until);
+    }
+}
+
+// `1.2.4` is the version that fixes the problem, so the range stops before it.
+array<string> $versions = ['1.1.9', '1.2.0', '1.2.1', '1.2.3', '1.2.4', '1.3.0'];
+foreach ($versions as string $version) {
+    echo $version, ' covered: ', Version::inRange($version, '1.2.0', '1.2.4') ? 'yes' : 'no', "\n";
+}

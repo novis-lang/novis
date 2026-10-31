@@ -1,0 +1,4 @@
+`Acme\Http` 1.2.1 has the advisory `acme/http-1`: Client::send logs the session cookie.
+  Update to 1.2.4 or newer.
+`Acme\Cache` 2.1.0 has the advisory `acme/cache-1`: Store::get returns the entry of another key.
+  No released version fixes it yet.

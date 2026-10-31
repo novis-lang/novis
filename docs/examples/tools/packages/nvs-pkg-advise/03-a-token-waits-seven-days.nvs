@@ -1,0 +1,27 @@
+<?nvs
+// Shows when an advisory is in the feed, after you send it with a token or with a passkey.
+
+// The time you send the advisory, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+final class Advisory
+{
+    // Returns the time the advisory is in the feed.
+    // With a token, that is seven days later. With a passkey, it is at once.
+    public static function inFeedFrom(bool $passkey, int $now): int
+    {
+        return $passkey ? $now : $now + 7 * 86400;
+    }
+}
+
+// You send the advisory from the command line, with your publish token.
+int $from = Advisory::inFeedFrom(false, $now);
+echo 'The advisory acme/http-1 is in the feed from ', Core\Time::fromEpoch($from)->toIso(), ".\n";
+
+// The feed does not show it now. It shows it seven days later.
+echo 'In the feed now: ', $from <= $now ? 'yes' : 'no', "\n";
+echo 'In the feed after seven days: ', $from <= $now + 7 * 86400 ? 'yes' : 'no', "\n";
+
+// An owner sends the same advisory again with a passkey on the website. Now it is in the feed at once.
+$from = Advisory::inFeedFrom(true, $now);
+echo 'In the feed now, after the passkey: ', $from <= $now ? 'yes' : 'no', "\n";
