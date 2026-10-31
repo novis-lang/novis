@@ -633,36 +633,54 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done. The last item of stage 7 landed in `daed9b430`. The token decoder gives a
-reference into another workbook as `[1]Shop!$A$1`, quoted as `'[1]My Shop'!` when the name needs
-it, and a name in one as `[1]!Rate`. `Linked::Other` carries its number from 1, its sheet names
-and its names. An xls reads them from its `SUPBOOK` and the `EXTERNNAME`s after it. An xlsb
-reads the sheet names from the `BrtSupTabs` (359, not 358, which is `BrtSupSame`) of the external
-link part its `BrtSupBookSrc` names, in `Reader::open`. `binary::workbook` returns each external
-link's relationship id in `externals`. The new
-`an_xls_reference_into_another_workbook_reads_with_its_number`, the rewritten
-`an_xlsb_external_link_reads_as_data` and `xlsb_links_notes_names_tables_and_images_are_read` ran
-once and pass. The test's xlsb workbook relationships now always name `rId9` as an external link
-part, which exists only when a test adds it.
+Stages 1 to 7 are done. Stage 8 has two of its eight items done.
 
-The fragment's Not-shipped paragraph is gone, the gap record
-`spreadsheet-read-parts-of-every-format` is deleted, and `bun nv rules --render` is clean.
-`website/src/data/core.json`'s `properties` help still says "An xls or ods file throws an error".
-It comes from the binary's help, so the goal-end `bun nv relink --build` and the gate's website
-render should refresh it.
+- **The table formula form** landed in `90ae8d91e`. rust_xlsxwriter's `table10.xlsx`, made by
+  Excel, is under `extensions/spreadsheet/tests/fixtures/excel/` with its README row. It stores a
+  calculated column's `[@[Column1]:[Column3]]` as `Table1[[#This Row],[Column1]:[Column3]]`.
+  `expand` (`extensions/spreadsheet/src/table.rs:441`) now also expands a named `Table1[@x]`,
+  which it left short. `a_calculated_column_is_written_in_the_form_excel_stores` ran once and
+  passes. The module doc's tables bullet is gone, and the gap record
+  `spreadsheet-unchecked-against-excel` now names only the two template bullets.
+- **Lists on several sheets** landed in `69bd8a9d9`. Each sheet with blocks is a `Page`
+  (`extensions/spreadsheet/src/template/mod.rs:72`). The free functions `enter`, `leave` and
+  `write_held` (after `head`, at `:1019`) drive them, and `close_block` and `item_rows` take the
+  page and find a block's shift at `page.base + (at - page.first)`. A page waits when
+  `must_hold` is true or `refers_later` finds a formula or tail part that a probe shift at a later
+  page's first block moves. A waiting page records its shifts in `leave` and is written in
+  `finish`. `lists_on_two_sheets_each_repeat_and_shift_every_reference_to_their_sheet` ran once,
+  and the whole `--test template` file ran once (14 pass). The fragment says when a sheet waits,
+  and its Not-shipped paragraph now names only shared formulas, `x14` formats and iterators.
+  The gap record `spreadsheet-template-fill-limits` is narrowed the same way.
 
-`cargo fmt` is clean, and the workspace clippy is green. The extension's own clippy has the same
-14 errors as before, none in the lines this goal changed. The sweep's `env-secret-proofs` red is
-stale: nothing defines it.
+The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new.
+The sweep's `env-secret-proofs` red is stale: nothing in the tree defines it.
 
 ### Next
 
-Stage 8, the template fill. It touches only `extensions/spreadsheet/src/template/`,
-`extensions/spreadsheet/nvs/Template.nvs`, `extensions/spreadsheet/src/table.rs` and their tests.
-Its items carry their anchors. The one-sheet check is `extensions/spreadsheet/src/template/mod.rs:646`,
-`fill` is `:720`, `items` is `:758`, and `finish` is `:795`. The module doc's sentence at
-`extensions/spreadsheet/src/template/mod.rs:9` ("Every block is on one sheet") changes with the
-first item. The table formula form item shares no file with the rest, so it may go first, alone.
+The rest of stage 8, in this order. Every anchor is current.
+
+1. **Shared formulas.** `Sheet::parse` keeps `formula_ref` for a `<f ref=…>`
+   (`extensions/spreadsheet/src/template/sheet.rs:173`). It also needs the `t="shared"` and `si`
+   spans. In `write_cell` (`extensions/spreadsheet/src/template/mod.rs:1284`), a shared formula's
+   copy inside a block gets a new `si`. Number the new groups after the sheet's highest `si`.
+   A follower cell (`<f t="shared" si="0"/>` with no text) in a copy points at its copy's `si`.
+   Safe fallback: each copy writes the master's full text, moved by its shifts.
+2. **`x14` formats.** `rewrite_part` (`:361`) already moves `xm:f`, because `xml::local` drops the
+   prefix and `f` is in `FORMULA_ELEMENTS` (`:350`). It does not move the text of `xm:sqref`.
+   Treat an element whose local name is `sqref` like the `sqref` attribute, with
+   `shift::apply_list`.
+3. **The Novis half** (`extensions/spreadsheet/nvs/Template.nvs:57`, `:78`, `:141`): send lists in
+   the order `fill` returns, and drain an `Iterator` in `$data` in batches of 1,000.
+4. **Template values.** NUL: `value_cell` (`:247`) writes text through `crate::cells::run_text`,
+   which must escape as `crate::xml` does. The key collision is in `Template.nvs`'s walk. The
+   missing placeholder and the duplicate list throw in `fill` (`:740`). An unknown list in `items`
+   (`:803`) throws where it now returns no bytes. The date format edits the template's
+   `styles.xml` and is the largest piece.
+5. **Tests and cases** the `template-second-wave` and `template-second-wave-runs` checks name.
+6. **The fourth `Template::fill` example**, the fragment's Not-shipped paragraph
+   (`docs/rules/core-classes/spreadsheet-template-fill.md:54`), the module doc's template bullets
+   (`extensions/spreadsheet/src/lib.rs:43` and `:46`), and the two gap records.
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
