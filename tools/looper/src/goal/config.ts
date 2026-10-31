@@ -237,9 +237,9 @@ export interface Jobs {
   hide_windows: boolean;
   /** Patterns, in Rust's `regex` syntax, of Bash commands whose windows stay where they open. */
   show_windows: string[];
-  /** Seconds a Bash call may wait with no output and no CPU before the hang watch kills it; 0 never. */
+  /** Seconds a Bash call may wait with no output and no CPU before the hang watch kills it; 0, the default, never. */
   hang_stall_s: number;
-  /** Seconds a Bash call may use the CPU with no output before the hang watch kills it; 0 never. */
+  /** Seconds a Bash call may use the CPU with no output before the hang watch kills it; 0, the default, never. */
   hang_spin_s: number;
   /** Patterns, in Rust's `regex` syntax, of Bash commands the hang watch leaves alone. */
   hang_exempt: string[];
@@ -364,7 +364,7 @@ export function defaultConfig(): Config {
     wrap: { section: [], checks: [] },
     sync: { skip: [] },
     commits: { subject_max: 71, types: [...COMMIT_TYPES] },
-    jobs: { heavy: [], hide_windows: true, show_windows: [], hang_stall_s: 90, hang_spin_s: 600, hang_exempt: [] },
+    jobs: { heavy: [], hide_windows: true, show_windows: [], hang_stall_s: 0, hang_spin_s: 0, hang_exempt: [] },
     merge: { generated: [], render: [] },
     launch: [],
   };

@@ -1,5 +1,6 @@
-// The hang watch on a Bash call's job: a call that waits or spins with nothing to show is killed within
-// minutes, instead of at the harness's own time limit, and the session is told what hung.
+// The hang watch on a Bash call's job, in a project that sets `[jobs] hang_stall_s` or `hang_spin_s`:
+// a call that waits or spins with nothing to show is killed within those bounds, instead of at the
+// harness's own time limit, and the session is told what hung. Both are 0 by default, so it is off.
 //
 // Every `EVERY_MS` the watch reads what the job has used (`Tree.usage`) and how many bytes it has
 // printed. A sample is progress when the job printed anything, read or wrote at least `IO_STEP` bytes,
@@ -42,10 +43,6 @@ import { ruleRegex } from "../goal/config.ts";
 import { listeners, type Member, type Tree, type Usage } from "../os/index.ts";
 import { EVENTS_VAR, HUNG_CODE } from "./store.ts";
 
-/** How long a job may wait with no CPU and no output before it is a hang, without `[jobs] hang_stall_s`. */
-export const STALL_MS = 90_000;
-/** How long a job may use the CPU with no output before it is a hang, without `[jobs] hang_spin_s`. */
-export const SPIN_MS = 10 * 60_000;
 /** How often the watch samples a job. */
 export const EVERY_MS = 5_000;
 /** How often the watch samples a suspected job. */

@@ -25,7 +25,7 @@
 // # The hang watch
 //
 // A call that took a pending entry is watched, unless `hang.ts`'s `exempt` names its command or both of
-// `[jobs] hang_stall_s` and `hang_spin_s` are 0. The entry is what tells a Bash call from a Monitor
+// `[jobs] hang_stall_s` and `hang_spin_s` are 0, as they are by default. The entry is what tells a Bash call from a Monitor
 // call: both reach the wrapper with the same invocation, and the guard sees only Bash calls. A call
 // in the background is watched too, and a server it starts is held by its listening port.
 //
@@ -327,7 +327,7 @@ async function recorded(root: string, bash: string, args: readonly string[], com
   // The job runs from here on, so a watch that cannot start leaves it unwatched and never throws.
   let watching: Watching | null = null;
   try {
-    if (entry !== null && !exempt(command, hang_exempt)) {
+    if (entry !== null && (hang_stall_s > 0 || hang_spin_s > 0) && !exempt(command, hang_exempt)) {
       watching = watch(job.tree, printed, {
         command,
         jobDir: job.dir,
