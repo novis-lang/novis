@@ -7,6 +7,9 @@
     "expressions/intrinsic-list-is-closed"
   ],
   "guardedBy": [
-    "crates/nvs-types/tests/intrinsics.rs"
+    "crates/nvs-types/tests/intrinsics.rs",
+    "tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst",
+    "tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst",
+    "tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst"
   ]
 }

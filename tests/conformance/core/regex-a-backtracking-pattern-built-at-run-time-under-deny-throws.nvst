@@ -34,6 +34,8 @@ try {
 } catch (RuntimeError $e) {
     echo Core\Str::contains($e->message, 'not a pattern either engine can compile') ? "malformed\n" : $e->message . "\n";
 }
+
+// covers: directive:regex.backtracking, Core\Regex::compile
 --FILE nvs.toml--
 [regex]
 backtracking = "deny"

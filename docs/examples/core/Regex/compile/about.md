@@ -8,3 +8,7 @@ no delimiters, so you write `^\d+$` and not `/^\d+$/i`.
 **Good to know:** `compile` checks the pattern at once. An invalid pattern throws a `RuntimeError` at
 that line, not later when you use it. A pattern cannot contain text from a request or another outside
 source. To search for such text, pass it through `Core\Regex::quote` first.
+
+A pattern with lookaround or a backreference needs the backtracking engine. When `nvs.toml` sets
+`[regex] backtracking = "deny"`, such a pattern written as a literal does not compile. Such a
+pattern built while the program runs throws a `RuntimeError` at `compile`.

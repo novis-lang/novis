@@ -64,6 +64,7 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
 | `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
+| `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
 | `[debug]`, `[metrics]`, `[trace]`, `[opcache]`, `[deferred]` | their named directives |

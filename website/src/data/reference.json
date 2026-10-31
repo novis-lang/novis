@@ -666,6 +666,24 @@
     },
     {
       "area": "config",
+      "slug": "regex",
+      "url": "/reference/config/regex/",
+      "title": "[regex]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:regex.backtracking",
+          "title": "regex.backtracking",
+          "examples": "config/regex-backtracking",
+          "key": "regex.backtracking",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
       "slug": "schedule",
       "url": "/reference/config/schedule/",
       "title": "[schedule]",

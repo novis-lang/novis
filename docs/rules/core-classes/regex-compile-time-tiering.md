@@ -12,8 +12,12 @@ respectively silent, a warning, or a compile-time error, so a deployment running
 high-volume code can know no request can be made to backtrack at all.
 
 A pattern assembled at run time is compiled at run time and gets the same tiering and the same
-budget, with none of the three benefits. That is a reason to write patterns as string literals, stated here
-rather than discovered.
+budget. A malformed one throws at the call that compiles it, and its tier is not known while
+checking. That is a reason to write patterns as string literals, stated here rather than
+discovered. The operator's refusal holds for it too: under `deny`, a run-time pattern that only the
+backtracking engine accepts throws the `RuntimeError` a malformed pattern throws, at the call that
+compiles it and before that engine is built, so under `deny` no request can backtrack at all. Under
+`warn` and `allow` it runs, and nothing is logged on the request path.
 
 `[regex] backtracking` is a top-level block of one key, `allow` in every mode with nothing written,
 because that is how every program ran before it and the step budget already bounds a backtracking
@@ -21,6 +25,3 @@ match. It is `System` and `Reload`: it decides what compiles, so no request may 
 input of the environment digest (`rule:config/the-extension-set-is-in-every-unit-key`), so a reload
 that changes it recompiles every unit. `[[app]]` takes no `[regex]` block. Under `warn` a
 backtracking literal is `W1029`, and under `deny` it is `E0893`.
-
-**Not on disk.** Under `deny`, a pattern built at run time that needs the backtracking engine still
-compiles and runs (gap:nvs-stdlib/regex-deny-at-run-time).

@@ -332,7 +332,8 @@
 [regex]
 # `System` — a pattern with lookaround or a backreference needs the backtracking engine.
 # `allow` compiles such a pattern. `warn` compiles a pattern literal with a warning.
-# `deny` stops a pattern literal from compiling. The mode does not change this setting.
+# `deny` stops a pattern literal from compiling, and a pattern built while the program runs throws a
+# `RuntimeError`. The mode does not change this setting.
 #backtracking = "allow"              # default
 
 
