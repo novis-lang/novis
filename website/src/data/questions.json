@@ -9734,7 +9734,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/series/": {
     "feature": "Novis\\Spreadsheet\\Chart::series",
-    "hash": "1defe072fb041c8a",
+    "hash": "1d2634ecd2a9a952",
     "questions": [
       "Add data to an Excel chart",
       "Set the color of a chart line or bar",

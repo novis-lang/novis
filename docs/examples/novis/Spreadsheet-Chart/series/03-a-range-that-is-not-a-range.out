@@ -1,2 +1,2 @@
-The chart range `sales` is not a range of cells, such as `B2:B10` or `'Shop'!B2:B10`.
+The chart range `sales` is not a range of cells in this workbook, such as `B2:B10` or `'Shop'!B2:B10`.
 `blue` is not a color. Write a color as `#RRGGBB`, such as `#FF0000` for red.
