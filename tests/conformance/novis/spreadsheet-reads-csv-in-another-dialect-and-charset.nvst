@@ -1,0 +1,76 @@
+--TEST--
+`Reader::open` reads a CSV with the `csv` options' separator, quote, escape and encoding, from bytes and from a file, reads a UTF-16 byte order mark with no option, and reads a workbook as a workbook whatever `csv` says: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function rows(Iterator<Novis\Spreadsheet\Row> $rows): void
+    {
+        foreach ($rows as var $row) {
+            tainted string $line = "row " . ($row->number as string);
+            foreach ($row->values as tainted string $key => mixed $value) {
+                $line = $line . " | " . $key . ": " . ($value is string ? $value : "null");
+            }
+            echo $line, "\n";
+        }
+    }
+}
+
+// A semicolon separator and a `'` quote, from UTF-8 bytes.
+bytes $semicolons = "Item;Note\nWidget;'a; b'\n" as bytes;
+Show::rows(Reader::open($semicolons, { csv: { separator: ';', quote: "'" } })->rows(0, { header: true }));
+
+// A `\` escape inside a quoted field.
+bytes $escaped = "Item,Note\nGadget,\"say \\\"hi\\\"\"\n" as bytes;
+Show::rows(Reader::open($escaped, { csv: { escape: "\\" } })->rows(0, { header: true }));
+
+// Latin-1 bytes, from `bytes` and from a file. `ü` is the one byte 0xFC.
+bytes $latin = Core\Encoding::encodeText("Name;City\nJürgen;Köln\n", Core\Charset::Latin1);
+echo Core\Bytes::length($latin), " bytes\n";
+Show::rows(Reader::open($latin, { csv: { separator: ';', encoding: Core\Charset::Latin1 } })->rows(0, { header: true }));
+Core\IO\File $out = Core\IO::open("latin.csv", Core\IO::FileMode::Write);
+$out->write($latin);
+$out->close();
+Core\IO\File $file = Core\IO::open("latin.csv", Core\IO::FileMode::Read);
+var $reader = Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Latin1 } });
+echo Core\Arr::count($reader->sheets()), " sheet\n";
+Show::rows($reader->rows("Sheet1", { header: true }));
+echo "the file is at byte ", $file->tell(), "\n";
+$file->close();
+
+// UTF-16 with a byte order mark reads with no option, little-endian and big-endian.
+bytes $little = Core\Bytes::join([Core\Encoding::fromHex("fffe"), Core\Encoding::encodeText("Item,Price\nBolt,0.5\n", Core\Charset::Utf16Le)]);
+Show::rows(Reader::open($little)->rows(0, { header: true }));
+bytes $big = Core\Bytes::join([Core\Encoding::fromHex("feff"), Core\Encoding::encodeText("Item,Price\nNut,0.25\n", Core\Charset::Utf16Be)]);
+Show::rows(Reader::open($big)->rows(0, { header: true }));
+
+// An xlsx is read as a workbook, whatever the `csv` options say.
+bytes $xlsx = Workbook::fromRows([['Item' => 'Gizmo']])->bytes();
+Show::rows(Reader::open($xlsx, { csv: { encoding: Core\Charset::Latin1, separator: ';' } })->rows(0, { header: true }));
+
+// A separator of two characters throws at `open`.
+try {
+    Reader::open($semicolons, { csv: { separator: ';;' } });
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "RuntimeError\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+row 2 | Item: Widget | Note: a; b
+row 2 | Item: Gadget | Note: say "hi"
+22 bytes
+row 2 | Name: Jürgen | City: Köln
+1 sheet
+row 2 | Name: Jürgen | City: Köln
+the file is at byte 0
+row 2 | Item: Bolt | Price: 0.5
+row 2 | Item: Nut | Price: 0.25
+row 2 | Item: Gizmo
+RuntimeError

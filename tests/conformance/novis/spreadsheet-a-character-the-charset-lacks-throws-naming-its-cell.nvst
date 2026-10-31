@@ -1,0 +1,29 @@
+--TEST--
+A CSV write in a charset that lacks a character of a value throws a `LogicError` naming that value's cell, counted across batches: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Workbook;
+
+// The header is row 1, so the second data row is row 3. Latin-1 has no `€`.
+try {
+    Workbook::fromRows([['Item' => 'Bolt', 'Price' => '5'], ['Item' => 'Nut', 'Price' => '5 €']], { format: 'csv', csv: { encoding: Core\Charset::Latin1 } })->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Rows added one at a time still count from the first row of the file.
+var $book = Workbook::createInMemory({ format: 'csv', csv: { encoding: Core\Charset::Ascii } });
+var $sheet = $book->sheet('Sheet1', { header: false });
+try {
+    for (int $i = 1; $i <= 2500; $i++) {
+        $sheet->add([$i, $i == 2400 ? 'Zoë' : 'Zoe']);
+    }
+    $book->finish();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+The cell B3 has a character that the CSV file's `encoding` does not have. Remove the character, or choose an `encoding` that has it, such as `Core\Charset::Utf8`.
+The cell B2400 has a character that the CSV file's `encoding` does not have. Remove the character, or choose an `encoding` that has it, such as `Core\Charset::Utf8`.

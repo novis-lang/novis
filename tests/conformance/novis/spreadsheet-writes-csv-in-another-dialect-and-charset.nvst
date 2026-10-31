@@ -1,0 +1,72 @@
+--TEST--
+`Workbook` and `Workbook::fromRows` write a CSV with the `csv` options' separator, quote and encoding, a UTF-16 file starts with a byte order mark, and `Reader::open` reads each back: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function rows(Iterator<Novis\Spreadsheet\Row> $rows): void
+    {
+        foreach ($rows as var $row) {
+            tainted string $line = "row " . ($row->number as string);
+            foreach ($row->values as tainted string $key => mixed $value) {
+                $line = $line . " | " . $key . ": " . ($value is string ? $value : "null");
+            }
+            echo $line, "\n";
+        }
+    }
+}
+
+array<array<mixed>> $rows = [['Name' => 'Jürgen', 'Note' => "a;b 'c'"], ['Name' => 'Zoë', 'Note' => 'Köln']];
+
+// A semicolon separator and a `'` quote, in UTF-8.
+echo Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', quote: "'" } })->bytes() as string;
+
+// Latin-1: `ü`, `ë` and `ö` are one byte each.
+bytes $latin = Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', encoding: Core\Charset::Latin1 } })->bytes();
+echo Core\Encoding::toHex(Core\Bytes::slice($latin, 10, 6)), "\n";
+Show::rows(Reader::open($latin, { csv: { separator: ';', encoding: Core\Charset::Latin1 } })->rows(0, { header: true }));
+
+// UTF-16 starts with a byte order mark, so the reader needs no option.
+var $book = Workbook::createInMemory({ format: 'csv', csv: { encoding: Core\Charset::Utf16Le } });
+$book->sheet('Sheet1')->addAll($rows);
+var $written = $book->finish();
+bytes $utf16 = $written->bytes ?? Core\Bytes::fill(0, 0);
+echo Core\Encoding::toHex(Core\Bytes::slice($utf16, 0, 6)), "\n";
+echo $written->size == Core\Bytes::length($utf16) ? "the size counts every byte" : "the size is wrong", "\n";
+Show::rows(Reader::open($utf16)->rows(0, { header: true }));
+
+// A file, written in Windows-1252 and read back.
+var $file = Workbook::createForFile('names.csv', { csv: { encoding: Core\Charset::Windows1252 } });
+$file->sheet('Sheet1')->addAll([['Price' => '5 €']]);
+$file->finish();
+Core\IO\File $back = Core\IO::open('names.csv', Core\IO::FileMode::Read);
+Show::rows(Reader::open($back, { csv: { encoding: Core\Charset::Windows1252 } })->rows(0, { header: true }));
+$back->close();
+
+// A separator that is also the quote throws before any byte is written.
+try {
+    Workbook::createInMemory({ format: 'csv', csv: { separator: '"' } });
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "RuntimeError\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+Name;Note
+Jürgen;'a;b ''c'''
+Zoë;Köln
+4afc7267656e
+row 2 | Name: Jürgen | Note: a;b 'c'
+row 3 | Name: Zoë | Note: Köln
+fffe4e006100
+the size counts every byte
+row 2 | Name: Jürgen | Note: a;b 'c'
+row 3 | Name: Zoë | Note: Köln
+row 2 | Price: 5 €
+RuntimeError

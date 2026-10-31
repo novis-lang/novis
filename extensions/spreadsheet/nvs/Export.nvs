@@ -4,7 +4,7 @@ namespace Novis\Spreadsheet;
 /// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
 {
-    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant } };
+    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset } };
 
     /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
     /// `$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.

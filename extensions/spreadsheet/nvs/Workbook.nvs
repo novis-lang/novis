@@ -4,15 +4,16 @@ namespace Novis\Spreadsheet;
 use Iterable;
 use Iterator;
 use LogicError;
+use RuntimeError;
 
 /// An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.
 /// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
 final class Workbook
 {
-    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant } };
+    type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset } };
     type Column = { header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula };
     type SheetOptions = ?{ columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
-    type ExportOptions = ?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
+    type ExportOptions = ?{ sheet?: string, zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset }, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool };
     type RowOptions = ?{ height?: float, hidden?: bool, level?: uint, style?: Style };
     type Value = { text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> };
     type Entry = { value: ?Value, style: ?uint };
@@ -40,10 +41,15 @@ final class Workbook
     // The number the open sheet's next row gets, and the rows a table's totals row takes.
     private uint $row = 1;
     private array<uint> $totalsAt = [];
-    // A CSV file is written here as text, and the engine output is not sent. `$csvRows` counts its rows, and `$csvSize` its bytes.
+    // A CSV file is written here as text, and the engine output is not sent. `$csvRows` counts its data rows, `$csvRecords` every row it wrote, and `$csvSize` its bytes.
+    // `$encoding` is `null` for UTF-8.
     private bool $csv = false;
     private uint $csvRows = 0;
+    private uint $csvRecords = 0;
     private uint $csvSize = 0;
+    private string $separator = ',';
+    private string $quote = '"';
+    private ?Core\Charset $encoding = null;
 
     private function constructor(
         private readonly Writer $writer,
@@ -58,7 +64,8 @@ final class Workbook
     {
         var $book = self::start($name, $name, $options);
         Core\Response::setHeader('Content-Disposition', self::disposition($name));
-        $book->response = Core\Response::stream($book->csv ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, null, $name);
+        string $csvType = $book->encoding == null ? 'text/csv; charset=utf-8' : 'text/csv';
+        $book->response = Core\Response::stream($book->csv ? $csvType :'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, null, $name);
         return $book;
     }
 
@@ -279,6 +286,15 @@ final class Workbook
         });
         var $book = new Workbook($writer, $zone);
         $book->csv = $format == 'csv';
+        var $csv = $options?->csv ?? null;
+        $book->separator = $csv?->separator ?? ',';
+        $book->quote = $csv?->quote ?? '"';
+        ?Core\Charset $encoding = $csv?->encoding ?? null;
+        $book->encoding = $encoding == Core\Charset::Utf8 ? null : $encoding;
+        if ($book->csv) {
+            // `Core\Csv` checks the dialect here, so a wrong `separator` or `quote` throws before any byte is written.
+            Core\Csv::format([], { separator: $book->separator, quote: $book->quote });
+        }
         return $book;
     }
 
@@ -507,7 +523,8 @@ final class Workbook
         array<Row> $rows = $this->pending;
         $this->pending = [];
         if ($this->csv) {
-            $this->deliver(self::csvText($rows) as bytes);
+            $this->deliver($this->csvBytes($rows));
+            $this->csvRecords = $this->csvRecords + Core\Arr::count($rows);
             foreach ($rows as Row $row) {
                 if (!$row->header) {
                     $this->csvRows = $this->csvRows + 1;
@@ -597,8 +614,9 @@ final class Workbook
         throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
     }
 
-    // The rows as CSV text, one record per row, from `Core\Csv::format`.
-    private static function csvText(array<Row> $rows): string
+    // The rows as CSV bytes, one record per row, from `Core\Csv::format` in the workbook's dialect and charset.
+    // A UTF-16 file starts with a byte order mark. A character the charset lacks throws, naming its cell.
+    private function csvBytes(array<Row> $rows): bytes
     {
         array<array<string>> $records = [];
         foreach ($rows as Row $row) {
@@ -608,7 +626,43 @@ final class Workbook
             }
             $records[] = $fields;
         }
-        return Core\Csv::format($records);
+        string $text = Core\Csv::format($records, { separator: $this->separator, quote: $this->quote });
+        ?Core\Charset $charset = $this->encoding;
+        if ($charset == null) {
+            return $text as bytes;
+        }
+        if ($this->csvRecords == 0 && ($charset == Core\Charset::Utf16Le || $charset == Core\Charset::Utf16Be)) {
+            $text = "\u{FEFF}" . $text;
+        }
+        try {
+            return Core\Encoding::encodeText($text, $charset);
+        } catch (RuntimeError $e) {
+            uint $at = 0;
+            foreach ($records as array<string> $fields) {
+                $at = $at + 1;
+                uint $column = 0;
+                foreach ($fields as string $field) {
+                    if (self::lacks($field, $charset)) {
+                        uint $number = $this->csvRecords + $at;
+                        string $cell = self::column($column) . ($number as string);
+                        throw new LogicError("The cell {$cell} has a character that the CSV file's `encoding` does not have. Remove the character, or choose an `encoding` that has it, such as `Core\\Charset::Utf8`.");
+                    }
+                    $column = $column + 1;
+                }
+            }
+            throw $e;
+        }
+    }
+
+    // Whether `$charset` lacks a character of `$field`.
+    private static function lacks(string $field, Core\Charset $charset): bool
+    {
+        try {
+            Core\Encoding::encodeText($field, $charset);
+        } catch (RuntimeError $e) {
+            return true;
+        }
+        return false;
     }
 
     // The text of one value in a CSV file. A string that Excel would read as a formula gets a `'` first, so it stays text.

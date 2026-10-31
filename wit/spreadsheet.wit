@@ -637,6 +637,10 @@ interface engine {
     reader-properties: func(reader: borrow<reading>, source: borrow<value>) -> result<properties, error>;
     /// The names of an xlsm's macro modules. Nothing runs them.
     reader-macros: func(reader: borrow<reading>, source: borrow<value>) -> result<list<string>, error>;
+    /// At most `length` bytes of `source` from `offset`, or every byte from
+    /// `offset` when `length` is `none`. The Novis half reads a CSV file's
+    /// first bytes, and a CSV file in another charset whole, through it.
+    source-bytes: func(source: borrow<value>, offset: u64, length: option<u64>) -> result<list<u8>, error>;
 
     // ---- template fill ----
 

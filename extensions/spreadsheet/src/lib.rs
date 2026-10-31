@@ -1373,6 +1373,18 @@ mod guest {
                 .map_err(error)
         }
 
+        fn source_bytes(
+            source: &Source,
+            offset: u64,
+            length: Option<u64>,
+        ) -> Result<Vec<u8>, wit::Error> {
+            use crate::read::Source as _;
+            let lent = Lent(source);
+            let left = lent.size().map_err(error)?.saturating_sub(offset);
+            lent.range(offset, length.map_or(left, |length| length.min(left)))
+                .map_err(error)
+        }
+
         fn template_open(
             source: &Source,
             bound: wit::DecompressionBound,

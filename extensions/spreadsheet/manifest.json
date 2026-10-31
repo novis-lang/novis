@@ -188,6 +188,17 @@
       "help": "Returns the document properties of the workbook. `created` is the time it was created, in UTC."
     },
     {
+      "name": "sourceBytes",
+      "params": [
+        {"name": "source", "type": "mixed"},
+        {"name": "offset", "type": "uint"},
+        {"name": "length", "type": "?uint"}
+      ],
+      "returns": "bytes",
+      "source": true,
+      "help": "Returns at most `length` bytes of `source` from `offset`. When `length` is `null`, it returns every byte from `offset` to the end. `source` is `bytes` or an open `Core\\IO\\File`."
+    },
+    {
       "name": "readerHeader",
       "params": [
         {"name": "reader", "type": "Reading"},
