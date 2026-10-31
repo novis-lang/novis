@@ -21,6 +21,10 @@ const OUT = resolve(HERE, "..", "out", "test");
 // named here runs after these, alphabetically.
 const ORDER = ["grammar", "contributions", "protocol"];
 
+// The spec reporter marks a pass with `√` on Windows and `✓` elsewhere. The goal's acceptance checks
+// find a passed test by its `✓` line, so every platform prints that one.
+Mocha.reporters.Base.symbols.ok = "✓";
+
 // `host` is the other tier and imports `vscode`, which resolves to nothing outside the extension host.
 // `scripts/host.mjs` is what runs it.
 const ELSEWHERE = ["host"];
