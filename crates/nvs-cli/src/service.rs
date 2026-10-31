@@ -1023,7 +1023,7 @@ fn socket_activated(plan: &Plan) -> bool {
 /// port systemd chose would match no `listen` entry. A Unix socket is not
 /// listed either, since `nvs serve` binds it under `RuntimeDirectory=` with
 /// `[server] socket_mode` on it. Every value is a [`unit_word`] with its `%`
-/// doubled, as in [`unit`].
+/// doubled, as in [`unit()`].
 pub(crate) fn socket_unit(plan: &Plan) -> Option<String> {
     if !socket_activated(plan) {
         return None;
@@ -1871,7 +1871,7 @@ pub(crate) fn destination(
 /// [`socket_unit`] a privileged port adds beside it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum UnitFile {
-    /// `<name>.service`, which [`unit`] renders.
+    /// `<name>.service`, which [`unit()`] renders.
     Service,
     /// `<name>.socket`, which [`socket_unit`] renders.
     Socket,
