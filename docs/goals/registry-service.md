@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/package/audit.rs, crates/nvs-cli/src/package/retract.rs, crates/nvs-cli/tests/registry_build.rs, docs/reference/tools/35-packages.md]
   - id: 4
     title: "a person signs up, signs in and runs the account in a browser"
-    status: open
+    status: done
     context: [apps/registry/src/AccountPage.nvs, apps/registry/src/BrowserTest.nvs, tools/nv/test/chromium.ts, docs/rules/packaging/a-registry-account-is-a-passkey.md, docs/rules/packaging/an-owner-is-notified-without-email.md]
   - id: 5
     title: "an owner confirms and changes a package in a browser, and no packaging rule has a Not-on-disk section"
@@ -286,6 +286,23 @@ one query and one template, as the package page is.
 - `Core\Test::request` carries neither the body nor the content type of a `sendFile` answer, so the
   registry tests check the scripts' status alone and the browser suite proves the rest.
 
+**The browser suite as built (stage 4).**
+- `nvs serve` listens on `127.0.0.1:0`, and a Bun proxy on a free port is the `origin` in the
+  copy's `hosting.json`. The origin is known before the registry starts, so no port is picked and
+  then bound twice. The proxy drops `accept-encoding`, so it never passes on a compressed body.
+- A webhook and a push endpoint must be `https:`, so one Bun TLS receiver takes both. Its
+  certificate is signed by a CA that `openssl` makes per run, and the copy's `nvs.toml` trusts it with
+  `[http.client.tls] roots = ["keys/ca.pem"]` and `internal = ["127.0.0.1"]`. `openssl` is on every
+  runner of CI's `browser` job (Ubuntu) and in Git for Windows.
+- The VAPID key is made with WebCrypto as a PKCS #8 PEM. A vendor and another account's verified
+  channel are given by `nvs run jobs/vendor.nvs` and `jobs/channel.nvs`, scripts the suite writes
+  into the copy, as `Registry\BrowserTest` does.
+- Each test has its own browser context and virtual authenticator. The second passkey is made on a
+  new authenticator, which then signs in alone.
+- A step ends on a page condition, polled, with a 60-second bound that names the status line and the
+  server's output when a step is stuck.
+- CI's `browser` job has no `nvs` build yet, so stage 6 adds the suite to it with a build step.
+
 **Trade-offs.** Security: the fetch refusal and the extension check close two paths into a host,
 and every page action keeps the passkey check its route already has. Latency: nothing on a
 program's request path changes. A registry page is one query and one template, as now. Memory:
@@ -362,8 +379,8 @@ change, and a real browser test drives them.
 - [x] The account page's forms: add a passkey, make and revoke a token (shown once), add and remove an owner, add and verify a webhook, sign out. Each runs the sign-in first when its route answers `403`. `apps/registry/src/AccountPage.nvs:30`, `apps/registry/src/App.nvs:267`, `apps/registry/src/App.nvs:307`, `apps/registry/src/App.nvs:370`, `apps/registry/src/App.nvs:475`
 - [x] Push: the account page subscribes with the key from `/api/push/key`, and `push.js` shows a message and sends its code back for a test push and for the "I am here" action. `rule:packaging/an-owner-is-notified-without-email`, `rule:packaging/an-account-stays-active-by-proof-not-by-token`. `apps/registry/src/App.nvs:427`, `apps/registry/src/App.nvs:519`, `apps/registry/src/App.nvs:239`, `apps/registry/public/push.js:1`
 - [x] Registry tests for what each page shows to a visitor, a recovery-code session and a passkey session. `apps/registry/src/AccountPageTest.nvs:1`
-- [ ] The browser suite and its first seven tests from the `registry-browser-tests` check, run once by name with `NV_BROWSER=1`. `tools/nv/test/registry-browser.test.ts:1`, `tools/nv/test/chromium.ts:31`, `tools/nv/lib/shoot.ts:141`
-- [ ] Every rule a page serves names it in one sentence. Delete the gap records of the sign-up, sign-in and push pages. `docs/rules/packaging/a-registry-account-is-a-passkey.md:11`, `docs/rules/packaging/an-owner-is-notified-without-email.md:1`
+- [x] The browser suite and its first seven tests from the `registry-browser-tests` check, run once by name with `NV_BROWSER=1`. `tools/nv/test/registry-browser.test.ts:1`, `tools/nv/test/chromium.ts:31`, `tools/nv/lib/shoot.ts:141`
+- [x] Every rule a page serves names it in one sentence. Delete the gap records of the sign-up, sign-in and push pages. `docs/rules/packaging/a-registry-account-is-a-passkey.md:11`, `docs/rules/packaging/an-owner-is-notified-without-email.md:1`
 
 ### 5. an owner confirms and changes a package in a browser, and no packaging rule has a Not-on-disk section
 
@@ -397,28 +414,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 4's code is in, and its browser suite and rule sentences are not. Every page goes through
-`App::html` (`apps/registry/src/App.nvs:1149`), which sets `App::POLICY`, and the layout
-(`apps/registry/src/PackagePage.nvs:517`) loads `/registry.js` and has the `#status` line the script
-writes to. `/signup` and `/signin` are `apps/registry/src/SignInPage.nvs`, routed at
-`apps/registry/src/App.nvs:115`, and the scripts' routes are at `apps/registry/src/App.nvs:131`.
-`AccountPage::of` (`apps/registry/src/AccountPage.nvs:33`) takes `$withPasskey` and has every form of
-the stage's account item, plus the reminder days and a test, verify and remove per channel.
-`apps/registry/public/registry.js` has the ceremonies (`steps` at line 112, `withPasskey` at line 82),
-and `apps/registry/public/push.js` the service worker. The six tests of `AccountPageTest` pass, run
-once by name. Nothing ran in a browser yet. See the standing decision *The pages as built*.
+Stage 4 is done. `tools/nv/test/registry-browser.test.ts` has the first seven tests of
+`registry-browser-tests`, and all seven pass in Chromium with `NV_BROWSER=1` (about 80 seconds cold,
+10 warm). `registry.js` and `push.js` needed no change. The `Page` class
+(`tools/nv/test/registry-browser.test.ts:246`) opens a browser context with a virtual passkey and the
+push stub, and `act` sends a form and waits on a page condition. `operator` runs a `jobs/` script
+the suite writes (`SCRIPTS`, line 126). `Browser.on` (`tools/nv/test/chromium.ts:49`) is new. The
+rules `a-registry-account-is-a-passkey`, `an-owner-is-notified-without-email` and
+`the-registry-is-a-novis-program` name the pages. The gap records of the sign-up, sign-in and push
+pages were already gone. Only `data/gaps/nvs-cli/release-confirmation-pages.json` is left, which is
+stage 5's. See the standing decision *The browser suite as built*.
 
-The sweep's `env-secret-proofs` red is still stale: no check by that name exists in the tree and
-it has no log.
+The sweep's `env-secret-proofs` red is stale: `bun tools/looper/main.ts check --name
+env-secret-proofs` says no check matches, and it has no log.
 
 ### Next
 
-Stage 4's last two items. Files: new `tools/nv/test/registry-browser.test.ts`, and
-`apps/registry/public/registry.js` and `push.js` for what the browser finds.
+Stage 5's page items, the first three. Files: `apps/registry/src/PackagePage.nvs` (`package` at
+line 40, `version` at line 71), `apps/registry/public/registry.js` (`steps`), and
+`apps/registry/src/PackagePageTest.nvs` (`release` at line 210 seeds a version).
 
-- [ ] The browser suite (`tools/nv/test/chromium.ts:31`, `tools/nv/lib/shoot.ts:141`, the serve pattern of `crates/nvs-cli/tests/registry_build.rs:15`) with the first seven tests of `registry-browser-tests`, run once by name with `NV_BROWSER=1`. A step's end is the `#status` text or a navigation to `/account`. The test push reaches `push.js` through CDP `ServiceWorker.deliverPushMessage` with the decrypted payload, and the device then counts.
-- [ ] The rule sentences: `docs/rules/packaging/a-registry-account-is-a-passkey.md:11`, `docs/rules/packaging/an-owner-is-notified-without-email.md` (the test push is verified when it arrives), `docs/rules/packaging/the-registry-is-a-novis-program.md`. Delete the gap records of the sign-up, sign-in and push pages (`grep -rl registry-service data/gaps`).
+- [ ] The version page: "Release now" for a pending version, and the stable-API page that shows the API from `.../api` before the freeze. `apps/registry/src/PackagePage.nvs:71`, `apps/registry/src/App.nvs:766`, `apps/registry/src/App.nvs:776`, `apps/registry/src/App.nvs:785`
+- [ ] The package page: unlist and relist, retract with a reason and a fixed-in version, the advisory form, and the repository move. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/App.nvs:807`, `apps/registry/src/App.nvs:820`, `apps/registry/src/App.nvs:831`, `apps/registry/src/App.nvs:868`
+- [ ] `PackagePageTest` for which buttons an owner, a non-owner and a visitor see. `apps/registry/src/PackagePageTest.nvs:210`
 
-No test is expected to go red. `AccountPageTest`'s three old tests were updated for the new columns.
+Then the last five browser tests. Their copy needs a version to act on. The suggested way is a
+`jobs/release.nvs` operator script that inserts a release row as `PackagePageTest::release` does,
+plus a log key made with `nvs registry key`, as `crates/nvs-cli/tests/registry_build.rs:1066` does,
+because a release appends to the log. A real publish needs a git host, and that is heavier.
+
+No test is expected to go red.
 
 ### Backlog
