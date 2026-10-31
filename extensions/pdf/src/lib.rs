@@ -44,12 +44,12 @@
 //! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it, a copy
 //! of their own beside the image component's.
 //!
+//! Layout nesting stops at `layout::text::MAX_DEPTH` on a 2 MiB stack, and the three inputs that
+//! end at the request's memory limit are stated in `rule:core-classes/pdf-one-engine`.
+//!
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - Tables nested 2000 deep exhaust the call stack, and a 2-million-character word, 100,000
-//!   nested `div`s and a page of a million `q` operators reach the component's own memory limit
-//!   below the request's cap. Each is pinned with `ends-early` under `tests/hostile/novis/Pdf-*`.
 //! - `merge` costs about 64 ms and 4.4 MB for three small pages, `Reader::text` sends the whole
 //!   file across on every call, and `Page::string` lowercases the name it is given and not the
 //!   stored ones (`nvs/Page.nvs`).

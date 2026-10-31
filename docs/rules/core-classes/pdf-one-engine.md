@@ -27,6 +27,22 @@ wholesale and must still meet them.
   document, all inside the request's memory cap, none of it outliving the request. Wall-clock is
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
+- **Depth.** Table cells and flex and grid items are each laid out by a call inside the one around
+  them, so their nesting is bounded at 32 levels (`MAX_DEPTH` in `extensions/pdf/src/layout/text.rs`).
+  A document nested deeper throws `LogicError` naming the bound. A level costs about 21 KiB of the
+  component's stack in a release build, and the stack is 2 MiB (`extensions/pdf/.cargo/config.toml`),
+  twice the target's default, so the deepest document leaves more than half free. The larger stack
+  spends 1 MiB more linear memory per render. Plain blocks and inline-blocks are laid out without
+  recursing and need no bound, and the parser's element cap already flattens anything past 512 open
+  elements.
+- **Limits.** Three inputs grow the work with their size and end at the request's memory limit (128
+  MiB by default), which throws as every guest that reaches it does (`rule:packaging/a-guest-crash-throws`):
+  one word of two million characters, 100,000 nested `div`s (flattened into siblings; 50,000 render
+  under the default, and time grows linearly), and a page whose content stream saves its state a
+  million times when its text is read. No bound below the memory limit is fairer, because each costs
+  what it asks for. The attacks under `tests/hostile/novis/Pdf-Document/fromHtml/` and
+  `tests/hostile/novis/Pdf-Reader/text/02-a-page-that-saves-its-state.nvs` pin them with
+  `ends-early`.
 
 **On disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
 computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley`, hyphenates

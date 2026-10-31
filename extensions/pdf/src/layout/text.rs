@@ -25,6 +25,15 @@ use crate::parse::Dom;
 /// (`rule:core-classes/pdf-roster`).
 const PASSES: usize = 5;
 
+/// How many boxes laid out on their own may be inside each other: table cells and flex and grid
+/// items (`rule:core-classes/pdf-one-engine`). Nested inline-blocks are laid out innermost first,
+/// so they do not count. Each level is one [`Cx::down`] on the component's stack, about 21 KiB
+/// for a flex or grid container in a release build, so 32 levels leave more than half of the
+/// 2 MiB stack
+/// `extensions/pdf/.cargo/config.toml` gives the component. A document nested deeper returns
+/// `Invalid` naming the bound.
+pub const MAX_DEPTH: usize = 32;
+
 /// Lays `dom` out in pages with its computed `styles` and `fonts`.
 ///
 /// A document whose generated content reads a page with `target-counter()` is laid out again
@@ -95,6 +104,8 @@ fn pass(
         waiting: Vec::with_capacity(atoms.len()),
         running: Vec::new(),
         strings: Vec::new(),
+        depth: 0,
+        deep: false,
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
@@ -113,6 +124,9 @@ fn pass(
         heights.page(page, false, name).content_height()
     }));
     cx.run(blocks, &mut flow);
+    if cx.deep {
+        return Err(too_deep());
+    }
     while !flow.open.is_empty() {
         flow.close();
     }
@@ -192,8 +206,13 @@ fn pass(
         waiting: Vec::new(),
         running: Vec::new(),
         strings: Vec::new(),
+        depth: 0,
+        deep: false,
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
+    if cx.deep {
+        return Err(too_deep());
+    }
     margin::facts(&mut flow.pages, &strings);
     let laid = Laid {
         pages: flow.pages,
@@ -209,7 +228,8 @@ fn pass(
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
 /// whose container is not laid out yet, both by their index in the list of atoms, and the
-/// running elements and named strings met so far in document order.
+/// running elements and named strings met so far in document order, and how many boxes are
+/// being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -219,6 +239,16 @@ pub(super) struct Cx<'s> {
     pub(super) waiting: Vec<Option<Vec<Block>>>,
     running: Vec<margin::Running>,
     pub(super) strings: Vec<margin::Set>,
+    depth: usize,
+    deep: bool,
+}
+
+/// The error of a document nested past [`MAX_DEPTH`].
+fn too_deep() -> Error {
+    Error::Invalid(format!(
+        "the document has tables, flex containers or grid containers nested more than \
+         {MAX_DEPTH} levels deep. A PDF lays out at most {MAX_DEPTH} levels."
+    ))
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
@@ -312,7 +342,14 @@ impl Cx<'_> {
             flow.open(g);
             flow.place(0.0);
         }
-        self.run(blocks, &mut flow);
+        // Past the bound the box is laid out empty, and the pass returns the error.
+        if self.depth < MAX_DEPTH {
+            self.depth += 1;
+            self.run(blocks, &mut flow);
+            self.depth -= 1;
+        } else {
+            self.deep = true;
+        }
         flow.contain();
         flow.place(0.0);
         while !flow.open.is_empty() {
@@ -789,7 +826,8 @@ impl Cx<'_> {
                                 .map_or(baseline, |(_, y)| baseline + y - metrics.baseline)
                         };
                         let line_range = line.text_range();
-                        let line_text = &text[line_range.clone()];
+                        // A line of inline boxes alone has a range outside `text`, and no text.
+                        let line_text = text.get(line_range.clone()).unwrap_or("");
                         // An outside marker of a right-to-left item starts at the content box's
                         // right edge.
                         let mut x = match (is_marker, rtl) {
@@ -1324,10 +1362,13 @@ fn break_lines(
             }
         }
         breaker.finish();
-        let next = shaped
-            .lines()
-            .enumerate()
-            .find(|(i, l)| !narrow.contains(i) && text[l.text_range()].ends_with(SOFT_HYPHEN));
+        let next = shaped.lines().enumerate().find(|(i, l)| {
+            // A line of inline boxes alone has a text range outside `text`.
+            !narrow.contains(i)
+                && text
+                    .get(l.text_range())
+                    .is_some_and(|t| t.ends_with(SOFT_HYPHEN))
+        });
         match next {
             Some((i, _)) if hyphen > 0.0 => narrow.push(i),
             _ => return,

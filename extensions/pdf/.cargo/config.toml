@@ -1,5 +1,9 @@
 # Read by any `cargo` run from this directory, which is where the build script
 # runs it. `simd128` is the wasm SIMD wasmtime supports on every host Novis runs
 # on, and the image and intl components build with it too.
+#
+# The stack is 2 MiB, twice the target's default, so a layout nested to
+# `layout::text::MAX_DEPTH` uses less than half of it. It spends 1 MiB more of
+# each render's linear memory, charged to the request.
 [target.wasm32-wasip2]
-rustflags = ["-C", "target-feature=+simd128"]
+rustflags = ["-C", "target-feature=+simd128", "-C", "link-arg=-zstack-size=2097152"]

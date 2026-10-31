@@ -255,6 +255,38 @@ fn ten_thousand_nested_divs_render() {
 }
 
 #[test]
+fn an_inline_block_alone_on_its_line_renders() {
+    let rendered = render(&html("<div style=\"display:inline-block\">deep")).unwrap();
+    assert_eq!(rendered.pages.len(), 1);
+}
+
+#[test]
+fn layout_nested_past_the_depth_bound_throws() {
+    // A debug build's frames are many times a release build's, so the test runs on a stack of
+    // its own.
+    let run = || {
+        for open in [
+            "<table><tr><td>",
+            "<div style=\"display:flex\">",
+            "<div style=\"display:grid\">",
+        ] {
+            let within = render(&html(&(open.repeat(20) + "deep")));
+            assert_eq!(within.map(|r| r.pages.len()), Ok(1), "{open}");
+            let Err(Error::Invalid(message)) = render(&html(&(open.repeat(40) + "deep"))) else {
+                panic!("{open} nested 40 deep did not return Invalid");
+            };
+            assert!(message.contains("more than 32 levels"), "{message}");
+        }
+    };
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
 fn an_invoice_xml_nested_past_the_depth_bound_throws() {
     let nested = |depth: usize| {
         let mut document = html("<p>x</p>");

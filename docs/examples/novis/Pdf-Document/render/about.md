@@ -8,7 +8,9 @@ The render also lists what it could not draw. `dropped` is the CSS it does not s
 not fit. A render does not throw for these, so check the lists in a test.
 
 A render reads no file, no network and no clock. The same document always gives the same bytes. A
-very large document is limited by the memory and the time that one request may use.
+very large document is limited by the memory and the time that one request may use. Tables, flex
+containers and grid containers may be nested 32 levels deep. A deeper document throws a
+`LogicError`.
 
 **The examples below** make a shipping label with a barcode, list what a render could not draw, and
 put a contract and its terms into one file.

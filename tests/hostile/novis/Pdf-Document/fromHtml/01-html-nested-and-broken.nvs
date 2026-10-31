@@ -23,6 +23,7 @@ class Attack
 Attack::attempt(1, Core\Str::repeat('<div>', 5000) . 'deep' . Core\Str::repeat('</div>', 5000));
 
 // 2. 2000 tables, each inside a cell of the one before it.
+// A render lays out at most 32 levels, so this throws a `LogicError`.
 Attack::attempt(2, Core\Str::repeat('<table><tr><td>', 2000) . 'deep');
 
 // 3. 50000 start tags that are never closed, of every kind that changes how HTML is read.
