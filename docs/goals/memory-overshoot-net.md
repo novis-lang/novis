@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/abi.rs, tools
 stages:
   - id: 1
     title: "a Rust test in a debug build runs under the default memory ceiling"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-config/src/defaults.rs]
   - id: 2
     title: "bun nv proofs --probe drives every static Core member past a 16 MiB ceiling and judges each reading"
@@ -88,6 +88,13 @@ path that is not a test breaks under the ceiling (the LSP, `nvs code`, compile-t
 `test-ceiling` cargo feature on `nvs-runtime`, enabled through each crate's dev-dependencies, arms it
 instead of `debug_assertions`.
 
+**A context that serves no request calls `Ctx::clear_memory_ceiling`.** `set_memory_limit(0)` is a
+request under no ceiling. It arms the context's word, so the server's own memory limit can still stop
+it. Work with no request arms nothing, and a debug build's `Ctx::new` no longer starts that way. So
+`clear_memory_ceiling` arms `Armed::NONE` and sets the limit to `0`. Declined: a separate unarmed
+constructor, which every caller of `Ctx::new` would have to choose between. Cost: one method, and
+nothing on the request path.
+
 **The probe uses the overshoot judge, not the backstop.** `bun nv proofs --probe` writes programs and
 runs them on the proof binary through `spawnProof`, the way `--overshoot` does
 (`tools/nv/proofs/run.ts:976`). A reading past `OVERSHOOT_FACTOR x ceiling + OVERSHOOT_SLACK_BYTES`
@@ -143,15 +150,15 @@ which are disjoint per class, so its fixes may go to writing subagents one class
 **Does:** every Rust test that makes a context runs the debug backstop, so a member past its bound
 panics in the test that called it.
 
-- [ ] `Ctx::new` arms `LIMITS_MEMORY` in a `debug_assertions` build, and its doc says why and what a
+- [x] `Ctx::new` arms `LIMITS_MEMORY` in a `debug_assertions` build, and its doc says why and what a
   test that needs more does. `crates/nvs-runtime/src/ctx/wiring.rs:103`, `crates/nvs-runtime/src/ctx/wiring.rs:162`
-- [ ] The test `a_test_context_is_under_the_default_memory_ceiling` in wiring's test module. Run once
+- [x] The test `a_test_context_is_under_the_default_memory_ceiling` in wiring's test module. Run once
   by name. `crates/nvs-runtime/src/ctx/wiring.rs:103`
-- [ ] Run `cargo test` once over the tree. This run is the stage's requirement, because it is the
+- [x] Run `cargo test` once over the tree. This run is the stage's requirement, because it is the
   finding. Sort its failures into two lists:
   - **backstop panics**: a member passed the bound. Each goes to stage 4's findings table.
   - **tests that need a large heap on purpose**: each calls `set_memory_limit` with its reason.
-- [ ] The budget module doc names the test ceiling beside the backstop. `crates/nvs-runtime/src/budget.rs:233`
+- [x] The budget module doc names the test ceiling beside the backstop. `crates/nvs-runtime/src/budget.rs:233`
 
 ### 2. bun nv proofs --probe drives every static Core member past a 16 MiB ceiling and judges each reading
 
@@ -203,10 +210,43 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Not started. The goal was written on 2026-10-31 from the user's question about `memory-ceiling-holes`.
+Stage 1 is done (`e0a5bdadd`, `a60af1d38`). A debug build's `Ctx::new` arms `LIMITS_MEMORY`
+(`crates/nvs-runtime/src/ctx/wiring.rs:277`). The finding run was `bun nv affected --run --since
+HEAD~1`, because the guard refuses a bare `cargo test`. Every test binary the change reaches ran.
+
+- **Backstop panics: none.** Stage 1 adds nothing to stage 4's findings table.
+- **Tests that pinned the uncapped start: five.** `configured_limits.rs` and `ctx/limits.rs`'s
+  `a_context_with_no_configuration_has_no_ceiling` now expect the default in a debug build and `0` in
+  a release build. Stdlib `budget.rs`'s `an_uncapped_request_reads_a_ceiling_of_zero` and `serve.rs`'s
+  `a_scheduled_fire_runs_under_the_deployments_configuration` call `set_memory_limit(0)` with a reason.
+- **`server_memory.rs`'s no-request case** needs a thread with nothing armed. `set_memory_limit(0)`
+  arms the context's word, and the server limit stops a word-armed thread. So
+  `Ctx::clear_memory_ceiling` (`crates/nvs-runtime/src/ctx/limits.rs:262`) arms `Armed::NONE`, and the
+  case calls it. Recorded under standing decisions.
+
+The acceptance sweep's reds: `env-secret-proofs` has no definition in the tree, and
+`bun tools/looper/main.ts check --name env-secret-proofs` answers "no check matches". It is stale
+state in looper's service, not a tree fault. The nightly run 41187571578 was on `857b39cad`, before
+the four fixes `39795c9c4` (browser), `bfce9c2d2` (debug-viewer shots), `593b6c565` (ASAN SQLite ODR)
+and `8ce92dda5` (the Miri memory-cap timeouts, the same six files). The next nightly should be green.
+
+No test is expected to go red. The verify steps after `test` (6 not reached) run in stage 5.
 
 ### Next
 
-Stage 1 and stage 2, in either order. Stage 1's first item: `crates/nvs-runtime/src/ctx/wiring.rs:162`.
+Stage 2: `bun nv proofs --probe`. The class table is `CLASSES` at `crates/nvs-stdlib/src/classes.rs:14`
+(180 rows); `registry.rs` only re-exports it. The model is `--overshoot` at
+`tools/nv/proofs/run.ts:976`, the bound at `tools/nv/proofs/run.ts:275`, and the flags at
+`tools/nv/cmd/proofs.ts:70` and `:445`.
+
+The skip list's split is done. Besides the standing decision's classes, skip each of these, with
+its reason (`classes.rs` line of its row): `Core\Net` network (146), `Core\Socket` WebSocket (93),
+`Core\Sse` server events (96), `Core\WebPush` push sends (114), `Core\Zip` archive files (132),
+`Core\Storage` disk files (103), `Core\Session` session store (92), `Core\RateLimit` shared Redis
+(155), `Core\Script` child processes (68), `Core\Cli` terminal input (71), `Core\Env` environment
+(79), `Core\Os` host readings (151), `Core\Signal` OS signals (82), `Core\Response` sends files (90),
+`Core\Request\Part` saves uploads (88), `Core\Log` log files (99). Borderline, and probed: `Core\Debug`,
+`Core\Path`, `Core\Random`; skip only `Core\Time::zone_system` and `Core\Path::from_cwd` /
+`this_file` if they fail for reasons other than memory.
 
 ### Backlog
