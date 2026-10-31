@@ -13,7 +13,7 @@
 //! `core.autocrlf = false`, so a file has the same bytes on every runner.
 //!
 //! The last test serves a copy of `apps/registry` with `nvs serve` and runs `nvs pkg login`,
-//! `whoami`, `publish`, `retract` and `unlist` against it
+//! `whoami`, `publish`, `retract`, `unlist` and `advise` against it
 //! (`rule:packaging/a-publish-token-is-scoped-and-expires`). The test signs up over HTTP with an
 //! Ed25519 passkey it answers the WebAuthn options with, and the service builds the release from
 //! the same git host.
@@ -1527,6 +1527,107 @@ fn the_publishing_commands_work_against_the_registry_service() {
             "sign in with a passkey and confirm on {ORIGIN}/packages/"
         )),
         "{said}"
+    );
+}
+
+/// A served registry with `Acme\Http` 1.0.0 published by a signed-in publisher, and
+/// `nvs pkg advise` run with its token against `1.0.0..`. The case, the registry, the browser
+/// and the command's output.
+fn advised(name: &str) -> (Case, Registry, Browser, Output) {
+    let case = Case::new(name);
+    case.package("", "1.0.0", false);
+    case.commit("1.0.0");
+    let host = Host::start(&case);
+    let registry = Registry::start(&case);
+    let url = registry.url();
+    let (browser, _account) = publisher(&case, &registry);
+    let repository = host.url();
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "publish",
+            "--registry",
+            &url,
+            "--repository",
+            &repository,
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}\nthe server: {}",
+        shown(&out),
+        registry.said()
+    );
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "advise",
+            "Acme\\Http",
+            "1.0.0..",
+            "It leaks the session cookie.",
+            "--registry",
+            &url,
+        ],
+    );
+    (case, registry, browser, out)
+}
+
+/// The advisory feed in the registry's store, or `""` when it has none yet.
+fn feed(registry: &Registry) -> String {
+    fs::read_to_string(registry.dir.join("files/log/advisories")).unwrap_or_default()
+}
+
+// covers: tools:packages/nvs-pkg-advise
+#[test]
+fn an_advisory_sent_with_a_token_is_pending_for_seven_days() {
+    let (_case, registry, _browser, out) = advised("registry-advise-token");
+    assert!(
+        out.status.success(),
+        "{}\nthe server: {}",
+        shown(&out),
+        registry.said()
+    );
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains("The advisory acme/http-1 is in the feed from "),
+        "{said}"
+    );
+    assert!(
+        !feed(&registry).contains("acme/http-1"),
+        "the feed lists a pending advisory: {}",
+        feed(&registry)
+    );
+}
+
+/// The token's advisory sent again by an owner who signed in with a passkey keeps its id and is
+/// in the feed at once.
+#[test]
+fn an_advisory_confirmed_with_a_passkey_is_in_the_feed_at_once() {
+    let (_case, registry, mut browser, out) = advised("registry-advise-passkey");
+    assert!(
+        out.status.success(),
+        "{}\nthe server: {}",
+        shown(&out),
+        registry.said()
+    );
+    let (status, sent) = browser.send(
+        "POST",
+        "/api/packages/acme/http/advisory",
+        &serde_json::json!({ "versions": "1.0.0..", "summary": "It leaks the session cookie." })
+            .to_string(),
+    );
+    assert_eq!(status, 200, "{sent}\nthe server: {}", registry.said());
+    assert_eq!(sent["id"], "acme/http-1", "{sent}");
+    assert_eq!(
+        sent["message"], "The advisory acme/http-1 is in the feed.",
+        "{sent}"
+    );
+    let feed = feed(&registry);
+    assert!(
+        feed.contains(r#""id":"acme/http-1""#) && feed.contains(r#""versions":"1.0.0..""#),
+        "the feed lacks the advisory: {feed}"
     );
 }
 

@@ -1,8 +1,8 @@
 ---
 id: packages
 title: "Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock`
-keywords: nvs pkg audit, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract`, `nvs pkg unlist` and `nvs pkg advise`, which publish a package, change its versions and send an advisory on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock`
+keywords: nvs pkg audit, nvs pkg advise, version range, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -736,6 +736,33 @@ The people who run the registry cannot delete or change a version. They can only
 that contains malware, or that a court orders them to remove. A withheld version cannot be
 downloaded, and the package index shows the reason.
 
+<!-- src: `rule:packaging/a-known-bad-version-is-retracted-not-deleted` -->
+
+# nvs pkg advise
+
+    nvs pkg advise <package> <versions> <summary> [--registry <url>]
+
+`nvs pkg advise` sends a security advisory for a range of versions of your package. `nvs pkg
+audit` then reports every locked version in the range. The versions stay in the package index,
+and `nvs pkg add` can still choose them. To stop that, use `nvs pkg retract`.
+
+The range has two forms. `1.2.0..1.2.4` is the versions from 1.2.0 up to 1.2.4, without 1.2.4.
+The second version is the version that fixes the problem. `1.2.0..` is every version from 1.2.0,
+when no version fixes it yet. For a second range, send a second advisory. The summary has at most
+500 characters.
+
+    nvs pkg advise acme/http 1.2.0..1.2.4 "Client::send logs the session cookie."
+
+You can write the package as `acme/http` or as `Acme\Http`.
+
+With a token, the advisory is in the registry's list of advisories seven days later. Every owner
+gets a message. An owner can send the same advisory again with a passkey on the website, and then
+it is in the list at once. The registry gives each advisory an id, such as `acme/http-1`:
+
+```text
+The advisory acme/http-1 is in the feed from 2026-11-04T09:12:00Z. An owner can send it again now with a passkey on the website.
+```
+
 <!-- src: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`, `rule:security/an-unmatched-namespace-holds-the-application` -->
 
 # nvs pkg audit
@@ -743,13 +770,21 @@ downloaded, and the package index shows the reason.
     nvs pkg audit [--json]
 
 Run this command in the folder of your application. It reads `package.lock` and lists each locked
-version that has an advisory. An advisory is a retraction or a withhold of a version. For each one,
-the command prints the reason and the smallest version that fixes it:
+version that has an advisory. An advisory is a retraction or a withhold of a version, or an
+advisory that an owner sent for a range of versions with `nvs pkg advise`. For each one, the
+command prints the reason and the smallest version that fixes it:
 
 ```text
 `Acme\Http` 1.4.0 is retracted: Client::send drops the last header.
   Update to 1.4.1 or newer.
 1 locked version has an advisory.
+```
+
+For an advisory from `nvs pkg advise`, the first line has its id, and the reason is its summary:
+
+```text
+`Acme\Http` 1.2.1 has the advisory `acme/http-1`: Client::send logs the session cookie.
+  Update to 1.2.4 or newer.
 ```
 
 When the fix is in a new major version, the second line also says `This is a new major version.`

@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/package/audit.rs",
-  "title": "`nvs pkg audit` does not report an `advisory`, and no client command sends one.",
-  "text": "The registry takes an advisory at `POST /api/packages/{vendor}/{name}/advisory`, logs it and lists it in the feed, but audit matches only retractions and withholds, so a locked version inside an advisory's range is not reported. Closing it makes audit report each locked version inside the range with the id, the summary and the version that clears it, and adds `nvs pkg advise` (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).",
-  "goal": "registry-service"
-}

@@ -28,14 +28,17 @@
 //! [`build`] is that build, `nvs registry build`
 //! (`rule:packaging/the-registry-builds-the-archive-from-git`). [`retract`] is `nvs pkg retract`
 //! (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`) and [`unlist`] is
-//! `nvs pkg unlist` (`rule:packaging/an-owner-may-unlist`), each one request to the registry.
-//! [`advisory`] is the registry's signed advisory feed, every retraction and withhold in the log,
+//! `nvs pkg unlist` (`rule:packaging/an-owner-may-unlist`), each one request to the registry, and
+//! so is [`advise`], `nvs pkg advise`, which sends an advisory against a range of versions.
+//! [`advisory`] is the registry's signed advisory feed, every retraction, withhold and advisory
+//! in the log,
 //! and its check against the log, and [`audit`] is `nvs pkg audit`, which reports each one a
 //! locked version is under.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod advise;
 pub(crate) mod advisory;
 mod api;
 mod audit;
@@ -188,8 +191,9 @@ enum Command {
     /// List each security advisory for the versions in `package.lock`.
     ///
     /// A registry publishes an advisory when it retracts or withholds a
-    /// version. For each locked version with an advisory, the command
-    /// prints the reason and the smallest version that fixes it. The command
+    /// version. An owner can also send an advisory for a range of versions
+    /// with `nvs pkg advise`. For each locked version with an advisory, the
+    /// command prints the reason and the smallest version that fixes it. The command
     /// checks that the registry's list of advisories matches its public log.
     ///
     /// A registry can name a second copy of its log's checkpoint on another
@@ -322,6 +326,31 @@ enum Command {
         #[arg(long, value_name = "URL")]
         registry: Option<String>,
     },
+    /// Send a security advisory for a range of versions of your package.
+    ///
+    /// `nvs pkg audit` reports every locked version in the range, with the
+    /// advisory's id and summary. The versions stay in the package index,
+    /// and `nvs pkg add` can still choose them. Use `nvs pkg retract` to
+    /// stop that.
+    ///
+    /// With a publish token, the advisory is in the registry's list seven
+    /// days later. An owner can send it at once with a passkey on the
+    /// registry's website. Run `nvs pkg login` first to store a publish
+    /// token.
+    Advise {
+        /// The package, such as `Acme\Http` or `acme/http`.
+        package: String,
+        /// The versions the advisory is about. `1.2.0..1.2.4` is the versions
+        /// from 1.2.0 up to 1.2.4, without 1.2.4. Write `1.2.0..` when no
+        /// version fixes the problem yet.
+        versions: manifest::Range,
+        /// What is wrong with these versions. It can have at most 500
+        /// characters.
+        summary: String,
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+    },
     /// Hide your package or one version of it from search and listings.
     ///
     /// Run this command in the folder of your package. Without VERSION,
@@ -378,6 +407,12 @@ impl Args {
                 fixed_in,
                 registry,
             } => retract::run(registry.as_deref(), version, &reason, fixed_in),
+            Command::Advise {
+                package,
+                versions,
+                summary,
+                registry,
+            } => advise::run(registry.as_deref(), &package, versions, &summary),
             Command::Unlist {
                 version,
                 undo,
