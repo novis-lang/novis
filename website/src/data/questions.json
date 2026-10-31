@@ -9388,12 +9388,14 @@
   },
   "/reference/core/novis-pdf-document/slots/": {
     "feature": "Novis\\Pdf\\Document::slots",
-    "hash": "b8e5e8d4eab18ea6",
+    "hash": "ea536a5b0a6d7aca",
     "questions": [
       "Carry a total forward in a table that spans pages",
       "Fill a cell in the repeated table header on each page",
       "Subtotal for each page in a long table",
-      "Add up the hours on each page of a timesheet"
+      "Add up the hours on each page of a timesheet",
+      "Why is the HTML in my per-page table cell cut off?",
+      "Show a different value in a table footer on each PDF page"
     ]
   },
   "/reference/core/novis-pdf-document/standard/": {
