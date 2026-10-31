@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/service.rs",
-  "title": "The generated unit has no socket activation, so a privileged port still needs a capability.",
-  "text": "With socket activation, systemd binds the privileged port and the service runs with an empty capability set. Closing it makes `nvs serve` take its listeners from systemd, and the unit generator writes the matching `.socket` unit (`rule:packaging/the-generated-unit-is-hardened`).",
-  "goal": "runtime-leftovers"
-}

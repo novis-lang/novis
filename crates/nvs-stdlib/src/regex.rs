@@ -1385,9 +1385,11 @@ pub fn validate(pattern: &str) -> Result<Tier, String> {
     // The shipped budget and not a configured one: a fold runs while checking,
     // where there is no request whose `[limits]` to read, and the budget cannot
     // change which tier a pattern lands on anyway.
-    build(pattern, NO_FLAGS, None, Backtrack::Within(BACKTRACK_BUDGET)).map(|compiled| match compiled {
-        Compiled::Linear(_) => Tier::Linear,
-        Compiled::Backtracking(_) => Tier::Backtracking,
+    build(pattern, NO_FLAGS, None, Backtrack::Within(BACKTRACK_BUDGET)).map(|compiled| {
+        match compiled {
+            Compiled::Linear(_) => Tier::Linear,
+            Compiled::Backtracking(_) => Tier::Backtracking,
+        }
     })
 }
 
