@@ -25,6 +25,7 @@
 //! expanded, the value's children copied into it. All of it is freed at the resume.
 
 use nvs_host::debug::{Stop, StopReason, StoppedFrame};
+use nvs_host::scheduler::TaskId;
 use nvs_render::{Node, Scalar};
 use serde_json::{Value, json};
 
@@ -134,6 +135,66 @@ impl Stopped {
                 .collect(),
         };
         json!({ "threads": threads })
+    }
+
+    /// The `nvsTaskTree` body: each task of the round with the id of the task that spawned it, or
+    /// the one `main` task while nothing is stopped. A root has no `parentThreadId`.
+    ///
+    /// A stopped task's id is its thread's, and `source` and `line` are its top frame's, the file
+    /// mapped to the editor's path. A task that waits on its children never polls, so it sends no
+    /// stop. It is listed from its children's ancestors, with an id after every thread's,
+    /// `"stopped": false` and no source.
+    pub(super) fn task_tree(&self) -> Value {
+        let Some(round) = &self.round else {
+            return json!({ "tasks": [{ "threadId": 1, "name": "main", "stopped": true }] });
+        };
+        let mut ids: Vec<(TaskId, i64)> = (1_i64..)
+            .zip(&round.stops)
+            .filter_map(|(id, stop)| Some((stop.task?, id)))
+            .collect();
+        let mut waiting: Vec<(TaskId, Option<TaskId>)> = Vec::new();
+        for stop in &round.stops {
+            for (index, &task) in stop.ancestors.iter().enumerate() {
+                if ids.iter().all(|&(known, _)| known != task) {
+                    let id =
+                        i64::try_from(round.stops.len() + waiting.len() + 1).unwrap_or(i64::MAX);
+                    ids.push((task, id));
+                    waiting.push((task, stop.ancestors.get(index + 1).copied()));
+                }
+            }
+        }
+        let id_of = |task: TaskId| {
+            ids.iter()
+                .find(|&&(known, _)| known == task)
+                .map(|&(_, id)| id)
+        };
+        let mut tasks: Vec<Value> = (1_i64..)
+            .zip(&round.stops)
+            .map(|(id, stop)| {
+                let mut task =
+                    json!({ "threadId": id, "name": thread_name(stop), "stopped": true });
+                if let Some(parent) = stop.ancestors.first().and_then(|&parent| id_of(parent)) {
+                    task["parentThreadId"] = json!(parent);
+                }
+                if let Some(at) = stop.frames.first().and_then(|frame| frame.at.as_ref()) {
+                    task["source"] = json!(self.paths.to_editor(&at.file));
+                    task["line"] = json!(at.line);
+                }
+                task
+            })
+            .collect();
+        for (task, parent) in waiting {
+            let mut entry = json!({
+                "threadId": id_of(task),
+                "name": format!("task {}", task.raw()),
+                "stopped": false,
+            });
+            if let Some(parent) = parent.and_then(id_of) {
+                entry["parentThreadId"] = json!(parent);
+            }
+            tasks.push(entry);
+        }
+        json!({ "tasks": tasks })
     }
 
     /// The stop of the thread `arguments` names, as [`nvs_host::debug::Debugger::step`] names it.
@@ -373,6 +434,7 @@ mod tests {
         Stop {
             id: round,
             task: None,
+            ancestors: Vec::new(),
             reason,
             round,
             returned: None,

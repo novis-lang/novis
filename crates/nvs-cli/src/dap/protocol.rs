@@ -70,6 +70,9 @@ pub(crate) struct Capabilities {
     pub(crate) supports_log_points: bool,
     pub(crate) supports_exception_info_request: bool,
     pub(crate) exception_breakpoint_filters: [ExceptionFilter; 2],
+    /// Whether the adapter answers the custom `nvsTaskTree` request, which names each stopped
+    /// task's parent.
+    pub(crate) supports_nvs_task_tree: bool,
 }
 
 /// One switch of the editor's exception breakpoints, at `initialize`.

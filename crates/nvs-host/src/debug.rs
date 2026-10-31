@@ -287,6 +287,13 @@ pub struct Stop {
     /// The task that stopped, or `None` for a context with no scheduler
     /// beneath it.
     pub task: Option<TaskId>,
+    /// The tasks above [`Stop::task`], the one that spawned it first and the
+    /// root last, and empty for a root
+    /// (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). The whole chain,
+    /// because a parent that waits on its children never polls, so it sends no
+    /// stop of its own. The root of a `spawn`ed isolate is a root here, because
+    /// its parent is in another core's tree.
+    pub ancestors: Vec<TaskId>,
     /// Why it stopped.
     pub reason: StopReason,
     /// Which stop of the session this is. Every task that one breakpoint or
@@ -797,6 +804,7 @@ impl Shared {
         let _ = self.stops.send(Stop {
             id,
             task: crate::scheduler::current_task(),
+            ancestors: crate::scheduler::current_ancestors(),
             reason,
             round: stopped_at,
             frames,

@@ -1720,6 +1720,26 @@ pub fn current_task() -> Option<TaskId> {
     RUNNING.get().map(|running| running.id)
 }
 
+/// The tasks above the running one, the task that spawned it first and its
+/// root last, each as [`Scheduler::parent_of`] names it, read without the
+/// scheduler.
+///
+/// Empty with no task running, for a root, and for the root of a `spawn`ed
+/// isolate, whose parent is in another core's tree.
+#[must_use]
+pub fn current_ancestors() -> Vec<TaskId> {
+    let (Some(mut id), Some(tree)) = (current_task(), current_tree()) else {
+        return Vec::new();
+    };
+    let tree = tree.borrow();
+    let mut ancestors = Vec::new();
+    while let Some(parent) = tree.nodes.get(&id).and_then(|node| node.parent) {
+        ancestors.push(parent);
+        id = parent;
+    }
+    ancestors
+}
+
 /// How many children the running task still has: spawned and not yet ended,
 /// whether they are on the run queue, parked under a wait, or still pending a
 /// coroutine.

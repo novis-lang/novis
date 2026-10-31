@@ -51,6 +51,11 @@
 //! at every throw, except one that a frame in a `skipFiles` file catches. `exceptionInfo` names
 //! the exception a thread stopped for.
 //!
+//! **The task tree.** `initialize` reports `supportsNvsTaskTree`, and the custom request
+//! `nvsTaskTree` gives each stopped task with the thread of the task that spawned it, its top
+//! frame's file and its line ([`stopped`]). While nothing is stopped it gives the one `main` task.
+//! The `threads` answer stays flat, as DAP defines it.
+//!
 //! **Ending a session.** `disconnect` ends the adapter, and the program with it, because the
 //! program is this process. `terminate` answers with `terminated` and leaves the program running
 //! until the client's `disconnect` follows, which every client sends.
@@ -321,6 +326,7 @@ impl Session {
                             default: false,
                         },
                     ],
+                    supports_nvs_task_tree: true,
                 };
                 self.succeed(request, serde_json::to_value(capabilities).ok());
                 self.writer.event("initialized", None);
@@ -355,6 +361,10 @@ impl Session {
             }
             "threads" => {
                 let body = lock(&self.stopped).threads();
+                self.succeed(request, Some(body));
+            }
+            "nvsTaskTree" => {
+                let body = lock(&self.stopped).task_tree();
                 self.succeed(request, Some(body));
             }
             "stackTrace" => {

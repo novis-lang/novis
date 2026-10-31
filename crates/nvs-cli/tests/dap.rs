@@ -1326,3 +1326,70 @@ fn path_mappings_map_every_path_in_and_out_of_the_adapter() {
     assert_eq!(variables["$four"], "4", "{variables:#?}");
     assert_eq!(run_to_the_end(client), "4\n");
 }
+
+/// `initialize` reports the custom `nvsTaskTree` request.
+#[test]
+fn initialize_reports_the_task_tree_capability() {
+    let dir = nvs_repo::scratch_private("dap-task-tree-capability");
+    let mut client = Client::start(&dir);
+    let capabilities = client.ask("initialize", json!({ "adapterID": "novis" }));
+    assert_eq!(
+        capabilities["supportsNvsTaskTree"], true,
+        "{capabilities:#?}"
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// While nothing is stopped, `nvsTaskTree` gives the one `main` task.
+#[test]
+fn the_task_tree_is_one_main_task_while_nothing_is_stopped() {
+    let dir = nvs_repo::scratch_private("dap-task-tree-idle");
+    let mut client = Client::start(&dir);
+    client.request("initialize", json!({ "adapterID": "novis" }));
+    client.until_event("initialized");
+    let tree = client.ask("nvsTaskTree", json!({}));
+    assert_eq!(
+        tree,
+        json!({ "tasks": [{ "threadId": 1, "name": "main", "stopped": true }] })
+    );
+    client.request("disconnect", json!({}));
+    client.finish();
+}
+
+/// A child task of `Core\Task::all` that stops at a breakpoint names its parent. The parent waits
+/// for its children, so it sends no stop: it is listed as a root that is not stopped, with no
+/// source. The child's source and line are its top frame's.
+#[test]
+fn the_task_tree_names_each_task_s_parent_while_stopped() {
+    let dir = nvs_repo::scratch_private("dap-task-tree");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nvar $all = Core\\Task::all({\n    first: fn(): int => {\n        int $here = 1;\n        return $here + 1;\n    },\n    second: fn(): int => 3,\n});\necho $all->first + $all->second, \"\\n\";\n",
+    )
+    .unwrap();
+    let main = dir.join("main.nvs");
+
+    let mut client = stopped_at(&dir, "main.nvs", 5, json!({}));
+    let tree = client.ask("nvsTaskTree", json!({}));
+    let tasks = tree["tasks"].as_array().expect("a task list");
+    let find = |id: &Value| tasks.iter().find(|task| &task["threadId"] == id);
+    let child = tasks
+        .iter()
+        .find(|task| task["line"] == 5)
+        .unwrap_or_else(|| panic!("the stopped child: {tree:#?}"));
+    assert_eq!(child["stopped"], true, "{tree:#?}");
+    assert_eq!(child["source"], json!(main), "{tree:#?}");
+    let parent = find(&child["parentThreadId"]).unwrap_or_else(|| panic!("the parent: {tree:#?}"));
+    assert_eq!(parent["stopped"], false, "{tree:#?}");
+    assert!(parent.get("source").is_none(), "{tree:#?}");
+    assert!(parent.get("parentThreadId").is_none(), "{tree:#?}");
+    let threads = client.ask("threads", json!({}));
+    assert!(
+        threads["threads"].as_array().is_some_and(|threads| threads
+            .iter()
+            .any(|thread| thread["id"] == child["threadId"])),
+        "the child's id is its thread's: {threads:#?}"
+    );
+    assert_eq!(run_to_the_end(client), "5\n");
+}
