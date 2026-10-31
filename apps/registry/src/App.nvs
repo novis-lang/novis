@@ -26,6 +26,10 @@ final class App
     public const string WEBHOOK_ADDED = 'A new webhook gets the messages of your account.';
     public const string CHANNEL_REMOVED = 'A device or a webhook was removed from your account.';
 
+    // The `Content-Security-Policy` of every page. A page runs only the scripts of this site,
+    // loads nothing from another site, and no other site can show it in a frame.
+    public const string POLICY = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'";
+
     // Returns the packages that match the text `q`, in the order `sort`, with the facts of each one.
     // `sort` is `default`, `date`, `activity`, `downloads` or `name`, and `default` is the order of `Ranking`.
     #[Route(path: '/api/search', method: Method::Get)]
@@ -63,7 +67,7 @@ final class App
     public static function homePage(): void
     {
         tainted string $query = Request::query('q') ?? '';
-        Response::html(HomePage::page($query, new Search(Schema::open())->find($query, Sort::Default, Core\Time::now()->toEpochSeconds())));
+        App::html(HomePage::page($query, new Search(Schema::open())->find($query, Sort::Default, Core\Time::now()->toEpochSeconds())));
     }
 
     // The page of a package: its versions, owners, advisories, the facts of its order in a search, and its readme.
@@ -94,7 +98,7 @@ final class App
     #[Access(allow: Visitor::SignedIn)]
     public static function accountPage(): void
     {
-        Response::html(new AccountPage(Schema::open(), Core\Time::now()->toEpochSeconds())->of(Session::account() ?? ''));
+        App::html(new AccountPage(Schema::open(), Core\Time::now()->toEpochSeconds())->of(Session::account() ?? '', Session::hasRecentPasskey()));
     }
 
     // The page that says the operator of the registry only withholds a version, and why.
@@ -102,7 +106,39 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function policyPage(): void
     {
-        Response::html(PolicyPage::page());
+        App::html(PolicyPage::page());
+    }
+
+    // The page that creates an account. Its script does the proof-of-work and makes the passkey.
+    #[Route(path: '/signup', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signUpPage(): void
+    {
+        App::html(SignInPage::signUp(Site::load()->signUpWork));
+    }
+
+    // The page that signs in with a passkey or with a recovery code.
+    #[Route(path: '/signin', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signInPage(): void
+    {
+        App::html(SignInPage::signIn());
+    }
+
+    // The script of every page. It runs each passkey step and sends each form of a page.
+    #[Route(path: '/registry.js', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function pageScript(): void
+    {
+        Response::sendFile(Core\Path::thisDir('../public/registry.js'));
+    }
+
+    // The service worker of the account page. It shows each push message and sends back its code.
+    #[Route(path: '/push.js', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function pushScript(): void
+    {
+        Response::sendFile(Core\Path::thisDir('../public/push.js'));
     }
 
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
@@ -249,10 +285,9 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function herePage(tainted string $code): void
     {
-        Response::html(
-            '<!doctype html><title>Novis registry</title><p>Your account had no activity for a while.</p>' as Core\Html\Markup
-                + '<form method="post"><button>Yes, I am here</button></form>' as Core\Html\Markup,
-        );
+        App::html(PackagePage::layout('Are you here?', html`<h1>Are you here?</h1>
+<p>Your account had no activity for a while.</p>
+<form method="post"><button>Yes, I am here</button></form>`));
     }
 
     // Takes the answer "Yes, I am here" with the one-time code of a reminder. A right code counts
@@ -263,13 +298,11 @@ final class App
     {
         if (new Activity(Schema::open())->answer($code) == null) {
             Response::setStatus(404);
-            Response::html(
-                '<!doctype html><title>Novis registry</title><p>This link is wrong or was used before. ' as Core\Html\Markup
-                    + 'If your account had no activity for 60 days, sign in with a passkey.</p>' as Core\Html\Markup,
-            );
+            App::html(PackagePage::layout('Link not valid', html`<h1>This link is not valid</h1>
+<p>This link is wrong or was used before. If your account had no activity for 60 days, <a href="/signin">sign in with a passkey</a>.</p>`));
             return;
         }
-        Response::html('<!doctype html><title>Novis registry</title><p>Thank you. Your account can publish.</p>' as Core\Html\Markup);
+        App::html(PackagePage::layout('Thank you', html`<h1>Thank you</h1><p>Your account can publish.</p>`));
     }
 
     // Returns the options for one more passkey. The passkeys the account has are excluded.
@@ -1106,9 +1139,16 @@ final class App
     {
         if ($page == null) {
             Response::setStatus(404);
-            Response::html(html`<!doctype html><title>Not found · Novis registry</title><p>There is no such package or version on this registry.</p>`);
+            App::html(PackagePage::layout('Not found', html`<h1>Not found</h1><p>There is no such package or version on this registry.</p>`));
             return;
         }
+        App::html($page);
+    }
+
+    // Sends a page with the `Content-Security-Policy` of every page. Every page goes through here.
+    private static function html(Core\Html\Markup $page): void
+    {
+        Response::setHeader('content-security-policy', App::POLICY);
         Response::html($page);
     }
 

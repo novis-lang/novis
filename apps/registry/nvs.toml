@@ -13,9 +13,10 @@ path = "registry.sqlite"
 # of this installation. It may read and write the archives in `builds`, which `nvs registry build` writes.
 # It may read and write `work`, where the registry makes and signs the public files, and `files`,
 # the store that `nvs pkg` reads them from. It may write `backup`, the store for the copies of the
-# database. The tests read `fixtures`.
+# database. The tests read `fixtures`. Every page loads the script `public/registry.js`, and the
+# account page loads the service worker `public/push.js`.
 [capabilities.fs]
-read = ["hosting.json", "builds", "work", "files", "backup", "fixtures"]
+read = ["hosting.json", "builds", "work", "files", "backup", "fixtures", "public/registry.js", "public/push.js"]
 write = ["builds", "work", "files", "backup"]
 
 # The scheduled work runs the scripts in `jobs`.

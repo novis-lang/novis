@@ -26,11 +26,20 @@ final class AccountPage
         $this->now = $now;
     }
 
-    // The page of the account `$account`.
-    public function of(string $account): Markup
+    // The page of the account `$account`. `$withPasskey` is `true` when the visitor signed in
+    // with a passkey in the last 15 minutes.
+    // A form or a button with `data-action` names the step `/registry.js` runs. One with
+    // `data-passkey` needs a recent passkey, so the script signs in with a passkey first when the registry answers `403`.
+    public function of(string $account, bool $withPasskey): Markup
     {
+        var $session = html`<p>You signed in with a passkey.</p>`;
+        if (!$withPasskey) {
+            $session = html`<p>You did not sign in with a passkey in the last 15 minutes. A step that needs a passkey asks for it first.</p>`;
+        }
         var $content = html`<h1>Your account</h1>
-<p>The id of your account is <code>{$account}</code>. The registry shows this id as the name of the account.</p>`
+<p>The id of your account is <code>{$account}</code>. The registry shows this id as the name of the account.</p>
+{$session}
+<form data-action="signout"><button>Sign out</button></form>`
             + $this->activity($account)
             + $this->passkeys($account)
             + $this->tokens($account)
@@ -58,6 +67,7 @@ final class AccountPage
         return html`<h2>Publishing</h2>{$state}
 <p>Each sign-in with a passkey gives the account {$days} days from that day. An answer to a reminder does the same while the account can still publish.</p>
 <p>You get the first reminder after {$reminder} days without a sign-in.</p>
+<form data-action="reminders"><label>Days before the first reminder, from 7 to 59 <input name="days" type="number" min="7" max="59" required value="{$reminder}"></label> <button>Save</button></form>
 <p>You have {$codes} recovery codes left. Each code works once.</p>`;
     }
 
@@ -72,7 +82,8 @@ final class AccountPage
         }
         return html`<h2>Passkeys</h2>
 <p>A passkey signs you in. You can add a passkey for each of your devices.</p>
-<table><tr><th>Added</th><th>Last used</th></tr>{$items}</table>`;
+<table><tr><th>Added</th><th>Last used</th></tr>{$items}</table>
+<form data-action="add-passkey"><button>Add a passkey</button></form>`;
     }
 
     // The tokens of the account, the newest first, with the scope, the dates and the state of each one.
@@ -80,25 +91,32 @@ final class AccountPage
     {
         array<Token> $tokens = new Tokens($this->db)->of($account);
         var $intro = html`<h2>Tokens</h2>
-<p>A token lets <code>nvs pkg publish</code> publish the packages in its scope. The registry keeps only a hash of each token, so it cannot show a token again.</p>`;
+<p>A token lets <code>nvs pkg publish</code> publish the packages in its scope. The registry keeps only a hash of each token, so it cannot show a token again.</p>
+<form data-action="token" data-passkey><label>Scope, a vendor such as <code>Acme</code> or a package such as <code>Acme\Http</code> <input name="scope" required></label>
+<label>Days <input name="days" type="number" min="1" max="365" value="90" required></label> <button>Make a token</button></form>
+<section id="new-token" hidden><p>Your new token is below. Copy it now. The registry shows it only this one time.</p><pre id="token-text"></pre></section>`;
         if (Arr::count($tokens) == 0) {
             return $intro + html`<p>This account has no tokens.</p>`;
         }
         var $items = html``;
         foreach ($tokens as Token $token) {
+            string $id = $token->id;
             string $scope = $token->scope;
             string $created = PackagePage::date($token->createdAt);
             string $expires = PackagePage::date($token->expiresAt);
             string $used = $token->usedAt == null ? 'never' : PackagePage::date($token->usedAt);
             string $state = 'works';
+            var $revoke = html``;
             if ($token->revokedAt != null) {
                 $state = 'revoked on ' . PackagePage::date($token->revokedAt);
             } elseif ($token->expiresAt <= $this->now) {
                 $state = 'expired';
+            } else {
+                $revoke = html`<form data-action="revoke-token" data-id="{$id}"><button>Revoke</button></form>`;
             }
-            $items = $items + html`<tr><td><code>{$scope}</code></td><td>{$created}</td><td>{$expires}</td><td>{$used}</td><td>{$state}</td></tr>`;
+            $items = $items + html`<tr><td><code>{$scope}</code></td><td>{$created}</td><td>{$expires}</td><td>{$used}</td><td>{$state}</td><td>{$revoke}</td></tr>`;
         }
-        return $intro + html`<table><tr><th>Scope</th><th>Created</th><th>Expires</th><th>Last used</th><th>State</th></tr>{$items}</table>`;
+        return $intro + html`<table><tr><th>Scope</th><th>Created</th><th>Expires</th><th>Last used</th><th>State</th><th></th></tr>{$items}</table>`;
     }
 
     // The vendors the account owns, each with all its owners.
@@ -115,9 +133,12 @@ final class AccountPage
         foreach ($names as string $name) {
             var $owners = html``;
             foreach ($vendors->owners($name) as string $owner) {
-                $owners = $owner == $account ? $owners + html`<li><code>{$owner}</code> (you)</li>` : $owners + html`<li><code>{$owner}</code></li>`;
+                $owners = $owner == $account
+                    ? $owners + html`<li><code>{$owner}</code> (you)</li>`
+                    : $owners + html`<li><code>{$owner}</code> <form data-action="remove-owner" data-passkey data-vendor="{$name}" data-id="{$owner}"><button>Remove</button></form></li>`;
             }
-            $content = $content + html`<h3>{$name}</h3><ul>{$owners}</ul>`;
+            $content = $content + html`<h3>{$name}</h3><ul>{$owners}</ul>
+<form data-action="add-owner" data-passkey data-vendor="{$name}"><label>Id of the account to add as an owner <input name="account" required autocomplete="off"></label> <button>Add the owner</button></form>`;
         }
         return $content;
     }
@@ -126,9 +147,13 @@ final class AccountPage
     private function channels(string $account): Markup
     {
         var $intro = html`<h2>Devices and webhooks</h2>
-<p>The registry sends the messages of your account to your push devices and webhooks. A new one gets a test message with a code. It counts only after you send that code back. It stops counting when it stops working. You need at least one that counts to publish or to become an owner.</p>`;
+<p>The registry sends the messages of your account to your push devices and webhooks. A new one gets a test message with a code. It counts only after you send that code back. It stops counting when it stops working. You need at least one that counts to publish or to become an owner.</p>
+<p>This browser sends the code of its test message back by itself.</p>
+<form data-action="add-device" data-passkey><button>Get messages in this browser</button></form>
+<form data-action="add-webhook" data-passkey><label>Address of a webhook, such as <code>https://ntfy.sh/your-topic</code> <input name="url" type="url" required></label> <button>Add the webhook</button></form>
+<section id="new-webhook" hidden><p>The secret below signs each message to your webhook. Copy it now. The registry shows it only this one time.</p><pre id="webhook-secret"></pre></section>`;
         var $found = $this->db->query(
-            'select kind, target, created_at, verified_at, answered_at, failed_at from channels where account = ? order by created_at, id',
+            'select id, kind, target, created_at, verified_at, answered_at, failed_at from channels where account = ? order by created_at, id',
             [$account],
         );
         if ($found->count() == 0) {
@@ -136,8 +161,10 @@ final class AccountPage
         }
         var $items = html``;
         foreach ($found as Row $row) {
+            string $id = AccountPage::trusted($row->string('id') ?? '');
+            bool $isWebhook = ($row->string('kind') ?? '') == Channels::WEBHOOK;
             string $kind = 'Push device';
-            if (($row->string('kind') ?? '') == Channels::WEBHOOK) {
+            if ($isWebhook) {
                 $kind = 'Webhook to ' . AccountPage::hostOf($row->string('target') ?? '');
             }
             string $added = PackagePage::date($row->int('created_at') ?? 0);
@@ -152,9 +179,14 @@ final class AccountPage
             } elseif ($verifiedAt == null) {
                 $counts = 'no, it is not verified';
             }
-            $items = $items + html`<tr><td>{$kind}</td><td>{$added}</td><td>{$verified}</td><td>{$answered}</td><td>{$counts}</td></tr>`;
+            var $verify = html``;
+            if ($isWebhook && $verifiedAt == null) {
+                $verify = html`<form data-action="verify-channel" data-id="{$id}"><label>Code <input name="code" required autocomplete="off"></label> <button>Verify</button></form>`;
+            }
+            $items = $items + html`<tr><td>{$kind}</td><td>{$added}</td><td>{$verified}</td><td>{$answered}</td><td>{$counts}</td><td>{$verify}<form data-action="test-channel" data-id="{$id}"><button>Send a test message</button></form>
+<form data-action="remove-channel" data-id="{$id}"><button>Remove</button></form></td></tr>`;
         }
-        return $intro + html`<table><tr><th>Kind</th><th>Added</th><th>Verified</th><th>Last message taken</th><th>Counts</th></tr>{$items}</table>`;
+        return $intro + html`<table><tr><th>Kind</th><th>Added</th><th>Verified</th><th>Last message taken</th><th>Counts</th><th></th></tr>{$items}</table>`;
     }
 
     // The newest events of the account and of every vendor it owns.

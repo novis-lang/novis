@@ -514,12 +514,17 @@ final class PackagePage
     }
 
     // The whole page, with its title. Every page of the website uses it.
+    // `/registry.js` runs the forms and buttons of the page, and it writes each result in the `status` line.
     public static function layout(string $title, Markup $content): Markup
     {
         return html`<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>{$title} · Novis registry</title></head>
-<body>{$content}</body>
+<head><meta charset="utf-8"><title>{$title} · Novis registry</title><script src="/registry.js" defer></script></head>
+<body>
+<nav><a href="/">Search</a> · <a href="/account">Your account</a> · <a href="/signin">Sign in</a> · <a href="/signup">Create an account</a></nav>
+<p id="status" role="status"></p>
+<main>{$content}</main>
+</body>
 </html>`;
     }
 }

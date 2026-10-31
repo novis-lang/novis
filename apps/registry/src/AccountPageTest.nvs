@@ -42,16 +42,19 @@ final class AccountPageTest
         AccountPageTest::channel($db, 'c3', 'webhook', 'https://old.example.org/hook', $now - 60 * $day, $now - 60 * $day, $now - 9 * $day, $now - 8 * $day);
         $db->execute("insert into notices (vendor, account, kind, text, at) values ('acme', null, 'publish', 'Acme\\Http 1.0.0 is published.', ?)", [$now - $day]);
 
-        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER), 'the test reads the page');
+        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER, true), 'the test reads the page');
+        AccountPageTest::has($page, '<p>You signed in with a passkey.</p>');
         AccountPageTest::has($page, '<p>This account can publish for 40 days more, until 2026-07-25.</p>');
         AccountPageTest::has($page, 'You get the first reminder after 30 days without a sign-in.');
         AccountPageTest::has($page, '<tr><td>2026-03-07</td><td>2026-05-26</td></tr>');
-        AccountPageTest::has($page, '<tr><td><code>Acme</code></td><td>2026-06-13</td><td>2026-07-15</td><td>never</td><td>works</td></tr>');
+        AccountPageTest::has($page, '<tr><td><code>Acme</code></td><td>2026-06-13</td><td>2026-07-15</td><td>never</td><td>works</td><td><form data-action="revoke-token" data-id="t1"><button>Revoke</button></form></td></tr>');
         AccountPageTest::has($page, '<td>revoked on 2026-05-06</td>');
         AccountPageTest::has($page, '<td>2026-06-05</td><td>never</td><td>expired</td>');
-        AccountPageTest::has($page, '<h3>Acme</h3><ul><li><code>' . AccountPageTest::OWNER . '</code> (you)</li><li><code>' . AccountPageTest::OTHER . '</code></li></ul>');
-        AccountPageTest::has($page, '<tr><td>Push device</td><td>2026-05-16</td><td>2026-05-16</td><td>2026-06-12</td><td>yes</td></tr>');
-        AccountPageTest::has($page, '<tr><td>Webhook to hooks.example.com</td><td>2026-06-10</td><td>not yet</td><td>never</td><td>no, it is not verified</td></tr>');
+        AccountPageTest::has($page, '<h3>Acme</h3><ul><li><code>' . AccountPageTest::OWNER . '</code> (you)</li><li><code>' . AccountPageTest::OTHER . '</code> '
+            . '<form data-action="remove-owner" data-passkey data-vendor="Acme" data-id="' . AccountPageTest::OTHER . '"><button>Remove</button></form></li></ul>');
+        AccountPageTest::has($page, '<form data-action="add-owner" data-passkey data-vendor="Acme">');
+        AccountPageTest::has($page, '<tr><td>Push device</td><td>2026-05-16</td><td>2026-05-16</td><td>2026-06-12</td><td>yes</td><td><form data-action="test-channel" data-id="c1">');
+        AccountPageTest::has($page, '<tr><td>Webhook to hooks.example.com</td><td>2026-06-10</td><td>not yet</td><td>never</td><td>no, it is not verified</td><td><form data-action="verify-channel" data-id="c2">');
         AccountPageTest::has($page, '<td>no, it stopped working on 2026-06-07</td>');
         AccountPageTest::has($page, '<li>2026-06-14: Acme\\Http 1.0.0 is published.</li>');
     }
@@ -62,7 +65,8 @@ final class AccountPageTest
     {
         int $now = Time::now()->toEpochSeconds();
         var $db = AccountPageTest::database($now - 61 * AccountPageTest::DAY);
-        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER), 'the test reads the page');
+        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER, false), 'the test reads the page');
+        AccountPageTest::has($page, 'A step that needs a passkey asks for it first.');
         AccountPageTest::has($page, '<p>This account cannot publish now. Sign in with a passkey to publish again.</p>');
         AccountPageTest::has($page, '<p>This account has no tokens.</p>');
         AccountPageTest::has($page, '<p>This account owns no vendor.</p>');
@@ -77,6 +81,54 @@ final class AccountPageTest
         Test::assertSame($policy->status(), 200);
         AccountPageTest::has($policy->body() as string, 'The operator can do one thing to a published version: withhold it.');
         Test::assertSame(Test::request(Method::Get, '/account')->status(), 403);
+    }
+
+    // Every page has the same `Content-Security-Policy`, and every page loads `/registry.js`.
+    #[Test]
+    public function everyPageHasThePolicyAndTheScript(): void
+    {
+        array<string> $pages = ['/', '/policy', '/signup', '/signin', '/packages/nobody/nothing'];
+        foreach ($pages as string $path) {
+            var $page = Test::request(Method::Get, $path);
+            Test::assertSame($page->header('content-security-policy'), App::POLICY);
+            AccountPageTest::has($page->body() as string, '<script src="/registry.js" defer></script>');
+        }
+    }
+
+    // A visitor sees the forms that create an account and sign in. Both scripts are served.
+    #[Test]
+    public function aVisitorSeesTheSignUpAndSignInForms(): void
+    {
+        AccountPageTest::has(Test::request(Method::Get, '/signup')->body() as string, '<form data-action="signup"><button>Create an account</button></form>');
+        string $signIn = Test::request(Method::Get, '/signin')->body() as string;
+        AccountPageTest::has($signIn, '<form data-action="signin"><button>Sign in with a passkey</button></form>');
+        AccountPageTest::has($signIn, '<form data-action="recovery">');
+        array<string> $scripts = ['/registry.js', '/push.js'];
+        foreach ($scripts as string $path) {
+            Test::assertSame(Test::request(Method::Get, $path)->status(), 200);
+        }
+    }
+
+    // A session signed in with a passkey sees the forms that need one, and no note about it.
+    // A session signed in with a recovery code sees the same forms, and a note that they ask for a passkey first.
+    #[Test]
+    public function thePageSaysHowTheVisitorSignedIn(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $withPasskey = $browser->send(Method::Get, '/account')->body() as string;
+        AccountPageTest::has($withPasskey, '<p>You signed in with a passkey.</p>');
+        AccountPageTest::has($withPasskey, '<form data-action="token" data-passkey>');
+        AccountPageTest::has($withPasskey, '<form data-action="add-device" data-passkey>');
+
+        var $other = new BrowserTest();
+        var $codes = ($other->signUp()->json() as array<mixed>)['recoveryCodes'] as array<mixed>;
+        tainted string $code = $codes[0] as tainted string;
+        var $visitor = new BrowserTest();
+        Test::assertSame($visitor->post('/api/signin/recovery', { code: $code })->status(), 200);
+        string $withCode = $visitor->send(Method::Get, '/account')->body() as string;
+        AccountPageTest::has($withCode, 'A step that needs a passkey asks for it first.');
+        AccountPageTest::has($withCode, '<form data-action="add-passkey"><button>Add a passkey</button></form>');
     }
 
     // A new database in memory with every table and the account `OWNER`, active at `$activeAt`.

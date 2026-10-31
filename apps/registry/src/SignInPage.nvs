@@ -1,0 +1,38 @@
+<?nvs
+namespace Registry;
+
+use Core\Html\Markup;
+
+// The pages that create an account and sign in. `/registry.js` runs their forms.
+// A form with `data-action` names the step the script runs when the form is sent.
+// Cost: no query. Each page is one template.
+final class SignInPage
+{
+    // The page that creates an account. `$bits` is the number of zero bits the proof-of-work needs.
+    public static function signUp(int $bits): Markup
+    {
+        string $work = '' . $bits;
+        return PackagePage::layout('Create an account', html`<h1>Create an account</h1>
+<p>An account on this registry is a passkey. It has no email address and no password.</p>
+<p>First your browser does a short calculation, with {$work} zero bits. This makes many sign-ups at once slow. Then your device makes a passkey for this site.</p>
+<form data-action="signup"><button>Create an account</button></form>
+<section id="codes" hidden>
+<h2>Your recovery codes</h2>
+<p>Each code signs you in one time if you lose your passkeys. Write the codes down now. The registry shows them only this one time.</p>
+<ol id="code-list"></ol>
+<p><a href="/account">Go to your account</a></p>
+</section>`);
+    }
+
+    // The page that signs in with a passkey, or with a recovery code.
+    public static function signIn(): Markup
+    {
+        return PackagePage::layout('Sign in', html`<h1>Sign in</h1>
+<form data-action="signin"><button>Sign in with a passkey</button></form>
+<h2>Sign in with a recovery code</h2>
+<p>Each recovery code works one time. With a code you can add a new passkey and revoke tokens.
+To make a token, add an owner or add a device, sign in with a passkey.</p>
+<form data-action="recovery"><label>Recovery code <input name="code" required autocomplete="off"></label> <button>Sign in</button></form>
+<p>No account yet? <a href="/signup">Create an account</a>.</p>`);
+    }
+}
