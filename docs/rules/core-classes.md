@@ -4478,6 +4478,10 @@ tool. They live beside the writer because they return text and bytes, never pixe
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
   holds its sources and the merged file at once. An open `Reader` holds its file and its
   cross-reference table in the component until the request ends.
+- **Cost:** a merge of three small pages takes under 1 ms once the component is loaded, measured
+  in one process. The first PDF call of a process loads the component, about 130 ms in a release
+  build. The merge bench's 64 ms per op is its whole run, that load and two renders included,
+  divided by its 32 iterations, so no step of the merge holds half of it.
 
 **On disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
 `extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by

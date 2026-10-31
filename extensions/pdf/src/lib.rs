@@ -52,7 +52,6 @@
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - `merge` costs about 64 ms and 4.4 MB for three small pages.
 //! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
 //!   of another width than the first page of its name keeps that page's line widths, a margin
 //!   box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an
