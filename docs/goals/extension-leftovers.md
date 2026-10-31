@@ -535,9 +535,15 @@ subagents take one half each, side by side, and neither builds. The session buil
 **Does:** two renders in one request never share a kept body, and deep nesting, deep XML and large
 decoded streams throw a named error.
 
-- [ ] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the two PDF records. `tools/nv/cmd/owners.ts:1`
-- [ ] `rule:core-classes/pdf-header-is-a-page-function`: the `kept` resource replaces `KEPT`, and `Document.nvs` passes it from `first` to `second`. `extensions/pdf/src/lib.rs:430`, `extensions/pdf/src/lib.rs:526`, `wit/pdf.wit:83`, `extensions/pdf/nvs/Document.nvs:97`, `extensions/pdf/nvs/Document.nvs:127`
-- [ ] The conformance case the `pdf-nested-render-runs` check names, and the header attack's step 3 renders both documents. `tests/conformance/novis/pdf-a-header-may-render-another-document.nvst:1`, `tests/hostile/novis/Pdf-Document/header/01-headers-that-throw-load-and-render-again.nvs:32`
+- [x] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the two PDF records. `tools/nv/cmd/owners.ts:1`
+- [x] `rule:core-classes/pdf-header-is-a-page-function`: the `kept` resource replaces `KEPT`, and `Document.nvs` passes it from `first` to `second`. `extensions/pdf/src/lib.rs:430`, `extensions/pdf/src/lib.rs:526`, `wit/pdf.wit:83`, `extensions/pdf/nvs/Document.nvs:97`, `extensions/pdf/nvs/Document.nvs:127`
+  - [x] `wit/pdf.wit`: `render(document)`, `render-first` returning `first-render { body: kept, facts }`, and `render-second(borrow<kept>, margins)`; the `pass` variant is gone
+  - [x] the guest's `Body` resource replaces `KEPT`, and the manifest declares `Kept` with no union
+  - [x] `typed/pdf.rs`, `Document.nvs`, the rule fragment and the module doc follow
+  - [x] `crates/nvs-ext/tests/pdf.rs` and `ext_world.rs` pass, with `a_first_pass_inside_another_keeps_its_own_body`
+- [x] The conformance case the `pdf-nested-render-runs` check names, and the header attack's step 3 renders both documents. `tests/conformance/novis/pdf-a-header-may-render-another-document.nvst:1`, `tests/hostile/novis/Pdf-Document/header/01-headers-that-throw-load-and-render-again.nvs:32`
+  - [x] the case passes under `bun nv suite`
+  - [x] step 3 needs no change: it printed `stopped`, and now it renders both documents
 - [ ] `rule:core-classes/pdf-one-engine`: the layout depth bound, measured, with its error. `extensions/pdf/src/layout/text.rs:505`, `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/parse.rs:27`
 - [ ] `rule:core-classes/pdf-factur-x-is-the-one-attachment`: invoice XML past 256 levels throws. `extensions/pdf/src/factur_x.rs:83`
 - [ ] `rule:core-classes/decompression-bound`: every decoded stream and attachment in `read` and `merge` runs under the bound. `extensions/pdf/src/read.rs:173`, `extensions/pdf/src/read.rs:110`, `extensions/pdf/src/merge.rs:35`
@@ -645,35 +651,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done and committed, and the spreadsheet lane is finished. Stage 4:
-`drawing.rs`'s `png_size` walks a PNG's chunks to `IEND` (no CRC), and `Drawing::fits` throws for
-an image or chart that ends past `XFD` or row 1,048,576, called from `end_sheet`, so it throws at
-`sheet()` or `finish()`. `tail.rs` throws for a second `print` and for a `whole` bound that is no
-whole number or formula. `Writer::cell` and `column` take `u64`, and `column` throws with no data
-row. Novis half: `Workbook::position` reads only upper-case letters, a key before the first keyed
-row throws, `ready` takes a third `bool` for the data-row check, a finished sheet's message names
-it, `csvBytes` throws for NaN and the infinities, and `Export` takes `once` for an `Iterator`.
-`ReadOptions::default()` now gives `locale` `en`, which fixed ten `ods.rs` tests that stage 2 made
-red. The `Formula::of` attack catches the empty formula's new error. The module doc's list and its
-gap record are gone, and the size test passed, so 1.59 MiB stays. The checks `sheet-end-parts`,
-`writer-values`, `addresses-and-values-runs`, `spreadsheet-attacks` and `spreadsheet-size-recorded`
-ran green once.
+Stages 1 to 4 are done, and the spreadsheet lane is finished. Stage 5's gate holds, and its first
+two items are committed (`578850f8f`). `wit/pdf.wit` now has `render(document)`,
+`render-first(first-pass) -> first-render { body: kept, facts: rendered }` and
+`render-second(body: borrow<kept>, margins)`. The `pass` variant and the manifest's `Pass` union
+are gone, and the manifest declares the resource `Kept`. The guest's `Body` wraps a
+`RefCell<Option<crate::Kept>>`, and `render-second` takes the body out, so writing a body twice
+returns `invalid` ("written once"). `ext_world.rs`'s `check_crossable` gained `check_returnable`,
+which accepts an `own` nested in a result as the loader does. `crates/nvs-ext/tests/pdf.rs` uses
+`lay_out` and `write` helpers, and `a_first_pass_inside_another_keeps_its_own_body` is new. Both
+suites and `pdf-nested-render-runs` passed once. The header attack's step 3 needed no change.
+
+The sweep's nightly reds are from run 41187571578 at `857b39cad`, 62 commits behind HEAD.
+Later commits fix each one: `39795c9c4` (browser `NVS_BIN`), `bfce9c2d2` (debug-viewer shots),
+`9fe05ce88` (asan ODR pair) and `8ce92dda5` (the seven Miri timeouts). `env-secret-proofs` still
+has no definition in the tree.
 
 ### Next
 
-Stage 5, the PDF lane, over `extensions/pdf/src/lib.rs`, `wit/pdf.wit`, `extensions/pdf/nvs/Document.nvs`,
-`extensions/pdf/src/factur_x.rs`, `src/read.rs`, `src/merge.rs` and `src/layout/text.rs`.
+The rest of stage 5, over `extensions/pdf/src/factur_x.rs`, `src/read.rs`, `src/merge.rs`,
+`src/layout/text.rs` and `docs/rules/core-classes/pdf-one-engine.md`.
 
-- [ ] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the two PDF records. `tools/nv/cmd/owners.ts:1`
-- [ ] The `kept` resource replaces `KEPT`, and `Document.nvs` passes it from `first` to `second`. `extensions/pdf/src/lib.rs:430`, `wit/pdf.wit:83`, `extensions/pdf/nvs/Document.nvs:97`
-- [ ] The `pdf-nested-render-runs` case, and the header attack's step 3. `tests/hostile/novis/Pdf-Document/header/01-headers-that-throw-load-and-render-again.nvs:32`
+- [ ] Invoice XML past 256 levels throws `Parse`. `roxmltree` 0.20 has no depth option, so check the depth before `parse_with_options`, or after it with an iterative walk if the parse itself survives 1000 levels. `extensions/pdf/src/factur_x.rs:83`
+- [ ] Every decoded stream and attachment in `read` and `merge` runs under the decompression bound. `stream.decoded()` is at `extensions/pdf/src/read.rs:174`; `open` is at `:73`, and `merge` at `extensions/pdf/src/merge.rs:35`. `wit/pdf.wit` carries no bound yet; the spreadsheet's `decompression-bound` record (`wit/spreadsheet.wit:626`) is the model.
 - [ ] The layout depth bound, measured, with its error. `extensions/pdf/src/layout/text.rs:505`
-- [ ] Invoice XML past 256 levels throws. `extensions/pdf/src/factur_x.rs:83`
-- [ ] Every decoded stream and attachment runs under the decompression bound. `extensions/pdf/src/read.rs:173`, `extensions/pdf/src/merge.rs:35`
-- [ ] The tests, the attacks, and the stated limits. `extensions/pdf/tests/render.rs:1`, `docs/rules/core-classes/pdf-one-engine.md:1`, `extensions/pdf/src/lib.rs:47`
+- [ ] The tests the `pdf-nesting-and-decoding-bounds` and `pdf-decoding-bounds` checks name, and the attacks that catch the new errors. `extensions/pdf/tests/render.rs:1`, `extensions/pdf/tests/read.rs:1`
+- [ ] The stated limits, and the module doc's first bullet. `docs/rules/core-classes/pdf-one-engine.md:1`, `extensions/pdf/src/lib.rs:47`
 
-A new WIT export also needs `crates/nvs-cli/tests/meta.rs`'s member list (the playbook's first
-trap). Expect red at the gate: `crates/nvs-cli/tests/spreadsheet_sheet.rs` or another test that
+Expect red at the gate: a test outside `crates/nvs-ext/tests/pdf.rs` that calls the PDF `render`
+export with a `{ pages }` or `{ document, headerHeight }` shape, or matches "the second pass needs
+a first pass". Also expect red: `crates/nvs-cli/tests/spreadsheet_sheet.rs` or another test that
 calls `cell` with a key before its first keyed row, `column` before a data row, a lower-case column
 letter, or `print` twice; a test that matches "can hold only a finite number" or "cannot add parts"
 for a finished sheet's `cell`; an image test with a hand-cut PNG outside `extensions/spreadsheet/tests/`.
