@@ -3,7 +3,8 @@
 //! A flex or grid container is a block box whose content is one [`Flex`] block, and everything
 //! here holds for both: only the `taffy` style differs, and `grid`'s module doc says how a
 //! grid's is read. Each child element is an
-//! item, whatever its `display`, and each run of text between them that is not only spaces is an
+//! item, whatever its `display`, and so are the container's `::before` and `::after` and a
+//! `<br>`, which is an empty item. Each run of text between them that is not only spaces is an
 //! anonymous item. An item's blocks are collected the way an `inline-block`'s are, against a
 //! containing block at `x` 0 as wide as the container's content box.
 //!
@@ -12,7 +13,9 @@
 //! its blocks laid out at that width; a box with a `width` of its own keeps it. Once `taffy` has
 //! placed them, each item is laid out at its final width, as tall as its line when it stretches,
 //! and drawn where `taffy` put it. A `flex-basis` length counts its margins in, `order` sorts the
-//! items before `taffy` sees them, and a percentage height is not resolved.
+//! items before `taffy` sees them, and a percentage height is not resolved. An `auto` margin is
+//! the one margin `taffy` sees, so it takes the free space. A leaf's first baseline is its first
+//! line's, measured only when an item aligns on `baseline`.
 //!
 //! **Breaks.** The items are placed in bands: each band is the items whose boxes overlap
 //! vertically, so a flex line in a row is one band and each item of a column is its own. A band
@@ -24,10 +27,10 @@
 
 use taffy::{
     AlignContent, AlignItems, AvailableSpace, Dimension, FlexDirection, FlexWrap, LayoutOutput,
-    LengthPercentage, Size, TaffyTree, compute_leaf_layout,
+    LengthPercentage, LengthPercentageAuto, Rect, RunMode, Size, TaffyTree, compute_leaf_layout,
 };
 
-use super::block::{Flow, geometry};
+use super::block::{BoxGeometry, Flow, SIDES, geometry};
 use super::grid;
 use super::text::{Cx, Placed, carry, narrow, shift};
 use super::{Block, MARGIN, keyword, length};
@@ -101,7 +104,15 @@ pub(super) fn container(style: &Style, width: f32, height: f32, rem: f32) -> taf
 /// The `order` and the `taffy` style of an item with `style` in a container whose content box
 /// is `width` wide and whose main axis is a row when `row` is true.
 pub(super) fn item(style: &Style, width: f32, row: bool) -> (i64, taffy::Style) {
-    let g = geometry(style, 0.0, width);
+    let mut g = geometry(style, 0.0, width);
+    let auto = unauto(style, &mut g);
+    let side = |auto: bool| {
+        if auto {
+            LengthPercentageAuto::auto()
+        } else {
+            LengthPercentageAuto::length(0.0)
+        }
+    };
     let horizontal = g.margin[1] + g.margin[3];
     let vertical = g.margin[0] + g.margin[2];
     let insets = g.border[0] + g.border[2] + g.padding[0] + g.padding[2];
@@ -129,6 +140,13 @@ pub(super) fn item(style: &Style, width: f32, row: bool) -> (i64, taffy::Style) 
         flex_basis: basis,
         align_self: keyword(style, "align-self").and_then(align),
         justify_self: keyword(style, "justify-self").and_then(align),
+        // The leaf is the item's margin box, so only an `auto` margin is a margin to `taffy`.
+        margin: Rect {
+            top: side(auto[0]),
+            right: side(auto[1]),
+            bottom: side(auto[2]),
+            left: side(auto[3]),
+        },
         size: Size {
             width: if g.fill {
                 Dimension::auto()
@@ -145,6 +163,21 @@ pub(super) fn item(style: &Style, width: f32, row: bool) -> (i64, taffy::Style) 
     };
     grid::item(style, &mut taffy_style);
     (order, taffy_style)
+}
+
+/// Takes the free space back from each `auto` margin of an item's box `g`, because its container
+/// shares the free space out among them, and returns those sides: top, right, bottom and left.
+pub(super) fn unauto(style: &Style, g: &mut BoxGeometry) -> [bool; 4] {
+    let auto = SIDES.map(|s| keyword(style, &format!("margin-{s}")) == Some("auto"));
+    if auto[3] {
+        g.x -= g.margin[3];
+    }
+    for (margin, auto) in g.margin.iter_mut().zip(auto) {
+        if auto {
+            *margin = 0.0;
+        }
+    }
+    auto
 }
 
 /// An anonymous item's `taffy` style: it grows by nothing and shrinks as an item does.
@@ -180,8 +213,24 @@ fn distribute(word: &str) -> Option<AlignContent> {
     })
 }
 
-/// The heights an item was measured at, by margin-box width.
-type Measured = Vec<(f32, f32)>;
+/// The height and first baseline an item was measured at, by margin-box width.
+type Measured = Vec<(f32, f32, Option<f32>)>;
+
+/// The height and first baseline of an item's `blocks` laid out with a margin box `width`
+/// wide, measured once per width.
+fn measure(
+    cx: &mut Cx<'_>,
+    blocks: &[Block],
+    measured: &mut Measured,
+    width: f32,
+) -> (f32, Option<f32>) {
+    if let Some((_, h, first)) = measured.iter().find(|(w, ..)| (w - width).abs() < 0.01) {
+        return (*h, *first);
+    }
+    let laid = cx.item_at(blocks, width, None);
+    measured.push((width, laid.height, laid.first));
+    (laid.height, laid.first)
+}
 
 impl Cx<'_> {
     /// Lays the items of `flex` out with `taffy` and places them down `flow` in bands.
@@ -211,6 +260,12 @@ impl Cx<'_> {
         let root = tree
             .new_with_children(style, &leaves)
             .expect("the leaves are new");
+        // A baseline is measured only when an item aligns on one.
+        let baseline = flex.style.align_items == AlignItems::BASELINE
+            || flex
+                .items
+                .iter()
+                .any(|(_, s)| s.align_self == Some(AlignItems::BASELINE));
         let available = Size {
             width: AvailableSpace::Definite(flex.width),
             height: AvailableSpace::MaxContent,
@@ -219,7 +274,7 @@ impl Cx<'_> {
             let Some(&mut i) = context else {
                 return LayoutOutput::HIDDEN;
             };
-            compute_leaf_layout(
+            let mut output = compute_leaf_layout(
                 input,
                 style,
                 |_, _| 0.0,
@@ -230,19 +285,18 @@ impl Cx<'_> {
                         AvailableSpace::MaxContent => max,
                         AvailableSpace::Definite(room) => room.min(max).max(min),
                     });
-                    let height = known.height.unwrap_or_else(|| {
-                        match measured[i].iter().find(|(w, _)| (w - width).abs() < 0.01) {
-                            Some((_, h)) => *h,
-                            None => {
-                                let h = self.item_at(&blocks[i], width, None).height;
-                                measured[i].push((width, h));
-                                h
-                            }
-                        }
-                    });
+                    let height = known
+                        .height
+                        .unwrap_or_else(|| measure(self, &blocks[i], &mut measured[i], width).0);
                     Size { width, height }
                 },
-            )
+            );
+            // An item's first baseline is its first line's, which `align-items: baseline` reads.
+            if baseline && input.run_mode == RunMode::PerformLayout {
+                let width = output.size.width;
+                output.baselines.first = measure(self, &blocks[i], &mut measured[i], width).1;
+            }
+            output
         })
         .expect("measuring an item does not fail");
         let mut placed: Vec<(f32, f32, Placed)> = Vec::with_capacity(blocks.len());
@@ -329,12 +383,8 @@ pub(super) fn fit(blocks: &[Block], width: f32, height: Option<f32>) -> Vec<Bloc
     let mut by = 0.0;
     if let Some(Block::Open(g)) = blocks.first_mut() {
         if let Some(height) = height {
-            let edges = g.margin[0]
-                + g.margin[2]
-                + g.border[0]
-                + g.border[2]
-                + g.padding[0]
-                + g.padding[2];
+            let edges =
+                g.margin[0] + g.margin[2] + g.border[0] + g.border[2] + g.padding[0] + g.padding[2];
             g.min_content = g.min_content.max(height - edges);
         }
         if g.fill {

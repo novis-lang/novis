@@ -1247,6 +1247,16 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// Takes the free space back from each `auto` margin of the flex item just opened with
+    /// `style`, and moves its content box `inner` with it.
+    fn unauto(&mut self, style: &Style, inner: &mut Frame) {
+        if let Some(Block::Open(g)) = self.blocks.last_mut() {
+            let x = g.x;
+            flex::unauto(style, g);
+            inner.x -= x - g.x;
+        }
+    }
+
     /// Closes the innermost container's anonymous item, if one is open.
     fn close_anonymous(&mut self) {
         if let Some(c) = self.containers.last_mut()
@@ -1265,7 +1275,9 @@ impl Builder<'_, '_> {
     }
 
     /// The `::before` or `::after` box of the element at `at`, whose own content box is
-    /// `frame`: inline text, or a block box of its own when its `display` is not `inline`.
+    /// `frame`: inline text, or a block box of its own when its `display` is not `inline`. When
+    /// `item` is set, the box is an item of the innermost flex container, whatever its `display`.
+    #[allow(clippy::too_many_arguments)]
     fn generated(
         &mut self,
         style: &Style,
@@ -1274,6 +1286,7 @@ impl Builder<'_, '_> {
         counters: &Counters,
         frame: &Frame,
         fonts: &Fonts,
+        item: bool,
     ) -> Result<(), Error> {
         let display = keyword(style, "display").unwrap_or("inline");
         if display == "none" {
@@ -1289,7 +1302,12 @@ impl Builder<'_, '_> {
             ..frame.clone()
         };
         let block = display != "inline";
-        if block {
+        let item = item.then(|| flex::item(style, frame.width, self.row()));
+        if item.is_some() {
+            self.close_anonymous();
+            self.open_atom(style, frame, &mut inner)?;
+            self.unauto(style, &mut inner);
+        } else if block {
             self.open(style, frame, &mut inner)?;
         }
         let mut from = 0;
@@ -1302,7 +1320,9 @@ impl Builder<'_, '_> {
             from = at;
         }
         self.push_text(&content.text[from..], &inner);
-        if block {
+        if let Some((order, style)) = item {
+            self.close_item(order, style);
+        } else if block {
             self.flush();
             self.blocks.push(Block::Close);
         }
@@ -1509,7 +1529,8 @@ pub(super) fn blocks(
                 if let Some(after) = styles.after.get(&at) {
                     counters.apply(after, depth + 1);
                     builder.count(&counters, Some(after), false);
-                    builder.generated(after, dom, at, &counters, &frame, fonts)?;
+                    let item = builder.in_container(depth + 1);
+                    builder.generated(after, dom, at, &counters, &frame, fonts, item)?;
                 }
                 if let Some(close) = close {
                     builder.push_control(close, &frame);
@@ -1651,6 +1672,13 @@ pub(super) fn blocks(
                     }
                     continue;
                 }
+                // A `<br>` in a flex container is an empty item, which ends the text item before it.
+                if name == "br" && item {
+                    let mut inner = frame.clone();
+                    builder.open_atom(&empty, &frame, &mut inner)?;
+                    builder.close_item(0, flex::anonymous());
+                    continue;
+                }
                 if name == "br" {
                     builder.text.push('\n');
                     builder.after_space = true;
@@ -1751,6 +1779,9 @@ pub(super) fn blocks(
                     false
                 } else if item.is_some() || atom.is_some() || float.is_some() || out {
                     builder.open_atom(style, &frame, &mut inner)?;
+                    if item.is_some() {
+                        builder.unauto(style, &mut inner);
+                    }
                     false
                 } else if block {
                     let page = match style.get("page") {
@@ -1891,15 +1922,17 @@ pub(super) fn blocks(
                 if let Some((open, _)) = controls {
                     builder.push_control(open, &inner);
                 }
-                if let Some(before) = styles.before.get(&at) {
-                    counters.apply(before, depth + 1);
-                    builder.count(&counters, Some(before), false);
-                    builder.generated(before, dom, at, &counters, &inner, fonts)?;
-                }
                 frames.push(inner);
                 if flex {
                     let inner = frames.last().expect("just pushed");
                     builder.open_container(style, inner, frames.len());
+                }
+                // A flex container's `::before` is its first item.
+                if let Some(before) = styles.before.get(&at) {
+                    counters.apply(before, depth + 1);
+                    builder.count(&counters, Some(before), false);
+                    let inner = frames.last().expect("just pushed").clone();
+                    builder.generated(before, dom, at, &counters, &inner, fonts, flex)?;
                 }
                 match part {
                     Some(TablePart::Table | TablePart::Wrapped) => {

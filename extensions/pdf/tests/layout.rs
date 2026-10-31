@@ -2120,6 +2120,115 @@ fn a_transformed_box_is_a_containing_block() {
 }
 
 #[test]
+fn before_after_and_br_are_flex_items() {
+    // A container's `::before` is its first item and its `::after` its last, as an element's box
+    // would be.
+    let laid = lay(
+        "<style>.f::before { content: 'Shop'; width: 50pt; background-color: #ff0000 }\
+         .f::after { content: 'End'; display: block; width: 50pt; background-color: #0000ff }\
+         </style><body style='margin: 0'><div class='f' style='display: flex'>\
+         <div style='width: 50pt; background-color: #00ff00'>Blog</div></div>",
+    );
+    let [red, green, blue] = boxes_of(&laid, &[RED, GREEN, BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN) && close(red.2, 50.0), "{red:?}");
+    assert!(close(green.0, MARGIN + 50.0), "{green:?}");
+    assert!(close(blue.0, MARGIN + 100.0), "{blue:?}");
+    for b in [green, blue] {
+        assert!(close(b.1, red.1) && close(b.3, red.3), "{red:?} {b:?}");
+    }
+    assert_eq!(lines(&laid).len(), 1, "{:?}", lines(&laid));
+
+    // A `<br>` is an empty item of its own, so a gap is placed on each side of it.
+    let laid = lay(
+        "<body style='margin: 0'><div style='display: flex; column-gap: 10pt'>Shop<br>Blog</div>",
+    );
+    let drawn = runs(&laid);
+    assert_eq!(drawn.len(), 2, "{drawn:?}");
+    assert!(close(drawn[0].2, drawn[1].2), "{drawn:?}");
+    assert!(close(drawn[1].1, drawn[0].3 + 20.0), "{drawn:?}");
+}
+
+#[test]
+fn flex_items_align_on_their_first_baseline() {
+    // The first lines of the three items share one baseline, whatever their size and padding.
+    for style in ["align-items: baseline", "align-items: start"] {
+        let laid = flex(
+            style,
+            [
+                ("font-size: 24pt; align-self: auto", "Shop"),
+                ("padding-top: 20pt", "Blog"),
+                ("font-size: 8pt", "End"),
+            ],
+        );
+        let drawn = runs(&laid);
+        let first = &drawn[..3];
+        let shared = first.iter().all(|r| close(r.2, first[0].2));
+        assert_eq!(shared, style.ends_with("baseline"), "{style}: {first:?}");
+    }
+    // `align-self: baseline` on two items aligns those two.
+    let laid = flex(
+        "",
+        [
+            ("font-size: 24pt; align-self: baseline", "Shop"),
+            ("padding-top: 20pt; align-self: baseline", "Blog"),
+            ("", "End"),
+        ],
+    );
+    let mut drawn = runs(&laid)[..3].to_vec();
+    drawn.sort_by(|a, b| a.1.total_cmp(&b.1));
+    assert!(close(drawn[0].2, drawn[1].2), "{drawn:?}");
+    assert!(!close(drawn[0].2, drawn[2].2), "{drawn:?}");
+}
+
+#[test]
+fn an_auto_margin_on_a_flex_item_takes_the_free_space() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+
+    // `margin-left: auto` moves the item and every item after it to the right end.
+    let laid = flex(
+        "",
+        [
+            ("width: 50pt", "Shop"),
+            ("width: 50pt; margin-left: auto", "Blog"),
+            ("width: 50pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN), "{red:?}");
+    assert!(close(green.0, MARGIN + width - 100.0), "{green:?}");
+    assert!(close(blue.0, MARGIN + width - 50.0), "{blue:?}");
+
+    // Two auto sides share the free space, and an auto top moves the item to the bottom.
+    let laid = flex(
+        "height: 100pt",
+        [
+            ("width: 50pt", "Shop"),
+            (
+                "width: 50pt; height: 20pt; margin: auto auto 0 auto",
+                "Blog",
+            ),
+            ("width: 50pt", "End"),
+        ],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    let free = width - 150.0;
+    assert!(close(green.0, MARGIN + 50.0 + free / 2.0), "{green:?}");
+    assert!(close(blue.0, MARGIN + width - 50.0), "{blue:?}");
+    assert!(close(red.3, 100.0), "{red:?}");
+    assert!(
+        close(green.1, red.1 + 80.0) && close(green.3, 20.0),
+        "{red:?} {green:?}"
+    );
+}
+
+#[test]
 fn the_grid_template_and_grid_shorthands_are_read() {
     let width = 595.275_6 - 2.0 * MARGIN;
     let all = [RED, GREEN, BLUE];
