@@ -1,0 +1,3 @@
+# A pattern that needs the backtracking engine does not compile or throws an error.
+[regex]
+backtracking = "deny"

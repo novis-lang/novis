@@ -1,0 +1,23 @@
+<?nvs
+// Shows a server where every regular expression must run in linear time.
+
+class Patterns
+{
+    public static function after(string $prefix): string
+    {
+        return '(?<=' . $prefix . ')[0-9]+';
+    }
+}
+
+// This pattern has no lookaround and no backreference, so it runs as usual.
+// This prints "matched".
+echo Core\Regex::matches('order-42', '^order-[0-9]+$') ? 'matched' : 'no match', "\n";
+
+// This pattern is built while the program runs. It uses lookaround,
+// and `nvs.toml` sets `backtracking` to `deny`, so the call throws an error.
+try {
+    Core\Regex::compile(Patterns::after('order-'));
+    echo "compiled\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a request tries to turn the backtracking engine back on, and then builds
+// patterns that need it. Every change should fail, and every pattern should throw an error.
+
+final class Build
+{
+    public static function behind(string $look): string
+    {
+        return '(?<=' . $look . ')X';
+    }
+
+    public static function ahead(string $look): string
+    {
+        return 'X(?=' . $look . ')';
+    }
+
+    public static function repeated(string $word): string
+    {
+        return '^(' . $word . ')\\1$';
+    }
+}
+
+// 1. The request sets `regex.backtracking` to `allow` in several ways. Each call should return `false`.
+array<string> $values = [
+    'allow',
+    'ALLOW',
+    'allow ',
+    'warn',
+    "allow\u{0000}",
+    '',
+    Core\Str::repeat('allow', 100000),
+];
+uint $refused = 0;
+foreach ($values as string $value) {
+    if (!Core\Config::set('regex.backtracking', $value)) {
+        $refused = $refused + 1;
+    }
+}
+echo 'refused: ', $refused, ' of ', Core\Arr::count($values), "\n";
+
+// 2. The request builds patterns with lookaround and a backreference. Each call should throw an error, which is caught.
+array<string> $patterns = [
+    Build::behind('a'),
+    Build::ahead('b'),
+    Build::repeated('abc'),
+    Build::behind(Core\Str::repeat('a', 10000)),
+];
+uint $thrown = 0;
+foreach ($patterns as string $pattern) {
+    try {
+        Core\Regex::compile($pattern);
+    } catch (RuntimeError $error) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        Core\Regex::matches('abcabc', $pattern);
+    } catch (RuntimeError $error) {
+        $thrown = $thrown + 1;
+    }
+}
+echo 'thrown: ', $thrown, ' of ', Core\Arr::count($patterns) * 2, "\n";

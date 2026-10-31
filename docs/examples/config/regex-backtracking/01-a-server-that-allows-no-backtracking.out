@@ -1,0 +1,2 @@
+matched
+Core\Regex::compile(): `(?<=order-)[0-9]+` needs the backtracking regex engine. `[regex] backtracking` is `deny` in `nvs.toml`. Write the pattern without lookaround and without backreferences.
