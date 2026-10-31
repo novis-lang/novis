@@ -545,7 +545,7 @@ gives a `Formula` with `formulas: true`.
 
 **Does:** `fill` takes lists on any sheet, and the two copy faults the fragment names are fixed.
 
-- [ ] `rule:core-classes/spreadsheet-template-fill`: the one-sheet check goes, and the sheets with blocks stream in workbook order, each with its own shifts. `extensions/spreadsheet/src/template/mod.rs:646`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:795`
+- [x] `rule:core-classes/spreadsheet-template-fill`: the one-sheet check goes, and the sheets with blocks stream in workbook order, each with its own shifts. `extensions/spreadsheet/src/template/mod.rs:646`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:795`
 - [ ] A shared formula's `si` and `ref` per copy. `extensions/spreadsheet/src/template/mod.rs:265`, `extensions/spreadsheet/src/template/sheet.rs:95`
 - [ ] `extLst`'s `x14:conditionalFormatting` moves its `xm:sqref` and `xm:f`. `extensions/spreadsheet/src/template/mod.rs:332`, `extensions/spreadsheet/src/template/shift.rs:265`
 - [ ] The Novis half sends lists in block order, and an `Iterator` in `$data` is a list drained in batches. `extensions/spreadsheet/nvs/Template.nvs:57`, `extensions/spreadsheet/nvs/Template.nvs:78`, `extensions/spreadsheet/nvs/Template.nvs:141`

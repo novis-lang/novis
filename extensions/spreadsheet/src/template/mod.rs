@@ -6,18 +6,21 @@
 //! cell by address. [`Template::fill`] takes every value that is not in a list and the names of
 //! the lists, finds each list's block, and returns the lists in the order their blocks stand.
 //! A block is the rows a defined name of the list's name covers, or else the one row whose
-//! placeholders go through the list. Every block is on one sheet, and a block inside another,
-//! or a row with two lists, is a list inside a list and throws.
+//! placeholders go through the list. A block inside another, or a row with two lists, is a list
+//! inside a list and throws.
 //!
-//! **The block's sheet streams.** `fill` writes that sheet up to the first block, each
-//! [`Template::items`] writes its batch's copies, and [`Template::finish`] writes the rest of
-//! it, the rows below moved down, and then every other part. A part `finish` writes is copied as
-//! it is, or rewritten with each repeated block's [`shift::Shift`] applied to its references:
-//! the worksheets, the workbook's defined names, tables, drawings' anchors and charts. When a
-//! formula above a block names a row the block moves, the sheet cannot be written before the
-//! lists are known, so the items are kept and the sheet is written at `finish`: the memory of
-//! every item, still under the request's cap. An item whose copy would end past row 1,048,576
-//! throws naming its list, before any of its rows is written.
+//! **Each sheet with blocks streams, in workbook order.** The blocks are ordered by sheet and
+//! then by row, and each sheet with blocks is a [`Page`]. `fill` writes the first page's sheet up
+//! to its first block, each [`Template::items`] writes its batch's copies, and a batch for a
+//! later page first ends the pages before it: the rest of each sheet, its rows below moved down.
+//! [`Template::finish`] ends the last page and then writes every other part. A part `finish`
+//! writes is copied as it is, or rewritten with each repeated block's [`shift::Shift`] applied
+//! to its references: the worksheets, the workbook's defined names, tables, drawings' anchors and
+//! charts. A sheet cannot be written before its lists are known when a formula above a block
+//! names a row the block moves, or when a formula or part on it names a row a later page moves.
+//! Such a page keeps its items, records its moves once the fill passes it, and is written at
+//! `finish`: the memory of every item, still under the request's cap. An item whose copy would
+//! end past row 1,048,576 throws naming its list, before any of its rows is written.
 //!
 //! **What changes besides the cells.** `calcChain.xml` names cells by position, so it is
 //! dropped, and the workbook recalculates on open. A sheet with a block loses its `dimension`.
@@ -26,8 +29,8 @@
 //! (`rule:core-classes/spreadsheet-output-is-inert`).
 //!
 //! What it spends, per filling request: the zip directory, the shared strings, every worksheet's
-//! XML, one batch of items (or every item, when the sheet is kept), and one part at a time at
-//! `finish`.
+//! XML, one batch of items (and every item of each sheet that is kept), and one part at a time
+//! at `finish`.
 
 pub mod sheet;
 pub mod shift;
@@ -63,18 +66,32 @@ impl Block {
     }
 }
 
+/// A sheet with blocks: its blocks are `first..end` of the fill's, and its shifts start at
+/// `base` of the fill's once its first block closes.
+#[derive(Debug, Clone, Copy)]
+struct Page {
+    sheet: usize,
+    first: usize,
+    end: usize,
+    stream: bool,
+    base: usize,
+}
+
 /// A fill under way.
 struct Filling {
     values: BTreeMap<String, Option<Value>>,
+    /// Every block, in sheet order and then row order, and the sheets they are on.
     blocks: Vec<Block>,
-    /// The sheet the blocks are on, and whether it streams.
-    sheet: Option<usize>,
-    stream: bool,
-    /// The block being written, and the next template row to write.
+    pages: Vec<Page>,
+    /// The page the fill is on, the block being written, and the next template row to write.
+    page: usize,
     current: usize,
     next_row: usize,
+    /// Every closed block's move, each page's in a run from its `base`.
     shifts: Vec<Shift>,
+    /// The rows written to the sheet being written, and every sheet written so far.
     rows_out: u64,
+    rows: Vec<SheetRows>,
     archive: Archive,
 }
 
@@ -573,8 +590,9 @@ impl Template {
         Ok(())
     }
 
-    /// Finds each list's block.
-    fn blocks(&self, lists: &[String]) -> Result<(Option<usize>, Vec<Block>), Error> {
+    /// Finds each list's block, and returns each with the sheet it is on, in sheet order and
+    /// then row order.
+    fn blocks(&self, lists: &[String]) -> Result<Vec<(usize, Block)>, Error> {
         let mut blocks: Vec<(usize, Block)> = Vec::new();
         for list in lists {
             let prefix = format!("{list}.");
@@ -636,33 +654,20 @@ impl Template {
                 ));
             }
         }
-        blocks.sort_by_key(|(_, block)| block.top);
-        if let Some(((first, a), (other, b))) = blocks
-            .iter()
-            .zip(blocks.iter().skip(1))
-            .find(|((first, _), (other, _))| first != other)
-        {
-            return Err(invalid(format!(
-                "The lists `{}` and `{}` are on the sheets `{}` and `{}`. A template repeats rows on one sheet only.",
-                a.list, b.list, self.sheets[*first].name, self.sheets[*other].name
-            )));
-        }
+        blocks.sort_by_key(|(sheet, block)| (*sheet, block.top));
         for pair in blocks.windows(2) {
-            if pair[1].1.top <= pair[0].1.bottom {
+            if pair[0].0 == pair[1].0 && pair[1].1.top <= pair[0].1.bottom {
                 return Err(invalid(format!(
                     "The list `{}` is inside the list `{}`. A template cannot repeat a list inside a list.",
                     pair[1].1.list, pair[0].1.list
                 )));
             }
         }
-        let sheet = blocks.first().map(|(sheet, _)| *sheet);
-        let blocks: Vec<Block> = blocks.into_iter().map(|(_, block)| block).collect();
-        if let Some(index) = sheet {
-            for row in &self.sheets[index].rows {
-                let Some(block) = blocks
-                    .iter()
-                    .find(|block| (block.top..=block.bottom).contains(&row.number))
-                else {
+        for (index, sheet) in self.sheets.iter().enumerate() {
+            for row in &sheet.rows {
+                let Some((_, block)) = blocks.iter().find(|(on, block)| {
+                    *on == index && (block.top..=block.bottom).contains(&row.number)
+                }) else {
                     continue;
                 };
                 for cell in &row.cells {
@@ -685,7 +690,22 @@ impl Template {
                 }
             }
         }
-        Ok((sheet, blocks))
+        Ok(blocks)
+    }
+
+    /// Whether a formula or a part of `sheet` names a row that a block of `later` moves, so the
+    /// sheet waits until those blocks' items are known.
+    fn refers_later(sheet: &Sheet, later: &[Shift]) -> Result<bool, Error> {
+        if later.is_empty() {
+            return Ok(false);
+        }
+        let formulas = sheet.rows.iter().flat_map(|row| &row.cells).any(|cell| {
+            cell.formula
+                .as_ref()
+                .is_some_and(|(_, formula)| shift::apply(formula, &sheet.name, later) != *formula)
+        });
+        let rest = &sheet.xml[sheet.tail_at..];
+        Ok(formulas || rewrite_part(rest, &sheet.name, later)? != rest)
     }
 
     /// Whether a formula above the last block names a row the first block moves, so the sheet
@@ -725,28 +745,53 @@ impl Template {
         if !matches!(self.state, State::Open) {
             return Err(invalid("This template is already filled.".to_owned()));
         }
-        let (sheet, blocks) = self.blocks(lists)?;
-        let stream = sheet.is_some_and(|index| !Self::must_hold(&self.sheets[index], &blocks));
+        let placed = self.blocks(lists)?;
+        let mut pages: Vec<Page> = Vec::new();
+        for (at, (sheet, _)) in placed.iter().enumerate() {
+            match pages.last_mut() {
+                Some(page) if page.sheet == *sheet => page.end = at + 1,
+                _ => pages.push(Page {
+                    sheet: *sheet,
+                    first: at,
+                    end: at + 1,
+                    stream: true,
+                    base: 0,
+                }),
+            }
+        }
+        let blocks: Vec<Block> = placed.into_iter().map(|(_, block)| block).collect();
+        // A probe move at each page's first block finds a sheet that names rows a later page
+        // moves.
+        let probes: Vec<Shift> = pages
+            .iter()
+            .map(|page| Shift {
+                sheet: self.sheets[page.sheet].name.clone(),
+                top: blocks[page.first].top,
+                bottom: blocks[page.first].top,
+                delta: 1,
+                copy: None,
+            })
+            .collect();
+        for (at, page) in pages.iter_mut().enumerate() {
+            let sheet = &self.sheets[page.sheet];
+            page.stream = !Self::must_hold(sheet, &blocks[page.first..page.end])
+                && !Self::refers_later(sheet, &probes[at + 1..])?;
+        }
         let order = blocks.iter().map(|block| block.list.clone()).collect();
         let mut filling = Box::new(Filling {
             values: values.into_iter().collect(),
             blocks,
-            sheet,
-            stream,
+            pages,
+            page: 0,
             current: 0,
             next_row: 0,
             shifts: Vec::new(),
             rows_out: 0,
+            rows: Vec::new(),
             archive: Archive::new(),
         });
-        if stream && let Some(index) = sheet {
-            let sheet = &self.sheets[index];
-            filling.archive.begin(&sheet.path)?;
-            let mut out = String::new();
-            head(&mut out, sheet, true);
-            let top = filling.blocks[0].top;
-            rows_until(&mut out, sheet, &mut filling, top)?;
-            filling.archive.write(out.as_bytes())?;
+        if !filling.pages.is_empty() {
+            enter(&self.sheets, &mut filling, 0)?;
         }
         let data = filling.archive.take();
         self.state = State::Filling(filling);
@@ -770,28 +815,33 @@ impl Template {
                 filling.blocks[filling.current].list
             )));
         }
-        let Some(index) = filling.sheet else {
-            return Ok(Vec::new());
-        };
-        let sheet = &self.sheets[index];
+        let sheets = &self.sheets;
+        while filling.pages[filling.page].end <= at {
+            leave(sheets, filling)?;
+            filling.page += 1;
+            enter(sheets, filling, filling.page)?;
+        }
+        let page = filling.pages[filling.page];
+        let sheet = &sheets[page.sheet];
         filling.blocks[at].items += items.len() as u32;
-        if !filling.stream {
+        if !page.stream {
             filling.current = at;
             filling.blocks[at].held.extend(items);
-            return Ok(Vec::new());
+            return Ok(filling.archive.take());
         }
         let mut out = String::new();
         while filling.current < at {
-            close_block(&mut out, sheet, filling)?;
+            close_block(&mut out, sheet, filling, page)?;
         }
         for item in &items {
-            item_rows(&mut out, sheet, filling, at, item)?;
+            item_rows(&mut out, sheet, filling, page, at, item)?;
         }
         filling.archive.write(out.as_bytes())?;
         Ok(filling.archive.take())
     }
 
-    /// Writes the rest of the block's sheet and every other part, and returns the last bytes.
+    /// Writes the rest of every sheet with blocks and every other part, and returns the last
+    /// bytes.
     pub fn finish(&mut self, source: &dyn Source) -> Result<Finished, Error> {
         let State::Filling(mut filling) = std::mem::replace(&mut self.state, State::Finished)
         else {
@@ -799,50 +849,21 @@ impl Template {
                 "A template is finished once, after `fill`.".to_owned(),
             ));
         };
-        let mut rows = Vec::new();
-        if let Some(index) = filling.sheet {
-            let sheet = &self.sheets[index];
-            let mut out = String::new();
-            if !filling.stream {
-                filling.archive.begin(&sheet.path)?;
-                head(&mut out, sheet, true);
-                // Every block's move is known, so the sheet is written with all of them.
-                let mut moved = 0i64;
-                for block in &filling.blocks {
-                    let delta = i64::from(block.items * block.height()) - i64::from(block.height());
-                    filling.shifts.push(Shift {
-                        sheet: sheet.name.clone(),
-                        top: (i64::from(block.top) + moved) as u32,
-                        bottom: (i64::from(block.bottom) + moved) as u32,
-                        delta,
-                        copy: None,
-                    });
-                    moved += delta;
+        if !filling.pages.is_empty() {
+            loop {
+                leave(&self.sheets, &mut filling)?;
+                if filling.page + 1 == filling.pages.len() {
+                    break;
                 }
-                for at in 0..filling.blocks.len() {
-                    let top = filling.blocks[at].top;
-                    rows_until(&mut out, sheet, &mut filling, top)?;
-                    let held = std::mem::take(&mut filling.blocks[at].held);
-                    for item in &held {
-                        item_rows(&mut out, sheet, &mut filling, at, item)?;
-                    }
-                    filling.next_row = sheet
-                        .rows
-                        .partition_point(|row| row.number <= filling.blocks[at].bottom);
-                }
-                filling.current = filling.blocks.len();
+                filling.page += 1;
+                let at = filling.page;
+                enter(&self.sheets, &mut filling, at)?;
             }
-            while filling.current < filling.blocks.len() {
-                close_block(&mut out, sheet, &mut filling)?;
+        }
+        for page in filling.pages.clone() {
+            if !page.stream {
+                write_held(&self.sheets, &mut filling, page)?;
             }
-            rows_until(&mut out, sheet, &mut filling, u32::MAX)?;
-            tail(&mut out, sheet, &filling.shifts)?;
-            filling.archive.write(out.as_bytes())?;
-            filling.archive.end()?;
-            rows.push(SheetRows {
-                name: sheet.name.clone(),
-                rows: filling.rows_out,
-            });
         }
         let owners = self.owners(source)?;
         let entries = self.directory.entries().to_vec();
@@ -850,8 +871,9 @@ impl Template {
             let name = entry.name.as_str();
             if dropped(name)
                 || filling
-                    .sheet
-                    .is_some_and(|index| self.sheets[index].path.eq_ignore_ascii_case(name))
+                    .pages
+                    .iter()
+                    .any(|page| self.sheets[page.sheet].path.eq_ignore_ascii_case(name))
             {
                 continue;
             }
@@ -869,7 +891,7 @@ impl Template {
                 rows_until(&mut out, sheet, &mut filling, u32::MAX)?;
                 tail(&mut out, sheet, &filling.shifts)?;
                 filling.archive.write(out.as_bytes())?;
-                rows.push(SheetRows {
+                filling.rows.push(SheetRows {
                     name: sheet.name.clone(),
                     rows: filling.rows_out,
                 });
@@ -889,7 +911,7 @@ impl Template {
         let size = filling.archive.size();
         Ok(Finished {
             data: filling.archive.take(),
-            rows,
+            rows: std::mem::take(&mut filling.rows),
             size,
         })
     }
@@ -993,6 +1015,95 @@ fn head(out: &mut String, sheet: &Sheet, blocks: bool) {
     }
 }
 
+/// Starts the page `at`: a page that streams writes its sheet up to its first block.
+fn enter(sheets: &[Sheet], filling: &mut Filling, at: usize) -> Result<(), Error> {
+    let page = filling.pages[at];
+    filling.current = page.first;
+    if !page.stream {
+        return Ok(());
+    }
+    filling.pages[at].base = filling.shifts.len();
+    let sheet = &sheets[page.sheet];
+    filling.archive.begin(&sheet.path)?;
+    filling.next_row = 0;
+    filling.rows_out = 0;
+    let mut out = String::new();
+    head(&mut out, sheet, true);
+    let top = filling.blocks[page.first].top;
+    rows_until(&mut out, sheet, filling, top)?;
+    filling.archive.write(out.as_bytes())?;
+    Ok(())
+}
+
+/// Ends the page the fill is on, once every item of its lists is known. A page that streams
+/// writes the rest of its sheet. A page that waits records its blocks' moves, and is written at
+/// `finish`.
+fn leave(sheets: &[Sheet], filling: &mut Filling) -> Result<(), Error> {
+    let page = filling.pages[filling.page];
+    let sheet = &sheets[page.sheet];
+    if !page.stream {
+        filling.pages[filling.page].base = filling.shifts.len();
+        let mut moved = 0i64;
+        for at in page.first..page.end {
+            let block = &filling.blocks[at];
+            let delta = i64::from(block.items * block.height()) - i64::from(block.height());
+            let shift = Shift {
+                sheet: sheet.name.clone(),
+                top: (i64::from(block.top) + moved) as u32,
+                bottom: (i64::from(block.bottom) + moved) as u32,
+                delta,
+                copy: None,
+            };
+            filling.shifts.push(shift);
+            moved += delta;
+        }
+        filling.current = page.end;
+        return Ok(());
+    }
+    let mut out = String::new();
+    while filling.current < page.end {
+        close_block(&mut out, sheet, filling, page)?;
+    }
+    rows_until(&mut out, sheet, filling, u32::MAX)?;
+    tail(&mut out, sheet, &filling.shifts)?;
+    filling.archive.write(out.as_bytes())?;
+    filling.archive.end()?;
+    filling.rows.push(SheetRows {
+        name: sheet.name.clone(),
+        rows: filling.rows_out,
+    });
+    Ok(())
+}
+
+/// Writes a page that waited, with every block's move known.
+fn write_held(sheets: &[Sheet], filling: &mut Filling, page: Page) -> Result<(), Error> {
+    let sheet = &sheets[page.sheet];
+    filling.archive.begin(&sheet.path)?;
+    filling.next_row = 0;
+    filling.rows_out = 0;
+    let mut out = String::new();
+    head(&mut out, sheet, true);
+    for at in page.first..page.end {
+        let top = filling.blocks[at].top;
+        rows_until(&mut out, sheet, filling, top)?;
+        let held = std::mem::take(&mut filling.blocks[at].held);
+        for item in &held {
+            item_rows(&mut out, sheet, filling, page, at, item)?;
+        }
+        let bottom = filling.blocks[at].bottom;
+        filling.next_row = sheet.rows.partition_point(|row| row.number <= bottom);
+    }
+    rows_until(&mut out, sheet, filling, u32::MAX)?;
+    tail(&mut out, sheet, &filling.shifts)?;
+    filling.archive.write(out.as_bytes())?;
+    filling.archive.end()?;
+    filling.rows.push(SheetRows {
+        name: sheet.name.clone(),
+        rows: filling.rows_out,
+    });
+    Ok(())
+}
+
 /// Appends `</sheetData>` and the rest of the sheet, moved by `shifts`.
 fn tail(out: &mut String, sheet: &Sheet, shifts: &[Shift]) -> Result<(), Error> {
     let mut rest = &sheet.xml[sheet.tail_at..];
@@ -1036,9 +1147,17 @@ fn rows_until(
 
 /// Ends the block being written: its move is known now, and the rows up to the next block are
 /// written with it.
-fn close_block(out: &mut String, sheet: &Sheet, filling: &mut Filling) -> Result<(), Error> {
+fn close_block(
+    out: &mut String,
+    sheet: &Sheet,
+    filling: &mut Filling,
+    page: Page,
+) -> Result<(), Error> {
     let block = &filling.blocks[filling.current];
-    let moved = filling.shifts.iter().map(|shift| shift.delta).sum::<i64>();
+    let moved = filling.shifts[page.base..]
+        .iter()
+        .map(|shift| shift.delta)
+        .sum::<i64>();
     let delta = i64::from(block.items * block.height()) - i64::from(block.height());
     filling.shifts.push(Shift {
         sheet: sheet.name.clone(),
@@ -1050,10 +1169,11 @@ fn close_block(out: &mut String, sheet: &Sheet, filling: &mut Filling) -> Result
     let bottom = block.bottom;
     filling.next_row = sheet.rows.partition_point(|row| row.number <= bottom);
     filling.current += 1;
-    let until = filling
-        .blocks
-        .get(filling.current)
-        .map_or(u32::MAX, |block| block.top);
+    let until = if filling.current < page.end {
+        filling.blocks[filling.current].top
+    } else {
+        u32::MAX
+    };
     if until != u32::MAX {
         rows_until(out, sheet, filling, until)?;
     }
@@ -1065,16 +1185,17 @@ fn item_rows(
     out: &mut String,
     sheet: &Sheet,
     filling: &mut Filling,
+    page: Page,
     at: usize,
     item: &[Placeholder],
 ) -> Result<(), Error> {
     let block = &filling.blocks[at];
     let height = block.height();
     let copy = block.written * height;
-    let moved: i64 = filling
-        .shifts
+    // The block's own move is `filling.shifts[own]`, once the block is closed.
+    let own = page.base + (at - page.first);
+    let moved: i64 = filling.shifts[page.base..own.min(filling.shifts.len())]
         .iter()
-        .take(at)
         .map(|shift| shift.delta)
         .sum();
     let top = (i64::from(block.top) + moved) as u32;
@@ -1086,17 +1207,17 @@ fn item_rows(
             block.written + 1
         )));
     }
-    let mut shifts: Vec<Shift> = filling.shifts.iter().take(at).cloned().collect();
-    let mut own = filling.shifts.get(at).cloned().unwrap_or(Shift {
+    let mut shifts: Vec<Shift> = filling.shifts.iter().take(own).cloned().collect();
+    let mut moving = filling.shifts.get(own).cloned().unwrap_or(Shift {
         sheet: sheet.name.clone(),
         top,
         bottom: top + height - 1,
         delta: 0,
         copy: None,
     });
-    own.copy = Some(copy);
-    shifts.push(own);
-    shifts.extend(filling.shifts.iter().skip(at + 1).cloned());
+    moving.copy = Some(copy);
+    shifts.push(moving);
+    shifts.extend(filling.shifts.iter().skip(own + 1).cloned());
     let prefix = format!("{}.", block.list);
     let fields: BTreeMap<&str, Option<&Value>> = item
         .iter()

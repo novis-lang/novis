@@ -5276,6 +5276,13 @@ repeats as one when a defined name equal to the list's name covers it, so an ite
 **A list inside a list throws**, naming both. An item whose copy would end past row 1,048,576 throws
 `LogicError` naming the list, before any of its rows is written.
 
+**Lists on several sheets.** Each sheet may repeat its own lists, and the sheets with lists are
+written in workbook order, each with its own shifts. The lists are filled in the order their blocks
+stand: sheet order, then row. A block's shift moves every reference to its rows, from its own sheet
+and from every other sheet and part. A sheet waits for its items, and is written when the fill
+finishes, when a formula above one of its blocks names a row that block moves, or when a formula or
+part on it names a row a list on a later sheet moves. It then costs the memory of its items.
+
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
 autofilter, data validation, conditional formats, tables, drawing anchors and chart ranges. A range
@@ -5305,7 +5312,7 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **On disk.** `Template::open`, `set` and `fill`, and an `Export` from `fill` to all four targets
 (`extensions/spreadsheet/nvs/Template.nvs`, `extensions/spreadsheet/src/template/`).
 
-**Not shipped.** Blocks on more than one sheet: every block is on one sheet, or `fill` throws. A
+**Not shipped.** A
 shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
 `si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
 `Iterator` in `$data` is not a list (gap:nvs-spreadsheet/spreadsheet-template-fill-limits).

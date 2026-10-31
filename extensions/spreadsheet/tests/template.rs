@@ -61,9 +61,20 @@ fn sheet(rows: &str) -> String {
     )
 }
 
+/// The sheet `Summary`'s rows: a formula over the invoice's sum, and a number.
+const SUMMARY: &str = concat!(
+    r#"<row r="1"><c r="B1"><f>Invoice!D6</f><v>0</v></c></row>"#,
+    r#"<row r="2"><c r="B2"><v>10</v></c></row>"#,
+);
+
 /// A template with `rows` on the sheet `Invoice`, the defined names `names`, and a VBA project
 /// when `macros` is true.
 fn template(rows: &str, names: &str, macros: bool) -> Vec<u8> {
+    template_with(rows, SUMMARY, names, macros)
+}
+
+/// A template as [`template`] makes it, with `summary` as the rows of the sheet `Summary`.
+fn template_with(rows: &str, summary: &str, names: &str, macros: bool) -> Vec<u8> {
     let main = if macros {
         "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
     } else {
@@ -96,7 +107,7 @@ fn template(rows: &str, names: &str, macros: bool) -> Vec<u8> {
         )),
         ("xl/worksheets/sheet1.xml", sheet(rows)),
         ("xl/worksheets/_rels/sheet1.xml.rels", r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>"#.to_owned()),
-        ("xl/worksheets/sheet2.xml", r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="B1"><f>Invoice!D6</f><v>0</v></c></row><row r="2"><c r="B2"><v>10</v></c></row></sheetData></worksheet>"#.to_owned()),
+        ("xl/worksheets/sheet2.xml", format!(r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>{summary}</sheetData></worksheet>"#)),
         ("xl/sharedStrings.xml", format!(r#"<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">{strings}</sst>"#)),
         ("xl/styles.xml", r#"<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="4"><xf/><xf/><xf/><xf/></cellXfs></styleSheet>"#.to_owned()),
         ("xl/tables/table1.xml", r#"<?xml version="1.0" encoding="UTF-8"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="Items" displayName="Items" ref="A4:D5"><autoFilter ref="A4:D5"/><tableColumns count="4"><tableColumn id="1" name="Item"/><tableColumn id="2" name="Qty"/><tableColumn id="3" name="Price"/><tableColumn id="4" name="Total"/></tableColumns></table>"#.to_owned()),
@@ -429,6 +440,69 @@ fn rows_below_a_block_move_with_every_part_that_points_at_them() {
         "{drawing}"
     );
     assert!(!parts.contains_key("xl/calcChain.xml"));
+}
+
+#[test]
+fn lists_on_two_sheets_each_repeat_and_shift_every_reference_to_their_sheet() {
+    // `Summary` repeats row 3 for `lines`, below the formula over the invoice's sum.
+    let summary = concat!(
+        r#"<row r="1"><c r="B1"><f>Invoice!D6</f><v>0</v></c></row>"#,
+        r#"<row r="2"><c r="B2"><v>10</v></c></row>"#,
+        r#"<row r="3"><c r="A3" t="inlineStr"><is><t>{{lines.label}}</t></is></c><c r="B3" t="inlineStr"><is><t>{{lines.amount}}</t></is></c></row>"#,
+        r#"<row r="4"><c r="B4"><f>SUM(B3:B3)</f><v>0</v></c></row>"#,
+    );
+    let line = |at: i64| {
+        values(&[
+            ("label", text(&format!("Line {at}"))),
+            ("amount", Some(Value::Integer(at))),
+        ])
+    };
+    // The first run has the invoice name only a `Summary` row above its block, so the invoice
+    // streams. The second adds a row naming the sum below it, so the invoice waits for `lines`.
+    let names_the_sum = r#"<row r="8"><c r="A8"><f>Summary!B4</f><v>0</v></c></row>"#;
+    for invoice_rows in [INVOICE.to_owned(), format!("{INVOICE}{names_the_sum}")] {
+        let source = template_with(&invoice_rows, summary, "", false);
+        let template = Bytes(source.clone());
+        let mut filled = Template::open(&template, Bound::default()).unwrap();
+        let lists = ["lines".to_owned(), "items".to_owned()];
+        let (_, order) = filled.fill(header(), &lists).unwrap();
+        assert_eq!(order, ["items", "lines"]);
+        let out = fill(
+            &source,
+            &[],
+            header(),
+            &[
+                ("lines", (1..=2).map(line).collect()),
+                ("items", (1..=3).map(item).collect()),
+            ],
+        )
+        .unwrap();
+        let parts = parts(&out);
+        let invoice = &parts["xl/worksheets/sheet1.xml"];
+        assert!(invoice.contains("<f>SUM(D5:D7)</f>"), "{invoice}");
+        assert!(
+            invoice.contains(r#"<c r="A9"><f>D8+Summary!B2</f>"#),
+            "{invoice}"
+        );
+        if invoice_rows.len() > INVOICE.len() {
+            assert!(
+                invoice.contains(r#"<c r="A10"><f>Summary!B5</f>"#),
+                "{invoice}"
+            );
+        }
+        let summary = &parts["xl/worksheets/sheet2.xml"];
+        assert!(summary.contains("<f>Invoice!D8</f>"), "{summary}");
+        assert!(summary.contains(r#"<c r="A4" t="inlineStr">"#), "{summary}");
+        assert!(summary.contains("Line 2"), "{summary}");
+        assert!(
+            summary.contains(r#"<c r="B5"><f>SUM(B3:B4)</f>"#),
+            "{summary}"
+        );
+        assert!(
+            parts["xl/workbook.xml"]
+                .contains(r#"localSheetId="0">Invoice!$A$1:$D$10</definedName>"#)
+        );
+    }
 }
 
 #[test]
