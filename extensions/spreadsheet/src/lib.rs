@@ -40,10 +40,9 @@
 //! values bullet is gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets from
 //! number formats on are gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
-//! - Template values (`template`): a NUL in a filled value is written raw. A flat key
-//!   `'customer.name'` and a nested `customer.name` collide. `set('A1', …)` with no sheet name
-//!   writes to the first sheet. A `Date` into a cell with no date format is written as a bare
-//!   serial. When a missing placeholder throws depends on whether the sheet has a list row.
+//! - Template values (`template`): a flat key `'customer.name'` and a nested `customer.name`
+//!   collide. A `Date` into a cell with no date format is written as a bare serial. When a
+//!   missing placeholder throws depends on whether the sheet has a list row.
 //!   The `templateFill` export with one list name twice names the wrong problem, and the
 //!   `templateItems` export with an unknown list writes nothing.
 //! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as

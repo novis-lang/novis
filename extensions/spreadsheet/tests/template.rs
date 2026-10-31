@@ -554,6 +554,30 @@ fn an_x14_conditional_format_moves_with_its_rows() {
 }
 
 #[test]
+fn a_nul_in_a_filled_value_is_escaped_as_every_written_cell_is() {
+    // `note` fills B2 with a NUL, text that looks like an escape, and a carriage return.
+    let data = header()
+        .into_iter()
+        .map(|(path, value)| match path.as_str() {
+            "note" => (path, text("a\0b_x0041_\r")),
+            _ => (path, value),
+        })
+        .collect();
+    let out = fill(
+        &template(INVOICE, "", false),
+        &[],
+        data,
+        &[("items", vec![item(1)])],
+    )
+    .unwrap();
+    let sheet = &parts(&out)["xl/worksheets/sheet1.xml"];
+    assert!(
+        sheet.contains(r#"<c r="B2" t="inlineStr"><is><t xml:space="preserve">a_x0000_b_x005F_x0041__x000D_</t></is></c>"#),
+        "{sheet}"
+    );
+}
+
+#[test]
 fn a_range_over_the_template_row_grows_with_the_block() {
     let hundred = invoice(100);
     assert!(hundred["xl/worksheets/sheet1.xml"].contains("<f>SUM(D5:D104)</f>"));

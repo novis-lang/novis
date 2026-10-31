@@ -5297,6 +5297,8 @@ that covers the template row grows with the block, so `SUM(C5:C5)` over a block 
 columns, and references to other sheets — and leaves every other character of formula text as it was.
 
 **`->set('Summary!B2', $value)`** fills one cell by address, by the same write table, before `fill`.
+An address with no sheet name, `set('B2', …)`, is on the first sheet. A filled value's text is
+escaped as every written cell's is, so a NUL is written `_x0000_`.
 `fill` returns an `Export`, so the target is the last call: `->download($name)`, `->save($path)`,
 `->to($file)` or `->bytes()`. The source is a `Core\IO\File` or `bytes`, read as
 [`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream) reads one. **The source is never `tainted`:** the
