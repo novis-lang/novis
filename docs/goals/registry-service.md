@@ -26,7 +26,7 @@ stages:
     context: [apps/registry/src/PackagePage.nvs, docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md, docs/rules/packaging/an-owner-may-unlist.md, docs/reference/tools/35-packages.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: fetch-and-extension-package-tests
@@ -301,7 +301,10 @@ one query and one template, as the package page is.
   new authenticator, which then signs in alone.
 - A step ends on a page condition, polled, with a 60-second bound that names the status line and the
   server's output when a step is stuck.
-- CI's `browser` job has no `nvs` build yet, so stage 6 adds the suite to it with a build step.
+- CI's `browser` job builds `nvs` with `cargo build --bin nvs` after its Bun-only suites, reading
+  the Linux `test` leg's debug cache without saving one, and runs the suite with `NVS_BIN` and
+  `NV_BROWSER=1`. Its limit is 45 minutes, for a cold cache. The `browser` lane in
+  `tools/nv/cmd/ci-changes.ts` covers `apps/registry/`, `registry.rs`, `package/` and the suite.
 
 **Trade-offs.** Security: the fetch refusal and the extension check close two paths into a host,
 and every page action keeps the passkey check its route already has. Latency: nothing on a
@@ -406,44 +409,28 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 5 is done. `PackagePage` takes the viewing account (`$viewer`, from `Session::account()` in
-`App::packagePage` and `App::versionPage`). An owner sees an Unlist or List again button on each
-version, the forms for every version, retract, advisory and repository move (`PackagePage::manage`),
-and on a waiting version Release now or the stable-API form (`PackagePage::confirmation`).
-`registry.js` has a step for each. `PackagePageTest` has two new tests, and all 8 of its tests pass.
-All 12 tests of `registry-browser-tests` pass with `NV_BROWSER=1`. The suite's `jobs/release.nvs`
-inserts a pending release with an API file the test writes. It uses no log key: `hosting.json`'s
-`logKey` stays `""`, so each owner action's flush answers `sent: false`, and the page state comes
-from the database alone.
+Every stage is done, and the goal is reached. `looper verify` is green. The first run found nine
+`tsc` errors in `tools/nv/test/registry-browser.test.ts` and three registry files out of formatter
+layout (`AccountPageTest.nvs`, `AdvisoriesTest.nvs`, `Index.nvs`). Both are fixed. `bun nv verify
+--doc`, `bun nv owners --closes registry-service` and `bun nv ci --check` pass. `ci --check` first
+found `website/public/llms-full.txt` stale, and `bun nv render --website` rewrote it. All 12 tests
+of the browser suite pass with `NV_BROWSER=1`. CI's `browser` job now builds `nvs` and runs the
+suite (standing decision *The browser suite as built*).
 
-No packaging fragment has a Not-on-disk section. `gap:nvs-cli/socket-activation` (owned by
-`runtime-leftovers`) is now cited from `crates/nvs-cli/src/service.rs`'s module doc, the module its
-record names, and `the-generated-unit-is-hardened` states the present instead.
-`release-confirmation-pages.json` is deleted. The `DEFAULT_KEY` sentence was already a present-tense
-fact (`the-registry-keeps-an-append-only-log.md:98`). The website reference section has *Your account
-and your packages*, and `bun nv proofs --id 'tools:packages/the-registry-website'` prints
-`complete.`. `bun nv owners --closes registry-service` passes.
-
-The sweep's `env-secret-proofs` red is stale: no check of that name exists. It came from a retired
-goal.
+The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` answers
+`no check matches`. It came from a retired goal.
 
 ### Next
 
-Stage 6: start `bun nv affected --run` (or `looper verify`) with `run_in_background`, and end the
-turn to wait. Then fix every failure in one pass and run it once more. Then the goal-end gates
-from AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes registry-service`,
-`bun nv ci --check`. CI's `browser` job has no `nvs` build yet: add a build step and the suite to it
-(standing decision *The browser suite as built*), `.github/workflows/`.
-
-No test is expected to go red. `crates/nvs-cli/tests/registry_build.rs` reads the website pages
-and may see the new `$viewer` argument only through `App`, which passes it.
+Nothing: the driver runs the acceptance checks and retires the goal. The next goal on the chain is
+`runtime-leftovers`. No test is expected to go red.
 
 ### Backlog
