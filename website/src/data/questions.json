@@ -9469,12 +9469,13 @@
   },
   "/reference/core/novis-pdf-page/string/": {
     "feature": "Novis\\Pdf\\Page::string",
-    "hash": "1c4b039940da5fa1",
+    "hash": "92587a2590176de7",
     "questions": [
       "Read a CSS string-set value in a header",
       "Customer name on every page of a batch of invoices",
       "Why is the chapter value null on the first pages?",
-      "Current section title from the last h2 heading"
+      "Current section title from the last h2 heading",
+      "Why does string return null when the name has a different case?"
     ]
   },
   "/reference/core/novis-pdf-pages/": {
@@ -9554,12 +9555,12 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "fbd45767814410ef",
+    "hash": "d5c0db8ee2d08cc1",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
       "Why is text from two columns mixed?",
-      "Search the text of every page of a PDF",
+      "Read the text of every page without reading the PDF file again",
       "What happens when I read a PDF page past the end?",
       "Which limit stops a PDF page that unpacks too large?"
     ]
