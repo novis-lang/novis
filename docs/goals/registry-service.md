@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/ext.rs, docs/rules/packaging/a-package-is-its-digest.md, docs/rules/packaging/an-extension-package-carries-two-payloads.md]
   - id: 2
     title: "the registry logs an advisory against a range of versions, and a withhold purges the CDN"
-    status: open
+    status: done
     context: [apps/registry/src/App.nvs, apps/registry/src/Releases.nvs, crates/nvs-cli/src/package/entry.rs, docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md, docs/rules/packaging/the-operator-only-withholds.md]
   - id: 3
     title: "nvs pkg advise sends an advisory, and nvs pkg audit reports it"
@@ -260,6 +260,12 @@ its `about.md` and reference section, an example where the item says so, and
 `bun nv proofs --id` still prints `complete.` for it. The withhold purge is a setting of the registry
 app, not a feature, and owes no proof.
 
+**The first page.** `bun nv site --check apps` needs `GET /` to answer `200`, and the registry had
+no `/`. `/` is `HomePage::page` (`apps/registry/src/HomePage.nvs`): a search form and the matches
+of `Search::find` in `Sort::Default`, through `PackagePage::layout`, so it gets stage 4's CSP and
+script with every other page. Home: `rule:packaging/search-sorts-by-the-readers-choice`. It is
+one query and one template, as the package page is.
+
 **Trade-offs.** Security: the fetch refusal and the extension check close two paths into a host,
 and every page action keeps the passkey check its route already has. Latency: nothing on a
 program's request path changes. A registry page is one query and one template, as now. Memory:
@@ -303,10 +309,10 @@ feed and the package page list it. A withhold also asks the CDN to drop the arch
 - [x] The package page and the version page show each advisory with its id, range and summary. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/PackagePage.nvs:71`
 - [x] Registry tests: a token's advisory is pending, a passkey's is at once, a malformed range is `422`, and the owners get one notice. `apps/registry/src/AdvisoriesTest.nvs:1`
 - [x] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:45` and `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:46` state the advisory, its range and its route. The Not-on-disk sections' advisory parts go. Delete their gap records.
-- [ ] `purge` in `Site`, and the withhold job's `POST` per archive URL after `Stores::remove`. `rule:packaging/the-operator-only-withholds`, `rule:packaging/registry-hosting-is-configuration`. `apps/registry/src/Site.nvs:64`, `apps/registry/jobs/withhold.nvs:1`, `apps/registry/src/Stores.nvs:39`
-- [ ] Registry tests for the purge through `Test::answerHttp`: one `POST` per host, none without `purge`, and a failure fails the job. `apps/registry/src/StoresTest.nvs:1`
-- [ ] The README's settings table names `purge`, and `docs/rules/packaging/the-operator-only-withholds.md:36` loses its Not-on-disk section. Delete its gap record. `apps/registry/README.md:16`
-- [ ] The `registry-app-tests` check passes: `bun nv site --check apps`. `tools/nv/cmd/site.ts:1901`
+- [x] `purge` in `Site`, and the withhold job's `POST` per archive URL after `Stores::remove`. `rule:packaging/the-operator-only-withholds`, `rule:packaging/registry-hosting-is-configuration`. `apps/registry/src/Site.nvs:64`, `apps/registry/jobs/withhold.nvs:1`, `apps/registry/src/Stores.nvs:39`
+- [x] Registry tests for the purge through `Test::answerHttp`: one `POST` per host, none without `purge`, and a failure fails the job. `apps/registry/src/StoresTest.nvs:1`
+- [x] The README's settings table names `purge`, and `docs/rules/packaging/the-operator-only-withholds.md:36` loses its Not-on-disk section. Delete its gap record. `apps/registry/README.md:16`
+- [x] The `registry-app-tests` check passes: `bun nv site --check apps`. `tools/nv/cmd/site.ts:1901`
 
 ### 3. nvs pkg advise sends an advisory, and nvs pkg audit reports it
 
@@ -371,29 +377,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2's advisory half is done. The route `App::advise` (`apps/registry/src/App.nvs`, after
-`retract`) takes `AdvisoryRequest` `{versions, summary}`, checks the range with
-`apps/registry/src/VersionRange.nvs` (the Rust `Range`'s rules; `422` otherwise), and calls
-`Releases::advise`, which saves the `advisories` row, `Events::advisory`'s waiting entry and the
-notice in one transaction. A token's entry has `due` seven days later and `Index::append` skips it
-until then (standing decision *An advisory*). The package page lists every advisory and a version's
-page the ones whose range has it. `AdvisoriesTest` (4 new) and
-`PackagePageTest::anAdvisoryIsOnThePagesOfTheVersionsItCovers` pass, run once by name, and
-`nvs check` is clean. The rules state the route and the wait; the gap record is now
-`nvs-cli/audit-reports-an-advisory` (audit and `nvs pkg advise`, stage 3).
+Stage 2 is done. The withhold purge is `apps/registry/src/Purge.nvs` (`Purge::of` reads the
+optional `purge` of `hosting.json`, `send` posts through `Core\Http::allowUrl`), `Site::$purge`
+(last constructor parameter, default `null`), and `Stores::purge`, which the withhold job calls after
+`remove`. The three new `StoresTest` purge tests pass, run once by name. The README and
+`rule:packaging/the-operator-only-withholds` state it, and its gap record is deleted.
 
-`VersionRange::contains` exists in Novis; the Rust `Range` still has none until stage 3's audit.
-The sweep's `env-secret-proofs` red is stale: its log does not exist and nothing in the tree names it.
+`bun nv site --check apps` was red because the registry had no `GET /`. `/` is now
+`HomePage::page`, a search form and the matches (standing decision *The first page*), with
+`HomePageTest` (3, run once by name). The check is green.
+
+The sweep's `env-secret-proofs` red is stale: no goal or floor in the tree defines that check
+(`bun tools/looper/main.ts check --name env-secret-proofs` finds none; it came from the retired
+`memory-ceiling-holes`), and its command `bun nv proofs --gate --only 'Core\Env::secret'` exits 0.
 
 ### Next
 
-Stage 2's purge group, files `apps/registry/src/Site.nvs`, `apps/registry/jobs/withhold.nvs`,
-`apps/registry/src/Stores.nvs`, `apps/registry/src/StoresTest.nvs` and the README. Then the
-stage's last item, `bun nv site --check apps`.
+Stage 3, the audit group: `crates/nvs-cli/src/package/audit.rs`, `crates/nvs-cli/tests/package_audit.rs`,
+`crates/nvs-cli/src/package/manifest.rs`. Then `nvs pkg advise`.
 
-- [ ] `purge` in `Site` (`apps/registry/src/Site.nvs:64`), optional, shaped like an `http` store: `{url with {url}, header, secret file}`.
-- [ ] The withhold job's one `POST` per archive URL under every `hosts` entry after `Stores::remove` (`apps/registry/jobs/withhold.nvs:1`, `apps/registry/src/Stores.nvs:39`), through the outbound address table like a webhook.
-- [ ] `StoresTest.nvs` through `Test::answerHttp` (`apps/registry/src/WebhooksTest.nvs:19`), the README row (`apps/registry/README.md:16`), and the Not-on-disk section of `docs/rules/packaging/the-operator-only-withholds.md` with `data/gaps/nvs-cli/withhold-purges-the-cdn.json`.
+- [ ] `Range::contains(Version)` in `crates/nvs-cli/src/package/manifest.rs:159`, the rules of `apps/registry/src/VersionRange.nvs`'s `contains`.
+- [ ] `names` (`crates/nvs-cli/src/package/audit.rs:192`) takes `Entry::Advisory` whose `versions` parse to a range that contains the version, and `found` (`audit.rs:210`) gives kind `advisory`, the summary as the reason, and `until` as `fixed_in`.
+- [ ] The two audit tests of `advise-and-audit-tests` (`crates/nvs-cli/tests/package_audit.rs:125`), run once by name.
+- [ ] `nvs pkg advise` shaped like `crates/nvs-cli/src/package/retract.rs:35`, wired at `crates/nvs-cli/src/package/mod.rs:310` and `:375`, posting to the route `App::advise` (`apps/registry/src/App.nvs`, after `retract`).
 
 No test is expected to go red. `FeedsTest`'s kind list is unchanged: no advisory is sent there.
 
