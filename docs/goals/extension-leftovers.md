@@ -10,7 +10,7 @@ stages:
     context: [extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/chart.rs, extensions/spreadsheet/src/conditional.rs, docs/rules/core-classes/spreadsheet-output-is-inert.md, docs/rules/core-classes/spreadsheet-bulk-boundary.md]
   - id: 2
     title: "a reader reads only the file it opened, under its bounds, and bytes that are no spreadsheet throw"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/zip.rs, extensions/spreadsheet/nvs/Reader.nvs, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md, docs/rules/core-classes/decompression-bound.md]
   - id: 3
     title: "rows, sheets, merges and notes read what the file has"
@@ -477,13 +477,13 @@ chart range written is checked by one function each.
 **Does:** every reader call checks its source, the reader's bounds are exact, and its errors say
 what went wrong in plain words.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `read::Reader` keeps the source's size and hash, and every call checks them first. `extensions/spreadsheet/src/read/mod.rs:484`, `extensions/spreadsheet/src/lib.rs:1163`
-- [ ] `readerRows` with `max` 0 throws, and `readerProperties` reads once per reader. `extensions/spreadsheet/src/lib.rs:1200`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:793`
-- [ ] `rule:core-classes/decompression-bound`: the two bound messages name no rule, and say what to raise. `extensions/spreadsheet/src/read/zip.rs:79`, `extensions/spreadsheet/src/read/zip.rs:86`
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: an unknown `locale` throws. `extensions/spreadsheet/src/format/locale.rs:82`, `extensions/spreadsheet/src/read/mod.rs:827`
-- [ ] Bytes that are neither a workbook nor text throw `ParseError`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/src/read/mod.rs:497`
-- [ ] The tests and cases the `reader-bounds` and `reader-bounds-runs` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `tests/conformance/novis/spreadsheet-bytes-that-are-not-a-spreadsheet-throw.nvst:1`, `tests/conformance/novis/spreadsheet-an-unknown-locale-throws.nvst:1`
-- [ ] `Reader::open`'s `about.md` names what throws. The fragment states the source check and its cost. The module doc's engine-exports, decompression and non-spreadsheet sentences go. `docs/examples/novis/Spreadsheet-Reader/open/about.md:1`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`, `extensions/spreadsheet/src/lib.rs:67`, `extensions/spreadsheet/src/lib.rs:90`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `read::Reader` keeps the source's size and hash, and every call checks them first. `extensions/spreadsheet/src/read/mod.rs:484`, `extensions/spreadsheet/src/lib.rs:1163`
+- [x] `readerRows` with `max` 0 throws, and `readerProperties` reads once per reader. `extensions/spreadsheet/src/lib.rs:1200`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:793`
+- [x] `rule:core-classes/decompression-bound`: the two bound messages name no rule, and say what to raise. `extensions/spreadsheet/src/read/zip.rs:79`, `extensions/spreadsheet/src/read/zip.rs:86`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: an unknown `locale` throws. `extensions/spreadsheet/src/format/locale.rs:82`, `extensions/spreadsheet/src/read/mod.rs:827`
+- [x] Bytes that are neither a workbook nor text throw `ParseError`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/src/read/mod.rs:497`
+- [x] The tests and cases the `reader-bounds` and `reader-bounds-runs` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `tests/conformance/novis/spreadsheet-bytes-that-are-not-a-spreadsheet-throw.nvst:1`, `tests/conformance/novis/spreadsheet-an-unknown-locale-throws.nvst:1`
+- [x] `Reader::open`'s `about.md` names what throws. The fragment states the source check and its cost. The module doc's engine-exports, decompression and non-spreadsheet sentences go. `docs/examples/novis/Spreadsheet-Reader/open/about.md:1`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`, `extensions/spreadsheet/src/lib.rs:67`, `extensions/spreadsheet/src/lib.rs:90`
 
 ### 3. rows, sheets, merges and notes read what the file has
 
@@ -634,34 +634,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done and committed. `extensions/spreadsheet/src/reference.rs` is the one reference
-parser: `Workbook::define` (xlsx and ods) and a chart's series range read through it, and
-`check_name_sheets` checks each name's sheet at `finish()`. `check_sheet_name` refuses control
-characters and `History`. `cells::check_formula` (1 to 8,192 characters) holds cells, table totals,
-validations and the `Cell` and `Formula` conditional formats, and `Formula::of('')` throws in
-`Formula.nvs`. Chart titles and axis titles stop at 255. The checks `names-and-references`,
-`chart-ranges`, `conditional-formula-bound` and `names-and-references-runs` ran green once by name.
-The `Reader::names` example `01` now defines a range in place of the constant `0.2`, which
-`define` declines. The sweep's nightly reds (run `41187571578` on `857b39cad`) are fixed by later
-commits: `bfce9c2d2` (shots), `9fe05ce88` (ASAN ODR), `8ce92dda5` (Miri sizing) and `39795c9c4`
-(browser `NVS_BIN`). `env-secret-proofs` has no definition in the tree.
+Stages 1 and 2 are done and committed. Stage 2: `read::Reader` keeps a `Seal` (size and FNV-1a of
+the first and last 512 bytes), and `Reader::check` runs first in every reader export through
+`lib.rs`'s `checked` helper, throwing `LogicError` "The file changed after `Reader::open` …".
+`Reader::properties` reads once into a `OnceCell` (`extras.rs`'s `read_properties` does the read).
+`readerRows` throws for `max` 0 and for a `locale` whose language has no names row
+(`Locale::known`, `names::find`). The two zip bound messages name the key to raise and no rule,
+and `rule:core-classes/decompression-bound` says so. `Reader.nvs`'s `open` throws `ParseError` for
+UTF-8 bytes whose first 4 KiB have a NUL or a C0 control other than tab, LF, FF and CR (`isText`);
+a UTF-16 BOM or a `csv.encoding` still opens as CSV. The attack
+`tests/hostile/novis/Spreadsheet-Reader/open/01-…` gained step 6 (a file replaced on disk) and an
+`nvs.toml` granting `fs`. The checks `reader-bounds` and `reader-bounds-runs` ran green once by
+name, and `bun nv proofs --run --only 'Novis\Spreadsheet\Reader::open'` is green. The sweep's
+nightly reds (run `41187571578` on `857b39cad`) are fixed by later commits: `bfce9c2d2`,
+`9fe05ce88`, `8ce92dda5` and `39795c9c4`. `env-secret-proofs` has no definition and no log in the
+tree.
 
 ### Next
 
-Stage 2, over `extensions/spreadsheet/src/read/mod.rs`, `read/zip.rs`, `format/locale.rs`,
-`src/lib.rs`'s reader exports and `nvs/Reader.nvs`. Its gate is stage 1's, already green.
+Stage 3, over `extensions/spreadsheet/src/read/mod.rs`, `read/merge.rs`, `read/extras.rs`,
+`read/xml.rs`, `read/sheet.rs`, `read/binary.rs` and `nvs/Reader.nvs`. Its gate is stage 1's,
+already green.
 
-- [ ] `read::Reader` keeps the source's size and an FNV-1a hash of its first and last 512 bytes, and every call checks them first. `extensions/spreadsheet/src/read/mod.rs:484`, `extensions/spreadsheet/src/lib.rs:1163`
-- [ ] `readerRows` with `max` 0 throws, and `readerProperties` reads once per reader. `extensions/spreadsheet/src/lib.rs:1200`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:793`
-- [ ] The two decompression-bound messages name no rule, and say which option raises the bound. `extensions/spreadsheet/src/read/zip.rs:79`, `extensions/spreadsheet/src/read/zip.rs:86`
-- [ ] An unknown `locale` throws `LogicError` naming it. `extensions/spreadsheet/src/format/locale.rs:82`, `extensions/spreadsheet/src/read/mod.rs:827`
-- [ ] Bytes that are neither a workbook nor text throw `ParseError`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/src/read/mod.rs:497`
-- [ ] The tests, cases, `about.md` and fragment sentences stage 2 lists. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`
+- [ ] A row of formula cells with no cached value is kept: the skip at `extensions/spreadsheet/src/read/mod.rs:1003` tests `value`, and a formula cell needs to count. `extensions/spreadsheet/src/read/mod.rs:860`
+- [ ] `sheets()` counts a sheet with no dimension from its rows, once per reader, and keeps the facts. `extensions/spreadsheet/src/read/mod.rs:817`, `extensions/spreadsheet/src/read/sheet.rs:137`, `extensions/spreadsheet/src/read/binary.rs:741`
+- [ ] Every sheet parameter is `tainted string|int`. `extensions/spreadsheet/nvs/Reader.nvs:94`
+- [ ] A merged fill copies `display`, and `notes` decodes its escapes. `extensions/spreadsheet/src/read/merge.rs:157`, `extensions/spreadsheet/src/read/extras.rs:278`, `extensions/spreadsheet/src/read/xml.rs:200`
+- [ ] Limit: ids 14 and 22, the test and the fragment sentence beside `locale`. `extensions/spreadsheet/src/format/mod.rs:78`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md`
+- [ ] The tests, cases, `about.md` and module doc sentences stage 3 lists. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `extensions/spreadsheet/src/lib.rs:41`
 
-The line numbers above were read before stage 1 and may have moved a few lines in `src/lib.rs`.
-Expect red at the gate: any test outside this component that defines a name with a constant or
-formula value, writes a sheet named `History`, or writes an empty `Formula`. None was found in
-`crates/nvs-ext/tests/`, the conformance tree or the examples.
+Expect red at the gate: a test outside `spreadsheet_read.rs` that reads a reader with `max` 0, an
+unknown `locale`, or bytes with a control character as CSV; and any test or case that matched the
+old open message "Novis reads xlsx" or a bound message's `rule:` text. None was found by grep.
+Also any stage 1 red named there before.
 
 ### Backlog
 
