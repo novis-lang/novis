@@ -1,13 +1,19 @@
 <?nvs
 namespace Novis\Spreadsheet;
 
-/// One value with its own `Style`. Make one with `Cell::of` and put it in a row in place of the value.
+use LogicError;
+
+/// One value with its own `Style`, or one cell of rich text. Make one with `Cell::of` or `Cell::rich` and put it in a row in place of the value.
 final class Cell
 {
-    /// `new Cell` makes a cell from its values. `Cell::of` makes one for you.
+    type Run = { text: string, style: ?Style };
+
+    /// `new Cell` makes a cell from its values. `Cell::of` and `Cell::rich` make one for you.
+    /// `runs` has the parts of a rich text cell. It is `null` for every other cell.
     public function constructor(
         public readonly mixed $value,
         public readonly Style $style,
+        public readonly ?array<Run> $runs = null,
     )
     {}
 
@@ -15,5 +21,59 @@ final class Cell
     public static function of(mixed $value, Style $style): Cell
     {
         return new Cell($value, $style);
+    }
+
+    /// `Cell::rich` makes one text cell from parts that each have their own font, such as one bold word.
+    /// A part's `style` may set `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`. The cell's fill, border, alignment and format come from its row and its column.
+    /// The cell's `value` is `null`. A CSV file and a reader give the text of all parts together.
+    public static function rich(array<{ text: string, style?: Style }> $runs): Cell
+    {
+        if (Core\Arr::count($runs) == 0) {
+            throw new LogicError('`Cell::rich` needs at least one part, such as `[{ text: \'Total\' }]`.');
+        }
+        array<Run> $kept = [];
+        uint $number = 1;
+        foreach ($runs as var $run) {
+            ?Style $style = $run->style ?? null;
+            if ($style != null) {
+                Cell::fontOnly($style, $number);
+            }
+            $kept[] = { text: $run->text, style: $style };
+            $number = $number + 1;
+        }
+        return new Cell(null, Style::of({}), $kept);
+    }
+
+    // Throws when the style of part `$number` sets a field that is not a font field.
+    private static function fontOnly(Style $style, uint $number): void
+    {
+        var $fields = $style->fields;
+        ?string $field = null;
+        if ($fields->fill != null) {
+            $field = 'fill';
+        } elseif ($fields->border != null) {
+            $field = 'border';
+        } elseif ($fields->borderColor != null) {
+            $field = 'borderColor';
+        } elseif ($fields->align != null) {
+            $field = 'align';
+        } elseif ($fields->valign != null) {
+            $field = 'valign';
+        } elseif ($fields->wrap != null) {
+            $field = 'wrap';
+        } elseif ($fields->rotate != null) {
+            $field = 'rotate';
+        } elseif ($fields->indent != null) {
+            $field = 'indent';
+        } elseif ($fields->format != null) {
+            $field = 'format';
+        } elseif ($fields->locked != null) {
+            $field = 'locked';
+        } elseif ($fields->hideFormula != null) {
+            $field = 'hideFormula';
+        }
+        if ($field != null) {
+            throw new LogicError("Part {$number} of `Cell::rich` has a style with `{$field}`. A part can only set font fields: `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`.");
+        }
     }
 }

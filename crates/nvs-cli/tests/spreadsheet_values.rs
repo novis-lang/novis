@@ -238,6 +238,38 @@ echo $cell->value, " ", $cell->style->fields->italic == true ? "italic" : "plain
     );
 }
 
+/// A rich cell lands as one inline cell of runs, each run's font its own `<rPr>`, the row's fill
+/// stays on the cell, the reader gives the runs' text joined, and a run's fill throws.
+// covers: Novis\Spreadsheet\Cell::rich
+#[test]
+fn a_rich_cell_writes_each_run_with_its_own_font() {
+    let out = run(
+        "rich",
+        r##"
+var $cell = Cell::rich([{text: "Due "}, {text: "today", style: Style::of({bold: true, underline: true})}]);
+var $book = Workbook::createInMemory();
+$book->sheet("Tasks", {header: false})->add([$cell], {style: Style::of({fill: "#FFFF00"})});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($sheet, "<r><rPr><b/><u/></rPr><t>today</t></r>") ? "bold run" : $sheet, "\n";
+var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
+echo Core\Str::contains($styles, "<fgColor rgb=\"FFFFFF00\"/>") ? "row fill" : "no fill", "\n";
+foreach (Reader::open($file)->rows("Tasks") as var $row) {
+    echo $row->values["A"], "\n";
+}
+try {
+    Cell::rich([{text: "x", style: Style::of({align: "center"})}]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+"##,
+    );
+    assert_eq!(
+        out,
+        "bold run\nrow fill\nDue today\nPart 1 of `Cell::rich` has a style with `align`. A part can only set font fields: `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`.\n"
+    );
+}
+
 /// A `Formula` lands as a formula cell with its cached value and no `=`, a string that starts
 /// with `=` lands as a text cell, the reader gives the formula back, and `new Formula` keeps the
 /// values it is made from.

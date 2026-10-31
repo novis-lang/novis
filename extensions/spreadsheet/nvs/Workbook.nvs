@@ -346,8 +346,10 @@ final class Workbook
         array<Entry> $cells = [];
         uint $at = 0;
         foreach ($values as mixed $value) {
-            if ($value is Cell) {
-                $cells[] = { value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style) };
+            if ($value is Cell && $value->runs != null) {
+                $cells[] = { value: $this->richValue($value), style: null };
+            } elseif ($value is Cell) {
+                $cells[] ={ value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style) };
             } else {
                 $cells[] = { value: self::cell($value, $at, $this->zone), style: null };
             }
@@ -474,6 +476,16 @@ final class Workbook
             $this->styles[$style->key] = Engine::writerStyle($this->writer, $style->fields);
         }
         return $this->styles[$style->key];
+    }
+
+    // The runs of a rich cell, each with the style number of its own style.
+    private function richValue(Cell $cell): Value
+    {
+        array<{ text: string, style: ?uint }> $runs = [];
+        foreach ($cell->runs ?? [] as var $run) {
+            $runs[] = { text: $run->text, style: $this->styleId($run->style) };
+        }
+        return { runs: $runs };
     }
 
     // Sends the rows the open sheet still has, and its header row when it has no other rows.
@@ -643,6 +655,14 @@ final class Workbook
         }
         if ($value is tainted { formula: string, cachedText: ?string, cachedNumber: ?float }) {
             return '=' . $value->formula;
+        }
+        if ($value is tainted { runs: array<{ text: string, style: ?uint }> }) {
+            tainted string $joined = '';
+            foreach ($value->runs as var $run) {
+                tainted string $part = $run->text;
+                $joined = $joined . $part;
+            }
+            return self::csvField({ text: Core\Taint::assertTrusted($joined, 'the program passed each part of this rich cell') });
         }
         return '';
     }

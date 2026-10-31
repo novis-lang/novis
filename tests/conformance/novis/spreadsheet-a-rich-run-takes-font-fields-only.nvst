@@ -1,0 +1,33 @@
+--TEST--
+A `Cell::rich` run whose style sets a field outside the font throws `LogicError` naming the field and the run, and an empty list of runs throws: rule:core-classes/spreadsheet-roster
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+
+var $fonts = Style::of({ font: 'Arial', size: 12.0, bold: true, italic: true, strike: true, underline: 'double', color: '#336699' });
+echo Core\Arr::count(Cell::rich([{ text: 'a', style: $fonts }, { text: 'b' }])->runs ?? []), " runs take every font field\n";
+
+try {
+    Cell::rich([{ text: 'a' }, { text: 'b', style: Style::of({ bold: true, fill: '#FFFF00' }) }]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    Cell::rich([{ text: 'a', style: Style::of({ format: 'money' }) }]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    Cell::rich([]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+2 runs take every font field
+Part 2 of `Cell::rich` has a style with `fill`. A part can only set font fields: `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`.
+Part 1 of `Cell::rich` has a style with `format`. A part can only set font fields: `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`.
+`Cell::rich` needs at least one part, such as `[{ text: 'Total' }]`.

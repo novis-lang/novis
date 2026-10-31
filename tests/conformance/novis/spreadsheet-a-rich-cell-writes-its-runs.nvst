@@ -1,0 +1,39 @@
+--TEST--
+`Cell::rich` writes one inline cell of runs, each run with its own font, the reader reads it as the runs' text joined, and CSV writes the joined text: rule:core-classes/spreadsheet-roster
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $bold = Style::of({ bold: true, color: '#C00000' });
+var $cell = Cell::rich([
+    { text: 'Total: ' },
+    { text: '42', style: $bold },
+    { text: ' items', style: Style::of({ italic: true, size: 9.0 }) },
+]);
+echo $cell->value == null ? "value is null" : "value is set", "\n";
+echo Core\Arr::count($cell->runs ?? []), " runs\n";
+
+bytes $file = Workbook::fromRows([['note' => $cell, 'qty' => 3]])->bytes();
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+var $runs = Core\Str::split($sheet, "<r>");
+echo Core\Arr::count($runs) - 1, " runs written\n";
+echo Core\Str::contains($sheet, "<r><rPr><b/><color rgb=\"FFC00000\"/></rPr><t>42</t></r>") ? "the bold run is written" : $sheet, "\n";
+echo Core\Str::contains($sheet, "<r><t xml:space=\"preserve\">Total: </t></r>") ? "the plain run has no rPr" : $sheet, "\n";
+
+foreach (Reader::open($file)->rows(0, { header: true }) as var $row) {
+    echo $row->values['note'], "|", $row->values['qty'], "\n";
+}
+
+echo Workbook::fromRows([['note' => Cell::rich([{ text: '=1+' }, { text: '2', style: $bold }])]], { format: 'csv' })->bytes() as string;
+--EXPECT--
+value is null
+3 runs
+3 runs written
+the bold run is written
+the plain run has no rPr
+Total: 42 items|3
+note
+'=1+2
