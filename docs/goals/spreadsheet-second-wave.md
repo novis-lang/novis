@@ -633,54 +633,55 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 has two of its eight items done.
+Stages 1 to 7 are done. Stage 8 has five of its eight items done; template values, the Rust tests
+for them, and the last record are left.
 
-- **The table formula form** landed in `90ae8d91e`. rust_xlsxwriter's `table10.xlsx`, made by
-  Excel, is under `extensions/spreadsheet/tests/fixtures/excel/` with its README row. It stores a
-  calculated column's `[@[Column1]:[Column3]]` as `Table1[[#This Row],[Column1]:[Column3]]`.
-  `expand` (`extensions/spreadsheet/src/table.rs:441`) now also expands a named `Table1[@x]`,
-  which it left short. `a_calculated_column_is_written_in_the_form_excel_stores` ran once and
-  passes. The module doc's tables bullet is gone, and the gap record
-  `spreadsheet-unchecked-against-excel` now names only the two template bullets.
-- **Lists on several sheets** landed in `69bd8a9d9`. Each sheet with blocks is a `Page`
-  (`extensions/spreadsheet/src/template/mod.rs:72`). The free functions `enter`, `leave` and
-  `write_held` (after `head`, at `:1019`) drive them, and `close_block` and `item_rows` take the
-  page and find a block's shift at `page.base + (at - page.first)`. A page waits when
-  `must_hold` is true or `refers_later` finds a formula or tail part that a probe shift at a later
-  page's first block moves. A waiting page records its shifts in `leave` and is written in
-  `finish`. `lists_on_two_sheets_each_repeat_and_shift_every_reference_to_their_sheet` ran once,
-  and the whole `--test template` file ran once (14 pass). The fragment says when a sheet waits,
-  and its Not-shipped paragraph now names only shared formulas, `x14` formats and iterators.
-  The gap record `spreadsheet-template-fill-limits` is narrowed the same way.
+- **Shared formulas and `x14` formats** landed in `62e4c07e7`. `Sheet::parse` keeps a shared
+  formula's `si` span and number in `Cell::shared`, and `Sheet::next_group` is one past the
+  sheet's highest. `item_rows` gives each copy after the first a new number for every group whose
+  first cell is in the block, from `Filling::next_group` (reset in `enter` and `write_held`), and
+  `write_cell` takes them through the new `Moves` struct. `rewrite_part` moves an `xm:sqref`'s
+  text. The test fixture's `SHEET_TAIL` gained an `extLst`. Both new tests ran once and pass.
+- **An `Iterator` is a list** landed in `c57326ba4`. `Template.nvs`'s `keep` and `add` take an
+  array or an `Iterator`, in batches of 1,000. The fragment's Not-shipped paragraph and the gap
+  record `spreadsheet-template-fill-limits` are gone. Both `template-second-wave-runs` cases
+  pass when run with `target/debug/nvs.exe test`, as do the two older template cases. The fourth
+  `Template::fill` example `04-lists-on-two-sheets` is in, and `bun nv proofs --id` owes nothing.
+- **The NUL escape** landed in `8042d88b8`: it already held, and a test pins it. The fragment
+  states the first-sheet rule and the escape as facts.
 
 The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new.
-The sweep's `env-secret-proofs` red is stale: nothing in the tree defines it.
+The sweep's `env-secret-proofs` red is stale: nothing in the tree defines it, and its log is gone.
 
 ### Next
 
 The rest of stage 8, in this order. Every anchor is current.
 
-1. **Shared formulas.** `Sheet::parse` keeps `formula_ref` for a `<f ref=…>`
-   (`extensions/spreadsheet/src/template/sheet.rs:173`). It also needs the `t="shared"` and `si`
-   spans. In `write_cell` (`extensions/spreadsheet/src/template/mod.rs:1284`), a shared formula's
-   copy inside a block gets a new `si`. Number the new groups after the sheet's highest `si`.
-   A follower cell (`<f t="shared" si="0"/>` with no text) in a copy points at its copy's `si`.
-   Safe fallback: each copy writes the master's full text, moved by its shifts.
-2. **`x14` formats.** `rewrite_part` (`:361`) already moves `xm:f`, because `xml::local` drops the
-   prefix and `f` is in `FORMULA_ELEMENTS` (`:350`). It does not move the text of `xm:sqref`.
-   Treat an element whose local name is `sqref` like the `sqref` attribute, with
-   `shift::apply_list`.
-3. **The Novis half** (`extensions/spreadsheet/nvs/Template.nvs:57`, `:78`, `:141`): send lists in
-   the order `fill` returns, and drain an `Iterator` in `$data` in batches of 1,000.
-4. **Template values.** NUL: `value_cell` (`:247`) writes text through `crate::cells::run_text`,
-   which must escape as `crate::xml` does. The key collision is in `Template.nvs`'s walk. The
-   missing placeholder and the duplicate list throw in `fill` (`:740`). An unknown list in `items`
-   (`:803`) throws where it now returns no bytes. The date format edits the template's
-   `styles.xml` and is the largest piece.
-5. **Tests and cases** the `template-second-wave` and `template-second-wave-runs` checks name.
-6. **The fourth `Template::fill` example**, the fragment's Not-shipped paragraph
-   (`docs/rules/core-classes/spreadsheet-template-fill.md:54`), the module doc's template bullets
-   (`extensions/spreadsheet/src/lib.rs:43` and `:46`), and the two gap records.
+1. **The key collision.** In `Template.nvs`'s `walk` (`extensions/spreadsheet/nvs/Template.nvs:78`),
+   a flat key `'customer.name'` and a nested `customer` → `name` give the same path. Keep the
+   paths seen in a set, and throw `LogicError` naming both keys. The Rust half needs the same
+   check in `fill` (`extensions/spreadsheet/src/template/mod.rs:749`) for the test
+   `a_flat_key_and_a_nested_path_to_the_same_name_throw`: two placeholders with one path throw.
+2. **The missing placeholder at `fill`.** `fill` (`:749`) checks every placeholder of every sheet,
+   outside list rows, against the values before writing a byte. Today `rows_until`'s
+   `write_cell` throws as it writes, so a sheet after the first block throws late.
+3. **The two export errors.** `fill` throws when `lists` has one name twice, naming it. `items`
+   (`:813`) throws on a list the fill did not return. The exports are `template_fill` and
+   `template_items` (`extensions/spreadsheet/src/lib.rs:1404`, `:1418`).
+4. **The date format**, the largest piece. A date, time or duration into a cell whose style has no
+   date or time format gets the write table's format. `finish` (`:855`) rewrites `xl/styles.xml`
+   with one new `cellXfs` entry per cell style and format pair, and `value_cell` (`:249`) writes
+   that entry's index.
+5. **The tests** the `template-second-wave` check names that are not in yet:
+   `a_flat_key_and_a_nested_path_to_the_same_name_throw`,
+   `a_date_into_a_cell_with_no_date_format_gets_its_types_format`,
+   `a_missing_placeholder_throws_at_fill_whatever_the_sheet_holds`,
+   `the_same_list_named_twice_throws_naming_it` and
+   `items_for_a_list_the_fill_did_not_return_throw_naming_it`.
+6. **The end of the stage.** Delete the module doc's template values bullet
+   (`extensions/spreadsheet/src/lib.rs:43`) and the gap record
+   `data/gaps/nvs-spreadsheet/spreadsheet-unchecked-against-excel.json`. Then tick the tests item
+   and the last item, and set stage 8 to done.
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
@@ -690,7 +691,9 @@ lists `Cell`'s members or its constructor's parameters. From stage 3, `meta.rs`'
 and `ext_world.rs`'s export list, which now name `sourceBytes` and `source-bytes`. The new
 `source_bytes` row in `crates/nvs-ext/src/typed/spreadsheet.rs` also builds. `meta.rs` may also
 list `Reader::open`'s parameters. From stages 4 to 7, no test is expected to go red: every changed
-test ran.
+test ran. From stage 8, every test in `extensions/spreadsheet/tests/template.rs` that reads the
+sheet's tail, because `SHEET_TAIL` gained an `extLst`; only the three new tests ran. A test that
+reads `Template::fill`'s help text, which gained a line about an `Iterator`.
 
 ### Backlog
 
