@@ -123,8 +123,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 ### State
 
 `origin/main` is at `5b1305229`, and CI 41240973399 and Website 41240973378 are green on it. The
-local `main` is 9 commits ahead, the main loop's `allocation-counters` work, whose gate stage has not
-run yet. Its goal end's push is the next push.
+local `main` is 13 commits ahead, the main loop's `allocation-counters` work, which is verified and
+whose goal-end gates are green. Its retire hook's push is the next push. A session watched for about
+an hour and no push came.
+
+A background `Bash` or `Monitor` watch can report its first events many minutes late, or only once
+the next one starts. A `--max-min 9` watch in the foreground is the reliable fallback.
 
 ### Next
 
