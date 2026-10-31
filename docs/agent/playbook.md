@@ -91,6 +91,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Running things
 - **An attack's memory `FATAL` is red past 1.5x its ceiling plus 8 MiB, and `bun nv proofs --overshoot`
   lists every reading, worst first.** See `tools/nv/proofs/run.ts`. `until: gone tools/nv/proofs/run.ts:OVERSHOOT_FACTOR`
+- **A green `bun nv affected --run` leaves the proofs a change reaches owed, and `bun nv debt` pays them
+  only once DONE is claimed.** A `Core` member change that turned an attack red passed the gate and
+  then refused DONE. Before DONE, run `bun nv proofs --run --only '<member>'` for each member the goal
+  changed. See `tools/nv/cmd/affected.ts`. `until: gone tools/nv/cmd/affected.ts:stay owed`
 - **Never end a shell call inside a scratch git repository under `.agent-tmp/`.** The guard hook
   finds `tools/looper/main.ts` from the working directory's git root, so once the shell's directory
   stays in a nested `git init` folder, every later Bash call fails with *Module not found*, and

@@ -453,6 +453,14 @@ still declaring `calls 0` from before every `Core` call was counted. `bd2749c65`
 measured counts and appends 327 records. Every standing decision is now stated in the code it
 governs (`abda92ad6`), so the file can be deleted.
 
+The first DONE was refused on `floor-debt`. One atom was red:
+`tests/hostile/core/Http-Client/stream/01-replies-that-are-not-text-or-never-end.nvs`, whose step 8
+(three million blank lines) threw the event block cap. `EventScan` counted that cap from the front
+of the reader's buffer, which an answer-table reply fills whole. `ab0b111b6` counts it from the last
+blank line that dispatched nothing, with the Rust test
+`blank_lines_past_the_block_cap_end_with_no_event`. The attack and `Core\Http\Stream::events`'s
+proofs are green, and `bun nv affected --run --since fab7e58df` is 23 of 23 green.
+
 The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and
 `bun nv proofs --verify --only 'Core\Env::secret'` is green.
 
