@@ -46,7 +46,7 @@ stages:
     context: [extensions/spreadsheet/src/format/mod.rs, extensions/spreadsheet/nvs/Reader.nvs, docs/rules/core-classes/spreadsheet-formula-is-a-value.md]
   - id: 11
     title: "Workbook writes an ods with values, styles, columns and formulas"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/zip.rs, extensions/spreadsheet/src/styles.rs, extensions/spreadsheet/nvs/Workbook.nvs, docs/rules/core-classes/spreadsheet-writes-as-a-stream.md]
   - id: 12
     title: "an ods carries every sheet-end part but charts"
@@ -617,8 +617,14 @@ builds.
   - [x] `ods/numbers.rs` writes each format code as a number style.
 - [x] Columns, the header defaults, freeze, defined names and formulas through `openformula.rs`. `extensions/spreadsheet/src/ods/mod.rs:1`, `extensions/spreadsheet/src/openformula.rs:1`
 - [x] `writer-open` takes the format, and `Workbook.nvs` accepts `ods` by name and option. `extensions/spreadsheet/src/lib.rs:1083`, `wit/spreadsheet.wit:190`, `extensions/spreadsheet/nvs/Workbook.nvs:253`, `extensions/spreadsheet/nvs/Workbook.nvs:291`
-- [ ] The tests and the case the `ods-writer-core` and `ods-writer-runs` checks name. `extensions/spreadsheet/tests/ods.rs:1`, `tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst:1`
-- [ ] A fourth example for `Workbook::createForFile` and `Workbook::fromRows` writes an ods. The writes-as-a-stream fragment states ods's held workbook and its cost. `docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:66`
+- [x] The tests and the case the `ods-writer-core` and `ods-writer-runs` checks name. `extensions/spreadsheet/tests/ods.rs:1`, `tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst:1`
+  - [x] `tests/ods.rs` has the seven tests, and they pass.
+  - [x] The ods reader keeps a formula cell with no value type.
+  - [x] The case passes on the relinked binary.
+- [x] A fourth example for `Workbook::createForFile` and `Workbook::fromRows` writes an ods. The writes-as-a-stream fragment states ods's held workbook and its cost. `docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:66`
+  - [x] A fifth example for each member writes an ods, and both `about.md` pages say ods.
+  - [x] The fragment has the held ods paragraph, its cost and the Declined bullet.
+  - [x] `cargo clippy --all-targets -- -D warnings` is green in `extensions/spreadsheet`.
 
 ### 12. an ods carries every sheet-end part but charts
 
@@ -659,69 +665,63 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 11's first four items are built and build green, and nothing of them has run yet: no test
-reads an ods it wrote. The sweep's nightly reds are stale: run 41187571578 ran on `857b39cad`, 39
-commits before the fixes the last session landed, and its proofs job failed on the two
-debug-viewer shots `bfce9c2d2` reshot. `env-secret-proofs` is stale too: no such check exists.
+Stage 11 is done. `extensions/spreadsheet/tests/ods.rs` has the seven `ods-writer-core` tests, and
+all pass. The case `tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst` passes
+on a binary built by `bun nv relink --build`. `cargo clippy --all-targets -- -D warnings` in
+`extensions/spreadsheet` is green.
 
-- **The plumbing.** `crate::Book` (`extensions/spreadsheet/src/book.rs`) is the guest `writer`
-  resource's workbook, and picks `Writer` or `ods::Writer` by the new `WorkbookOptions::ods`.
-  The WIT record `workbook-options` (`wit/spreadsheet.wit:190`), the manifest's `writerOpen`, the
-  host's typed record (`crates/nvs-ext/src/typed/spreadsheet.rs:108`) and `Workbook::start`
-  (`extensions/spreadsheet/nvs/Workbook.nvs:258`) all carry `ods: bool`. A bool, not an enum,
-  because a new enum would need an owner in the roster for a field only `Engine` sees.
-- **Shared checks.** `writer.rs` now has free `check_options`, `check_sheet_name`, `check_name`,
-  `address`, `fold_column_formats` and `header_layer`, which both writers call.
-  `cells::check` is the write table's checks alone, and `Styles::xf_style` and `xf_count` give
-  each `cellXfs` entry to the ods writer as `ce<n>`.
-- **The ods writer** (`extensions/spreadsheet/src/ods/mod.rs`, its module doc says the rest):
-  rows are checked at `rows()` and kept as `Held` cells; `finish` writes `mimetype` stored
-  (`Archive::stored`), then content, styles, meta, settings and the manifest. `ods/cells.rs`,
-  `ods/styles.rs` and `ods/numbers.rs` write values, styles and number styles. `Writer::part`
-  throws for ods until stage 12. A character XML 1.0 cannot carry is U+FFFD (`xml::odf`).
+- **One reader fix.** `read/ods.rs`'s `typed_cell` keeps a cell with a formula and no value type,
+  as a formula with no cached result, the way an xlsx `<c>` with an `<f>` and no `<v>` reads.
+  Before, such a cell was dropped.
+- **A rich run that ends in a space** writes the space as `<text:s/>` before the next span. That is
+  valid ODF, and the reader and calamine read it back as a space.
+- **Rules.** The writes-as-a-stream fragment says streaming is the only way to write xlsx, has the
+  held ods paragraph with its cost, a Memory bullet, and the Declined bullet. The roster fragment
+  says ods writes, and its Not-shipped line names only the sheet-end parts and charts.
+- **Examples.** `createForFile` and `fromRows` each have a fifth example that writes an ods (the
+  fourth were the CSV ones), and both `about.md` pages say ods.
+- The sweep's reds were stale, as the last handoff said: the nightly run was on `857b39cad`, and
+  `env-secret-proofs` has no log and no definition.
 
 ### Next
 
-Stage 11's last two items, then stage 12.
+Stage 12: the sheet-end parts in ods. Every part reaches `ods::Writer::part`
+(`extensions/spreadsheet/src/ods/mod.rs:278`), which throws now. The parts are `tail::Part`
+(`extensions/spreadsheet/src/tail.rs:280`). The xlsx writer's `part` is
+`extensions/spreadsheet/src/writer.rs:527`, and its checks are what ods should reuse.
 
-1. `extensions/spreadsheet/tests/ods.rs` with the seven tests `ods-writer-core` names. Read back
-   with `nvs_spreadsheet::read` and with `calamine` (a dev-dependency already). Expect fixes in
-   `ods/numbers.rs` (sections, fractions) and in how our reader takes `text:p` against the
-   number style.
-2. The case `tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst`, after
-   `bun nv relink --build`. A download's content type for ods is set at
-   `extensions/spreadsheet/nvs/Workbook.nvs:68`.
-3. The fourth examples for `Workbook::createForFile` and `Workbook::fromRows`, and the
-   writes-as-a-stream fragment's ods paragraph (`docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:66`):
-   the held workbook, its cost, and the Declined bullet the standing decision names. The
-   `Workbook` class help at `Workbook.nvs:9` says ods already.
-4. The 14 clippy lints of the backlog, then `cargo clippy --all-targets -- -D warnings` in
-   `extensions/spreadsheet` is green. `src/book.rs` passes it already.
+1. Keep each part on the open `Sheet` (`ods/mod.rs:91`), checked as xlsx checks it. `Writer::part`
+   returns `()` and `Book::part` returns no bytes for ods already (`src/book.rs:78`).
+2. Merges (`table:number-columns-spanned` and `-rows-spanned`, then `table:covered-table-cell`),
+   links (`text:a` in the cell's `text:p`), and notes (`office:annotation` in the cell). The
+   `table` writer (`ods/mod.rs:733`) writes cells, so it looks each part up by cell.
+3. Validation as `table:content-validations` before the first `table:table`, and
+   `table:content-validation-name` on each cell. Groups: the row levels are already
+   `table:table-row-group`; columns need `table:table-column-group`.
+4. Tables as `table:database-range` beside the sheet filter (`ods/mod.rs:671`), conditional
+   formats as `calcext:conditional-formats`, images as `draw:frame` in the anchor cell with the
+   picture under `Pictures/` and in the manifest (`ods/mod.rs:1006`), print setup in `styles.xml`'s
+   page layout, protection as `table:protected` with the hash.
+5. The six `ods-writer-parts` tests in `extensions/spreadsheet/tests/ods.rs`. Read back with our
+   reader's extras (`read/extras.rs`, which reads ods links, notes, names, tables and images) and
+   with calamine.
 
-`bun nv suite tests/conformance/ --case <path>` judges the whole suite, and `--case` only names
-the cases it credits. To see one case's output, run `target/release/nvs test <path.nvst>` after
-`bun nv relink --build`.
+To see one case's output, run `target/release/nvs test <path.nvst>` after `bun nv relink --build`.
+`bun nv suite tests/conformance/ --case <path>` judges the whole suite.
 
 Tests that may go red at the gate: `crates/nvs-cli/tests/meta.rs` and
 `crates/nvs-stdlib/tests/ext_world.rs` where they list `writerOpen`'s parameter type or the
-`workbook-options` record, which now has `ods`; a test of `Workbook`'s class help, which now names
-ods; a test that expects the format error to say "Use `xlsx` or `csv`".
-
-`bun nv suite tests/conformance/ --case <path>` judges the whole suite, and `--case` only names
-the cases it credits. To see one case's output, run `target/release/nvs test <path.nvst>` after
-`bun nv relink --build`.
-
-From stage 10, `crates/nvs-cli/tests/meta.rs` and
-`crates/nvs-stdlib/tests/ext_world.rs`, whose export lists now name `readerEvaluate` and
-`reader-evaluate` (the order may be wrong); `crates/nvs-ext/tests/spreadsheet_read.rs` tests that
-read an xls, xlsb or ods formula the decoder cannot read, since such a cell now carries empty text
-inside the reader (hidden from `formulas: true`); a test that reads a table's records through
-`binary::table`, which now returns four fields. From earlier stages, as the last handoff said:
-`meta.rs`'s enum and Engine lists, `spreadsheet_reader.rs`'s `Reader::Visibility`, `ext_world.rs`'s
-`source-bytes`, and a test of `Template::fill`'s help text.
+`workbook-options` record, which now has `ods`, and the export lists that now name `readerEvaluate`
+and `reader-evaluate`; a test of `Workbook`'s class help, which now names ods; a test that expects
+the format error to say "Use `xlsx` or `csv`"; `crates/nvs-ext/tests/spreadsheet_read.rs` tests that
+read an ods cell with a formula and no value type, which now gives a cell, or a formula the decoder
+cannot read, which carries empty text inside the reader; a test that reads a table's records
+through `binary::table`, which returns four fields. From earlier stages: `meta.rs`'s enum and
+Engine lists, `spreadsheet_reader.rs`'s `Reader::Visibility`, `ext_world.rs`'s `source-bytes`, and
+a test of `Template::fill`'s help text.
 
 ### Backlog
 
 - The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.
-- `cargo clippy --all-targets -- -D warnings` in `extensions/spreadsheet` fails with 14 lints from earlier stages (`chunks_exact` with a constant size in `read/cfb.rs`, `xls.rs`, `binary.rs`, `tokens.rs` and `vba.rs`, collapsible `if`s in `openformula.rs`, a complex type in `read/extras.rs:193`). No gate lints that crate, because it is outside the workspace. Fix them with stage 11, which edits the crate.
+- `ods/numbers.rs` has no test of a format with sections, a condition or a fraction. Stage 12's tests may add one beside the parts.
