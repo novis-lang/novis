@@ -119,10 +119,9 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Memory limits.** *Working on it now.* A request stops at its memory limit, also when a single `Core` method builds a very large value. Queues, caches and database connections that are kept after a request ends have a limit in bytes.
-2. **The package registry.** You can sign in to the registry with a passkey and manage your packages in the browser. Owners can publish security advisories, and `nvs pkg audit` reports them.
-3. **Regular expressions, services and the debugger.** A `[regex]` setting in `nvs.toml` can stop slow patterns from compiling. A service can listen on a port below 1024 through socket activation. The debugger shows your tasks as a tree.
-4. **Spreadsheets and PDF.** `Novis\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.
+1. **The package registry.** *Working on it now.* You can sign in to the registry with a passkey and manage your packages in the browser. Owners can publish security advisories, and `nvs pkg audit` reports them.
+2. **Regular expressions, services and the debugger.** A `[regex]` setting in `nvs.toml` can stop slow patterns from compiling. A service can listen on a port below 1024 through socket activation. The debugger shows your tasks as a tree.
+3. **Spreadsheets and PDF.** `Novis\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.
 <!-- roadmap:end -->
 
 ## Contributing
