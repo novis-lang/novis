@@ -10013,13 +10013,14 @@
   },
   "/reference/core/novis-spreadsheet-sheet/add/": {
     "feature": "Novis\\Spreadsheet\\Sheet::add",
-    "hash": "a6d1fed2f6b9f79f",
+    "hash": "2fd7875f3311a876",
     "questions": [
       "Add one row to an Excel sheet",
       "Set the height of a row",
       "Hide a row in a spreadsheet",
       "Style a whole row",
-      "Put a row in an outline level"
+      "Put a row in an outline group",
+      "Why does add throw a LogicError after the next sheet starts?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/addall/": {
@@ -10034,32 +10035,36 @@
   },
   "/reference/core/novis-spreadsheet-sheet/cell/": {
     "feature": "Novis\\Spreadsheet\\Sheet::cell",
-    "hash": "9aa136cf1e00ea7c",
+    "hash": "3e643b13befed9aa",
     "questions": [
       "Get the address of a cell such as C7",
       "Use a cell address in a formula",
-      "Find the column letter for a key",
+      "Get a cell address from the key of its column",
+      "Use a column letter instead of a key",
       "Why does row 0 throw an error?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/chart/": {
     "feature": "Novis\\Spreadsheet\\Sheet::chart",
-    "hash": "b95010d53e7d8afd",
+    "hash": "f6896e57565f1a77",
     "questions": [
       "Place a chart at a cell in a sheet",
       "Set the size of a chart in pixels",
       "Report with a total row and a chart",
-      "Does a chart added early show every row?"
+      "Does a chart added early show every row?",
+      "Which cell ranges can a chart series use?",
+      "Why does a pie chart combined with a line throw an error?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/column/": {
     "feature": "Novis\\Spreadsheet\\Sheet::column",
-    "hash": "296625088e8220ce",
+    "hash": "c4b31b675f7647d7",
     "questions": [
       "Get the range of a column such as C2:C1043",
       "Add a total row with SUM over a column",
       "Range of a column for a chart",
-      "Why does the column range miss rows?"
+      "Why does the column range miss rows?",
+      "Why does column throw before the first data row?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/conditional/": {
@@ -10075,7 +10080,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/constructor/": {
     "feature": "Novis\\Spreadsheet\\Sheet::constructor",
-    "hash": "2ef27c250cef677e",
+    "hash": "ff1fd03da1babc42",
     "questions": [
       "Can I create a sheet with new Sheet?",
       "How is a sheet connected to its workbook?",
@@ -10095,12 +10100,13 @@
   },
   "/reference/core/novis-spreadsheet-sheet/image/": {
     "feature": "Novis\\Spreadsheet\\Sheet::image",
-    "hash": "9aabaf161642bfbb",
+    "hash": "278df534155711b3",
     "questions": [
       "Put a logo at the top of an Excel report",
       "Add a picture for each product",
       "Which image formats can a sheet contain?",
-      "Move an image inside a cell with an offset"
+      "Move an image inside a cell with an offset",
+      "What happens when an uploaded file is not an image?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/link/": {
@@ -10135,12 +10141,13 @@
   },
   "/reference/core/novis-spreadsheet-sheet/print/": {
     "feature": "Novis\\Spreadsheet\\Sheet::print",
-    "hash": "de5d71447cdef58a",
+    "hash": "0620866052366885",
     "questions": [
       "Print a wide report on one page",
       "Repeat the header row on every printed page",
       "Landscape page setup for a sheet",
-      "Set print area and margins"
+      "Set print area and margins",
+      "Why does fitToPage throw after the first row?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/protect/": {
@@ -10261,12 +10268,13 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createfordownload/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForDownload",
-    "hash": "fc559458e37bc11d",
+    "hash": "8fd6e39adf2c5dd3",
     "questions": [
       "Stream an Excel download to the browser",
       "Large CSV export download without memory problems",
       "Set response headers before a spreadsheet download",
-      "Why does a CSV value get a quote in front?"
+      "Why does a CSV value get a quote in front?",
+      "Choose CSV or Excel format for a download"
     ]
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
@@ -10303,12 +10311,14 @@
   },
   "/reference/core/novis-spreadsheet-workbook/define/": {
     "feature": "Novis\\Spreadsheet\\Workbook::define",
-    "hash": "794d20cca549a583",
+    "hash": "61c8174e8c71693a",
     "questions": [
       "Give a range a name for formulas",
       "Create a named range",
       "Rules for defined names",
-      "Use a name like Totals in a formula"
+      "Use a named tax rate in a formula",
+      "Define a name before its sheet exists",
+      "Name whole columns or rows of a sheet"
     ]
   },
   "/reference/core/novis-spreadsheet-workbook/finish/": {
@@ -10323,7 +10333,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "cc4cfb172fc757ab",
+    "hash": "2d752596c3b7dad3",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -10335,13 +10345,14 @@
   },
   "/reference/core/novis-spreadsheet-workbook/sheet/": {
     "feature": "Novis\\Spreadsheet\\Workbook::sheet",
-    "hash": "a9e2c51891fe4d5f",
+    "hash": "882fda3b78ec4a80",
     "questions": [
       "Add a second sheet to a workbook",
       "Rules for sheet names",
       "Freeze the header row",
       "Set column width and header text",
-      "Make the summary the first tab"
+      "Make the summary the first tab",
+      "Why does a CSV export throw on a second sheet?"
     ]
   },
   "/reference/core/novis-spreadsheet-written/": {
