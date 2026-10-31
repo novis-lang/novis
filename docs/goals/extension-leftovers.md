@@ -42,7 +42,7 @@ stages:
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/tests/paginate.rs]
   - id: 10
     title: "absolute and transformed boxes, the grid shorthands, elliptical radii and repeating gradients"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/grid.rs, extensions/pdf/src/layout/boxes.rs, extensions/pdf/src/write.rs, extensions/pdf/subset.json]
   - id: 11
     title: "flex items, right-to-left and SVG text are laid out as HTML's, clippy is clean, and the PDF lists are gone"
@@ -457,6 +457,18 @@ wider. Tables, images and flex containers keep their built width. `subset.json` 
 Cost: one more line break of the rest of a paragraph at each page whose width differs, on no page
 that does not. Memory: nothing beyond the pass.
 
+**Boxes and paint, as built.** The builder's `Frame` carries `containing`, the padding box width
+of the innermost positioned or transformed box, or the page's content width. An absolute box with
+`left` and `right` and no `width` opens against that width less both insets, with `fill` off so
+`Cx::atom` does not narrow it; a `fixed` one uses its page's width. A box with a `transform` opens a
+`Stack` and stacks as `z-index: 0` does, as CSS Transforms says, so its absolute boxes are drawn
+inside its group. The writer maps a link's rectangle through the composed transform of the open
+groups to its bounding box. The repeating gradients write their stops out over the box with `Pad`:
+`krilla`'s `Repeat` spread is a PostScript function, which PDF/A refuses. Past 4,096 stops a period
+is drawn as its average colour. Memory: up to 4,096 stops, about 80 KB, per box that draws one, per
+render. The cascade's component reader keeps a `[names]` block as `Comp::Names`, so a grid line
+name reaches `grid.rs`, which it did not before.
+
 **Each fix that changes what a user sees** gets a conformance case or a hostile case. A hostile
 case whose `ends-early` step no longer ends the program catches the new error and loses that line.
 Each changed member's `about.md` states the new behaviour where it stated the old one.
@@ -671,13 +683,13 @@ line.
 shorthand parse) share no file with the block items. Two writing subagents take them, side by side
 with the session, and none builds.
 
-- [ ] `rule:core-classes/pdf-css-subset`: an absolute box with `left` and `right` and no `width` stretches. `extensions/pdf/src/layout/block.rs:168`, `extensions/pdf/src/layout/block.rs:202`
-- [ ] A transformed box is a containing block. `extensions/pdf/src/layout/block.rs:912`, `extensions/pdf/src/layout/block.rs:945`
-- [ ] `rule:core-classes/pdf-output-is-inert`: a link in a transformed box covers the box as drawn. `extensions/pdf/src/write.rs:628`, `extensions/pdf/src/write.rs:570`
-- [ ] The `grid-template` and `grid` shorthands are read. `extensions/pdf/src/layout/grid.rs:34`
-- [ ] Elliptical radii and repeating gradients are drawn. `extensions/pdf/src/layout/boxes.rs:568`, `extensions/pdf/src/layout/boxes.rs:336`
-- [ ] Each new value is in `subset.json`, and the tests the `pdf-boxes` and `pdf-transformed-link` checks name. `extensions/pdf/subset.json:1`, `extensions/pdf/tests/layout.rs:1`, `extensions/pdf/tests/render.rs:1`
-- [ ] The module doc's writing bullet goes, and the layout bullet keeps only its flex sentences. `extensions/pdf/src/lib.rs:65`, `extensions/pdf/src/lib.rs:67`
+- [x] `rule:core-classes/pdf-css-subset`: an absolute box with `left` and `right` and no `width` stretches. `extensions/pdf/src/layout/block.rs:168`, `extensions/pdf/src/layout/block.rs:202`
+- [x] A transformed box is a containing block. `extensions/pdf/src/layout/block.rs:912`, `extensions/pdf/src/layout/block.rs:945`
+- [x] `rule:core-classes/pdf-output-is-inert`: a link in a transformed box covers the box as drawn. `extensions/pdf/src/write.rs:628`, `extensions/pdf/src/write.rs:570`
+- [x] The `grid-template` and `grid` shorthands are read. `extensions/pdf/src/layout/grid.rs:34`
+- [x] Elliptical radii and repeating gradients are drawn. `extensions/pdf/src/layout/boxes.rs:568`, `extensions/pdf/src/layout/boxes.rs:336`
+- [x] Each new value is in `subset.json`, and the tests the `pdf-boxes` and `pdf-transformed-link` checks name. `extensions/pdf/subset.json:1`, `extensions/pdf/tests/layout.rs:1`, `extensions/pdf/tests/render.rs:1`
+- [x] The module doc's writing bullet goes, and the layout bullet keeps only its flex sentences. `extensions/pdf/src/lib.rs:65`, `extensions/pdf/src/lib.rs:67`
 
 ### 11. flex items, right-to-left and SVG text are laid out as HTML's, clippy is clean, and the PDF lists are gone
 
@@ -710,45 +722,50 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 9 are done, and the spreadsheet lane is finished. `looper check --name pdf-breaks`
-is green: all four of its tests pass, and so does the rest of the `paginate` suite.
+Stages 1 to 10 are done, and the spreadsheet lane is finished. `looper check --name pdf-boxes`
+and `--name pdf-transformed-link` are green. No other test ran.
 
-- A paragraph re-breaks from line `i` after a page of another width or a float placed at line
-  `i` (the line loop in `extensions/pdf/src/layout/text.rs`, `place_float` and `beside`). A float
-  that does not fit starts a new page, and its line moves with it. A `leader()`'s room is not
-  computed again after such a re-break.
-- The component's clippy has the same 8 errors, which stage 11 owns.
+- Stage 10 is § *Boxes and paint, as built* under the decisions. The grid and paint items were
+  written by subagents and checked here by build and their tests.
+- A repeating gradient covers the padding box, and its last colour goes on under a border, as a
+  plain gradient's does. An area string with two sizes after it is not read, and an area string
+  that does not read drops only `grid-template-areas`, where CSS drops the whole declaration.
+- A `leader()`'s room is not computed again after a paragraph re-breaks at a page of another
+  width or a float.
+- The component's clippy has the same 8 lints, none on a line stage 10 wrote; stage 11 owns them.
 - `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
 - `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
 - A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
 - The sweep's nightly reds (run 41187571578, `857b39cad`) each match a later fix: `39795c9c4`,
-  `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`. None was rerun. `env-secret-proofs` has no check or log.
+  `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`. None was rerun. `env-secret-proofs` has no check or log:
+  `looper check --name env-secret` matches nothing, so the sweep's line is stale.
 
 ### Next
 
-Stage 10, by its `**Split:**` line: two writing subagents take the paint items and the grid
-item, and the session takes the block items and the link.
+Stage 11. Its flex items share `inline.rs` and `flex.rs`, and the fonts item is apart.
 
-- [ ] `extensions/pdf/src/layout/block.rs:982` (`Flow::absolute`) and `:1015`
-  (`place_absolute`): an absolute box with `left` and `right` and no `width` stretches between
-  them. `an_absolute_box_with_left_and_right_and_no_width_stretches` in
-  `extensions/pdf/tests/layout.rs`.
-- [ ] `extensions/pdf/src/layout/block.rs:913` (`lift`): a box with a `transform` is the
-  containing block of the absolute boxes inside it, as a positioned box is.
-  `a_transformed_box_is_a_containing_block`.
-- [ ] `extensions/pdf/src/write.rs:567` (`Item::Begin`'s transform) and `:623` (`Item::Link`): a
-  link inside a transformed group covers the transformed box's bounds.
-  `a_link_in_a_transformed_box_covers_its_transformed_box` in `extensions/pdf/tests/render.rs`.
-- [ ] Subagent: `extensions/pdf/src/layout/grid.rs:34` reads `grid-template` and `grid` into
-  rows, columns and areas. `the_grid_template_and_grid_shorthands_are_read`.
-- [ ] Subagent: `extensions/pdf/src/layout/boxes.rs:573` (`radii`) takes a horizontal and a
-  vertical radius (`border-radius: 20px / 10px`), and `:336` (`gradient`) reads
-  `repeating-linear-gradient` and `repeating-radial-gradient`. `elliptical_radii_are_drawn` and
-  `repeating_gradients_are_drawn`. Each new value is a line in `extensions/pdf/subset.json`.
-- [ ] `extensions/pdf/src/lib.rs:55`: the writing bullet goes, and the layout bullet keeps only
-  its flex sentences.
+- [ ] `extensions/pdf/src/layout/inline.rs:1127` (`generated`, and the `<br>` and `::before` and
+  `::after` paths near `Builder::open_container`): `::before`, `::after` and `<br>` are flex
+  items. `before_after_and_br_are_flex_items` in `extensions/pdf/tests/layout.rs`.
+- [ ] `extensions/pdf/src/layout/flex.rs:163`: `align-items: baseline` and `margin: auto` on an
+  item. Check what `flex.rs` already parses first. `flex_items_align_on_their_first_baseline`,
+  `an_auto_margin_on_a_flex_item_takes_the_free_space`.
+- [ ] `extensions/pdf/subset.json:1`: `hyphenate-character`; `extensions/pdf/src/layout/text.rs:795`
+  and `extensions/pdf/src/layout/inline.rs:114`: an inline box in a right-to-left line goes right
+  to left.
+  `an_inline_box_in_a_right_to_left_line_is_placed_right_to_left`.
+- [ ] `extensions/pdf/src/fonts.rs:45` and `:119`: an SVG `font-family` maps as HTML's does.
+  `an_svg_font_family_maps_as_html_does` in `extensions/pdf/tests/render.rs`.
+- [ ] Clippy: box the large variants of `layout::Block` (`extensions/pdf/src/layout.rs:477`) and
+  `inline::Step` (`extensions/pdf/src/layout/inline.rs:1390`), and fix the lints at
+  `css/value.rs:127`, `:927`, `:931`, `:1004`, `css/mod.rs:294`, `read.rs:280`,
+  `tests/paginate.rs:841` and `tests/read.rs:345`. `looper check --name pdf-clippy-clean`.
+- [ ] The list at `extensions/pdf/src/lib.rs:52` goes with its bold lead, `data/gaps/nvs-pdf/pdf-leftovers.json`
+  is deleted, and the size is re-recorded once (`crates/nvs-ext/tests/builtin.rs`).
 
-Expect red at the gate: a PDF test whose margin box or bookmark order assumed a string, mark,
+Expect red at the gate: a PDF test whose paint order or item index assumed a transformed box was
+drawn in the flow, now that it is a layer at `z-index: 0`. A test that matched a corner's radius
+as one `Length`. Also a PDF test whose margin box or bookmark order assumed a string, mark,
 running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
 table filling its containing block: a slot overflow count, an x position, or a right-aligned
 column. Also a PDF test or case with tables, flex or grid nested more than 32 levels,
