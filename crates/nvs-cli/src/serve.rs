@@ -4513,6 +4513,12 @@ mod tests {
     /// races.
     #[test]
     fn a_queue_behind_its_schema_is_refused_before_a_worker_is_armed() {
+        // The refusal enters `crate::stop::deliver_to`, which reports
+        // `STOPPING=1` to the manager this process installed, so this case
+        // takes its turn with the others that stop this process.
+        let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (_db, written) = queue_over_bare_sqlite(2, "behind-at-boot");
         let current = current_of(&written);
         let draining = nvs_server::Draining::detached();
@@ -5523,9 +5529,12 @@ mod tests {
         // here is the process's either way.
         crate::stop::deliver_to(&nvs_server::Draining::detached());
 
+        // A copy, so a failed assertion does not poison the sink every later
+        // stop in this binary reports to.
         let sent = sent
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         assert_eq!(
             sent.as_slice(),
             ["READY=1", "RELOADING=1", "READY=1", "STOPPING=1"],
