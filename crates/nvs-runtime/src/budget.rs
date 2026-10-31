@@ -240,7 +240,10 @@
 //! once a poll has found the breach. A debug build also checks each member
 //! call against `bun nv proofs --overshoot`'s bound (`run_helper`'s
 //! `overshoot_backstop`). That is two thread-local loads per call, and a
-//! release build does not compile it.
+//! release build does not compile it. The backstop judges only a context with
+//! a ceiling, so a debug build's [`Ctx::new`](crate::Ctx::new) arms the shipped
+//! default one: every Rust test runs under it, and a test that needs a larger
+//! heap sets its own limit and says why.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};

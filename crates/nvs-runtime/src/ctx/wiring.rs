@@ -99,6 +99,12 @@ impl Ctx {
 
     /// A context writing to the given sink, with nothing pending, every flag
     /// clear, and [`RunKind::Command`] as its kind of run.
+    ///
+    /// A debug build arms the shipped default memory ceiling
+    /// (`nvs_config::defaults::LIMITS_MEMORY`), so every Rust test that makes a
+    /// context runs the overshoot backstop. A test that needs more memory, or
+    /// none, calls [`Self::set_memory_limit`] with a comment saying why. A
+    /// release build arms no ceiling here.
     #[must_use]
     pub fn new(output: OutputSink) -> Self {
         // The stack pointer in *this* frame, which is the closest thing to
@@ -257,6 +263,20 @@ impl Ctx {
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
+        // A debug build starts every context under the shipped default memory
+        // ceiling, the limit a request gets when its configuration sets none.
+        // So a Rust test that calls a member runs the overshoot backstop
+        // (`abi.rs`'s `overshoot_backstop`), and a member that holds past its
+        // bound panics in the test that called it. `set_config` and
+        // `set_memory_limit` replace it, so a served request, `nvs test` and
+        // the conformance runs keep their configured limit. A test that needs
+        // more memory, or none, calls `set_memory_limit` itself and says why;
+        // the default is never raised for it. A release build keeps no
+        // ceiling here and spends nothing.
+        #[cfg(debug_assertions)]
+        ctx.set_memory_limit(
+            usize::try_from(nvs_config::defaults::LIMITS_MEMORY).unwrap_or(usize::MAX),
+        );
         let turn = crate::budget::running_turn();
         if !turn.is_null() {
             ctx.made = Some(super::limits::Made {
@@ -782,6 +802,20 @@ fn armed_by(config: &nvs_config::Request) -> DebugFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_test_context_is_under_the_default_memory_ceiling() {
+        let ctx = Ctx::new(OutputSink::Stdout);
+        assert_eq!(
+            ctx.memory_limit() as u64,
+            nvs_config::defaults::LIMITS_MEMORY,
+            "a debug build arms the shipped default, so a member past its bound panics in its test"
+        );
+        assert!(
+            ctx.overshoot_bound().is_some(),
+            "the backstop judges every member call a test makes"
+        );
+    }
 
     fn written(names: &[&str]) -> std::sync::Arc<nvs_config::Snapshot> {
         let mut snapshot = nvs_config::Snapshot::default();
