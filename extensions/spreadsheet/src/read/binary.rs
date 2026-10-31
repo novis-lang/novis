@@ -10,14 +10,22 @@
 //!
 //! A cell's text is the kind `text`, which `super::Reader::value` reads as it is, because an
 //! xlsb string has no XML escapes. A number is written into the raw cell as the shortest text
-//! that reads back as the same `f64`. A formula is stored as parsed tokens, not as text, so a cell
-//! read with `formulas: true` gives its stored result and no formula.
+//! that reads back as the same `f64`.
+//!
+//! **Formulas.** A formula is stored as parsed tokens, which [`super::tokens`] turns into A1
+//! text when a read asks for `formulas: true`, through the sheets, the `XTI` list and the names
+//! [`workbook`] reads. Each cell of a shared formula holds a `ptgExp` naming the formula's first
+//! row, and the `BrtShrFmla` with its tokens follows the first of those cells. So a cell that
+//! comes before its shared formula waits for it until its row ends. The cursor keeps each shared
+//! or array formula until it has passed its last row. An array formula's text is given in its
+//! first cell, as an xlsx file writes it.
 
 use std::sync::Arc;
 
 use super::format::Style;
 use super::merge::Merge;
 use super::sheet::{self, RawCell, RawRow};
+use super::tokens::{self, Biff, Linked, Place};
 use super::zip::{Entry, Part};
 use super::{MOST_COLUMNS, MOST_ROWS, Source, Strings};
 use crate::{Error, Visibility};
@@ -35,6 +43,7 @@ const FORMULA_NUMBER: u16 = 9;
 const FORMULA_BOOL: u16 = 10;
 const FORMULA_ERROR: u16 = 11;
 const SHARED_ITEM: u16 = 19;
+const NAME: u16 = 39;
 const FORMAT: u16 = 44;
 const STYLE: u16 = 47;
 const CELL_RICH: u16 = 62;
@@ -44,8 +53,15 @@ const DIMENSION: u16 = 148;
 const WORKBOOK_PROPERTIES: u16 = 153;
 const SHEET: u16 = 156;
 const MERGE_CELL: u16 = 176;
+const SUP_BOOK_SOURCE: u16 = 355;
+const SUP_SELF: u16 = 357;
+const SUP_SAME: u16 = 358;
+const EXTERN_SHEET: u16 = 362;
+const ARRAY_FORMULA: u16 = 426;
+const SHARED_FORMULA: u16 = 427;
 const BEGIN_CELL_STYLES: u16 = 617;
 const END_CELL_STYLES: u16 = 618;
+const SUP_ADDIN: u16 = 667;
 
 fn broken(what: &str) -> Error {
     Error::Parse(format!("The file is not a valid workbook: {what}."))
@@ -202,6 +218,8 @@ pub struct Workbook {
     pub date1904: bool,
     /// Each sheet's name, visibility and relationship id, in tab order.
     pub sheets: Vec<(String, Visibility, String)>,
+    /// What the workbook's formulas refer to by number.
+    pub book: tokens::Book,
 }
 
 /// Reads `xl/workbook.bin`.
@@ -209,6 +227,7 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
     let mut book = Workbook {
         date1904: false,
         sheets: Vec::new(),
+        book: tokens::Book::default(),
     };
     for item in records(part) {
         let (kind, body) = item?;
@@ -223,7 +242,29 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
                 let (id, used) = wide_at(body, 8)?;
                 let (name, _) = wide_at(body, 8 + used)?;
                 let name = name.ok_or_else(|| broken("a sheet has no name"))?;
+                book.book.sheets.push(name.clone());
                 book.sheets.push((name, visibility, id.unwrap_or_default()));
+            }
+            SUP_SELF | SUP_SAME => book.book.linked.push(Linked::Own),
+            SUP_ADDIN => book.book.linked.push(Linked::AddIn(Vec::new())),
+            SUP_BOOK_SOURCE => book.book.linked.push(Linked::Other),
+            // A count, then each `XTI`: its `SupBook` and its first and last sheet.
+            EXTERN_SHEET => {
+                let count = u32_at(body, 0)? as usize;
+                for xti in body.get(4..).unwrap_or_default().chunks_exact(12).take(count) {
+                    let at = |n: usize| [xti[n], xti[n + 1], xti[n + 2], xti[n + 3]];
+                    book.book.xti.push((
+                        u32::from_le_bytes(at(0)),
+                        i32::from_le_bytes(at(4)),
+                        i32::from_le_bytes(at(8)),
+                    ));
+                }
+            }
+            // The flags, the shortcut key and the sheet, and then the name. A name that does not
+            // read is kept empty, so the names after it keep their numbers.
+            NAME => {
+                let name = wide_at(body, 9).ok().and_then(|(name, _)| name);
+                book.book.names.push(name.unwrap_or_default());
             }
             _ => {}
         }
@@ -341,6 +382,68 @@ pub(super) fn typed(mut cell: RawCell, kind: &[u8], value: Option<String>) -> Ra
     cell
 }
 
+/// A parsed formula at `at` of `body`: its tokens and its extra data, each after a count of four
+/// bytes. A record that ends before the extra data has none. `None` when the tokens are longer
+/// than the record.
+fn parsed_at(body: &[u8], at: usize) -> Option<(&[u8], &[u8])> {
+    let count = u32_at(body, at).ok()? as usize;
+    let tokens = body.get(at + 4..)?.get(..count)?;
+    let after = at + 4 + count;
+    let extra = match u32_at(body, after) {
+        Ok(length) => body.get(after + 4..)?.get(..length as usize)?,
+        Err(_) => &[],
+    };
+    Some((tokens, extra))
+}
+
+/// The tokens and extra data of the formula cell record `kind`, after its cell, its value and
+/// its two bytes of flags. `None` for a cell that is not a formula.
+fn formula_of(kind: u16, body: &[u8]) -> Option<(&[u8], &[u8])> {
+    let value = match kind {
+        FORMULA_TEXT => wide_at(body, 8).ok()?.1,
+        FORMULA_NUMBER => 8,
+        FORMULA_BOOL | FORMULA_ERROR => 1,
+        _ => return None,
+    };
+    parsed_at(body, 8 + value + 2)
+}
+
+/// A shared or array formula the cursor keeps until it passes its last row.
+#[derive(Debug)]
+struct Shared {
+    /// The first and last row, and the first and last column, each from 0.
+    rows: (u32, u32),
+    columns: (u32, u32),
+    tokens: Vec<u8>,
+    extra: Vec<u8>,
+    array: bool,
+}
+
+impl Shared {
+    fn covers(&self, (row, column): (u32, u32)) -> bool {
+        (self.rows.0..=self.rows.1).contains(&row)
+            && (self.columns.0..=self.columns.1).contains(&column)
+    }
+
+    /// The formula's text for the cell `at`. An array formula has text in its first cell only.
+    fn text(&self, at: (u32, u32), book: &tokens::Book) -> Option<String> {
+        if !self.covers(at) || (self.array && at != (self.rows.0, self.columns.0)) {
+            return None;
+        }
+        let place = Place {
+            base: at,
+            shared: !self.array,
+        };
+        tokens::decode(Biff::Twelve, &self.tokens, &self.extra, place, book)
+    }
+}
+
+/// The cell `cell` of the row `number`, from 1, as the zero-based pair a formula counts from.
+fn place_of(number: u64, cell: &RawCell) -> (u32, u32) {
+    let from_zero = |n: u64| u32::try_from(n.saturating_sub(1)).unwrap_or(u32::MAX);
+    (from_zero(number), from_zero(cell.column))
+}
+
 /// The cell record `kind` with `body`, as the raw cell the xlsx cursor would give.
 fn cell_of(kind: u16, body: &[u8]) -> Result<RawCell, Error> {
     let at = cell(body)?;
@@ -373,11 +476,21 @@ pub struct Cursor {
     over: bool,
     last: u64,
     row: Option<RawRow>,
+    /// What formulas refer to, when the read gives each formula's text.
+    formulas: Option<Arc<tokens::Book>>,
+    shared: Vec<Shared>,
+    /// The columns of the row being read whose cell waits for the shared formula after it.
+    waiting: Vec<u64>,
 }
 
 impl Cursor {
-    /// Starts reading the sheet whose part is `entry`.
-    pub fn open(source: &dyn Source, entry: &Entry) -> Result<Self, Error> {
+    /// Starts reading the sheet whose part is `entry`. With `formulas`, each formula cell gets
+    /// its text.
+    pub fn open(
+        source: &dyn Source,
+        entry: &Entry,
+        formulas: Option<Arc<tokens::Book>>,
+    ) -> Result<Self, Error> {
         Ok(Self {
             part: Part::open(source, entry)?,
             buf: Vec::new(),
@@ -387,6 +500,9 @@ impl Cursor {
             over: false,
             last: 0,
             row: None,
+            formulas,
+            shared: Vec::new(),
+            waiting: Vec::new(),
         })
     }
 
@@ -457,6 +573,8 @@ impl Cursor {
                         return Err(sheet::past_row(number));
                     }
                     self.last = number;
+                    self.waiting.clear();
+                    self.shared.retain(|shared| u64::from(shared.rows.1) + 1 >= number);
                     let hidden = body.get(11).is_some_and(|flags| flags & 0x10 != 0);
                     done = self.row.replace(RawRow {
                         number,
@@ -465,7 +583,7 @@ impl Cursor {
                     });
                 }
                 CELL_BLANK..=FORMULA_ERROR | CELL_RICH if self.in_data => {
-                    let cell = cell_of(kind, body)?;
+                    let mut cell = cell_of(kind, body)?;
                     let row = self
                         .row
                         .as_mut()
@@ -473,7 +591,58 @@ impl Cursor {
                     if cell.column > MOST_COLUMNS {
                         return Err(sheet::past_cell(cell.column, row.number));
                     }
+                    if let (Some(book), Some((tokens, extra))) =
+                        (&self.formulas, formula_of(kind, body))
+                    {
+                        let at = place_of(row.number, &cell);
+                        match tokens::shared_at(Biff::Twelve, tokens) {
+                            Some((first, _)) => match self
+                                .shared
+                                .iter()
+                                .find(|shared| shared.rows.0 == first && shared.covers(at))
+                            {
+                                Some(shared) => cell.formula = shared.text(at, book),
+                                None => self.waiting.push(cell.column),
+                            },
+                            None => {
+                                let place = Place {
+                                    base: at,
+                                    shared: false,
+                                };
+                                cell.formula =
+                                    tokens::decode(Biff::Twelve, tokens, extra, place, book);
+                            }
+                        }
+                    }
                     row.cells.push(cell);
+                }
+                // The range, then for an array formula one byte of flags, then the formula.
+                SHARED_FORMULA | ARRAY_FORMULA if self.in_data && self.formulas.is_some() => {
+                    let array = kind == ARRAY_FORMULA;
+                    if let Some((tokens, extra)) = parsed_at(body, if array { 17 } else { 16 }) {
+                        let shared = Shared {
+                            rows: (u32_at(body, 0)?, u32_at(body, 4)?),
+                            columns: (u32_at(body, 8)?, u32_at(body, 12)?),
+                            tokens: tokens.to_vec(),
+                            extra: extra.to_vec(),
+                            array,
+                        };
+                        if let (Some(row), Some(book)) = (self.row.as_mut(), &self.formulas) {
+                            self.waiting.retain(|&column| {
+                                let Some(cell) = row.cells.iter_mut().find(|c| c.column == column)
+                                else {
+                                    return false;
+                                };
+                                let at = place_of(row.number, cell);
+                                if !shared.covers(at) {
+                                    return true;
+                                }
+                                cell.formula = shared.text(at, book);
+                                false
+                            });
+                        }
+                        self.shared.push(shared);
+                    }
                 }
                 _ => {}
             }

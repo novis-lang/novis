@@ -1312,6 +1312,11 @@ fn binary_row(number: u32, hidden: bool) -> Vec<u8> {
 /// `data`, and `Lists`, hidden and empty. Style 1
 /// is the custom date format `dd/mm/yyyy`, and the shared strings are `shared`.
 fn xlsb(data: &[u8], shared: &[&str]) -> Vec<u8> {
+    xlsb_with(data, shared, &[])
+}
+
+/// [`xlsb`] with the records `globals` after the sheets of its workbook part.
+fn xlsb_with(data: &[u8], shared: &[&str], globals: &[u8]) -> Vec<u8> {
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let package = "http://schemas.openxmlformats.org/package/2006/relationships";
     let mut book = record(153, &[0; 12]);
@@ -1322,6 +1327,7 @@ fn xlsb(data: &[u8], shared: &[&str]) -> Vec<u8> {
         body.extend(wide(name));
         book.extend(record(156, &body));
     }
+    book.extend_from_slice(globals);
     let mut styles = record(
         44,
         &[&164u16.to_le_bytes()[..], &wide("dd/mm/yyyy")].concat(),
@@ -1474,6 +1480,330 @@ fn an_xlsb_is_read_through_byte_ranges() {
         ]
     );
     block_on(read.request.end()).expect("the request ends");
+}
+
+/// A cell's column in a formula token, from 0, with its two flags: whether the column and the
+/// row are relative.
+fn column_bits(column: u16, column_relative: bool, row_relative: bool) -> u16 {
+    column | if column_relative { 0x4000 } else { 0 } | if row_relative { 0x8000 } else { 0 }
+}
+
+/// An xlsb `ptgRef` to the cell `row` and `column`, each from 0. `relative` says whether the
+/// column and the row are relative.
+fn ref12(row: u32, column: u16, relative: (bool, bool)) -> Vec<u8> {
+    let mut out = vec![0x24];
+    out.extend(row.to_le_bytes());
+    out.extend(column_bits(column, relative.0, relative.1).to_le_bytes());
+    out
+}
+
+/// An xlsb `ptgArea` from the first row to the last and between two columns, each given as its
+/// bits.
+fn area12(rows: (u32, u32), columns: (u16, u16)) -> Vec<u8> {
+    let mut out = vec![0x25];
+    out.extend(rows.0.to_le_bytes());
+    out.extend(rows.1.to_le_bytes());
+    out.extend(columns.0.to_le_bytes());
+    out.extend(columns.1.to_le_bytes());
+    out
+}
+
+/// A `ptgInt` of `n`.
+fn int(n: u16) -> Vec<u8> {
+    [&[0x1E][..], &n.to_le_bytes()].concat()
+}
+
+/// An xlsb formula cell in `column` whose stored result is the number `result`, with the parsed
+/// formula `tokens` and its `extra` data.
+fn binary_formula(column: u32, result: f64, tokens: &[u8], extra: &[u8]) -> Vec<u8> {
+    let mut value = result.to_le_bytes().to_vec();
+    value.extend([0, 0]);
+    value.extend(u32::try_from(tokens.len()).unwrap().to_le_bytes());
+    value.extend_from_slice(tokens);
+    value.extend(u32::try_from(extra.len()).unwrap().to_le_bytes());
+    value.extend_from_slice(extra);
+    binary_cell(9, column, 0, &value)
+}
+
+/// The formula of each cell `sheet` gives with `formulas: true`, row by row.
+fn formulas_of(read: &Read, sheet: &str) -> Vec<Vec<Value>> {
+    let batch = read.batch(
+        Options {
+            formulas: true,
+            ..options(sheet)
+        }
+        .value(),
+        100,
+    );
+    entries(field(&batch, "rows"))
+        .into_iter()
+        .map(|row| {
+            entries(field(row, "cells"))
+                .into_iter()
+                .map(|cell| field(cell, "formula").clone())
+                .collect()
+        })
+        .collect()
+}
+
+/// The workbook records an xlsb's 3-D references and names need: the workbook itself as a
+/// `SupBook`, the `XTI`s `Lists`, `Shop:Lists` and a deleted sheet, and the name `Rate`.
+fn xlsb_globals() -> Vec<u8> {
+    let mut out = record(357, &[]);
+    let mut xti = 3u32.to_le_bytes().to_vec();
+    for (first, last) in [(1i32, 1i32), (0, 1), (-1, -1)] {
+        xti.extend(0u32.to_le_bytes());
+        xti.extend(first.to_le_bytes());
+        xti.extend(last.to_le_bytes());
+    }
+    out.extend(record(362, &xti));
+    let mut name = vec![0; 9];
+    name.extend(wide("Rate"));
+    name.extend(0u32.to_le_bytes());
+    out.extend(record(39, &name));
+    out
+}
+
+#[test]
+fn every_operand_and_operator_token_decodes_to_a1_text() {
+    let a1 = || ref12(0, 0, (true, true));
+    let mut array_extra = [2u32.to_le_bytes(), 2u32.to_le_bytes()].concat();
+    array_extra.push(0x00);
+    array_extra.extend(1f64.to_le_bytes());
+    array_extra.push(0x00);
+    array_extra.extend(2f64.to_le_bytes());
+    array_extra.push(0x01);
+    array_extra.extend(wide("x"));
+    array_extra.extend([0x02, 1]);
+    let text = |s: &str| {
+        let units: Vec<u16> = s.encode_utf16().collect();
+        let mut out = vec![0x17];
+        out.extend(u16::try_from(units.len()).unwrap().to_le_bytes());
+        for unit in units {
+            out.extend(unit.to_le_bytes());
+        }
+        out
+    };
+    let sum_tokens = [
+        &[0x19, 0x40, 0, 1][..],
+        &[0x29, 13, 0],
+        &area12((0, 2), (column_bits(0, true, true), column_bits(0, true, true))),
+        &[0x19, 0x10, 0, 0],
+    ]
+    .concat();
+    let cases: Vec<(Vec<u8>, Vec<u8>, &str)> = vec![
+        (
+            [a1(), ref12(1, 1, (true, false)), ref12(2, 2, (false, true)), vec![0x05, 0x03]].concat(),
+            vec![],
+            "A1+B$2*$C3",
+        ),
+        ([a1(), vec![0x13, 0x14], int(2), vec![0x07]].concat(), vec![], "-A1%^2"),
+        ([int(1), int(2), vec![0x04, 0x15], int(3), vec![0x06]].concat(), vec![], "(1-2)/3"),
+        ([text("a\"b"), vec![0x1D, 1, 0x08]].concat(), vec![], "\"a\"\"b\"&TRUE"),
+        ([int(1), int(2), vec![0x09], int(3), int(4), vec![0x0A, 0x0B]].concat(), vec![], "1<2=3<=4"),
+        ([int(1), int(2), vec![0x0C], int(3), vec![0x0E], int(4), vec![0x0D]].concat(), vec![], "1>=2<>3>4"),
+        (
+            [a1(), ref12(0, 2, (true, true)), vec![0x10, 0x15], ref12(0, 1, (true, true)), ref12(1, 1, (true, true)), vec![0x11, 0x0F]].concat(),
+            vec![],
+            "(A1,C1) B1:B2",
+        ),
+        (area12((0, 1), (column_bits(0, false, false), column_bits(1, true, true))), vec![], "$A$1:B2"),
+        (area12((0, 1_048_575), (column_bits(0, true, true), column_bits(0, true, true))), vec![], "A:A"),
+        (area12((0, 1), (column_bits(0, true, false), column_bits(16_383, true, false))), vec![], "$1:$2"),
+        ([&[0x3A, 0, 0][..], &0u32.to_le_bytes(), &column_bits(0, true, true).to_le_bytes()].concat(), vec![], "Lists!A1"),
+        (
+            [&[0x3B, 1, 0][..], &1u32.to_le_bytes(), &2u32.to_le_bytes(), &column_bits(1, false, false).to_le_bytes(), &column_bits(2, true, true).to_le_bytes()].concat(),
+            vec![],
+            "Shop:Lists!$B$2:C3",
+        ),
+        ([&[0x3A, 2, 0][..], &0u32.to_le_bytes(), &column_bits(0, true, true).to_le_bytes()].concat(), vec![], "#REF!A1"),
+        ([0x2A, 0, 0, 0, 0, 0, 0].to_vec(), vec![], "#REF!"),
+        ([&[0x1C, 0x07, 0x1F][..], &1.5f64.to_le_bytes(), &[0x03]].concat(), vec![], "#DIV/0!+1.5"),
+        ([a1(), vec![0x16], int(2), vec![0x22, 3, 1, 0]].concat(), vec![], "IF(A1,,2)"),
+        ([vec![0x60], vec![0; 14]].concat(), array_extra, "{1,2;\"x\",TRUE}"),
+        ([&[0x23][..], &1u32.to_le_bytes(), &int(2), &[0x05]].concat(), vec![], "Rate*2"),
+        (sum_tokens, vec![], "SUM(A1:A3)"),
+    ];
+    let mut data = binary_row(1, false);
+    for (n, (tokens, extra, _)) in cases.iter().enumerate() {
+        data.extend(binary_formula(u32::try_from(n).unwrap(), 0.0, tokens, extra));
+    }
+    // A structured reference is a token the decoder does not read, so its cell gives no formula.
+    data.extend(binary_formula(30, 0.0, &[0x18, 0x19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], &[]));
+    let read = Read::open(xlsb_with(&data, &[], &xlsb_globals()));
+    let mut expected: Vec<Value> = cases.iter().map(|(.., text)| string(text)).collect();
+    expected.push(Value::Null);
+    assert_eq!(formulas_of(&read, "Shop"), vec![expected]);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_function_token_decodes_by_excels_function_table() {
+    let func = |index: u16| [&[0x21][..], &index.to_le_bytes()].concat();
+    let cases: Vec<(Vec<u8>, Value)> = vec![
+        ([&[0x1F][..], &1.5f64.to_le_bytes(), &int(0), &func(27)].concat(), string("ROUND(1.5,0)")),
+        (
+            [ref12(0, 0, (true, true)), ref12(0, 1, (true, true)), ref12(0, 2, (true, true)), vec![0x22, 3, 4, 0]].concat(),
+            string("SUM(A1,B1,C1)"),
+        ),
+        (func(19), string("PI()")),
+        // The value class of a token, 0x41 for `ptgFunc`, reads as its reference class does.
+        ([ref12(0, 0, (true, true)), int(0), vec![0x41, 0xE0, 0x01]].concat(), string("IFERROR(A1,0)")),
+        // `SUM` takes a varying number of arguments, so a `ptgFunc` of it is not valid.
+        ([ref12(0, 0, (true, true)), func(4)].concat(), Value::Null),
+        // An index past Excel's table names no function.
+        ([int(1), func(600)].concat(), Value::Null),
+    ];
+    let mut data = binary_row(1, false);
+    for (n, (tokens, _)) in cases.iter().enumerate() {
+        data.extend(binary_formula(u32::try_from(n).unwrap(), 0.0, tokens, &[]));
+    }
+    let read = Read::open(xlsb(&data, &[]));
+    let expected: Vec<Value> = cases.into_iter().map(|(_, text)| text).collect();
+    assert_eq!(formulas_of(&read, "Shop"), vec![expected]);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// One xls `FORMULA` record for the cell `row` and `column`, from 0, whose stored result is the
+/// number `result` and whose parsed formula is `tokens`.
+fn biff_formula(row: u16, column: u16, result: f64, tokens: &[u8]) -> Vec<u8> {
+    let mut body = [row.to_le_bytes(), column.to_le_bytes(), 0u16.to_le_bytes()].concat();
+    body.extend(result.to_le_bytes());
+    body.extend([0; 6]);
+    body.extend(u16::try_from(tokens.len()).unwrap().to_le_bytes());
+    body.extend_from_slice(tokens);
+    biff(0x0006, &body)
+}
+
+/// The globals an xls's 3-D references, add-in calls and names need: the workbook itself and an
+/// add-in as `SUPBOOK`s, the add-in's function `_xlfn.XLOOKUP`, the `XTI`s `Lists` and the
+/// add-in, and the name `Rate`.
+fn xls_globals() -> Vec<u8> {
+    let mut out = biff(0x01AE, &[2, 0, 0x01, 0x04]);
+    out.extend(biff(0x01AE, &[1, 0, 0x01, 0x3A]));
+    let mut name = vec![0; 6];
+    name.extend([13, 0]);
+    name.extend(b"_xlfn.XLOOKUP");
+    name.extend([2, 0, 0x1C, 0x17]);
+    out.extend(biff(0x0023, &name));
+    let xti = [2u16, 0, 1, 1, 1, 0xFFFE, 0xFFFE].map(u16::to_le_bytes).concat();
+    out.extend(biff(0x0017, &xti));
+    let mut rate = vec![0, 0, 0, 4];
+    rate.extend([0; 10]);
+    rate.push(0);
+    rate.extend(b"Rate");
+    out.extend(biff(0x0018, &rate));
+    out
+}
+
+#[test]
+fn an_xls_shared_formula_decodes_relative_to_its_cell() {
+    // `G1` is `_xlfn.XLOOKUP("Tea",Lists!A1:A9,Rate)`: an add-in call, a string, a 3-D area and
+    // a name.
+    let both = column_bits(0, true, true).to_le_bytes();
+    let lookup = [
+        &[0x39, 1, 0, 1, 0, 0, 0][..],
+        &[0x17, 3, 0],
+        b"Tea",
+        &[0x3B, 0, 0, 0, 0, 8, 0],
+        &both,
+        &both,
+        &[0x23, 1, 0, 0, 0],
+        &[0x22, 4, 0xFF, 0],
+    ]
+    .concat();
+    let mut shop = biff_formula(0, 6, 0.0, &lookup);
+    // `G2:G3` share `A1*$C$1` written for `G2`: one row up and six columns left, and `$C$1`.
+    let exp = [0x01, 1, 0, 6, 0];
+    shop.extend(biff_formula(1, 6, 0.0, &exp));
+    let mut shared = [1u16.to_le_bytes(), 2u16.to_le_bytes()].concat();
+    shared.extend([6, 6, 0, 2]);
+    let tokens = [
+        &[0x2C][..],
+        &0xFFFFu16.to_le_bytes(),
+        &(0xFAu16 | 0xC000).to_le_bytes(),
+        &[0x24, 0, 0],
+        &2u16.to_le_bytes(),
+        &[0x05],
+    ]
+    .concat();
+    shared.extend(u16::try_from(tokens.len()).unwrap().to_le_bytes());
+    shared.extend(&tokens);
+    shop.extend(biff(0x04BC, &shared));
+    shop.extend(biff_formula(2, 6, 0.0, &exp));
+    let read = Read::open(xls_of(&xls_globals(), &shop));
+    let formulas: Vec<Value> = formulas_of(&read, "Shop")
+        .into_iter()
+        .map(|row| row.last().unwrap().clone())
+        .collect();
+    assert_eq!(
+        formulas,
+        vec![
+            string("_xlfn.XLOOKUP(\"Tea\",Lists!A1:A9,Rate)"),
+            string("A1*$C$1"),
+            string("A2*$C$1"),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_xls_and_an_xlsb_formula_read_as_a_formula() {
+    // `A1*21`, stored with its result 42.
+    let tokens = [ref12(0, 0, (true, true)), int(21), vec![0x05]].concat();
+    let mut data = binary_row(1, false);
+    data.extend(binary_cell(5, 0, 0, &2f64.to_le_bytes()));
+    data.extend(binary_formula(1, 42.0, &tokens, &[]));
+    // `B2:B3` share `A1` written for `B2`, one row up and one column left. Its record follows `B2`.
+    data.extend(binary_row(2, false));
+    let exp = [&[0x01][..], &1u32.to_le_bytes()].concat();
+    data.extend(binary_formula(1, 2.0, &exp, &[]));
+    let mut shared = [1u32, 2, 1, 1].map(u32::to_le_bytes).concat();
+    let relative = [&[0x2C][..], &u32::MAX.to_le_bytes(), &0xFFFFu16.to_le_bytes()].concat();
+    shared.extend(u32::try_from(relative.len()).unwrap().to_le_bytes());
+    shared.extend(&relative);
+    shared.extend(0u32.to_le_bytes());
+    data.extend(record(427, &shared));
+    data.extend(binary_row(3, false));
+    data.extend(binary_formula(1, 42.0, &exp, &[]));
+    let xlsb = Read::open(xlsb(&data, &[]));
+    let mut xls_tokens = vec![0x24, 0, 0];
+    xls_tokens.extend(column_bits(0, true, true).to_le_bytes());
+    xls_tokens.extend(int(21));
+    xls_tokens.push(0x05);
+    let xls = Read::open(xls_of(&[], &biff_formula(3, 0, 42.0, &xls_tokens)));
+    for (read, row) in [(&xlsb, 0), (&xls, 3)] {
+        let batch = read.batch(
+            Options {
+                formulas: true,
+                ..options("Shop")
+            }
+            .value(),
+            10,
+        );
+        let rows = entries(field(&batch, "rows"));
+        let formula = entries(field(rows[row], "cells"))
+            .into_iter()
+            .find(|cell| field(cell, "formula") != &Value::Null)
+            .expect("a cell gives its formula");
+        assert_eq!(field(formula, "formula"), &string("A1*21"));
+        assert_eq!(field(formula, "value"), &integer(42));
+    }
+    assert_eq!(
+        formulas_of(&xlsb, "Shop"),
+        vec![
+            vec![Value::Null, string("A1*21")],
+            vec![string("A1")],
+            vec![string("A2")],
+        ]
+    );
+    // Without `formulas`, a formula cell reads as its stored result.
+    let plain = xlsb.batch(options("Shop").value(), 10);
+    let first = entries(field(entries(field(&plain, "rows"))[0], "cells"))[1];
+    assert_eq!(field(first, "formula"), &Value::Null);
+    assert_eq!(field(first, "value"), &integer(42));
+    block_on(xlsb.request.end()).expect("the request ends");
+    block_on(xls.request.end()).expect("the request ends");
 }
 
 /// A compound file of 512-byte sectors holding `streams`. Each stream is padded with zeros to the
@@ -1681,6 +2011,12 @@ fn biff_text(text: &str) -> Vec<u8> {
 /// An xls with the sheets `Shop` and `Lists`, hidden and empty. The cell styles are 0 plain,
 /// 1 a date, 2 the custom date format `dd/mm/yyyy`, 3 a clock time and 4 elapsed time.
 fn xls() -> Vec<u8> {
+    xls_of(&[], &[])
+}
+
+/// [`xls`] with the records `more_globals` after its shared strings, and `more_shop` at the end
+/// of `Shop`.
+fn xls_of(more_globals: &[u8], more_shop: &[u8]) -> Vec<u8> {
     let bof = |kind: u16| {
         biff(
             0x0809,
@@ -1712,6 +2048,7 @@ fn xls() -> Vec<u8> {
     }
     more.extend(biff_text("Crème"));
     globals.extend(biff(0x003C, &more));
+    globals.extend_from_slice(more_globals);
     let rk_int = |n: i32| ((n << 2) | 2).to_le_bytes();
     let cell = |kind: u16, row: u16, column: u16, style: u16, value: &[u8]| {
         biff(
@@ -1768,6 +2105,7 @@ fn xls() -> Vec<u8> {
         0x00E5,
         &[1u16, 1, 1, 0, 1].map(u16::to_le_bytes).concat(),
     ));
+    shop.extend_from_slice(more_shop);
     shop.extend(biff(0x000A, &[]));
     let lists = [bof(0x0010), biff(0x000A, &[])].concat();
     let listed = |at: usize, state: u8, name: &str| {

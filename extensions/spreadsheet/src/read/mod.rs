@@ -52,6 +52,7 @@ pub mod merge;
 mod ods;
 mod ods_styles;
 pub mod sheet;
+pub mod tokens;
 mod vba;
 mod xls;
 pub mod xml;
@@ -323,6 +324,8 @@ pub struct Reader {
     vba_part: Option<String>,
     /// The links, notes, pictures, names and tables of an ods, read with its cells.
     ods: Option<Box<ods::Extras>>,
+    /// What an xlsb's formulas refer to by number.
+    book: Arc<tokens::Book>,
     open: Option<Open>,
 }
 
@@ -339,6 +342,8 @@ struct Open {
     /// The `text` and `text_all` the cursor was opened for, and the column ranges they name.
     text: (Vec<String>, bool),
     shown: Vec<(u64, u64)>,
+    /// Whether the cursor gives each formula's text.
+    formulas: bool,
 }
 
 /// A sheet's cursor, over XML, over records, or over the rows of a sheet read whole.
@@ -520,9 +525,9 @@ impl Reader {
         };
         let book = directory.whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
-        let (date1904, listed) = if binary {
+        let (date1904, listed, formulas) = if binary {
             let book = binary::workbook(&book)?;
-            (book.date1904, book.sheets)
+            (book.date1904, book.sheets, book.book)
         } else {
             let mut listed = Vec::new();
             let mut date1904 = false;
@@ -550,7 +555,7 @@ impl Reader {
                     _ => {}
                 }
             }
-            (date1904, listed)
+            (date1904, listed, tokens::Book::default())
         };
         let sheets = listed
             .into_iter()
@@ -596,6 +601,7 @@ impl Reader {
             binary,
             compound: false,
             ods: None,
+            book: Arc::new(formulas),
             open: None,
         })
     }
@@ -619,6 +625,7 @@ impl Reader {
             compound: false,
             vba_part: None,
             ods: None,
+            book: Arc::default(),
             open: None,
         }
     }
@@ -666,7 +673,9 @@ impl Reader {
             .ok_or_else(|| Error::Invalid(format!("The workbook has no sheet named `{name}`.")))
     }
 
-    fn cursor(&self, source: &dyn Source, name: &str) -> Result<Cursor, Error> {
+    /// The cursor of the sheet `name`. With `formulas`, an xlsb cursor gives each formula's
+    /// text. Every other format has it in its rows already.
+    fn cursor(&self, source: &dyn Source, name: &str, formulas: bool) -> Result<Cursor, Error> {
         let listed = self.listed(name)?;
         if listed.kind == SheetKind::Chartsheet {
             return Err(Error::Invalid(format!(
@@ -681,7 +690,8 @@ impl Reader {
         }
         let entry = self.part(listed)?;
         Ok(if self.binary {
-            Cursor::Binary(binary::Cursor::open(source, entry)?)
+            let book = formulas.then(|| self.book.clone());
+            Cursor::Binary(binary::Cursor::open(source, entry, book)?)
         } else {
             Cursor::Xml(sheet::Cursor::open(source, entry)?)
         })
@@ -716,7 +726,7 @@ impl Reader {
         let mut out = Vec::with_capacity(self.sheets.len());
         for (position, listed) in self.sheets.iter().enumerate() {
             let (rows, columns) = if listed.kind == SheetKind::Worksheet {
-                self.cursor(source, &listed.name)?
+                self.cursor(source, &listed.name, false)?
                     .dimension(source)?
                     .unwrap_or((0, 0))
             } else {
@@ -742,7 +752,7 @@ impl Reader {
         source: &dyn Source,
         options: &ReadOptions,
     ) -> Result<Vec<String>, Error> {
-        let mut cursor = self.cursor(source, &options.sheet)?;
+        let mut cursor = self.cursor(source, &options.sheet, false)?;
         let from = options.from.unwrap_or(1);
         let row = loop {
             let Some(raw) = cursor.next(source)? else {
@@ -808,10 +818,11 @@ impl Reader {
             && open.next <= from
             && open.fill.is_some() == options.fill_merged
             && open.text.0 == options.text
-            && open.text.1 == options.text_all);
+            && open.text.1 == options.text_all
+            && open.formulas == options.formulas);
         if !resume {
             let shown = self.shown(source, options)?;
-            let cursor = self.cursor(source, &options.sheet)?;
+            let cursor = self.cursor(source, &options.sheet, options.formulas)?;
             let fill = if options.fill_merged {
                 Some(Fill::new(self.merged(source, &options.sheet)?))
             } else {
@@ -825,6 +836,7 @@ impl Reader {
                 fill,
                 text: (options.text.clone(), options.text_all),
                 shown,
+                formulas: options.formulas,
             });
         }
         let locale = Locale::of_tag(&options.locale);

@@ -512,9 +512,9 @@ number style, and month and day names follow `locale`.
 **Does:** `read/tokens.rs` decodes BIFF8 and BIFF12 parsed formulas, and an xls or xlsb formula cell
 gives a `Formula` with `formulas: true`.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `tokens.rs` with every operand and operator token, the `Ftab` function table, and the shared-formula base. `extensions/spreadsheet/src/read/tokens.rs:1`
-- [ ] The xlsb cell reader keeps each formula's tokens, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/binary.rs:345`
-- [ ] The xls reader keeps each `FORMULA`'s tokens and each `SHRFMLA`, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/xls.rs:211`, `extensions/spreadsheet/src/read/xls.rs:329`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `tokens.rs` with every operand and operator token, the `Ftab` function table, and the shared-formula base. `extensions/spreadsheet/src/read/tokens.rs:1`
+- [x] The xlsb cell reader keeps each formula's tokens, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/binary.rs:345`
+- [x] The xls reader keeps each `FORMULA`'s tokens and each `SHRFMLA`, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/xls.rs:211`, `extensions/spreadsheet/src/read/xls.rs:329`
 - [ ] The tests the `formula-tokens-decode` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1314`
 - [ ] The sentences at `:30` and `:105` say a formula reads as text from every format. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:105`
 
@@ -630,43 +630,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done.
+Stages 1 to 4 are done. Stage 5's code is in, and its tests are written but have not run.
 
-**ods extras.** `ods::read` returns a `Book`: the sheets, the styles, and `ods::Extras` (links,
-notes, images as package paths, names and database ranges, each with its sheet). `Reader` keeps
-the extras in its `ods` field, and every extra in `read/extras.rs` answers an ods from it first.
-A note's and a frame's text go to an `Aside`, so they never join the cell's text. `properties`
-reads `meta.xml` (`meta_properties`). `format_name` now names only xlsb and xls.
+**The decoder.** `read/tokens.rs` decodes every operand and operator token, `ptgAttr`, array
+constants, names, an add-in call such as `_xlfn.XLOOKUP`, 3-D references through `Book`, and
+`ptgFunc`/`ptgFuncVar` by `FUNCTIONS`, the `Ftab` array. Its names came from calamine's MIT list.
+Its fixed counts are set only where certain (`V` marks the rest), because calamine's counts are
+misaligned, and its `>=`/`>` and column-flag bits are swapped. Text is linked segments in one
+buffer, so a deep formula costs linear time. Its two unit tests pass.
 
-**ods number styles.** The new `read/ods_styles.rs` reads `styles.xml` and `content.xml` up to the
-body and turns each `number:*-style` into a format code, maps included. A cell's style index is
-`KINDS`' kind, or a style appended after `KINDS` for each kind and code pair (`ods::style_index`).
-The style is found through the cell, the row's default, then the column's default.
+**xlsb.** `binary::workbook` reads the `SupBook` records, `BrtExternSheet` and `BrtName` into
+`Workbook::book`, which `Reader` keeps. The cursor gets it only with `formulas: true`, and `Open`
+reopens when `formulas` changes. A `ptgExp` cell waits for its `BrtShrFmla` until its row ends.
+**xls.** The globals read `SUPBOOK`, `EXTERNNAME`, `EXTERNSHEET` and `NAME`. Each `FORMULA` is
+decoded at open, and shared and array cells after the sheet's records (`sheet`'s `uses`).
 
-All four `ods-reads-every-extra` tests and `the_extras_read_on_request` pass, and so do the two
-unit tests in `ods_styles.rs`. The fragment, the module doc and six `about.md` files say so, and
-the rules are rendered. The record `spreadsheet-read-parts-of-every-format` now owes xlsb and xls
-alone.
-
-`cargo clippy --all-targets` run inside `extensions/spreadsheet/` fails on eight lints in files
-this goal has not touched, and verify does not run it. rustfmt also reformats
-`format/number.rs`, which was left as it is for `bun nv ci --check` at the gate to judge.
-
-The sweep's `env-secret-proofs` red is stale again: nothing defines it, and its log file does not
-exist.
+**Tests written, not run:** the four `formula-tokens-decode` names, at
+`crates/nvs-ext/tests/spreadsheet_read.rs:1568` to `:1800`. `cargo build` and `cargo clippy
+--all-targets -- -D warnings` are green. The sweep's `env-secret-proofs` red is stale: nothing
+defines it.
 
 ### Next
 
-Stage 5, one token decoder for xls and xlsb. Its files are the new
-`extensions/spreadsheet/src/read/tokens.rs`, `read/binary.rs` and `read/xls.rs`. The standing
-decision **One token decoder for xls and xlsb** settles it. Stage 9 (the evaluator) and stage 8
-(templates) may run beside it as side goals.
+Finish stage 5, then stage 6. The files are `crates/nvs-ext/tests/spreadsheet_read.rs`,
+`docs/rules/core-classes/spreadsheet-reads-as-a-stream.md` and `read/tokens.rs`.
 
-- [ ] `tokens.rs`: every operand and operator token, `ptgFunc` and `ptgFuncVar` by the `Ftab` list of [MS-XLS] 2.5.198.17 as one static array, and a shared formula relative to its own cell. An unknown token gives `None`. `extensions/spreadsheet/src/read/tokens.rs:1`
-- [ ] The xlsb cell reader keeps a formula record's token bytes and decodes them with `formulas: true`. The formula records are `FORMULA_TEXT` to `FORMULA_ERROR`. `extensions/spreadsheet/src/read/binary.rs:33`, `extensions/spreadsheet/src/read/binary.rs:349`
-- [ ] The xls reader keeps each `FORMULA`'s tokens and each `SHRFMLA`, and decodes them. `extensions/spreadsheet/src/read/xls.rs:26`, `extensions/spreadsheet/src/read/xls.rs:417`
-- [ ] The tests the `formula-tokens-decode` check names, beside `crates/nvs-ext/tests/spreadsheet_read.rs:1314`. The token bytes are built in the test.
-- [ ] The sentences at `:31` and `:114` of the fragment say a formula reads as text from every format, and `binary.rs:13` and `xls.rs:8` say so too. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:31`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:114`
+- [ ] Run the four tests once, by name: `cargo test --test spreadsheet_read every_operand_and_operator_token_decodes_to_a1_text a_function_token_decodes_by_excels_function_table an_xls_shared_formula_decodes_relative_to_its_cell an_xls_and_an_xlsb_formula_read_as_a_formula` (cargo takes one filter, so run each, or `looper check --name formula-tokens-decode`). Fix what fails in the decoder or the fixture bytes. `crates/nvs-ext/tests/spreadsheet_read.rs:1568`
+- [ ] The sentences at `:31` and `:114` of the fragment say a formula reads as text from every format, with what gives `None` (`read/tokens.rs:1`'s module doc). Add the four tests to the record's `guardedBy`, then `bun nv rules --render`. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:31`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:114`
+- [ ] Check `Reader::rows`' `about.md` and the `formulas` option's help for a sentence saying xls and xlsb give no formula, and rewrite it. Then mark stage 5 done in the front matter. `extensions/spreadsheet/nvs/Reader.nvs:1`
+- [ ] Stage 6, the xlsb extras: names can reuse `Workbook::book.names` and `tokens::decode` for each name's formula (`BrtName`'s formula follows its name at `extensions/spreadsheet/src/read/binary.rs` `NAME`). `extensions/spreadsheet/src/read/extras.rs:1`
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and

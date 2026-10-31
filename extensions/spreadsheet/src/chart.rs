@@ -173,7 +173,7 @@ pub struct Planned {
 /// `name` as a reference writes it: quoted, as `'Shop orders'`, when Excel quotes it. That is a
 /// name with a character other than a letter, a digit, `_` and `.`, a name that starts with a
 /// digit or `.`, and a name that reads as a cell, such as `A1`, `R2` or `R1C1`.
-fn quoted(name: &str) -> String {
+pub(crate) fn quoted(name: &str) -> String {
     let plain = name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
