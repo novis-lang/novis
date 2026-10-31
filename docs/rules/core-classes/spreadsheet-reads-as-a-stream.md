@@ -27,8 +27,8 @@ module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and a
 the workbook's relationships name, or `xl/vbaProject.bin` when none does, so a file never hides one.
 
 **xls and ods are read whole** when the reader opens: the file is held in the guest, and every
-sheet's rows with it. An xls stores a formula as tokens, so with `formulas: true` its cell reads as
-its stored result and gives no `Formula`. An ods stores a formula as OpenFormula text, which the
+sheet's rows with it. An xls's formulas are decoded from their tokens when the file opens, as
+**Formulas from every format** below says. An ods stores a formula as OpenFormula text, which the
 reader translates to A1 text (`extensions/spreadsheet/src/openformula.rs`), so its cell gives a
 `Formula` as an xlsx cell does; a formula the translator cannot read gives none. An ods cell carries its
 type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
@@ -111,8 +111,17 @@ file is `tainted`, so a `Formula` read with `formulas: true` carries a number re
 one. The engine's resource is `reading`, because a manifest's resource is a class in
 `Novis\Spreadsheet` and `Reader` is the class over it.
 
-An xlsb stores a formula as parsed tokens and not as text, so with `formulas: true` an xlsb cell
-reads as its stored result and gives no `Formula`.
+**Formulas from every format.** With `formulas: true`, a formula cell of every format gives a
+`Formula` with its A1 text. xls and xlsb store a formula as parsed tokens, which one decoder turns
+into the text an xlsx cell writes (`extensions/spreadsheet/src/read/tokens.rs`): every operand and
+operator token, Excel's built-in function table, an add-in call such as `_xlfn.XLOOKUP`, an array
+constant, a defined name and a reference to another sheet. A shared formula is decoded for each
+cell it covers, with its relative references moved by that cell's distance from its first cell.
+An xls is decoded when the file opens, and an xlsb as its rows are read. A token the decoder does
+not know, a structured reference in an xlsb, a reference into another workbook and a name it
+cannot find give no `Formula`, and the cell reads as its stored result. What it spends: the
+text of each formula of an xls, held with its rows, and for an xlsb the sheets, the `XTI` list and
+the names, read with the workbook part when the file opens.
 
 **On disk.** `Reader::open`, `sheets()`, `rows()` and the extras read xlsx, xlsm, xlsb, xls, ods
 and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Reader.nvs`,

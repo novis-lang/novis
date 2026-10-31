@@ -22,7 +22,7 @@ stages:
     context: [extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/src/format/date.rs, extensions/spreadsheet/src/format/locale.rs, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md]
   - id: 5
     title: "one decoder turns xls and xlsb formula tokens into formula text"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/binary.rs, extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/read/mod.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 6
     title: "an xlsb reads its links, notes, names, tables and images"
@@ -515,8 +515,8 @@ gives a `Formula` with `formulas: true`.
 - [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `tokens.rs` with every operand and operator token, the `Ftab` function table, and the shared-formula base. `extensions/spreadsheet/src/read/tokens.rs:1`
 - [x] The xlsb cell reader keeps each formula's tokens, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/binary.rs:345`
 - [x] The xls reader keeps each `FORMULA`'s tokens and each `SHRFMLA`, and `formulas: true` decodes them. `extensions/spreadsheet/src/read/xls.rs:211`, `extensions/spreadsheet/src/read/xls.rs:329`
-- [ ] The tests the `formula-tokens-decode` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1314`
-- [ ] The sentences at `:30` and `:105` say a formula reads as text from every format. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:105`
+- [x] The tests the `formula-tokens-decode` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1314`
+- [x] The sentences at `:30` and `:105` say a formula reads as text from every format. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:105`
 
 ### 6. an xlsb reads its links, notes, names, tables and images
 
