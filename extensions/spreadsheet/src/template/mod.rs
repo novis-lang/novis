@@ -28,13 +28,20 @@
 //! dropped, and the workbook's content type is the xlsx one
 //! (`rule:core-classes/spreadsheet-output-is-inert`).
 //!
+//! **What `fill` checks first.** Every placeholder outside a list's rows is in the values, no
+//! path has two values, and no list is named twice, so a fill that cannot finish writes no byte.
+//! A date, a time or a duration in a cell whose style shows none gets a style of its own, from
+//! [`formats`], and `styles.xml` is written last with those styles added.
+//!
 //! What it spends, per filling request: the zip directory, the shared strings, every worksheet's
-//! XML, one batch of items (and every item of each sheet that is kept), and one part at a time
-//! at `finish`.
+//! XML, the styles part, one batch of items (and every item of each sheet that is kept), and one
+//! part at a time at `finish`.
 
+mod formats;
 pub mod sheet;
 pub mod shift;
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -43,6 +50,7 @@ use crate::read::xml::{self, Token};
 use crate::read::zip::{Bound, Directory, Part};
 use crate::zip::Archive;
 use crate::{Error, Finished, SheetRows, Value};
+use formats::Formats;
 use sheet::{Cell, Row, Sheet, placeholders};
 use shift::{RowRef, Shift};
 
@@ -94,6 +102,8 @@ struct Filling {
     /// The rows written to the sheet being written, and every sheet written so far.
     rows_out: u64,
     rows: Vec<SheetRows>,
+    /// The template's cell styles, with the entries a date, a time or a duration adds.
+    formats: RefCell<Formats>,
     archive: Archive,
 }
 
@@ -108,6 +118,7 @@ pub struct Template {
     directory: Directory,
     sheets: Vec<Sheet>,
     names: Vec<(String, String)>,
+    formats: Formats,
     state: State,
 }
 
@@ -187,6 +198,18 @@ fn relationships(rels: &str, from: &str) -> Result<Vec<(String, String)>, Error>
         }
     }
     Ok(found)
+}
+
+/// The styles part, which a date, a time or a duration may add an entry to.
+const STYLES: &str = "xl/styles.xml";
+
+/// The error for the placeholder `path` of `cell`, which the data does not have.
+fn missing(sheet: &Sheet, row: &Row, cell: &Cell, path: &str) -> Error {
+    invalid(format!(
+        "The template's cell `{}!{}` has the placeholder `{{{{{path}}}}}`, which the data does not have.",
+        sheet.name,
+        crate::cells::reference(cell.column, row.number)
+    ))
 }
 
 /// A part the fill leaves out of what it writes.
@@ -559,10 +582,15 @@ impl Template {
         if sheets.is_empty() {
             return Err(broken("it has no worksheet"));
         }
+        let formats = match read(&directory, source, STYLES)? {
+            Some(text) => Formats::read(text)?,
+            None => Formats::default(),
+        };
         Ok(Self {
             directory,
             sheets,
             names,
+            formats,
             state: State::Open,
         })
     }
@@ -754,7 +782,26 @@ impl Template {
         if !matches!(self.state, State::Open) {
             return Err(invalid("This template is already filled.".to_owned()));
         }
+        if let Some((_, list)) = lists
+            .iter()
+            .enumerate()
+            .find(|(at, list)| lists[..*at].contains(list))
+        {
+            return Err(invalid(format!(
+                "The list `{list}` is named twice. Name each list once."
+            )));
+        }
+        let mut known: BTreeMap<String, Option<Value>> = BTreeMap::new();
+        for (path, value) in values {
+            if known.contains_key(&path) {
+                return Err(invalid(format!(
+                    "The data has two values for the placeholder `{{{{{path}}}}}`. Give each placeholder one value."
+                )));
+            }
+            known.insert(path, value);
+        }
         let placed = self.blocks(lists)?;
+        self.check_values(&placed, &known)?;
         let mut pages: Vec<Page> = Vec::new();
         for (at, (sheet, _)) in placed.iter().enumerate() {
             match pages.last_mut() {
@@ -788,7 +835,7 @@ impl Template {
         }
         let order = blocks.iter().map(|block| block.list.clone()).collect();
         let mut filling = Box::new(Filling {
-            values: values.into_iter().collect(),
+            values: known,
             blocks,
             pages,
             page: 0,
@@ -798,6 +845,7 @@ impl Template {
             next_group: 0,
             rows_out: 0,
             rows: Vec::new(),
+            formats: RefCell::new(std::mem::take(&mut self.formats)),
             archive: Archive::new(),
         });
         if !filling.pages.is_empty() {
@@ -817,7 +865,9 @@ impl Template {
             ));
         };
         let Some(at) = filling.blocks.iter().position(|block| block.list == list) else {
-            return Ok(Vec::new());
+            return Err(invalid(format!(
+                "The template has no rows for the list `{list}`, so it takes no items. Send items only for the lists that `fill` returns."
+            )));
         };
         if at < filling.current {
             return Err(invalid(format!(
@@ -877,8 +927,14 @@ impl Template {
         }
         let owners = self.owners(source)?;
         let entries = self.directory.entries().to_vec();
+        // The styles part goes last, once every sheet has added the entries its dates need.
+        let mut styles = None;
         for entry in &entries {
             let name = entry.name.as_str();
+            if name.eq_ignore_ascii_case(STYLES) {
+                styles = Some(entry);
+                continue;
+            }
             if dropped(name)
                 || filling
                     .pages
@@ -917,6 +973,20 @@ impl Template {
             }
             filling.archive.end()?;
         }
+        if let Some(entry) = styles {
+            filling.archive.begin(&entry.name)?;
+            if let Some(text) = filling.formats.borrow().rewritten() {
+                filling.archive.write(text.as_bytes())?;
+            } else {
+                let mut part = Part::open(source, entry)?;
+                let mut chunk = Vec::new();
+                while part.fill(source, &mut chunk)? {
+                    filling.archive.write(&chunk)?;
+                    chunk.clear();
+                }
+            }
+            filling.archive.end()?;
+        }
         filling.archive.close()?;
         let size = filling.archive.size();
         Ok(Finished {
@@ -924,6 +994,34 @@ impl Template {
             rows: std::mem::take(&mut filling.rows),
             size,
         })
+    }
+
+    /// Throws for the first placeholder outside a list's rows that `values` lacks, so a fill
+    /// that cannot finish writes nothing.
+    fn check_values(
+        &self,
+        placed: &[(usize, Block)],
+        values: &BTreeMap<String, Option<Value>>,
+    ) -> Result<(), Error> {
+        for (index, sheet) in self.sheets.iter().enumerate() {
+            for row in &sheet.rows {
+                let list = placed
+                    .iter()
+                    .find(|(on, block)| {
+                        *on == index && (block.top..=block.bottom).contains(&row.number)
+                    })
+                    .map(|(_, block)| format!("{}.", block.list));
+                for cell in row.cells.iter().filter(|cell| cell.set.is_none()) {
+                    for (_, path) in cell.text.as_deref().map(placeholders).unwrap_or_default() {
+                        let in_list = list.as_ref().is_some_and(|list| path.starts_with(list));
+                        if !in_list && !values.contains_key(path) {
+                            return Err(missing(sheet, row, cell, path));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The sheet each table and drawing belongs to.
@@ -1151,6 +1249,7 @@ fn rows_until(
         let moves = Moves {
             shifts: &filling.shifts,
             groups: &[],
+            formats: &filling.formats,
         };
         write_row(out, sheet, row, number, &moves, &|path| {
             values.get(path).map(Option::as_ref)
@@ -1264,6 +1363,7 @@ fn item_rows(
     let moves = Moves {
         shifts: &shifts,
         groups: &groups,
+        formats: &filling.formats,
     };
     let mut rows = 0;
     for row in rows_of() {
@@ -1286,11 +1386,12 @@ fn item_rows(
     Ok(())
 }
 
-/// What a copied row changes in its formulas: the moves of its references, and each shared
-/// formula group's new number, old first.
+/// What a copied row changes: the moves of its formulas' references, each shared formula
+/// group's new number, old first, and the styles a date, a time or a duration adds.
 struct Moves<'s> {
     shifts: &'s [Shift],
     groups: &'s [(u32, u32)],
+    formats: &'s RefCell<Formats>,
 }
 
 /// Appends `row` as row `number`, its formulas changed by `moves` and its placeholders filled
@@ -1333,27 +1434,29 @@ fn write_cell<'v>(
     moves: &Moves<'_>,
     lookup: &dyn Fn(&str) -> Option<Option<&'v Value>>,
 ) -> Result<(), Error> {
-    let Moves { shifts, groups } = *moves;
+    let Moves {
+        shifts,
+        groups,
+        formats,
+    } = *moves;
     let reference = crate::cells::reference(cell.column, number);
+    let own = cell.style.as_deref();
+    let styled = |value: Option<&Value>| formats.borrow_mut().style(own, value);
     if let Some(value) = &cell.set {
-        return value_cell(out, &reference, cell.style.as_deref(), value.as_ref());
+        let style = styled(value.as_ref());
+        return value_cell(out, &reference, style.as_deref().or(own), value.as_ref());
     }
     if let Some(text) = &cell.text {
         let found = placeholders(text);
         if !found.is_empty() {
             let mut values = Vec::with_capacity(found.len());
             for (_, path) in &found {
-                let value = lookup(path).ok_or_else(|| {
-                    invalid(format!(
-                        "The template's cell `{}!{}` has the placeholder `{{{{{path}}}}}`, which the data does not have.",
-                        sheet.name,
-                        crate::cells::reference(cell.column, row.number)
-                    ))
-                })?;
+                let value = lookup(path).ok_or_else(|| missing(sheet, row, cell, path))?;
                 values.push(value);
             }
             if found.len() == 1 && found[0].0 == (0..text.len()) {
-                return value_cell(out, &reference, cell.style.as_deref(), values[0]);
+                let style = styled(values[0]);
+                return value_cell(out, &reference, style.as_deref().or(own), values[0]);
             }
             let mut filled = String::with_capacity(text.len());
             let mut copied = 0;

@@ -43,7 +43,7 @@ pub enum Implicit {
 }
 
 impl Implicit {
-    fn code(self) -> Option<&'static str> {
+    pub(crate) fn code(self) -> Option<&'static str> {
         match self {
             Implicit::None => None,
             Implicit::Date => Some("yyyy-mm-dd"),

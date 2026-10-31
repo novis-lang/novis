@@ -24,6 +24,8 @@ final class Template
     // The placeholders `walk` finds, and the list it is inside, or `null`.
     private array<Placeholder> $found = [];
     private ?string $inside = null;
+    // Each path `walk` found, and the keys that give it, such as `['customer']['name']`.
+    private array<string> $seen = [];
 
     private function constructor(
         private readonly Filling $filling,
@@ -56,6 +58,7 @@ final class Template
     }
 
     /// `fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+    /// The keys `'customer.name'` and `'customer' => ['name' => …]` give the same placeholder. If `$data` has both, `fill` throws an error.
     /// A list in `$data` is an array or an `Iterator`, such as a generator. The items of an `Iterator` are read while the file is written.
     /// The file is written when you call `download`, `save`, `to` or `bytes` on the result.
     public function fill(array<mixed> $data): Export
@@ -66,7 +69,8 @@ final class Template
         $this->filled = true;
         $this->found = [];
         $this->inside = null;
-        $this->walk('', $data);
+        $this->seen = [];
+        $this->walk('', '', $data);
         var $filled = Engine::templateFill($this->filling, $this->found, $this->names);
         $this->found = [];
         $this->first = $filled->data;
@@ -74,22 +78,30 @@ final class Template
         return new Export(fn(Workbook $book): void => {}, null, fn(callable(bytes): void $send, bool $keep): Written => $this->write($send, $keep));
     }
 
-    // Adds a placeholder for each value in `$data` under `$prefix`, and keeps each list for `write`. A list inside a list throws.
-    private function walk(string $prefix, array<mixed> $data): void
+    // Adds a placeholder for each value in `$data` under `$prefix`, and keeps each list for `write`. `$keys` is `$prefix` as the keys that give it.
+    // A list inside a list throws, and so do two keys that give one path, such as `'customer.name'` and `'customer'` with `'name'`.
+    private function walk(string $prefix, string $keys, array<mixed> $data): void
     {
         foreach ($data as tainted string $tainted => mixed $value) {
-            string $path = $prefix . Core\Taint::assertTrusted($tainted, "a key is a path that the template's placeholders are matched against");
+            string $key = Core\Taint::assertTrusted($tainted, "a key is a path that the template's placeholders are matched against");
+            string $path = $prefix . $key;
+            string $written = $keys . "['" . $key . "']";
+            if ($value is array<mixed> && !Core\Arr::isList($value)) {
+                $this->walk($path . '.', $written, $value);
+                continue;
+            }
+            string $placeholder = '{{' . ($this->inside == null ? '' : ($this->inside ?? '') . '.') . $path . '}}';
+            if (Core\Arr::hasKey($this->seen, $path)) {
+                string $other = $this->seen[$path];
+                throw new LogicError("The data has `{$other}` and `{$written}`. Both fill the placeholder `{$placeholder}`. Use only one of them.");
+            }
+            $this->seen[$path] = $written;
             if ($value is array<mixed>) {
-                if (!Core\Arr::isList($value)) {
-                    $this->walk($path . '.', $value);
-                } else {
-                    $this->keep($path, $value);
-                }
+                $this->keep($path, $value);
             } elseif ($value is Iterator<mixed>) {
                 $this->keep($path, $value);
             } else {
-                string $list = $this->inside == null ? '' : ($this->inside ?? '') . '.';
-                $this->found[] = { path: $path, value: $this->cell($value, '{{' . $list . $path . '}}') };
+                $this->found[] = { path: $path, value: $this->cell($value, $placeholder) };
             }
         }
     }
@@ -170,7 +182,8 @@ final class Template
         }
         $this->found = [];
         $this->inside = $name;
-        $this->walk('', $item);
+        $this->seen = [];
+        $this->walk('', '', $item);
         array<Placeholder> $found = $this->found;
         $this->found = [];
         return $found;

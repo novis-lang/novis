@@ -5,9 +5,18 @@ formulas, tables and charts still point at the right rows.
 **Placeholders** are `{{name}}` and `{{customer.name}}`, a path into `$data`'s keys. A cell that is
 only a placeholder takes the value's cell type by `rule:core-classes/spreadsheet-value-types`'s write
 table and keeps the cell's style; a placeholder with text around it makes the cell text. A string
-value beginning `=` stays text (`rule:core-classes/spreadsheet-formula-is-a-value`). A placeholder
-the data lacks throws `LogicError` naming it and its cell. Formula text holds no placeholder: a
-formula refers to the cells that do.
+value beginning `=` stays text (`rule:core-classes/spreadsheet-formula-is-a-value`). A date, a time
+or a duration filled into a cell whose style shows no date or time gets the write table's format for
+its type: `styles.xml` gains one `cellXfs` entry for each style and format pair, so the value reads as
+a date in Excel and in the reader. Formula text holds no placeholder: a formula refers to the cells
+that do.
+
+**What throws at `fill`, before any byte is written.** A placeholder outside a list's rows that the
+data lacks throws `LogicError` naming it and its cell, on whichever sheet it stands; a list item's
+own placeholders are checked as its items are written. A flat key `'customer.name'` and a nested
+`customer` → `name` give one path, and throw naming both keys: a path never picks one of them in
+silence. The engine's fill call with one list named twice throws naming the list, and its items call
+with a list the fill did not return throws naming it.
 
 **Repeated rows.** A row whose placeholder goes through a list, `{{items.qty}}`, is written once per
 item of `$data['items']`, each copy with the template row's style and height. A block of several rows

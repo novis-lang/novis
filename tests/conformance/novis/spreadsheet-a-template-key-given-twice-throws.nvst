@@ -1,0 +1,20 @@
+--TEST--
+`Template::fill` throws when a flat key such as `'customer.name'` and a nested key give the same placeholder, naming both: rule:core-classes/spreadsheet-template-fill
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Template::fill
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet("Invoice")->add(["{{customer.name}}"]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Both keys give the placeholder `{{customer.name}}`, so `fill` throws an error.
+try {
+    Template::open($template)->fill(["customer.name" => "Shop", "customer" => ["name" => "Blog"]]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+The data has `['customer.name']` and `['customer']['name']`. Both fill the placeholder `{{customer.name}}`. Use only one of them.

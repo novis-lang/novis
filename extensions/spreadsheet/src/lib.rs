@@ -36,15 +36,9 @@
 //! the bytes the binary carries.
 //!
 //! **Not done yet.** Writing ods and an evaluate call are named in their rules'
-//! fragments. These are the rest, and none of them is checked against Excel. The template
-//! values bullet is gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets from
-//! number formats on are gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
+//! fragments. These are the rest, none of them is checked against Excel, and they are
+//! gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
-//! - Template values (`template`): a flat key `'customer.name'` and a nested `customer.name`
-//!   collide. A `Date` into a cell with no date format is written as a bare serial. When a
-//!   missing placeholder throws depends on whether the sheet has a list row.
-//!   The `templateFill` export with one list name twice names the wrong problem, and the
-//!   `templateItems` export with an unknown list writes nothing.
 //! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as
 //!   `m/d/yyyy h:mm`, as Excel shows them in en-US, where SSF uses `m/d/yy`.
 //! - Merges (`read::merge`): a merged fill copies no `display`.

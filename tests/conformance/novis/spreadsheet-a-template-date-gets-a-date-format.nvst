@@ -1,0 +1,24 @@
+--TEST--
+`Template::fill` gives a date a date format when its cell has none, so the date reads back as a date: rule:core-classes/spreadsheet-template-fill
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Template::fill
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet("Invoice")->add(["{{due}}", "{{count}}"]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The cell A1 has no date format. The filled file gives it the format `yyyy-mm-dd`.
+bytes $filled = Template::open($template)->fill(["due" => Core\Time\Date::at(2024, 3, 1), "count" => 3])->bytes();
+foreach (Reader::open($filled)->rows("Invoice", {header: false}) as Row $row) {
+    mixed $due = $row->values["A"];
+    echo $due is Core\Time\Date ? "A1 is a date" : "A1 is not a date", "\n";
+    echo "B1: ", $row->values["B"] as int, "\n";
+}
+--EXPECT--
+A1 is a date
+B1: 3

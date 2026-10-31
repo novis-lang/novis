@@ -1,6 +1,0 @@
-{
-  "module": "extensions/spreadsheet/src/template",
-  "title": "The template values bullet of the spreadsheet module doc is open, and it is not checked against Excel.",
-  "text": "Closing it fixes each item of that bullet in `extensions/spreadsheet/src/lib.rs`, each with a fixture opened in Excel, and deletes the bullet (`rule:core-classes/spreadsheet-roster`).",
-  "goal": "spreadsheet-second-wave"
-}

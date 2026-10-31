@@ -271,7 +271,7 @@ fn a_lone_placeholder_keeps_the_value_type_and_text_around_it_makes_text() {
     .unwrap();
     let sheet = &parts(&dated)["xl/worksheets/sheet1.xml"];
     assert!(
-        sheet.contains(r#"<c r="B1" s="1"><v>45352</v></c>"#),
+        sheet.contains(r#"<c r="B1" s="4"><v>45352</v></c>"#),
         "{sheet}"
     );
     let empty = fill(
@@ -575,6 +575,173 @@ fn a_nul_in_a_filled_value_is_escaped_as_every_written_cell_is() {
         sheet.contains(r#"<c r="B2" t="inlineStr"><is><t xml:space="preserve">a_x0000_b_x005F_x0041__x000D_</t></is></c>"#),
         "{sheet}"
     );
+}
+
+/// The message of the error `result` holds.
+fn invalid_message<T: std::fmt::Debug>(result: Result<T, Error>) -> String {
+    match result {
+        Err(Error::Invalid(message)) => message,
+        other => panic!("{other:?}"),
+    }
+}
+
+/// The zip `bytes` with the part `name` replaced by `text`.
+fn replaced(bytes: &[u8], name: &str, text: &str) -> Vec<u8> {
+    let mut archive = Archive::new();
+    for (part, old) in parts(bytes) {
+        archive.begin(&part).unwrap();
+        let new = if part == name { text } else { old.as_str() };
+        archive.write(new.as_bytes()).unwrap();
+        archive.end().unwrap();
+    }
+    archive.close().unwrap();
+    archive.take()
+}
+
+#[test]
+fn a_flat_key_and_a_nested_path_to_the_same_name_throw() {
+    // The Novis half sends `'customer.name'` and `customer` → `name` as two values for one path.
+    let mut data = header();
+    data.push(("customer.name".to_owned(), text("Other")));
+    let source = Bytes(template(PLAIN, "", false));
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let message = invalid_message(filled.fill(data, &[]));
+    assert!(message.contains("`{{customer.name}}`"), "{message}");
+}
+
+#[test]
+fn a_date_into_a_cell_with_no_date_format_gets_its_types_format() {
+    let date = || {
+        Some(Value::Date(Date {
+            year: 2024,
+            month: 3,
+            day: 1,
+        }))
+    };
+    // No style of the template shows a date. A1 has no style, so it copies entry 0; B1 copies
+    // entry 1. A date and a duration each add their format once.
+    let out = fill(
+        &template(PLAIN, "", false),
+        &[
+            ("A1", Some(Value::Duration(90 * 60 * 1_000_000_000))),
+            ("Summary!B2", date()),
+        ],
+        values(&[("customer.name", date())]),
+        &[],
+    )
+    .unwrap();
+    let after = parts(&out);
+    let sheet = &after["xl/worksheets/sheet1.xml"];
+    assert!(
+        sheet.contains(r#"<c r="A1" s="4"><v>0.0625</v></c>"#),
+        "{sheet}"
+    );
+    assert!(
+        sheet.contains(r#"<c r="B1" s="5"><v>45352</v></c>"#),
+        "{sheet}"
+    );
+    let summary = &after["xl/worksheets/sheet2.xml"];
+    assert!(
+        summary.contains(r#"<c r="B2" s="6"><v>45352</v></c>"#),
+        "{summary}"
+    );
+    assert_eq!(
+        after["xl/styles.xml"],
+        concat!(
+            r#"<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
+            r#"<numFmts count="2"><numFmt numFmtId="164" formatCode="[h]:mm:ss"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd"/></numFmts>"#,
+            r#"<cellXfs count="7"><xf/><xf/><xf/><xf/>"#,
+            r#"<xf numFmtId="164" applyNumberFormat="1"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="165" applyNumberFormat="1"/>"#,
+            r#"</cellXfs></styleSheet>"#,
+        )
+    );
+
+    // B1's style shows a date already, so it keeps its style. A1 gets a new entry, and the
+    // format's id follows the template's highest.
+    let dated = replaced(
+        &template(PLAIN, "", false),
+        "xl/styles.xml",
+        r#"<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="170" formatCode="dd.mm.yyyy"/></numFmts><cellXfs count="2"><xf numFmtId="0" applyNumberFormat="0"/><xf numFmtId="170" applyNumberFormat="1"/></cellXfs></styleSheet>"#,
+    );
+    let out = fill(
+        &dated,
+        &[("A1", date())],
+        values(&[("customer.name", date())]),
+        &[],
+    )
+    .unwrap();
+    let after = parts(&out);
+    let sheet = &after["xl/worksheets/sheet1.xml"];
+    assert!(
+        sheet.contains(r#"<c r="A1" s="2"><v>45352</v></c>"#),
+        "{sheet}"
+    );
+    assert!(
+        sheet.contains(r#"<c r="B1" s="1"><v>45352</v></c>"#),
+        "{sheet}"
+    );
+    let styles = &after["xl/styles.xml"];
+    assert!(
+        styles.contains(r#"<numFmts count="2"><numFmt numFmtId="170" formatCode="dd.mm.yyyy"/><numFmt numFmtId="171" formatCode="yyyy-mm-dd"/></numFmts>"#),
+        "{styles}"
+    );
+    assert!(
+        styles.contains(r#"<cellXfs count="3"><xf numFmtId="0" applyNumberFormat="0"/><xf numFmtId="170" applyNumberFormat="1"/><xf numFmtId="171" applyNumberFormat="1"/></cellXfs>"#),
+        "{styles}"
+    );
+}
+
+#[test]
+fn a_missing_placeholder_throws_at_fill_whatever_the_sheet_holds() {
+    // A sheet with no list: `fill` itself throws.
+    let source = Bytes(template(PLAIN, "", false));
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let message = invalid_message(filled.fill(values(&[("number", Some(Value::Integer(1)))]), &[]));
+    assert!(
+        message.contains("`{{customer.name}}`") && message.contains("`Invoice!B1`"),
+        "{message}"
+    );
+
+    // A placeholder on a sheet after the list's sheet throws at `fill` too, before any byte.
+    let summary = concat!(
+        r#"<row r="1"><c r="B1"><f>Invoice!D6</f><v>0</v></c></row>"#,
+        r#"<row r="3"><c r="A3" t="inlineStr"><is><t>{{late}}</t></is></c></row>"#,
+    );
+    let source = Bytes(template_with(INVOICE, summary, "", false));
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let message = invalid_message(filled.fill(header(), &["items".to_owned()]));
+    assert!(
+        message.contains("`{{late}}`") && message.contains("`Summary!A3`"),
+        "{message}"
+    );
+
+    // With `late` in the data, `fill` passes. A list's own placeholders are checked as its
+    // items are written.
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let mut data = header();
+    data.push(("late".to_owned(), text("x")));
+    assert!(filled.fill(data, &["items".to_owned()]).is_ok());
+}
+
+#[test]
+fn the_same_list_named_twice_throws_naming_it() {
+    let source = Bytes(template(INVOICE, "", false));
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let message = invalid_message(filled.fill(header(), &["items".to_owned(), "items".to_owned()]));
+    assert!(
+        message.contains("`items`") && message.contains("twice"),
+        "{message}"
+    );
+}
+
+#[test]
+fn items_for_a_list_the_fill_did_not_return_throw_naming_it() {
+    let source = Bytes(template(INVOICE, "", false));
+    let mut filled = Template::open(&source, Bound::default()).unwrap();
+    let (_, order) = filled.fill(header(), &["items".to_owned()]).unwrap();
+    assert_eq!(order, ["items"]);
+    let message = invalid_message(filled.items("lines", vec![item(1)]));
+    assert!(message.contains("`lines`"), "{message}");
 }
 
 #[test]
