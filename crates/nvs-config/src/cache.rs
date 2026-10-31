@@ -160,9 +160,11 @@ impl fmt::Display for ProgramId {
 
 /// The environment this process compiles for, as one digest — `rule:config/the-extension-set-is-in-every-unit-key`.
 ///
-/// The configuration's contribution is its `[[extension]]` array and nothing else: every other
-/// directive is read by a running request rather than baked into a compiled unit, so a reload that
-/// changes one must *not* invalidate the caches.
+/// The configuration's contribution is its `[[extension]]` array and `[regex] backtracking`, and
+/// nothing else: every other directive is read by a running request rather than baked into a
+/// compiled unit, so a reload that changes one must *not* invalidate the caches. `backtracking`
+/// decides whether a pattern literal compiles ([`crate::regex`]), so a changed value rekeys every
+/// unit, at the cost of one byte of hash input.
 ///
 /// Of each entry only its pin is read. An entry's `grants` decide what a guest may reach at a
 /// call, never what a unit compiles to, so narrowing a grant on reload recompiles nothing.
@@ -211,6 +213,7 @@ fn env_hash_with(
     }
     hasher.update(built_in.as_bytes());
     hasher.update(extension_set_hash(config).as_bytes());
+    hasher.update(&[crate::regex::Backtracking::of_config(config) as u8]);
     hasher.update(&grants.digest());
     EnvHash(Digest(*hasher.finalize().as_bytes()))
 }

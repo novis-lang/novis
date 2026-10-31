@@ -108,6 +108,8 @@ pub const LOG_CLIENT_IP: bool = true;
 
 /// `[errors] deprecated`.
 pub const ERRORS_DEPRECATED: &str = "ignore";
+/// `[regex] backtracking`.
+pub const REGEX_BACKTRACKING: &str = "allow";
 /// `[image] max_pixels`, read as every other `M` in the file is read.
 pub const IMAGE_MAX_PIXELS: u64 = 24 * MIB;
 /// `[debug] keep_temporary`.
@@ -502,6 +504,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("log.access", Value::ByMode),
     row!("log.client_ip", Value::Flag(LOG_CLIENT_IP)),
     row!("errors.deprecated", Value::Text(ERRORS_DEPRECATED)),
+    row!("regex.backtracking", Value::Text(REGEX_BACKTRACKING)),
     row!("io.temp_root", Value::DataFolder(Folder::tmp)),
     row!("image.max_pixels", Value::Size(IMAGE_MAX_PIXELS)),
     row!("debug.inline", Value::ByMode),

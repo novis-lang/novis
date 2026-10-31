@@ -166,6 +166,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // request, so a reload is in force at the next one. The row names the key and not the block,
     // so a second key in `[errors]` is refused for want of a row.
     Directive { key: "errors.deprecated", class: Class::Runtime, apply: Apply::Reload },
+    // `rule:core-classes/regex-compile-time-tiering`: whether a backtracking pattern compiles.
+    // It decides what a unit compiles to, so `System`: a request that could set it would undo
+    // the operator's `deny` for itself. `Reload` because the value is in the environment hash,
+    // so a changed value rekeys every unit and the next resolve recompiles under it.
+    Directive { key: "regex.backtracking", class: Class::System, apply: Apply::Reload },
     // Its sibling that is, and a more specific row for the reason the `[cache]` rows below
     // are: `rule:errors/handler-script` makes the tier-3 handler a `System` directive on exactly the grounds
     // `limits.fatal_reserve_memory` above is one — a script naming the script that reports its own

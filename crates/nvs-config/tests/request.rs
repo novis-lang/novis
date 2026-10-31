@@ -691,6 +691,115 @@ fn errors_deprecated_is_runtime_class() {
     assert_eq!(Deprecated::in_force(&first), Deprecated::Ignore);
 }
 
+/// `rule:core-classes/regex-compile-time-tiering`: with nothing written, a backtracking pattern
+/// compiles in production and in development alike, and the mode table has no row for the key.
+#[test]
+fn regex_backtracking_defaults_to_allow_in_every_mode() {
+    use nvs_config::regex::{Backtracking, KEY};
+
+    for mode in [nvs_config::mode::PRODUCTION, nvs_config::mode::DEVELOPMENT] {
+        let text = format!("[mode]\ndefault = \"{mode}\"\nceiling = \"development\"\n");
+        let request = Request::new(snapshot_of(&text));
+        assert_eq!(request.mode(), mode, "the tree did not start in `{mode}`");
+        assert_eq!(
+            Backtracking::in_force(&request),
+            Backtracking::Allow,
+            "`{KEY}` is not `allow` in `{mode}` with nothing written",
+        );
+        assert_eq!(request.get(KEY).as_deref(), Some("allow"));
+    }
+    assert!(
+        nvs_config::mode::DERIVED.iter().all(|row| row.key != KEY),
+        "`{KEY}` is a row of the mode table, so a mode decides it",
+    );
+
+    let written = Request::new(snapshot_of("[regex]\nbacktracking = \"deny\"\n"));
+    assert_eq!(Backtracking::in_force(&written), Backtracking::Deny);
+}
+
+/// The three values are the whole list: a fourth is refused where the file writes it, under
+/// `E0601`, with the value named.
+#[test]
+fn regex_backtracking_refuses_a_value_not_in_its_list() {
+    use nvs_config::regex::Backtracking;
+
+    for accepted in ["allow", "warn", "deny"] {
+        let text = format!("[regex]\nbacktracking = \"{accepted}\"\n");
+        let request = Request::new(snapshot_of(&text));
+        assert_eq!(Backtracking::in_force(&request).as_str(), accepted);
+    }
+
+    for refused in ["ignore", "Deny", "", "throw"] {
+        let files = One(format!("[regex]\nbacktracking = \"{refused}\"\n"));
+        let mut sources = SourceMap::new();
+        let err = resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files)
+            .err()
+            .unwrap_or_else(|| panic!("`backtracking = \"{refused}\"` was accepted"));
+        assert_eq!(
+            err.code,
+            Some(nvs_diagnostics::code::E_BAD_DIRECTIVE),
+            "{}",
+            err.message
+        );
+        assert!(
+            err.message.contains(&format!("\"{refused}\"")),
+            "the refusal does not name the value: {}",
+            err.message,
+        );
+    }
+}
+
+/// `System` and `Reload`: no request may set the key, so a request under `deny` cannot turn the
+/// policy off for itself, and the value in force is the file's.
+#[test]
+fn regex_backtracking_is_system_class() {
+    use nvs_config::directive::{Apply, lookup};
+    use nvs_config::regex::{Backtracking, KEY};
+
+    let row = lookup(KEY).unwrap_or_else(|| panic!("no directive governs `{KEY}`"));
+    assert_eq!(
+        (row.key, row.class, row.apply),
+        (KEY, Class::System, Apply::Reload)
+    );
+
+    let mut request = Request::new(snapshot_of("[regex]\nbacktracking = \"deny\"\n"));
+    for value in ["allow", "warn", "deny"] {
+        assert!(
+            !request.set(KEY, value),
+            "a request set `{KEY}` to `{value}`"
+        );
+    }
+    assert_eq!(Backtracking::in_force(&request), Backtracking::Deny);
+    assert_eq!(request.get(KEY).as_deref(), Some("deny"));
+}
+
+/// `rule:config/the-extension-set-is-in-every-unit-key`: the value decides what a unit compiles
+/// to, so each of the three is its own environment, and an unwritten key is `allow`'s.
+#[test]
+fn regex_backtracking_is_in_the_environment_hash() {
+    use nvs_config::cache::env_hash;
+    use nvs_config::grants::Grants;
+
+    let hash_of = |text: &str| {
+        let files = One(text.to_string());
+        let mut sources = SourceMap::new();
+        let resolved = resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files)
+            .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+        env_hash(&resolved.config, &Grants::default())
+    };
+    let unwritten = hash_of("");
+    let allow = hash_of("[regex]\nbacktracking = \"allow\"\n");
+    let warn = hash_of("[regex]\nbacktracking = \"warn\"\n");
+    let deny = hash_of("[regex]\nbacktracking = \"deny\"\n");
+    assert_eq!(
+        unwritten, allow,
+        "an unwritten key is not `allow`'s environment"
+    );
+    assert_ne!(allow, warn);
+    assert_ne!(allow, deny);
+    assert_ne!(warn, deny);
+}
+
 /// `rule:config/no-configuration-file-is-a-complete-configuration`: with nothing written, `get`
 /// gives the built-in default in force, rendered the way the shipped file writes it.
 #[test]

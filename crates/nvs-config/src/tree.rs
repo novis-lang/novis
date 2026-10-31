@@ -99,6 +99,8 @@ pub struct Config {
     pub log: Option<Log>,
     /// `[errors]` — what a use of deprecated code does while it runs (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
     pub errors: Option<Errors>,
+    /// `[regex]` — whether a pattern that needs the backtracking engine compiles (`rule:core-classes/regex-compile-time-tiering`).
+    pub regex: Option<Regex>,
     /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
@@ -608,6 +610,15 @@ pub struct Image {
 pub struct Errors {
     /// `ignore`, `log` or `throw`; `Runtime`-class, and `ignore` with nothing written in every mode.
     pub deprecated: Option<String>,
+}
+
+/// `[regex]` — `rule:core-classes/regex-compile-time-tiering`'s block, read by [`crate::regex`].
+/// Global only: [`App`] takes no `[regex]`, because no rule describes a policy per application.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Regex {
+    /// `allow`, `warn` or `deny`; `System`-class, and `allow` with nothing written in every mode.
+    pub backtracking: Option<String>,
 }
 
 /// `[log]` — the escalation ladder's configured rungs (`rule:errors/handler-script` and `rule:errors/panics-bypass-user-code`) and the record's own

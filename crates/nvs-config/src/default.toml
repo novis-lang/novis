@@ -325,6 +325,18 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [regex] — whether a pattern that needs the backtracking regex engine compiles
+# (`rule:core-classes/regex-compile-time-tiering`).
+# ----------------------------------------------------------------------------------------------
+
+[regex]
+# `System` — a pattern with lookaround or a backreference needs the backtracking engine.
+# `allow` compiles such a pattern. `warn` compiles a pattern literal with a warning.
+# `deny` stops a pattern literal from compiling. The mode does not change this setting.
+#backtracking = "allow"              # default
+
+
+# ----------------------------------------------------------------------------------------------
 # [io] — the one directory `Core\IO::temporaryDir` creates under
 # (`rule:core-classes/temporary-dir-sweep`).
 # ----------------------------------------------------------------------------------------------

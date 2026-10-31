@@ -613,6 +613,9 @@ pub fn resolve(
     // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s three values, refused where they
     // are written so the runtime reader never meets a fourth.
     crate::errors::validate(&resolved.config, &origins)?;
+    // `rule:core-classes/regex-compile-time-tiering`'s three values, refused where they are
+    // written so the checker never meets a fourth.
+    crate::regex::validate(&resolved.config, &origins)?;
     // `rule:core-classes/image-pixel-cap`: a cap the size grammar does not read, or one that is no
     // cap, is refused here so the component never decodes under a value it had to guess at.
     crate::image::validate(&resolved.config, &origins)?;

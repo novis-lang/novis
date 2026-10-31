@@ -196,6 +196,7 @@ the operator names. Every other block's keys are closed.
 | `[debug]` | [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive) |
 | `[log]`, `[http.errors]` | [`errors/log-level`](errors.md#errors-log-level), [`errors/engine-floor`](errors.md#errors-engine-floor) |
 | `[errors]` | [`errors/a-use-of-deprecated-code-may-log-or-throw`](errors.md#errors-a-use-of-deprecated-code-may-log-or-throw) |
+| `[regex]` | [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering) |
 | `[db.<name>]` | [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named) |
 | `[deferred]` | [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives) |
 | `[[schedule]]`, `[queue]` | the scheduled-work rules, [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table) |
@@ -2611,7 +2612,7 @@ a host and a path are separately-typed arguments to separate members, which is
 
 ```
 extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
-env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
+env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash ‖ regex_backtracking)
 content_hash       = BLAKE3(source_content)
 artifact_key       = BLAKE3(content_hash ‖ env_hash)
 ```
@@ -2626,6 +2627,11 @@ A manifest lives inside its `.nvsx` as a custom section, so hashing the pins cov
 declared classes, signatures and qualifier declarations with no separate manifest hash. **A class
 name declared by two extensions is refused at load**, so the set is order-independent and the sorted
 hash is well defined. An entry with no pin contributes its path, so it still rekeys every unit.
+
+`regex_backtracking` is `[regex] backtracking`, one byte, the one other directive that decides what
+a unit compiles to: under `warn` or `deny` a backtracking pattern literal warns or does not compile
+([`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering)). A reload that changes it rekeys every unit, as a
+changed extension set does.
 
 `compiler_version_hash` is **the running compiler executable, not the release version**: its path, its
 byte length and its modification time, read once per process. A version string is one string for every

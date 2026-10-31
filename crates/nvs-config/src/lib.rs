@@ -91,6 +91,7 @@ pub mod mode;
 pub mod mount;
 pub mod package;
 pub mod queue;
+pub mod regex;
 pub mod reload;
 pub mod request;
 pub mod resolve;

@@ -239,6 +239,14 @@ impl Request {
             .unwrap_or_default()
     }
 
+    /// `[regex] backtracking` in force for this request: what the file wrote, then
+    /// [`Backtracking::Allow`](crate::regex::Backtracking::Allow). The key is `System`, so no
+    /// overlay holds it, and this reads the snapshot's tree and allocates nothing.
+    #[must_use]
+    pub fn backtracking(&self) -> crate::regex::Backtracking {
+        crate::regex::Backtracking::of_config(&self.base.config)
+    }
+
     /// Whether `[debug] store` is in force for this request
     /// (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). The key is
     /// `RuntimeTighten`, so an overlay can only have turned it off, and a request whose overlay does

@@ -19,6 +19,7 @@ the operator names. Every other block's keys are closed.
 | `[debug]` | `rule:testing/debug-mode-directive` |
 | `[log]`, `[http.errors]` | `rule:errors/log-level`, `rule:errors/engine-floor` |
 | `[errors]` | `rule:errors/a-use-of-deprecated-code-may-log-or-throw` |
+| `[regex]` | `rule:core-classes/regex-compile-time-tiering` |
 | `[db.<name>]` | `rule:core-classes/db-connection-is-named` |
 | `[deferred]` | `rule:concurrency/deferred-is-bounded-by-two-directives` |
 | `[[schedule]]`, `[queue]` | the scheduled-work rules, `rule:core-classes/queue-storage-is-a-table` |
