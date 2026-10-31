@@ -34,7 +34,7 @@ stages:
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/tests/tables.rs, docs/rules/core-classes/pdf-tables-across-pages.md]
   - id: 8
     title: "a mark, a string, a running element, an id and a heading are on the page they are drawn on"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/src/layout/margin.rs, docs/rules/core-classes/pdf-css-subset.md]
   - id: 9
     title: "page breaks keep what avoid asks for, and a left or right page sets its own line widths"
@@ -424,6 +424,11 @@ property or value is a line in `extensions/pdf/subset.json` (`rule:core-classes/
 - **`target-counter(url, name)`** reads the counter's value at the target element, after that
   element's own `counter-reset` and `counter-increment`. `Targets` maps each `id` to its page and its
   counters, the walk records them, and the pass loop reruns while they differ, as it does for pages.
+- **Counters, as built.** A `counter-reset` is a change, so a page whose first change is a reset
+  reads the reset value. A counter whose last scope ends keeps its last value, and an inner
+  counter's end that uncovers an outer one of the name is a change. The walk snapshots an `id`'s
+  counters only when one is in scope. `element()` and `string()` read their second argument with
+  one function, `paginate::Which::of`.
 - **Page attribution, as built.** A box laid out on a page of its own leaves an `Item::Here` where it
   meets an `id`, a heading, a string, a mark or a running element (`Cx::note`,
   `extensions/pdf/src/layout/text.rs`). `Cx::attribute` lands each on the page the item ends on,
@@ -615,18 +620,18 @@ is drawn on, and counters and `element()` read as CSS says.
 
 - [x] `rule:core-classes/pdf-css-subset`: a `data-mark`, `string-set` or running element inside a cell, an inline-block, a float or a flex item is recorded on its drawn page. `extensions/pdf/src/layout/inline.rs:1588`, `extensions/pdf/src/layout/inline.rs:1599`, `extensions/pdf/src/layout/table.rs:662`
 - [x] An `id` there has its page, and so does an `id` in a running element. `extensions/pdf/src/layout/block.rs:363`, `extensions/pdf/src/layout/block.rs:381`
-- [ ] `counter()` in a margin box and `target-counter()` read any counter. `extensions/pdf/src/paginate/mod.rs:349`, `extensions/pdf/src/layout/inline.rs:448`
-- [ ] `element()` reads `start` and `first-except`. `extensions/pdf/src/paginate/mod.rs:376`, `extensions/pdf/src/layout/margin.rs:124`
+- [x] `counter()` in a margin box and `target-counter()` read any counter. `extensions/pdf/src/paginate/mod.rs:349`, `extensions/pdf/src/layout/inline.rs:448`
+- [x] `element()` reads `start` and `first-except`. `extensions/pdf/src/paginate/mod.rs:376`, `extensions/pdf/src/layout/margin.rs:124`
 - [x] `rule:core-classes/pdf-standards-and-passwords`: a heading there has its bookmark. `extensions/pdf/src/layout/block.rs:387`, `extensions/pdf/src/write.rs:382`
-- [ ] The tests the `pdf-page-attribution` and `pdf-bookmarks` checks name. `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/tests/render.rs:1`
+- [x] The tests the `pdf-page-attribution` and `pdf-bookmarks` checks name. `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/tests/render.rs:1`
   - [x] the three attribution tests and the bookmark test, each passed once
-  - [ ] `target_counter_reads_any_counter`, `a_margin_box_reads_a_named_counter`
-  - [ ] `element_start_and_first_except_read_as_css_says`
-- [ ] The marks attack still passes. The table module's list goes, with its bold lead, and `Cost:` stays. Delete `data/gaps/nvs-pdf/pdf-table-leftovers.json`. The pagination bullet loses these sentences. `tests/hostile/novis/Pdf-Page/marks/01-hostile-marks.nvs:1`, `extensions/pdf/src/layout/table.rs:62`, `extensions/pdf/src/lib.rs:57`
+  - [x] `target_counter_reads_any_counter`, `a_margin_box_reads_a_named_counter`
+  - [x] `element_start_and_first_except_read_as_css_says`
+- [x] The marks attack still passes. The table module's list goes, with its bold lead, and `Cost:` stays. Delete `data/gaps/nvs-pdf/pdf-table-leftovers.json`. The pagination bullet loses these sentences. `tests/hostile/novis/Pdf-Page/marks/01-hostile-marks.nvs:1`, `extensions/pdf/src/layout/table.rs:62`, `extensions/pdf/src/lib.rs:57`
   - [x] the table list and the gap record are gone, and `Cost:` stays
   - [x] the pagination and writing bullets lost the attribution and bookmark sentences
-  - [ ] the counter and `element()` sentences go with their items
-  - [ ] the marks attack runs once (`bun nv proofs --run --only 'Novis\Pdf\Page::marks'`)
+  - [x] the counter and `element()` sentences go with their items
+  - [x] the marks attack runs once (`bun nv proofs --run --only 'Novis\Pdf\Page::marks'`)
 
 ### 9. page breaks keep what avoid asks for, and a left or right page sets its own line widths
 
@@ -687,12 +692,14 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done, and the spreadsheet lane is finished. Stage 8's page attribution landed in
-`0e707041f`: marks, strings, running elements, ids and headings inside a cell, an inline-block, a
-float or a flex item are on their drawn page. The counter and `element()` items are left.
+Stages 1 to 8 are done, and the spreadsheet lane is finished. Stage 8's counters landed in
+`db5f682a6`: a margin box's `counter(name)` and `target-counter(url, name)` read any counter, and
+`element()` reads `start` and `first-except` (§ *Counters, as built*).
 
-- The four new tests in `extensions/pdf/tests/paginate.rs` and `extensions/pdf/tests/render.rs`
-  passed once. The table gap record is deleted, and `owners --closes` names only `pdf-leftovers`.
+- `pdf-page-attribution`, `pdf-bookmarks` and `pdf-tables` pass, and the marks attack ran once.
+- The `render` suite hung: 20 nested tables measured each cell twice per level, which is
+  exponential. Each cell's widths are now kept per pass (`Cx::ranges`), and the test takes 0.04 s.
+- `string_set_carries_the_chapter_title` was stage 6's expected red, and is fixed.
 - The component's clippy has the same 8 errors, all outside stage 8's code, which stage 11 owns.
 - `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
 - `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
@@ -702,18 +709,22 @@ float or a flex item are on their drawn page. The counter and `element()` items 
 
 ### Next
 
-The rest of stage 8, by the two counter decisions under § *Standing decisions*:
+Stage 9, by the break decision under § *Standing decisions* (`break-after: avoid` and
+`break-inside: avoid`):
 
-- [ ] `extensions/pdf/src/layout/inline.rs:366` (`Targets`) and `:448` (`target-counter`): each
-  `id`'s counters beside its page. Snapshot after `counters.apply` and the `list-item` change near
-  `extensions/pdf/src/layout/inline.rs:1683`.
-- [ ] `extensions/pdf/src/paginate/mod.rs:347` (`content`'s `counter`) and
-  `extensions/pdf/src/layout/margin.rs:66` (`Set`): a counter change of a name a margin reads.
-- [ ] `extensions/pdf/src/paginate/mod.rs:377` (`element`) and `extensions/pdf/src/layout/margin.rs:126`
-  (`pick`): `start` and `first-except`, with a `top` on `margin::Running`.
-- [ ] `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/src/lib.rs:53`: the three tests the
-  `pdf-page-attribution` check still names, the pagination bullet's counter and `element()`
-  sentences, and the marks attack once. Then stage 8 is done.
+- [ ] `extensions/pdf/src/layout/text.rs:98` (`blocks`' first-page width) and
+  `extensions/pdf/src/layout/inline.rs:1387` (`width_of`): a `:left` or `:right` page of another
+  content width lays its lines at its own width. `extensions/pdf/src/paginate/mod.rs:37` states it.
+- [ ] `extensions/pdf/src/layout/block.rs:219` (`avoid`) and
+  `extensions/pdf/src/layout/text.rs:670`: `break-inside: avoid` keeps a table row, a flex
+  container and an inline-block whole.
+- [ ] `extensions/pdf/src/layout/block.rs:481`: `break-after: avoid` and `break-before: avoid`
+  keep two boxes on one page when they fit.
+- [ ] `extensions/pdf/src/layout/block.rs`'s float placement (`Flow::band`): a float in a
+  paragraph is placed at its line and goes on to the next page.
+- [ ] `extensions/pdf/tests/paginate.rs`, `extensions/pdf/subset.json`,
+  `extensions/pdf/src/lib.rs:55`: the four tests the `pdf-breaks` check names, and the pagination
+  bullet goes.
 
 Expect red at the gate: a PDF test whose margin box or bookmark order assumed a string, mark,
 running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
@@ -728,7 +739,9 @@ column letter, or `print` twice; a test that matches "can hold only a finite num
 parts" for a finished sheet's `cell`; an image test with a hand-cut PNG outside
 `extensions/spreadsheet/tests/`. Also the stage 2 and 3 reds the last handoff named. Also a test
 that calls the PDF `readText` export with bytes in place of the `file` from `read`, and a test or
-example that sets a `string-set` name in one case and asks for it in another.
+example that sets a `string-set` name in one case and asks for it in another. Also a PDF test,
+case or example whose margin box read a named counter as 0, or whose `element(name, start)` or
+`element(name, first-except)` read as `first`.
 
 ### Backlog
 
