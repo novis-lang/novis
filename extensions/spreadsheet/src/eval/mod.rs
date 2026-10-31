@@ -26,8 +26,13 @@
 //! evaluation: the grid, one parsed tree per formula and per name, the list of cells each
 //! formula reads, and the order. The work grows with the cells and the references.
 
+mod date;
 pub mod functions;
+mod lookup;
+mod math;
+pub mod moved;
 pub mod parse;
+mod text;
 pub mod value;
 
 use std::collections::BTreeMap;
@@ -103,6 +108,7 @@ struct Sheet {
     name: String,
     cells: BTreeMap<(u32, u32), Value>,
     formulas: BTreeMap<(u32, u32), usize>,
+    hidden: std::collections::BTreeSet<u32>,
 }
 
 #[derive(Debug)]
@@ -111,6 +117,8 @@ struct Formula {
     row: u32,
     col: u32,
     text: Option<String>,
+    /// Whether [`Book::evaluate`] computed it.
+    computed: bool,
 }
 
 /// A name ready to evaluate: the sheet it is local to, its name in lower case, and its tree.
@@ -132,11 +140,17 @@ pub struct Book {
     formulas: Vec<Formula>,
     names: Vec<Name>,
     tables: Vec<Table>,
+    date1904: bool,
 }
 
 impl Book {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Counts date serials from 1904-01-01, as a workbook with that setting does.
+    pub fn use_1904(&mut self) {
+        self.date1904 = true;
     }
 
     /// The sheet named `name`, added after the others when the book has none of that name.
@@ -178,6 +192,7 @@ impl Book {
             row,
             col,
             text: text.map(str::to_owned),
+            computed: false,
         };
         match self.sheets[sheet].formulas.get(&(row, col)) {
             Some(&at) => self.formulas[at] = formula,
@@ -188,6 +203,11 @@ impl Book {
                 self.formulas.push(formula);
             }
         }
+    }
+
+    /// Marks a row the file hides, which `SUBTOTAL` reads.
+    pub fn hide_row(&mut self, sheet: usize, row: u32) {
+        self.sheets[sheet].hidden.insert(row);
     }
 
     pub fn define(&mut self, name: Name) {
@@ -204,6 +224,16 @@ impl Book {
             .get(sheet)
             .and_then(|s| s.cells.get(&(row, col)))
             .unwrap_or(&BLANK)
+    }
+
+    /// The computed value of a formula cell, or `None` for a cell that is not a formula or
+    /// was not computed.
+    pub fn computed(&self, sheet: usize, row: u32, col: u32) -> Option<&Value> {
+        let s = self.sheets.get(sheet)?;
+        let &at = s.formulas.get(&(row, col))?;
+        self.formulas[at]
+            .computed
+            .then(|| s.cells.get(&(row, col)).unwrap_or(&BLANK))
     }
 
     /// The value at `reference`, `Sheet!A1` or `A1` on the first sheet.
@@ -272,6 +302,7 @@ impl Book {
                         match result {
                             Ok(v) => {
                                 self.sheets[sheet].cells.insert((row, col), v);
+                                self.formulas[at].computed = true;
                                 None
                             }
                             Err(miss) => Some(miss),
@@ -575,6 +606,58 @@ impl<'a> Ctx<'a> {
                 .filter(move |((_, col), _)| (rect.left..=rect.right).contains(col))
                 .map(|(_, v)| v)
         })
+    }
+
+    /// The non-blank cells of `rect` on `sheet` with their row and column, by row and then
+    /// column.
+    pub fn entries(
+        &self,
+        sheet: usize,
+        rect: Rect,
+    ) -> impl Iterator<Item = (u32, u32, &'a Value)> + use<'a> {
+        let book = self.book;
+        book.sheets.get(sheet).into_iter().flat_map(move |s| {
+            s.cells
+                .range((rect.top, rect.left)..=(rect.bottom, rect.right))
+                .filter(move |((_, col), _)| (rect.left..=rect.right).contains(col))
+                .map(|(&(row, col), v)| (row, col, v))
+        })
+    }
+
+    /// The value of one cell, blank when it is empty.
+    pub fn at(&self, sheet: usize, row: u32, col: u32) -> &'a Value {
+        self.book.value(sheet, row, col)
+    }
+
+    /// Whether the file hides `row` of `sheet`.
+    pub fn hidden(&self, sheet: usize, row: u32) -> bool {
+        self.book
+            .sheets
+            .get(sheet)
+            .is_some_and(|s| s.hidden.contains(&row))
+    }
+
+    /// Whether any row of `top..=bottom` on `sheet` is hidden.
+    pub fn any_hidden(&self, sheet: usize, top: u32, bottom: u32) -> bool {
+        self.book
+            .sheets
+            .get(sheet)
+            .is_some_and(|s| s.hidden.range(top..=bottom).next().is_some())
+    }
+
+    /// Whether the cell's formula calls `SUBTOTAL`, which another `SUBTOTAL` skips.
+    pub fn is_subtotal(&self, sheet: usize, row: u32, col: u32) -> bool {
+        self.book
+            .sheets
+            .get(sheet)
+            .and_then(|s| s.formulas.get(&(row, col)))
+            .and_then(|&at| self.book.formulas[at].text.as_deref())
+            .is_some_and(|text| text.to_ascii_uppercase().contains("SUBTOTAL("))
+    }
+
+    /// Whether the formula's workbook counts dates from 1904.
+    pub fn date1904(&self) -> bool {
+        self.book.date1904
     }
 
     /// `expr` as one value: a reference of one cell gives that cell's value.

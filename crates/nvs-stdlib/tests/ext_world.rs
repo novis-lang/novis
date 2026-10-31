@@ -1238,6 +1238,7 @@ const SPREADSHEET_EXPORTS: &[&str] = &[
     "reader-images",
     "reader-properties",
     "reader-macros",
+    "reader-evaluate",
     "source-bytes",
     "template-open",
     "template-set",

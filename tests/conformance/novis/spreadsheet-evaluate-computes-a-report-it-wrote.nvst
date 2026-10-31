@@ -1,0 +1,39 @@
+--TEST--
+`Reader::evaluate` computes the formulas of a report the writer wrote, with no cached results and one wrong one, and each later read gives the computed results under their formats: rule:core-classes/spreadsheet-evaluation-and-roster
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::evaluate
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders");
+$orders->add(["item" => "Tea", "qty" => 3, "price" => 2.5, "total" => Formula::of("=B2*C2")]);
+$orders->add(["item" => "Cake", "qty" => 4, "price" => 4.0, "total" => Formula::of("=B3*C3")]);
+$orders->add(["item" => "Jam", "qty" => 2, "price" => 3.25, "total" => Formula::of("=ROUND(B4*C4,1)")]);
+$orders->table("A1:D4", {name: "Orders", totals: ["qty" => "sum", "total" => "sum"]});
+$orders->add(["item" => "Big orders", "qty" => Formula::of("=COUNTIF(B2:B4,\">2\")"), "total" => Formula::of("=SUMIF(B2:B4,\">2\",D2:D4)", {cached: 999})]);
+$orders->add(["item" => Formula::of("=UPPER(LEFT(A2,1))&MID(A3,2,3)"), "qty" => Formula::of("=VLOOKUP(\"Jam\",A2:D4,2,FALSE)")]);
+var $summary = $book->sheet("Summary");
+$summary->add(["label" => "Paid", "value" => Formula::of("=IF(Orders!D5>20,\"yes\",\"no\")")]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $reader = Reader::open($file);
+echo "missed: ", Core\Arr::count($reader->evaluate()), "\n";
+foreach ($reader->rows("Orders") as var $row) {
+    echo $row->number, ": ", Core\Str::join(" | ", Core\Arr::map($row->values, fn(mixed $v): string => (string) $v)), "\n";
+}
+foreach ($reader->rows("Summary", { header: true }) as var $row) {
+    echo $row->values['label'], " ", $row->values['value'], "\n";
+}
+--EXPECT--
+missed: 0
+1: item | qty | price | total
+2: Tea | 3 | 2.5 | 7.5
+3: Cake | 4 | 4 | 16
+4: Jam | 2 | 3.25 | 6.5
+5: Total | 9 | 30
+6: Big orders | 2 | 23.5
+7: Take | 2
+Paid yes

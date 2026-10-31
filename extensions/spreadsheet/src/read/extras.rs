@@ -419,12 +419,26 @@ impl Reader {
 
     /// The Excel tables of the sheet `name`, in the order its relationships list them.
     pub fn tables(&self, source: &dyn Source, name: &str) -> Result<Vec<Table>, Error> {
+        Ok(self
+            .table_rows(source, name)?
+            .into_iter()
+            .map(|(table, _, _)| table)
+            .collect())
+    }
+
+    /// [`Self::tables`], each with whether it has a header row and a totals row, which a
+    /// structured reference reads.
+    pub fn table_rows(
+        &self,
+        source: &dyn Source,
+        name: &str,
+    ) -> Result<Vec<(Table, bool, bool)>, Error> {
         if let Some(extras) = self.ods_of(name)? {
             return Ok(extras
                 .tables
                 .iter()
                 .filter(|table| table.sheet == name)
-                .cloned()
+                .map(|table| (table.clone(), true, false))
                 .collect());
         }
         // BIFF8 has no table part, so an xls has no tables.
@@ -443,12 +457,13 @@ impl Reader {
                 continue;
             };
             if self.binary {
-                if let Some((table, shown)) = binary::table(&bytes)? {
-                    tables.push(Table {
+                if let Some((table, shown, header, totals)) = binary::table(&bytes)? {
+                    let table = Table {
                         table,
                         name: shown,
                         sheet: name.to_owned(),
-                    });
+                    };
+                    tables.push((table, header, totals));
                 }
                 continue;
             }
@@ -461,14 +476,19 @@ impl Reader {
                     && xml::local(tag) == b"table"
                 {
                     let shown = xml::attr_text(attrs, b"displayName")?;
-                    tables.push(Table {
+                    let count = |attr: &[u8], default: &str| -> Result<bool, Error> {
+                        Ok(xml::attr_text(attrs, attr)?.as_deref().unwrap_or(default) != "0")
+                    };
+                    let table = Table {
                         table: xml::attr_text(attrs, b"ref")?.unwrap_or_default(),
                         name: match shown {
                             Some(shown) => shown,
                             None => xml::attr_text(attrs, b"name")?.unwrap_or_default(),
                         },
                         sheet: name.to_owned(),
-                    });
+                    };
+                    let header = count(b"headerRowCount", "1")?;
+                    tables.push((table, header, count(b"totalsRowCount", "0")?));
                     break;
                 }
             }

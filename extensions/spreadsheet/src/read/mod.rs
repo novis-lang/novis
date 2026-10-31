@@ -46,6 +46,7 @@
 
 pub mod binary;
 mod cfb;
+mod evaluate;
 pub mod extras;
 pub mod format;
 pub mod merge;
@@ -330,6 +331,8 @@ pub struct Reader {
     /// What an xlsb's formulas refer to by number.
     book: Arc<tokens::Book>,
     open: Option<Open>,
+    /// The workbook computed by [`Reader::evaluate`], whose results each later read gives.
+    evaluated: Option<Box<crate::eval::Book>>,
 }
 
 /// The sheet [`Reader::rows`] is reading: its cursor, a row read and held back while the empty
@@ -621,6 +624,7 @@ impl Reader {
             xls: None,
             book: Arc::new(formulas),
             open: None,
+            evaluated: None,
         })
     }
 
@@ -646,6 +650,7 @@ impl Reader {
             xls: None,
             book: Arc::default(),
             open: None,
+            evaluated: None,
         }
     }
 
@@ -890,7 +895,7 @@ impl Reader {
                     .as_ref()
                     .and_then(|fill| fill.covered(expected, raw.number))
             };
-            let raw = match gap {
+            let mut raw = match gap {
                 Some(number) => {
                     open.held = Some(raw);
                     sheet::RawRow {
@@ -901,6 +906,7 @@ impl Reader {
                 None => raw,
             };
             open.next = raw.number + 1;
+            self.overlay(&options.sheet, &mut raw);
             self.reach(source, &raw)?;
             if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
@@ -1017,7 +1023,10 @@ impl Reader {
                 }
                 _ => None,
             };
-            let formula = if options.formulas { cell.formula } else { None };
+            // Empty text is a formula the reader could not decode, which gives no `Formula`.
+            let formula = cell
+                .formula
+                .filter(|text| options.formulas && !text.is_empty());
             if value.is_none() && formula.is_none() {
                 continue;
             }

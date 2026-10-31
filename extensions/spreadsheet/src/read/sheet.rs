@@ -10,6 +10,12 @@
 //! its `<v>`, its `<f>`, and the text of an inline string. `super::value` turns it into a read
 //! value.
 //!
+//! A shared formula (`<f t="shared" si="0">`) writes its text in its first cell only. The cursor
+//! keeps that text and its cell for each `si`, and gives every other cell of the group the text
+//! moved to it by [`crate::eval::moved`]. A cell whose group has no text yet, or whose text
+//! moves off the grid, gives empty formula text, which the evaluator lists. What it spends: the
+//! text of each shared formula, for the read of one sheet.
+//!
 //! [`merged`] reads a sheet's merged ranges, which come after its rows, in a pass of its own.
 
 use super::merge::Merge;
@@ -49,6 +55,8 @@ pub struct Cursor {
     in_data: bool,
     over: bool,
     last: u64,
+    /// Each shared formula's row, column and text, by its `si`.
+    shared: std::collections::HashMap<u32, (u64, u64, String)>,
 }
 
 fn broken(what: &str) -> Error {
@@ -98,6 +106,7 @@ impl Cursor {
             in_data: false,
             over: false,
             last: 0,
+            shared: std::collections::HashMap::new(),
         })
     }
 
@@ -158,13 +167,23 @@ impl Cursor {
                         self.over = empty;
                         self.pos += length;
                     } else if name == b"row" && self.in_data {
-                        match parse_row(&self.buf[self.pos..], attrs, empty, length, self.last)? {
-                            Some((row, consumed)) => {
+                        let mut groups = Vec::new();
+                        let parsed = parse_row(
+                            &self.buf[self.pos..],
+                            attrs,
+                            empty,
+                            length,
+                            self.last,
+                            &mut groups,
+                        )?;
+                        match parsed {
+                            Some((mut row, consumed)) => {
                                 self.pos += consumed;
                                 if row.number <= self.last {
                                     return Err(broken("a worksheet's rows are out of order"));
                                 }
                                 self.last = row.number;
+                                self.share(&mut row, &groups);
                                 return Ok(Some(row));
                             }
                             None => self.more(source)?,
@@ -180,6 +199,32 @@ impl Cursor {
                     self.pos += length;
                 }
                 Some((_, length)) => self.pos += length,
+            }
+        }
+    }
+}
+
+impl Cursor {
+    /// Keeps the text of each shared formula `row` starts, and gives each other cell of a group
+    /// its text moved to it. `groups` is each shared cell's column and `si`.
+    fn share(&mut self, row: &mut RawRow, groups: &[(u64, u32)]) {
+        for &(column, si) in groups {
+            let Some(cell) = row.cells.iter_mut().find(|cell| cell.column == column) else {
+                continue;
+            };
+            match cell.formula.as_deref() {
+                Some(text) if !text.is_empty() => {
+                    self.shared
+                        .insert(si, (row.number, column, text.to_owned()));
+                }
+                _ => {
+                    let text = self.shared.get(&si).and_then(|(r, c, text)| {
+                        let rows = i64::try_from(row.number).ok()? - i64::try_from(*r).ok()?;
+                        let columns = i64::try_from(column).ok()? - i64::try_from(*c).ok()?;
+                        crate::eval::moved::moved(text, rows, columns)
+                    });
+                    cell.formula = Some(text.unwrap_or_default());
+                }
             }
         }
     }
@@ -270,6 +315,7 @@ fn parse_row(
     empty: bool,
     length: usize,
     last: u64,
+    groups: &mut Vec<(u64, u32)>,
 ) -> Result<Option<(RawRow, usize)>, Error> {
     let mut row = RawRow {
         number: match xml::attr(attrs, b"r") {
@@ -317,7 +363,18 @@ fn parse_row(
                     });
                 }
                 b"v" if !empty => into = In::Value,
-                b"f" if !empty => into = In::Formula,
+                b"f" => {
+                    let si = (xml::attr(attrs, b"t") == Some(b"shared"))
+                        .then(|| xml::attr(attrs, b"si"))
+                        .flatten()
+                        .and_then(|si| std::str::from_utf8(si).ok()?.parse().ok());
+                    if let (Some(si), Some(cell)) = (si, row.cells.last()) {
+                        groups.push((cell.column, si));
+                    }
+                    if !empty {
+                        into = In::Formula;
+                    }
+                }
                 b"is" => {
                     if let Some(cell) = row.cells.last_mut() {
                         cell.inline.get_or_insert_with(String::new);

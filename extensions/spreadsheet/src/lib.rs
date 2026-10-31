@@ -1325,6 +1325,26 @@ mod guest {
                 .collect())
         }
 
+        fn reader_evaluate(
+            reader: wit::ReadingBorrow<'_>,
+            source: &Source,
+        ) -> Result<Vec<wit::MissedInfo>, wit::Error> {
+            let missed = reader
+                .get::<Reader>()
+                .reader
+                .borrow_mut()
+                .evaluate(&Lent(source))
+                .map_err(error)?;
+            Ok(missed
+                .into_iter()
+                .map(|missed| wit::MissedInfo {
+                    cell: missed.cell,
+                    kind: missed.kind.as_str().to_owned(),
+                    text: missed.text,
+                })
+                .collect())
+        }
+
         fn reader_properties(
             reader: wit::ReadingBorrow<'_>,
             source: &Source,

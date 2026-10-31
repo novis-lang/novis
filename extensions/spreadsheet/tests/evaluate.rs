@@ -451,7 +451,7 @@ fn an_external_reference_is_listed_and_never_followed() {
 fn a_function_outside_the_set_is_listed_and_its_cell_keeps_its_stored_result() {
     let mut book = Book::new();
     let sheet = book.sheet("Sheet1");
-    put_formula(&mut book, "Sheet1", "A1", "=VLOOKUP(1,C:D,2)", n(7.0));
+    put_formula(&mut book, "Sheet1", "A1", "=NPV(0.1,C:D)", n(7.0));
     put_formula(&mut book, "Sheet1", "A2", "=A1+1", n(0.0));
     // `IF` computes only the branch it takes.
     put_formula(&mut book, "Sheet1", "A3", "=IF(TRUE,1,NOPE())", n(0.0));
@@ -462,7 +462,7 @@ fn a_function_outside_the_set_is_listed_and_its_cell_keeps_its_stored_result() {
     assert_eq!(
         book.evaluate(),
         [
-            missed("Sheet1!A1", Kind::Function, "VLOOKUP"),
+            missed("Sheet1!A1", Kind::Function, "NPV"),
             missed("Sheet1!A4", Kind::Token, "=1+"),
             missed("Sheet1!A5", Kind::Function, "_XLUDF.MINE"),
             missed("Sheet1!A6", Kind::Function, "IF"),
@@ -474,4 +474,104 @@ fn a_function_outside_the_set_is_listed_and_its_cell_keeps_its_stored_result() {
     assert_eq!(get(&book, "A3"), n(1.0));
     assert_eq!(get(&book, "A4"), n(3.0));
     assert_eq!(get(&book, "A7"), text("kept"));
+}
+
+/// The cases of each batch of the function set, in `tests/evaluate/`.
+mod lookup;
+mod math;
+mod text;
+
+/// One function case: the cells of `Sheet1` it reads, a formula, and the value it gives. The
+/// formula is put in `Sheet1!ZZ1`, which no case's cells use.
+pub struct Case {
+    pub cells: Vec<(&'static str, Value)>,
+    pub formula: &'static str,
+    pub want: Value,
+}
+
+fn same(got: &Value, want: &Value) -> bool {
+    match (got, want) {
+        (Value::Number(a), Value::Number(b)) => (a - b).abs() <= 1e-9 * b.abs().max(1.0),
+        _ => got == want,
+    }
+}
+
+#[test]
+fn every_function_of_the_set_has_a_case() {
+    let cases: Vec<Case> = [math::cases(), text::cases(), lookup::cases()]
+        .into_iter()
+        .flatten()
+        .collect();
+    let mut wrong = Vec::new();
+    for case in &cases {
+        let mut book = Book::new();
+        book.sheet("Sheet1");
+        for (cell, value) in &case.cells {
+            put(&mut book, "Sheet1", cell, value.clone());
+        }
+        put_formula(&mut book, "Sheet1", "ZZ1", case.formula, text("stored"));
+        let missed = book.evaluate();
+        let got = get(&book, "ZZ1");
+        if !missed.is_empty() || !same(&got, &case.want) {
+            wrong.push(format!(
+                "{}: got {got:?}, want {:?}, missed {missed:?}",
+                case.formula, case.want
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    let named = |name: &str| {
+        cases.iter().any(|case| {
+            let upper = case.formula.to_ascii_uppercase();
+            upper.match_indices(name).any(|(at, _)| {
+                let before = upper[..at].chars().next_back();
+                upper[at + name.len()..].starts_with('(')
+                    && !before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '.')
+            })
+        })
+    };
+    let owed: Vec<&str> = nvs_spreadsheet::eval::functions::FUNCTIONS
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| !named(name))
+        .collect();
+    assert!(owed.is_empty(), "no case calls {owed:?}");
+    assert_eq!(nvs_spreadsheet::eval::functions::FUNCTIONS.len(), 104);
+}
+
+#[test]
+fn a_volatile_or_dynamic_function_is_listed() {
+    let mut book = Book::new();
+    book.sheet("Sheet1");
+    let formulas = [
+        "=TODAY()",
+        "=NOW()",
+        "=RAND()",
+        "=RANDBETWEEN(1,6)",
+        "=INDIRECT(\"B1\")",
+        "=OFFSET(B1,1,0)",
+    ];
+    for (at, formula) in formulas.iter().enumerate() {
+        put_formula(
+            &mut book,
+            "Sheet1",
+            &format!("A{}", at + 1),
+            formula,
+            n(5.0),
+        );
+    }
+    assert_eq!(
+        book.evaluate(),
+        [
+            missed("Sheet1!A1", Kind::Function, "TODAY"),
+            missed("Sheet1!A2", Kind::Function, "NOW"),
+            missed("Sheet1!A3", Kind::Function, "RAND"),
+            missed("Sheet1!A4", Kind::Function, "RANDBETWEEN"),
+            missed("Sheet1!A5", Kind::Function, "INDIRECT"),
+            missed("Sheet1!A6", Kind::Function, "OFFSET"),
+        ]
+    );
+    for row in 1..=6 {
+        assert_eq!(get(&book, &format!("A{row}")), n(5.0));
+    }
 }

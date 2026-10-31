@@ -542,17 +542,26 @@ pub fn names(part: &[u8], book: &tokens::Book) -> Result<Vec<DefinedName>, Error
 
 const BEGIN_LIST: u16 = 343;
 
-/// The range and the name of the table part `part`, `xl/tables/table1.bin`, from its
+/// The range, the name, and whether it has a header and a totals row, of the table part `part`,
+/// `xl/tables/table1.bin`, from its
 /// `BrtBeginList`: its `RfX`, twelve numbers of four bytes, and its name and its display name.
 /// The display name is the one a formula uses, and the name is used when it is missing.
-pub fn table(part: &[u8]) -> Result<Option<(String, String)>, Error> {
+pub fn table(part: &[u8]) -> Result<Option<(String, String, bool, bool)>, Error> {
     for item in records(part) {
         let (kind, body) = item?;
         if kind == BEGIN_LIST {
             let range = range_at(body, 0)?;
             let (name, used) = some_at(body, 64)?;
             let (shown, _) = some_at(body, 64 + used)?;
-            return Ok(Some((range, shown.or(name).unwrap_or_default())));
+            // `crwHeader` and `crwTotals`, after the range, the type and the id.
+            let header = u32_at(body, 24)? != 0;
+            let totals = u32_at(body, 28)? != 0;
+            return Ok(Some((
+                range,
+                shown.or(name).unwrap_or_default(),
+                header,
+                totals,
+            )));
         }
     }
     Ok(None)
@@ -806,8 +815,10 @@ impl Cursor {
                                     base: at,
                                     shared: false,
                                 };
-                                cell.formula =
-                                    tokens::decode(Biff::Twelve, tokens, extra, place, book);
+                                cell.formula = Some(
+                                    tokens::decode(Biff::Twelve, tokens, extra, place, book)
+                                        .unwrap_or_default(),
+                                );
                             }
                         }
                     }

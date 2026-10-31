@@ -592,6 +592,15 @@ interface engine {
         sheet: string,
     }
 
+    /// A formula cell `reader-evaluate` did not compute: `cell` as
+    /// `Sheet!A1`, `kind` as `function`, `reference`, `circular` or
+    /// `token`, and the text that names what.
+    record missed-info {
+        cell: string,
+        kind: string,
+        text: string,
+    }
+
     /// A picture placed in its file has its bytes in `image`. A linked
     /// picture has no bytes and its target's text in `link`, never fetched.
     record image-info {
@@ -637,6 +646,10 @@ interface engine {
     reader-properties: func(reader: borrow<reading>, source: borrow<value>) -> result<properties, error>;
     /// The names of an xlsm's macro modules. Nothing runs them.
     reader-macros: func(reader: borrow<reading>, source: borrow<value>) -> result<list<string>, error>;
+    /// Computes every formula of the workbook, once, and returns the cells
+    /// it could not compute. Each later `reader-rows` gives a computed
+    /// cell's result. Nothing is fetched and nothing runs on its own.
+    reader-evaluate: func(reader: borrow<reading>, source: borrow<value>) -> result<list<missed-info>, error>;
     /// At most `length` bytes of `source` from `offset`, or every byte from
     /// `offset` when `length` is `none`. The Novis half reads a CSV file's
     /// first bytes, and a CSV file in another charset whole, through it.

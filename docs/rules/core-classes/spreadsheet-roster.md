@@ -7,7 +7,7 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
-| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, `evaluate(): array<{…}>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
 | `Row` | One row `rows` read | `number: uint`, the row number in the file, and `values: array` by header text or column letter |
 | `Template` | A designed workbook to fill | `open(Core\IO\File\|bytes $source): Template`, `set(string $address, mixed $value): Template`, `fill(array $data): Export` |
 | `Style` | A set of style fields | `of({…}): Style` |

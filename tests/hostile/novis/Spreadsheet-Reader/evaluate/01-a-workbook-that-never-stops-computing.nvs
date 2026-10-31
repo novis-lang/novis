@@ -1,0 +1,52 @@
+<?nvs
+// Attack: an upload has formulas that read each other in a circle, and a very long chain of formulas.
+// `evaluate` should list each circle, compute the chain, and finish.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method prints how many cells `evaluate` lists for `$file`, or the class of the error.
+    public static function attempt(int $step, bytes $file): void
+    {
+        try {
+            uint $count = Core\Arr::count(Reader::open($file)->evaluate());
+            echo 'step ', $step, ' listed ', $count, " cells\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Two cells that read each other, and one cell that reads itself.
+var $book = Workbook::createInMemory();
+$book->sheet('Loop')->add(['a' => Formula::of('=B2+1'), 'b' => Formula::of('=A2+1'), 'c' => Formula::of('=C2*2')]);
+Attack::attempt(1, $book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// 2. A circle of 5,000 cells: each one reads the cell below it, and the last one reads the first.
+$book = Workbook::createInMemory();
+var $sheet = $book->sheet('Ring');
+int $row = 2;
+while ($row <= 5001) {
+    string $next = $row == 5001 ? 'A2' : 'A' . ($row + 1);
+    $sheet->add(['a' => Formula::of("={$next}+1")]);
+    $row = $row + 1;
+}
+Attack::attempt(2, $book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// 3. A chain of 20,000 cells: each one reads the cell above it.
+$book = Workbook::createInMemory();
+$sheet = $book->sheet('Chain');
+$sheet->add(['a' => 1]);
+$row = 3;
+while ($row <= 20001) {
+    $sheet->add(['a' => Formula::of('=A' . ($row - 1) . '+1')]);
+    $row = $row + 1;
+}
+Attack::attempt(3, $book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// 4. One formula with 1,000 parentheses inside each other.
+$book = Workbook::createInMemory();
+$book->sheet('Deep')->add(['a' => Formula::of('=' . Core\Str::repeat('(', 1000) . '1' . Core\Str::repeat(')', 1000))]);
+Attack::attempt(4, $book->finish()->bytes ?? Core\Bytes::fill(0, 0));

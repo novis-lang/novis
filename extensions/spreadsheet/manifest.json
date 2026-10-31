@@ -188,6 +188,16 @@
       "help": "Returns the document properties of the workbook. `created` is the time it was created, in UTC."
     },
     {
+      "name": "readerEvaluate",
+      "params": [
+        {"name": "reader", "type": "Reading"},
+        {"name": "source", "type": "mixed"}
+      ],
+      "returns": "array<{ cell: string, kind: string, text: string }>",
+      "source": true,
+      "help": "Computes every formula in the workbook and returns the cells it could not compute. After this call, each row you read has the computed results."
+    },
+    {
       "name": "sourceBytes",
       "params": [
         {"name": "source", "type": "mixed"},

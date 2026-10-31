@@ -1,5 +1,5 @@
 {
-  "title": "The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates",
+  "title": "The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates until the program calls evaluate",
   "status": "shipped",
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",
@@ -12,6 +12,8 @@
     "extensions/spreadsheet/tests/sheet_end.rs",
     "extensions/spreadsheet/tests/evaluate.rs",
     "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst",
-    "tests/conformance/novis/spreadsheet-writes-csv-from-the-same-calls.nvst"
+    "tests/conformance/novis/spreadsheet-writes-csv-from-the-same-calls.nvst",
+    "tests/conformance/novis/spreadsheet-evaluate-computes-a-report-it-wrote.nvst",
+    "tests/conformance/novis/spreadsheet-evaluate-lists-what-it-could-not-compute.nvst"
   ]
 }

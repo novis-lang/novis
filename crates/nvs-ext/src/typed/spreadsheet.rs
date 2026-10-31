@@ -10,7 +10,7 @@ use self::bindings::exports::nvs::spreadsheet::engine::{
     ChartSeries, ClockCell, Column, ConditionalKind, ConditionalPart, DateCell, DecimalCell,
     DecompressionBound, DurationCell, ErrorCell, Filled, Finished, FormulaCell, GroupPart,
     HeaderOptions, ImageInfo, ImagePart, IntegerCell, ItemBatch, Legend, Line, LinkInfo, LinkPart,
-    Margins, MergePart, NameInfo, NoteInfo, NotePart, NumberCell, Operator, Orientation,
+    Margins, MergePart, MissedInfo, NameInfo, NoteInfo, NotePart, NumberCell, Operator, Orientation,
     Placeholder, PrintPart, Properties, ProtectPart, ReadBatch, ReadCell, ReadOptions, ReadRow,
     ReadValue, RichCell, RichRun, Row, RuleKind, SheetInfo, SheetKind, SheetOptions, SheetPart,
     SheetRows, Style, TableInfo, TablePart, TableTotal, TextCell, TimeCell, TotalFunction,
@@ -75,6 +75,7 @@ world! {
     reader_images(ResourceAny, ResourceAny, String) -> Vec<ImageInfo>;
     reader_properties(ResourceAny, ResourceAny) -> Properties;
     reader_macros(ResourceAny, ResourceAny) -> Vec<String>;
+    reader_evaluate(ResourceAny, ResourceAny) -> Vec<MissedInfo>;
     source_bytes(ResourceAny, u64, Option<u64>) -> Vec<u8>;
     template_open(ResourceAny, DecompressionBound) -> ResourceAny;
     template_set(ResourceAny, String, Option<CellValue>) -> ();
@@ -146,6 +147,7 @@ records! {
     NoteInfo { noted, note, author }
     NameInfo { name, reference, sheet }
     TableInfo { table, name, sheet }
+    MissedInfo { cell, kind, text }
     ImageInfo { at, image, format, link }
     DecompressionBound { max_bytes, max_ratio }
     Placeholder { path, value }

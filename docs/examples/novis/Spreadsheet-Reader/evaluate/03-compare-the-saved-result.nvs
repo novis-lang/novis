@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to compare a formula's saved result with the result that `evaluate` computes.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// The saved result of this formula is 999. The correct result is 120.
+var $book = Workbook::createInMemory();
+$book->sheet('Bill')->add(['net' => 100, 'gross' => Formula::of('=A2*1.2', {cached: 999})]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Without `evaluate`, the cell has the saved result.
+foreach (Reader::open($file)->rows('Bill', { header: true }) as var $row) {
+    echo 'saved: ', $row->values['gross'], "\n";
+}
+
+// With `evaluate`, the cell has the computed result.
+Reader $reader = Reader::open($file);
+$reader->evaluate();
+foreach ($reader->rows('Bill', { header: true }) as var $row) {
+    echo 'computed: ', $row->values['gross'], "\n";
+}

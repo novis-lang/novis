@@ -1,0 +1,32 @@
+<?nvs
+// Computes the formulas of a 200-row order sheet, as an import does before it checks the totals.
+// bench: iterations 16
+// bench: complexity constant
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        var $sheet = $book->sheet('Orders');
+        int $row = 2;
+        while ($row <= 201) {
+            $sheet->add(['qty' => $row, 'price' => 2.5, 'total' => Formula::of("=A{$row}*B{$row}")]);
+            $row = $row + 1;
+        }
+        $sheet->add(['qty' => Formula::of('=SUM(A2:A201)'), 'total' => Formula::of('=SUMIF(A2:A201,">100",C2:C201)')]);
+        bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Reader::open($file)->evaluate());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

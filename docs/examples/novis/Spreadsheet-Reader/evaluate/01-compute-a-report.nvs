@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `evaluate` computes formulas that have no saved result.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->add(['item' => 'Tea', 'qty' => 3, 'price' => 2.5]);
+$sheet->add(['item' => 'Cake', 'qty' => 4, 'price' => 4.0]);
+// This formula has no saved result.
+$sheet->add(['item' => 'Total', 'qty' => Formula::of('=SUM(B2:B3)'), 'price' => Formula::of('=SUMPRODUCT(B2:B3,C2:C3)')]);
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// The list is empty, so every formula was computed.
+echo Core\Arr::count($reader->evaluate()), " cells not computed\n";
+foreach ($reader->rows('Orders', { header: true }) as var $row) {
+    echo $row->values['item'], ': ', $row->values['qty'], ' items, ', $row->values['price'], "\n";
+}

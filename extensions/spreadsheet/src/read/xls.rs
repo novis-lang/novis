@@ -683,7 +683,10 @@ fn sheet(
                                 base: (row, column),
                                 shared: false,
                             };
-                            at.formula = tokens::decode(Biff::Eight, tokens, extra, place, book);
+                            at.formula = Some(
+                                tokens::decode(Biff::Eight, tokens, extra, place, book)
+                                    .unwrap_or_default(),
+                            );
                         }
                     }
                 }
@@ -773,7 +776,7 @@ fn sheet(
                 .find(|cell| cell.column == u64::from(column) + 1)
         });
         if let Some(cell) = cell {
-            cell.formula = text;
+            cell.formula = Some(text.unwrap_or_default());
         }
     }
     let rows = rows
