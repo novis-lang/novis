@@ -26,7 +26,7 @@ stages:
     context: [extensions/pdf/src/lib.rs, wit/pdf.wit, extensions/pdf/nvs/Document.nvs, extensions/pdf/src/read.rs, docs/rules/core-classes/pdf-header-is-a-page-function.md]
   - id: 6
     title: "a reader keeps its file in the engine, page strings match as written, and a second reader checks the passwords"
-    status: open
+    status: done
     context: [extensions/pdf/nvs/Reader.nvs, extensions/pdf/src/read.rs, extensions/pdf/src/merge.rs, crates/nvs-ext/tests/pdf_standards.rs, docs/rules/core-classes/pdf-reader-and-merge.md]
   - id: 7
     title: "a table is as wide as its columns, splits a tall rowspan, aligns its cells and draws its rows"
@@ -390,7 +390,9 @@ its argument (`extensions/pdf/nvs/Page.nvs:36`), and the engine stops lowercasin
 open AES-256 (revision 6) files with the user password. It never ships. Safe fallback: if the
 installed `lopdf` cannot decrypt revision 6, the test decrypts `/Perms` with the file key by hand,
 from ISO 32000-2's algorithm, and checks its flags. That code is written in the test, never shared
-with `encrypt.rs`. **veraPDF** runs in CI's Linux job through `bun nv pdf-validate`. That command
+with `encrypt.rs`. As built: `lopdf`'s load takes the owner branch for our password, which never
+checks `/Perms`, so one test runs `authenticate_user_password` on the file loaded without a
+password, and the other decrypts `/Perms` with `aes` and `lopdf`'s file key. **veraPDF** runs in CI's Linux job through `bun nv pdf-validate`. That command
 renders the PDF/A-2b, PDF/A-3b and PDF/UA-1 fixtures with the built binary into `.agent-tmp/`, and
 runs the `verapdf/cli` image, pinned by digest. Where Docker runs no Linux containers it says so and
 exits 0, as the `requires: <service>` cases do. Home: `rule:core-classes/pdf-standards-and-passwords`.
@@ -575,10 +577,10 @@ file with the rest. A writing subagent takes it, side by side with the session, 
 - [x] `rule:core-classes/pdf-header-is-a-page-function`: string names are case-sensitive on both sides. `extensions/pdf/nvs/Page.nvs:36`, `extensions/pdf/src/layout/margin.rs:63`, `extensions/pdf/src/paginate/mod.rs:286`
 - [x] `merge` measured once on its bench. The cause is fixed if one step holds more than half the time, and the rest is a `Cost:` sentence. `extensions/pdf/src/merge.rs:35`, `benches/members/novis/Pdf-Pages/merge.nvs:1`
 - [x] `rule:core-classes/pdf-reader-and-merge`: predefined CMaps, or the limit stated. `extensions/pdf/src/read.rs:237`, `extensions/pdf/src/read.rs:24`, `extensions/pdf/Cargo.toml:20`
-- [ ] `rule:core-classes/pdf-standards-and-passwords`: `lopdf` as a dev-dependency, and the tests the `pdf-second-reader` check names. `crates/nvs-ext/Cargo.toml:1`, `crates/nvs-ext/tests/pdf_standards.rs:1`
+- [x] `rule:core-classes/pdf-standards-and-passwords`: `lopdf` as a dev-dependency, and the tests the `pdf-second-reader` check names. `crates/nvs-ext/Cargo.toml:1`, `crates/nvs-ext/tests/pdf_standards.rs:1`
 - [x] `bun nv pdf-validate` and CI's Linux job that runs it. `tools/nv/cmd/pdf-validate.ts:1`, `.github/workflows/ci.yml:1`
 - [x] The tests and the case the `pdf-reader-and-strings` and `pdf-page-string-runs` checks name. `extensions/pdf/tests/read.rs:1`, `tests/conformance/novis/pdf-page-string-matches-the-name-as-written.nvst:1`
-- [ ] The `about.md` of `Reader::text` and `Page::string` state the change. The fragments state the reading, the case rule and the checks. The module doc's merge and passwords bullets go. `docs/examples/novis/Pdf-Reader/text/about.md:1`, `docs/rules/core-classes/pdf-standards-and-passwords.md:25`, `extensions/pdf/src/lib.rs:54`, `extensions/pdf/src/lib.rs:76`
+- [x] The `about.md` of `Reader::text` and `Page::string` state the change. The fragments state the reading, the case rule and the checks. The module doc's merge and passwords bullets go. `docs/examples/novis/Pdf-Reader/text/about.md:1`, `docs/rules/core-classes/pdf-standards-and-passwords.md:25`, `extensions/pdf/src/lib.rs:54`, `extensions/pdf/src/lib.rs:76`
 
 ### 7. a table is as wide as its columns, splits a tall rowspan, aligns its cells and draws its rows
 
@@ -664,35 +666,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done, and the spreadsheet lane is finished. Stage 6 has two items left: the
-`lopdf` second reader, and the module doc's passwords bullet that goes with it.
+Stages 1 to 6 are done, and the spreadsheet lane is finished. Stage 7 (tables) is next, and
+nothing of it has started.
 
-- Reading, strings, merge cost, CMaps and veraPDF landed, one commit each. Their new tests and
-  cases passed once by name. `Got::Typed` (`crates/nvs-ext/src/call.rs`) is boxed for clippy.
+- `lopdf` 0.46 and `aes` 0.9 are workspace dev-dependencies of `crates/nvs-ext` alone. The two
+  `a_second_reader_*` tests in `crates/nvs-ext/tests/pdf_standards.rs` passed once by name, and
+  clippy over the tree is clean. The lock gained `lopdf`, `cbc`, `ecb`, `block-padding`,
+  `rangemap` and `weezl`, all dev-only. `cargo deny` and the attribution check have not run on them.
+- The passwords bullet is gone from `extensions/pdf/src/lib.rs`, and
+  `rule:core-classes/pdf-standards-and-passwords` names both readers.
 - `pdf-validate` ran green here with Docker. Its no-Docker path and the CI step have not run.
-- **`lopdf`, nothing landed.** `lopdf = { version = "0.46", default-features = false }` builds as a
-  workspace dev-dependency, and `load_mem_with_password` opens revision 6. Its `/Perms` check runs
-  only on the user-password branch. Our password is also the owner password, so `/Perms` is never
-  checked there. The second test decrypts `/Perms` by hand: AES-256-ECB with
-  `encryption_state.file_encryption_key()`, then bytes 9..12 are `adb`, 0..4 are `/P`, and 8 is
-  `T`. That needs `aes` 0.9 as a dev-dependency too.
 - A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
 - The sweep's nightly reds are from run 41187571578 at `857b39cad`, fixed by later commits.
-  `env-secret-proofs` has no definition in the tree and no log.
+  `env-secret-proofs` matches no check in this tree (`looper check --name` finds none) and has no log.
 
 ### Next
 
-Stage 6's last two items, then stage 7 (tables).
+Stage 7, the five table faults of `extensions/pdf/src/layout/table.rs:62`. Each item's anchors
+are on its line under § 7. The tests go in `extensions/pdf/tests/tables.rs`, and the case is
+`tests/conformance/novis/pdf-a-table-is-as-wide-as-its-content.nvst`.
 
-- [ ] `lopdf` and `aes` as dev-dependencies (root `Cargo.toml:95`, `crates/nvs-ext/Cargo.toml`'s
-  `hayro-syntax` line), and `a_second_reader_opens_the_encrypted_file_with_the_user_password` and
-  `a_second_reader_checks_the_perms_entry` in `crates/nvs-ext/tests/pdf_standards.rs:355`, beside
-  `a_password_encrypts_with_aes_256_and_stays_byte_equal`. Run `cargo test --test pdf_standards`
-  with the two names once.
-- [ ] The passwords bullet goes from `extensions/pdf/src/lib.rs:73`, and
-  `docs/rules/core-classes/pdf-standards-and-passwords.md:30` names the second reader. Tick stage
-  6's last item, and set the stage done once `pdf-reader-and-strings`, `pdf-second-reader` and
-  `pdf-page-string-runs` pass.
+- [ ] `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/layout/table.rs:303`: a table
+  without a `width` is as wide as its columns' widest content.
+- [ ] `extensions/pdf/src/layout/table.rs:335`, `extensions/pdf/src/layout/table.rs:401`: a
+  `rowspan` piece taller than a page splits between lines.
+- [ ] `extensions/pdf/src/layout/table.rs:617`, `extensions/pdf/src/layout/table.rs:628`: a cell's
+  `vertical-align`, and a row's and a group's background and collapsed borders.
+- [ ] `extensions/pdf/src/layout/inline.rs:939`, `extensions/pdf/src/layout/inline.rs:1382`: a
+  `display: table` element in a row gets an anonymous cell.
+- [ ] `extensions/pdf/subset.json:1`, `docs/rules/core-classes/pdf-tables-across-pages.md:1`: the new
+  values and the five fixes, and the module doc keeps only the mark sentence and `Cost:`.
 
 Expect red at the gate: a PDF test or case with tables, flex or grid nested more than 32 levels,
 which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`

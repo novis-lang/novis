@@ -93,6 +93,10 @@ rxing = { version = "0.9", default-features = false, features = ["decoders", "on
 # Dev-only: opens the PDF component's encrypted output with its password, in `nvs-ext`'s
 # `pdf_standards` test, so the encryption is checked by a reader that is not its writer.
 hayro-syntax = { version = "0.8", default-features = false, features = ["std"] }
+# Dev-only: a second reader of the same encrypted output, in the same test. It opens the file with
+# the user password, and its file key decrypts `/Perms` through `aes` by hand.
+lopdf = { version = "0.46", default-features = false }
+aes = { version = "0.9", default-features = false }
 # What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }

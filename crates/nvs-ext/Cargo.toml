@@ -90,6 +90,10 @@ rqrr.workspace = true
 rxing.workspace = true
 # The password check of `pdf_standards` opens the encrypted file with its password.
 hayro-syntax.workspace = true
+# The second reader of that check opens the file with its user password, and `aes` decrypts its
+# `/Perms` entry with the file key `lopdf` derives.
+lopdf.workspace = true
+aes.workspace = true
 # The `spreadsheet` test inflates each entry of a written workbook to read it.
 flate2.workspace = true
 

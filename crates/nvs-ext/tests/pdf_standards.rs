@@ -4,7 +4,8 @@
 //! `krilla`'s validators, and a file that breaks its standard throws naming what broke. A
 //! Factur-X invoice XML is embedded under PDF/A-3b alone, with the standard's XMP fields, and an
 //! XML that is not well-formed throws. A password encrypts the file with AES-256, checked by
-//! opening it with `hayro-syntax`, and a password under PDF/A throws.
+//! opening it with `hayro-syntax` and with `lopdf`, whose user-password check and file key check
+//! `/U` and `/Perms`, and a password under PDF/A throws.
 
 use std::future::Future;
 use std::pin::pin;
@@ -406,6 +407,99 @@ fn a_password_encrypts_with_aes_256_and_stays_byte_equal() {
     assert!(
         contains(content, " Tf"),
         "the page's content does not decrypt to text"
+    );
+}
+
+/// The password of every encrypted render below.
+const PASSWORD: &str = "Shop-secret";
+
+/// `shop_page` rendered with [`PASSWORD`].
+fn shop_page_locked() -> Vec<u8> {
+    render_locked(&shop_page(), None, Some(NEW_YEAR), None, Some(PASSWORD)).expect("it renders")
+}
+
+// covers: Novis\Pdf\Document::password
+#[test]
+fn a_second_reader_opens_the_encrypted_file_with_the_user_password() {
+    let data = shop_page_locked();
+    // Loaded without a password, the file stays encrypted, and only the password is its user
+    // password (ISO 32000-2's Algorithm 11).
+    let locked = lopdf::Document::load_mem(&data).expect("the encrypted file parses");
+    assert!(locked.is_encrypted(), "the file is not encrypted");
+    locked
+        .authenticate_user_password(PASSWORD)
+        .expect("the password is the user password");
+    for wrong in ["", "Shop-Secret"] {
+        assert!(
+            locked.authenticate_user_password(wrong).is_err(),
+            "`{wrong}` is a user password"
+        );
+    }
+
+    let pdf =
+        lopdf::Document::load_mem_with_options(&data, lopdf::LoadOptions::with_password(PASSWORD))
+            .expect("it opens with the password");
+    assert!(pdf.was_encrypted());
+    let pages = pdf.get_pages();
+    assert_eq!(pages.len(), 1);
+    let content = pdf.get_page_content(pages[&1]);
+    assert!(
+        contains(&content, " Tf"),
+        "the page's content does not decrypt to text"
+    );
+    let info = pdf
+        .trailer
+        .get(b"Info")
+        .and_then(lopdf::Object::as_reference)
+        .and_then(|id| pdf.get_dictionary(id))
+        .expect("the file has an information dictionary");
+    let title = info
+        .get(b"Title")
+        .and_then(lopdf::decode_text_string)
+        .expect("the file has a title");
+    assert_eq!(title, "Shop");
+}
+
+// covers: Novis\Pdf\Document::password
+#[test]
+fn a_second_reader_checks_the_perms_entry() {
+    use aes::cipher::{BlockCipherDecrypt as _, KeyInit as _};
+
+    let data = shop_page_locked();
+    let locked = lopdf::Document::load_mem(&data).expect("the encrypted file parses");
+    let encrypt = locked
+        .get_encrypted()
+        .expect("the file has an `/Encrypt` dictionary");
+    let p = encrypt
+        .get(b"P")
+        .and_then(lopdf::Object::as_i64)
+        .expect("`/Encrypt` has `/P`");
+    let perms: [u8; 16] = encrypt
+        .get(b"Perms")
+        .and_then(lopdf::Object::as_str)
+        .expect("`/Encrypt` has `/Perms`")
+        .try_into()
+        .expect("`/Perms` is 16 bytes");
+
+    // ISO 32000-2's Algorithm 13: `/Perms` decrypts with the file key, AES-256 in ECB mode.
+    let pdf =
+        lopdf::Document::load_mem_with_options(&data, lopdf::LoadOptions::with_password(PASSWORD))
+            .expect("it opens with the password");
+    let key = pdf
+        .encryption_state
+        .as_ref()
+        .expect("the file was encrypted")
+        .file_encryption_key();
+    let cipher = aes::Aes256::new_from_slice(key).expect("the file key is 32 bytes");
+    let mut block = aes::Block::from(perms);
+    cipher.decrypt_block(&mut block);
+
+    assert_eq!(&block[9..12], b"adb", "`/Perms` does not decrypt");
+    let flags = i32::from_le_bytes(block[..4].try_into().expect("four bytes"));
+    assert_eq!(i64::from(flags), p, "`/Perms` and `/P` differ");
+    assert_eq!(
+        block[8], b'T',
+        "`/Perms` does not say the metadata is encrypted"
     );
 }
 

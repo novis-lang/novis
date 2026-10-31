@@ -28,7 +28,9 @@ is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three stand
 `extensions/pdf/src/write.rs`, and the encryption is `extensions/pdf/src/encrypt.rs`, over the file
 `krilla` writes because `krilla` 0.8 writes no encryption. The password is both the user and the owner
 password. All of it is pinned by `crates/nvs-ext/tests/pdf_standards.rs`, which opens the encrypted
-file with `hayro-syntax`.
+file with two readers that are not its writer. `hayro-syntax` opens it with the password. `lopdf`
+checks the password as the user password (ISO 32000-2's Algorithm 11), and its file key decrypts
+`/Perms` to `/P`, `T` and `adb` (Algorithm 13). Both are dev-dependencies, and neither ships.
 
 **Tools other than ours check the files.** `bun nv pdf-validate` (`tools/nv/cmd/pdf-validate.ts`)
 renders a PDF/A-2b, a PDF/A-3b file with a Factur-X invoice and a PDF/UA-1 file with the built
