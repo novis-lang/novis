@@ -18,9 +18,10 @@
 //! `auto` is 0.
 //!
 //! A margin box whose `content` is `element(name)` draws the running element of that name
-//! (`position: running(name)`) that is first on the page, or `element(name, last)` the last one.
-//! A page with none draws the last one of an earlier page, and the box is not made before the
-//! first. Any other second argument reads as `first`.
+//! (`position: running(name)`) that is first on the page. A second argument picks it as it picks
+//! a named string: `last` the last one on the page, `start` the one at the page's top, and
+//! `first-except` none on a page that has one. Otherwise the box draws the last one of an
+//! earlier page, and it is not made before the first.
 //!
 //! A margin box's `string(name)` is the value an element's `string-set` gave that name: the first
 //! set on the page, or with a second argument `last` the last, `start` the one in force when the
@@ -325,16 +326,43 @@ pub fn string_set(
     out
 }
 
+/// The counters other than `page` and `pages` that a margin box's `content` reads with
+/// `counter(name)`, each name once and as written.
+pub fn counters_read(rules: &[PageRule]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (_, values) in rules.iter().flat_map(|rule| &rule.boxes) {
+        for (_, value) in values.iter().filter(|(property, _)| *property == "content") {
+            let Value::Text(text) = value else {
+                continue;
+            };
+            for comp in components(text).unwrap_or_default() {
+                let Comp::Function(function, args) = comp else {
+                    continue;
+                };
+                let name = args.split(',').next().unwrap_or("").trim();
+                if function == "counter"
+                    && !matches!(name, "" | "page" | "pages")
+                    && !out.iter().any(|n| n == name)
+                {
+                    out.push(name.to_owned());
+                }
+            }
+        }
+    }
+    out
+}
+
 /// The text of a margin box's `content` on page `page` of `pages`, both from 1, or `None` when
-/// it makes no box. `counter(page)` and `counter(pages)` are the two numbers, in the counter
-/// style `style` writes; any other counter is 0. `string(name)` is the value `strings` gives
-/// for the name as written, or nothing.
+/// it makes no box. `counter(page)` and `counter(pages)` are the two numbers, and any other
+/// `counter(name)` the value `counters` gives, in the counter style `style` writes.
+/// `string(name)` is the value `strings` gives for the name as written, or nothing.
 pub fn content(
     value: Option<&Value>,
     page: i64,
     pages: i64,
     style: &dyn Fn(&str, i64) -> Option<String>,
     strings: &dyn Fn(&str, Which) -> Option<String>,
+    counters: &dyn Fn(&str) -> i64,
 ) -> Option<String> {
     let Some(Value::Text(text)) = value else {
         return None;
@@ -349,7 +377,8 @@ pub fn content(
                 let n = match args.next() {
                     Some("page") => page,
                     Some("pages") => pages,
-                    _ => 0,
+                    Some(name) => counters(name),
+                    None => 0,
                 };
                 let kind = args.next().unwrap_or("decimal");
                 out.push_str(&style(kind, n).unwrap_or_else(|| n.to_string()));
@@ -357,12 +386,7 @@ pub fn content(
             Comp::Function(name, args) if name == "string" => {
                 let mut args = args.split(',').map(str::trim);
                 let name = args.next().unwrap_or("");
-                let which = match args.next().map(str::to_ascii_lowercase).as_deref() {
-                    Some("start") => Which::Start,
-                    Some("last") => Which::Last,
-                    Some("first-except") => Which::FirstExcept,
-                    _ => Which::First,
-                };
+                let which = Which::of(args.next());
                 out.push_str(&strings(name, which).unwrap_or_default());
             }
             _ => {}
@@ -372,9 +396,9 @@ pub fn content(
 }
 
 /// The running element a margin box's `content` places when it is `element(name)` alone: the
-/// name, and whether it is the last element of that name on the page (`element(name, last)`)
-/// or else the first.
-pub fn element(value: Option<&Value>) -> Option<(String, bool)> {
+/// name, and which element of that name it takes on a page, read as `string(name)`'s second
+/// argument is.
+pub fn element(value: Option<&Value>) -> Option<(String, Which)> {
     let Some(Value::Text(text)) = value else {
         return None;
     };
@@ -386,7 +410,19 @@ pub fn element(value: Option<&Value>) -> Option<(String, bool)> {
     }
     let mut args = args.split(',').map(str::trim);
     let name = args.next().filter(|name| !name.is_empty())?;
-    Some((name.to_owned(), args.next() == Some("last")))
+    Some((name.to_owned(), Which::of(args.next())))
+}
+
+impl Which {
+    /// The policy a second argument names, in any case; any other is `First`.
+    fn of(arg: Option<&str>) -> Self {
+        match arg.map(str::to_ascii_lowercase).as_deref() {
+            Some("start") => Self::Start,
+            Some("last") => Self::Last,
+            Some("first-except") => Self::FirstExcept,
+            _ => Self::First,
+        }
+    }
 }
 
 /// A named page size's width and height in millimetres, portrait.

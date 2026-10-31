@@ -99,6 +99,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A PDF layout step that measures a box's content widths, then lays it out, is exponential in
+  nesting unless each measurement is kept, and a by-name run of the stage's own test never shows
+  it.** Auto-width tables measured each cell twice per level, so 20 nested tables spun the
+  `render` suite for 600 s while every other test passed. Keep a measured width per atom for the
+  pass, as `Cx::ranges` does, and run `layout_nested_past_the_depth_bound_throws` after any
+  change to measuring. See `extensions/pdf/src/layout/table.rs`. `until: gone extensions/pdf/src/layout/table.rs:self.ranges.get`
 - **An attack's memory `FATAL` is red past 1.5x its ceiling plus 8 MiB, and `bun nv proofs --overshoot`
   lists every reading, worst first.** See `tools/nv/proofs/run.ts`. `until: gone tools/nv/proofs/run.ts:OVERSHOOT_FACTOR`
 - **A green `bun nv affected --run` leaves the proofs a change reaches owed, and `bun nv debt` pays them

@@ -16,8 +16,8 @@ use super::block::{BoxGeometry, Break, Insets, geometry, insets, sides, z_index}
 use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
-    Anchor, Atom, BLACK, Block, Frame, Href, Images, Inline, MARGIN, Para, Role, Spaces, Span,
-    color, keyword, length,
+    Anchor, Atom, BLACK, Block, Fact, Frame, Href, Images, Inline, MARGIN, Para, Role, Spaces,
+    Span, color, keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -337,6 +337,43 @@ impl Counters {
     }
 }
 
+impl Builder<'_, '_> {
+    /// Records the value of each counter a margin box reads that `style` resets or increments,
+    /// or `list_item` changes, and of each other one in scope whose value changed since its
+    /// last record, as when an inner counter of the name ends. A counter whose last scope ends
+    /// keeps its last value. A document whose margin boxes read no counter skips this.
+    fn count(&mut self, counters: &Counters, style: Option<&Style>, list_item: bool) {
+        if self.read.is_empty() {
+            return;
+        }
+        let touched = style.map(touches).unwrap_or_default();
+        for (name, last) in self.read.iter().zip(&mut self.last) {
+            let value = counters.get(name);
+            let changed = touched.contains(name) || (list_item && name == "list-item");
+            let scoped = counters.0.iter().any(|c| c.name == *name);
+            if changed || (scoped && value != *last) {
+                *last = value;
+                self.blocks.push(Block::String {
+                    name: name.clone(),
+                    value: value.to_string(),
+                    fact: Fact::Counter,
+                });
+            }
+        }
+    }
+}
+
+/// The names `style`'s `counter-reset` and `counter-increment` change.
+fn touches(style: &Style) -> Vec<String> {
+    let reset = counter_list(style, "counter-reset", 0);
+    let increment = counter_list(style, "counter-increment", 1);
+    reset
+        .into_iter()
+        .chain(increment)
+        .map(|(name, _)| name)
+        .collect()
+}
+
 /// The names and numbers of `counter-reset` or `counter-increment`, `default` where a name has
 /// no number.
 fn counter_list(style: &Style, property: &str, default: i64) -> Vec<(String, i64)> {
@@ -363,9 +400,19 @@ fn counter_list(style: &Style, property: &str, default: i64) -> Vec<(String, i64
     out
 }
 
-/// The page number, counting from 1, of the first element with each `id`, as the last layout
-/// pass placed it.
-pub(super) type Targets = BTreeMap<String, usize>;
+/// The first element with each `id`, as the last layout pass placed it.
+pub(super) type Targets = BTreeMap<String, Target>;
+
+/// Where an element with an `id` is: its page, counting from 1, and the counters in scope at
+/// it, after its own `counter-reset` and `counter-increment`, outermost first.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct Target {
+    pub(super) page: usize,
+    pub(super) counters: Vec<(String, i64)>,
+}
+
+/// The counters in scope at the first element with each `id`, for those with any in scope.
+pub(super) type Counted = BTreeMap<String, Vec<(String, i64)>>;
 
 /// A `::before` or `::after` box's generated content: its text, each `leader()` in it as its
 /// byte offset in the text and the character it repeats, and whether a `target-counter()` read
@@ -448,12 +495,19 @@ fn content_text(
                         "target-counter" => {
                             targeted = true;
                             let id = target.as_deref().unwrap_or_default();
-                            let page = targets.get(id.strip_prefix('#').unwrap_or(id));
-                            if let (Some(&page), Some("page")) =
-                                (page, idents.first().map(String::as_str))
-                            {
+                            let found = targets.get(id.strip_prefix('#').unwrap_or(id));
+                            if let (Some(found), Some(counter)) = (found, idents.first()) {
+                                let n = if counter == "page" {
+                                    found.page as i64
+                                } else {
+                                    found
+                                        .counters
+                                        .iter()
+                                        .rfind(|(name, _)| name == counter)
+                                        .map_or(0, |(_, value)| *value)
+                                };
                                 let kind = idents.get(1).map_or("decimal", String::as_str);
-                                out.push_str(&counter_text(kind, page as i64).unwrap_or_default());
+                                out.push_str(&counter_text(kind, n).unwrap_or_default());
                             }
                             return Ok(());
                         }
@@ -532,9 +586,15 @@ pub(super) struct Builder<'a, 'd> {
     /// Each `leader()` in the text being collected: its byte offset, its text style and the
     /// character it repeats.
     leaders: Vec<(usize, usize, String)>,
-    /// The pages `target-counter()` reads, and whether one was read.
+    /// The pages and counters `target-counter()` reads, and whether one was read.
     targets: &'a Targets,
     pub(super) targeted: bool,
+    /// The counters at each `id`, which the next pass's `targets` carry.
+    counted: Counted,
+    /// The counters the `@page` margin boxes read with `counter(name)`, and the value of each
+    /// last recorded, beside them.
+    read: Vec<String>,
+    last: Vec<i64>,
 }
 
 /// A flex container whose element has not closed.
@@ -1308,12 +1368,12 @@ enum Step {
 }
 
 /// What [`blocks`] collects: the blocks, the `inline-block` boxes, the pictures, the text
-/// styles, and whether generated content read a page from `targets`.
-type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>, bool);
+/// styles, whether generated content read `targets`, and the counters at each `id`.
+type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>, bool, Counted);
 
 /// The blocks of `dom`, in document order, and the text styles they name. `content` is the first
 /// page's content width and height, `named` gives the content width of a named page, and
-/// `targets` the pages `target-counter()` prints.
+/// `targets` the pages and counters `target-counter()` prints.
 pub(super) fn blocks(
     dom: &Dom,
     styles: &Styles,
@@ -1333,6 +1393,7 @@ pub(super) fn blocks(
         .flatten()
         .next()
         .map_or(empty.font_size(), Style::font_size);
+    let read = paginate::counters_read(&styles.pages);
     let mut builder = Builder {
         assets,
         blocks: Vec::new(),
@@ -1356,6 +1417,9 @@ pub(super) fn blocks(
         leaders: Vec::new(),
         targets,
         targeted: false,
+        counted: Counted::new(),
+        last: vec![0; read.len()],
+        read,
     };
     let root = Frame {
         x: MARGIN,
@@ -1393,6 +1457,7 @@ pub(super) fn blocks(
                 let depth = frames.len();
                 if let Some(after) = styles.after.get(&at) {
                     counters.apply(after, depth + 1);
+                    builder.count(&counters, Some(after), false);
                     builder.generated(after, dom, at, &counters, &frame, fonts)?;
                 }
                 if let Some(close) = close {
@@ -1409,6 +1474,7 @@ pub(super) fn blocks(
                     builder.close_inline();
                 }
                 counters.leave(depth);
+                builder.count(&counters, None, false);
                 if flex {
                     builder.close_container();
                 }
@@ -1649,7 +1715,7 @@ pub(super) fn blocks(
                     builder.blocks.push(Block::String {
                         name,
                         value,
-                        mark: false,
+                        fact: Fact::String,
                     });
                 }
                 // A row's marks are set on the page the row is drawn on, so the row keeps them.
@@ -1659,7 +1725,7 @@ pub(super) fn blocks(
                         builder.blocks.push(Block::String {
                             name,
                             value,
-                            mark: true,
+                            fact: Fact::Mark,
                         });
                     }
                 }
@@ -1731,12 +1797,29 @@ pub(super) fn blocks(
                         }
                     }
                 }
+                builder.count(
+                    &counters,
+                    Some(style),
+                    display == "list-item" || name == "ol",
+                );
+                if let Some(id) = node.attr("id")
+                    && !counters.0.is_empty()
+                {
+                    builder.counted.entry(id.to_owned()).or_insert_with(|| {
+                        counters
+                            .0
+                            .iter()
+                            .map(|c| (c.name.clone(), c.value))
+                            .collect()
+                    });
+                }
                 let controls = bidi_controls(style, block);
                 if let Some((open, _)) = controls {
                     builder.push_control(open, &inner);
                 }
                 if let Some(before) = styles.before.get(&at) {
                     counters.apply(before, depth + 1);
+                    builder.count(&counters, Some(before), false);
                     builder.generated(before, dom, at, &counters, &inner, fonts)?;
                 }
                 frames.push(inner);
@@ -1780,6 +1863,7 @@ pub(super) fn blocks(
         builder.images,
         builder.spans,
         builder.targeted,
+        builder.counted,
     ))
 }
 

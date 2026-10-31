@@ -2,6 +2,7 @@
 //! hyphen, placed in the flow, and written out as glyph runs and decorations.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use parley::{
@@ -14,7 +15,7 @@ use super::block::Flow;
 use super::inline::{Targets, blocks, is_bidi_control};
 use super::margin;
 use super::{
-    Anchor, Atom, Block, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes,
+    Anchor, Atom, Block, Fact, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -38,10 +39,11 @@ pub const MAX_DEPTH: usize = 32;
 
 /// Lays `dom` out in pages with its computed `styles` and `fonts`.
 ///
-/// A document whose generated content reads a page with `target-counter()` is laid out again
-/// with the pages each `id` landed on in the pass before, until no page changes. When the pages
-/// still change after [`PASSES`] passes, this returns `Runtime`. Each pass costs one layout of
-/// the whole document, and only one pass is kept.
+/// A document whose generated content reads `target-counter()` is laid out again with the page
+/// each `id` landed on and the counters at it in the pass before, until neither changes. When
+/// they still change after [`PASSES`] passes, this returns `Runtime`. Each pass costs one layout
+/// of the whole document, and only one pass is kept. Memory: the counters in scope at each `id`
+/// that has any, per render.
 pub fn layout(
     dom: &Dom,
     styles: &Styles,
@@ -88,7 +90,7 @@ fn pass(
 ) -> Result<Pass, Error> {
     let sheet = Sheet::new(&styles.pages);
     let first = sheet.page(0, false, None);
-    let (blocks, atoms, mut images, spans, targeted) = blocks(
+    let (blocks, atoms, mut images, spans, targeted, counted) = blocks(
         dom,
         styles,
         &fonts,
@@ -107,6 +109,7 @@ fn pass(
         running: Vec::new(),
         strings: Vec::new(),
         heres: Vec::new(),
+        ranges: BTreeMap::new(),
         depth: 0,
         deep: false,
     };
@@ -136,7 +139,12 @@ fn pass(
     flow.land();
     flow.finish([MARGIN, first.content_width(), 0.0], None);
     cx.attribute(&mut flow);
-    let landed = std::mem::take(&mut flow.landed);
+    let mut landed = std::mem::take(&mut flow.landed);
+    for (id, counters) in counted {
+        if let Some(target) = landed.get_mut(&id) {
+            target.counters = counters;
+        }
+    }
     let tops = std::mem::take(&mut flow.tops);
     let mut bookmarks = std::mem::take(&mut flow.bookmarks);
     // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
@@ -211,6 +219,7 @@ fn pass(
         running: Vec::new(),
         strings: Vec::new(),
         heres: Vec::new(),
+        ranges: BTreeMap::new(),
         depth: 0,
         deep: false,
     };
@@ -233,8 +242,9 @@ fn pass(
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
 /// whose container is not laid out yet, both by their index in the list of atoms, and the
-/// running elements and named strings met so far, what each [`Item::Here`] found, and how
-/// many boxes are being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
+/// running elements and named strings met so far, what each [`Item::Here`] found, each table
+/// cell's narrowest and widest content width by its atom once measured, and how many boxes
+/// are being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -245,19 +255,20 @@ pub(super) struct Cx<'s> {
     running: Vec<margin::Running>,
     strings: Vec<margin::Set>,
     heres: Vec<Option<Here>>,
+    pub(super) ranges: BTreeMap<usize, (f32, f32)>,
     depth: usize,
     deep: bool,
 }
 
 /// What a box laid out on a page of its own met that belongs to the page the box is drawn on:
-/// an `id` or a heading, a named string or, with `mark`, a `data-mark` mark, or a running
+/// an `id` or a heading, a named string, a `data-mark` mark or a counter's value, or a running
 /// element.
 pub(super) enum Here {
     Anchor(Anchor),
     String {
         name: String,
         value: String,
-        mark: bool,
+        fact: Fact,
     },
     Running(margin::Running),
 }
@@ -609,13 +620,13 @@ impl Cx<'_> {
     fn land(&mut self, flow: &mut Flow, here: Here, page: usize, y: f32, top: bool) {
         match here {
             Here::Anchor(anchor) => flow.put(anchor, page, y),
-            Here::String { name, value, mark } => self.strings.push(margin::Set {
+            Here::String { name, value, fact } => self.strings.push(margin::Set {
                 name,
                 value,
                 page,
                 y,
                 top,
-                mark,
+                fact,
             }),
             Here::Running(mut running) => {
                 for (at, _) in take_heres(&mut running.items) {
@@ -625,6 +636,7 @@ impl Cx<'_> {
                 }
                 running.page = page;
                 running.y = y;
+                running.top = top;
                 self.running.push(running);
             }
         }
@@ -726,14 +738,15 @@ impl Cx<'_> {
                         name,
                         page: 0,
                         y: 0.0,
+                        top: false,
                         items: std::mem::take(&mut placed.items),
                         size: [placed.width, placed.height],
                         missing: std::mem::take(&mut placed.missing),
                     };
                     self.note(flow, Here::Running(running));
                 }
-                Block::String { name, value, mark } => {
-                    self.note(flow, Here::String { name, value, mark });
+                Block::String { name, value, fact } => {
+                    self.note(flow, Here::String { name, value, fact });
                 }
                 Block::Target(anchor) => self.note(flow, Here::Anchor(anchor)),
                 Block::Tag(role) => flow.page().items.push(match role {

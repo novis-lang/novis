@@ -327,7 +327,7 @@ fn string_set_carries_the_chapter_title() {
         "{TEN_LINES}<style>
         @page {{
             @top-left {{ content: 'Chapter: ' string(chapter) }}
-            @top-right {{ content: string(Chapter, last) }}
+            @top-right {{ content: string(chapter, last) }}
             @bottom-left {{ content: string(chapter, start) }}
             @bottom-right {{ content: string(chapter, first-except) }}
         }}
@@ -729,4 +729,91 @@ fn an_id_in_an_inline_block_float_flex_item_cell_or_running_element_has_its_page
         assert_eq!(page, 1, "{id}");
         assert!(top >= 50.0 && top < 250.0, "{id} at {top}");
     }
+}
+
+#[test]
+fn target_counter_reads_any_counter() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        body {{ counter-reset: chapter }}
+        h2 {{ counter-increment: chapter; break-before: page; margin: 0; font-size: 12pt }}
+        .ref::after {{ content: ' chapter ' target-counter(attr(href), chapter) ', page '
+            target-counter(attr(href), page) }}
+        .item::after {{ content: ' ' target-counter(attr(href), list-item, upper-roman) }}
+        </style>
+        <p id=top><a class=ref href='#blog'>See</a></p>
+        <p><a class=item href='#third'>Item</a></p>
+        <p><a class=ref href='#top'>Top</a></p>
+        <h2 id=shop>Shop</h2><h2 id=blog>Blog</h2>
+        <ol><li>One</li><li>Two</li><li id=third>Three</li></ol>"
+    ));
+    assert_eq!(laid.pages.len(), 3);
+    // Each counter is read after the target's own `counter-increment`.
+    assert_eq!(band(&laid, 0, 50.0, 70.0).0, "See chapter 2, page 3");
+    assert_eq!(band(&laid, 0, 70.0, 90.0).0, "Item III");
+    // A target with no counter of that name in scope reads 0.
+    assert_eq!(band(&laid, 0, 90.0, 110.0).0, "Top chapter 0, page 1");
+}
+
+#[test]
+fn a_margin_box_reads_a_named_counter() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        @page {{
+            @top-center {{ content: 'Chapter ' counter(chapter) }}
+            @bottom-center {{ content: counter(chapter, upper-roman) }}
+        }}
+        h2 {{ counter-increment: chapter; margin: 0; font-size: 12pt; line-height: 20pt }}
+        </style>
+        <p>Intro</p><h2>Shop</h2>{}<h2>Blog</h2><h2>News</h2>{}",
+        twelve(),
+        twelve()
+    ));
+    assert_eq!(laid.pages.len(), 3);
+    // A page takes the value after its first change, or else the one in force when it starts.
+    for (page, header, footer) in [
+        (0, "Chapter 1", "I"),
+        (1, "Chapter 2", "II"),
+        (2, "Chapter 3", "III"),
+    ] {
+        assert_eq!(band(&laid, page, 0.0, 50.0).0, header, "page {page}");
+        assert_eq!(band(&laid, page, 250.0, 300.0).0, footer, "page {page}");
+    }
+}
+
+#[test]
+fn element_start_and_first_except_read_as_css_says() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        @page {{
+            @top-left {{ content: element(head, start) }}
+            @top-right {{ content: element(head, first-except) }}
+        }}
+        .head {{ position: running(head) }}
+        .end {{ break-after: page }}
+        </style>
+        <div class=head>Shop</div><p>One</p>{}<p>Two</p><div class=head>Blog</div>
+        <p class=end>Three</p><div class=head>News</div><p class=end>Four</p><p>Five</p>",
+        twelve()
+    ));
+    assert_eq!(laid.pages.len(), 4);
+    let sides = |page: usize| {
+        let runs = drawn(&laid, page, 0.0, 50.0);
+        let side = |left: bool| {
+            let mut text = String::new();
+            for (run, x, _) in &runs {
+                if (*x < 200.0) == left {
+                    text.push_str(run);
+                }
+            }
+            text
+        };
+        (side(true), side(false))
+    };
+    // `start` takes the one at the page's top, or else the last of an earlier page.
+    // `first-except` takes nothing on a page that has one.
+    assert_eq!(sides(0), ("Shop".to_owned(), String::new()));
+    assert_eq!(sides(1), ("Shop".to_owned(), String::new()));
+    assert_eq!(sides(2), ("News".to_owned(), String::new()));
+    assert_eq!(sides(3), ("News".to_owned(), "News".to_owned()));
 }

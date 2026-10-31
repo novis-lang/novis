@@ -460,6 +460,15 @@ struct Inline {
     geometry: BoxGeometry,
 }
 
+/// What a [`Block::String`] sets on its page: a named string, a `data-mark` mark, or the value
+/// a counter a margin box reads changes to, written in decimal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fact {
+    String,
+    Mark,
+    Counter,
+}
+
 #[derive(Clone)]
 enum Block {
     Open(BoxGeometry),
@@ -494,12 +503,12 @@ enum Block {
         atom: usize,
         name: String,
     },
-    /// A named string an element's `string-set` sets, or a `data-mark` when `mark` is set, on
-    /// the page the next box placed starts on. It takes no room in the flow.
+    /// A named string an element's `string-set` sets, a `data-mark` mark or a counter's new
+    /// value, on the page the next box placed starts on. It takes no room in the flow.
     String {
         name: String,
         value: String,
-        mark: bool,
+        fact: Fact,
     },
     Text {
         text: String,

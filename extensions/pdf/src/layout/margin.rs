@@ -21,6 +21,13 @@
 //! a flex item or a table cell is set on the page that box draws it on, and one inside a running
 //! element on the running element's page.
 //!
+//! **Counters.** A box's `counter(name)` reads a counter other than `page` and `pages` as
+//! `string(name)` reads a named string with `first`: its value after its first change on the
+//! page, or else its value when the page starts, and 0 before its first change. The walk
+//! records a change only for the names the `@page` margin boxes read, at the element that
+//! resets or increments the counter, or where an inner counter of the name ends. A counter
+//! keeps its last value when its last scope ends.
+//!
 //! **Page facts.** Each page carries its named strings, each name's value as `string(name)`
 //! reads it there, and the `data-mark` marks set on it, from the top of the page down. A mark is
 //! set on a page as a named string is, and a table row's on the page the row is first drawn on.
@@ -31,8 +38,8 @@
 //!
 //! Cost: one layout of a short paragraph for each margin box with text on each page, and a copy
 //! of a running element's items for each page that draws it. Memory: its items on its page, one
-//! text style for each, and each running element's items and each named string's value until the
-//! render ends.
+//! text style for each, and each running element's items, each named string's value and each
+//! change of a counter a margin box reads until the render ends.
 
 use parley::VerticalAlign;
 
@@ -42,46 +49,47 @@ use super::block::geometry;
 use super::boxes::{self, Layer, rect};
 use super::inline::{counter_text, para_of, span_of};
 use super::text::{Cx, carry, shift};
-use super::{Block, Images, Item, Laid, Missing, Page, Span, image, keyword};
+use super::{Block, Fact, Images, Item, Laid, Missing, Page, Span, image, keyword};
 use crate::Error;
 use crate::assets::Assets;
 use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
 use crate::paginate::{self, Sheet, Which};
 
-/// A running element laid out: its name, the index of the page it is on and its top there, its
-/// items with its margin box's top-left corner at 0, 0, the margin box's width and height, and
-/// the text no font has.
+/// A running element laid out: its name, the index of the page it is on and its top there,
+/// whether it is at that page's top, its items with its margin box's top-left corner at 0, 0,
+/// the margin box's width and height, and the text no font has.
 pub(super) struct Running {
     pub(super) name: String,
     pub(super) page: usize,
     pub(super) y: f32,
+    pub(super) top: bool,
     pub(super) items: Vec<Item>,
     pub(super) size: [f32; 2],
     pub(super) missing: Vec<Missing>,
 }
 
 /// A named string an element's `string-set` sets: its name as written, its value, the index of
-/// the page it is set on and its top there, and whether it is set at that page's top. With
-/// `mark` set, it is a `data-mark` mark instead.
+/// the page it is set on and its top there, and whether it is set at that page's top. `fact`
+/// says whether it is a named string, a `data-mark` mark or a counter's value.
 pub(super) struct Set {
     pub(super) name: String,
     pub(super) value: String,
     pub(super) page: usize,
     pub(super) y: f32,
     pub(super) top: bool,
-    pub(super) mark: bool,
+    pub(super) fact: Fact,
 }
 
 /// The value of the named string `name` that `which` takes on the page at `page`.
 fn string(strings: &[Set], name: &str, page: usize, which: Which) -> Option<String> {
     let mut on = strings
         .iter()
-        .filter(|s| !s.mark && s.name == name && s.page == page);
+        .filter(|s| s.fact == Fact::String && s.name == name && s.page == page);
     let entry = || {
         strings
             .iter()
-            .rfind(|s| !s.mark && s.name == name && s.page < page)
+            .rfind(|s| s.fact == Fact::String && s.name == name && s.page < page)
     };
     let one = match which {
         Which::First => on.next().or_else(entry),
@@ -93,6 +101,19 @@ fn string(strings: &[Set], name: &str, page: usize, which: Which) -> Option<Stri
         },
     };
     one.map(|s| s.value.clone())
+}
+
+/// The value of the counter `name` a margin box reads on the page at `page`: the value after
+/// its first change on the page, else the value in force when the page starts, else 0.
+fn counter(strings: &[Set], name: &str, page: usize) -> i64 {
+    let mut on = strings
+        .iter()
+        .filter(|s| s.fact == Fact::Counter && s.name == name && s.page <= page);
+    let first = on.clone().find(|s| s.page == page);
+    first
+        .or_else(|| on.next_back())
+        .and_then(|s| s.value.parse().ok())
+        .unwrap_or(0)
 }
 
 /// What a margin box draws: its blocks, or a copy of a running element's items with their
@@ -123,12 +144,20 @@ enum Fill<'r> {
     Element(&'r Running),
 }
 
-/// The running element named `name` that the page at `page` draws: the first or `last` one on
-/// it, or else the last one on an earlier page.
-fn pick<'r>(running: &'r [Running], name: &str, page: usize, last: bool) -> Option<&'r Running> {
+/// The running element named `name` that `which` takes on the page at `page`, as [`string`]
+/// takes a named string.
+fn pick<'r>(running: &'r [Running], name: &str, page: usize, which: Which) -> Option<&'r Running> {
     let mut on = running.iter().filter(|r| r.name == name && r.page == page);
-    let here = if last { on.next_back() } else { on.next() };
-    here.or_else(|| running.iter().rfind(|r| r.name == name && r.page < page))
+    let entry = || running.iter().rfind(|r| r.name == name && r.page < page);
+    match which {
+        Which::First => on.next().or_else(entry),
+        Which::Last => on.next_back().or_else(entry),
+        Which::Start => on.next().filter(|r| r.top).or_else(entry),
+        Which::FirstExcept => match on.next() {
+            Some(_) => None,
+            None => entry(),
+        },
+    }
 }
 
 /// Every margin box of `pages`, with the text style of each pushed onto `spans`.
@@ -145,17 +174,19 @@ pub(super) fn collect(
     for (index, page) in pages.iter().enumerate() {
         let matched = sheet.matched(index, page.blank, page.name.as_deref());
         let named = |name: &str, which| string(strings, name, index, which);
+        let counted = |name: &str| counter(strings, name, index);
         let fills: Vec<(&'static str, Fill)> = MARGIN_BOXES
             .iter()
             .filter_map(|name| {
                 let values = matched.boxes.get(*name)?;
                 let content = values.get("content").copied();
-                if let Some((element, last)) = paginate::element(content) {
-                    let one = pick(running, &element, index, last)?;
+                if let Some((element, which)) = paginate::element(content) {
+                    let one = pick(running, &element, index, which)?;
                     return Some((*name, Fill::Element(one)));
                 }
                 let number = index as i64 + 1;
-                let text = paginate::content(content, number, count, &counter_text, &named)?;
+                let text =
+                    paginate::content(content, number, count, &counter_text, &named, &counted)?;
                 Some((*name, Fill::Text(text)))
             })
             .collect();
@@ -324,7 +355,7 @@ pub(super) fn backgrounds(
 /// past the last page is on the last page.
 pub(super) fn facts(pages: &mut [Page], strings: &[Set]) {
     let mut names: Vec<&str> = Vec::new();
-    for set in strings.iter().filter(|s| !s.mark) {
+    for set in strings.iter().filter(|s| s.fact == Fact::String) {
         if !names.contains(&set.name.as_str()) {
             names.push(&set.name);
         }
@@ -340,7 +371,7 @@ pub(super) fn facts(pages: &mut [Page], strings: &[Set]) {
             .collect();
         page.marks = strings
             .iter()
-            .filter(|s| s.mark && s.page.min(last) == index)
+            .filter(|s| s.fact == Fact::Mark && s.page.min(last) == index)
             .map(|s| (s.name.clone(), s.value.clone()))
             .collect();
     }

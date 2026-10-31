@@ -15,7 +15,7 @@ What the subset holds, by family — the file is the list, this is the decision:
 | Lists | markers (decimal, roman, alpha, disc), `counter-reset`, `counter-increment`, `content` |
 | Images | JPEG, PNG, GIF, WebP, SVG and a PDF page in `<img>`, inline `<svg>`, `object-fit` |
 | Layout | flex and grid, floats and `clear`, `relative`, `absolute` and `fixed` positioning with `z-index`, 2D transforms |
-| Pages | `@page` with size, margins, `:first`, `:left`, `:right`, `:blank` and named pages; the 16 margin boxes; `counter(page)`, `counter(pages)`, `string-set`, `string()`, `position: running()`, `element()`, `target-counter()`, `leader()`; `break-before`, `break-after`, `break-inside`, the `page-break-*` aliases, `orphans`, `widows` |
+| Pages | `@page` with size, margins, `:first`, `:left`, `:right`, `:blank` and named pages; the 16 margin boxes; `counter(page)`, `counter(pages)` and any other `counter()`, `string-set`, `string()`, `position: running()`, `element()`, `target-counter()`, `leader()`; `break-before`, `break-after`, `break-inside`, the `page-break-*` aliases, `orphans`, `widows` |
 | Tables | `rule:core-classes/pdf-tables-across-pages`, with `box-decoration-break: slice` |
 | HTML | `data-repeat`, `data-mark`, `<slot name>`, `<a href>` to `http(s):`, `mailto:` and `#anchor`, `<title>`, `<meta>`, `lang` |
 

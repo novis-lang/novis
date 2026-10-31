@@ -70,16 +70,15 @@
 //! together when they fit on a page and not under the last row, and split between rows when
 //! they do not fit on a page.
 //!
-//! Cost: each cell is laid out once at each of its two content widths, once at its column
-//! width and once more when its row is taller, taller than a page, or its `vertical-align` is
-//! not `top`. A table inside a box sized by its content, such as an `inline-block`, lays its
-//! cells out at their two content widths once more for each time that box is measured. A
-//! repeated row's items are copied on each page.
+//! Cost: each cell is laid out once at each of its two content widths in a layout pass, however
+//! often the boxes around its table are measured, once at its column width and once more when
+//! its row is taller, taller than a page, or its `vertical-align` is not `top`. A repeated row's
+//! items are copied on each page. Memory: two widths for each cell, per layout pass.
 
 use super::block::{BoxGeometry, Flow};
 use super::flex::fit;
 use super::text::{Cx, Here, Placed, carry, shift};
-use super::{Block, Item, MARGIN, Role, keyword};
+use super::{Block, Fact, Item, MARGIN, Role, keyword};
 use crate::css::{Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
@@ -874,7 +873,7 @@ impl Cx<'_> {
             let mark = Here::String {
                 name: name.clone(),
                 value: value.clone(),
-                mark: true,
+                fact: Fact::Mark,
             };
             self.note(flow, mark);
         }
@@ -936,8 +935,17 @@ impl Cx<'_> {
         for (r, row) in rows.iter().enumerate() {
             for (c, cell) in row.cells.iter().enumerate() {
                 let from = starts[r][c];
-                let lo = self.content_width(&blocks[r][c], false);
-                let hi = self.content_width(&blocks[r][c], true).max(lo);
+                // A cell inside a nested table is measured once, however many tables around
+                // it measure theirs, so nesting costs no more than the cells it has.
+                let (lo, hi) = match self.ranges.get(&cell.atom) {
+                    Some(&range) => range,
+                    None => {
+                        let lo = self.content_width(&blocks[r][c], false);
+                        let hi = self.content_width(&blocks[r][c], true).max(lo);
+                        self.ranges.insert(cell.atom, (lo, hi));
+                        (lo, hi)
+                    }
+                };
                 if cell.span == 1 {
                     min[from] = min[from].max(lo);
                     max[from] = max[from].max(hi);

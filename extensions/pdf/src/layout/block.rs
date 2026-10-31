@@ -27,7 +27,7 @@
 use std::collections::BTreeMap;
 
 use super::boxes::{self, Decor};
-use super::inline::Targets;
+use super::inline::{Target, Targets};
 use super::text::shift;
 use super::{Anchor, Bookmark, Item, MARGIN, Page, keyword, length};
 use crate::css::{Style, Value};
@@ -390,7 +390,10 @@ impl Flow {
     pub(super) fn put(&mut self, anchor: Anchor, page: usize, top: f32) {
         match anchor {
             Anchor::Id(id) => {
-                self.landed.entry(id.clone()).or_insert(page + 1);
+                self.landed.entry(id.clone()).or_insert_with(|| Target {
+                    page: page + 1,
+                    counters: Vec::new(),
+                });
                 self.tops.entry(id).or_insert((page, top));
             }
             Anchor::Heading(level, title) => self.bookmarks.push(Bookmark {

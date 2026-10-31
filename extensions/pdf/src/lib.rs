@@ -53,9 +53,7 @@
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
 //! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
-//!   of another width than the first page of its name keeps that page's line widths, a margin
-//!   box's counter other than `page` and `pages` is 0, `element()`'s `start` and `first-except`
-//!   read as `first`, and `target-counter()` reads only `page`.
+//!   of another width than the first page of its name keeps that page's line widths.
 //!   `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and
 //!   `break-before: avoid` do nothing.
 //! - Writing (`write`): a link inside a transformed box keeps its untransformed box.

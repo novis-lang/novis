@@ -160,12 +160,12 @@
     { "name": "hsla()", "description": "The same as `hsl()`." },
     { "name": "linear-gradient()", "description": "A background that changes from one colour to another along a line." },
     { "name": "radial-gradient()", "description": "A background that changes from one colour to another outwards from a point." },
-    { "name": "counter()", "description": "The current number of a counter. `counter(page)` and `counter(pages)` are the page number and the page count." },
+    { "name": "counter()", "description": "The current number of a counter. `counter(page)` and `counter(pages)` are the page number and the page count. In a margin box, any other counter is its value after its first change on the page, or else its value when the page starts." },
     { "name": "counters()", "description": "The numbers of a nested counter joined by a separator, such as `2.1.3`." },
     { "name": "string()", "description": "In a margin box, the text saved by `string-set`." },
     { "name": "running()", "description": "In `position`, takes the element out of the flow to repeat it in a margin box." },
-    { "name": "element()", "description": "In a margin box, places the element taken out by `running()`." },
-    { "name": "target-counter()", "description": "The page number of the element a link points to, for a table of contents." },
+    { "name": "element()", "description": "In a margin box, places the element taken out by `running()`. A second argument `first`, `start`, `last` or `first-except` picks which one, as for `string()`." },
+    { "name": "target-counter()", "description": "The page number of the element a link points to, for a table of contents, or the value of any other counter at that element." },
     { "name": "leader()", "description": "Fills the space before a page number with dots, for a table of contents." }
   ],
   "atRules": [
