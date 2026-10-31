@@ -374,7 +374,9 @@ fn read_filling(file: &[u8], fill: bool) -> (Option<String>, usize) {
 fn contained(failure: Option<String>, what: &str) -> String {
     let failure = failure.unwrap_or_else(|| panic!("{what} reads as if it were a workbook"));
     assert!(
-        failure.contains("rule:core-classes/decompression-bound") || failure.contains("memory"),
+        // Both decompression bounds name the setting that raises them, `[limits]
+        // max_decompression_ratio` or `max_decompressed`.
+        failure.contains("[limits] max_decompress") || failure.contains("memory"),
         "{what}: {failure}"
     );
     failure

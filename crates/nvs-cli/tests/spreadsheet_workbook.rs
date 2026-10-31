@@ -224,8 +224,8 @@ echo Workbook::fromRows([["item" => "Pen", "price" => 1.5]], {format: "csv"})->b
     assert_eq!(out, "Prices\nitem,price\nPen,1.5\n");
 }
 
-/// `define` writes the name into `xl/workbook.xml` with its reference escaped, and a name that is
-/// a cell address throws a `LogicError`.
+/// `define` writes the name into `xl/workbook.xml` with its reference escaped, here the `&` of
+/// the sheet's name, and a name that is a cell address throws a `LogicError`.
 // covers: Novis\Spreadsheet\Workbook::define
 #[test]
 fn define_writes_a_defined_name() {
@@ -233,15 +233,15 @@ fn define_writes_a_defined_name() {
         "define",
         r#"
 var $book = Workbook::createInMemory();
-$book->sheet("Shop")->add(["qty" => 1]);
-$book->define("Total", "Shop!\$A\$2&");
+$book->sheet("Shop & Co")->add(["qty" => 1]);
+$book->define("Total", "'Shop & Co'!\$A\$2");
 try {
-    $book->define("B2", "Shop!\$A\$2");
+    $book->define("B2", "'Shop & Co'!\$A\$2");
 } catch (LogicError $e) {
     echo "B2 is refused\n";
 }
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
-echo Core\Str::contains(Core\Zip::read($file, "xl/workbook.xml") as string, "<definedName name=\"Total\">Shop!\$A\$2&amp;</definedName>") ? "defined" : "missing", "\n";
+echo Core\Str::contains(Core\Zip::read($file, "xl/workbook.xml") as string, "<definedName name=\"Total\">'Shop &amp; Co'!\$A\$2</definedName>") ? "defined" : "missing", "\n";
 "#,
     );
     assert_eq!(out, "B2 is refused\ndefined\n");
