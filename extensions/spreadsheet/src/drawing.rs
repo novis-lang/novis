@@ -336,6 +336,39 @@ pub struct Placement {
     pub height: f64,
 }
 
+/// Where a chart goes and how big it is: its column and row from 0, and its size in pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChartPlacement {
+    pub column: u32,
+    pub row: u32,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Checks `chart`, added to the sheet `sheet` when `Writer::column` gives `reach` as a column's
+/// last row, and gives its cell, its size and the chart checked. A size left out is
+/// `chart::DEFAULT_WIDTH` by `chart::DEFAULT_HEIGHT`. The xlsx and the ods writer both place a
+/// chart with this.
+pub fn place_chart(
+    chart: &Chart,
+    sheet: &str,
+    reach: u32,
+) -> Result<(ChartPlacement, Planned), Error> {
+    let cell = chart.placed.as_str();
+    let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("chart", cell))?;
+    let part = format!("chart at `{cell}`");
+    let width = pixels("width", &part, chart.width, true)?.unwrap_or(chart::DEFAULT_WIDTH);
+    let height = pixels("height", &part, chart.height, true)?.unwrap_or(chart::DEFAULT_HEIGHT);
+    let planned = chart::check(chart, sheet, reach)?;
+    let placed = ChartPlacement {
+        column,
+        row: row - 1,
+        width,
+        height,
+    };
+    Ok((placed, planned))
+}
+
 /// Checks `image` and gives its format, its cell and its size. A size left out is the image's
 /// own, and one side given alone scales the other by the image's aspect ratio. The xlsx and the
 /// ods writer both place an image with this.
@@ -397,19 +430,14 @@ impl Drawing {
         sheet: &str,
         reach: u32,
     ) -> Result<(), Error> {
-        let cell = chart.placed.as_str();
-        let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("chart", cell))?;
-        let part = format!("chart at `{cell}`");
-        let width = pixels("width", &part, chart.width, true)?.unwrap_or(chart::DEFAULT_WIDTH);
-        let height = pixels("height", &part, chart.height, true)?.unwrap_or(chart::DEFAULT_HEIGHT);
-        let planned = chart::check(chart, sheet, reach)?;
+        let (at, planned) = place_chart(chart, sheet, reach)?;
         self.anchors.push(Anchor {
-            column,
-            row: row - 1,
+            column: at.column,
+            row: at.row,
             offset_x: 0.0,
             offset_y: 0.0,
-            width,
-            height,
+            width: at.width,
+            height: at.height,
             placed: Placed::Chart(number, planned),
         });
         Ok(())

@@ -7,6 +7,7 @@ use std::io::Cursor;
 
 use calamine::{Data, Ods, Reader as _, open_workbook_from_rs};
 use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::chart::{self, Chart, Layer, Legend, Series};
 use nvs_spreadsheet::conditional::{Conditional, Kind};
 use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::ods::Writer;
@@ -1182,4 +1183,240 @@ fn ods_number_formats_with_sections_conditions_and_fractions_are_written() {
     );
     let rows = read(&archive, "Data");
     assert_eq!(at(&rows, 1, 3).value, Some(Read::Number(1.5)));
+}
+
+/// One chart layer's series, each as `(categories, values)`.
+type Ranges<'a> = Vec<(Option<&'a str>, &'a str)>;
+
+/// A chart at `placed`, one layer per `(kind, series)`.
+fn ods_chart(placed: &str, layers: Vec<(chart::Kind, Ranges)>) -> Chart {
+    Chart {
+        placed: placed.to_owned(),
+        layers: layers
+            .into_iter()
+            .map(|(kind, series)| Layer {
+                kind,
+                series: series
+                    .into_iter()
+                    .map(|(categories, values)| Series {
+                        values: values.to_owned(),
+                        categories: categories.map(str::to_owned),
+                        name: None,
+                        color: None,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        title: None,
+        x_title: None,
+        y_title: None,
+        legend: Legend::Right,
+        labels: false,
+        width: None,
+        height: None,
+    }
+}
+
+/// The sheet `Data`: a header row and the rows `(name, qty)`.
+fn chart_rows(book: &mut Writer, rows: &[(&str, f64)]) {
+    let mut kept = vec![header(&["Name", "Qty"])];
+    kept.extend(
+        rows.iter()
+            .map(|&(name, qty)| row(vec![text(name), number(qty)])),
+    );
+    book.sheet(SheetOptions::named("Data"), &kept).unwrap();
+}
+
+#[test]
+fn every_chart_type_of_the_subset_is_written_to_ods() {
+    use chart::Kind::{Area, Bar, Column, Doughnut, Line, Pie, Scatter};
+    let mut book = writer();
+    chart_rows(&mut book, &[("a", 1.0), ("b", 2.0)]);
+    let reach = book.column(1).unwrap();
+    assert_eq!(reach, "B2:B3");
+    let cases = [
+        (Column, "chart:bar"),
+        (Bar, "chart:bar"),
+        (Line, "chart:line"),
+        (Area, "chart:area"),
+        (Pie, "chart:circle"),
+        (Doughnut, "chart:ring"),
+        (Scatter, "chart:scatter"),
+    ];
+    for (at, &(kind, _)) in cases.iter().enumerate() {
+        let mut one = ods_chart(
+            &format!("D{}", at * 20 + 2),
+            vec![(kind, vec![(Some("A2:A3"), reach.as_str())])],
+        );
+        if kind == Column {
+            one.title = Some("Sales & costs".to_owned());
+            one.x_title = Some("Month".to_owned());
+            one.y_title = Some("Euro".to_owned());
+            one.legend = Legend::Bottom;
+            one.labels = true;
+            one.width = Some(960.0);
+            one.layers[0].series[0].name = Some("Qty \"all\"".to_owned());
+            one.layers[0].series[0].color = Some("#FF0000".to_owned());
+        }
+        if kind == Line {
+            one.legend = Legend::Hidden;
+            one.layers[0].series[0].color = Some("#00FF00".to_owned());
+        }
+        book.part(Part::Chart(one)).unwrap();
+    }
+    // The rows after the charts grow the ranges that end at the column's last row.
+    book.rows(&[row(vec![text("c"), number(3.0)])]).unwrap();
+    let error = book
+        .part(Part::Chart(ods_chart("D200", vec![(Pie, vec![])])))
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("has no series"), "{error:?}");
+    let archive = book.finish().unwrap().data;
+    let names: Vec<String> = entries(&archive)
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    let manifest = part(&archive, "META-INF/manifest.xml");
+    for (at, &(kind, class)) in cases.iter().enumerate() {
+        let number = at + 1;
+        let entry = format!("Object {number}/content.xml");
+        assert!(names.contains(&entry), "{names:?}");
+        has_all(
+            &manifest,
+            "META-INF/manifest.xml",
+            &[
+                &format!(
+                    "manifest:full-path=\"Object {number}/\" manifest:version=\"1.3\" manifest:media-type=\"application/vnd.oasis.opendocument.chart\""
+                ),
+                &format!(
+                    "manifest:full-path=\"Object {number}/content.xml\" manifest:media-type=\"text/xml\""
+                ),
+            ],
+        );
+        let object = part(&archive, &entry);
+        has_all(
+            &object,
+            &entry,
+            &[
+                "<office:chart><chart:chart ",
+                &format!("chart:class=\"{class}\">"),
+                &format!("chart:series chart:style-name=\"s0\" chart:class=\"{class}\""),
+                "chart:values-cell-range-address=\"Data.$B$2:Data.$B$4\"",
+            ],
+        );
+        if kind == Scatter {
+            has_all(
+                &object,
+                &entry,
+                &[
+                    "<chart:domain table:cell-range-address=\"Data.$A$2:Data.$A$4\"/>",
+                    "draw:stroke=\"none\"",
+                ],
+            );
+            assert!(!object.contains("chart:categories"), "{object}");
+        } else {
+            has_all(
+                &object,
+                &entry,
+                &["<chart:categories table:cell-range-address=\"Data.$A$2:Data.$A$4\"/>"],
+            );
+        }
+        let axes = !matches!(kind, Pie | Doughnut);
+        assert_eq!(object.contains("chart:dimension=\"y\""), axes, "{object}");
+        assert_eq!(object.contains("chart:vertical=\"true\""), kind == Bar);
+        assert_eq!(object.contains("<chart:legend "), kind != Line, "{object}");
+    }
+    let column = part(&archive, "Object 1/content.xml");
+    has_all(
+        &column,
+        "Object 1/content.xml",
+        &[
+            "svg:width=\"10.0000in\" svg:height=\"3.0000in\"",
+            "<chart:title><text:p>Sales &amp; costs</text:p></chart:title>",
+            "<chart:legend chart:legend-position=\"bottom\"/>",
+            "<chart:axis chart:dimension=\"x\" chart:name=\"primary-x\"><chart:title><text:p>Month</text:p></chart:title>",
+            "<chart:title><text:p>Euro</text:p></chart:title><chart:grid chart:class=\"major\"/>",
+            "loext:label-string=\"Qty &quot;all&quot;\"",
+            "chart:data-label-number=\"value\"",
+            "draw:fill-color=\"#FF0000\"",
+        ],
+    );
+    let line = part(&archive, "Object 3/content.xml");
+    has_all(
+        &line,
+        "Object 3/content.xml",
+        &["chart:symbol-type=\"none\"", "svg:stroke-color=\"#00FF00\""],
+    );
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<draw:frame draw:z-index=\"0\" draw:name=\"Chart 1\" svg:width=\"10.0000in\" svg:height=\"3.0000in\" svg:x=\"0in\" svg:y=\"0in\">\
+             <draw:object draw:notify-on-update-of-ranges=\"Data.$A$2:Data.$A$4 Data.$B$2:Data.$B$4\" xlink:href=\"./Object 1\"",
+            "draw:name=\"Chart 7\"",
+        ],
+    );
+    assert_eq!(count(&content, "<draw:object "), 7);
+    let rows = read(&archive, "Data");
+    assert_eq!(at(&rows, 4, 2).value, Some(Read::Integer(3)));
+    let mut calamine: Ods<_> = open_workbook_from_rs(Cursor::new(archive)).unwrap();
+    let range = calamine.worksheet_range("Data").unwrap();
+    assert_eq!(range.get_value((3, 1)), Some(&Data::Float(3.0)));
+}
+
+#[test]
+fn a_combination_of_two_types_is_written_to_ods() {
+    use chart::Kind::{Column, Line, Pie};
+    let mut book = writer();
+    chart_rows(&mut book, &[("a", 1.0), ("b", 2.0), ("c", 3.0)]);
+    book.part(Part::Image(Image {
+        at: "D2".to_owned(),
+        image: png(20, 10),
+        width: None,
+        height: None,
+        offset_x: None,
+        offset_y: None,
+    }))
+    .unwrap();
+    book.part(Part::Chart(ods_chart(
+        "D2",
+        vec![
+            (Column, vec![(Some("A2:A4"), "B2:B4")]),
+            (Line, vec![(None, "'Other sheet'!C2:C4")]),
+        ],
+    )))
+    .unwrap();
+    let error = book
+        .part(Part::Chart(ods_chart(
+            "D30",
+            vec![(Pie, vec![(None, "B2:B4")]), (Line, vec![(None, "B2:B4")])],
+        )))
+        .unwrap_err();
+    assert!(
+        format!("{error:?}").contains("combines pie and line"),
+        "{error:?}"
+    );
+    let archive = book.finish().unwrap().data;
+    let object = part(&archive, "Object 1/content.xml");
+    has_all(
+        &object,
+        "Object 1/content.xml",
+        &[
+            "<chart:chart svg:width=\"5.0000in\" svg:height=\"3.0000in\" chart:class=\"chart:bar\">",
+            "<chart:series chart:style-name=\"s0\" chart:class=\"chart:bar\" chart:values-cell-range-address=\"Data.$B$2:Data.$B$4\">",
+            "<chart:series chart:style-name=\"s1\" chart:class=\"chart:line\" chart:values-cell-range-address=\"'Other sheet'.$C$2:'Other sheet'.$C$4\">",
+            "<chart:categories table:cell-range-address=\"Data.$A$2:Data.$A$4\"/>",
+        ],
+    );
+    assert_eq!(count(&object, "<chart:axis "), 2, "{object}");
+    assert_eq!(count(&object, "<chart:plot-area "), 1, "{object}");
+    // The image and the chart share the cell, in the order they were added.
+    let content = part(&archive, "content.xml");
+    let image = content
+        .find("draw:z-index=\"0\" draw:name=\"Image 1\"")
+        .unwrap();
+    let chart = content
+        .find("draw:z-index=\"1\" draw:name=\"Chart 1\"")
+        .unwrap();
+    assert!(image < chart, "{content}");
 }

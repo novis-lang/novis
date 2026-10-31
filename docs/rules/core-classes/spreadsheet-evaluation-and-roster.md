@@ -91,8 +91,6 @@ match Excel is listed for that cell, and never computed differently.
 `extensions/spreadsheet/nvs/`). The evaluator is `extensions/spreadsheet/src/eval/`, fed by
 `extensions/spreadsheet/src/read/evaluate.rs`.
 
-**Not shipped.** An ods's charts: `Sheet::chart` throws for an ods
-(gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

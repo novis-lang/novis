@@ -9,8 +9,9 @@
 //! included, per writing request, freed at `finish`.
 //!
 //! **The package** is a zip with `mimetype` first and stored, as ODF requires, then
-//! `content.xml`, `styles.xml`, `meta.xml`, `settings.xml`, each image as `Pictures/<n>.<ext>`
-//! and `META-INF/manifest.xml`. The sheets are written in tab order. The styles of the cells are
+//! `content.xml`, `styles.xml`, `meta.xml`, `settings.xml`, each image as `Pictures/<n>.<ext>`,
+//! each chart as `Object <n>/content.xml` and `META-INF/manifest.xml`. The sheets are written in
+//! tab order. The styles of the cells are
 //! automatic styles in `content.xml`:
 //!
 //! - **Cell styles** are `ce<n>`, one for each `cellXfs` entry [`crate::styles::Styles`] makes,
@@ -34,16 +35,17 @@
 //! other is a `table:named-expression`. A formula is OpenFormula, with its cached result.
 //!
 //! **The sheet-end parts** are checked by the code xlsx checks them with, the sheet's
-//! `crate::tail::Tail` and `crate::tail::Groups`, so each error is the one xlsx gives. A chart has
-//! no ods form yet, and [`Writer::part`] throws for it. `parts` writes the parts that are not
-//! cells:
+//! `crate::tail::Tail` and `crate::tail::Groups`, so each error is the one xlsx gives. `parts`
+//! writes the parts that are not cells:
 //!
 //! - **A merged range** spans from its top-left cell, and every other cell of it is a
 //!   `table:covered-table-cell`, which keeps its value if it has one.
 //! - **A link** wraps the cell's text in `text:a`. A cell with no value shows the link's text, or
 //!   its target. A cell link is `#Sheet.A1`.
 //! - **A note** is an `office:annotation` with its author, first in its cell. **An image** is a
-//!   `draw:frame` in its cell, after the note, in inches at 96 pixels an inch.
+//!   `draw:frame` in its cell, after the note, in inches at 96 pixels an inch. **A chart** is a
+//!   `draw:frame` with a `draw:object` in its cell, among the images in the order they were
+//!   added, and its object is `chart`'s module doc.
 //! - **A validation** is a `table:content-validation` before the first sheet, named `val<n>`
 //!   across the workbook, and each cell it covers names it.
 //! - **A group** adds to each row's and column's outline level as in xlsx, and nests it in a
@@ -69,6 +71,7 @@
 //! document dates are `writer`'s fixed ones.
 
 mod cells;
+mod chart;
 mod numbers;
 mod parts;
 mod styles;
@@ -76,8 +79,9 @@ mod styles;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
+use crate::chart::Planned;
 use crate::conditional::{self, Conditional};
-use crate::drawing::{self, Placement};
+use crate::drawing::{self, ChartPlacement, Placement};
 use crate::styles::{Implicit, Styles};
 use crate::table::{Placed, Table, expand};
 use crate::tail::{
@@ -148,11 +152,29 @@ const PLAIN_COLUMN: HeldColumn = HeldColumn {
     level: 0,
 };
 
-/// One image: where it goes, its number in the workbook and its bytes.
+/// One image: where it goes, its number in the workbook, its place in the sheet's drawing order
+/// and its bytes.
 struct HeldImage {
     placed: Placement,
     number: usize,
+    z: usize,
     bytes: Vec<u8>,
+}
+
+/// One chart: where it goes, its object's number in the workbook, its place in the sheet's
+/// drawing order and the chart checked.
+struct HeldChart {
+    placed: ChartPlacement,
+    number: usize,
+    z: usize,
+    planned: Planned,
+}
+
+impl HeldChart {
+    /// Its object's folder in the package, such as `Object 1`.
+    fn folder(&self) -> String {
+        format!("Object {}", self.number)
+    }
 }
 
 impl HeldImage {
@@ -193,6 +215,7 @@ struct Sheet {
     checks: Vec<(Area, usize, Validation)>,
     protect: Option<Protect>,
     images: Vec<HeldImage>,
+    charts: Vec<HeldChart>,
     /// Each conditional format with its `dxfs` index, in priority order.
     conditionals: Vec<(Conditional, Option<u32>)>,
 }
@@ -218,6 +241,7 @@ impl Sheet {
             checks: Vec::new(),
             protect: None,
             images: Vec::new(),
+            charts: Vec::new(),
             conditionals: Vec::new(),
         }
     }
@@ -272,8 +296,9 @@ pub struct Writer {
     names: Vec<(String, String)>,
     /// The tables' names, in the order they were added.
     tables: Vec<String>,
-    /// The images and the validations added so far.
+    /// The images, the charts and the validations added so far.
     media: usize,
+    objects: usize,
     checks: usize,
     state: State,
 }
@@ -355,6 +380,7 @@ impl Writer {
             names: Vec::new(),
             tables: Vec::new(),
             media: 0,
+            objects: 0,
             checks: 0,
             state: State::Writing,
         })
@@ -425,12 +451,6 @@ impl Writer {
                 };
                 return self.table(table);
             }
-            Part::Chart(_) => {
-                return Err(Error::Invalid(
-                    "A chart cannot be written to an ods file yet. Write the workbook as xlsx to use it."
-                        .to_owned(),
-                ));
-            }
             Part::Conditional(rule) => {
                 conditional::check(rule)?;
                 rule.style
@@ -440,7 +460,7 @@ impl Writer {
             }
             _ => None,
         };
-        let (media, check) = (self.media + 1, self.checks + 1);
+        let (media, object, check) = (self.media + 1, self.objects + 1, self.checks + 1);
         let Some(sheet) = self.sheets.last_mut() else {
             unreachable!("an open sheet is the last one");
         };
@@ -461,12 +481,27 @@ impl Writer {
             }
             Part::Image(image) => {
                 let placed = drawing::place(&image)?;
+                let z = sheet.images.len() + sheet.charts.len();
                 sheet.images.push(HeldImage {
                     placed,
                     number: media,
+                    z,
                     bytes: image.image,
                 });
                 self.media = media;
+            }
+            Part::Chart(chart) => {
+                let first = if sheet.header.is_some() { 2 } else { 1 };
+                let reach = sheet.next.saturating_sub(1).max(first);
+                let (placed, planned) = drawing::place_chart(&chart, &name, reach)?;
+                let z = sheet.images.len() + sheet.charts.len();
+                sheet.charts.push(HeldChart {
+                    placed,
+                    number: object,
+                    z,
+                    planned,
+                });
+                self.objects = object;
             }
             Part::Conditional(rule) => sheet.conditionals.push((rule, dxf)),
             Part::Link(link) => {
@@ -875,11 +910,15 @@ struct Spot<'a> {
     column: u32,
     link: Option<&'a Link>,
     note: Option<&'a Note>,
-    images: Vec<(usize, &'a HeldImage)>,
+    images: Vec<&'a HeldImage>,
+    charts: Vec<&'a HeldChart>,
+    /// The row each growing chart range ends at: the sheet's last row.
+    last: u32,
 }
 
 impl Spot<'_> {
-    /// What the cell has before its text: the note, then each image's frame.
+    /// What the cell has before its text: the note, then each image's and chart's frame, in
+    /// the order they were added.
     fn lead(&self) -> String {
         let mut out = String::new();
         if let Some(note) = self.note {
@@ -892,19 +931,49 @@ impl Spot<'_> {
             cells::paragraphs(&mut out, &note.note);
             out.push_str("</office:annotation>");
         }
-        for &(z, image) in &self.images {
+        let mut frames: Vec<(usize, String)> = Vec::new();
+        for image in &self.images {
             let placed = &image.placed;
-            let _ = write!(
-                out,
-                "<draw:frame draw:z-index=\"{z}\" draw:name=\"Image {}\" svg:width=\"{}\" svg:height=\"{}\" svg:x=\"{}\" svg:y=\"{}\">\
-                 <draw:image xlink:href=\"{}\" xlink:type=\"simple\" xlink:show=\"embed\" xlink:actuate=\"onLoad\"/></draw:frame>",
-                image.number,
+            frames.push((
+                image.z,
+                format!(
+                    "<draw:frame draw:z-index=\"{}\" draw:name=\"Image {}\" svg:width=\"{}\" svg:height=\"{}\" svg:x=\"{}\" svg:y=\"{}\">\
+                     <draw:image xlink:href=\"{}\" xlink:type=\"simple\" xlink:show=\"embed\" xlink:actuate=\"onLoad\"/></draw:frame>",
+                    image.z,
+                    image.number,
+                    pixel_inches(placed.width),
+                    pixel_inches(placed.height),
+                    pixel_inches(placed.offset_x),
+                    pixel_inches(placed.offset_y),
+                    image.entry()
+                ),
+            ));
+        }
+        for held in &self.charts {
+            let placed = &held.placed;
+            let mut frame = format!(
+                "<draw:frame draw:z-index=\"{}\" draw:name=\"Chart {}\" svg:width=\"{}\" svg:height=\"{}\" svg:x=\"0in\" svg:y=\"0in\">\
+                 <draw:object draw:notify-on-update-of-ranges=\"",
+                held.z,
+                held.number,
                 pixel_inches(placed.width),
                 pixel_inches(placed.height),
-                pixel_inches(placed.offset_x),
-                pixel_inches(placed.offset_y),
-                image.entry()
             );
+            xml::odf(
+                &mut frame,
+                &chart::ranges(&held.planned, self.last).join(" "),
+                true,
+            );
+            frame.push_str("\" xlink:href=\"./");
+            xml::odf(&mut frame, &held.folder(), true);
+            frame.push_str(
+                "\" xlink:type=\"simple\" xlink:show=\"embed\" xlink:actuate=\"onLoad\"/></draw:frame>",
+            );
+            frames.push((held.z, frame));
+        }
+        frames.sort_by_key(|(z, _)| *z);
+        for (_, frame) in frames {
+            out.push_str(&frame);
         }
         out
     }
@@ -984,7 +1053,21 @@ impl Writer {
             .iter()
             .flat_map(|sheet| sheet.images.iter())
             .collect();
-        let manifest = manifest(&images);
+        let objects: Vec<(String, String)> = self
+            .sheets
+            .iter()
+            .flat_map(|sheet| {
+                let last = sheet.next.saturating_sub(1);
+                sheet.charts.iter().map(move |held| {
+                    let placed = &held.placed;
+                    (
+                        held.folder(),
+                        chart::object(&held.planned, placed.width, placed.height, last),
+                    )
+                })
+            })
+            .collect();
+        let manifest = manifest(&images, &objects);
         let mut archive = Archive::new();
         let written = (|| {
             archive.stored("mimetype", MIME.as_bytes())?;
@@ -995,6 +1078,10 @@ impl Writer {
             for image in &images {
                 archive.begin(&image.entry())?;
                 archive.write(&image.bytes)?;
+            }
+            for (folder, content) in &objects {
+                archive.begin(&format!("{folder}/content.xml"))?;
+                archive.write(content.as_bytes())?;
             }
             archive.begin("META-INF/manifest.xml")?;
             archive.write(manifest.as_bytes())?;
@@ -1019,6 +1106,7 @@ impl Writer {
         self.sheets.iter_mut().for_each(|sheet| {
             sheet.rows = Vec::new();
             sheet.images = Vec::new();
+            sheet.charts = Vec::new();
         });
         Ok(Finished {
             size: data.len() as u64,
@@ -1475,7 +1563,8 @@ impl Writer {
     }
 }
 
-/// The cells of `sheet` that a link, a note or an image is in, by row and then by column.
+/// The cells of `sheet` that a link, a note, an image or a chart is in, by row and then by
+/// column.
 fn spots(sheet: &Sheet) -> Vec<Spot<'_>> {
     let mut spots: Vec<Spot<'_>> = Vec::new();
     let mut index: HashMap<(u32, u32), usize> = HashMap::new();
@@ -1487,26 +1576,33 @@ fn spots(sheet: &Sheet) -> Vec<Spot<'_>> {
                 link: None,
                 note: None,
                 images: Vec::new(),
+                charts: Vec::new(),
+                last: sheet.next.saturating_sub(1),
             });
             spots.len() - 1
         })
     };
     let mut places = Vec::new();
     for (column, row, link) in &sheet.links {
-        places.push((spot(*row, *column), Some(link), None, None));
+        places.push((spot(*row, *column), Some(link), None, None, None));
     }
     for (column, row, note) in &sheet.notes {
-        places.push((spot(*row, *column), None, Some(note), None));
+        places.push((spot(*row, *column), None, Some(note), None, None));
     }
-    for (z, image) in sheet.images.iter().enumerate() {
+    for image in &sheet.images {
         let at = spot(image.placed.row + 1, image.placed.column);
-        places.push((at, None, None, Some((z, image))));
+        places.push((at, None, None, Some(image), None));
     }
-    for (at, link, note, image) in places {
+    for held in &sheet.charts {
+        let at = spot(held.placed.row + 1, held.placed.column);
+        places.push((at, None, None, None, Some(held)));
+    }
+    for (at, link, note, image, held) in places {
         let spot = &mut spots[at];
         spot.link = spot.link.or(link);
         spot.note = spot.note.or(note);
         spot.images.extend(image);
+        spot.charts.extend(held);
     }
     spots.sort_by_key(|spot| (spot.row, spot.column));
     spots
@@ -1849,8 +1945,9 @@ fn empty_cells(out: &mut String, count: &mut usize) {
     *count = 0;
 }
 
-/// `META-INF/manifest.xml`: the package, each of its parts and each image.
-fn manifest(images: &[&HeldImage]) -> String {
+/// `META-INF/manifest.xml`: the package, each of its parts, each image and each chart object
+/// by its folder.
+fn manifest(images: &[&HeldImage], objects: &[(String, String)]) -> String {
     let mut out = String::from(HEAD);
     let _ = write!(
         out,
@@ -1870,6 +1967,14 @@ fn manifest(images: &[&HeldImage]) -> String {
             image.entry(),
             image.placed.format.content_type()
         );
+    }
+    for (folder, _) in objects {
+        out.push_str("<manifest:file-entry manifest:full-path=\"");
+        xml::odf(&mut out, folder, true);
+        out.push_str("/\" manifest:version=\"1.3\" manifest:media-type=\"application/vnd.oasis.opendocument.chart\"/>");
+        out.push_str("<manifest:file-entry manifest:full-path=\"");
+        xml::odf(&mut out, folder, true);
+        out.push_str("/content.xml\" manifest:media-type=\"text/xml\"/>");
     }
     out.push_str("</manifest:manifest>");
     out

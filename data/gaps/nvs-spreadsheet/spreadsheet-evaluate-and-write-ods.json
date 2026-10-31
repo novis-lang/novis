@@ -1,6 +1,0 @@
-{
-  "module": "extensions/spreadsheet/src/writer.rs",
-  "title": "A workbook is written as xlsx or CSV only, never ods.",
-  "text": "Closing it adds an ods writer behind the same `Workbook` targets, so `Workbook.nvs` stops throwing for the `ods` format (`rule:core-classes/spreadsheet-evaluation-and-roster`). The evaluate call it also named is built.",
-  "goal": "spreadsheet-second-wave"
-}

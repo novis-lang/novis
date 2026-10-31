@@ -54270,7 +54270,7 @@ Novis\Spreadsheet\Formula::of(string $text, ?{ cached?: string|int|float } $opti
 <a id="core-novis-spreadsheet-reader"></a>
 ### `Novis\Spreadsheet\Reader`
 
-Keywords: open, sheets, macros, merged, links, notes, names, tables, images, properties, rows
+Keywords: open, sheets, macros, merged, links, notes, names, tables, evaluate, images, properties, rows
 
 | Member | Signature |
 |---|---|
@@ -54282,6 +54282,7 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, images, pro
 | [`Novis\Spreadsheet\Reader->notes`](#core-novis-spreadsheet-reader-notes) | `notes(string\|int $sheet): array<Note>` |
 | [`Novis\Spreadsheet\Reader->names`](#core-novis-spreadsheet-reader-names) | `names(): array<Name>` |
 | [`Novis\Spreadsheet\Reader->tables`](#core-novis-spreadsheet-reader-tables) | `tables(string\|int $sheet): array<Table>` |
+| [`Novis\Spreadsheet\Reader->evaluate`](#core-novis-spreadsheet-reader-evaluate) | `evaluate(): array<Missed>` |
 | [`Novis\Spreadsheet\Reader->images`](#core-novis-spreadsheet-reader-images) | `images(string\|int $sheet): array<Image>` |
 | [`Novis\Spreadsheet\Reader->properties`](#core-novis-spreadsheet-reader-properties) | `properties(): Properties` |
 | [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
@@ -54379,6 +54380,19 @@ $reader->tables(string|int $sheet): array<Table>
 `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
 
 **Returns** `array<Table>`
+
+<a id="core-novis-spreadsheet-reader-evaluate"></a>
+#### `Novis\Spreadsheet\Reader->evaluate`
+
+```nvs skip
+$reader->evaluate(): array<Missed>
+```
+
+`evaluate` computes every formula in the workbook. After it, `rows` gives each formula cell its computed result.
+It returns the cells it could not compute. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
+Such a cell keeps the result that is saved in the file. A CSV file has no formulas, so the result is `[]`.
+
+**Returns** `array<Missed>`
 
 <a id="core-novis-spreadsheet-reader-images"></a>
 #### `Novis\Spreadsheet\Reader->images`
@@ -54722,6 +54736,7 @@ $template->fill(array<mixed> $data): Export
 ```
 
 `fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+The keys `'customer.name'` and `'customer' => ['name' => …]` give the same placeholder. If `$data` has both, `fill` throws an error.
 A list in `$data` is an array or an `Iterator`, such as a generator. The items of an `Iterator` are read while the file is written.
 The file is written when you call `download`, `save`, `to` or `bytes` on the result.
 
@@ -54859,11 +54874,11 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
 
-Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, sourceBytes, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
+Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDefine, writerCell, writerColumn, writerFinish, readerOpen, readerSheets, readerMacros, readerMerged, readerLinks, readerNotes, readerNames, readerTables, readerImages, readerProperties, readerEvaluate, sourceBytes, readerHeader, readerRows, templateOpen, templateSet, templateFill, templateItems, templateFinish
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Engine::writerOpen`](#core-novis-spreadsheet-engine-writeropen) | `writerOpen({ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string } $options): Writer` |
+| [`Novis\Spreadsheet\Engine::writerOpen`](#core-novis-spreadsheet-engine-writeropen) | `writerOpen({ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string, ods: bool } $options): Writer` |
 | [`Novis\Spreadsheet\Engine::writerStyle`](#core-novis-spreadsheet-engine-writerstyle) | `writerStyle(Writer $writer, { font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool } $style): uint` |
 | [`Novis\Spreadsheet\Engine::writerSheet`](#core-novis-spreadsheet-engine-writersheet) | `writerSheet(Writer $writer, { name: string, position: ?uint, visibility: Visibility, columns: array<{ width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool }>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: { defaultStyle: bool, style: ?uint, freeze: bool, filter: bool }, newSheetOnOverflow: bool } $options, array<{ cells: array<{ value: ?CellValue, style: ?uint }>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }> $first): bytes` |
 | [`Novis\Spreadsheet\Engine::writerRows`](#core-novis-spreadsheet-engine-writerrows) | `writerRows(Writer $writer, array<{ cells: array<{ value: ?CellValue, style: ?uint }>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool }> $rows): bytes` |
@@ -54882,6 +54897,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::readerTables`](#core-novis-spreadsheet-engine-readertables) | `readerTables(Reading $reader, mixed $source, string $sheet): array<{ table: string, name: string, sheet: string }>` |
 | [`Novis\Spreadsheet\Engine::readerImages`](#core-novis-spreadsheet-engine-readerimages) | `readerImages(Reading $reader, mixed $source, string $sheet): array<{ at: string, image: bytes, format: string, link: ?string }>` |
 | [`Novis\Spreadsheet\Engine::readerProperties`](#core-novis-spreadsheet-engine-readerproperties) | `readerProperties(Reading $reader, mixed $source): { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }` |
+| [`Novis\Spreadsheet\Engine::readerEvaluate`](#core-novis-spreadsheet-engine-readerevaluate) | `readerEvaluate(Reading $reader, mixed $source): array<{ cell: string, kind: string, text: string }>` |
 | [`Novis\Spreadsheet\Engine::sourceBytes`](#core-novis-spreadsheet-engine-sourcebytes) | `sourceBytes(mixed $source, uint $offset, ?uint $length): bytes` |
 | [`Novis\Spreadsheet\Engine::readerHeader`](#core-novis-spreadsheet-engine-readerheader) | `readerHeader(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerRows`](#core-novis-spreadsheet-engine-readerrows) | `readerRows(Reading $reader, mixed $source, { sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string } $options, uint $max): { rows: array<{ number: uint, cells: array<{ column: uint, value: ?ReadValue, formula: ?string, display: ?string }> }>, done: bool }` |
@@ -54895,14 +54911,14 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 #### `Novis\Spreadsheet\Engine::writerOpen`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::writerOpen({ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string } $options): Writer
+Novis\Spreadsheet\Engine::writerOpen({ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string, ods: bool } $options): Writer
 ```
 
-Starts a new workbook. `target` is where the file goes, such as its file name. The workbook is written when you add a sheet.
+Starts a new workbook. `target` is where the file goes, such as its file name. When `ods` is `true`, the workbook is an ods file. Otherwise it is an xlsx file. An xlsx file is written when you add a sheet. An ods file is written at `writerFinish`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$options` | `{ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string }` |  |
+| `$options` | `{ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }, target: string, ods: bool }` |  |
 
 **Returns** `Writer`
 
@@ -55200,6 +55216,22 @@ Returns the document properties of the workbook. `created` is the time it was cr
 | `$source` | `mixed` |  |
 
 **Returns** `{ title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\Time\Date, clock: Core\Time\TimeOfDay } }`
+
+<a id="core-novis-spreadsheet-engine-readerevaluate"></a>
+#### `Novis\Spreadsheet\Engine::readerEvaluate`
+
+```nvs skip
+Novis\Spreadsheet\Engine::readerEvaluate(Reading $reader, mixed $source): array<{ cell: string, kind: string, text: string }>
+```
+
+Computes every formula in the workbook and returns the cells it could not compute. After this call, each row you read has the computed results.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$reader` | `Reading` |  |
+| `$source` | `mixed` |  |
+
+**Returns** `array<{ cell: string, kind: string, text: string }>`
 
 <a id="core-novis-spreadsheet-engine-sourcebytes"></a>
 #### `Novis\Spreadsheet\Engine::sourceBytes`

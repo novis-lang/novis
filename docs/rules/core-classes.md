@@ -5250,7 +5250,13 @@ setup a page layout and master page in `styles.xml`, and protection `table:prote
 hash as its key. A table is a `table:database-range`, and a conditional format LibreOffice's
 `calcext:conditional-formats`. A table's style and banding have no ods form and are left out, and a
 structured reference is written as the cells it names. A protected sheet's `allow` names have no ods
-form either. Charts throw for an ods ([`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster)).
+form either. A chart is an embedded chart object, `Object <n>/content.xml` with one `chart:chart`,
+written from the same checked chart as in xlsx (`extensions/spreadsheet/src/ods/chart.rs`). Its
+`draw:frame` with a `draw:object` is in the anchor cell, beside the images in the order they were
+added, and the manifest names the object. A combination is one plot area whose series each name
+their type. A series name is LibreOffice's `loext:label-string`, because ODF 1.3 names a series only
+by a cell. As in xlsx, the object keeps no values, and a range that ends at the column's last row
+grows with the sheet.
 
 The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they
 summarise, in the order a program computes them. **Memory:** the parts are held until the sheet ends,
@@ -5675,8 +5681,6 @@ match Excel is listed for that cell, and never computed differently.
 `extensions/spreadsheet/nvs/`). The evaluator is `extensions/spreadsheet/src/eval/`, fed by
 `extensions/spreadsheet/src/read/evaluate.rs`.
 
-**Not shipped.** An ods's charts: `Sheet::chart` throws for an ods
-(gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

@@ -51,7 +51,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Kind::Column => "column",
             Kind::Bar => "bar",
@@ -63,12 +63,12 @@ impl Kind {
         }
     }
 
-    fn has_axes(self) -> bool {
+    pub(crate) fn has_axes(self) -> bool {
         !matches!(self, Kind::Pie | Kind::Doughnut)
     }
 
     /// Whether a series is a line, so its colour is the line's and not a fill.
-    fn is_line(self) -> bool {
+    pub(crate) fn is_line(self) -> bool {
         matches!(self, Kind::Line | Kind::Scatter)
     }
 }
@@ -118,7 +118,7 @@ pub struct Chart {
 /// A series range read: its sheet, quoted when it needs to be, its corners, whether it is on the
 /// chart's own sheet and whether it grows with the sheet.
 #[derive(Debug, Clone, PartialEq)]
-struct Range {
+pub(crate) struct Range {
     sheet: String,
     area: Area,
     own: bool,
@@ -126,13 +126,19 @@ struct Range {
 }
 
 impl Range {
-    /// The reference the part writes as element text, its bottom moved to `last` when it grows.
-    /// The sheet name is the program's text, so it is escaped like any other.
-    fn write(&self, out: &mut String, last: u32) {
+    /// Its corners, the bottom moved to `last` when it grows.
+    fn reach(&self, last: u32) -> Area {
         let mut at = self.area;
         if self.grows {
             at.bottom = at.bottom.max(last);
         }
+        at
+    }
+
+    /// The reference the part writes as element text, its bottom moved to `last` when it grows.
+    /// The sheet name is the program's text, so it is escaped like any other.
+    fn write(&self, out: &mut String, last: u32) {
+        let at = self.reach(last);
         xml::text(out, &self.sheet);
         let _ = write!(
             out,
@@ -140,6 +146,18 @@ impl Range {
             absolute(at.left, at.top),
             absolute(at.right, at.bottom)
         );
+    }
+
+    /// The reference as an ods cell range address, such as `Shop.$B$2:Shop.$B$9`, its bottom
+    /// moved to `last` when it grows. The caller escapes it as attribute text.
+    pub(crate) fn odf(&self, last: u32) -> String {
+        let at = self.reach(last);
+        format!(
+            "{0}.{1}:{0}.{2}",
+            self.sheet,
+            absolute(at.left, at.top),
+            absolute(at.right, at.bottom)
+        )
     }
 }
 
@@ -152,22 +170,22 @@ fn absolute(column: u32, row: u32) -> String {
 
 /// A series checked: its ranges read and its colour as `RRGGBB`.
 #[derive(Debug, Clone, PartialEq)]
-struct Checked {
-    values: Range,
-    categories: Option<Range>,
-    name: Option<String>,
-    color: Option<String>,
+pub(crate) struct Checked {
+    pub(crate) values: Range,
+    pub(crate) categories: Option<Range>,
+    pub(crate) name: Option<String>,
+    pub(crate) color: Option<String>,
 }
 
 /// A chart checked and kept until its sheet ends.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Planned {
-    layers: Vec<(Kind, Vec<Checked>)>,
-    title: Option<String>,
-    x_title: Option<String>,
-    y_title: Option<String>,
-    legend: Legend,
-    labels: bool,
+    pub(crate) layers: Vec<(Kind, Vec<Checked>)>,
+    pub(crate) title: Option<String>,
+    pub(crate) x_title: Option<String>,
+    pub(crate) y_title: Option<String>,
+    pub(crate) legend: Legend,
+    pub(crate) labels: bool,
 }
 
 /// `name` as a reference writes it: quoted, as `'Shop orders'`, when Excel quotes it. That is a

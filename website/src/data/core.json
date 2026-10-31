@@ -29074,6 +29074,10 @@
           "type": "{ table: tainted string, name: tainted string, sheet: tainted string }"
         },
         {
+          "name": "Missed",
+          "type": "{ cell: tainted string, kind: string, text: tainted string }"
+        },
+        {
           "name": "Image",
           "type": "{ at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string }"
         },
@@ -29276,6 +29280,23 @@
           "slug": "tables",
           "url": "/reference/core/novis-spreadsheet-reader/tables/",
           "examples": "novis/Spreadsheet-Reader/tables"
+        },
+        {
+          "id": "Novis.Spreadsheet.Reader.evaluate",
+          "name": "evaluate",
+          "static": false,
+          "receiver": "reader",
+          "generics": null,
+          "signature": "evaluate(): array<Missed>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Missed>",
+          "doc": {
+            "shortHtml": "<code>evaluate</code> computes every formula in the workbook. After it, <code>rows</code> gives each formula cell its computed result.\nIt returns the cells it could not compute. <code>kind</code> is <code>'function'</code>, <code>'reference'</code>, <code>'circular'</code> or <code>'token'</code>.\nSuch a cell keeps the result that is saved in the file. A CSV file has no formulas, so the result is <code>[]</code>."
+          },
+          "slug": "evaluate",
+          "url": "/reference/core/novis-spreadsheet-reader/evaluate/",
+          "examples": "novis/Spreadsheet-Reader/evaluate"
         },
         {
           "id": "Novis.Spreadsheet.Reader.images",
@@ -30256,7 +30277,7 @@
           "options": [],
           "returnType": "Export",
           "doc": {
-            "shortHtml": "<code>fill</code> puts the value at each placeholder's path in <code>$data</code> into its cell. A placeholder that <code>$data</code> does not have throws an error.\nA list in <code>$data</code> is an array or an <code>Iterator</code>, such as a generator. The items of an <code>Iterator</code> are read while the file is written.\nThe file is written when you call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result."
+            "shortHtml": "<code>fill</code> puts the value at each placeholder's path in <code>$data</code> into its cell. A placeholder that <code>$data</code> does not have throws an error.\nThe keys <code>'customer.name'</code> and <code>'customer' =&gt; ['name' =&gt; …]</code> give the same placeholder. If <code>$data</code> has both, <code>fill</code> throws an error.\nA list in <code>$data</code> is an array or an <code>Iterator</code>, such as a generator. The items of an <code>Iterator</code> are read while the file is written.\nThe file is written when you call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result."
           },
           "slug": "fill",
           "url": "/reference/core/novis-spreadsheet-template/fill/",
@@ -30270,7 +30291,7 @@
     {
       "id": "Novis.Spreadsheet.Workbook",
       "name": "Novis\\Spreadsheet\\Workbook",
-      "summary": "An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.\nEach `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.",
+      "summary": "An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in `.ods` or `.csv`, or `format: 'ods'` or `format: 'csv'`, sets the format.\nEach `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.",
       "enums": [],
       "types": [
         {
@@ -30558,7 +30579,7 @@
       ],
       "slug": "novis-spreadsheet-workbook",
       "url": "/reference/core/novis-spreadsheet-workbook/",
-      "summaryHtml": "<p>An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in <code>.csv</code>, or <code>format: 'csv'</code>, writes CSV. Each <code>create</code> method sets where the file goes. Add a sheet with <code>sheet</code>, add its rows, and call <code>finish</code> at the end.</p>"
+      "summaryHtml": "<p>An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in <code>.ods</code> or <code>.csv</code>, or <code>format: 'ods'</code> or <code>format: 'csv'</code>, sets the format. Each <code>create</code> method sets where the file goes. Add a sheet with <code>sheet</code>, add its rows, and call <code>finish</code> at the end.</p>"
     },
     {
       "id": "Novis.Spreadsheet.Written",

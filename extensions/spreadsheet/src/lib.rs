@@ -30,13 +30,12 @@
 //! `template`, because a manifest's resource is a class in `Novis\Spreadsheet`, where `Template`
 //! is the Novis class over it.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 0.96 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 1.59 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 //!
-//! **Not done yet.** Writing ods and an evaluate call are named in their rules'
-//! fragments. These are the rest, none of them is checked against Excel, and they are
+//! **Not done yet.** None of these is checked against Excel, and they are
 //! gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
 //! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as
