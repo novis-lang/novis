@@ -432,8 +432,14 @@ gates then found three things, each fixed in its own commit:
 - `bun nv ci --check`'s website stale guard: the debugger and editor pages now describe the Novis
   Tasks view, and the questions of the eight pages this goal changed are written and stamped.
 
-`bun nv owners --closes runtime-leftovers` lists nothing, and `bun nv ci --check` is green. The
-sweep's `env-secret-proofs` red is stale: no check or log of that name exists in the tree.
+`bun nv owners --closes runtime-leftovers` lists nothing, and `bun nv ci --check` is green.
+
+The first DONE was refused because `vscode-task-tree` found no passed line for its tests. Mocha's
+spec reporter marks a pass with `√` on Windows, and the acceptance check reads only `✓`, so
+`editors/vscode/scripts/headless.mjs` now sets the mark to `✓` on every platform. The check is
+green, and so are `proofs-gate`, `website-render`, `no-overshoot`, `owners-closes` and
+`floor-debt`. The sweep's `env-secret-proofs` red is stale: no goal, floor or `looper.toml` in
+this tree's history ever defined a check of that name.
 
 ### Next
 

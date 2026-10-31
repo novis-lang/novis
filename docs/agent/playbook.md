@@ -47,6 +47,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   WSL build run inside the VM, where the watcher sees no CPU, and a filter that drops the `Compiling`
   lines leaves it no output either, so it kills the run at 90 s. Run it with `run_in_background`,
   unfiltered, and grep its output file once it ends. See `tools/nv/cmd/linux-test.ts`. `until: gone tools/nv/cmd/linux-test.ts:linux-test`
+- **An acceptance check's `must run` finds a passed test only by a `✓`, `(pass)` or `... ok` line.**
+  Mocha's spec reporter prints `√` on Windows, so a green headless run read as "did not run and
+  pass". `editors/vscode/scripts/headless.mjs` sets the mark to `✓`; a new mocha runner does the
+  same. See `tools/looper/src/verify/accept.ts`. `until: gone editors/vscode/scripts/headless.mjs:symbols.ok`
 
 - **A `docs/reference/lang/` chapter is generated, so a wording change goes in the feature's
   `about.md` or `details.md`, then `bun nv render`.** An edit to the chapter itself is overwritten by
