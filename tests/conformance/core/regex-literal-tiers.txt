@@ -54,3 +54,5 @@ backtracking  "foo(?=bar)"
 linear        "x*"
 linear        "x\\d"
 linear        "z"
+linear        '\d+'
+linear        '^\d{4}-\d{2}-\d{2}$'

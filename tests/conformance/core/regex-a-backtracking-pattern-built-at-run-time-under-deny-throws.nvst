@@ -1,0 +1,44 @@
+--TEST--
+Under `[regex] backtracking = "deny"`, a pattern built at run time that only the backtracking engine accepts throws a catchable `RuntimeError` at the call that compiles it, and a malformed one keeps its own message — `rule:core-classes/regex-compile-time-tiering`
+--FILE--
+<?nvs
+// No pattern here is a `Core\Regex::compile` literal, so the program compiles.
+// Each pattern is compiled when the call runs.
+class Patterns {
+    public static function behind(string $look): string {
+        return '(?<=' . $look . ')X';
+    }
+}
+
+try {
+    Core\Regex::compile(Patterns::behind('a'));
+    echo "compiled\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// A member that takes the pattern directly throws the same way. The second
+// call gives the same error as the first.
+for (var $i = 0; $i < 2; $i++) {
+    try {
+        echo Core\Regex::matches('aX', Patterns::behind('a')) ? "matched\n" : "no\n";
+    } catch (RuntimeError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// A malformed pattern still gives the error for a malformed pattern.
+try {
+    Core\Regex::compile(Patterns::behind('('));
+    echo "compiled\n";
+} catch (RuntimeError $e) {
+    echo Core\Str::contains($e->message, 'not a pattern either engine can compile') ? "malformed\n" : $e->message . "\n";
+}
+--FILE nvs.toml--
+[regex]
+backtracking = "deny"
+--EXPECT--
+Core\Regex::compile(): `(?<=a)X` needs the backtracking regex engine. `[regex] backtracking` is `deny` in `nvs.toml`. Write the pattern without lookaround and without backreferences.
+Core\Regex::matches(): `(?<=a)X` needs the backtracking regex engine. `[regex] backtracking` is `deny` in `nvs.toml`. Write the pattern without lookaround and without backreferences.
+Core\Regex::matches(): `(?<=a)X` needs the backtracking regex engine. `[regex] backtracking` is `deny` in `nvs.toml`. Write the pattern without lookaround and without backreferences.
+malformed

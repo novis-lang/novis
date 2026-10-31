@@ -1,0 +1,19 @@
+--TEST--
+Under `[regex] backtracking = "deny"`, a `Core\Regex::compile` literal only the backtracking engine accepts does not compile, and a linear literal beside it is not reported — `rule:core-classes/regex-compile-time-tiering`
+--FILE--
+<?nvs
+// The lookbehind needs the backtracking engine, so the program never starts.
+// The anchored pattern above it is linear and is not reported.
+var $digits = Core\Regex::compile('^\d+$');
+var $behind = Core\Regex::compile('(?<=a)X');
+echo "compiled\n";
+--FILE nvs.toml--
+[regex]
+backtracking = "deny"
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0893]: This pattern needs the backtracking regex engine. `[regex] backtracking` is `deny` in `nvs.toml`.
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

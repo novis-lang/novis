@@ -34,9 +34,9 @@
 //! call it was settled at: [`crate::registry::PREPARED_MEMBERS`] hands
 //! `compile` the tier as a constant argument, so the first
 //! compile of a backtracking pattern in a process goes straight to the engine
-//! that can express it instead of deriving the routing a second time. What is
-//! missing is `[regex] backtracking = "deny"`, which has no `[regex]` block to
-//! live in.
+//! that can express it instead of deriving the routing a second time. Under
+//! `[regex] backtracking = "deny"` the checker refuses a backtracking literal,
+//! and [`compiled_prepared`] throws for an assembled one.
 //!
 //! # What a compiled pattern costs, and where it is held
 //!
@@ -898,6 +898,18 @@ impl<'a> Budget<'a> {
             .steps
             .get_or_init(|| self.ctx.map_or(BACKTRACK_BUDGET, step_budget))
     }
+
+    /// Whether the request's `[regex] backtracking` is `deny`, so no pattern may
+    /// run on the backtracking tier. A budget made without a request allows it.
+    ///
+    /// Read per call, on the backtracking path only. It allocates nothing, and
+    /// the key is `System`, so no request can have moved it.
+    fn denies_backtracking(&self) -> bool {
+        self.ctx.and_then(Ctx::config).is_some_and(|config| {
+            nvs_config::regex::Backtracking::in_force(config)
+                == nvs_config::regex::Backtracking::Deny
+        })
+    }
 }
 
 /// How many compiled patterns one core holds before a miss evicts one — this
@@ -1084,6 +1096,13 @@ fn compiled(
 ///
 /// Every use, hit or miss, asks the request's memory ceiling for the entry's
 /// [`search_cost`], so a warm core refuses exactly what a cold one does.
+///
+/// # Under `[regex] backtracking = "deny"`
+///
+/// A pattern only the backtracking engine accepts throws, on a hit as on a
+/// miss, and a miss throws before that engine is built
+/// (`rule:core-classes/regex-compile-time-tiering`). A linear hit never reads
+/// the setting.
 fn compiled_prepared(
     pattern: &str,
     flags: u8,
@@ -1106,12 +1125,23 @@ fn compiled_prepared(
         entry.used = now;
         Some((entry.cost, Rc::clone(&entry.compiled)))
     }) {
+        if matches!(*hit, Compiled::Backtracking(_)) && budget.denies_backtracking() {
+            return Err(Fault::thrown(format!(
+                "Core\\Regex::{member}(): {}",
+                denied(pattern)
+            )));
+        }
         nvs_runtime::affordable(Some(cost), "Core\\Regex")?;
         return Ok(hit);
     }
 
+    let allowed = if budget.denies_backtracking() {
+        Backtrack::Denied
+    } else {
+        Backtrack::Within(budget.steps())
+    };
     let budget = budget.steps();
-    let built = build(pattern, flags, prepared, budget)
+    let built = build(pattern, flags, prepared, allowed)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
     let cost = search_cost(&built, &effective(pattern, flags));
     // Asked before the program is cached, so a refused request leaves nothing
@@ -1198,7 +1228,7 @@ fn build(
     pattern: &str,
     flags: u8,
     prepared: Option<Tier>,
-    budget: usize,
+    budget: Backtrack,
 ) -> Result<Compiled, String> {
     let spelled = effective(pattern, flags);
     if prepared == Some(Tier::Backtracking) {
@@ -1275,24 +1305,54 @@ fn search_cost(built: &Compiled, spelled: &str) -> usize {
 /// The sentence [`build`] answers with for a pattern neither engine compiles;
 /// it quotes `pattern` as the program wrote it rather than [`effective`]'s
 /// flag-wrapped form.
-fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled, String> {
+fn backtracking(pattern: &str, spelled: &str, budget: Backtrack) -> Result<Compiled, String> {
     // A text that does not parse falls through, so the builder below names
     // its own parse error.
-    if fancy_regex::Expr::parse_tree(spelled).is_ok_and(|tree| tree.contains_subroutines) {
+    let parsed = fancy_regex::Expr::parse_tree(spelled);
+    if parsed.as_ref().is_ok_and(|tree| tree.contains_subroutines) {
         return Err(format!(
             "`{pattern}` is not a pattern either engine can compile: it uses a subroutine \
              call, such as `\\g<1>` or `(?P>name)`. Subroutine calls and recursion are not \
              supported."
         ));
     }
+    let steps = match budget {
+        Backtrack::Within(steps) => steps,
+        // A malformed pattern keeps its own message under `deny` too.
+        Backtrack::Denied if parsed.is_ok() => return Err(denied(pattern)),
+        Backtrack::Denied => BACKTRACK_BUDGET,
+    };
     Ok(Compiled::Backtracking(
         fancy_regex::RegexBuilder::new(spelled)
-            .backtrack_limit(budget)
+            .backtrack_limit(steps)
             .build()
             .map_err(|err| {
                 format!("`{pattern}` is not a pattern either engine can compile: {err}")
             })?,
     ))
+}
+
+/// Whether the backtracking tier may be built, and with how many steps — the
+/// request's `[regex] backtracking` and `[limits] max_regex_steps` as [`build`]
+/// reads them.
+#[derive(Clone, Copy, Debug)]
+enum Backtrack {
+    /// The tier may be built, with this step budget.
+    Within(usize),
+    /// `[regex] backtracking` is `deny`: a pattern that needs the tier throws
+    /// [`denied`]'s sentence.
+    Denied,
+}
+
+/// The sentence a pattern that needs the backtracking engine throws under
+/// `[regex] backtracking = "deny"`. It says what the checker's `E0893` says,
+/// with the pattern quoted, because a pattern built at run time is not in the
+/// source.
+fn denied(pattern: &str) -> String {
+    format!(
+        "`{pattern}` needs the backtracking regex engine. `[regex] backtracking` is `deny` \
+         in `nvs.toml`. Write the pattern without lookaround and without backreferences."
+    )
 }
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
@@ -1319,12 +1379,13 @@ fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled,
 /// in is the tier reported here. The one setting that would be
 /// flag-sensitive is `rule:core-classes/regex-compile-time-tiering`'s
 /// `[regex] backtracking = "deny"`, which refuses the second tier outright.
-/// There is no `[regex]` block, so this fold has nothing of it to read.
+/// This fold does not read it: the checker reads the [`Tier`] returned here
+/// against the policy itself.
 pub fn validate(pattern: &str) -> Result<Tier, String> {
     // The shipped budget and not a configured one: a fold runs while checking,
     // where there is no request whose `[limits]` to read, and the budget cannot
     // change which tier a pattern lands on anyway.
-    build(pattern, NO_FLAGS, None, BACKTRACK_BUDGET).map(|compiled| match compiled {
+    build(pattern, NO_FLAGS, None, Backtrack::Within(BACKTRACK_BUDGET)).map(|compiled| match compiled {
         Compiled::Linear(_) => Tier::Linear,
         Compiled::Backtracking(_) => Tier::Backtracking,
     })
@@ -3579,7 +3640,7 @@ mod tests {
     /// [`build`] at the same budget, for the cases that ask which tier a
     /// pattern lands on — a question no budget changes.
     fn tiered(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, String> {
-        build(pattern, flags, prepared, STEPS)
+        build(pattern, flags, prepared, Backtrack::Within(STEPS))
     }
 
     /// A buffered context whose requests run their backtracking patterns

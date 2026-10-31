@@ -1,0 +1,22 @@
+--TEST--
+Under `[regex] backtracking = "deny"`, a linear pattern runs as it does under `allow`, whether it is a literal or built at run time — `rule:core-classes/regex-compile-time-tiering`
+--FILE--
+<?nvs
+// Every pattern here is linear, so `deny` changes nothing about them.
+class Patterns {
+    public static function digits(int $count): string {
+        return '^\d{' . $count . '}$';
+    }
+}
+
+var $date = Core\Regex::compile('^\d{4}-\d{2}-\d{2}$');
+echo Core\Regex::matches('2026-10-31', $date) ? "literal\n" : "no\n";
+echo Core\Regex::matches('1234', Patterns::digits(4)) ? "built\n" : "no\n";
+echo Core\Regex::replace('a1b22', '\d+', '#'), "\n";
+--FILE nvs.toml--
+[regex]
+backtracking = "deny"
+--EXPECT--
+literal
+built
+a#b#
