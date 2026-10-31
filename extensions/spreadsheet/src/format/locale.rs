@@ -3,7 +3,8 @@
 //!
 //! Each row is CLDR's decimal and group separator for its locale, the ones `Novis\Intl`'s
 //! `NumberFormat::decimal` writes. [`of_tag`] finds a tag's row, or its language's, and a tag
-//! with no row has English separators. [`of_id`] maps a Windows locale id, the number of a
+//! with no row has English separators. [`Locale::known`] is a read's `locale`: a tag whose
+//! language has no names row is unknown, and the read throws. [`of_id`] maps a Windows locale id, the number of a
 //! `[$-407]` prefix, to its tag. The upper bits of the prefix name a calendar or a digit
 //! system, and are not read. Grouping is by three digits in every locale.
 
@@ -28,6 +29,15 @@ impl Locale {
             separators: of_tag(tag),
             names: names::of_tag(tag),
         }
+    }
+
+    /// The locale `tag`, or `None` when its language has no row: a read's `locale` names a
+    /// language the tables have.
+    pub fn known(tag: &str) -> Option<Self> {
+        names::find(tag).map(|names| Self {
+            separators: of_tag(tag),
+            names,
+        })
     }
 
     /// The locale of the Windows locale id in a `[$-407]` prefix, or `None` for an id with no

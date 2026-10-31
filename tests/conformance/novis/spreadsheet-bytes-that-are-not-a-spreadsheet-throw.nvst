@@ -1,0 +1,28 @@
+--TEST--
+`Reader::open` throws `ParseError` for bytes that are neither a workbook nor text: a NUL byte or a control character in the first 4 KiB, or bytes that are not UTF-8. Text opens as CSV, with tabs, form feeds and both line endings, and so does UTF-16 text with a byte order mark: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::open
+use Novis\Spreadsheet\Reader;
+
+array<bytes> $sources = [
+    "nul" => Core\Encoding::fromHex("6974656d0a00010203"),
+    "bell" => "item\nbolt\u{0007}\n" as bytes,
+    "png" => Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452"),
+    "text" => "item\tnote\r\nbolt\f\n" as bytes,
+    "utf-16" => Core\Bytes::join([Core\Encoding::fromHex("fffe"), Core\Encoding::encodeText("item\nbolt\n", Core\Charset::Utf16Le)]),
+];
+foreach ($sources as string $name => bytes $source) {
+    try {
+        var $reader = Reader::open($source);
+        echo $name, ": ", Core\Arr::count($reader->sheets()), " sheet\n";
+    } catch (ParseError $e) {
+        echo $name, ": ", $e->message, "\n";
+    }
+}
+--EXPECT--
+nul: The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.
+bell: The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.
+png: The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.
+text: 1 sheet
+utf-16: 1 sheet

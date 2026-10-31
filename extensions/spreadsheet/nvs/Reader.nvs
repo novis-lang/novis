@@ -3,6 +3,7 @@ namespace Novis\Spreadsheet;
 
 use Iterator;
 use LogicError;
+use ParseError;
 use RuntimeError;
 
 /// A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV.
@@ -24,7 +25,8 @@ final class Reader
     type OpenOptions = ?{ csv?: { separator?: string, quote?: string, escape?: string, encoding?: Core\Charset } };
     type Dialect = { separator: string, quote: string, escape: string };
 
-    // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, or of a CSV file read whole, and `$skip` is the length of a byte order mark at the start of a CSV file.
+    // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, or of a CSV file read whole.
+    // `$skip` is the length of a byte order mark at the start of a CSV file.
     private function constructor(
         private readonly ?Reading $reader,
         private readonly tainted bytes|Core\IO\File $source,
@@ -34,19 +36,22 @@ final class Reader
     )
     {}
 
-    /// `Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
-    /// An xls or ods file is read whole here. A CSV file has one sheet, `Sheet1`, and each value in it is a `string`.
-    /// A CSV file is UTF-8 text, or UTF-16 text that starts with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
+    /// `Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
+    /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
     public static function open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
     {
         var $csv = $options?->csv ?? null;
         Dialect $dialect = { separator: $csv?->separator ?? ',', quote: $csv?->quote ?? '"', escape: $csv?->escape ?? '' };
-        tainted string $head = self::head($source);
+        tainted bytes $start = self::head($source);
+        tainted string $head = Core\Encoding::toHex(Core\Bytes::slice($start, 0, 4));
         if (!self::workbookStart($head)) {
             ?Core\Charset $charset = self::charsetOf($head, $csv?->encoding ?? null);
             if ($charset != null) {
                 self::checkDialect($dialect);
                 return new Reader(null, $source, self::decoded($source, $charset), 0, $dialect);
+            }
+            if (!self::isText($start)) {
+                throw new ParseError('The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.');
             }
             if ($source is Core\IO\File) {
                 ?uint $skip = self::csvFile($source);
@@ -137,8 +142,7 @@ final class Reader
     }
 
     /// `evaluate` computes every formula in the workbook. After it, `rows` gives each formula cell its computed result.
-    /// It returns the cells it could not compute. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
-    /// Such a cell keeps the result that is saved in the file. A CSV file has no formulas, so the result is `[]`.
+    /// It returns the cells it could not compute, and each one keeps the result saved in the file. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
     public function evaluate(): array<Missed>
     {
         if ($this->reader == null) {
@@ -446,13 +450,25 @@ final class Reader
         return Core\Arr::count($codes) >= 3 && $codes[0] == 80 && $codes[1] == 75 && $codes[2] < 9;
     }
 
-    // The first four bytes of the source, as hex text. A file keeps its position.
-    private static function head(tainted bytes|Core\IO\File $source): tainted string
+    // The first 4 KiB of the source. A file keeps its position.
+    private static function head(tainted bytes|Core\IO\File $source): tainted bytes
     {
         if ($source is bytes) {
-            return Core\Encoding::toHex(Core\Bytes::slice($source, 0, 4));
+            return Core\Bytes::slice($source, 0, 4096);
         }
-        return Core\Encoding::toHex(Engine::sourceBytes($source, 0, 4));
+        return Engine::sourceBytes($source, 0, 4096);
+    }
+
+    // CSV is text. Its first 4 KiB have no NUL byte and no control character other than tab, line feed, form feed and carriage return.
+    // Latin-1 gives each byte as one character, so each code point here is one byte.
+    private static function isText(tainted bytes $start): bool
+    {
+        foreach (Core\Str::codePoints(Core\Encoding::decodeText($start, Core\Charset::Latin1)) as uint $code) {
+            if ($code < 32 && $code != 9 && $code != 10 && $code != 12 && $code != 13) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // A zip archive (xlsx, xlsm, xlsb, ods) or a compound file (xls) is a workbook, whatever the `csv` options say.

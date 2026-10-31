@@ -810,13 +810,21 @@ const TABLE: &[(&str, Names)] = &[
 
 /// The names of the locale `tag`, such as `de` or `de-CH`.
 pub fn of_tag(tag: &str) -> &'static Names {
+    find(tag).unwrap_or(&ENGLISH)
+}
+
+/// The names of the locale `tag`'s language, or `None` when it has no row. English is a row.
+pub fn find(tag: &str) -> Option<&'static Names> {
     let tag = tag.replace('_', "-").to_ascii_lowercase();
     let language = match tag.split('-').next().unwrap_or("") {
         "no" => "nb",
         language => language,
     };
+    if language == "en" {
+        return Some(&ENGLISH);
+    }
     TABLE
         .iter()
         .find(|(name, _)| *name == language)
-        .map_or(&ENGLISH, |(_, names)| names)
+        .map(|(_, names)| names)
 }

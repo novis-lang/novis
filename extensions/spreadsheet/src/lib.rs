@@ -43,14 +43,11 @@
 //! - Merges (`read::merge`): a merged fill copies no `display`.
 //! - Extras (`read::extras`): `notes` returns the `_x000D_` and `_x0000_` escapes undecoded.
 //! - Rows (`read::sheet`): `Reader::rows` skips a row whose cells are all formulas with no cached
-//!   value, so a totals row of formulas this writer wrote does not read back. `rows` accepts an
-//!   unknown locale.
+//!   value, so a totals row of formulas this writer wrote does not read back.
 //! - Sheets (`read`, `nvs/Reader.nvs`): `Reader::sheets` gives `rows: 0, columns: 0` for a file
 //!   [`Writer`] wrote, because the writer writes no sheet dimension, and it reads every sheet on
 //!   each call. A sheet name from `sheets()` is a `tainted string`, and the other methods take
-//!   `string|int`. Bytes that are not a spreadsheet open as a one-sheet CSV.
-//! - The decompression-bound errors (`read::zip`) name a rule id, which a message a user reads
-//!   should not.
+//!   `string|int`.
 //! - Sheet-end parts (`drawing`, `tail`, `nvs/Sheet.nvs`): `Sheet::image` accepts a PNG cut to 30
 //!   bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits for a `whole`
 //!   rule. A second `Sheet::print` replaces the first one's settings.
@@ -62,9 +59,6 @@
 //! - Values (`writer`, `nvs/Workbook.nvs`): a sheet with `{header: true, autofilter: true}` gets
 //!   no filter name, where `fromRows` writes one. A NaN throws for xlsx and is written for CSV.
 //! - `Export` (`nvs/Export.nvs`): an `Export` over a generator gives no rows the second time.
-//! - Engine exports (`guest`): the reader exports do not check that `source` is the file
-//!   `readerOpen` read. `readerRows` with `max` 0 returns `done: false`. Each `readerProperties`
-//!   call counts against the reading's byte bound.
 //! - ods (`ods`): no written ods has been opened in LibreOffice, only read back by our reader and
 //!   calamine. Unchecked there: the chart objects and their `loext:label-string` series names,
 //!   the protection key and its URI, the `calcext` values, the fit-to-page scale, and whether an
@@ -568,6 +562,17 @@ mod guest {
             }
             Ok(read)
         }
+    }
+
+    /// The workbook of `reader`, once [`crate::read::Reader::check`] finds that `source` is the
+    /// file `readerOpen` read. Every reader export but `readerOpen` starts here.
+    fn checked<'a>(
+        reader: &'a wit::ReadingBorrow<'_>,
+        source: &Source,
+    ) -> Result<&'a RefCell<crate::read::Reader>, wit::Error> {
+        let workbook = &reader.get::<Reader>().reader;
+        workbook.borrow().check(&Lent(source)).map_err(error)?;
+        Ok(workbook)
     }
 
     /// The bound the host clamped, each half missing only where no host did, and then the
@@ -1163,9 +1168,7 @@ mod guest {
             reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<Vec<wit::SheetInfo>, wit::Error> {
-            let sheets = reader
-                .get::<Reader>()
-                .reader
+            let sheets = checked(&reader, source)?
                 .borrow()
                 .sheets(&Lent(source))
                 .map_err(error)?;
@@ -1177,9 +1180,7 @@ mod guest {
             source: &Source,
             options: wit::ReadOptions,
         ) -> Result<Vec<String>, wit::Error> {
-            reader
-                .get::<Reader>()
-                .reader
+            checked(&reader, source)?
                 .borrow_mut()
                 .header(&Lent(source), &read_options(options))
                 .map_err(error)
@@ -1191,9 +1192,7 @@ mod guest {
             options: wit::ReadOptions,
             max: u64,
         ) -> Result<wit::ReadBatch, wit::Error> {
-            let batch = reader
-                .get::<Reader>()
-                .reader
+            let batch = checked(&reader, source)?
                 .borrow_mut()
                 .rows(&Lent(source), &read_options(options), max)
                 .map_err(error)?;
@@ -1208,9 +1207,7 @@ mod guest {
             source: &Source,
             sheet: String,
         ) -> Result<Vec<String>, wit::Error> {
-            let ranges = reader
-                .get::<Reader>()
-                .reader
+            let ranges = checked(&reader, source)?
                 .borrow()
                 .merged(&Lent(source), &sheet)
                 .map_err(error)?;
@@ -1222,9 +1219,7 @@ mod guest {
             source: &Source,
             sheet: String,
         ) -> Result<Vec<wit::LinkInfo>, wit::Error> {
-            let links = reader
-                .get::<Reader>()
-                .reader
+            let links = checked(&reader, source)?
                 .borrow()
                 .links(&Lent(source), &sheet)
                 .map_err(error)?;
@@ -1245,9 +1240,7 @@ mod guest {
             source: &Source,
             sheet: String,
         ) -> Result<Vec<wit::NoteInfo>, wit::Error> {
-            let notes = reader
-                .get::<Reader>()
-                .reader
+            let notes = checked(&reader, source)?
                 .borrow()
                 .notes(&Lent(source), &sheet)
                 .map_err(error)?;
@@ -1265,9 +1258,7 @@ mod guest {
             reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<Vec<wit::NameInfo>, wit::Error> {
-            let names = reader
-                .get::<Reader>()
-                .reader
+            let names = checked(&reader, source)?
                 .borrow()
                 .names(&Lent(source))
                 .map_err(error)?;
@@ -1286,9 +1277,7 @@ mod guest {
             source: &Source,
             sheet: String,
         ) -> Result<Vec<wit::TableInfo>, wit::Error> {
-            let tables = reader
-                .get::<Reader>()
-                .reader
+            let tables = checked(&reader, source)?
                 .borrow()
                 .tables(&Lent(source), &sheet)
                 .map_err(error)?;
@@ -1307,9 +1296,7 @@ mod guest {
             source: &Source,
             sheet: String,
         ) -> Result<Vec<wit::ImageInfo>, wit::Error> {
-            let images = reader
-                .get::<Reader>()
-                .reader
+            let images = checked(&reader, source)?
                 .borrow()
                 .images(&Lent(source), &sheet)
                 .map_err(error)?;
@@ -1328,9 +1315,7 @@ mod guest {
             reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<Vec<wit::MissedInfo>, wit::Error> {
-            let missed = reader
-                .get::<Reader>()
-                .reader
+            let missed = checked(&reader, source)?
                 .borrow_mut()
                 .evaluate(&Lent(source))
                 .map_err(error)?;
@@ -1348,9 +1333,7 @@ mod guest {
             reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<wit::Properties, wit::Error> {
-            let properties = reader
-                .get::<Reader>()
-                .reader
+            let properties = checked(&reader, source)?
                 .borrow()
                 .properties(&Lent(source))
                 .map_err(error)?;
@@ -1371,9 +1354,7 @@ mod guest {
             reader: wit::ReadingBorrow<'_>,
             source: &Source,
         ) -> Result<Vec<String>, wit::Error> {
-            reader
-                .get::<Reader>()
-                .reader
+            checked(&reader, source)?
                 .borrow()
                 .macros(&Lent(source))
                 .map_err(error)

@@ -333,6 +333,36 @@ pub struct Reader {
     open: Option<Open>,
     /// The workbook computed by [`Reader::evaluate`], whose results each later read gives.
     evaluated: Option<Box<crate::eval::Book>>,
+    /// The source [`Reader::open`] read, as [`Reader::check`] compares a later call's with.
+    seal: Seal,
+    /// The document properties, read at the first [`Reader::properties`].
+    properties: std::cell::OnceCell<crate::Properties>,
+}
+
+/// The bytes at each end of a source that its [`Seal`] hashes.
+const SEALED: u64 = 512;
+
+/// A source's size and a 64-bit FNV-1a hash of its first and last [`SEALED`] bytes. Two
+/// sources with the same seal are taken to be the same file. A program changes neither by
+/// accident, and a file replaced between two calls changes its size or one of its ends: a zip
+/// keeps its directory at the end, and a compound file its header at the start.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Seal {
+    size: u64,
+    hash: u64,
+}
+
+impl Seal {
+    fn of(source: &dyn Source) -> Result<Self, Error> {
+        let size = source.size()?;
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for at in [0, size.saturating_sub(SEALED)] {
+            for byte in source.range(at, SEALED)? {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        Ok(Self { size, hash })
+    }
 }
 
 /// The sheet [`Reader::rows`] is reading: its cursor, a row read and held back while the empty
@@ -496,6 +526,37 @@ impl Reader {
     /// Opens the workbook `source` is: its directory and its workbook part. A zip archive's
     /// parts are read under `bound`.
     pub fn open(source: &dyn Source, bound: zip::Bound) -> Result<Self, Error> {
+        let seal = Seal::of(source)?;
+        Ok(Self {
+            seal,
+            ..Self::read(source, bound)?
+        })
+    }
+
+    /// Checks that `source` is the file [`Reader::open`] read: its size and the hash of its ends.
+    /// Every call after `open` checks first, so a reader reads only its own file. Cost: two reads
+    /// of [`SEALED`] bytes per call.
+    pub fn check(&self, source: &dyn Source) -> Result<(), Error> {
+        if Seal::of(source)? == self.seal {
+            Ok(())
+        } else {
+            Err(Error::Invalid(
+                "The file changed after `Reader::open` opened it. Open it again to read it."
+                    .to_owned(),
+            ))
+        }
+    }
+
+    /// The document properties, read once per reader and kept.
+    pub fn properties(&self, source: &dyn Source) -> Result<crate::Properties, Error> {
+        if let Some(properties) = self.properties.get() {
+            return Ok(properties.clone());
+        }
+        let properties = self.read_properties(source)?;
+        Ok(self.properties.get_or_init(|| properties).clone())
+    }
+
+    fn read(source: &dyn Source, bound: zip::Bound) -> Result<Self, Error> {
         let head = source.range(0, 8)?;
         if cfb::is_compound(&head) {
             let book = xls::read(&source.range(0, source.size()?)?)?;
@@ -512,7 +573,8 @@ impl Reader {
         }
         if !head.starts_with(b"PK") {
             return Err(Error::Parse(
-                "The file is not a workbook. Novis reads xlsx, xlsm, xlsb, xls and ods files."
+                "The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods \
+                 and CSV files."
                     .to_owned(),
             ));
         }
@@ -627,6 +689,8 @@ impl Reader {
             book: Arc::new(formulas),
             open: None,
             evaluated: None,
+            seal: Seal::default(),
+            properties: std::cell::OnceCell::new(),
         })
     }
 
@@ -653,6 +717,8 @@ impl Reader {
             book: Arc::default(),
             open: None,
             evaluated: None,
+            seal: Seal::default(),
+            properties: std::cell::OnceCell::new(),
         }
     }
 
@@ -836,6 +902,18 @@ impl Reader {
         options: &ReadOptions,
         max: u64,
     ) -> Result<Batch, Error> {
+        if max == 0 {
+            return Err(Error::Invalid(
+                "A batch of rows has at least one row. `max` is 0.".to_owned(),
+            ));
+        }
+        let locale = Locale::known(&options.locale).ok_or_else(|| {
+            Error::Invalid(format!(
+                "The reader does not know the locale `{}`. Use a language tag such as `en`, `de` \
+                 or `fr-CH`.",
+                options.locale
+            ))
+        })?;
         let from = options
             .from
             .unwrap_or(1)
@@ -865,7 +943,6 @@ impl Reader {
                 formulas: options.formulas,
             });
         }
-        let locale = Locale::of_tag(&options.locale);
         let shown = self
             .open
             .as_ref()

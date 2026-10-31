@@ -1,0 +1,31 @@
+--TEST--
+`Reader::rows` throws `LogicError` naming a `locale` whose language the reader does not know, and a known language with any region reads: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::rows
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+bytes $file = Workbook::fromRows([["price" => 1234.5]], {columns: ["price" => {format: "#,##0.00"}]})->bytes();
+var $reader = Reader::open($file);
+
+array<string> $locales = ["de-CH", "fr", "en-GB", "xx", "klingon"];
+foreach ($locales as string $locale) {
+    try {
+        foreach ($reader->rows(0, {header: true, text: true, locale: $locale}) as Row $row) {
+            var $price = $row->values["price"];
+            // French groups digits with a narrow space, U+202F, which this prints as `_`.
+            string $text = $price is tainted string ? Core\Taint::assertTrusted($price, "the test prints what it wrote") : "other";
+            echo $locale, ": ", Core\Str::replace($text, "\u{202F}", "_"), "\n";
+        }
+    } catch (LogicError $e) {
+        echo $locale, ": ", $e->message, "\n";
+    }
+}
+--EXPECT--
+de-CH: 1'234.50
+fr: 1_234,50
+en-GB: 1,234.50
+xx: The reader does not know the locale `xx`. Use a language tag such as `en`, `de` or `fr-CH`.
+klingon: The reader does not know the locale `klingon`. Use a language tag such as `en`, `de` or `fr-CH`.

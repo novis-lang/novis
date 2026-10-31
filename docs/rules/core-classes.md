@@ -3340,7 +3340,9 @@ a stream and never holds — a spreadsheet sheet read row by row
 the request holds a window of it at any time and its CPU cap bounds the time. A part held whole keeps
 both bounds, and an archive-wide total counts held parts only. The configured values reach a guest
 the way `[image] max_pixels` does, clamped by the host before the call. Every `Core\Compress` and
-`Core\Zip` member holds its output, so each keeps both bounds.
+`Core\Zip` member holds its output, so each keeps both bounds. A spreadsheet reader's message names
+the part, the half of the bound that stopped it and the key that raises that half, and names no
+rule: a program's caller reads it, and has no way to call with a lower bound.
 
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
 member, is refused until the operator raises `max_decompressed` for that deployment. The default is
@@ -5413,9 +5415,21 @@ them, where the pull loop costs a guest return, a Novis read and a guest call fo
 the parsers read synchronously, the readers of the whole formats included, and a pull loop would
 need every parser rewritten as a resumable state machine.
 
+**A reader reads only the file it opened.** `readerOpen` keeps the source's size and a 64-bit
+FNV-1a hash of its first and last 512 bytes, and every other reader export checks them first
+(`extensions/spreadsheet/src/read/mod.rs`'s `Reader::check`). Another source, or a file changed on
+disk since the open, throws `LogicError`. A zip keeps its directory at its end and a compound file
+its header at its start, so a replaced workbook changes its size or one of its ends. Cost: two
+reads of 512 bytes per call, on a call that reads at least a batch of rows or a part. `readerRows`
+with `max` 0 throws `LogicError`. `properties()` reads its parts at its first call and keeps them,
+so they count against the byte bound once. Memory: the properties' text, per reader.
+
 **Formats** are told apart by their bytes: a zip is xlsx or xlsm when its workbook part is XML,
 xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
-compound file is xls, and anything else is CSV. xls holds at most 65,536 rows, and an xls from
+compound file is xls. Other bytes are CSV when they are text: they start with a UTF-16 byte order
+mark, `csv`'s `encoding` names their charset, or their first 4 KiB have no NUL byte and no control
+character but tab, line feed, form feed and carriage return. Anything else throws `ParseError`,
+naming the formats the reader reads. xls holds at most 65,536 rows, and an xls from
 Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
 and never run: the VBA project's `dir` stream is decompressed and its module names read, and no
 module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and an xlsm's is the part
@@ -5451,7 +5465,7 @@ yields its rows, so a read holds one batch at a time.
 | `emptyRows` | `'skip'` | `'keep'` yields an empty row |
 | `merged` | `'first'` | `'fill'` gives every cell of a merged range its value |
 | `hidden` | `'read'` | `'skip'` leaves hidden rows out |
-| `locale` | `'en'` | the separators and the month and day names `text` renders with |
+| `locale` | `'en'` | the separators and the month and day names `text` renders with. A tag whose language the reader has no names for throws `LogicError` naming it |
 
 **Merged ranges.** `merged($sheet)` gives a sheet's ranges as A1 text, `'A1:C2'`, in the file's
 order. An xlsx or xlsb sheet lists them after its rows, so the call reads the sheet's part to its

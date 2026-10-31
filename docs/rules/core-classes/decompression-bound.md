@@ -39,7 +39,9 @@ a stream and never holds — a spreadsheet sheet read row by row
 the request holds a window of it at any time and its CPU cap bounds the time. A part held whole keeps
 both bounds, and an archive-wide total counts held parts only. The configured values reach a guest
 the way `[image] max_pixels` does, clamped by the host before the call. Every `Core\Compress` and
-`Core\Zip` member holds its output, so each keeps both bounds.
+`Core\Zip` member holds its output, so each keeps both bounds. A spreadsheet reader's message names
+the part, the half of the bound that stopped it and the key that raises that half, and names no
+rule: a program's caller reads it, and has no way to call with a lower bound.
 
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
 member, is refused until the operator raises `max_decompressed` for that deployment. The default is

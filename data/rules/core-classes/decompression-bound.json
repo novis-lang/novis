@@ -10,6 +10,7 @@
     "tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst",
     "tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst",
     "crates/nvs-stdlib/src/compress.rs",
-    "crates/nvs-stdlib/src/zip.rs"
+    "crates/nvs-stdlib/src/zip.rs",
+    "crates/nvs-ext/tests/spreadsheet_read.rs"
   ]
 }

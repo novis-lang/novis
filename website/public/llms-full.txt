@@ -54262,7 +54262,7 @@ new Novis\Spreadsheet\Formula(tainted string $text, string|int|float|null $cache
 Novis\Spreadsheet\Formula::of(string $text, ?{ cached?: string|int|float } $options = null): Formula
 ```
 
-`Formula::of` makes a formula from its Excel text, such as `'SUM(C2:C9)'`. You can write the text with or without `=` at the start.
+`Formula::of` makes a formula from its Excel text, such as `'SUM(C2:C9)'`. You can write the text with or without `=` at the start. An empty text throws a `LogicError`, and so does a formula longer than 8,192 characters when it is written.
 `cached` is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file.
 
 **Returns** `Formula`
@@ -54294,9 +54294,8 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, evaluate, i
 Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
 ```
 
-`Reader::open` opens the workbook in `$source`, the bytes of the file or a file your program opened. Another file type throws an error.
-An xls or ods file is read whole here. A CSV file has one sheet, `Sheet1`, and each value in it is a `string`.
-A CSV file is UTF-8 text, or UTF-16 text that starts with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
+`Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
+A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
 
 **Returns** `Reader`
 
@@ -54389,8 +54388,7 @@ $reader->evaluate(): array<Missed>
 ```
 
 `evaluate` computes every formula in the workbook. After it, `rows` gives each formula cell its computed result.
-It returns the cells it could not compute. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
-Such a cell keeps the result that is saved in the file. A CSV file has no formulas, so the result is `[]`.
+It returns the cells it could not compute, and each one keeps the result saved in the file. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
 
 **Returns** `array<Missed>`
 
@@ -54838,6 +54836,7 @@ $workbook->define(string $name, string $reference): Workbook
 ```
 
 `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+`$reference` must be a cell or a range of this workbook. Another file, a web address or a formula throws a `LogicError`.
 
 **Returns** `Workbook`
 

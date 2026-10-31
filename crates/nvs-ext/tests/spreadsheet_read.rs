@@ -276,6 +276,11 @@ struct Read {
 
 impl Read {
     fn open(bytes: Vec<u8>) -> Self {
+        Self::open_under(bytes, shipped())
+    }
+
+    /// The workbook `bytes` read under `bound`, a `readerOpen` bound.
+    fn open_under(bytes: Vec<u8>, bound: Value) -> Self {
         let host = Host::new(2, |_| Ok(())).expect("the host starts");
         let extension = spreadsheet(&host);
         let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
@@ -284,7 +289,7 @@ impl Read {
         let reader = block_on(request.call_values(
             &extension,
             "readerOpen",
-            vec![source.clone(), shipped()],
+            vec![source.clone(), bound],
         ))
         .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
         .unwrap();
@@ -3805,5 +3810,126 @@ fn an_ods_cell_text_uses_the_files_own_number_style() {
     assert_eq!(texts, want.iter().collect::<Vec<_>>());
     // The read type still comes from the cell's own value type.
     assert_eq!(read.all(&options("Shop"), 10)[0].1[0], (1, number(1234.5)));
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// The error `readerOpen` throws for `bytes` under `bound`.
+fn open_failure(bytes: Vec<u8>, bound: Value) -> String {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    match block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(bytes), bound])) {
+        Ok(value) => panic!("`readerOpen` answered {value:?}"),
+        Err(err) => err.to_string(),
+    }
+}
+
+/// `count` letters that deflate little, so a part of them stays under every ratio.
+fn letters(count: usize) -> String {
+    let mut seed: u32 = 1;
+    (0..count)
+        .map(|_| {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+            char::from(b'a' + u8::try_from((seed >> 16) % 26).unwrap())
+        })
+        .collect()
+}
+
+/// A workbook whose core properties part has a title of `title` letters.
+fn titled(title: usize) -> Vec<u8> {
+    let core = format!(
+        r#"<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{}</dc:title></cp:coreProperties>"#,
+        letters(title)
+    );
+    package(
+        &[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))],
+        &[],
+        &[("docProps/core.xml", core.into_bytes())],
+    )
+}
+
+fn bound(bytes: u64) -> Value {
+    shape(vec![
+        ("maxBytes", Value::Uint(bytes)),
+        ("maxRatio", Value::Null),
+    ])
+}
+
+#[test]
+fn a_reader_call_with_another_source_throws() {
+    let book = xlsx(&[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))], &[]);
+    let read = Read::open(book.clone());
+    let other = xlsx(&[sheet("Blog", row(1, &[("", 0, "<v>2</v>")]))], &[]);
+    // The same size with one byte changed at the end, and another workbook.
+    let mut changed = book.clone();
+    *changed.last_mut().unwrap() ^= 1;
+    for source in [changed, other] {
+        let args = vec![read.reader.clone(), Value::Bytes(source)];
+        let err = block_on(read.request.call_values(&read.extension, "readerSheets", args))
+            .expect_err("a call with another source throws")
+            .to_string();
+        assert!(err.contains("The file changed after `Reader::open`"), "{err}");
+    }
+    // The file it opened still reads.
+    assert_eq!(entries(&read.call("readerSheets", vec![])).len(), 1);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn rows_with_max_0_throws() {
+    let read = Read::open(xlsx(&[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))], &[]));
+    let err = read.failure("readerRows", vec![options("Shop").value(), Value::Uint(0)]);
+    assert!(err.contains("`max` is 0"), "{err}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn properties_are_read_once_per_reader() {
+    // The title is 100,000 bytes, and the bound holds one read of it but not two.
+    let read = Read::open_under(titled(100_000), bound(150_000));
+    for _ in 0..3 {
+        let properties = read.call("readerProperties", vec![]);
+        assert_eq!(field(&properties, "title"), &string(&letters(100_000)));
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_decompression_bound_message_names_no_rule() {
+    let read = Read::open_under(titled(200_000), bound(150_000));
+    let err = read.failure("readerProperties", vec![]);
+    assert!(err.contains("larger than 150000 bytes"), "{err}");
+    assert!(err.contains("raise `[limits] max_decompressed`"), "{err}");
+    assert!(!err.contains("rule:"), "{err}");
+    block_on(read.request.end()).expect("the request ends");
+
+    let ratio = shape(vec![("maxBytes", Value::Null), ("maxRatio", Value::Uint(1))]);
+    let err = open_failure(titled(10), ratio);
+    assert!(err.contains("more than 1 times its compressed size"), "{err}");
+    assert!(err.contains("raise `[limits] max_decompression_ratio`"), "{err}");
+    assert!(!err.contains("rule:"), "{err}");
+}
+
+#[test]
+fn an_unknown_locale_throws_naming_it() {
+    let read = Read::open(xlsx(&[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))], &[]));
+    let with_locale = |locale: &str| {
+        let Value::Array(mut asked) = options("Shop").value() else {
+            panic!("the options are a shape");
+        };
+        for (key, value) in &mut asked {
+            if *key == Key::String("locale".to_owned()) {
+                *value = Value::String(locale.to_owned());
+            }
+        }
+        Value::Array(asked)
+    };
+    let err = read.failure("readerRows", vec![with_locale("xx-YY"), Value::Uint(10)]);
+    assert!(err.contains("does not know the locale `xx-YY`"), "{err}");
+    // A known language with any region reads, and so does English.
+    for locale in ["de-CH", "fr-BE", "en-GB", "en"] {
+        let batch = read.batch(with_locale(locale), 10);
+        assert_eq!(entries(field(&batch, "rows")).len(), 1, "{locale}");
+    }
     block_on(read.request.end()).expect("the request ends");
 }

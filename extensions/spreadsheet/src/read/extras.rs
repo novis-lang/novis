@@ -627,8 +627,9 @@ impl Reader {
 
     /// The document properties of a zip package: the core part's title, subject, author,
     /// keywords and creation time, and the app part's company. An ods's are `meta.xml`'s, and an
-    /// xls's its summary streams', read when it opened.
-    pub fn properties(&self, source: &dyn Source) -> Result<Properties, Error> {
+    /// xls's its summary streams', read when it opened. [`Reader::properties`] keeps what this
+    /// reads.
+    pub(super) fn read_properties(&self, source: &dyn Source) -> Result<Properties, Error> {
         if self.ods.is_some() {
             return self.meta_properties(source);
         }

@@ -61,3 +61,21 @@ for (int $count = 0; $count < 200; $count++) {
     Reader::open($good);
 }
 Attack::attempt(5, $good);
+
+// 6. A workbook file that is replaced by another workbook after `Reader::open`. The next read should throw a `LogicError`.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'book.xlsx');
+Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);
+$out->write($good);
+$out->close();
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+var $reader = Reader::open($file);
+Core\IO\File $other = Core\IO::open($path, Core\IO::FileMode::Write);
+$other->write(Workbook::fromRows([['item' => 'Bolt']])->bytes());
+$other->close();
+try {
+    $reader->sheets();
+    echo "step 6 read the new file\n";
+} catch (LogicError $e) {
+    echo "step 6 stopped LogicError\n";
+}
+$file->close();

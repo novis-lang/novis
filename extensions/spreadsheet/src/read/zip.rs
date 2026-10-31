@@ -79,14 +79,15 @@ pub struct Directory {
 fn over_ratio(name: &str, ratio: u64) -> Error {
     Error::Parse(format!(
         "The workbook part `{name}` decompresses to more than {ratio} times its compressed size. \
-         `[limits] max_decompression_ratio` sets this limit (rule:core-classes/decompression-bound)."
+         To allow a larger ratio, raise `[limits] max_decompression_ratio` in the server's \
+         configuration."
     ))
 }
 
 fn over_bytes(name: &str, bytes: u64) -> Error {
     Error::Parse(format!(
-        "The workbook part `{name}` takes the parts read whole past {bytes} bytes. \
-         `[limits] max_decompressed` sets this limit (rule:core-classes/decompression-bound)."
+        "The workbook part `{name}` makes the decompressed parts larger than {bytes} bytes. \
+         To allow more, raise `[limits] max_decompressed` in the server's configuration."
     ))
 }
 

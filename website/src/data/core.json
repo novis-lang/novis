@@ -29008,7 +29008,7 @@
           "options": [],
           "returnType": "Formula",
           "doc": {
-            "shortHtml": "<code>Formula::of</code> makes a formula from its Excel text, such as <code>'SUM(C2:C9)'</code>. You can write the text with or without <code>=</code> at the start.\n<code>cached</code> is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file."
+            "shortHtml": "<code>Formula::of</code> makes a formula from its Excel text, such as <code>'SUM(C2:C9)'</code>. You can write the text with or without <code>=</code> at the start. An empty text throws a <code>LogicError</code>, and so does a formula longer than 8,192 characters when it is written.\n<code>cached</code> is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file."
           },
           "slug": "of",
           "url": "/reference/core/novis-spreadsheet-formula/of/",
@@ -29120,7 +29120,7 @@
           "options": [],
           "returnType": "Reader",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> opens the workbook in <code>$source</code>, the bytes of the file or a file your program opened. Another file type throws an error.\nAn xls or ods file is read whole here. A CSV file has one sheet, <code>Sheet1</code>, and each value in it is a <code>string</code>.\nA CSV file is UTF-8 text, or UTF-16 text that starts with a byte order mark. <code>csv</code> sets its <code>separator</code>, <code>quote</code>, <code>escape</code> and <code>encoding</code>."
+            "shortHtml": "<code>Reader::open</code> opens the spreadsheet in <code>$source</code>, the bytes of the file or a file your program opened. Other bytes throw a <code>ParseError</code>.\nA CSV file is UTF-8 text, or UTF-16 text with a byte order mark. <code>csv</code> sets its <code>separator</code>, <code>quote</code>, <code>escape</code> and <code>encoding</code>."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-reader/open/",
@@ -29292,7 +29292,7 @@
           "options": [],
           "returnType": "array<Missed>",
           "doc": {
-            "shortHtml": "<code>evaluate</code> computes every formula in the workbook. After it, <code>rows</code> gives each formula cell its computed result.\nIt returns the cells it could not compute. <code>kind</code> is <code>'function'</code>, <code>'reference'</code>, <code>'circular'</code> or <code>'token'</code>.\nSuch a cell keeps the result that is saved in the file. A CSV file has no formulas, so the result is <code>[]</code>."
+            "shortHtml": "<code>evaluate</code> computes every formula in the workbook. After it, <code>rows</code> gives each formula cell its computed result.\nIt returns the cells it could not compute, and each one keeps the result saved in the file. <code>kind</code> is <code>'function'</code>, <code>'reference'</code>, <code>'circular'</code> or <code>'token'</code>."
           },
           "slug": "evaluate",
           "url": "/reference/core/novis-spreadsheet-reader/evaluate/",
@@ -30553,7 +30553,7 @@
           "options": [],
           "returnType": "Workbook",
           "doc": {
-            "shortHtml": "<code>define</code> gives the cells at <code>$reference</code>, such as <code>'Orders!$C$2:$C$9'</code>, the name <code>$name</code>. A formula can then use the name."
+            "shortHtml": "<code>define</code> gives the cells at <code>$reference</code>, such as <code>'Orders!$C$2:$C$9'</code>, the name <code>$name</code>. A formula can then use the name.\n<code>$reference</code> must be a cell or a range of this workbook. Another file, a web address or a formula throws a <code>LogicError</code>."
           },
           "slug": "define",
           "url": "/reference/core/novis-spreadsheet-workbook/define/",
