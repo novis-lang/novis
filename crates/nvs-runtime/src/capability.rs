@@ -1676,6 +1676,13 @@ pub fn exec_with(
             );
         }
     }
+    // A sanitized test binary starts itself as a child, and the cleared environment would run that
+    // child under ASAN's default options. The default ODR level aborts on SQLite's folded `aiOff`
+    // pair, so the child keeps the options the parent runs under. Only the `sanitizer` build does.
+    #[cfg(feature = "sanitizer")]
+    if let Some(options) = std::env::var_os("ASAN_OPTIONS") {
+        command.env("ASAN_OPTIONS", options);
+    }
     command
         .args(argv)
         .stdin(Stdio::piped())

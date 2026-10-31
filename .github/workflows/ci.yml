@@ -1601,6 +1601,8 @@ jobs:
       # default, 2, also reports two of the same size, and the bundled SQLite amalgamation has
       # two function-local `aiOff` arrays with equal contents that the compiler folds into one
       # address, which ASAN then registers twice. Rust has no ODR, so SQLite is the only C here.
+      # A test that starts itself as a child clears its environment, so `nvs-runtime/sanitizer`
+      # passes `ASAN_OPTIONS` on to that child (`capability::exec`).
       - name: ASAN test (runtime and library)
         env:
           RUSTFLAGS: -Zsanitizer=address
