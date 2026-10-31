@@ -768,6 +768,33 @@ impl Builder<'_, '_> {
         self.page = page;
     }
 
+    /// Gives the block box before the one just opened a `break-after` of `avoid`, when the one
+    /// just opened has a `break-before` of `avoid`. Only the tags, strings and targets of the
+    /// box just opened may be between them.
+    fn join_previous(&mut self) {
+        let Some((Block::Open(opened), before)) = self.blocks.split_last_mut() else {
+            return;
+        };
+        if !opened.joined[0] {
+            return;
+        }
+        let mut depth = 0;
+        for block in before.iter_mut().rev() {
+            match block {
+                Block::Close => depth += 1,
+                Block::Open(g) if depth == 1 => {
+                    g.joined[1] = true;
+                    return;
+                }
+                Block::Open(_) if depth == 0 => return,
+                Block::Open(_) => depth -= 1,
+                Block::Tag(_) | Block::String { .. } | Block::Target(_) => {}
+                _ if depth == 0 => return,
+                _ => {}
+            }
+        }
+    }
+
     /// Opens the box of an inline element with `style`, inside the content box of `frame`, when
     /// it has a margin, a border, padding or a background, and says whether it did.
     fn open_inline(&mut self, style: &Style, frame: &Frame) -> Result<bool, Error> {
@@ -1695,6 +1722,7 @@ pub(super) fn blocks(
                         ..frame.clone()
                     };
                     builder.open(style, &outer, &mut inner)?;
+                    builder.join_previous();
                     builder.name(page.clone());
                     inner.page = page;
                     false

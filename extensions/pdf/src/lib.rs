@@ -54,8 +54,6 @@
 //!
 //! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
 //!   of another width than the first page of its name keeps that page's line widths.
-//!   `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and
-//!   `break-before: avoid` do nothing.
 //! - Writing (`write`): a link inside a transformed box keeps its untransformed box.
 //! - Layout (`layout`, `layout::block`, `layout::grid`, `layout::flex`, `layout::boxes`): an
 //!   absolute box without a `width` is not stretched by `left` with `right`, a transformed box is

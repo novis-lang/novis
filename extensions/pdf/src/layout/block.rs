@@ -54,6 +54,10 @@ pub(super) struct BoxGeometry {
     /// Whether its `break-inside` is `avoid`, so it starts on a new page when it fits on one
     /// and not under the last block.
     pub(super) avoid: bool,
+    /// Whether a break before it and a break after it are avoided: its own `break-before` and
+    /// `break-after` are `avoid`, or for the second, the next block box's `break-before` is.
+    /// The flow then keeps it on one page with the box beside it when both fit there.
+    pub(super) joined: [bool; 2],
     /// Its `z-index` when it is positioned and the value is not `auto`.
     pub(super) z: Option<i64>,
     pub(super) decor: Decor,
@@ -217,6 +221,8 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         position,
         breaks: [forced(style, "break-before"), forced(style, "break-after")],
         avoid: matches!(keyword(style, "break-inside"), Some("avoid" | "avoid-page")),
+        joined: ["break-before", "break-after"]
+            .map(|name| matches!(keyword(style, name), Some("avoid" | "avoid-page"))),
         z: (position != Position::Static)
             .then(|| z_index(style))
             .flatten(),
@@ -478,9 +484,10 @@ impl Flow {
         self.heights.is_some()
     }
 
-    /// Moves to a new page before a box with `break-inside: avoid`, `margin` below the last
-    /// block and `height` tall from its top border edge to its bottom one, when it does not fit
-    /// on the last page and fits on an empty one.
+    /// Moves to a new page before a box with `break-inside: avoid`, or a run of boxes no break
+    /// may come between, `margin` below the last block and `height` tall from the first one's
+    /// top border edge to the last one's bottom one, when it does not fit on the last page and
+    /// fits on an empty one.
     pub(super) fn keep(&mut self, margin: f32, height: f32) {
         let Some(heights) = &self.heights else {
             return;

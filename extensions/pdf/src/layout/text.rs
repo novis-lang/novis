@@ -19,7 +19,7 @@ use super::{
 };
 use crate::Error;
 use crate::assets::Assets;
-use crate::css::{Color, Styles};
+use crate::css::{Color, Style, Styles};
 use crate::fonts::Fonts;
 use crate::paginate::Sheet;
 use crate::parse::Dom;
@@ -667,33 +667,44 @@ impl Cx<'_> {
         // The items of a list marker waiting for the line it is drawn beside.
         let mut marker: Option<Vec<Item>> = None;
         let mut blocks = blocks.into_iter();
-        // The blocks of a box with `break-inside: avoid`, measured and waiting to be laid out,
-        // last first.
+        // The blocks read ahead and waiting to be laid out, last first: a box with
+        // `break-inside: avoid` and the boxes a `break-after` or `break-before` of `avoid` keeps
+        // with it, measured, or the block after a paragraph, read to see whether it is one.
         let mut ahead: Vec<Block> = Vec::new();
+        // Whether the next block is the first of a group just measured.
+        let mut grouped = false;
         while let Some(block) = ahead.pop().or_else(|| blocks.next()) {
-            match block {
-                Block::Open(geometry)
-                    if geometry.avoid && geometry.breaks[0].is_none() && flow.paginates() =>
-                {
-                    let mut inner = vec![Block::Open(geometry.clone())];
-                    let mut depth = 0;
-                    while let Some(block) = ahead.pop().or_else(|| blocks.next()) {
-                        let end = matches!(block, Block::Close) && depth == 0;
-                        match block {
-                            Block::Open(_) => depth += 1,
-                            Block::Close => depth -= 1,
-                            _ => {}
-                        }
-                        inner.push(block);
-                        if end {
-                            break;
-                        }
-                    }
-                    let height = self.measure(inner.clone());
-                    flow.keep(geometry.margin[0], height);
-                    flow.open(geometry);
-                    ahead.extend(inner.into_iter().skip(1).rev());
+            let leads = match &block {
+                Block::Open(g) => g.breaks[0].is_none() && (g.avoid || g.joined[1]),
+                Block::Text { marker: false, .. } | Block::Image { .. } => true,
+                _ => false,
+            };
+            if leads && !std::mem::take(&mut grouped) && flow.paginates() {
+                let (avoid, top, after, bottom) = match &block {
+                    Block::Open(g) => (g.avoid, g.margin[0], g.joined[1], g.margin[2]),
+                    _ => (false, 0.0, false, 0.0),
+                };
+                let boxed = matches!(block, Block::Open(_));
+                let mut group = vec![block];
+                if boxed {
+                    rest_of_box(&mut group, &mut ahead, &mut blocks);
                 }
+                let joined = join(&mut group, after, &mut ahead, &mut blocks);
+                if avoid || joined.is_some() {
+                    // The group is measured inside a box with no edges, which adds nothing.
+                    let wrapper = super::block::geometry(&Style::default(), 0.0, 0.0);
+                    let mut wrapped = vec![Block::Open(wrapper)];
+                    wrapped.extend(group.iter().cloned());
+                    wrapped.push(Block::Close);
+                    let height = self.measure(wrapped) - top - joined.unwrap_or(bottom);
+                    flow.keep(top, height);
+                }
+                ahead.extend(group.into_iter().rev());
+                grouped = true;
+                continue;
+            }
+            grouped = false;
+            match block {
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(flex, flow),
@@ -1289,6 +1300,81 @@ fn kept(heights: &[f32], room: (f32, f32, bool), para: &Para) -> Option<usize> {
     } else {
         0
     })
+}
+
+/// The next block: the last one read ahead, or else the next one of `blocks`.
+fn next_block(ahead: &mut Vec<Block>, blocks: &mut impl Iterator<Item = Block>) -> Option<Block> {
+    ahead.pop().or_else(|| blocks.next())
+}
+
+/// Moves the rest of the box whose `Open` ends `group` onto it, up to and with its `Close`.
+fn rest_of_box(
+    group: &mut Vec<Block>,
+    ahead: &mut Vec<Block>,
+    blocks: &mut impl Iterator<Item = Block>,
+) {
+    let mut depth = 0;
+    while let Some(block) = next_block(ahead, blocks) {
+        let end = matches!(block, Block::Close) && depth == 0;
+        match block {
+            Block::Open(_) => depth += 1,
+            Block::Close => depth -= 1,
+            _ => {}
+        }
+        group.push(block);
+        if end {
+            break;
+        }
+    }
+}
+
+/// Moves onto `group` each box after it that a break is avoided before: a block box whose
+/// `break-before` is `avoid`, or, when `after` says the box before has a `break-after` of
+/// `avoid`, the next block box or paragraph. Puts back what it read past them. Returns the
+/// bottom margin of the last box it moved, or `None` when it moved none.
+fn join(
+    group: &mut Vec<Block>,
+    mut after: bool,
+    ahead: &mut Vec<Block>,
+    blocks: &mut impl Iterator<Item = Block>,
+) -> Option<f32> {
+    let mut bottom = None;
+    loop {
+        let mut between = Vec::new();
+        let found = loop {
+            match next_block(ahead, blocks) {
+                Some(b @ (Block::Tag(_) | Block::String { .. } | Block::Target(_))) => {
+                    between.push(b);
+                }
+                other => break other,
+            }
+        };
+        let joins = match &found {
+            Some(Block::Open(g)) => g.breaks[0].is_none() && (after || g.joined[0]),
+            Some(Block::Text { marker: false, .. } | Block::Image { .. }) => after,
+            _ => false,
+        };
+        if !joins {
+            ahead.extend(found);
+            ahead.extend(between.into_iter().rev());
+            return bottom;
+        }
+        group.append(&mut between);
+        match found {
+            Some(Block::Open(g)) => {
+                after = g.joined[1];
+                bottom = Some(g.margin[2]);
+                group.push(Block::Open(g));
+                rest_of_box(group, ahead, blocks);
+            }
+            Some(block) => {
+                after = false;
+                bottom = Some(0.0);
+                group.push(block);
+            }
+            None => return bottom,
+        }
+    }
 }
 
 /// Narrows by `by` an `inline-block` box's own box and each block in it whose width fills its

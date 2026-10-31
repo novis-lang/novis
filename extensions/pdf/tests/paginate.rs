@@ -817,3 +817,59 @@ fn element_start_and_first_except_read_as_css_says() {
     assert_eq!(sides(2), ("News".to_owned(), String::new()));
     assert_eq!(sides(3), ("News".to_owned(), "News".to_owned()));
 }
+
+#[test]
+fn break_inside_avoid_keeps_a_row_a_flex_box_and_an_inline_block_whole() {
+    let filler = "<p>Line</p>".repeat(8);
+    let three = "<div>Shop</div><div>Blog</div><div>News</div>";
+    let kinds = [
+        format!(
+            "<table style='orphans: 1; widows: 1; border-spacing: 0'>
+            <tr><td style='padding: 0'>Team</td></tr>
+            <tr style='break-inside: avoid'><td style='padding: 0'>{three}</td></tr></table>"
+        ),
+        format!(
+            "<div style='display: flex; flex-direction: column; break-inside: avoid'>{three}</div>"
+        ),
+        format!(
+            "<div>Team <span style='display: inline-block; break-inside: avoid'>{three}</span></div>"
+        ),
+    ];
+    for (kind, html) in kinds.iter().enumerate() {
+        let laid = lay(&format!("{TEN_LINES}{filler}{html}"));
+        let pages = lines(&laid);
+        assert_eq!(pages.len(), 2, "{kind}: {pages:?}");
+        assert!(
+            ["Shop", "Blog", "News"]
+                .iter()
+                .all(|w| pages[1].iter().any(|t| t == w)),
+            "{kind}: {pages:?}"
+        );
+    }
+}
+
+#[test]
+fn break_after_and_break_before_avoid_keep_two_boxes_together() {
+    let filler = "<p>Line</p>".repeat(8);
+    for html in [
+        "<p style='break-after: avoid'>Head</p><p>Shop<br>Blog</p>",
+        "<p>Head</p><p style='break-before: avoid'>Shop<br>Blog</p>",
+        "<div style='break-after: avoid'><p>Head</p></div>Shop<br>Blog",
+    ] {
+        let laid = lay(&format!("{TEN_LINES}{filler}{html}"));
+        let pages = lines(&laid);
+        assert_eq!(pages[0], vec!["Line"; 8], "{html}: {pages:?}");
+        assert_eq!(pages[1], ["Head", "Shop", "Blog"], "{html}: {pages:?}");
+    }
+    // Two boxes that do not fit on one page together break as they would without `avoid`.
+    let tall = "<p>Tall</p>".repeat(10);
+    let laid = lay(&format!(
+        "{TEN_LINES}{filler}<p style='break-after: avoid'>Head</p><div>{tall}</div>"
+    ));
+    assert_eq!(lines(&laid)[0][8..], ["Head", "Tall"]);
+    // Without `avoid`, the heading stays at the bottom of the first page.
+    let laid = lay(&format!(
+        "{TEN_LINES}{filler}<p>Head</p><p>Shop<br>Blog</p>"
+    ));
+    assert_eq!(lines(&laid)[0].last().map(String::as_str), Some("Head"));
+}
