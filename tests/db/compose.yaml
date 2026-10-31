@@ -391,6 +391,11 @@ services:
   # verifies against `ca.crt` under the name `samba-ad`, so healthy means the leaf is the one served. It
   # calls `/usr/bin/ldapsearch` by its path, because the image's `ldapsearch` on `PATH` is a wrapper
   # that adds `-y /root/.ldappass`, which `-w` cannot be combined with.
+  #
+  # `ldb:nosync = true` stops Samba from calling fsync on each directory write, as Samba's own test
+  # suite does. Under a full `bun nv verify` the host disk is busy, and a synced add, modify or delete
+  # waited past the 30 s deadline of `nvs-stdlib`'s `ldap` tests while their reads stayed fast. The
+  # directory lives only as long as the container, so a write lost in a crash costs nothing.
   # ---------------------------------------------------------------------------------------------------
   samba-ad:
     image: smblds/smblds@sha256:b99c19f3ab7c79f4c5b25a484856eab7babf563f4eed0cbf3bb00026c013e47c
@@ -417,6 +422,8 @@ services:
         grep -q 'prefork maximum backoff' /etc/samba/smb.conf || printf '%s\n' '[global]' \
           'prefork backoff increment = 1' \
           'prefork maximum backoff = 1' >> /etc/samba/smb.conf
+        grep -q 'ldb:nosync' /etc/samba/smb.conf || printf '%s\n' '[global]' \
+          'ldb:nosync = true' >> /etc/samba/smb.conf
         EOF
         chmod 755 /entrypoint.d/10-novis-tls
         cat > /entrypoint.d/20-novis-seed <<'EOF'
