@@ -14,7 +14,7 @@ stages:
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/zip.rs, extensions/spreadsheet/nvs/Reader.nvs, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md, docs/rules/core-classes/decompression-bound.md]
   - id: 3
     title: "rows, sheets, merges and notes read what the file has"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/merge.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/nvs/Reader.nvs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 4
     title: "sheet-end parts, addresses and values are checked once, the spreadsheet list is gone, and its size is recorded"
@@ -490,13 +490,13 @@ what went wrong in plain words.
 **Does:** a row of formulas reads back, `sheets()` gives the real size once per reader, its names
 are accepted back, and merged fills and notes carry their text.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: a row of formula cells with no cached value is kept. `extensions/spreadsheet/src/read/mod.rs:884`, `extensions/spreadsheet/src/read/mod.rs:986`
-- [ ] `sheets()` counts a sheet with no dimension from its rows, once per reader, and keeps the facts. `extensions/spreadsheet/src/read/mod.rs:711`, `extensions/spreadsheet/src/read/sheet.rs:81`, `extensions/spreadsheet/src/read/binary.rs:416`
-- [ ] Every sheet parameter is `tainted string|int`. `extensions/spreadsheet/nvs/Reader.nvs:71`, `extensions/spreadsheet/nvs/Reader.nvs:433`
-- [ ] A merged fill copies `text`, and `notes` decodes its escapes. `extensions/spreadsheet/src/read/merge.rs:146`, `extensions/spreadsheet/src/read/extras.rs:229`, `extensions/spreadsheet/src/read/xml.rs:202`
-- [ ] Limit: ids 14 and 22 stay as Excel shows them in en-US. A test pins them, and the fragment says so beside `locale`. `extensions/spreadsheet/src/format/mod.rs:78`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`
-- [ ] The tests and cases the `reader-reads-what-the-file-has` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `tests/conformance/novis/spreadsheet-reads-back-a-totals-row-of-formulas.nvst:1`, `tests/conformance/novis/spreadsheet-a-sheet-name-from-sheets-reads-its-rows.nvst:1`
-- [ ] The `about.md` of `rows`, `sheets` and `notes` state the change. The module doc's number formats, merges, rows, sheets and notes sentences go. `docs/examples/novis/Spreadsheet-Reader/sheets/about.md:1`, `extensions/spreadsheet/src/lib.rs:53`, `extensions/spreadsheet/src/lib.rs:60`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: a row of formula cells with no cached value is kept. `extensions/spreadsheet/src/read/mod.rs:884`, `extensions/spreadsheet/src/read/mod.rs:986`
+- [x] `sheets()` counts a sheet with no dimension from its rows, once per reader, and keeps the facts. `extensions/spreadsheet/src/read/mod.rs:711`, `extensions/spreadsheet/src/read/sheet.rs:81`, `extensions/spreadsheet/src/read/binary.rs:416`
+- [x] Every sheet parameter is `tainted string|int`. `extensions/spreadsheet/nvs/Reader.nvs:71`, `extensions/spreadsheet/nvs/Reader.nvs:433`
+- [x] A merged fill copies `text`, and `notes` decodes its escapes. `extensions/spreadsheet/src/read/merge.rs:146`, `extensions/spreadsheet/src/read/extras.rs:229`, `extensions/spreadsheet/src/read/xml.rs:202`
+- [x] Limit: ids 14 and 22 stay as Excel shows them in en-US. A test pins them, and the fragment says so beside `locale`. `extensions/spreadsheet/src/format/mod.rs:78`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`
+- [x] The tests and cases the `reader-reads-what-the-file-has` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `tests/conformance/novis/spreadsheet-reads-back-a-totals-row-of-formulas.nvst:1`, `tests/conformance/novis/spreadsheet-a-sheet-name-from-sheets-reads-its-rows.nvst:1`
+- [x] The `about.md` of `rows`, `sheets` and `notes` state the change. The module doc's number formats, merges, rows, sheets and notes sentences go. `docs/examples/novis/Spreadsheet-Reader/sheets/about.md:1`, `extensions/spreadsheet/src/lib.rs:53`, `extensions/spreadsheet/src/lib.rs:60`
 
 ### 4. sheet-end parts, addresses and values are checked once, the spreadsheet list is gone, and its size is recorded
 
@@ -634,39 +634,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done and committed. Stage 2: `read::Reader` keeps a `Seal` (size and FNV-1a of
-the first and last 512 bytes), and `Reader::check` runs first in every reader export through
-`lib.rs`'s `checked` helper, throwing `LogicError` "The file changed after `Reader::open` …".
-`Reader::properties` reads once into a `OnceCell` (`extras.rs`'s `read_properties` does the read).
-`readerRows` throws for `max` 0 and for a `locale` whose language has no names row
-(`Locale::known`, `names::find`). The two zip bound messages name the key to raise and no rule,
-and `rule:core-classes/decompression-bound` says so. `Reader.nvs`'s `open` throws `ParseError` for
-UTF-8 bytes whose first 4 KiB have a NUL or a C0 control other than tab, LF, FF and CR (`isText`);
-a UTF-16 BOM or a `csv.encoding` still opens as CSV. The attack
-`tests/hostile/novis/Spreadsheet-Reader/open/01-…` gained step 6 (a file replaced on disk) and an
-`nvs.toml` granting `fs`. The checks `reader-bounds` and `reader-bounds-runs` ran green once by
-name, and `bun nv proofs --run --only 'Novis\Spreadsheet\Reader::open'` is green. The sweep's
-nightly reds (run `41187571578` on `857b39cad`) are fixed by later commits: `bfce9c2d2`,
-`9fe05ce88`, `8ce92dda5` and `39795c9c4`. `env-secret-proofs` has no definition and no log in the
-tree.
+Stages 1 to 3 are done and committed. Stage 3: `read::Reader::row` keeps a formula cell with no
+cached value (value `None`), and `rows` skips only a row with no cell, so a totals row reads as
+`null`s, or as `Formula`s with `cached` `null`. `Cursor::size` (`read/mod.rs`) counts a sheet with
+no dimension, or `A1`, from its rows; an empty sheet that says `A1` is now `0, 0`, and
+`sheets_gives_name_position_visibility_size_and_kind` pins it. `Reader::sheets` keeps its list in
+a `facts` `OnceCell`. `merge::Fill` keeps each range's top-left value with its display text, and
+`fill` gives the text to cells in a `text` column. `notes` runs `xml::unescape` on the note and the
+author. Every `Reader.nvs` sheet parameter is `tainted string|int`, and `sheetName` takes the name
+out with `is string` then `Core\Taint::assertTrusted`. The checks `reader-reads-what-the-file-has`
+and `-runs` ran green once by name, and the proofs of `Reader::sheets`, `rows`, `notes`, `merged`
+and `tables` are green. The module doc lost its five reader bullets. The sweep's nightly reds and
+`env-secret-proofs` are as stage 2's handoff said: fixed by later commits, and no definition.
 
 ### Next
 
-Stage 3, over `extensions/spreadsheet/src/read/mod.rs`, `read/merge.rs`, `read/extras.rs`,
-`read/xml.rs`, `read/sheet.rs`, `read/binary.rs` and `nvs/Reader.nvs`. Its gate is stage 1's,
-already green.
+Stage 4, over `extensions/spreadsheet/src/drawing.rs`, `src/tail.rs`, `src/writer.rs`,
+`src/lib.rs`, `nvs/Sheet.nvs`, `nvs/Workbook.nvs` and `nvs/Export.nvs`. Its gate is stage 1's,
+already green. Follow its `**Split:**` line: one subagent for the Novis half, one for the Rust half.
 
-- [ ] A row of formula cells with no cached value is kept: the skip at `extensions/spreadsheet/src/read/mod.rs:1003` tests `value`, and a formula cell needs to count. `extensions/spreadsheet/src/read/mod.rs:860`
-- [ ] `sheets()` counts a sheet with no dimension from its rows, once per reader, and keeps the facts. `extensions/spreadsheet/src/read/mod.rs:817`, `extensions/spreadsheet/src/read/sheet.rs:137`, `extensions/spreadsheet/src/read/binary.rs:741`
-- [ ] Every sheet parameter is `tainted string|int`. `extensions/spreadsheet/nvs/Reader.nvs:94`
-- [ ] A merged fill copies `display`, and `notes` decodes its escapes. `extensions/spreadsheet/src/read/merge.rs:157`, `extensions/spreadsheet/src/read/extras.rs:278`, `extensions/spreadsheet/src/read/xml.rs:200`
-- [ ] Limit: ids 14 and 22, the test and the fragment sentence beside `locale`. `extensions/spreadsheet/src/format/mod.rs:78`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md`
-- [ ] The tests, cases, `about.md` and module doc sentences stage 3 lists. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `extensions/spreadsheet/src/lib.rs:41`
+- [ ] A PNG is checked chunk by chunk to `IEND`, and an image or chart past the grid throws. `extensions/spreadsheet/src/drawing.rs:95`, `extensions/spreadsheet/nvs/Sheet.nvs:243`
+- [ ] A `whole` rule writes no text limits, and a second `print` throws. `extensions/spreadsheet/src/tail.rs:653`, `extensions/spreadsheet/src/tail.rs:534`, `extensions/spreadsheet/nvs/Sheet.nvs:278`
+- [ ] A key before the first keyed row, `column` before a data row, `cell` on a finished sheet. `extensions/spreadsheet/nvs/Sheet.nvs:74`, `extensions/spreadsheet/nvs/Sheet.nvs:84`, `extensions/spreadsheet/nvs/Workbook.nvs:421`
+- [ ] `writerCell` and `writerColumn` check the column before the cast. `extensions/spreadsheet/src/lib.rs:1144`
+- [ ] The filter name, NaN on CSV, an `Iterator` export once. `extensions/spreadsheet/src/writer.rs:1064`, `extensions/spreadsheet/nvs/Workbook.nvs:603`, `extensions/spreadsheet/nvs/Export.nvs:67`
+- [ ] The tests, cases, attacks, fragments and `about.md` files, the list and its gap record gone, and the size recorded. `extensions/spreadsheet/src/lib.rs:38`, `crates/nvs-ext/tests/builtin.rs:163`
 
-Expect red at the gate: a test outside `spreadsheet_read.rs` that reads a reader with `max` 0, an
-unknown `locale`, or bytes with a control character as CSV; and any test or case that matched the
-old open message "Novis reads xlsx" or a bound message's `rule:` text. None was found by grep.
-Also any stage 1 red named there before.
+Expect red at the gate: any test that expects a row of only uncached formulas to be skipped, or an
+empty sheet with `<dimension ref="A1"/>` to be `1, 1` in `sheets()` (an evaluate test in
+`crates/nvs-ext/tests/spreadsheet_read.rs` or `extensions/spreadsheet/tests/` is the likeliest).
+Also the stage 2 reds: a test outside `spreadsheet_read.rs` that reads with `max` 0, an unknown
+`locale`, or control bytes as CSV, and any match on the old open message or a bound's `rule:` text.
 
 ### Backlog
 
