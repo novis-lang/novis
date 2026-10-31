@@ -425,6 +425,15 @@ found `website/public/llms-full.txt` stale, and `bun nv render --website` rewrot
 of the browser suite pass with `NV_BROWSER=1`. CI's `browser` job now builds `nvs` and runs the
 suite (standing decision *The browser suite as built*).
 
+The first DONE was refused for two reds, and both are fixed:
+- `registry-app-tests` failed about one run in six. `IndexTest`'s second `catchUp` also took a
+  token entry that a parallel test wrote in the meantime. Its log double refused any lines without
+  its own publish, so the run returned `false`. The second run now uses `IndexTest::logWithout`,
+  which takes every line except a second publish of the package. 20 runs in a row pass.
+- `registry-browser-tests` threw `openssl` not found, because the driver's PATH has `git` and not
+  Git's `usr/bin`. The suite's `openssl()` looks on the PATH, then beside `git`. All 12 tests pass
+  with a PATH that has no `openssl`.
+
 The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` answers
 `no check matches`. It came from a retired goal.
 

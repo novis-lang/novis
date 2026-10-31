@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { newestNvs } from "../lib/nvs-binary.ts";
 import { ROOT } from "../lib/paths.ts";
 import { Browser, EXE } from "./chromium.ts";
@@ -102,10 +102,28 @@ async function decrypt(body: Uint8Array<ArrayBuffer>, keys: PushKeys): Promise<s
   return new TextDecoder().decode(plain.slice(0, end));
 }
 
+/** `openssl` on the PATH, or else the copy Git for Windows ships, which a PATH with only `git` misses. */
+function openssl(): string {
+  const found = Bun.which("openssl");
+  if (found) return found;
+  const git = Bun.which("git");
+  if (git) {
+    // `git` is `<Git>/cmd/git.exe` or `<Git>/mingw64/bin/git.exe`.
+    const up = dirname(dirname(git));
+    for (const root of [up, dirname(up)]) {
+      for (const p of [join(root, "usr", "bin", "openssl.exe"), join(root, "mingw64", "bin", "openssl.exe")]) {
+        if (existsSync(p)) return p;
+      }
+    }
+  }
+  throw new Error("openssl is not on the PATH, and Git for Windows has no copy beside git");
+}
+
 /** A CA and a certificate for `127.0.0.1` it signed, made with `openssl` under `dir`. */
 function certificates(dir: string): { ca: string; cert: string; key: string } {
+  const exe = openssl();
   const run = (args: string[]) => {
-    const r = Bun.spawnSync(["openssl", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+    const r = Bun.spawnSync([exe, ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
     if (r.exitCode !== 0) throw new Error(`openssl ${args.join(" ")}:\n${r.stderr.toString()}`);
   };
   const ec = ["-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-noenc", "-days", "2"];
