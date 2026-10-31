@@ -6,7 +6,7 @@ context: [tests/hostile/README.md]
 stages:
   - id: 1
     title: "a defined name, a sheet name and a formula follow Excel's rules, and no written reference leaves the workbook"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/chart.rs, extensions/spreadsheet/src/conditional.rs, docs/rules/core-classes/spreadsheet-output-is-inert.md, docs/rules/core-classes/spreadsheet-bulk-boundary.md]
   - id: 2
     title: "a reader reads only the file it opened, under its bounds, and bytes that are no spreadsheet throw"
@@ -462,15 +462,15 @@ no file. Inside a lane the stages run in order: 1 and 4 share `writer.rs` and `W
 **Does:** `define` writes only a range of this workbook, and every name, sheet name, formula and
 chart range written is checked by one function each.
 
-- [ ] Gate: `docs/goals/spreadsheet-second-wave.md` is gone, `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the three records. `tools/nv/cmd/owners.ts:1`
-- [ ] `rule:core-classes/spreadsheet-output-is-inert`: one reference parser, and `define` takes only what it accepts. The sheet of each name is checked at `finish()`. `extensions/spreadsheet/src/writer.rs:317`, `extensions/spreadsheet/src/writer.rs:1214`, `extensions/spreadsheet/nvs/Workbook.nvs:211`
-- [ ] `rule:core-classes/spreadsheet-bulk-boundary`: a name past 255 characters and a name in R1C1 form throw. `extensions/spreadsheet/src/writer.rs:323`, `extensions/spreadsheet/src/writer.rs:328`
-- [ ] `rule:core-classes/spreadsheet-bulk-boundary`: `check_sheet_name` refuses control characters and `History`, and `Workbook::sheet` reaches it. `extensions/spreadsheet/src/writer.rs:165`, `extensions/spreadsheet/src/writer.rs:615`, `extensions/spreadsheet/nvs/Workbook.nvs:108`
-- [ ] `rule:core-classes/spreadsheet-formula-is-a-value`: one formula check, 1 to 8,192 characters, for every formula written, and `Formula::of('')` throws. `extensions/spreadsheet/src/cells.rs:330`, `extensions/spreadsheet/nvs/Formula.nvs:18`, `extensions/spreadsheet/src/conditional.rs:151`
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts`: a series range goes through the reference parser and `check_sheet_name`, and a title past 255 characters throws. `extensions/spreadsheet/src/chart.rs:208`, `extensions/spreadsheet/src/chart.rs:109`, `extensions/spreadsheet/src/chart.rs:300`, `extensions/spreadsheet/nvs/Chart.nvs:104`
-- [ ] The tests the `names-and-references`, `chart-ranges` and `conditional-formula-bound` checks name. `extensions/spreadsheet/tests/write.rs:1`, `extensions/spreadsheet/tests/chart.rs:1`, `extensions/spreadsheet/tests/sheet_end.rs:1`
-- [ ] The two new conformance cases, and the `Odd` line of the define case corrected. `tests/conformance/novis/spreadsheet-define-throws-for-a-reference-outside-the-workbook.nvst:1`, `tests/conformance/novis/spreadsheet-a-chart-range-outside-the-workbook-throws.nvst:1`, `tests/conformance/novis/spreadsheet-define-writes-a-name-excel-allows.nvst:14`
-- [ ] The `about.md` of `define`, `sheet` and `Formula::of` state the limits. The fragments state them, with the Declined bullet, and the module doc's names, charts and conditional sentences go. `docs/examples/novis/Spreadsheet-Workbook/define/about.md:1`, `docs/examples/novis/Spreadsheet-Formula/of/about.md:1`, `docs/rules/core-classes/spreadsheet-output-is-inert.md:1`, `extensions/spreadsheet/src/lib.rs:69`, `extensions/spreadsheet/src/lib.rs:83`
+- [x] Gate: `docs/goals/spreadsheet-second-wave.md` is gone, `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the three records. `tools/nv/cmd/owners.ts:1`
+- [x] `rule:core-classes/spreadsheet-output-is-inert`: one reference parser, and `define` takes only what it accepts. The sheet of each name is checked at `finish()`. `extensions/spreadsheet/src/writer.rs:317`, `extensions/spreadsheet/src/writer.rs:1214`, `extensions/spreadsheet/nvs/Workbook.nvs:211`
+- [x] `rule:core-classes/spreadsheet-bulk-boundary`: a name past 255 characters and a name in R1C1 form throw. `extensions/spreadsheet/src/writer.rs:323`, `extensions/spreadsheet/src/writer.rs:328`
+- [x] `rule:core-classes/spreadsheet-bulk-boundary`: `check_sheet_name` refuses control characters and `History`, and `Workbook::sheet` reaches it. `extensions/spreadsheet/src/writer.rs:165`, `extensions/spreadsheet/src/writer.rs:615`, `extensions/spreadsheet/nvs/Workbook.nvs:108`
+- [x] `rule:core-classes/spreadsheet-formula-is-a-value`: one formula check, 1 to 8,192 characters, for every formula written, and `Formula::of('')` throws. `extensions/spreadsheet/src/cells.rs:330`, `extensions/spreadsheet/nvs/Formula.nvs:18`, `extensions/spreadsheet/src/conditional.rs:151`
+- [x] `rule:core-classes/spreadsheet-sheet-end-parts`: a series range goes through the reference parser and `check_sheet_name`, and a title past 255 characters throws. `extensions/spreadsheet/src/chart.rs:208`, `extensions/spreadsheet/src/chart.rs:109`, `extensions/spreadsheet/src/chart.rs:300`, `extensions/spreadsheet/nvs/Chart.nvs:104`
+- [x] The tests the `names-and-references`, `chart-ranges` and `conditional-formula-bound` checks name. `extensions/spreadsheet/tests/write.rs:1`, `extensions/spreadsheet/tests/chart.rs:1`, `extensions/spreadsheet/tests/sheet_end.rs:1`
+- [x] The two new conformance cases, and the `Odd` line of the define case corrected. `tests/conformance/novis/spreadsheet-define-throws-for-a-reference-outside-the-workbook.nvst:1`, `tests/conformance/novis/spreadsheet-a-chart-range-outside-the-workbook-throws.nvst:1`, `tests/conformance/novis/spreadsheet-define-writes-a-name-excel-allows.nvst:14`
+- [x] The `about.md` of `define`, `sheet` and `Formula::of` state the limits. The fragments state them, with the Declined bullet, and the module doc's names, charts and conditional sentences go. `docs/examples/novis/Spreadsheet-Workbook/define/about.md:1`, `docs/examples/novis/Spreadsheet-Formula/of/about.md:1`, `docs/rules/core-classes/spreadsheet-output-is-inert.md:1`, `extensions/spreadsheet/src/lib.rs:69`, `extensions/spreadsheet/src/lib.rs:83`
 
 ### 2. a reader reads only the file it opened, under its bounds, and bytes that are no spreadsheet throw
 
@@ -634,27 +634,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built. The spreadsheet lane waits on `spreadsheet-second-wave`, whose stages move the
-module doc's line numbers, and both lanes wait on `release-hygiene`'s three records. Every anchor
-was read from the tree on 2026-10-30. The bullets are found by their words, not their lines.
+Stage 1 is done and committed. `extensions/spreadsheet/src/reference.rs` is the one reference
+parser: `Workbook::define` (xlsx and ods) and a chart's series range read through it, and
+`check_name_sheets` checks each name's sheet at `finish()`. `check_sheet_name` refuses control
+characters and `History`. `cells::check_formula` (1 to 8,192 characters) holds cells, table totals,
+validations and the `Cell` and `Formula` conditional formats, and `Formula::of('')` throws in
+`Formula.nvs`. Chart titles and axis titles stop at 255. The checks `names-and-references`,
+`chart-ranges`, `conditional-formula-bound` and `names-and-references-runs` ran green once by name.
+The `Reader::names` example `01` now defines a range in place of the constant `0.2`, which
+`define` declines. The sweep's nightly reds (run `41187571578` on `857b39cad`) are fixed by later
+commits: `bfce9c2d2` (shots), `9fe05ce88` (ASAN ODR), `8ce92dda5` (Miri sizing) and `39795c9c4`
+(browser `NVS_BIN`). `env-secret-proofs` has no definition in the tree.
 
 ### Next
 
-Stage 1, over `extensions/spreadsheet/src/writer.rs`, `chart.rs`, `conditional.rs` and
-`nvs/Workbook.nvs`. Gate: `docs/goals/spreadsheet-second-wave.md` is gone, `bun nv owners --check`
-exits 0, and `bun nv owners --closes extension-leftovers` lists the three records.
+Stage 2, over `extensions/spreadsheet/src/read/mod.rs`, `read/zip.rs`, `format/locale.rs`,
+`src/lib.rs`'s reader exports and `nvs/Reader.nvs`. Its gate is stage 1's, already green.
 
-- [ ] Gate: `docs/goals/spreadsheet-second-wave.md` is gone, `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the three records. `tools/nv/cmd/owners.ts:1`
-- [ ] `rule:core-classes/spreadsheet-output-is-inert`: one reference parser, and `define` takes only what it accepts. `extensions/spreadsheet/src/writer.rs:317`, `extensions/spreadsheet/src/writer.rs:1214`, `extensions/spreadsheet/nvs/Workbook.nvs:211`
-- [ ] `rule:core-classes/spreadsheet-bulk-boundary`: name length and R1C1 form. `extensions/spreadsheet/src/writer.rs:323`, `extensions/spreadsheet/src/writer.rs:328`
-- [ ] `rule:core-classes/spreadsheet-bulk-boundary`: `check_sheet_name` refuses control characters and `History`. `extensions/spreadsheet/src/writer.rs:165`, `extensions/spreadsheet/src/writer.rs:615`
-- [ ] `rule:core-classes/spreadsheet-formula-is-a-value`: one formula check for every formula. `extensions/spreadsheet/src/cells.rs:330`, `extensions/spreadsheet/nvs/Formula.nvs:18`, `extensions/spreadsheet/src/conditional.rs:151`
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts`: series ranges and chart titles. `extensions/spreadsheet/src/chart.rs:208`, `extensions/spreadsheet/src/chart.rs:300`, `extensions/spreadsheet/nvs/Chart.nvs:104`
-- [ ] The tests, the conformance cases, the `about.md` files and the fragments, as stage 1 lists them. `extensions/spreadsheet/tests/write.rs:1`, `tests/conformance/novis/spreadsheet-define-writes-a-name-excel-allows.nvst:14`, `extensions/spreadsheet/src/lib.rs:83`
+- [ ] `read::Reader` keeps the source's size and an FNV-1a hash of its first and last 512 bytes, and every call checks them first. `extensions/spreadsheet/src/read/mod.rs:484`, `extensions/spreadsheet/src/lib.rs:1163`
+- [ ] `readerRows` with `max` 0 throws, and `readerProperties` reads once per reader. `extensions/spreadsheet/src/lib.rs:1200`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:793`
+- [ ] The two decompression-bound messages name no rule, and say which option raises the bound. `extensions/spreadsheet/src/read/zip.rs:79`, `extensions/spreadsheet/src/read/zip.rs:86`
+- [ ] An unknown `locale` throws `LogicError` naming it. `extensions/spreadsheet/src/format/locale.rs:82`, `extensions/spreadsheet/src/read/mod.rs:827`
+- [ ] Bytes that are neither a workbook nor text throw `ParseError`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/src/read/mod.rs:497`
+- [ ] The tests, cases, `about.md` and fragment sentences stage 2 lists. `crates/nvs-ext/tests/spreadsheet_read.rs:1`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:54`
 
-`tests/conformance/novis/spreadsheet-define-writes-a-name-excel-allows.nvst` goes red until its
-`Odd` line is corrected. A hostile case that expects `define` or a chart range to succeed may need a
-`try`.
+The line numbers above were read before stage 1 and may have moved a few lines in `src/lib.rs`.
+Expect red at the gate: any test outside this component that defines a name with a constant or
+formula value, writes a sheet named `History`, or writes an empty `Formula`. None was found in
+`crates/nvs-ext/tests/`, the conformance tree or the examples.
 
 ### Backlog
 
