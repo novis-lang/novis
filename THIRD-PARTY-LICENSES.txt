@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (726)
+COMPONENTS (727)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -76,6 +76,7 @@ platform Novis builds for, so one may appear that a given build omits.
   blake3                                     1.8.7                          Apache-2.0 WITH LLVM-exception  (CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception)
   block-buffer                               0.10.4                         MIT                             (MIT OR Apache-2.0)
   block-buffer                               0.12.1                         MIT                             (MIT OR Apache-2.0)
+  block-padding                              0.4.2                          MIT                             (MIT OR Apache-2.0)
   blowfish                                   0.10.0                         MIT                             (MIT OR Apache-2.0)
   borrow-or-share                            0.2.4                          MIT-0
   brainsort                                  0.5.0                          MIT
@@ -2072,6 +2073,7 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   block-buffer 0.12.1
+  block-padding 0.4.2
 
 ------------------------------------------------------------------------------
 
