@@ -1000,7 +1000,7 @@ impl Builder<'_, '_> {
         self.close_anonymous();
         if let Some(container) = self.containers.pop() {
             self.flush();
-            self.blocks.push(Block::Flex(container.flex));
+            self.blocks.push(Block::Flex(Box::new(container.flex)));
         }
     }
 
@@ -1425,8 +1425,9 @@ enum Step {
         block: bool,
         /// The `vertical-align` of an `inline-block` box, which closes into the text around it.
         atom: Option<VerticalAlign>,
-        /// The `order` and `taffy` style of a flex item, which closes into its container.
-        item: Option<(i64, taffy::Style)>,
+        /// The `order` and `taffy` style of a flex item, which closes into its container. It is
+        /// boxed because a `taffy` style is many times the size of every other step.
+        item: Option<Box<(i64, taffy::Style)>>,
         /// Whether a float floats right, and the sides its `clear` names.
         float: Option<(bool, [bool; 2])>,
         /// An absolute box's insets, its `z-index`, and whether it is `fixed`.
@@ -1590,7 +1591,8 @@ pub(super) fn blocks(
                     }
                     None => {}
                 }
-                if let Some((order, style)) = item {
+                if let Some(item) = item {
+                    let (order, style) = *item;
                     builder.close_item(order, style);
                 } else if let Some(name) = running {
                     builder.close_running(name);
@@ -1958,7 +1960,7 @@ pub(super) fn blocks(
                     at,
                     block,
                     atom,
-                    item,
+                    item: item.map(Box::new),
                     float,
                     absolute,
                     running,

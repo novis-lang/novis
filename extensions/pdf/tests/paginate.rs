@@ -838,7 +838,7 @@ fn an_id_in_an_inline_block_float_flex_item_cell_or_running_element_has_its_page
     for id in ["shop", "blog", "news", "team", "help"] {
         let (page, top) = laid.anchors[id];
         assert_eq!(page, 1, "{id}");
-        assert!(top >= 50.0 && top < 250.0, "{id} at {top}");
+        assert!((50.0..250.0).contains(&top), "{id} at {top}");
     }
 }
 

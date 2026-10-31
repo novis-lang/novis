@@ -729,7 +729,7 @@ impl Cx<'_> {
             match block {
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
-                Block::Flex(flex) => self.flex(flex, flow),
+                Block::Flex(flex) => self.flex(*flex, flow),
                 Block::Table(table) => self.table(table, flow),
                 float @ Block::Float { .. } => {
                     place_float(&mut self.placed, &mut self.missing, flow, &float);

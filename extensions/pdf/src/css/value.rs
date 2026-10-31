@@ -124,11 +124,7 @@ pub fn components_as_written(text: &str) -> Option<Vec<Comp>> {
 fn parse_components(text: &str, lower: bool) -> Option<Vec<Comp>> {
     let mut parser = Parser::new(text);
     let mut out = Vec::new();
-    loop {
-        let token = match parser.next() {
-            Ok(token) => token.clone(),
-            Err(_) => break,
-        };
+    while let Ok(token) = parser.next().cloned() {
         let comp = match token {
             Token::Ident(s) if lower => Comp::Ident(s.to_ascii_lowercase()),
             Token::Ident(s) => Comp::Ident(s.to_string()),
@@ -924,12 +920,12 @@ fn one(grammar: Grammar, c: &Comp) -> Option<Specified> {
             n if n >= 0.0 => Some(Specified::Number(n)),
             _ => None,
         }),
-        Grammar::Integer { positive, keywords } => keyword_of(c, keywords).or_else(|| match c {
+        Grammar::Integer { positive, keywords } => keyword_of(c, keywords).or(match c {
             Comp::Number(n, true) if !positive || *n >= 1.0 => Some(Specified::Integer(*n as i64)),
             _ => None,
         }),
         Grammar::LineHeight => keyword_of(c, &["normal"])
-            .or_else(|| match c {
+            .or(match c {
                 Comp::Number(n, _) if *n >= 0.0 => Some(Specified::Number(*n)),
                 _ => None,
             })
@@ -1001,7 +997,7 @@ pub fn length(c: &Comp) -> Option<Sum> {
         Comp::Number(n, _) if *n == 0.0 => Some(Sum::default()),
         Comp::Function(name, args) if name == "calc" => match calc(args)? {
             Quantity::Length(sum) => Some(sum),
-            Quantity::Number(n) if n == 0.0 => Some(Sum::default()),
+            Quantity::Number(0.0) => Some(Sum::default()),
             Quantity::Number(_) => None,
         },
         _ => None,

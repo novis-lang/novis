@@ -481,8 +481,8 @@ enum Fact {
 enum Block {
     Open(BoxGeometry),
     Close,
-    /// A flex container's content.
-    Flex(flex::Flex),
+    /// A flex container's content, boxed because its `taffy` style is the largest variant.
+    Flex(Box<flex::Flex>),
     /// A table's content.
     Table(table::Table),
     /// A float: its index in the list of [`Atom`]s, laid out as an `inline-block` box is, the

@@ -350,9 +350,9 @@ fn a_stream_past_the_decompression_bound_throws() {
                 bound,
             )
             .map(drop)
-            .or_else(|err| match err {
+            .map_err(|err| match err {
                 // A page is copied compressed, so a file with no object stream merges.
-                Error::Parse(_) => Err(err),
+                Error::Parse(_) => err,
                 other => panic!("merge gave {other:?}"),
             }),
         ];

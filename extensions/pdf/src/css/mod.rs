@@ -287,11 +287,15 @@ impl Source {
     }
 }
 
+/// An `@page` rule as collected: its selector, its declarations, and each margin box's name and
+/// declarations.
+type CollectedPage = (String, Vec<Decl>, Vec<(String, Vec<Decl>)>);
+
 /// The rules, pages and font faces of every sheet, in cascade order.
 struct Collector<'a, 'b> {
     assets: &'a Assets<'b>,
     rules: Vec<Rule>,
-    pages: Vec<(String, Vec<Decl>, Vec<(String, Vec<Decl>)>)>,
+    pages: Vec<CollectedPage>,
     font_faces: Vec<Vec<(String, String)>>,
     dropped: Vec<Dropped>,
 }
