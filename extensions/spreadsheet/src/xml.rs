@@ -50,6 +50,27 @@ fn escape(out: &mut String, value: &str, quote: bool) {
     out.push_str(&value[start..]);
 }
 
+/// Appends `value` as the text of an ods element, or of an attribute when `quote` is set. ODF
+/// has no escape for a character XML 1.0 forbids, so such a character, and a carriage return,
+/// is written as U+FFFD, the replacement character.
+pub fn odf(out: &mut String, value: &str, quote: bool) {
+    let mut start = 0;
+    for (at, c) in value.char_indices() {
+        let replace = match c {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '"' if quote => "&quot;",
+            c if forbidden(c) => "\u{fffd}",
+            _ => continue,
+        };
+        out.push_str(&value[start..at]);
+        out.push_str(replace);
+        start = at + c.len_utf8();
+    }
+    out.push_str(&value[start..]);
+}
+
 /// A character XML 1.0 cannot carry, or a carriage return.
 fn forbidden(c: char) -> bool {
     matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\r' | '\u{e}'..='\u{1f}' | '\u{fffe}' | '\u{ffff}')

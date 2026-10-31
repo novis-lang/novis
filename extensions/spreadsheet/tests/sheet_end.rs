@@ -477,6 +477,7 @@ fn protection_defined_names_and_document_properties_are_written() {
             }),
         },
         target: "orders.xlsx".to_owned(),
+        ods: false,
     })
     .unwrap();
     let out = writer

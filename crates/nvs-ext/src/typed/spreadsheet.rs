@@ -105,7 +105,7 @@ records! {
         valign, wrap, rotate, indent, format, locked, hide_formula,
     }
     Properties { title, subject, author, company, keywords, created }
-    WorkbookOptions { properties, target }
+    WorkbookOptions { properties, target, ods }
     Column { width, auto, style, format, hidden }
     HeaderOptions { default_style, style, freeze, filter }
     SheetOptions {

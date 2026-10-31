@@ -11,6 +11,9 @@
 //! a value past `u32::MAX`, or a 65,536th entry, is a [`Error::Runtime`] at the call that would
 //! write it, and the archive stops: a reader never gets a file whose sizes wrap.
 //!
+//! [`Archive::stored`] writes a whole entry at once, uncompressed (method 0) with its CRC-32 and
+//! sizes in its local header and no data descriptor. An ods needs its `mimetype` entry so.
+//!
 //! The bytes produced wait in [`Archive::take`]'s buffer until the caller takes them, which every
 //! writer call does before it returns, so the archive keeps no byte it has already given out. One
 //! [`CompressorOxide`] serves every entry and is reset between them.
@@ -33,13 +36,17 @@ const FLAGS: u16 = (1 << 3) | (1 << 11);
 /// Version 2.0, the first with deflate.
 const VERSION: u16 = 20;
 
-/// An entry's line in the central directory.
+/// Bit 11 alone, for an entry whose sizes are in its local header.
+const STORED_FLAGS: u16 = 1 << 11;
+
+/// An entry's line in the central directory. `stored` is an entry [`Archive::stored`] wrote.
 struct Central {
     name: String,
     crc: u32,
     packed: u32,
     raw: u32,
     offset: u32,
+    stored: bool,
 }
 
 /// The entry being written.
@@ -102,9 +109,9 @@ impl Archive {
         std::mem::take(&mut self.out)
     }
 
-    /// Starts the entry `name`, ending the open one first.
-    pub fn begin(&mut self, name: &str) -> Result<(), Error> {
-        self.end()?;
+    /// Checks that one more entry named `name` fits, and returns its offset and its name's
+    /// length.
+    fn room(&self, name: &str) -> Result<(u32, u16), Error> {
         if self.central.len() >= usize::from(u16::MAX) {
             return Err(Error::Runtime(
                 "The workbook has more than 65,535 parts. This writer cannot write that many."
@@ -114,6 +121,44 @@ impl Archive {
         let offset = u32_of(self.size())?;
         let name_len = u16::try_from(name.len())
             .map_err(|_| Error::Invalid("A part name is longer than 65,535 bytes.".to_owned()))?;
+        Ok((offset, name_len))
+    }
+
+    /// Writes the whole entry `name` uncompressed, ending the open one first.
+    pub fn stored(&mut self, name: &str, data: &[u8]) -> Result<(), Error> {
+        self.end()?;
+        let (offset, name_len) = self.room(name)?;
+        let size = u32_of(data.len() as u64)?;
+        let crc = crc32fast::hash(data);
+        let out = &mut self.out;
+        put32(out, 0x0403_4b50);
+        put16(out, VERSION);
+        put16(out, STORED_FLAGS);
+        put16(out, 0);
+        put16(out, DOS_TIME);
+        put16(out, DOS_DATE);
+        put32(out, crc);
+        put32(out, size);
+        put32(out, size);
+        put16(out, name_len);
+        put16(out, 0);
+        out.extend_from_slice(name.as_bytes());
+        out.extend_from_slice(data);
+        self.central.push(Central {
+            name: name.to_owned(),
+            crc,
+            packed: size,
+            raw: size,
+            offset,
+            stored: true,
+        });
+        Ok(())
+    }
+
+    /// Starts the entry `name`, ending the open one first.
+    pub fn begin(&mut self, name: &str) -> Result<(), Error> {
+        self.end()?;
+        let (offset, name_len) = self.room(name)?;
         let out = &mut self.out;
         put32(out, 0x0403_4b50);
         put16(out, VERSION);
@@ -187,6 +232,7 @@ impl Archive {
             packed: u32_of(open.packed)?,
             raw: u32_of(open.raw)?,
             offset: open.offset,
+            stored: false,
         };
         put32(&mut self.out, 0x0807_4b50);
         put32(&mut self.out, entry.crc);
@@ -206,8 +252,13 @@ impl Archive {
             put32(out, 0x0201_4b50);
             put16(out, VERSION);
             put16(out, VERSION);
-            put16(out, FLAGS);
-            put16(out, 8);
+            if entry.stored {
+                put16(out, STORED_FLAGS);
+                put16(out, 0);
+            } else {
+                put16(out, FLAGS);
+                put16(out, 8);
+            }
             put16(out, DOS_TIME);
             put16(out, DOS_DATE);
             put32(out, entry.crc);

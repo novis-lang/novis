@@ -8,10 +8,10 @@
     {
       "name": "writerOpen",
       "params": [
-        {"name": "options", "type": "{ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay } }, target: string }"}
+        {"name": "options", "type": "{ properties: { title: ?string, subject: ?string, author: ?string, company: ?string, keywords: ?string, created: ?{ day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay } }, target: string, ods: bool }"}
       ],
       "returns": "Writer",
-      "help": "Starts a new workbook. `target` is where the file goes, such as its file name. The workbook is written when you add a sheet."
+      "help": "Starts a new workbook. `target` is where the file goes, such as its file name. When `ods` is `true`, the workbook is an ods file. Otherwise it is an xlsx file. An xlsx file is written when you add a sheet. An ods file is written at `writerFinish`."
     },
     {
       "name": "writerStyle",

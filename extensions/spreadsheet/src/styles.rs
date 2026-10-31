@@ -235,6 +235,19 @@ impl Styles {
         Ok(xf)
     }
 
+    /// The combined style of the `cellXfs` index `xf`, the default style for 0.
+    pub fn xf_style(&self, xf: u32) -> Style {
+        match xf.checked_sub(1) {
+            Some(at) => self.xfs.get(at as usize).cloned().unwrap_or_default(),
+            None => Style::default(),
+        }
+    }
+
+    /// How many `cellXfs` entries there are past the default one.
+    pub fn xf_count(&self) -> u32 {
+        self.xfs.len() as u32
+    }
+
     /// The format code of a cell styled by these layers, holding a value whose write-table format
     /// is `implicit`, or `None` for General. The most specific layer that sets `format` wins.
     pub fn code(

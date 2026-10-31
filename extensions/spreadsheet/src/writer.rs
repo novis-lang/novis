@@ -78,8 +78,8 @@ use crate::{
 pub const XML_HEAD: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
 
 /// Excel's grid.
-const MAX_ROWS: u32 = 1_048_576;
-const MAX_COLUMNS: usize = 16_384;
+pub(crate) const MAX_ROWS: u32 = 1_048_576;
+pub(crate) const MAX_COLUMNS: usize = 16_384;
 /// The width Excel writes for a column of its default 8.43 characters.
 const DEFAULT_WIDTH: f64 = 9.140625;
 
@@ -162,7 +162,11 @@ pub fn unfinished_message(target: &str) -> String {
     }
 }
 
-fn check_sheet_name(name: &str, sheets: &[Sheet]) -> Result<(), Error> {
+/// Checks `name` against Excel's rules for a sheet name and the names in `taken`.
+pub(crate) fn check_sheet_name<'a>(
+    name: &str,
+    mut taken: impl Iterator<Item = &'a str>,
+) -> Result<(), Error> {
     let bad = |rule: &str| Err(Error::Invalid(format!("The sheet name `{name}` {rule}.")));
     if name.is_empty() {
         return Err(Error::Invalid("A sheet name cannot be empty.".to_owned()));
@@ -179,17 +183,163 @@ fn check_sheet_name(name: &str, sheets: &[Sheet]) -> Result<(), Error> {
         return bad("starts or ends with `'`. That is not allowed");
     }
     let lower = name.to_lowercase();
-    if sheets
-        .iter()
-        .any(|sheet| sheet.name.to_lowercase() == lower)
-    {
+    if taken.any(|sheet| sheet.to_lowercase() == lower) {
         return bad("is used twice. Each sheet needs its own name");
     }
     Ok(())
 }
 
+/// Turns each column's format into a layer over its style, so a cell layers one column style.
+pub(crate) fn fold_column_formats(
+    styles: &mut Styles,
+    options: &mut SheetOptions,
+) -> Result<(), Error> {
+    for column in &mut options.columns {
+        if let Some(format) = column.format.take() {
+            let base = match column.style {
+                Some(id) => styles.get(id)?.clone(),
+                None => Style::default(),
+            };
+            let style = Style {
+                format: Some(format),
+                ..base
+            };
+            column.style = Some(styles.layer(style)?);
+        }
+    }
+    Ok(())
+}
+
+/// The layer of a header row under `options`, or `None` for an unstyled one.
+pub(crate) fn header_layer(
+    styles: &mut Styles,
+    options: &SheetOptions,
+) -> Result<Option<u64>, Error> {
+    let header = options.header;
+    if !header.default_style {
+        if let Some(id) = header.style {
+            styles.get(id)?;
+        }
+        return Ok(header.style);
+    }
+    let base = crate::styles::header();
+    let style = match header.style {
+        Some(id) => styles.get(id)?.over(&base),
+        None => base,
+    };
+    styles.layer(style).map(Some)
+}
+
+/// Checks a sheet's options against Excel's rules, the sheet names in `taken` and the layers
+/// of `styles`.
+pub(crate) fn check_options<'a>(
+    options: &SheetOptions,
+    taken: impl Iterator<Item = &'a str>,
+    styles: &Styles,
+) -> Result<(), Error> {
+    check_sheet_name(&options.name, taken)?;
+    if options.columns.len() > MAX_COLUMNS {
+        return Err(Error::Invalid(format!(
+            "The sheet `{}` has {} columns. A sheet has at most 16,384 columns.",
+            options.name,
+            options.columns.len()
+        )));
+    }
+    if options.freeze_rows >= u64::from(MAX_ROWS) || options.freeze_columns >= MAX_COLUMNS as u64 {
+        return Err(Error::Invalid(format!(
+            "The sheet `{}` freezes more rows or columns than it has.",
+            options.name
+        )));
+    }
+    if let Some(zoom) = options.zoom
+        && !(10..=400).contains(&zoom)
+    {
+        return Err(Error::Invalid(format!(
+            "The zoom {zoom} is not allowed. Zoom is from 10 to 400."
+        )));
+    }
+    if let Some(range) = &options.autofilter
+        && !is_range(range)
+    {
+        return Err(Error::Invalid(format!(
+            "The autofilter range `{range}` is not a range of cells, such as `A1:D1`."
+        )));
+    }
+    if let Some(color) = &options.tab_color {
+        argb(color)?;
+    }
+    for (at, column) in options.columns.iter().enumerate() {
+        if let Some(width) = column.width
+            && !(0.0..=255.0).contains(&width)
+        {
+            return Err(Error::Invalid(format!(
+                "Column {} of the sheet `{}` has the width {width}. A column width is from 0 to 255.",
+                at + 1,
+                options.name
+            )));
+        }
+        if let Some(style) = column.style {
+            styles.get(style)?;
+        }
+    }
+    Ok(())
+}
+
+/// Checks a defined name against Excel's rules and the names already taken, by `defined` and
+/// by `tables`.
+pub(crate) fn check_name(
+    name: &str,
+    reference: &str,
+    defined: &[(String, String)],
+    tables: &[String],
+) -> Result<(), Error> {
+    let mut chars = name.chars();
+    let first_ok = chars
+        .next()
+        .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '\\');
+    if !first_ok || !chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.') {
+        return Err(Error::Invalid(format!(
+            "`{name}` is not a name Excel allows. A name starts with a letter or `_`, and has only letters, digits, `_` and `.`."
+        )));
+    }
+    if is_range(&name.to_ascii_uppercase()) {
+        return Err(Error::Invalid(format!(
+            "`{name}` is a cell reference, so it cannot be a name."
+        )));
+    }
+    if reference.is_empty() {
+        return Err(Error::Invalid(format!(
+            "The name `{name}` needs a reference, such as `Sheet1!$A$1:$B$10`."
+        )));
+    }
+    let lower = name.to_lowercase();
+    if defined.iter().any(|(n, _)| n.to_lowercase() == lower) {
+        return Err(Error::Invalid(format!(
+            "The name `{name}` is defined twice."
+        )));
+    }
+    if tables.iter().any(|n| n.to_lowercase() == lower) {
+        return Err(Error::Invalid(format!(
+            "The name `{name}` is a table's name already."
+        )));
+    }
+    Ok(())
+}
+
+/// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`, when it is
+/// inside the grid.
+pub(crate) fn address(column: u32, row: u32) -> Result<String, Error> {
+    if column as usize >= MAX_COLUMNS || !(1..=MAX_ROWS).contains(&row) {
+        return Err(Error::Invalid(format!(
+            "Column {} of row {row} is outside the sheet. A sheet has 16,384 columns and 1,048,576 rows.",
+            u64::from(column) + 1
+        )));
+    }
+    Ok(cells::reference(column, row))
+}
+
 /// Whether `text` is a cell or a range of cells such as `A1:D10`, with `$` allowed.
-fn is_range(text: &str) -> bool {
+pub(crate) fn is_range(text: &str) -> bool {
     let cell = |part: &str| {
         let part = part.strip_prefix('$').unwrap_or(part);
         let letters = part.bytes().take_while(u8::is_ascii_uppercase).count();
@@ -207,7 +357,7 @@ fn is_range(text: &str) -> bool {
 }
 
 /// `range` with every row and column fixed, as `$A$1:$C$10`.
-fn absolute(range: &str) -> String {
+pub(crate) fn absolute(range: &str) -> String {
     let fixed = |cell: &str| {
         let cell = cell.replace('$', "");
         let letters = cell.bytes().take_while(u8::is_ascii_alphabetic).count();
@@ -221,7 +371,7 @@ fn absolute(range: &str) -> String {
 
 /// The name of the sheet number `part` of an overflow from `base`, as `Orders (2)`, with `base`
 /// shortened to keep it within 31 characters.
-fn continued(base: &str, part: u32) -> String {
+pub(crate) fn continued(base: &str, part: u32) -> String {
     let suffix = format!(" ({part})");
     let keep = 31 - suffix.chars().count();
     let mut name: String = base.chars().take(keep).collect();
@@ -230,11 +380,11 @@ fn continued(base: &str, part: u32) -> String {
 }
 
 /// `name` quoted for a reference, as `'Shop orders'`.
-fn quoted(name: &str) -> String {
+pub(crate) fn quoted(name: &str) -> String {
     format!("'{}'", name.replace('\'', "''"))
 }
 
-fn clock_text(clock: &Clock) -> Result<String, Error> {
+pub(crate) fn clock_text(clock: &Clock) -> Result<String, Error> {
     if !cells::valid_date(&clock.day) || !cells::valid_time(&clock.clock) {
         return Err(Error::Invalid(
             "The workbook's `created` date is not a real date and time.".to_owned(),
@@ -316,36 +466,7 @@ impl Writer {
     /// A defined name over a reference.
     pub fn define(&mut self, name: &str, reference: &str) -> Result<(), Error> {
         self.writing()?;
-        let mut chars = name.chars();
-        let first_ok = chars
-            .next()
-            .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '\\');
-        if !first_ok || !chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.') {
-            return Err(Error::Invalid(format!(
-                "`{name}` is not a name Excel allows. A name starts with a letter or `_`, and has only letters, digits, `_` and `.`."
-            )));
-        }
-        if is_range(&name.to_ascii_uppercase()) {
-            return Err(Error::Invalid(format!(
-                "`{name}` is a cell reference, so it cannot be a name."
-            )));
-        }
-        if reference.is_empty() {
-            return Err(Error::Invalid(format!(
-                "The name `{name}` needs a reference, such as `Sheet1!$A$1:$B$10`."
-            )));
-        }
-        let lower = name.to_lowercase();
-        if self.names.iter().any(|(n, _)| n.to_lowercase() == lower) {
-            return Err(Error::Invalid(format!(
-                "The name `{name}` is defined twice."
-            )));
-        }
-        if self.tables.iter().any(|n| n.to_lowercase() == lower) {
-            return Err(Error::Invalid(format!(
-                "The name `{name}` is a table's name already."
-            )));
-        }
+        check_name(name, reference, &self.names, &self.tables)?;
         self.names.push((name.to_owned(), reference.to_owned()));
         Ok(())
     }
@@ -355,21 +476,8 @@ impl Writer {
     pub fn sheet(&mut self, mut options: SheetOptions, first: &[Row]) -> Result<Vec<u8>, Error> {
         self.writing()?;
         self.check_options(&options)?;
-        // A column's format becomes a layer over its style, so a cell layers one column style.
-        for column in &mut options.columns {
-            if let Some(format) = column.format.take() {
-                let base = match column.style {
-                    Some(id) => self.styles.get(id)?.clone(),
-                    None => Style::default(),
-                };
-                let style = Style {
-                    format: Some(format),
-                    ..base
-                };
-                column.style = Some(self.styles.layer(style)?);
-            }
-        }
-        let header_style = self.header_style(&options)?;
+        fold_column_formats(&mut self.styles, &mut options)?;
+        let header_style = header_layer(&mut self.styles, &options)?;
         self.ready_to_end()?;
         self.archived(|this| this.end_sheet())?;
         let base = options.name.clone();
@@ -378,23 +486,6 @@ impl Writer {
             return Ok(self.archive.take());
         }
         self.rows(first)
-    }
-
-    /// The layer of a header row under `options`, or `None` for an unstyled one.
-    fn header_style(&mut self, options: &SheetOptions) -> Result<Option<u64>, Error> {
-        let header = options.header;
-        if !header.default_style {
-            if let Some(id) = header.style {
-                self.styles.get(id)?;
-            }
-            return Ok(header.style);
-        }
-        let base = crate::styles::header();
-        let style = match header.style {
-            Some(id) => self.styles.get(id)?.over(&base),
-            None => base,
-        };
-        self.styles.layer(style).map(Some)
     }
 
     fn open_sheet(
@@ -583,13 +674,7 @@ impl Writer {
     /// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`
     /// (`rule:core-classes/spreadsheet-formula-is-a-value`).
     pub fn cell(&self, column: u32, row: u32) -> Result<String, Error> {
-        if column as usize >= MAX_COLUMNS || !(1..=MAX_ROWS).contains(&row) {
-            return Err(Error::Invalid(format!(
-                "Column {} of row {row} is outside the sheet. A sheet has 16,384 columns and 1,048,576 rows.",
-                u64::from(column) + 1
-            )));
-        }
-        Ok(cells::reference(column, row))
+        address(column, row)
     }
 
     /// The open sheet's data range in the column at `column`, from 0, over the rows written so
@@ -612,54 +697,8 @@ impl Writer {
 
     /// Checks a sheet's options against Excel's rules and the sheets already started.
     fn check_options(&self, options: &SheetOptions) -> Result<(), Error> {
-        check_sheet_name(&options.name, &self.sheets)?;
-        if options.columns.len() > MAX_COLUMNS {
-            return Err(Error::Invalid(format!(
-                "The sheet `{}` has {} columns. A sheet has at most 16,384 columns.",
-                options.name,
-                options.columns.len()
-            )));
-        }
-        if options.freeze_rows >= u64::from(MAX_ROWS)
-            || options.freeze_columns >= MAX_COLUMNS as u64
-        {
-            return Err(Error::Invalid(format!(
-                "The sheet `{}` freezes more rows or columns than it has.",
-                options.name
-            )));
-        }
-        if let Some(zoom) = options.zoom
-            && !(10..=400).contains(&zoom)
-        {
-            return Err(Error::Invalid(format!(
-                "The zoom {zoom} is not allowed. Zoom is from 10 to 400."
-            )));
-        }
-        if let Some(range) = &options.autofilter
-            && !is_range(range)
-        {
-            return Err(Error::Invalid(format!(
-                "The autofilter range `{range}` is not a range of cells, such as `A1:D1`."
-            )));
-        }
-        if let Some(color) = &options.tab_color {
-            argb(color)?;
-        }
-        for (at, column) in options.columns.iter().enumerate() {
-            if let Some(width) = column.width
-                && !(0.0..=255.0).contains(&width)
-            {
-                return Err(Error::Invalid(format!(
-                    "Column {} of the sheet `{}` has the width {width}. A column width is from 0 to 255.",
-                    at + 1,
-                    options.name
-                )));
-            }
-            if let Some(style) = column.style {
-                self.styles.get(style)?;
-            }
-        }
-        Ok(())
+        let taken = self.sheets.iter().map(|sheet| sheet.name.as_str());
+        check_options(options, taken, &self.styles)
     }
 
     /// Writes a batch of rows to the open sheet. Returns the bytes ready to leave.
@@ -733,7 +772,8 @@ impl Writer {
             (open.base.clone(), open.header.clone(), open.header_style);
         let mut part = open.part + 1;
         options.name = continued(&base, part);
-        while check_sheet_name(&options.name, &self.sheets).is_err() {
+        while check_sheet_name(&options.name, self.sheets.iter().map(|s| s.name.as_str())).is_err()
+        {
             part += 1;
             options.name = continued(&base, part);
         }

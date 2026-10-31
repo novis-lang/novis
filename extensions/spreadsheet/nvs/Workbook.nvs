@@ -6,7 +6,7 @@ use Iterator;
 use LogicError;
 use RuntimeError;
 
-/// An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.
+/// An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in `.ods` or `.csv`, or `format: 'ods'` or `format: 'csv'`, sets the format.
 /// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
 final class Workbook
 {
@@ -44,6 +44,7 @@ final class Workbook
     // A CSV file is written here as text, and the engine output is not sent. `$csvRows` counts its data rows, `$csvRecords` every row it wrote, and `$csvSize` its bytes.
     // `$encoding` is `null` for UTF-8.
     private bool $csv = false;
+    private bool $ods = false;
     private uint $csvRows = 0;
     private uint $csvRecords = 0;
     private uint $csvSize = 0;
@@ -65,7 +66,8 @@ final class Workbook
         var $book = self::start($name, $name, $options);
         Core\Response::setHeader('Content-Disposition', self::disposition($name));
         string $csvType = $book->encoding == null ? 'text/csv; charset=utf-8' : 'text/csv';
-        $book->response = Core\Response::stream($book->csv ? $csvType :'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, null, $name);
+        string $bookType = $book->ods ? 'application/vnd.oasis.opendocument.spreadsheet' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $book->response = Core\Response::stream($book->csv ? $csvType : $bookType, null, null, $name);
         return $book;
     }
 
@@ -258,8 +260,8 @@ final class Workbook
     private static function start(string $target, ?string $named, Options $options): Workbook
     {
         string $format = $options?->format ?? self::formatOf($named);
-        if ($format != 'xlsx' && $format != 'csv') {
-            throw new LogicError("The format `{$format}` is not supported. Use `xlsx` or `csv`.");
+        if ($format != 'xlsx' && $format != 'ods' && $format != 'csv') {
+            throw new LogicError("The format `{$format}` is not supported. Use `xlsx`, `ods` or `csv`.");
         }
         ?Core\Time\Zone $zone = null;
         ?string $zoneName = $options?->zone ?? null;
@@ -283,9 +285,11 @@ final class Workbook
                 created: $created,
             },
             target: $target,
+            ods: $format == 'ods',
         });
         var $book = new Workbook($writer, $zone);
         $book->csv = $format == 'csv';
+        $book->ods = $format == 'ods';
         var $csv = $options?->csv ?? null;
         $book->separator = $csv?->separator ?? ',';
         $book->quote = $csv?->quote ?? '"';
@@ -304,8 +308,12 @@ final class Workbook
             return 'xlsx';
         }
         ?string $extension = Core\Path::extension($named);
-        if ($extension != null && Core\Str::lower($extension) == 'csv') {
+        ?string $lower = $extension == null ? null : Core\Str::lower($extension);
+        if ($lower == 'csv') {
             return 'csv';
+        }
+        if ($lower == 'ods') {
+            return 'ods';
         }
         return 'xlsx';
     }

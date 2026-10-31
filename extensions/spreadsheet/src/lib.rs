@@ -82,12 +82,14 @@
 //!   unfinished writers in one request reach the extension's memory limit. That is O(in-flight)
 //!   and under the request's cap.
 
+pub mod book;
 pub mod cells;
 pub mod chart;
 pub mod conditional;
 pub mod drawing;
 pub mod eval;
 pub mod format;
+pub mod ods;
 pub mod openformula;
 pub mod read;
 pub mod styles;
@@ -99,6 +101,7 @@ pub mod writer;
 pub mod xml;
 pub mod zip;
 
+pub use book::Book;
 pub use writer::Writer;
 
 /// The WIT `error`: `Invalid`, `Parse` and `Runtime` throw `LogicError`, `ParseError` and
@@ -299,11 +302,12 @@ pub struct Properties {
 }
 
 /// What `writer-open` takes. `target` names where the bytes go, for the log line of a workbook
-/// never finished.
+/// never finished. `ods` writes an ods ([`ods::Writer`]) in place of an xlsx.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct WorkbookOptions {
     pub properties: Properties,
     pub target: String,
+    pub ods: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -515,7 +519,7 @@ mod guest {
 
     /// A workbook being written, kept by the request that opened it.
     pub struct Book {
-        writer: RefCell<crate::Writer>,
+        writer: RefCell<crate::Book>,
     }
 
     impl GuestWriter for Book {}
@@ -1059,7 +1063,7 @@ mod guest {
 
     fn with<T>(
         writer: wit::WriterBorrow<'_>,
-        call: impl FnOnce(&mut crate::Writer) -> Result<T, crate::Error>,
+        call: impl FnOnce(&mut crate::Book) -> Result<T, crate::Error>,
     ) -> Result<T, wit::Error> {
         call(&mut writer.get::<Book>().writer.borrow_mut()).map_err(error)
     }
@@ -1071,7 +1075,7 @@ mod guest {
 
         fn writer_open(options: wit::WorkbookOptions) -> Result<wit::Writer, wit::Error> {
             let properties = options.properties;
-            let writer = crate::Writer::open(crate::WorkbookOptions {
+            let writer = crate::Book::open(crate::WorkbookOptions {
                 properties: crate::Properties {
                     title: properties.title,
                     subject: properties.subject,
@@ -1081,6 +1085,7 @@ mod guest {
                     created: properties.created.map(clock),
                 },
                 target: options.target,
+                ods: options.ods,
             })
             .map_err(error)?;
             Ok(wit::Writer::new(Book {
@@ -1146,7 +1151,7 @@ mod guest {
         }
 
         fn writer_finish(writer: wit::WriterBorrow<'_>) -> Result<wit::Finished, wit::Error> {
-            with(writer, crate::Writer::finish).map(finished)
+            with(writer, crate::Book::finish).map(finished)
         }
 
         fn reader_open(

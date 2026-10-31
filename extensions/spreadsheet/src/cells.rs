@@ -212,6 +212,78 @@ pub struct Layers {
     pub row: Option<u64>,
 }
 
+/// Checks `value`, the value of the cell at `at`, by the write table, and returns what it writes
+/// as.
+fn written<'a>(
+    at: &str,
+    value: &'a Value,
+    integer: &'a mut itoa::Buffer,
+) -> Result<Written<'a>, Error> {
+    Ok(match value {
+        Value::Text(text) => Written::Text(length(at, text, text.chars().count())?),
+        Value::Number(value) => Written::Number(finite(at, *value)?, Implicit::None),
+        Value::Integer(value) => {
+            let text = integer.format(*value);
+            if significant(text) > 15 {
+                Written::Text(text)
+            } else {
+                Written::Raw(text)
+            }
+        }
+        Value::Decimal(text) => {
+            if !is_decimal(text) {
+                return Err(Error::Invalid(format!(
+                    "The cell `{at}` has the decimal `{text}`, which is not a number."
+                )));
+            }
+            if significant(text) > 15 {
+                Written::Text(text)
+            } else {
+                Written::Raw(text)
+            }
+        }
+        Value::Boolean(value) => Written::Boolean(*value),
+        Value::Date(date) => {
+            let serial = date_serial(date).ok_or_else(|| date_error(at, date))?;
+            Written::Number(serial as f64, Implicit::Date)
+        }
+        Value::Time(time) => {
+            if !valid_time(time) {
+                return Err(time_error(at, time));
+            }
+            Written::Number(day_fraction(time), Implicit::Time)
+        }
+        Value::Duration(nanos) => Written::Number(*nanos as f64 / DAY_NANOS, Implicit::Duration),
+        Value::Clock(clock) => Written::Number(clock_serial(at, clock)?, Implicit::Clock),
+        Value::Formula {
+            formula,
+            cached_text,
+            cached_number,
+        } => {
+            let number = cached_number.map(|n| finite(at, n)).transpose()?;
+            Written::Formula(formula, cached_text.as_deref(), number)
+        }
+        Value::Rich(runs) => {
+            let count = runs.iter().map(|run| run.text.chars().count()).sum();
+            length(at, "", count)?;
+            Written::Rich(runs)
+        }
+    })
+}
+
+/// Checks `value`, the value of the cell at column `column` of row `row`, by the write table,
+/// and returns the format the table gives it. An ods cell is checked here, so a value that
+/// xlsx does not allow is not allowed in ods either.
+pub fn check(column: u32, row: u32, value: &Value) -> Result<Implicit, Error> {
+    let mut integer = itoa::Buffer::new();
+    Ok(
+        match written(&reference(column, row), value, &mut integer)? {
+            Written::Number(_, implicit) => implicit,
+            _ => Implicit::None,
+        },
+    )
+}
+
 /// Appends the cell `cell` at column `column` of row `row`, and returns whether it holds a
 /// formula.
 pub fn cell(
@@ -224,70 +296,19 @@ pub fn cell(
 ) -> Result<bool, Error> {
     let at = reference(column, row);
     let mut integer = itoa::Buffer::new();
-    let written = match &cell.value {
-        None => {
-            if cell.style.is_none() {
-                return Ok(false);
-            }
-            let xf = styles.xf(layers.column, layers.row, cell.style, Implicit::None)?;
-            let _ = write!(out, "<c r=\"{at}\"");
-            if xf != 0 {
-                let _ = write!(out, " s=\"{xf}\"");
-            }
-            out.push_str("/>");
+    let Some(value) = &cell.value else {
+        if cell.style.is_none() {
             return Ok(false);
         }
-        Some(Value::Text(text)) => Written::Text(length(&at, text, text.chars().count())?),
-        Some(Value::Number(value)) => Written::Number(finite(&at, *value)?, Implicit::None),
-        Some(Value::Integer(value)) => {
-            let text = integer.format(*value);
-            if significant(text) > 15 {
-                Written::Text(text)
-            } else {
-                Written::Raw(text)
-            }
+        let xf = styles.xf(layers.column, layers.row, cell.style, Implicit::None)?;
+        let _ = write!(out, "<c r=\"{at}\"");
+        if xf != 0 {
+            let _ = write!(out, " s=\"{xf}\"");
         }
-        Some(Value::Decimal(text)) => {
-            if !is_decimal(text) {
-                return Err(Error::Invalid(format!(
-                    "The cell `{at}` has the decimal `{text}`, which is not a number."
-                )));
-            }
-            if significant(text) > 15 {
-                Written::Text(text)
-            } else {
-                Written::Raw(text)
-            }
-        }
-        Some(Value::Boolean(value)) => Written::Boolean(*value),
-        Some(Value::Date(date)) => {
-            let serial = date_serial(date).ok_or_else(|| date_error(&at, date))?;
-            Written::Number(serial as f64, Implicit::Date)
-        }
-        Some(Value::Time(time)) => {
-            if !valid_time(time) {
-                return Err(time_error(&at, time));
-            }
-            Written::Number(day_fraction(time), Implicit::Time)
-        }
-        Some(Value::Duration(nanos)) => {
-            Written::Number(*nanos as f64 / DAY_NANOS, Implicit::Duration)
-        }
-        Some(Value::Clock(clock)) => Written::Number(clock_serial(&at, clock)?, Implicit::Clock),
-        Some(Value::Formula {
-            formula,
-            cached_text,
-            cached_number,
-        }) => {
-            let number = cached_number.map(|n| finite(&at, n)).transpose()?;
-            Written::Formula(formula, cached_text.as_deref(), number)
-        }
-        Some(Value::Rich(runs)) => {
-            let count = runs.iter().map(|run| run.text.chars().count()).sum();
-            length(&at, "", count)?;
-            Written::Rich(runs)
-        }
+        out.push_str("/>");
+        return Ok(false);
     };
+    let written = written(&at, value, &mut integer)?;
     let implicit = match written {
         Written::Number(_, implicit) => implicit,
         _ => Implicit::None,

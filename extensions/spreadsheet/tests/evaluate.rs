@@ -6,7 +6,7 @@ use nvs_spreadsheet::eval::{Book, Kind, Missed, Name, Table, Value};
 use nvs_spreadsheet::read::zip::Bound;
 use nvs_spreadsheet::read::{CellError, Read, ReadOptions, ReadRow, Reader, Source};
 use nvs_spreadsheet::{
-    Cell, Column, Date, Error, Row, SheetOptions, WorkbookOptions, Writer, Value as Written,
+    Cell, Column, Date, Error, Row, SheetOptions, Value as Written, WorkbookOptions, Writer,
 };
 
 fn n(v: f64) -> Value {

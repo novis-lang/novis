@@ -187,9 +187,13 @@ interface engine {
     /// `target` names where the bytes go, as the Novis half shows it to a
     /// person: the download's file name, the file's path, or `memory`. The
     /// error a writer dropped before `writer-finish` logs names it.
+    /// `ods` writes an OpenDocument spreadsheet, which the guest keeps
+    /// whole until `writer-finish`. Otherwise the workbook is an xlsx,
+    /// written as a stream.
     record workbook-options {
         properties: properties,
         target: string,
+        ods: bool,
     }
 
     enum visibility {
