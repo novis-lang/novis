@@ -531,6 +531,9 @@ enum Block {
         /// Each `leader()` in the text: its byte offset there, the index of its text style and
         /// the character it repeats. It fills the room left on its line.
         leaders: Vec<(usize, usize, String)>,
+        /// Each float after the start of the text: its byte offset there and its
+        /// [`Block::Float`]. It is placed at the top of the line it is in.
+        floats: Vec<(usize, Block)>,
     },
     /// The element with an `id`, or the heading, starts on the page and at the top of the next
     /// box placed. It takes no room in the flow.

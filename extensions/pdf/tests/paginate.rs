@@ -34,15 +34,16 @@ fn texts(laid: &Laid, page: usize) -> Vec<(String, f32, f32)> {
         .collect()
 }
 
-/// The left and right edge of each text run on `page`, without the spaces at its end.
+/// The left and right edge of each text run on `page` with text, without the spaces at its end.
 fn edges(laid: &Laid, page: usize) -> Vec<(f32, f32)> {
     laid.pages[page]
         .items
         .iter()
         .filter_map(|item| match item {
+            // The same runs as `texts` gives, in its order.
             Item::Text {
                 x, glyphs, text, ..
-            } => {
+            } if !text.trim().is_empty() => {
                 let blank = |g: &&layout::Glyph| {
                     text.get(g.text.clone())
                         .is_some_and(|t| t.trim().is_empty())
@@ -169,6 +170,57 @@ fn a_left_or_right_page_of_another_width_sets_its_own_line_widths() {
         let widest = lines.iter().map(|l| l.1).fold(0.0, f32::max);
         assert!(widest > mm(right) - 40.0, "page {page}: {widest}");
     }
+}
+
+#[test]
+fn a_float_in_a_paragraph_is_placed_at_its_line_and_moves_to_the_next_page() {
+    let page = |before: usize, height: &str| {
+        let (shop, rest) = ("Shop ".repeat(before), "Shop ".repeat(40));
+        lay(&format!(
+            "<style>
+            @page {{ size: 105mm 148mm; margin: 10mm }}
+            body, p {{ margin: 0 }}
+            </style>
+            <p>{shop}Blog <span style='float: right; width: 30mm; height: {height}'>News</span> \
+             {rest}</p>"
+        ))
+    };
+    // The page, pen start and baseline of the run that has `word`.
+    let find = |laid: &Laid, word: &str| {
+        (0..laid.pages.len())
+            .find_map(|at| {
+                texts(laid, at)
+                    .into_iter()
+                    .find(|(text, ..)| text.split(' ').any(|w| w == word))
+                    .map(|(_, x, y)| (at, x, y))
+            })
+            .unwrap_or_else(|| panic!("no {word}"))
+    };
+
+    // The float starts at the top of the line its text is in, below the lines before it.
+    let laid = page(30, "10mm");
+    let top = texts(&laid, 0)[0].2;
+    let (blog_page, _, blog) = find(&laid, "Blog");
+    let (news_page, news_x, news) = find(&laid, "News");
+    assert_eq!((blog_page, news_page), (0, 0));
+    assert!(blog > top + 20.0, "Blog at {blog}, the first line at {top}");
+    assert!((news - blog).abs() < 2.0, "News at {news}, Blog at {blog}");
+    assert!(close(news_x, mm(65.0)), "{news_x}");
+    // The lines beside it are narrower, so none of them reaches under it.
+    let runs = texts(&laid, 0).into_iter().zip(edges(&laid, 0));
+    for ((text, x, y), (_, end)) in runs {
+        if text != "News" && y > news - 1.0 && y < news + mm(10.0) {
+            assert!(end <= mm(65.0) + 0.5, "{text} at {x}, {y} ends at {end}");
+        }
+    }
+
+    // A float that does not fit under the last line goes on to the next page.
+    let laid = page(170, "60mm");
+    let (news_page, _, news) = find(&laid, "News");
+    let last = texts(&laid, 0).last().map_or(0.0, |t| t.2);
+    assert_eq!(news_page, 1, "{} pages, page 0 ends at {last}", laid.pages.len());
+    assert!(last > mm(138.0 - 60.0), "page 0 ends at {last}");
+    assert!(news < mm(10.0) + 20.0, "News at {news}");
 }
 
 /// The text runs on `page` whose baseline is between `top` and `bottom`, joined in order, and

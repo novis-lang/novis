@@ -38,7 +38,7 @@ stages:
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/src/layout/margin.rs, docs/rules/core-classes/pdf-css-subset.md]
   - id: 9
     title: "page breaks keep what avoid asks for, and a left or right page sets its own line widths"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/tests/paginate.rs]
   - id: 10
     title: "absolute and transformed boxes, the grid shorthands, elliptical radii and repeating gradients"
@@ -659,8 +659,8 @@ line.
 - [x] `rule:core-classes/pdf-css-subset`: a `:left` or `:right` page of another width sets its own line widths. `extensions/pdf/src/paginate/mod.rs:30`, `extensions/pdf/src/layout/text.rs:85`, `extensions/pdf/src/layout/inline.rs:1288`
 - [x] `break-inside: avoid` keeps a row, a flex container and an inline-block whole. `extensions/pdf/src/layout/block.rs:218`, `extensions/pdf/src/layout/text.rs:509`
 - [x] `break-after: avoid` and `break-before: avoid`. `extensions/pdf/src/layout/block.rs:88`, `extensions/pdf/src/layout/block.rs:473`, `extensions/pdf/src/layout/block.rs:487`
-- [ ] A float in a paragraph is placed at its line, and goes on to the next page. `extensions/pdf/src/layout/block.rs:604`
-- [ ] Each new value is in `subset.json`, and the tests the `pdf-breaks` check names. `extensions/pdf/subset.json:1`, `extensions/pdf/tests/paginate.rs:1`
+- [x] A float in a paragraph is placed at its line, and goes on to the next page. `extensions/pdf/src/layout/block.rs:604`
+- [x] Each new value is in `subset.json`, and the tests the `pdf-breaks` check names. `extensions/pdf/subset.json:1`, `extensions/pdf/tests/paginate.rs:1`
 - [x] The module doc's pagination bullet goes. `extensions/pdf/src/lib.rs:57`
 
 ### 10. absolute and transformed boxes, the grid shorthands, elliptical radii and repeating gradients
@@ -710,47 +710,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 8 are done, and the spreadsheet lane is finished. Stage 9's break items landed in
-`eb6fad562`. A box with `break-after: avoid`, or the box before one with `break-before: avoid`,
-gets `BoxGeometry::joined` (the second set by `Builder::join_previous` in `layout/inline.rs`).
-`Cx::run` (`extensions/pdf/src/layout/text.rs:666`) then reads the next box or paragraph with
-`join`, measures the pair inside an edgeless wrapper box, and calls `Flow::keep`. A paragraph reads
-one block ahead to find a following `break-before: avoid`. `break-inside: avoid` already kept a
-row, a flex container and an inline-block whole. Two of the four `pdf-breaks` tests exist and pass:
-`break_inside_avoid_keeps_a_row_a_flex_box_and_an_inline_block_whole` and
-`break_after_and_break_before_avoid_keep_two_boxes_together`, and the whole `paginate` suite is green.
-The module doc's bullet lost its break sentence and keeps only the left and right pages.
+Stages 1 to 9 are done, and the spreadsheet lane is finished. `looper check --name pdf-breaks`
+is green: all four of its tests pass, and so does the rest of the `paginate` suite.
 
-- `pdf-page-attribution`, `pdf-bookmarks` and `pdf-tables` pass, and the marks attack ran once.
-- The `render` suite hung: 20 nested tables measured each cell twice per level, which is
-  exponential. Each cell's widths are now kept per pass (`Cx::ranges`), and the test takes 0.04 s.
-- `string_set_carries_the_chapter_title` was stage 6's expected red, and is fixed.
-- The component's clippy has the same 8 errors, all outside stage 8's code, which stage 11 owns.
+- A paragraph re-breaks from line `i` after a page of another width or a float placed at line
+  `i` (the line loop in `extensions/pdf/src/layout/text.rs`, `place_float` and `beside`). A float
+  that does not fit starts a new page, and its line moves with it. A `leader()`'s room is not
+  computed again after such a re-break.
+- The component's clippy has the same 8 errors, which stage 11 owns.
 - `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
 - `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
 - A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
-- The sweep's nightly reds are run 41187571578 at `857b39cad`, fixed by later commits.
-  `env-secret-proofs` matches no check here (`looper check --name` finds none) and has no log.
+- The sweep's nightly reds (run 41187571578, `857b39cad`) each match a later fix: `39795c9c4`,
+  `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`. None was rerun. `env-secret-proofs` has no check or log.
 
 ### Next
 
-The rest of stage 9. The left and right page widths follow the design in § *Standing decisions*,
-*A left or right page's line widths*:
+Stage 10, by its `**Split:**` line: two writing subagents take the paint items and the grid
+item, and the session takes the block items and the link.
 
-- [ ] `extensions/pdf/src/layout/block.rs:409` (`Flow::paged`), `:548` (`new_page`) and `:765`
-  (`close`): the `widen` closure, `Flow::stretch`, and each page's slice of a filling box painted
-  `stretch` wider.
-- [ ] `extensions/pdf/src/layout/text.rs:849` (the float bands) and `:916` (the line loop): the
-  first break at `width + stretch`, and a break again from line `i` when the page it lands on
-  has another stretch. `extensions/pdf/src/layout/text.rs:128` passes the closure.
-- [ ] `extensions/pdf/tests/paginate.rs:42` (`page_size_margins_and_first_left_right_blank` is
-  the pattern): `a_left_or_right_page_of_another_width_sets_its_own_line_widths`.
-  `extensions/pdf/src/paginate/mod.rs:31` (the module doc's last paragraph) says what is true.
-- [ ] `extensions/pdf/src/layout/block.rs:598` (`Flow::band`) and the `Block::Float` arm of
-  `Cx::run`: a float in a paragraph is placed at its line and goes on to the next page, with
-  `a_float_in_a_paragraph_is_placed_at_its_line_and_moves_to_the_next_page`.
-- [ ] `extensions/pdf/src/lib.rs:55`: the pagination bullet goes. `subset.json` needs no new line
-  for the breaks, because `break-before` and `break-after` already list `avoid`.
+- [ ] `extensions/pdf/src/layout/block.rs:982` (`Flow::absolute`) and `:1015`
+  (`place_absolute`): an absolute box with `left` and `right` and no `width` stretches between
+  them. `an_absolute_box_with_left_and_right_and_no_width_stretches` in
+  `extensions/pdf/tests/layout.rs`.
+- [ ] `extensions/pdf/src/layout/block.rs:913` (`lift`): a box with a `transform` is the
+  containing block of the absolute boxes inside it, as a positioned box is.
+  `a_transformed_box_is_a_containing_block`.
+- [ ] `extensions/pdf/src/write.rs:567` (`Item::Begin`'s transform) and `:623` (`Item::Link`): a
+  link inside a transformed group covers the transformed box's bounds.
+  `a_link_in_a_transformed_box_covers_its_transformed_box` in `extensions/pdf/tests/render.rs`.
+- [ ] Subagent: `extensions/pdf/src/layout/grid.rs:34` reads `grid-template` and `grid` into
+  rows, columns and areas. `the_grid_template_and_grid_shorthands_are_read`.
+- [ ] Subagent: `extensions/pdf/src/layout/boxes.rs:573` (`radii`) takes a horizontal and a
+  vertical radius (`border-radius: 20px / 10px`), and `:336` (`gradient`) reads
+  `repeating-linear-gradient` and `repeating-radial-gradient`. `elliptical_radii_are_drawn` and
+  `repeating_gradients_are_drawn`. Each new value is a line in `extensions/pdf/subset.json`.
+- [ ] `extensions/pdf/src/lib.rs:55`: the writing bullet goes, and the layout bullet keeps only
+  its flex sentences.
 
 Expect red at the gate: a PDF test whose margin box or bookmark order assumed a string, mark,
 running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
@@ -769,7 +765,9 @@ example that sets a `string-set` name in one case and asks for it in another. Al
 case or example whose margin box read a named counter as 0, or whose `element(name, start)` or
 `element(name, first-except)` read as `first`. Also a PDF test, case or example with
 `break-after: avoid` or `break-before: avoid` whose page count or first line on a page assumed the
-break was taken.
+break was taken. Also a PDF test, case or example with a `:left` or `:right` page of another width
+whose x positions or line count assumed the first page's width. Also one with a float after the
+start of a paragraph's text whose top assumed the paragraph's top.
 
 ### Backlog
 

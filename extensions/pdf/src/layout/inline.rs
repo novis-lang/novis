@@ -570,6 +570,9 @@ pub(super) struct Builder<'a, 'd> {
     /// Each `inline-block` box in the text being collected: its byte offset and its index in
     /// `atoms`.
     text_atoms: Vec<(usize, usize)>,
+    /// Each float met after the start of the text being collected: its byte offset and its
+    /// [`Block::Float`].
+    text_floats: Vec<(usize, Block)>,
     /// Every `inline-block` box closed so far, so an inner one comes before the one around it.
     pub(super) atoms: Vec<Atom>,
     /// The text and blocks around each `inline-block` box or flex item still open, innermost
@@ -655,6 +658,7 @@ struct Outside {
     inline: Vec<Inline>,
     open_inline: Vec<usize>,
     text_atoms: Vec<(usize, usize)>,
+    text_floats: Vec<(usize, Block)>,
     leaders: Vec<(usize, usize, String)>,
 }
 
@@ -843,6 +847,7 @@ impl Builder<'_, '_> {
             inline: std::mem::take(&mut self.inline),
             open_inline: std::mem::take(&mut self.open_inline),
             text_atoms: std::mem::take(&mut self.text_atoms),
+            text_floats: std::mem::take(&mut self.text_floats),
             leaders: std::mem::take(&mut self.leaders),
         });
     }
@@ -861,6 +866,7 @@ impl Builder<'_, '_> {
         self.inline = outside.inline;
         self.open_inline = outside.open_inline;
         self.text_atoms = outside.text_atoms;
+        self.text_floats = outside.text_floats;
         self.leaders = outside.leaders;
         Some(blocks)
     }
@@ -885,19 +891,24 @@ impl Builder<'_, '_> {
     }
 
     /// Closes the innermost open float, which floats right when `right` is true and clears the
-    /// sides `clear` names, inside the content box of `frame`. It is placed before the text
-    /// collected around it, at the top of that text's paragraph.
+    /// sides `clear` names, inside the content box of `frame`. A float after the start of the
+    /// text collected around it is placed at the line it is in, and any other before that text.
     fn close_float(&mut self, right: bool, clear: [bool; 2], frame: &Frame) {
         let Some(blocks) = self.close_box() else {
             return;
         };
-        self.blocks.push(Block::Float {
+        let float = Block::Float {
             atom: self.atoms.len(),
             x: frame.x,
             width: frame.width,
             right,
             clear,
-        });
+        };
+        if self.owner.is_some() && (!self.text.trim().is_empty() || !self.text_atoms.is_empty()) {
+            self.text_floats.push((self.text.len(), float));
+        } else {
+            self.blocks.push(float);
+        }
         self.atoms.push(Atom {
             blocks,
             align: VerticalAlign::BASELINE,
@@ -1339,6 +1350,10 @@ impl Builder<'_, '_> {
         let atoms = std::mem::take(&mut self.text_atoms);
         let mut leaders = std::mem::take(&mut self.leaders);
         leaders.retain(|(at, ..)| *at <= trimmed);
+        let mut floats = std::mem::take(&mut self.text_floats);
+        for (at, _) in &mut floats {
+            *at = (*at).min(trimmed);
+        }
         if let Some((mut para, x, width)) = self.owner.take()
             && (!self.runs.is_empty() || !atoms.is_empty())
         {
@@ -1356,7 +1371,11 @@ impl Builder<'_, '_> {
                 inline,
                 atoms,
                 leaders,
+                floats,
             });
+        } else {
+            self.blocks
+                .extend(floats.into_iter().map(|(_, float)| float));
         }
         self.text.clear();
         self.runs.clear();
@@ -1435,6 +1454,7 @@ pub(super) fn blocks(
         inline: Vec::new(),
         open_inline: Vec::new(),
         text_atoms: Vec::new(),
+        text_floats: Vec::new(),
         atoms: Vec::new(),
         outside: Vec::new(),
         containers: Vec::new(),
@@ -1821,6 +1841,7 @@ pub(super) fn blocks(
                                 inline: Vec::new(),
                                 atoms: Vec::new(),
                                 leaders: Vec::new(),
+                                floats: Vec::new(),
                             });
                         }
                     }

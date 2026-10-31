@@ -55,8 +55,7 @@
 //! - Writing (`write`): a link inside a transformed box keeps its untransformed box.
 //! - Layout (`layout`, `layout::block`, `layout::grid`, `layout::flex`, `layout::boxes`): an
 //!   absolute box without a `width` is not stretched by `left` with `right`, a transformed box is
-//!   not a containing block, a float in the middle of a paragraph is placed at its top and does
-//!   not go on to the next page, the `grid-template` and `grid` shorthands are not read, `::before`,
+//!   not a containing block, the `grid-template` and `grid` shorthands are not read, `::before`,
 //!   `::after` and `<br>` are not flex items, flex has no baseline alignment and no `margin: auto`
 //!   on an item, and elliptical radii and repeating gradients are not drawn.
 //! - Text (`fonts`, `layout::inline`): `hyphenate-character` is not in `subset.json`, an inline box

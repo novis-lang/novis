@@ -4,7 +4,9 @@
 //! The flow holds the floats of its last page, and a new page starts with none: a float does
 //! not go on past its page. A float's top is the top the next box would have, or the top of the
 //! float before it if that is lower, and it goes down past the floats beside it until it fits
-//! between them. A line is as wide as the room the floats leave it ([`Flow::band`]), and a box
+//! between them. A float in the middle of a paragraph is placed at the top of the line it is in,
+//! and the lines from there are broken again beside it. A float that does not fit under the last
+//! block goes on to the next page. A line is as wide as the room the floats leave it ([`Flow::band`]), and a box
 //! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
 //! its floats: its own flow ends below them ([`Flow::contain`]).
 //!

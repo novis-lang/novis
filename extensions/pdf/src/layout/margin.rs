@@ -259,6 +259,7 @@ pub(super) fn collect(
                             inline: Vec::new(),
                             atoms: Vec::new(),
                             leaders: Vec::new(),
+                            floats: Vec::new(),
                         }),
                         Some(Block::Close),
                     ]

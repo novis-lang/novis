@@ -571,7 +571,14 @@ impl Cx<'_> {
                 Block::Float { atom, .. }
                 | Block::Absolute { atom, .. }
                 | Block::Running { atom, .. } => out.push(*atom),
-                Block::Text { atoms, .. } => out.extend(atoms.iter().map(|(_, a)| *a)),
+                Block::Text { atoms, floats, .. } => {
+                    out.extend(atoms.iter().map(|(_, a)| *a));
+                    for (_, float) in floats {
+                        if let Block::Float { atom, .. } = float {
+                            out.push(*atom);
+                        }
+                    }
+                }
                 Block::Flex(flex) => {
                     for (atom, _) in &flex.items {
                         out.push(*atom);
@@ -723,25 +730,8 @@ impl Cx<'_> {
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(flex, flow),
                 Block::Table(table) => self.table(table, flow),
-                Block::Float {
-                    atom,
-                    x,
-                    width,
-                    right,
-                    clear,
-                } => {
-                    let placed = &mut self.placed[atom];
-                    let size = (placed.width, placed.height);
-                    let items = std::mem::take(&mut placed.items);
-                    let lost = std::mem::take(&mut placed.missing);
-                    let (left, top) = flow.float(size, (x, width), right, clear);
-                    let page_number = flow.pages.len() as u64;
-                    flow.page().items.extend(
-                        items
-                            .into_iter()
-                            .map(|item| shift(item, left, MARGIN + top)),
-                    );
-                    carry(&mut self.missing, lost, page_number);
+                float @ Block::Float { .. } => {
+                    place_float(&mut self.placed, &mut self.missing, flow, &float);
                 }
                 Block::Absolute {
                     atom,
@@ -818,6 +808,7 @@ impl Cx<'_> {
                     inline,
                     atoms,
                     leaders,
+                    floats,
                 } => {
                     let spans = self.spans;
                     // The character each leader repeats, with its span's index.
@@ -873,17 +864,7 @@ impl Cx<'_> {
                         if is_marker || !flow.has_floats() || pass == 3 {
                             break;
                         }
-                        let mut top = flow.next_top();
-                        let next: Vec<(f32, f32)> = shaped
-                            .lines()
-                            .map(|line| {
-                                let m = line.metrics();
-                                let bottom = top + m.block_max_coord - m.block_min_coord;
-                                let band = flow.band(top, bottom, left, width);
-                                top = bottom;
-                                band
-                            })
-                            .collect();
+                        let next = beside(&shaped, flow, &[], left, width);
                         if next == bands {
                             break;
                         }
@@ -928,6 +909,7 @@ impl Cx<'_> {
                     // and again at each break.
                     let mut next_break = None;
                     let mut plan = !is_marker;
+                    let mut next_float = 0;
                     let mut i = 0;
                     while i < shaped.len() {
                         while plan || next_break == Some(i) {
@@ -951,6 +933,37 @@ impl Cx<'_> {
                                 .and_then(|room| kept(&heights[i..], room, &para))
                                 .map(|at| i + at);
                             plan = false;
+                        }
+                        // The floats in this line are placed at its top. The lines from it are
+                        // then broken again beside them, and the break is planned again.
+                        let end = match shaped.get(i) {
+                            Some(line) if i + 1 < shaped.len() => line.text_range().end,
+                            _ => usize::MAX,
+                        };
+                        let mut met = false;
+                        while let Some((at, float)) = floats.get(next_float)
+                            && *at < end
+                        {
+                            place_float(placed, missing, flow, float);
+                            next_float += 1;
+                            met = true;
+                        }
+                        if met {
+                            let kept: Vec<(f32, f32)> = (0..i)
+                                .map(|k| bands.get(k).copied().unwrap_or((left, width)))
+                                .collect();
+                            for _ in 0..4 {
+                                let next = beside(&shaped, flow, &kept, left, width);
+                                if next == bands {
+                                    break;
+                                }
+                                bands = next;
+                                break_lines(&mut shaped, &text, width, &bands, widest);
+                            }
+                            shaped.align(para.align, AlignmentOptions::default());
+                            heights = line_heights(&shaped);
+                            plan = true;
+                            continue;
                         }
                         let line = shaped.get(i).expect("a line at each index below the count");
                         let (left, width) = bands.get(i).copied().unwrap_or((left, width));
@@ -1301,6 +1314,54 @@ impl Cx<'_> {
             }
         }
     }
+}
+
+/// Places the [`Block::Float`] `float` in `flow`, and draws there the box its atom in `placed`
+/// was laid out as. Its missing characters go to `missing`, on the page it lands on.
+fn place_float(placed: &mut [Placed], missing: &mut Vec<Missing>, flow: &mut Flow, float: &Block) {
+    let &Block::Float {
+        atom,
+        x,
+        width,
+        right,
+        clear,
+    } = float
+    else {
+        return;
+    };
+    let placed = &mut placed[atom];
+    let size = (placed.width, placed.height);
+    let items = std::mem::take(&mut placed.items);
+    let lost = std::mem::take(&mut placed.missing);
+    let (left, top) = flow.float(size, (x, width), right, clear);
+    let page_number = flow.pages.len() as u64;
+    flow.page().items.extend(
+        items
+            .into_iter()
+            .map(|item| shift(item, left, MARGIN + top)),
+    );
+    carry(missing, lost, page_number);
+}
+
+/// The left edge and width of each line of `shaped` beside the floats of `flow`: `kept` for
+/// the lines before, and from there each line placed from the flow's next top in the content
+/// box at `left`, `width` wide.
+fn beside(
+    shaped: &Layout<usize>,
+    flow: &Flow,
+    kept: &[(f32, f32)],
+    left: f32,
+    width: f32,
+) -> Vec<(f32, f32)> {
+    let mut top = flow.next_top();
+    let rest = shaped.lines().skip(kept.len()).map(|line| {
+        let m = line.metrics();
+        let bottom = top + m.block_max_coord - m.block_min_coord;
+        let band = flow.band(top, bottom, left, width);
+        top = bottom;
+        band
+    });
+    kept.iter().copied().chain(rest).collect()
 }
 
 /// How tall each line of `shaped` is.
