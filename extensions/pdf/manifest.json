@@ -8,10 +8,27 @@
     {
       "name": "render",
       "params": [
-        {"name": "pass", "type": "Pass"}
+        {"name": "document", "type": "{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }"}
       ],
       "returns": "{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }",
       "help": "Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw."
+    },
+    {
+      "name": "renderFirst",
+      "params": [
+        {"name": "pass", "type": "{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }, headerHeight: ?string, footerHeight: ?string }"}
+      ],
+      "returns": "{ body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }",
+      "help": "Lays out the body of a document that has header, footer or slot functions. Returns the laid-out body and the facts of each page. The file is empty."
+    },
+    {
+      "name": "renderSecond",
+      "params": [
+        {"name": "body", "type": "Kept"},
+        {"name": "margins", "type": "{ pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> }"}
+      ],
+      "returns": "{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }",
+      "help": "Draws the markup of each page on a body from `renderFirst`, and returns the PDF file. Each body is written once."
     },
     {
       "name": "merge",
@@ -42,11 +59,5 @@
   "enums": [
     {"name": "Standard", "owner": "Document", "cases": ["PdfA2b", "PdfA3b", "PdfUa1"], "help": "A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers."}
   ],
-  "unions": [
-    {"name": "Pass", "cases": [
-      {"name": "Whole", "shape": "{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }"},
-      {"name": "First", "shape": "{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }, headerHeight: ?string, footerHeight: ?string }"},
-      {"name": "Second", "shape": "{ pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> }"}
-    ]}
-  ]
+  "resources": [{"name": "Kept"}]
 }

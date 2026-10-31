@@ -10,6 +10,8 @@
   "guardedBy": [
     "crates/nvs-ext/tests/pdf.rs",
     "tests/conformance/novis/pdf-a-header-knows-its-page.nvst",
-    "tests/conformance/novis/pdf-a-footer-carries-a-running-total.nvst"
+    "tests/conformance/novis/pdf-a-footer-carries-a-running-total.nvst",
+    "tests/conformance/novis/pdf-a-header-may-render-another-document.nvst",
+    "crates/nvs-stdlib/tests/ext_world.rs"
   ]
 }

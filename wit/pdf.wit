@@ -1,7 +1,8 @@
 package nvs:pdf@1.0.0;
 
-/// The PDF component's whole surface: four exports, each one call that
-/// carries its whole input and returns its whole output.
+/// The PDF component's whole surface: six exports. Each but `render-second`
+/// is one call that carries its whole input and returns its whole output,
+/// and `render-second` writes the body `render-first` kept.
 ///
 /// `Novis\Pdf`'s classes are Novis source that build these records and call
 /// `Novis\Pdf\Engine`, whose static methods are these exports
@@ -42,10 +43,9 @@ interface engine {
         options: render-options,
     }
 
-    /// The document of a `first` pass, and the margins its header and
-    /// footer functions fill. `header-height` and `footer-height` are CSS
-    /// lengths, and an absent one is `@page`'s margin. Its keys are not
-    /// `document`'s, so a Novis value picks `whole` or `first` by its shape.
+    /// The document of a `render-first` call, and the margins its header
+    /// and footer functions fill. `header-height` and `footer-height` are
+    /// CSS lengths, and an absent one is `@page`'s margin.
     record first-pass {
         document: document,
         header-height: option<string>,
@@ -78,17 +78,6 @@ interface engine {
     /// Every page's markup, in page order, one per page of the first pass.
     record margins {
         pages: list<page-markup>,
-    }
-
-    /// Which pass a `render` call is. `whole` lays out and writes in one
-    /// call. `first` lays out the body, keeps it in the instance, and returns
-    /// the pages' facts with an empty `data`. `second` places each page's
-    /// markup on the body `first` kept, without moving it, and writes the
-    /// file; with nothing kept it returns `invalid`.
-    variant pass {
-        whole(document),
-        first(first-pass),
-        second(margins),
     }
 
     /// A declaration or an element the subset does not render. `line` and
@@ -152,8 +141,30 @@ interface engine {
         invoice-xml: option<string>,
     }
 
-    /// Renders one pass of a document.
-    render: func(pass: pass) -> result<rendered, error>;
+    /// A body `render-first` laid out, kept by the request until
+    /// `render-second` writes it or the request ends. Each render with
+    /// functions has its own, so a render inside a header function keeps
+    /// its own body.
+    resource kept;
+
+    /// The body a `render-first` call laid out, and its pages' facts with an
+    /// empty `data`.
+    record first-render {
+        body: kept,
+        facts: rendered,
+    }
+
+    /// Lays a document out and writes it in one call.
+    render: func(document: document) -> result<rendered, error>;
+
+    /// Lays the body out and returns it with each page's facts, for the
+    /// header, footer and slot functions to read.
+    render-first: func(pass: first-pass) -> result<first-render, error>;
+
+    /// Places each page's markup on `body` without moving it, and writes the
+    /// file. A body is written once, and a second call with it returns
+    /// `invalid`.
+    render-second: func(body: borrow<kept>, margins: margins) -> result<rendered, error>;
 
     /// One PDF of the parts' pages, in order. An encrypted part returns
     /// `parse`.

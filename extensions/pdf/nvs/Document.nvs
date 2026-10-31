@@ -110,11 +110,12 @@ final class Document
             var $whole = Engine::render($document);
             return new Rendered($whole->data, $whole->pageCount, $whole->dropped, $whole->missingGlyphs, $whole->overflows);
         }
-        var $facts = Engine::render({
+        var $first = Engine::renderFirst({
             document: $document,
             headerHeight: $this->header?->height,
             footerHeight: $this->footer?->height,
         });
+        var $facts = $first->facts;
         array<array<Page::Named>> $marks = [];
         foreach ($facts->pages as var $page) {
             $marks[] = $page->marks;
@@ -124,7 +125,7 @@ final class Document
             var $one = new Page($page->number, $facts->pageCount, $page->name, $page->strings, $marks);
             $pages[] = { header: self::markup($this->header, $one), footer: self::markup($this->footer, $one), slots: self::fills($this->slots, $one) };
         }
-        var $result = Engine::render({ pages: $pages });
+        var $result = Engine::renderSecond($first->body, { pages: $pages });
         return new Rendered($result->data, $result->pageCount, $result->dropped, $result->missingGlyphs, $result->overflows);
     }
 

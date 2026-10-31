@@ -30,8 +30,10 @@
 //! margin unless the fill's own `<style>` gives it one, so a fill starts at the content box's
 //! top-left corner; a header's or footer's `body` keeps the user-agent sheet's margin. A slot's
 //! overflow names the slot. [`draw`] is that half of
-//! [`second`], before the file is written. The guest keeps the [`Kept`] in the instance between
-//! the two calls, and the request's end drops it.
+//! [`second`], before the file is written. The guest returns the [`Kept`] as the WIT `kept`
+//! resource, which the request holds between the two calls. Each render has its own, so a render
+//! inside a header function leaves the outer one's as it was. `render-second` takes the body out
+//! of it, and the request's end drops one left behind.
 //!
 //! `merge` is [`merge::merge`], and `read` and `read-text` are [`read::read`] and [`read::text`].
 //! Each opens existing PDFs and renders nothing (`merge`'s and `read`'s module docs).
@@ -45,9 +47,6 @@
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - A `Document::render` inside a header, footer or slot function replaces the outer render's
-//!   [`Kept`], so the outer second pass returns `invalid` ("the second pass needs a first pass in
-//!   the same request"), pinned in `tests/hostile/novis/Pdf-Document/header/`.
 //! - Tables nested 2000 deep and an invoice XML nested 1000 deep exhaust the call stack, and a
 //!   2-million-character word, 100,000 nested `div`s, a 64 MB deflate stream, a 64 MB attachment
 //!   and a page of a million `q` operators reach the component's own memory limit below the
@@ -422,17 +421,18 @@ mod guest {
     use std::cell::RefCell;
 
     use exports::nvs::pdf::engine::{
-        Attachment, Document, DroppedItem, Error, Guest, Metadata, MissingGlyph, NamedValue,
-        Overflow, PageFacts, Part, Pass, PdfInfo, Rendered, Standard,
+        Attachment, Document, DroppedItem, Error, FirstPass, FirstRender, Guest, GuestKept, Kept,
+        KeptBorrow, Margins, Metadata, MissingGlyph, NamedValue, Overflow, PageFacts, Part,
+        PdfInfo, Rendered, Standard,
     };
 
     struct Component;
 
-    thread_local! {
-        /// The body a `first` pass laid out, until the `second` pass writes it. Each request has
-        /// an instance of its own, so this is one request's.
-        static KEPT: RefCell<Option<crate::Kept>> = const { RefCell::new(None) };
-    }
+    /// The WIT `kept`: the body a `render-first` call laid out, until `render-second` takes it.
+    /// The request keeps it, so a render inside a header function has a body of its own.
+    pub struct Body(RefCell<Option<crate::Kept>>);
+
+    impl GuestKept for Body {}
 
     fn named(pairs: Vec<(String, String)>) -> Vec<NamedValue> {
         pairs
@@ -524,46 +524,47 @@ mod guest {
     }
 
     impl Guest for Component {
-        fn render(pass: Pass) -> Result<Rendered, Error> {
-            // Whatever this call is, the body an earlier `first` kept is used at most once.
-            let body = KEPT.with(|kept| kept.borrow_mut().take());
-            let out = match pass {
-                Pass::Whole(document) => crate::render(&self::document(document)),
-                Pass::First(first) => {
-                    let heights = crate::Heights {
-                        header: first.header_height,
-                        footer: first.footer_height,
-                    };
-                    crate::first(&self::document(first.document), &heights).map(
-                        |(body, rendered)| {
-                            KEPT.with(|kept| *kept.borrow_mut() = Some(body));
-                            rendered
-                        },
-                    )
-                }
-                Pass::Second(margins) => {
-                    let pages: Vec<crate::Markup> = margins
-                        .pages
-                        .into_iter()
-                        .map(|page| crate::Markup {
-                            header: page.header,
-                            footer: page.footer,
-                            slots: page
-                                .slots
-                                .into_iter()
-                                .map(|slot| (slot.name, slot.value))
-                                .collect(),
-                        })
-                        .collect();
-                    match body {
-                        Some(body) => crate::second(body, &pages),
-                        None => Err(crate::Error::Invalid(
-                            "the second pass needs a first pass in the same request".to_owned(),
-                        )),
-                    }
-                }
+        type Kept = Body;
+
+        fn render(document: Document) -> Result<Rendered, Error> {
+            crate::render(&self::document(document))
+                .map(rendered)
+                .map_err(error)
+        }
+
+        fn render_first(pass: FirstPass) -> Result<FirstRender, Error> {
+            let heights = crate::Heights {
+                header: pass.header_height,
+                footer: pass.footer_height,
             };
-            out.map(rendered).map_err(error)
+            let (body, facts) =
+                crate::first(&self::document(pass.document), &heights).map_err(error)?;
+            Ok(FirstRender {
+                body: Kept::new(Body(RefCell::new(Some(body)))),
+                facts: rendered(facts),
+            })
+        }
+
+        fn render_second(body: KeptBorrow<'_>, margins: Margins) -> Result<Rendered, Error> {
+            let pages: Vec<crate::Markup> = margins
+                .pages
+                .into_iter()
+                .map(|page| crate::Markup {
+                    header: page.header,
+                    footer: page.footer,
+                    slots: page
+                        .slots
+                        .into_iter()
+                        .map(|slot| (slot.name, slot.value))
+                        .collect(),
+                })
+                .collect();
+            let Some(body) = body.get::<Body>().0.borrow_mut().take() else {
+                return Err(Error::Invalid(
+                    "this first pass is already written, and each is written once".to_owned(),
+                ));
+            };
+            crate::second(body, &pages).map(rendered).map_err(error)
         }
 
         fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {

@@ -443,26 +443,37 @@ fn named_type(resolve: &Resolve, iface: InterfaceId, name: &str) -> TypeId {
 /// A type the Novis-to-WIT table can produce. `u8` appears only as the
 /// element of `list<u8>`, which is `bytes`.
 fn check_crossable(resolve: &Resolve, ty: Type, at: &str) -> Result<(), String> {
+    crossable(resolve, ty, at, false)
+}
+
+/// A type [`check_crossable`] accepts, or an `own` of a resource at any depth,
+/// which a result may carry and the request keeps.
+fn check_returnable(resolve: &Resolve, ty: Type, at: &str) -> Result<(), String> {
+    crossable(resolve, ty, at, true)
+}
+
+fn crossable(resolve: &Resolve, ty: Type, at: &str, owns: bool) -> Result<(), String> {
     match ty {
         Type::Bool | Type::S64 | Type::U64 | Type::F64 | Type::String => Ok(()),
         Type::Id(id) => match &resolve.types[id].kind {
             TypeDefKind::Record(record) => record.fields.iter().try_for_each(|field| {
-                check_crossable(resolve, field.ty, &format!("{at}.{}", field.name))
+                crossable(resolve, field.ty, &format!("{at}.{}", field.name), owns)
             }),
             TypeDefKind::List(Type::U8) => Ok(()),
             TypeDefKind::List(inner) | TypeDefKind::Option(inner) | TypeDefKind::Type(inner) => {
-                check_crossable(resolve, *inner, at)
+                crossable(resolve, *inner, at, owns)
             }
             TypeDefKind::Tuple(tuple) => tuple
                 .types
                 .iter()
-                .try_for_each(|inner| check_crossable(resolve, *inner, at)),
+                .try_for_each(|inner| crossable(resolve, *inner, at, owns)),
             TypeDefKind::Variant(variant) => variant
                 .cases
                 .iter()
                 .filter_map(|case| case.ty)
-                .try_for_each(|inner| check_crossable(resolve, inner, at)),
+                .try_for_each(|inner| crossable(resolve, inner, at, owns)),
             TypeDefKind::Enum(_) => Ok(()),
+            TypeDefKind::Handle(Handle::Own(_)) if owns => Ok(()),
             other => Err(format!(
                 "{at} is a {other:?}, which no Novis type crosses as"
             )),
@@ -1046,7 +1057,14 @@ fn every_intl_formatting_export_takes_a_list_and_returns_a_list() {
 
 /// The exports of the PDF component's `engine`, one per static method of `Novis\Pdf\Engine`
 /// (`rule:core-classes/pdf-roster`).
-const PDF_EXPORTS: &[&str] = &["render", "merge", "read", "read-text"];
+const PDF_EXPORTS: &[&str] = &[
+    "render",
+    "render-first",
+    "render-second",
+    "merge",
+    "read",
+    "read-text",
+];
 
 /// `wit/pdf.wit`, resolved against the `nvs:ext` world it includes: the
 /// resolve, the `nvs:ext` package, the `nvs:pdf` package and its `engine`.
@@ -1131,66 +1149,77 @@ fn the_pdf_interface_parses_against_the_world_in_wit_types_alone() {
         .collect();
     assert_eq!(names, PDF_EXPORTS, "`engine`'s functions, in order");
 
-    let problems = crossing_problems(&resolve, ext, engine);
+    let problems = resource_crossing_problems(&resolve, ext, engine);
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
-/// `render` takes one `pass`: `whole` and `first` carry the document, and
-/// `second` carries every page's header, footer and slot markup and nothing
-/// of the document, which the instance kept from `first`. The result carries
-/// each page's facts for the functions to read.
-#[test]
-fn the_pdf_render_export_carries_a_second_pass_for_page_markup() {
-    let (resolve, _, _, engine) = pdf();
-    let render = &resolve.interfaces[engine].functions["render"];
-    let [param] = render.params.as_slice() else {
+/// The one parameter of `function`, by its name.
+fn only_param(function: &Function) -> (&str, Type) {
+    let [param] = function.params.as_slice() else {
         panic!(
-            "`render` takes {} parameters, not one `pass`",
-            render.params.len()
+            "`{}` takes {} parameters, not one",
+            function.name,
+            function.params.len()
         );
     };
-    let Type::Id(pass) = param.ty else {
-        panic!("`render`'s parameter is {:?}, not a variant", param.ty);
-    };
-    let TypeDefKind::Variant(variant) = &resolve.types[dealias(&resolve, pass)].kind else {
-        panic!("`render`'s parameter is not a variant");
-    };
-    let cases: Vec<(&str, Option<Type>)> = variant
-        .cases
-        .iter()
-        .map(|case| (case.name.as_str(), case.ty))
-        .collect();
-    let names: Vec<&str> = cases.iter().map(|(name, _)| *name).collect();
-    assert_eq!(names, ["whole", "first", "second"], "the passes, in order");
+    (param.name.as_str(), param.ty)
+}
 
-    let payload = |name: &str| {
-        let (_, ty) = cases.iter().find(|(case, _)| *case == name).unwrap();
-        ty.unwrap_or_else(|| panic!("the `{name}` pass carries nothing"))
-    };
+/// `render` takes the document, and `render-first` the document and the
+/// margins its functions fill. `render-first` returns its body as an `own` of
+/// `kept` beside the pages' facts, and `render-second` borrows that body with
+/// every page's header, footer and slot markup and nothing of the document.
+/// Each render has its own body, so a render inside a function leaves the
+/// outer one's as it was.
+#[test]
+fn the_pdf_render_exports_carry_a_kept_body_from_the_first_pass_to_the_second() {
+    let (resolve, _, _, engine) = pdf();
+    let functions = &resolve.interfaces[engine].functions;
     let field_names = |ty: Type| -> Vec<String> {
         record_fields(&resolve, ty)
             .into_iter()
             .map(|(name, _)| name)
             .collect()
     };
-    assert_eq!(field_names(payload("whole")), ["html", "assets", "options"]);
-    let first = record_fields(&resolve, payload("first"));
+    let (_, document) = only_param(&functions["render"]);
+    assert_eq!(field_names(document), ["html", "assets", "options"]);
+    let (_, pass) = only_param(&functions["render-first"]);
+    let first = record_fields(&resolve, pass);
     let names: Vec<&str> = first.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(
         names,
         ["document", "header-height", "footer-height"],
-        "the `first` pass carries the document and the margins its functions fill, under keys a \
-         Novis value tells apart from `whole`'s"
+        "the first pass carries the document and the margins its functions fill"
     );
-    assert_eq!(
-        first[0].1,
-        payload("whole"),
-        "both first passes carry the document"
-    );
+    assert_eq!(first[0].1, document, "both renders carry the document");
 
-    let second = record_fields(&resolve, payload("second"));
-    let [(name, pages)] = second.as_slice() else {
-        panic!("the `second` pass carries {second:?}, not the pages' markup alone");
+    let Some((Some(first_render), _)) = result_of(&resolve, &functions["render-first"]) else {
+        panic!("`render-first` returns no value");
+    };
+    let first_render = record_fields(&resolve, first_render);
+    let names: Vec<&str> = first_render.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, ["body", "facts"], "the body and the pages' facts");
+    let Some((kept, false)) = handle_of(&resolve, first_render[0].1) else {
+        panic!("`render-first`'s body is not an `own` of a resource");
+    };
+
+    let second = &functions["render-second"];
+    let params: Vec<(&str, Type)> = second
+        .params
+        .iter()
+        .map(|param| (param.name.as_str(), param.ty))
+        .collect();
+    let [("body", body), ("margins", margins)] = params.as_slice() else {
+        panic!("`render-second` takes {params:?}, not the body and the margins");
+    };
+    assert_eq!(
+        handle_of(&resolve, *body),
+        Some((kept, true)),
+        "`render-second` borrows the body `render-first` returned"
+    );
+    let margins = record_fields(&resolve, *margins);
+    let [(name, pages)] = margins.as_slice() else {
+        panic!("the margins carry {margins:?}, not the pages' markup alone");
     };
     assert_eq!(name, "pages");
     assert_eq!(
@@ -1199,10 +1228,7 @@ fn the_pdf_render_export_carries_a_second_pass_for_page_markup() {
         "each page's markup"
     );
 
-    let Some((Some(rendered), _)) = result_of(&resolve, render) else {
-        panic!("`render` returns no value");
-    };
-    let rendered = record_fields(&resolve, rendered);
+    let rendered = record_fields(&resolve, first_render[1].1);
     let (_, pages) = rendered
         .iter()
         .find(|(name, _)| name == "pages")
@@ -1328,7 +1354,7 @@ fn resource_crossing_problems(
                     problems.push(format!("`{name}` returns a `borrow`, not an `own`"));
                 }
                 Some((ok, None)) => {
-                    if let Err(err) = check_crossable(resolve, ok, &format!("{name} -> ok")) {
+                    if let Err(err) = check_returnable(resolve, ok, &format!("{name} -> ok")) {
                         problems.push(err);
                     }
                 }
@@ -1346,7 +1372,9 @@ fn resource_crossing_problems(
         ) {
             continue;
         }
-        if let Err(err) = check_crossable(resolve, Type::Id(*id), name) {
+        // Each function's parameters are checked for an `own` above, so a named type may carry
+        // one for a result.
+        if let Err(err) = check_returnable(resolve, Type::Id(*id), name) {
             problems.push(err);
         }
     }

@@ -6,9 +6,11 @@
 //! byte-equal, the output carries no action a reader runs, and HTML nested past the parser's
 //! element cap flattens as `Core\Html`'s parse does.
 //!
-//! A render with a header or footer function is the `first` and `second` passes
+//! A render with a header or footer function is the `renderFirst` and `renderSecond` passes
 //! (`rule:core-classes/pdf-header-is-a-page-function`): two crossings, each page's facts and
-//! marks from the first, and the second drawing markup over the margins without moving the body.
+//! marks and a kept body from the first, and the second drawing markup over that body's margins
+//! without moving it. Two first passes keep two bodies, so a render inside a header function
+//! leaves the outer one's as it was.
 
 use std::future::Future;
 use std::pin::pin;
@@ -54,7 +56,7 @@ fn shape(fields: Vec<(&str, Value)>) -> Value {
     )
 }
 
-/// The `whole` pass of `html` with `assets`, as `Novis\Pdf\Document::render` builds it.
+/// The document of `html` with `assets`, as `Novis\Pdf\Document::render` builds it.
 fn whole(html: &str, assets: &[(&str, &[u8])]) -> Value {
     let assets = assets
         .iter()
@@ -95,7 +97,7 @@ fn field(value: &Value, name: &str) -> Value {
         .unwrap_or_else(|| panic!("the result has no `{name}`"))
 }
 
-/// The `first` pass of `html`, with the header height `height` when there is one.
+/// The first pass of `html`, with the header height `height` when there is one.
 fn first(html: &str, height: Option<&str>) -> Value {
     shape(vec![
         ("document", whole(html, &[])),
@@ -107,7 +109,7 @@ fn first(html: &str, height: Option<&str>) -> Value {
     ])
 }
 
-/// The `second` pass with one header and footer for each page.
+/// The second pass's margins, with one header and footer for each page.
 fn second(pages: &[(Option<&str>, Option<&str>)]) -> Value {
     let text = |part: Option<&str>| part.map_or(Value::Null, |p| Value::String(p.to_owned()));
     let pages = pages
@@ -127,11 +129,27 @@ fn second(pages: &[(Option<&str>, Option<&str>)]) -> Value {
     shape(vec![("pages", Value::Array(pages))])
 }
 
-/// The whole result of `Engine::render` for `pass`.
-fn pass(request: &Request, extension: &Extension, pass: Value) -> Result<Value, Failure> {
+/// The body `Engine::renderFirst` keeps for `pass`, and the pages' facts.
+fn lay_out(
+    request: &Request,
+    extension: &Extension,
+    pass: Value,
+) -> Result<(Value, Value), Failure> {
+    let result = block_on(request.call_values(extension, "renderFirst", vec![pass]))?
+        .expect("`renderFirst` returns a value");
+    Ok((field(&result, "body"), field(&result, "facts")))
+}
+
+/// The whole result of `Engine::renderSecond` for `body` and `margins`.
+fn write(
+    request: &Request,
+    extension: &Extension,
+    body: &Value,
+    margins: Value,
+) -> Result<Value, Failure> {
     Ok(
-        block_on(request.call_values(extension, "render", vec![pass]))?
-            .expect("`render` returns a value"),
+        block_on(request.call_values(extension, "renderSecond", vec![body.clone(), margins]))?
+            .expect("`renderSecond` returns a value"),
     )
 }
 
@@ -407,7 +425,8 @@ fn html_nested_past_the_element_cap_flattens_as_core_html_does() {
 #[test]
 fn a_header_function_runs_once_per_page_with_its_number_and_count() {
     run(|request, extension| {
-        let facts = pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let (body, facts) =
+            lay_out(request, extension, first(THREE_PAGES, None)).expect("it lays out");
         assert!(bytes(&facts).is_empty(), "the first pass wrote a file");
         assert_eq!(field(&facts, "pageCount"), Value::Uint(3));
         let pages = items(&field(&facts, "pages"));
@@ -423,7 +442,7 @@ fn a_header_function_runs_once_per_page_with_its_number_and_count() {
         let header = |n: u64| format!("<p>Shop, page {n} of 3</p>");
         let headers: Vec<String> = (1..=3).map(header).collect();
         let markup: Vec<_> = headers.iter().map(|h| (Some(h.as_str()), None)).collect();
-        let rendered = pass(request, extension, second(&markup)).expect("it renders");
+        let rendered = write(request, extension, &body, second(&markup)).expect("it renders");
         assert!(bytes(&rendered).starts_with(b"%PDF-"));
         assert_eq!(field(&rendered, "pageCount"), Value::Uint(3));
         assert_eq!(items(&field(&rendered, "overflows")), []);
@@ -435,7 +454,8 @@ fn a_header_function_runs_once_per_page_with_its_number_and_count() {
 #[test]
 fn marks_on_a_page_and_up_to_it_reach_the_function() {
     run(|request, extension| {
-        let facts = pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let (_, facts) =
+            lay_out(request, extension, first(THREE_PAGES, None)).expect("it lays out");
         let marks: Vec<Vec<(String, String)>> = items(&field(&facts, "pages"))
             .iter()
             .map(|page| pairs(&field(page, "marks")))
@@ -458,16 +478,44 @@ fn marks_on_a_page_and_up_to_it_reach_the_function() {
 fn a_header_function_costs_two_crossings() {
     run(|request, extension| {
         let before = request.crossings();
-        pass(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let (body, _) = lay_out(request, extension, first(THREE_PAGES, None)).expect("it lays out");
         let markup = [(Some("<p>Shop</p>"), Some("<p>Blog</p>")); 3];
-        let rendered = pass(request, extension, second(&markup)).expect("it renders");
+        let rendered = write(request, extension, &body, second(&markup)).expect("it renders");
         assert!(bytes(&rendered).starts_with(b"%PDF-"));
         assert_eq!(request.crossings() - before, 2);
-        let message = match pass(request, extension, second(&markup)) {
+        let message = match write(request, extension, &body, second(&markup)) {
             Err(Failure::Error(Error::Invalid(message))) => message,
-            other => panic!("a second pass with no first was not `invalid`: {other:?}"),
+            other => panic!("a body written twice was not `invalid`: {other:?}"),
         };
-        assert!(message.contains("first pass"), "{message}");
+        assert!(message.contains("written once"), "{message}");
+    });
+}
+
+#[test]
+fn a_first_pass_inside_another_keeps_its_own_body() {
+    run(|request, extension| {
+        let outer = format!("<p>{}</p>", "Thank you for your order. ".repeat(400));
+        let (whole, count) = render(request, extension, &outer, &[]).expect("it renders");
+        let pages = usize::try_from(count).unwrap();
+        let (outer_body, _) =
+            lay_out(request, extension, first(&outer, None)).expect("it lays out");
+        let (inner_body, inner) =
+            lay_out(request, extension, first(THREE_PAGES, None)).expect("it lays out");
+        let markup = [(Some("<p>Shop</p>"), None); 3];
+        let drawn =
+            write(request, extension, &inner_body, second(&markup)).expect("the inner renders");
+        assert_eq!(field(&drawn, "pageCount"), field(&inner, "pageCount"));
+        let empty = write(
+            request,
+            extension,
+            &outer_body,
+            second(&vec![(None, None); pages]),
+        )
+        .expect("the outer renders after the inner");
+        assert!(
+            bytes(&empty) == whole,
+            "the outer body changed when another render ran inside it"
+        );
     });
 }
 
@@ -477,21 +525,27 @@ fn a_header_never_moves_the_body() {
     run(|request, extension| {
         let html = format!("<p>{}</p>", "Thank you for your order. ".repeat(400));
         let (whole, count) = render(request, extension, &html, &[]).expect("it renders");
-        let facts = pass(request, extension, first(&html, None)).expect("it lays out");
+        let (body, facts) = lay_out(request, extension, first(&html, None)).expect("it lays out");
         assert_eq!(field(&facts, "pageCount"), Value::Uint(count));
         let pages = usize::try_from(count).unwrap();
-        let empty =
-            pass(request, extension, second(&vec![(None, None); pages])).expect("it renders");
+        let empty = write(
+            request,
+            extension,
+            &body,
+            second(&vec![(None, None); pages]),
+        )
+        .expect("it renders");
         assert!(
             bytes(&empty) == whole,
             "a second pass with no markup differs from a whole render"
         );
-        pass(request, extension, first(&html, None)).expect("it lays out");
+        let (body, _) = lay_out(request, extension, first(&html, None)).expect("it lays out");
         let markup = vec![(Some("<h1>Shop</h1>"), Some("<p>Blog</p>")); pages];
-        let drawn = pass(request, extension, second(&markup)).expect("it renders");
+        let drawn = write(request, extension, &body, second(&markup)).expect("it renders");
         assert_eq!(field(&drawn, "pageCount"), Value::Uint(count));
         assert!(bytes(&drawn) != whole, "the header was not drawn");
-        let taller = pass(request, extension, first(&html, Some("10cm"))).expect("it lays out");
+        let (_, taller) =
+            lay_out(request, extension, first(&html, Some("10cm"))).expect("it lays out");
         let Value::Uint(more) = field(&taller, "pageCount") else {
             panic!("`pageCount` is not a uint");
         };
@@ -499,7 +553,7 @@ fn a_header_never_moves_the_body() {
             more > count,
             "a taller header margin did not shorten each page"
         );
-        let message = match pass(request, extension, first(&html, Some("tall"))) {
+        let message = match lay_out(request, extension, first(&html, Some("tall"))) {
             Err(Failure::Error(Error::Invalid(message))) => message,
             other => panic!("a height that is not a length was not `invalid`: {other:?}"),
         };
@@ -512,11 +566,12 @@ fn a_header_never_moves_the_body() {
 fn a_header_taller_than_its_margin_is_reported() {
     run(|request, extension| {
         let html = "<style>@page { margin-top: 1cm }</style><p>Shop</p>";
-        pass(request, extension, first(html, None)).expect("it lays out");
+        let (body, _) = lay_out(request, extension, first(html, None)).expect("it lays out");
         let tall = "<p>Shop</p><p>Blog</p><p>Shop</p><p>Blog</p>";
-        let rendered = pass(
+        let rendered = write(
             request,
             extension,
+            &body,
             second(&[(Some(tall), Some("<p>Blog</p>"))]),
         )
         .expect("it renders");
@@ -539,24 +594,25 @@ fn a_function_header_wins_over_a_margin_box() {
         let (with_box, _) = render(request, extension, boxed, &[]).expect("it renders");
         assert!(plain != with_box, "the margin box was not drawn");
         let header = [(Some("<p>Shop</p>"), None)];
-        pass(request, extension, first(body, None)).expect("it lays out");
-        let over_plain = bytes(&pass(request, extension, second(&header)).expect("it renders"));
-        pass(request, extension, first(boxed, None)).expect("it lays out");
-        let over_box = bytes(&pass(request, extension, second(&header)).expect("it renders"));
+        let over = |html: &str, markup: &[(Option<&str>, Option<&str>)]| {
+            let (kept, _) = lay_out(request, extension, first(html, None)).expect("it lays out");
+            bytes(&write(request, extension, &kept, second(markup)).expect("it renders"))
+        };
+        let over_plain = over(body, &header);
+        let over_box = over(boxed, &header);
         assert!(
             over_plain == over_box,
             "the margin box was drawn beside the function's header"
         );
         let footer = [(None, Some("<p>Shop</p>"))];
-        pass(request, extension, first(boxed, None)).expect("it lays out");
-        let kept = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
-        pass(request, extension, first(body, None)).expect("it lays out");
-        let without = bytes(&pass(request, extension, second(&footer)).expect("it renders"));
+        let kept = over(boxed, &footer);
+        let without = over(body, &footer);
         assert!(kept != without, "a footer took off a box in the top margin");
     });
 }
 
-/// The `second` pass of a one-page document with no header or footer, and `fills` as its slots.
+/// The second pass's margins for a one-page document with no header or footer, and `fills` as
+/// its slots.
 fn slotted(fills: &[(&str, &str)]) -> Value {
     let slots = fills
         .iter()
@@ -586,23 +642,29 @@ fn a_slot_fill_is_drawn_in_its_cell_and_a_tall_one_is_reported() {
         let html = "<table><tbody><tr><td>Total</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
         let (whole, count) = render(request, extension, html, &[]).expect("it renders");
         assert_eq!(count, 1);
-        pass(request, extension, first(html, None)).expect("it lays out");
-        let empty = bytes(&pass(request, extension, slotted(&[])).expect("it renders"));
+        let (body, _) = lay_out(request, extension, first(html, None)).expect("it lays out");
+        let empty = bytes(&write(request, extension, &body, slotted(&[])).expect("it renders"));
         assert!(
             empty == whole,
             "a second pass with no fill differs from a whole render"
         );
-        pass(request, extension, first(html, None)).expect("it lays out");
-        let drawn =
-            pass(request, extension, slotted(&[("total", "<b>12.50</b>")])).expect("it renders");
+        let (body, _) = lay_out(request, extension, first(html, None)).expect("it lays out");
+        let drawn = write(
+            request,
+            extension,
+            &body,
+            slotted(&[("total", "<b>12.50</b>")]),
+        )
+        .expect("it renders");
         assert_eq!(field(&drawn, "pageCount"), Value::Uint(1));
         assert!(bytes(&drawn) != whole, "the slot was not filled");
         assert!(items(&field(&drawn, "overflows")).is_empty());
-        pass(request, extension, first(html, None)).expect("it lays out");
+        let (body, _) = lay_out(request, extension, first(html, None)).expect("it lays out");
         let tall = "<p>Shop</p><p>Blog</p><p>Shop</p><p>Blog</p>";
-        let over = pass(
+        let over = write(
             request,
             extension,
+            &body,
             slotted(&[("total", tall), ("missing", "<p>Blog</p>")]),
         )
         .expect("it renders");

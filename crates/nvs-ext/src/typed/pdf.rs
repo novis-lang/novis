@@ -1,10 +1,13 @@
 //! The PDF component's `nvs:pdf/engine`, called typed: `wit/pdf.wit`'s types as `bindgen!` writes
-//! them, and the conversion of each to and from its Novis value.
+//! them, and the conversion of each to and from its Novis value. The `kept` body a first pass
+//! returns, and the second pass takes, is a [`ResourceAny`] here.
+
+use wasmtime::component::ResourceAny;
 
 use self::bindings::exports::nvs::pdf::engine::{
-    Asset, Attachment, Document, DroppedItem, FirstPass, Margins, Metadata, MissingGlyph,
-    NamedValue, Overflow, PageFacts, PageMarkup, Part, Pass, PdfInfo, RenderOptions, Rendered,
-    Standard,
+    Asset, Attachment, Document, DroppedItem, FirstPass, FirstRender, Margins, Metadata,
+    MissingGlyph, NamedValue, Overflow, PageFacts, PageMarkup, Part, PdfInfo, RenderOptions,
+    Rendered, Standard,
 };
 use self::bindings::nvs::ext::types::{Error as WitError, Instant};
 use crate::call::Error;
@@ -44,7 +47,9 @@ impl From<WitError> for Error {
 
 world! {
     error: WitError;
-    render(Pass) -> Rendered;
+    render(Document) -> Rendered;
+    render_first(FirstPass) -> FirstRender;
+    render_second(ResourceAny, Margins) -> Rendered;
     merge(Vec<Part>) -> Vec<u8>;
     read(Vec<u8>) -> PdfInfo;
     read_text(Vec<u8>, Vec<u64>) -> Vec<String>;
@@ -63,6 +68,7 @@ records! {
     MissingGlyph { text, fonts, page }
     Overflow { page, area, text }
     Rendered { data, page_count, pages, dropped, missing_glyphs, overflows }
+    FirstRender { body, facts }
     Part { data, pages }
     Metadata { title, author, subject, keywords, creator, producer }
     Attachment { name, data }
@@ -71,10 +77,6 @@ records! {
 
 enums! {
     Standard [PdfA2b, PdfA3b, PdfUa1]
-}
-
-variants! {
-    Pass [Whole, First, Second]
 }
 
 cores! {

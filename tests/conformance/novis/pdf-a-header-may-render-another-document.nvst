@@ -1,0 +1,27 @@
+--TEST--
+A header function that renders another document with its own header leaves the outer render whole: rule:core-classes/pdf-header-is-a-page-function
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::header
+// covers: Novis\Pdf\Document::render
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// The inner document has a header of its own.
+var $inner = fn(Page $page): Core\Html\Markup => html`<p>inner {$page->number}</p>`;
+
+// The outer header renders the inner document on every page of the outer one.
+var $outer = fn(Page $page): Core\Html\Markup => {
+    var $other = Document::fromHtml("<h1>Blog</h1><h2 style=\"break-before: page\">Shop</h2>")->header($inner)->render();
+    echo "outer page ", $page->number, ": the inner document has ", $other->pageCount, " pages\n";
+    return html`<p>outer {$page->number}</p>`;
+};
+
+var $html = "<h1>Shop</h1><h2 style=\"break-before: page\">Blog</h2><h2 style=\"break-before: page\">Shop</h2>";
+var $rendered = Document::fromHtml($html)->header($outer)->render();
+echo "the outer document has ", $rendered->pageCount, " pages and ", Core\Arr::count($rendered->overflows), " overflows\n";
+--EXPECT--
+outer page 1: the inner document has 2 pages
+outer page 2: the inner document has 2 pages
+outer page 3: the inner document has 2 pages
+the outer document has 3 pages and 0 overflows

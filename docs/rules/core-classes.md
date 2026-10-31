@@ -4243,12 +4243,14 @@ per page** with that page's `Page`, returning ``html`…` `` markup. Headers tha
 the 16 margin boxes, `counter(page)`, `counter(pages)`, `string-set` and running elements, all in the
 subset ([`core-classes/pdf-css-subset-table`](core-classes.md#core-classes-pdf-css-subset-table)).
 
-**A render with a function is two calls to the component.** The first lays out the body, keeps the laid-out
-pages in the request's instance ([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)) and returns each
-page's facts with no file. Novis then calls each function once per page, with no crossing. The second
-call carries every page's markup, places it in the margins and slots of the kept pages, and writes the
-file. `wit/pdf.wit`'s `render` takes either pass, and a second pass with no first in the instance
-returns `invalid`.
+**A render with a function is two calls to the component.** The first, `render-first`, lays out the
+body and returns it as a `kept` resource the request holds
+([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)), beside each page's facts with no file. Novis then calls
+each function once per page, with no crossing. The second, `render-second`, takes that resource and every
+page's markup, places the markup in the margins and slots of the kept pages, and writes the file. Each
+render has its own resource, so a function that renders another document, with functions of its own,
+leaves the outer render's body as it was. A resource is written once, and a second `render-second` with
+it returns `invalid`.
 
 **A header never moves the body.** Each margin's height is fixed before the body is laid out, by
 `@page`'s margin or the function's `height` option, so the page breaks the function saw are the page
@@ -4265,12 +4267,12 @@ separated by `;`. `marks(name)` returns the values on that page and `marksUpTo(n
 page up to it, as strings, so a carried-forward total is `Core\Decimal` arithmetic in Novis and never
 rounds through a float.
 
-- **Memory:** between the two calls, the request's instance keeps the laid-out body, inside the
-  request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
+- **Memory:** between the two calls, the request keeps one laid-out body per unfinished render, inside
+  the request's cap. `render-second` frees it, and the request's end frees one left behind. Novis holds one `Page` per page and the markup the
   functions return.
 
 **On disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
-`first` and `second` in `extensions/pdf/src/lib.rs`, called by `Document::render` in
+`first` and `second` in `extensions/pdf/src/lib.rs`, with the guest's `Body` as the resource, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
 over it. `Document::slots` fills each `<slot name>` through the same second pass, in its cell's
