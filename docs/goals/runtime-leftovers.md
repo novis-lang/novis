@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/core-classes/regex-compile-time-tiering.md, crates/nvs-config/src/tree.rs, crates/nvs-config/src/directive.rs, crates/nvs-config/src/errors.rs, crates/nvs-types/src/intrinsics.rs]
   - id: 2
     title: "under deny a run-time pattern that needs backtracking throws, and the directive has its docs and feature proofs"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/regex.rs, crates/nvs-config/src/default.toml, docs/reference/tools/20-config.md, docs/rules/config/every-block-is-argued-where-it-is-added.md]
   - id: 3
     title: "a service on a privileged port gets its socket from a systemd socket unit and holds no capability"
@@ -330,13 +330,13 @@ proven.
 **Split:** the example and the attack are two similar files. One writing subagent writes both once
 the run-time throw is landed. It builds nothing.
 
-- [ ] `rule:core-classes/regex-compile-time-tiering`: the compile path reads the policy and throws under `Deny` before the backtracking engine is built. `crates/nvs-stdlib/src/regex.rs:1189`
-- [ ] The three conformance cases the `regex-backtracking-cases` check names, each run once by name. `tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst:1`, `tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst:1`, `tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst:1`
+- [x] `rule:core-classes/regex-compile-time-tiering`: the compile path reads the policy and throws under `Deny` before the backtracking engine is built. `crates/nvs-stdlib/src/regex.rs:1189`
+- [x] The three conformance cases the `regex-backtracking-cases` check names, each run once by name. `tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst:1`, `tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst:1`, `tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst:1`
 - [x] `rule:config/every-block-is-argued-where-it-is-added`: a `[regex]` row in the roster table. Landed with stage 1. `docs/rules/config/every-block-is-argued-where-it-is-added.md:30`
-- [ ] The config reference's block table names `[regex]`, and `Core\Regex::compile`'s `about.md` says what `deny` does. `docs/reference/tools/20-config.md:56`, `docs/examples/core/Regex/compile/about.md:1`
-- [ ] The example and the attack the standing decision names, with `bun nv proofs --comments` passing on both. `docs/examples/config/regex-backtracking/about.md:1`, `docs/examples/config/regex-backtracking/01-a-server-that-allows-no-backtracking.nvs:1`, `tests/hostile/config/regex-backtracking/01-a-request-tries-to-backtrack-anyway.nvs:1`
-- [ ] `bun nv proofs --id 'directive:regex.backtracking'` owes nothing. `crates/nvs-config/src/directive.rs:168`
-- [ ] The fragment's last paragraph and its run-time paragraph are rewritten to say what is built, the conformance cases join `guardedBy`, then `bun nv rules --render` and `bun nv render --website`. Delete the gap record `--closes` lists for it. `docs/rules/core-classes/regex-compile-time-tiering.md:14`, `data/rules/core-classes/regex-compile-time-tiering.json:1`
+- [x] The config reference's block table names `[regex]`, and `Core\Regex::compile`'s `about.md` says what `deny` does. `docs/reference/tools/20-config.md:56`, `docs/examples/core/Regex/compile/about.md:1`
+- [x] The example and the attack the standing decision names, with `bun nv proofs --comments` passing on both. `docs/examples/config/regex-backtracking/about.md:1`, `docs/examples/config/regex-backtracking/01-a-server-that-allows-no-backtracking.nvs:1`, `tests/hostile/config/regex-backtracking/01-a-request-tries-to-backtrack-anyway.nvs:1`
+- [x] `bun nv proofs --id 'directive:regex.backtracking'` owes nothing. `crates/nvs-config/src/directive.rs:168`
+- [x] The fragment's last paragraph and its run-time paragraph are rewritten to say what is built, the conformance cases join `guardedBy`, then `bun nv rules --render` and `bun nv render --website`. Delete the gap record `--closes` lists for it. `docs/rules/core-classes/regex-compile-time-tiering.md:14`, `data/rules/core-classes/regex-compile-time-tiering.json:1`
 
 ### 3. a service on a privileged port gets its socket from a systemd socket unit and holds no capability
 
@@ -417,25 +417,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done, and both its checks are green. `nvs.toml` takes `[regex] backtracking`
-(`crates/nvs-config/src/regex.rs`), `System` and `Reload`, in `env_hash`. The checker reads it
-through `check_program_loaded`'s new `backtracking` parameter and `Env::backtracking`: `W1029` under
-`warn`, `E0893` under `deny`. Every compile path fills it from the tree it read: `nvs run`, `nvs
-check`, `nvs test`, `nvs build --compile`, and `nvs serve` through `Compiler::rekey_to`
-(`crates/nvs-cli/src/script.rs`). The editor and a package API pass `Allow`. The census row names
-`a_changed_regex_backtracking_takes_the_next_compile` in `crates/nvs-cli/tests/live_config.rs`, green.
-The roster row landed too. Gap `regex-deny-block` is deleted, and `nvs-stdlib/regex-deny-at-run-time`
-now owns the run-time half. The sweep's `env-secret-proofs` red is stale: no such check exists.
+Stages 1 and 2 are done, and all four regex checks are green. Under `deny` a pattern built at run
+time that only the backtracking engine accepts throws a `RuntimeError` at the call that compiles
+it, before that engine is built, on a cache hit as on a miss (`compiled_prepared` and `build`'s
+`Backtrack` argument in `crates/nvs-stdlib/src/regex.rs`). A malformed pattern keeps its own
+message. Only `Core\Regex::compile` takes a checked literal, so a literal given to `matches` or
+`replace` meets the run-time throw. The three conformance cases pass, the reference, the template,
+`Core\Regex::compile`'s `about.md` and the fragment say so, and gap
+`nvs-stdlib/regex-deny-at-run-time` is deleted. `directive:regex.backtracking` owes no proof.
+The sweep's `env-secret-proofs` red is stale: no such check and no log exist.
 
 ### Next
 
-Stage 2, on the run-time compile in `crates/nvs-stdlib` and the docs and proofs.
+Stage 3, socket activation, in `crates/nvs-cli/src/service.rs` and `crates/nvs-cli/src/serve.rs`.
+Stages 4 and 5 touch disjoint files and may run beside it.
 
-- [ ] The run-time throw under `Deny`. Read the policy with `nvs_config::regex::Backtracking::in_force` over `ctx.config()`, as `crates/nvs-runtime/src/ctx/deprecated.rs:64` reads `[errors]`. `crates/nvs-stdlib/src/regex.rs:1189`
-- [ ] The three conformance cases the `regex-backtracking-cases` check names, each under a tree that writes `deny`. `tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst:1`, `tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst:1`, `tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst:1`
-- [ ] The config reference, `Core\Regex::compile`'s `about.md`, and the template's `[regex]` comment says a run-time pattern throws. `docs/reference/tools/20-config.md:56`, `crates/nvs-config/src/default.toml:321`
-- [ ] The example and the attack, by one writing subagent. `docs/examples/config/regex-backtracking/about.md:1`, `tests/hostile/config/regex-backtracking/01-a-request-tries-to-backtrack-anyway.nvs:1`
-- [ ] `bun nv proofs --id 'directive:regex.backtracking'`, the fragment's run-time paragraph and Not-on-disk, `guardedBy`, then delete gap `nvs-stdlib/regex-deny-at-run-time`. `docs/rules/core-classes/regex-compile-time-tiering.md:14`
+- [ ] `listeners` also returns the TCP addresses, and `Plan` carries them. `crates/nvs-cli/src/service.rs:5042`, `crates/nvs-cli/src/service.rs:520`
+- [ ] The `.socket` text; `unit` adds `Requires=` and `After=` and drops `AmbientCapabilities=` when a socket unit is written. `crates/nvs-cli/src/service.rs:927`, `crates/nvs-cli/src/service.rs:990`
+- [ ] `destination`, install and uninstall handle both files. `crates/nvs-cli/src/service.rs:1802`
+- [ ] The `socket-unit` tests; the old `AmbientCapabilities` assertion becomes their first. `crates/nvs-cli/src/service.rs:5770`
+- [ ] `nvs serve` adopts passed sockets on Linux before `bind_all`, and the `socket-adoption-linux` tests run with `bun nv linux-test`. `crates/nvs-cli/src/serve.rs:624`, `crates/nvs-cli/src/serve.rs:2858`
 
 No test is expected to go red.
 
