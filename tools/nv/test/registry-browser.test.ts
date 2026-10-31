@@ -30,7 +30,7 @@ const b64url = (b: ArrayBuffer | Uint8Array) => Buffer.from(b instanceof Uint8Ar
 const STEP_MS = 60_000;
 
 /** One request the TLS receiver took: a webhook message or an encrypted push message. */
-type Taken = { path: string; body: Uint8Array };
+type Taken = { path: string; body: Uint8Array<ArrayBuffer> };
 
 /** The receiver of every webhook and push message, on `https://127.0.0.1:<port>`. */
 class Receiver {
@@ -60,7 +60,7 @@ class Receiver {
   async next<T>(path: string, accept: (t: Taken) => Promise<T | null>): Promise<T> {
     for (let seen = 0; ; ) {
       while (seen < this.taken.length) {
-        const t = this.taken[seen++];
+        const t = this.taken[seen++]!;
         if (t.path !== path) continue;
         const got = await accept(t);
         if (got !== null) return got;
@@ -71,7 +71,7 @@ class Receiver {
 }
 
 /** The keys of one browser's push subscription, which the stub returns and the test decrypts with. */
-type PushKeys = { pair: CryptoKeyPair; publicRaw: Uint8Array; auth: Uint8Array };
+type PushKeys = { pair: CryptoKeyPair; publicRaw: Uint8Array<ArrayBuffer>; auth: Uint8Array<ArrayBuffer> };
 
 async function pushKeys(): Promise<PushKeys> {
   const pair = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"])) as CryptoKeyPair;
@@ -79,15 +79,15 @@ async function pushKeys(): Promise<PushKeys> {
   return { pair, publicRaw, auth: crypto.getRandomValues(new Uint8Array(16)) };
 }
 
-async function hkdf(ikm: ArrayBuffer, salt: Uint8Array, info: Uint8Array, bits: number): Promise<ArrayBuffer> {
+async function hkdf(ikm: ArrayBuffer, salt: Uint8Array<ArrayBuffer>, info: Uint8Array<ArrayBuffer>, bits: number): Promise<ArrayBuffer> {
   const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
   return crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, bits);
 }
 
 /** The text of one RFC 8291 `aes128gcm` message of one record, as the browser's push service would. */
-async function decrypt(body: Uint8Array, keys: PushKeys): Promise<string> {
+async function decrypt(body: Uint8Array<ArrayBuffer>, keys: PushKeys): Promise<string> {
   const salt = body.slice(0, 16);
-  const idlen = body[20];
+  const idlen = body[20]!;
   const serverRaw = body.slice(21, 21 + idlen);
   const server = await crypto.subtle.importKey("raw", serverRaw, { name: "ECDH", namedCurve: "P-256" }, false, []);
   const shared = await crypto.subtle.deriveBits({ name: "ECDH", public: server }, keys.pair.privateKey, 256);
@@ -194,7 +194,7 @@ function operator(script: string, ...args: string[]) {
 /** Gives `account` the vendor of `name`, such as `Store\Lib`, and saves each version of the package,
  * pending for seven days. Each version's API is `api`. Returns the address of the package page. */
 function publish(account: string, name: string, versions: string[], api: object = { classes: [] }): string {
-  const [vendor] = name.split("\\");
+  const vendor = name.split("\\")[0]!;
   operator("vendor.nvs", account, vendor);
   mkdirSync(join(APP, "builds"), { recursive: true });
   for (const version of versions) {
@@ -440,7 +440,7 @@ describe.skipIf(!EXE)("the registry's pages in Chromium", () => {
 
     await page.act('form[data-action="signout"]', {}, loaded("/"));
     await page.go("/signin");
-    await page.act('form[data-action="recovery"]', { code: codes[0] }, loaded("/account"));
+    await page.act('form[data-action="recovery"]', { code: codes[0]! }, loaded("/account"));
     const text = await page.text();
     expect(text).toContain(account);
     expect(text).toContain("You did not sign in with a passkey in the last 15 minutes.");
@@ -448,7 +448,7 @@ describe.skipIf(!EXE)("the registry's pages in Chromium", () => {
     // A recovery code signs in one time only.
     await page.act('form[data-action="signout"]', {}, loaded("/"));
     await page.go("/signin");
-    await page.act('form[data-action="recovery"]', { code: codes[0] }, `${loaded("/signin")} && document.getElementById("status").textContent !== ""`);
+    await page.act('form[data-action="recovery"]', { code: codes[0]! }, `${loaded("/signin")} && document.getElementById("status").textContent !== ""`);
     expect(await page.eval("location.pathname")).toBe("/signin");
     await page.close();
   }, 120_000);

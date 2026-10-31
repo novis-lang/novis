@@ -39,7 +39,6 @@ final class AdvisoriesTest
     // The entry of the first advisory of `Acme\Http`, in canonical form.
     private const string ADVISORY = '{"id":"acme/http-1","kind":"advisory","package":"acme/http","summary":"It leaks headers.","v":1,"versions":"1.0.0..1.2.0"}';
 
-
     #[Test(at: '2026-03-01T12:00:00Z')]
     public function anAdvisorySentWithATokenGoesIntoTheLogSevenDaysLater(): void
     {

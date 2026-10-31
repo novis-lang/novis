@@ -50,8 +50,11 @@ final class AccountPageTest
         AccountPageTest::has($page, '<tr><td><code>Acme</code></td><td>2026-06-13</td><td>2026-07-15</td><td>never</td><td>works</td><td><form data-action="revoke-token" data-id="t1"><button>Revoke</button></form></td></tr>');
         AccountPageTest::has($page, '<td>revoked on 2026-05-06</td>');
         AccountPageTest::has($page, '<td>2026-06-05</td><td>never</td><td>expired</td>');
-        AccountPageTest::has($page, '<h3>Acme</h3><ul><li><code>' . AccountPageTest::OWNER . '</code> (you)</li><li><code>' . AccountPageTest::OTHER . '</code> '
-            . '<form data-action="remove-owner" data-passkey data-vendor="Acme" data-id="' . AccountPageTest::OTHER . '"><button>Remove</button></form></li></ul>');
+        AccountPageTest::has(
+            $page,
+            '<h3>Acme</h3><ul><li><code>' . AccountPageTest::OWNER . '</code> (you)</li><li><code>' . AccountPageTest::OTHER . '</code> '
+                . '<form data-action="remove-owner" data-passkey data-vendor="Acme" data-id="' . AccountPageTest::OTHER . '"><button>Remove</button></form></li></ul>',
+        );
         AccountPageTest::has($page, '<form data-action="add-owner" data-passkey data-vendor="Acme">');
         AccountPageTest::has($page, '<tr><td>Push device</td><td>2026-05-16</td><td>2026-05-16</td><td>2026-06-12</td><td>yes</td><td><form data-action="test-channel" data-id="c1">');
         AccountPageTest::has($page, '<tr><td>Webhook to hooks.example.com</td><td>2026-06-10</td><td>not yet</td><td>never</td><td>no, it is not verified</td><td><form data-action="verify-channel" data-id="c2">');

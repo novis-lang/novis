@@ -147,7 +147,8 @@ final class Index
                 $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
             }
             $tx->execute('delete from events where id <= ? and (due is null or due <= ?)', [$last, $now]);
-            $this->advised = Str::contains($lines, '"kind":"retract"') || Str::contains($lines, '"kind":"withhold"')
+            $this->advised = Str::contains($lines, '"kind":"retract"')
+                || Str::contains($lines, '"kind":"withhold"')
                 || Str::contains($lines, '"kind":"advisory"');
         }
         return $changed;
