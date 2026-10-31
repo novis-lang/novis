@@ -8,8 +8,9 @@
 //!
 //! Each [`Item::Link`] is a link annotation with no border: a URI action for an address, and a
 //! destination at the page and top of the `id` for an anchor, left out when no element has that
-//! `id`. The headings are the outline, each one under the last heading of a lower level before
-//! it. [`Info`] is the document's title, authors, description, keywords and language.
+//! `id`. A link inside a transformed group covers the bounds of its box as the group draws it,
+//! since an annotation's rectangle cannot turn. The headings are the outline, each one under the
+//! last heading of a lower level before it. [`Info`] is the document's title, authors, description, keywords and language.
 //!
 //! The file is the same bytes for the same input. Nothing here reads a clock: the creation
 //! time is written only when the program passes one, in UTC. The file's `/ID` and its XMP
@@ -70,6 +71,24 @@ use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg}
 use crate::paginate::PageBox;
 use crate::parse::{Dom, Space};
 use crate::{Error, Instant, Options, Standard};
+
+/// The transform that changes nothing, as `[a, b, c, d, e, f]`.
+const IDENTITY: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+
+/// The transform that applies `inner` and then `outer`, each `[a, b, c, d, e, f]` with
+/// `x' = a x + c y + e` and `y' = b x + d y + f`, as `push_transform` nests them.
+fn concat(outer: [f32; 6], inner: [f32; 6]) -> [f32; 6] {
+    let [oa, ob, oc, od, oe, of] = outer;
+    let [ia, ib, ic, id, ie, iff] = inner;
+    [
+        oa * ia + oc * ib,
+        ob * ia + od * ib,
+        oa * ic + oc * id,
+        ob * ic + od * id,
+        oa * ie + oc * iff + oe,
+        ob * ie + od * iff + of,
+    ]
+}
 
 /// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
 /// SVG is drawn as vector paths, and a PDF page as a form XObject of its content.
@@ -471,6 +490,8 @@ pub fn write(
         let mut surface = page.surface();
         // How many states each open group pushed, innermost last.
         let mut groups: Vec<usize> = Vec::new();
+        // The transform in force inside each open group, innermost last.
+        let mut matrices: Vec<[f32; 6]> = Vec::new();
         for (index, item) in laid_page.items.iter().enumerate() {
             // A margin box repeats on every page, so it is not part of the document's text.
             let margin = laid_page
@@ -570,6 +591,8 @@ pub fn write(
                     transform,
                 } => {
                     let mut pushed = 0;
+                    let outer = matrices.last().copied().unwrap_or(IDENTITY);
+                    matrices.push(transform.map_or(outer, |inner| concat(outer, inner)));
                     if let Some([a, b, c, d, e, f]) = *transform {
                         surface.push_transform(&Transform::from_row(a, b, c, d, e, f));
                         pushed += 1;
@@ -585,6 +608,7 @@ pub fn write(
                     groups.push(pushed);
                 }
                 Item::End => {
+                    matrices.pop();
                     for _ in 0..groups.pop().unwrap_or(0) {
                         surface.pop();
                     }
@@ -627,7 +651,16 @@ pub fn write(
                     width,
                     height,
                 } => {
-                    let Some(rect) = Rect::from_xywh(*x, *y, *width, *height) else {
+                    // A link inside a transformed group covers the bounds of its box as drawn.
+                    let rect = Rect::from_xywh(*x, *y, *width, *height).and_then(|rect| {
+                        match matrices.last() {
+                            Some(&[a, b, c, d, e, f]) if [a, b, c, d, e, f] != IDENTITY => {
+                                rect.transform(Transform::from_row(a, b, c, d, e, f))
+                            }
+                            _ => Some(rect),
+                        }
+                    });
+                    let Some(rect) = rect else {
                         continue;
                     };
                     let target = match href {

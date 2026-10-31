@@ -335,6 +335,46 @@ fn an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password() {
     render(&document).unwrap();
 }
 
+/// The numbers of the first `/Rect` in `data`: left, bottom, right and top.
+fn first_rect(data: &[u8]) -> [f32; 4] {
+    let at = data
+        .windows(5)
+        .position(|w| w == b"/Rect")
+        .expect("a /Rect");
+    let text = String::from_utf8_lossy(&data[at + 5..at + 80]);
+    let inside = text.trim_start().trim_start_matches('[');
+    let numbers: Vec<f32> = inside
+        .split(']')
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .map(|n| n.parse().unwrap())
+        .collect();
+    numbers.try_into().unwrap()
+}
+
+#[test]
+fn a_link_in_a_transformed_box_covers_its_transformed_box() {
+    let rect = |transform: &str| {
+        let data = render(&html(&format!(
+            "<div style='width: 100pt; transform: {transform}'><a href='http://example.com/'>Shop</a></div>"
+        )))
+        .unwrap()
+        .data;
+        let [left, bottom, right, top] = first_rect(&data);
+        (right - left, top - bottom)
+    };
+    let (width, height) = rect("none");
+    assert!(width > height, "{width} {height}");
+
+    // A quarter turn swaps the link's width and height.
+    let (turned_width, turned_height) = rect("rotate(90deg)");
+    assert!(
+        (turned_width - height).abs() < 0.01 && (turned_height - width).abs() < 0.01,
+        "{width} {height} {turned_width} {turned_height}"
+    );
+}
+
 #[test]
 fn a_heading_in_an_inline_block_float_flex_item_or_cell_has_a_bookmark() {
     let rendered = render(&html(
