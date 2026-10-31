@@ -532,12 +532,14 @@ gives a `Formula` with `formulas: true`.
 
 **Does:** every extra and `properties` read from an xls, and `tables` returns `[]`.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `xls::read` keeps `HLINK`, `NOTE` with its `OBJ` and `TXO`, `NAME` and the picture store with each anchor. `extensions/spreadsheet/src/read/xls.rs:231`
-- [ ] `properties` reads the two summary streams from the compound file. `extensions/spreadsheet/src/read/cfb.rs:77`, `extensions/spreadsheet/src/read/extras.rs:475`
-- [ ] The extras answer an xls, and `format_name` goes once no format is refused. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:160`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `xls::read` keeps `HLINK`, `NOTE` with its `OBJ` and `TXO`, `NAME` and the picture store with each anchor. `extensions/spreadsheet/src/read/xls.rs:231`
+- [x] `properties` reads the two summary streams from the compound file. `extensions/spreadsheet/src/read/cfb.rs:77`, `extensions/spreadsheet/src/read/extras.rs:475`
+- [x] The extras answer an xls, and `format_name` goes once no format is refused. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:160`
 - [ ] The decoder gives a reference into another workbook as `[n]Sheet!A1`, as an xlsx file writes it: an xls `SUPBOOK` lists its sheet names, and an xlsb `BrtSupBookSrc` names an external link part whose `BrtSupTabs` lists them. An xlsb name over another workbook then has its reference, and the fragment's sentence on it goes. `extensions/spreadsheet/src/read/tokens.rs:738`, `extensions/spreadsheet/src/read/tokens.rs:877`
-- [ ] The tests the `xls-reads-every-extra` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1846`
+- [x] The tests the `xls-reads-every-extra` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1846`
 - [ ] Each extra's `about.md` and `properties`' `about.md` stop naming a format that throws. The fragment's Not-shipped paragraph goes, the extras sentence names `tables` on an xls, and the module doc's extras bullet goes. Delete the records. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`, `extensions/spreadsheet/src/lib.rs:57`
+  - [x] Every `about.md`, `Reader.nvs`'s `properties` help, the fragment's xls paragraph and `extras.rs`'s module doc say an xls reads every extra.
+  - [ ] The Not-shipped paragraph, the module doc's extras bullet's first sentence and the gap record go with the decoder item.
 
 ### 8. a template fills lists on several sheets, from an Iterator too, and moves shared formulas and x14 formats
 
@@ -631,38 +633,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done. The four `formula-tokens-decode` tests and the two
-`xlsb-reads-every-extra` tests ran once and pass.
+Stages 1 to 6 are done, and stage 7 has one item left: the decoder's reference into another
+workbook. The three `xls-reads-every-extra` tests and the rewritten `the_extras_read_on_request`
+ran once and pass.
 
-**The decoder.** `read/tokens.rs` turns xls and xlsb tokens into A1 text, and the fragment's
-**Formulas from every format** paragraph says what gives no `Formula`. A reference into another
-workbook gives `None` (`tokens.rs`'s `sheet` and `external_name`).
+**xls extras.** `read/xls_extras.rs` reads them, and `xls::read` reads them all when the file
+opens, with the cells. `HLINK` with its `HLINKTOOLTIP`, `NOTE` with the `TXO` after the note
+`OBJ` of its id, and the `NAME` formulas decoded with `Biff::Eight` after the globals loop. The
+pictures are the shapes of the sheet's `MSODRAWING` bytes, each with its store index from the
+`MSODRAWINGGROUP`. The properties come from the summary streams, in Windows-1252 or UTF-8. They
+sit in `Reader::xls`, and `extras.rs`'s `xls_of` serves them as `ods_of` does. `tables` gives
+`[]`. `package_workbook` takes no argument now, and `format_name` is gone. A malformed `HLINK`,
+`NOTE`, `OBJ` or `TXO` fails the open, as a malformed cell record does. A property that does not
+read is `None`.
 
-**xlsb extras.** `binary::scan` walks a sheet part's records, and `merged` and `links` use it.
-`binary::hyperlink`, `comments`, `names` and `table` read the records, and `extras.rs` calls
-them when `self.binary`. `package_workbook` replaced `xml_workbook` and lets an xlsb through. An
-xlsb name over another workbook is listed with an empty reference, and the fragment's Not-shipped
-paragraph says so until stage 7's new decoder item.
+**The docs.** Every `about.md` and the fragment say an xls reads every extra. The gap record's
+text now names only the decoder item. `website/src/data/core.json`'s `properties` help still says
+"An xls or ods file throws an error". `bun nv render --website` did not rewrite it, so it comes
+from the binary's help: the goal-end `bun nv relink --build` and the gate's website render should
+refresh it.
 
-**Formatting.** `cargo fmt` over the extension and the workspace is clean.
-`cargo clippy --manifest-path extensions/spreadsheet/Cargo.toml --all-targets -- -D warnings` has
-14 errors that were there before this session: `chunks_exact` → `as_chunks`, collapsible ifs in
-`openformula.rs`, `sheet_rels`' type, and `map_or` at `read/mod.rs:85`. The workspace clippy is
-green. The sweep's `env-secret-proofs` red is stale: nothing defines it, and its log is gone.
+**Formatting.** `cargo fmt` is clean, and the workspace clippy is green.
+The extension's own clippy has the same 14 errors as before. The sweep's `env-secret-proofs` red
+is stale: nothing defines it, and its log is gone.
 
 ### Next
 
-Stage 7, the xls extras. The files are `extensions/spreadsheet/src/read/xls.rs`,
-`extensions/spreadsheet/src/read/cfb.rs`, `extensions/spreadsheet/src/read/extras.rs`,
-`extensions/spreadsheet/src/read/tokens.rs` and `crates/nvs-ext/tests/spreadsheet_read.rs`.
+The last item of stage 7, then stage 8. The files are `extensions/spreadsheet/src/read/tokens.rs`,
+`extensions/spreadsheet/src/read/xls.rs`, `extensions/spreadsheet/src/read/binary.rs`,
+`extensions/spreadsheet/src/read/mod.rs` and `crates/nvs-ext/tests/spreadsheet_read.rs`.
 
-- [ ] `xls::read` keeps each sheet's `HLINK`, `NOTE` with its `OBJ` and `TXO`, and the globals' `NAME` (decode its formula with `tokens::decode`, `Biff::Eight`, as `binary::names` does), in the `Book` it returns and then in `Listed`. `extensions/spreadsheet/src/read/xls.rs:296`, `extensions/spreadsheet/src/read/binary.rs:483`
-- [ ] Images from `MSODRAWINGGROUP`'s picture store and each `OBJ`'s anchor. `extensions/spreadsheet/src/read/xls.rs:296`
-- [ ] `properties` reads `\x05SummaryInformation` and `\x05DocumentSummaryInformation` through `cfb`'s `stream`. `extensions/spreadsheet/src/read/cfb.rs:219`, `extensions/spreadsheet/src/read/extras.rs:593`
-- [ ] `package_workbook` lets an xls through to each extra, `tables` returns `[]` for it, and `format_name` goes. `extensions/spreadsheet/src/read/extras.rs:158`, `extensions/spreadsheet/src/read/extras.rs:169`
-- [ ] The decoder item in stage 7: `[n]Sheet!A1` for another workbook. `extensions/spreadsheet/src/read/tokens.rs:738`
-- [ ] The three `xls-reads-every-extra` tests. `the_extras_read_on_request` at the end asserts an xls `notes` throws "an xls file": rewrite that part. Build an xls with `xls_of`. `crates/nvs-ext/tests/spreadsheet_read.rs:2183`
-- [ ] Docs: each extra's `about.md` and `properties`' stop naming xls as throwing, the fragment's Not-shipped paragraph goes, the module doc's extras bullet goes (`lib.rs:57`), and the gap record `spreadsheet-read-parts-of-every-format` is deleted (`bun nv owners --closes spreadsheet-second-wave`). `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:136`, `extensions/spreadsheet/src/lib.rs:57`
+- [ ] `Linked::Other` carries its number among the other workbooks, from 1, and its sheet names. `sheet` gives `[n]Shop!` (quoted as `'[n]My Shop'!` when the name needs it), and `external_name` gives `[n]!Name`. `extensions/spreadsheet/src/read/tokens.rs:59`, `extensions/spreadsheet/src/read/tokens.rs:766`, `extensions/spreadsheet/src/read/tokens.rs:911`
+- [ ] xls: a `SUPBOOK` of another workbook is its count of sheets at 0, its path as `string_at(body, 2, 2)`, and then each sheet name as `string_at(_, _, 2)`. `extensions/spreadsheet/src/read/xls.rs:356`
+- [ ] xlsb: `BrtSupBookSrc` (355) is a relationship id as a wide string. `Reader::open` reads the external link part it names and takes the sheet names of its `BrtSupTabs` (358, a count and wide strings). `binary::workbook` gets the workbook's relationships for that. `extensions/spreadsheet/src/read/binary.rs:251`, `extensions/spreadsheet/src/read/mod.rs:528`
+- [ ] Tests: an xls formula and an xlsb name over another workbook read as `[1]Shop!$A$1`. `an_xlsb_external_link_reads_as_data` then asserts the reference's text. `crates/nvs-ext/tests/spreadsheet_read.rs:3207`
+- [ ] Docs: the fragment's Not-shipped paragraph goes, `extras.rs`'s module doc says an external part is read for its sheet names alone, the first sentence of `lib.rs`'s extras bullet goes, and the gap record `spreadsheet-read-parts-of-every-format` is deleted. Then stage 7 is done in the front matter. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:147`, `extensions/spreadsheet/src/lib.rs:57`
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and

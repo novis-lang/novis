@@ -133,9 +133,16 @@ a note is in a comments part of records, a table is the `BrtBeginList` of its pa
 name is a `BrtName` of the workbook part, whose formula the token decoder turns into its text. The
 drawing and the relationships are XML, as in an xlsx (`extensions/spreadsheet/src/read/extras.rs`).
 
-**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xls file, and
-`properties` from an xls file: each throws naming the format. An xlsb name over another workbook
-is listed with an empty reference
+**The extras of an xls** are read with its cells: a hyperlink is a `HLINK` record with its
+`HLINKTOOLTIP`, a note is a `NOTE` whose text is the `TXO` after the `OBJ` of the same id, and a
+defined name is a `NAME` of the globals, whose formula the token decoder turns into its text. A
+picture is a shape of the sheet's `MSODRAWING` records, its bytes in the picture store of the
+globals' `MSODRAWINGGROUP` and its cell its client anchor's. The properties are the
+`\x05SummaryInformation` and `\x05DocumentSummaryInformation` streams. BIFF8 has no table part, so
+`tables` gives an empty list for an xls (`extensions/spreadsheet/src/read/xls_extras.rs`). What it
+spends: every extra and each picture's bytes, held with the rows until the reader is freed.
+
+**Not shipped.** An xlsb name over another workbook is listed with an empty reference
 (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**

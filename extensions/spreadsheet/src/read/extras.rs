@@ -22,9 +22,9 @@
 //! workbook, is listed with an empty reference. The relationships and the drawing are XML, as in
 //! an xlsx.
 //!
-//! **Formats.** The sheet extras and the names are read from an xlsx, xlsm, xlsb or ods, and the
-//! properties from any zip package. Asking an xls file for one throws naming the format, so an
-//! empty list always means the file has none.
+//! **Formats.** Every extra is read from an xlsx, xlsm, xlsb, xls or ods, and gives the same
+//! shape for each. An xls's extras are read with its cells (`super::xls_extras`), and BIFF8 has no
+//! table part, so an xls has no tables.
 //!
 //! What it spends, per call: the part it reads whole, or one block of a sheet's part and the
 //! inflater's window, and the list it returns. An image's bytes are held once, in the list.
@@ -153,24 +153,22 @@ fn instant(text: &str) -> Option<Clock> {
 }
 
 impl Reader {
-    /// The workbook part of an xlsx, xlsm or xlsb, or an error naming `what` for any other
-    /// format.
-    fn package_workbook(&self, what: &str) -> Result<&str, Error> {
-        match &self.workbook {
-            Some(part) => Ok(part),
-            None => Err(Error::Runtime(format!(
-                "`{what}` reads xlsx, xlsm, xlsb and ods files. This version of Novis does not read it from {}.",
-                self.format_name()
-            ))),
-        }
+    /// The workbook part of an xlsx, xlsm or xlsb. Every other format's extras are read with its
+    /// cells, so a reader with no workbook part is not a package.
+    fn package_workbook(&self) -> Result<&str, Error> {
+        self.workbook.as_deref().ok_or_else(|| {
+            Error::Parse("The file is not a valid workbook: it has no workbook part.".to_owned())
+        })
     }
 
-    /// The format of a file the extras do not read, as a message names it.
-    fn format_name(&self) -> &'static str {
-        if self.binary {
-            "an xlsb file"
-        } else {
-            "an xls file"
+    /// The extras of an xls, after a check that the sheet `name` exists, when the file is one.
+    fn xls_of(&self, name: &str) -> Result<Option<&super::xls_extras::Extras>, Error> {
+        match self.xls.as_deref() {
+            Some(extras) => {
+                self.listed(name)?;
+                Ok(Some(extras))
+            }
+            None => Ok(None),
         }
     }
 
@@ -191,9 +189,8 @@ impl Reader {
         &self,
         source: &dyn Source,
         name: &str,
-        what: &str,
     ) -> Result<Option<Vec<(String, String, String, bool)>>, Error> {
-        self.package_workbook(what)?;
+        self.package_workbook()?;
         match &self.listed(name)?.part {
             Some(part) => relationships(source, &self.directory, part).map(Some),
             None => Ok(None),
@@ -213,7 +210,10 @@ impl Reader {
         if let Some(extras) = self.ods_of(name)? {
             return Ok(of_sheet(&extras.links, name));
         }
-        let Some(rels) = self.sheet_rels(source, name, "links")? else {
+        if let Some(extras) = self.xls_of(name)? {
+            return Ok(of_sheet(&extras.links, name));
+        }
+        let Some(rels) = self.sheet_rels(source, name)? else {
             return Ok(Vec::new());
         };
         let entry = self.part(self.listed(name)?)?;
@@ -275,7 +275,10 @@ impl Reader {
         if let Some(extras) = self.ods_of(name)? {
             return Ok(of_sheet(&extras.notes, name));
         }
-        let Some(rels) = self.sheet_rels(source, name, "notes")? else {
+        if let Some(extras) = self.xls_of(name)? {
+            return Ok(of_sheet(&extras.notes, name));
+        }
+        let Some(rels) = self.sheet_rels(source, name)? else {
             return Ok(Vec::new());
         };
         let Some(bytes) = rels
@@ -358,7 +361,10 @@ impl Reader {
         if let Some(extras) = &self.ods {
             return Ok(extras.names.clone());
         }
-        let part = self.package_workbook("names")?;
+        if let Some(extras) = &self.xls {
+            return Ok(extras.names.clone());
+        }
+        let part = self.package_workbook()?;
         let Some(bytes) = self.whole_part(source, part)? else {
             return Ok(Vec::new());
         };
@@ -420,7 +426,11 @@ impl Reader {
                 .cloned()
                 .collect());
         }
-        let Some(rels) = self.sheet_rels(source, name, "tables")? else {
+        // BIFF8 has no table part, so an xls has no tables.
+        if self.xls_of(name)?.is_some() {
+            return Ok(Vec::new());
+        }
+        let Some(rels) = self.sheet_rels(source, name)? else {
             return Ok(Vec::new());
         };
         let mut tables = Vec::new();
@@ -495,7 +505,10 @@ impl Reader {
             }
             return Ok(images);
         }
-        let Some(rels) = self.sheet_rels(source, name, "images")? else {
+        if let Some(extras) = self.xls_of(name)? {
+            return Ok(of_sheet(&extras.images, name));
+        }
+        let Some(rels) = self.sheet_rels(source, name)? else {
             return Ok(Vec::new());
         };
         let mut images = Vec::new();
@@ -589,17 +602,16 @@ impl Reader {
     }
 
     /// The document properties of a zip package: the core part's title, subject, author,
-    /// keywords and creation time, and the app part's company. An ods's are `meta.xml`'s.
+    /// keywords and creation time, and the app part's company. An ods's are `meta.xml`'s, and an
+    /// xls's its summary streams', read when it opened.
     pub fn properties(&self, source: &dyn Source) -> Result<Properties, Error> {
         if self.ods.is_some() {
             return self.meta_properties(source);
         }
-        if self.workbook.is_none() {
-            return Err(Error::Runtime(format!(
-                "`properties` reads xlsx, xlsm, xlsb and ods files. This version of Novis does not read it from {}.",
-                self.format_name()
-            )));
+        if let Some(extras) = &self.xls {
+            return Ok(extras.properties.clone());
         }
+        self.package_workbook()?;
         let rels = relationships(source, &self.directory, "")?;
         let part = |kind: &str, usual: &str| {
             rels.iter()

@@ -6,7 +6,8 @@
 //! the [`RawRow`]s the xlsx cursor gives, so `super::Reader::value` reads every format the same
 //! way. A sheet holds at most 65,536 rows. A text cell is the kind `text`, and a number has its
 //! cell style's index. The streams of an older Excel, BIFF5 and before, are [`Error::Runtime`].
-//! A sheet's merged ranges are its `MERGEDCELLS` records, read with its cells.
+//! A sheet's merged ranges are its `MERGEDCELLS` records, read with its cells, and so are its
+//! hyperlinks, notes and pictures and the workbook's names and properties ([`xls_extras`]).
 //!
 //! **Formulas.** A formula cell gives its stored result, and its parsed tokens are turned into A1
 //! text by [`super::tokens`] when the file opens, through the sheets, the `XTI` list, the add-in
@@ -24,11 +25,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::binary::{error_text, f64_at, number, rk, typed, u8_at, u16_at, u32_at};
+use super::extras::{Link, Name, Note};
 use super::format::Style;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::tokens::{self, Biff, Linked, Place};
-use super::{Listed, SheetKind, cfb};
+use super::{Listed, SheetKind, cfb, xls_extras};
 use crate::{Error, Visibility};
 
 const FORMULA: u16 = 0x0006;
@@ -36,7 +38,16 @@ const EOF: u16 = 0x000A;
 const EXTERN_SHEET: u16 = 0x0017;
 const NAME: u16 = 0x0018;
 const EXTERN_NAME: u16 = 0x0023;
+const NOTE: u16 = 0x001C;
 const DATE_MODE: u16 = 0x0022;
+const OBJ: u16 = 0x005D;
+const MSO_DRAWING_GROUP: u16 = 0x00EB;
+const MSO_DRAWING: u16 = 0x00EC;
+const TXO: u16 = 0x01B6;
+const HLINK: u16 = 0x01B8;
+const HLINK_TOOLTIP: u16 = 0x0800;
+/// The type an `OBJ` record gives a note's object.
+const NOTE_OBJECT: u16 = 0x19;
 const CONTINUE: u16 = 0x003C;
 const SHEET: u16 = 0x0085;
 const MULTIPLE_RK: u16 = 0x00BD;
@@ -285,11 +296,23 @@ fn cell(body: &[u8]) -> Result<(u32, RawCell), Error> {
     ))
 }
 
+/// A `NAME` record's formula, after its name: the token count at 4, and the name's length at 3
+/// and the flags byte of its characters at 14. Gives the tokens and the extra data.
+fn name_formula(body: &[u8]) -> Option<(&[u8], &[u8])> {
+    let tokens = usize::from(u16_at(body, 4).ok()?);
+    let count = usize::from(u8_at(body, 3).ok()?);
+    let wide = u8_at(body, 14).ok()? & 1 != 0;
+    let start = 15 + count * if wide { 2 } else { 1 };
+    let rest = body.get(start..)?;
+    (tokens <= rest.len()).then(|| rest.split_at(tokens))
+}
+
 /// What [`read`] gives `super::Reader::open`.
 pub struct Book {
     pub date1904: bool,
     pub styles: Vec<Style>,
     pub sheets: Vec<Listed>,
+    pub extras: xls_extras::Extras,
 }
 
 /// Reads the xls `bytes` whole.
@@ -309,12 +332,16 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
     let mut styles: Vec<u16> = Vec::new();
     let mut listed: Vec<(u32, String, Visibility, u8)> = Vec::new();
     let mut strings_parts: Vec<&[u8]> = Vec::new();
-    let mut in_strings = false;
+    let mut group: Vec<u8> = Vec::new();
+    let mut name_records: Vec<&[u8]> = Vec::new();
+    let mut last = 0;
     let mut book = tokens::Book::default();
     for record in records(&stream, 0) {
         let (kind, body) = record?;
+        let in_strings = last == SHARED_STRINGS;
+        let in_group = last == MSO_DRAWING_GROUP;
         if kind != CONTINUE {
-            in_strings = false;
+            last = kind;
         }
         match kind {
             BOF if u16_at(body, 0)? != BIFF8 => {
@@ -337,11 +364,10 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
                 let (name, _) = string_at(body, 6, 1)?;
                 listed.push((u32_at(body, 0)?, name, visibility, u8_at(body, 5)?));
             }
-            SHARED_STRINGS => {
-                strings_parts.push(body);
-                in_strings = true;
-            }
+            SHARED_STRINGS => strings_parts.push(body),
             CONTINUE if in_strings => strings_parts.push(body),
+            MSO_DRAWING_GROUP => group.extend_from_slice(body),
+            CONTINUE if in_group => group.extend_from_slice(body),
             // The sheet count, then a code that says which workbook this is.
             SUP_BOOK => book.linked.push(match u16_at(body, 2)? {
                 0x0401 => Linked::Own,
@@ -373,7 +399,10 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
                 }
             }
             // A name that does not read is kept empty, so the names after it keep their numbers.
-            NAME => book.names.push(defined_name(body).unwrap_or_default()),
+            NAME => {
+                book.names.push(defined_name(body).unwrap_or_default());
+                name_records.push(body);
+            }
             EOF => break,
             _ => {}
         }
@@ -394,6 +423,34 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
         .map(|&id| Style::of(u32::from(id), formats.get(&id)))
         .collect();
     book.sheets = listed.iter().map(|(_, name, ..)| name.clone()).collect();
+    let mut extras = xls_extras::Extras {
+        properties: xls_extras::properties(&file)?,
+        ..xls_extras::Extras::default()
+    };
+    // A name's sheet is its `itab` at 8, counted from 1, and 0 for the workbook.
+    for (body, name) in name_records.iter().zip(&book.names) {
+        let place = Place {
+            base: (0, 0),
+            shared: true,
+        };
+        let reference = name_formula(body)
+            .and_then(|(tokens, extra)| tokens::decode(Biff::Eight, tokens, extra, place, &book));
+        let sheet = u16_at(body, 8)
+            .ok()
+            .and_then(|itab| usize::from(itab).checked_sub(1))
+            .and_then(|index| book.sheets.get(index))
+            .cloned();
+        extras.names.push(Name {
+            name: name.clone(),
+            reference: reference.unwrap_or_default(),
+            sheet,
+        });
+    }
+    let store = if group.is_empty() {
+        Vec::new()
+    } else {
+        xls_extras::store(&group)
+    };
     let mut sheets = Vec::with_capacity(listed.len());
     for (offset, name, visibility, sheet_type) in listed {
         let kind = if sheet_type == 2 {
@@ -402,8 +459,17 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
             SheetKind::Worksheet
         };
         let (rows, merged) = if kind == SheetKind::Worksheet {
-            let (rows, merged) = sheet(&stream, offset as usize, &strings, &book)?;
-            (Some(Arc::new(rows)), merged)
+            let read = sheet(&stream, offset as usize, &strings, &book)?;
+            let on = |entry| (name.clone(), entry);
+            extras.links.extend(read.links.into_iter().map(on));
+            let on = |entry| (name.clone(), entry);
+            extras.notes.extend(read.notes.into_iter().map(on));
+            let on = |entry| (name.clone(), entry);
+            let images = xls_extras::placed(&read.drawing)
+                .into_iter()
+                .filter_map(|(index, column, row)| xls_extras::image(&store, index, column, row));
+            extras.images.extend(images.map(on));
+            (Some(Arc::new(read.rows)), read.merged)
         } else {
             (None, Vec::new())
         };
@@ -420,19 +486,39 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
         date1904,
         styles,
         sheets,
+        extras,
     })
 }
 
+/// What [`sheet`] reads of one sheet.
+struct Read {
+    rows: Vec<RawRow>,
+    merged: Vec<Merge>,
+    links: Vec<Link>,
+    notes: Vec<Note>,
+    /// The sheet's `MSODRAWING` records and their `CONTINUE`s, as one run of bytes.
+    drawing: Vec<u8>,
+}
+
 /// The rows of the sheet whose `BOF` record is at `offset`, in order, each cell in order with
-/// its formula's text, and its merged ranges.
+/// its formula's text, its merged ranges, its hyperlinks, its notes and its drawing.
 fn sheet(
     stream: &[u8],
     offset: usize,
     strings: &[String],
     book: &tokens::Book,
-) -> Result<(Vec<RawRow>, Vec<Merge>), Error> {
+) -> Result<Read, Error> {
     let mut rows: BTreeMap<u32, RawRow> = BTreeMap::new();
     let mut merged = Vec::new();
+    let mut links: Vec<Link> = Vec::new();
+    let mut drawing = Vec::new();
+    // The id of the last note's `OBJ`, the text of the `TXO` being read with the characters it
+    // still needs, each note's text by its id, and each `NOTE` with its id and author.
+    let mut object = None;
+    let mut text: Option<(u16, usize, String)> = None;
+    let mut texts: Vec<(u16, String)> = Vec::new();
+    let mut noted: Vec<(String, u16, String)> = Vec::new();
+    let mut last = 0;
     let mut pending: Option<(u32, RawCell)> = None;
     let mut shared: Vec<Shared<'_>> = Vec::new();
     // Each cell of a shared or array formula: its row and column from 0, and the first cell of
@@ -458,8 +544,49 @@ fn sheet(
     }
     for record in records {
         let (kind, body) = record?;
+        let after = last;
+        if kind != CONTINUE {
+            last = kind;
+        }
         match kind {
             EOF => break,
+            HLINK => links.extend(xls_extras::hyperlink(body)?),
+            HLINK_TOOLTIP if after == HLINK => {
+                if let Some(link) = links.last_mut() {
+                    link.tooltip = Some(xls_extras::tooltip(body));
+                }
+            }
+            MSO_DRAWING => drawing.extend_from_slice(body),
+            CONTINUE if after == MSO_DRAWING => drawing.extend_from_slice(body),
+            OBJ => {
+                let (kind, id) = xls_extras::object(body)?;
+                object = (kind == NOTE_OBJECT).then_some(id);
+            }
+            TXO => {
+                if let Some(id) = object.take() {
+                    let length = xls_extras::text_length(body)?;
+                    if length == 0 {
+                        texts.push((id, String::new()));
+                    } else {
+                        text = Some((id, length, String::new()));
+                    }
+                }
+            }
+            CONTINUE if after == TXO => {
+                if let Some((id, left, mut out)) = text.take() {
+                    let left = left - xls_extras::text_part(body, left, &mut out)?;
+                    if left == 0 {
+                        texts.push((id, out));
+                    } else {
+                        text = Some((id, left, out));
+                    }
+                }
+            }
+            NOTE => {
+                let (cell, id) = xls_extras::note(body)?;
+                let (author, _) = string_at(body, 8, 2)?;
+                noted.push((cell, id, author));
+            }
             ROW => {
                 let row = u32::from(u16_at(body, 0)?);
                 let hidden = u8_at(body, 12)? & 0x20 != 0;
@@ -633,5 +760,23 @@ fn sheet(
             row
         })
         .collect();
-    Ok((rows, merged))
+    let notes = noted
+        .into_iter()
+        .map(|(cell, id, author)| Note {
+            noted: cell,
+            note: texts
+                .iter()
+                .find(|(of, _)| *of == id)
+                .map(|(_, text)| text.clone())
+                .unwrap_or_default(),
+            author: (!author.is_empty()).then_some(author),
+        })
+        .collect();
+    Ok(Read {
+        rows,
+        merged,
+        links,
+        notes,
+        drawing,
+    })
 }

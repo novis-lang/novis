@@ -1,6 +1,6 @@
 {
   "module": "extensions/spreadsheet/src/read",
-  "title": "The reader's extras throw for xlsb and xls.",
-  "text": "Closing it reads `links`, `notes`, `names`, `tables` and `images` from xlsb and xls and `properties` from xls in `read/extras.rs` (`rule:core-classes/spreadsheet-reads-as-a-stream`).",
+  "title": "An xlsb name over another workbook has an empty reference.",
+  "text": "Closing it gives a reference into another workbook its `[n]Sheet!A1` text in `read/tokens.rs`, from an xls `SUPBOOK`'s sheet names and an xlsb external link part's `BrtSupTabs` (`rule:core-classes/spreadsheet-reads-as-a-stream`).",
   "goal": "spreadsheet-second-wave"
 }

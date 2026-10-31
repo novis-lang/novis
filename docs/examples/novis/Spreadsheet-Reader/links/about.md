@@ -9,7 +9,7 @@ is the text a person sees over the link. Both are `null` when the link does not 
 **Good to know:** reading a file never opens its links. Every target comes from the file, so it is
 `tainted`. Check it before your program shows it on a web page or follows it. A CSV file has no
 links, so the list is empty. A sheet that does not exist throws a `LogicError`. `links` reads xlsx,
-xlsm, xlsb and ods files. For an xls file, it throws an error.
+xlsm, xlsb, xls and ods files.
 
 **The examples below** list the links of a sheet, tell a website link from a link to a cell, and
 check a link before a program uses it.

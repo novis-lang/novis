@@ -147,7 +147,7 @@ final class Reader
     }
 
     /// `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
-    /// A property the file does not have is `null`, and every property of a CSV file is `null`. An xls or ods file throws an error.
+    /// A property the file does not have is `null`, and every property of a CSV file is `null`.
     public function properties(): Properties
     {
         if ($this->reader == null) {

@@ -2168,9 +2168,9 @@ fn xls() -> Vec<u8> {
     xls_of(&[], &[])
 }
 
-/// [`xls`] with the records `more_globals` after its shared strings, and `more_shop` at the end
-/// of `Shop`.
-fn xls_of(more_globals: &[u8], more_shop: &[u8]) -> Vec<u8> {
+/// The workbook stream of [`xls`] with the records `more_globals` after its shared strings, and
+/// `more_shop` at the end of `Shop`.
+fn xls_stream(more_globals: &[u8], more_shop: &[u8]) -> Vec<u8> {
     let bof = |kind: u16| {
         biff(
             0x0809,
@@ -2281,7 +2281,12 @@ fn xls_of(more_globals: &[u8], more_shop: &[u8]) -> Vec<u8> {
     globals.extend(biff(0x000A, &[]));
     globals.extend(shop);
     globals.extend(lists);
-    compound(&[("Workbook", globals)])
+    globals
+}
+
+/// An xls of [`xls_stream`] with `more_globals` and `more_shop`.
+fn xls_of(more_globals: &[u8], more_shop: &[u8]) -> Vec<u8> {
+    compound(&[("Workbook", xls_stream(more_globals, more_shop))])
 }
 
 /// An ods of the sheets `Shop` and `Lists`, hidden, with the cells of `content.xml` as
@@ -2844,10 +2849,18 @@ fn the_extras_read_on_request() {
     assert_eq!(read.call("readerNames", vec![]), strings(&[]));
     block_on(read.request.end()).expect("the request ends");
 
-    // An xls file throws naming its format, so an empty list always means the file has none.
+    // An xls with none of them gives empty lists and no properties.
     let read = Read::open(xls());
-    let refused = read.failure("readerNotes", vec![string("Shop")]);
-    assert!(refused.contains("an xls file"), "{refused}");
+    for method in ["readerLinks", "readerNotes", "readerTables", "readerImages"] {
+        assert_eq!(
+            read.call(method, vec![string("Shop")]),
+            strings(&[]),
+            "{method}"
+        );
+    }
+    assert_eq!(read.call("readerNames", vec![]), strings(&[]));
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &Value::Null);
     block_on(read.request.end()).expect("the request ends");
 }
 
@@ -3213,6 +3226,318 @@ fn an_xlsb_external_link_reads_as_data() {
         panic!("a reference is text");
     };
     assert!(!reference.contains("Cargo"), "{reference}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// One OfficeArt record: its version and instance, its type, its length and `body`.
+fn art(version: u16, instance: u16, kind: u16, body: &[u8]) -> Vec<u8> {
+    let mut out = (version | instance << 4).to_le_bytes().to_vec();
+    out.extend(kind.to_le_bytes());
+    out.extend(u32::try_from(body.len()).unwrap().to_le_bytes());
+    out.extend_from_slice(body);
+    out
+}
+
+/// A shape container with the client anchor at `column` and `row`, and the store's picture
+/// `picture` when it has one.
+fn art_shape(picture: Option<u32>, column: u16, row: u16) -> Vec<u8> {
+    let mut shape = art(2, 75, 0xF00A, &[0; 8]);
+    if let Some(picture) = picture {
+        let option = [&0x4104u16.to_le_bytes()[..], &picture.to_le_bytes()].concat();
+        shape.extend(art(3, 1, 0xF00B, &option));
+    }
+    let anchor = [0u16, column, 0, row, 0, column + 2, 0, row + 3, 0]
+        .map(u16::to_le_bytes)
+        .concat();
+    shape.extend(art(0, 0, 0xF010, &anchor));
+    shape.extend(art(0, 0, 0xF011, &[]));
+    art(0xF, 0, 0xF004, &shape)
+}
+
+/// A `HyperlinkString`: a count of UTF-16 units with the NUL, the units and the NUL.
+fn link_text(text: &str) -> Vec<u8> {
+    let units: Vec<u16> = text.encode_utf16().chain([0]).collect();
+    let mut out = u32::try_from(units.len()).unwrap().to_le_bytes().to_vec();
+    for unit in units {
+        out.extend(unit.to_le_bytes());
+    }
+    out
+}
+
+/// A `HLINK` record over the rows and columns given, from 0, with `flags` and then `parts`.
+fn xls_link(rows: (u16, u16), columns: (u16, u16), flags: u32, parts: &[Vec<u8>]) -> Vec<u8> {
+    let mut body = [rows.0, rows.1, columns.0, columns.1]
+        .map(u16::to_le_bytes)
+        .concat();
+    body.extend([0; 16]);
+    body.extend(2u32.to_le_bytes());
+    body.extend(flags.to_le_bytes());
+    for part in parts {
+        body.extend(part);
+    }
+    biff(0x01B8, &body)
+}
+
+/// A `NAME` record of `name` in one-byte characters, with `flags`, its sheet `itab` from 1 and
+/// the parsed formula `tokens`.
+fn xls_name(flags: u16, name: &[u8], itab: u16, tokens: &[u8]) -> Vec<u8> {
+    let mut body = flags.to_le_bytes().to_vec();
+    body.push(0);
+    body.push(u8::try_from(name.len()).unwrap());
+    body.extend(u16::try_from(tokens.len()).unwrap().to_le_bytes());
+    body.extend([0, 0]);
+    body.extend(itab.to_le_bytes());
+    body.extend([0; 4]);
+    body.push(0);
+    body.extend_from_slice(name);
+    body.extend_from_slice(tokens);
+    biff(0x0018, &body)
+}
+
+/// A BIFF8 `ptgArea3d` over the `XTI` `xti`, its rows and columns from 0, every part absolute.
+fn xls_area3d(xti: u16, rows: (u16, u16), columns: (u16, u16)) -> Vec<u8> {
+    let mut out = vec![0x3B];
+    out.extend(
+        [xti, rows.0, rows.1, columns.0, columns.1]
+            .map(u16::to_le_bytes)
+            .concat(),
+    );
+    out
+}
+
+/// A note's `OBJ`, the `TXO` of its text, and the text in one `CONTINUE` record per part, each
+/// part's characters two bytes wide when its flag is set.
+fn xls_note_text(id: u16, parts: &[(bool, &str)]) -> Vec<u8> {
+    let mut object = [0x15u16, 0x12, 0x19, id, 0x4011]
+        .map(u16::to_le_bytes)
+        .concat();
+    object.extend([0; 12]);
+    object.extend([0; 4]);
+    let mut out = biff(0x00EC, &art_shape(None, 3, 0));
+    out.extend(biff(0x005D, &object));
+    let length: usize = parts
+        .iter()
+        .map(|(_, text)| text.encode_utf16().count())
+        .sum();
+    let mut txo = vec![0x12, 0x02, 0, 0];
+    txo.extend([0; 6]);
+    txo.extend(u16::try_from(length).unwrap().to_le_bytes());
+    txo.extend(16u16.to_le_bytes());
+    txo.extend([0; 6]);
+    out.extend(biff(0x00EC, &art(0, 0, 0xF00D, &[])));
+    out.extend(biff(0x01B6, &txo));
+    for &(wide, text) in parts {
+        let mut part = vec![u8::from(wide)];
+        if wide {
+            for unit in text.encode_utf16() {
+                part.extend(unit.to_le_bytes());
+            }
+        } else {
+            part.extend(text.as_bytes());
+        }
+        out.extend(biff(0x003C, &part));
+    }
+    out.extend(biff(0x003C, &[0; 16]));
+    out
+}
+
+#[test]
+fn xls_links_notes_names_and_images_are_read() {
+    // The workbook, its `XTI`s `Shop` and `Lists`, and two names over them.
+    let mut globals = biff(0x01AE, &[2, 0, 0x01, 0x04]);
+    globals.extend(biff(
+        0x0017,
+        &[2u16, 0, 0, 0, 0, 1, 1].map(u16::to_le_bytes).concat(),
+    ));
+    globals.extend(xls_name(0, b"Prices", 0, &xls_area3d(0, (0, 2), (0, 1))));
+    globals.extend(xls_name(0x20, &[6], 2, &xls_area3d(1, (0, 8), (0, 2))));
+    // The picture store holds one PNG, after its id and its tag byte.
+    let mut entry = vec![6u8, 6];
+    entry.extend([0; 31]);
+    entry.extend([0; 3]);
+    entry.extend(art(0, 0x6E0, 0xF01E, &[&[0u8; 17][..], PNG].concat()));
+    let store = art(0xF, 1, 0xF001, &art(2, 6, 0xF007, &entry));
+    globals.extend(biff(0x00EB, &art(0xF, 0, 0xF000, &store)));
+
+    let url: Vec<u8> = "https://example.com/shop"
+        .encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    let moniker = [
+        &[
+            0xE0, 0xC9, 0xEA, 0x79, 0xF9, 0xBA, 0xCE, 0x11, 0x8C, 0x82, 0x00, 0xAA, 0x00, 0x4B,
+            0xA9, 0x0B,
+        ][..],
+        &u32::try_from(url.len()).unwrap().to_le_bytes(),
+        &url,
+    ]
+    .concat();
+    let mut shop = xls_link((0, 0), (0, 0), 0x17, &[link_text("Shop site"), moniker]);
+    let mut tooltip = 0x0800u16.to_le_bytes().to_vec();
+    tooltip.extend([0; 8]);
+    tooltip.extend(link_text("Open the shop").split_off(4));
+    shop.extend(biff(0x0800, &tooltip));
+    shop.extend(xls_link((0, 1), (1, 1), 0x08, &[link_text("'Lists'!A1")]));
+    // The picture's shape, and then the notes, whose first text crosses two records.
+    let shapes = art(0xF, 0, 0xF003, &art_shape(Some(1), 2, 4));
+    shop.extend(biff(0x00EC, &art(0xF, 0, 0xF002, &shapes)));
+    shop.extend(xls_note_text(
+        1,
+        &[(false, "Bo: ch"), (true, "eck the price")],
+    ));
+    shop.extend(xls_note_text(2, &[(false, "Plain")]));
+    for (row, column, id, author) in [(0u16, 0u16, 1u16, "Bo & Co"), (1, 1, 2, "")] {
+        let mut note = [row, column, 0, id].map(u16::to_le_bytes).concat();
+        note.extend(biff_text(author));
+        shop.extend(biff(0x001C, &note));
+    }
+    let read = Read::open(xls_of(&globals, &shop));
+
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(links.len(), 2);
+    assert_eq!(field(links[0], "anchor"), &string("A1"));
+    assert_eq!(
+        field(links[0], "target"),
+        &string("https://example.com/shop")
+    );
+    assert_eq!(field(links[0], "text"), &string("Shop site"));
+    assert_eq!(field(links[0], "tooltip"), &string("Open the shop"));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+    assert_eq!(field(links[1], "anchor"), &string("B1:B2"));
+    assert_eq!(field(links[1], "target"), &string("'Lists'!A1"));
+    assert_eq!(field(links[1], "text"), &Value::Null);
+    assert_eq!(field(links[1], "external"), &Value::Bool(false));
+
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    let notes = entries(&notes);
+    assert_eq!(notes.len(), 2);
+    assert_eq!(field(notes[0], "noted"), &string("A1"));
+    assert_eq!(field(notes[0], "note"), &string("Bo: check the price"));
+    assert_eq!(field(notes[0], "author"), &string("Bo & Co"));
+    assert_eq!(field(notes[1], "noted"), &string("B2"));
+    assert_eq!(field(notes[1], "note"), &string("Plain"));
+    assert_eq!(field(notes[1], "author"), &Value::Null);
+
+    // A name's formula is decoded to the text an xlsx file writes.
+    let names = read.call("readerNames", vec![]);
+    let names = entries(&names);
+    assert_eq!(names.len(), 2);
+    assert_eq!(field(names[0], "name"), &string("Prices"));
+    assert_eq!(field(names[0], "reference"), &string("Shop!$A$1:$B$3"));
+    assert_eq!(field(names[0], "sheet"), &Value::Null);
+    assert_eq!(field(names[1], "name"), &string("_xlnm.Print_Area"));
+    assert_eq!(field(names[1], "reference"), &string("Lists!$A$1:$C$9"));
+    assert_eq!(field(names[1], "sheet"), &string("Lists"));
+
+    // A note's shape has no picture, so the one image is the picture's.
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 1);
+    assert_eq!(field(images[0], "at"), &string("C5"));
+    assert_eq!(field(images[0], "image"), &Value::Bytes(PNG.to_vec()));
+    assert_eq!(field(images[0], "format"), &string("png"));
+    assert_eq!(field(images[0], "link"), &Value::Null);
+
+    for method in ["readerLinks", "readerNotes", "readerImages"] {
+        assert_eq!(
+            read.call(method, vec![string("Lists")]),
+            strings(&[]),
+            "{method}"
+        );
+    }
+    let missing = read.failure("readerLinks", vec![string("Prices")]);
+    assert!(missing.contains("no sheet named `Prices`"), "{missing}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A property set stream of one set with `properties`, each an id and its typed value, and the
+/// code page 1252.
+fn property_stream(properties: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut values: Vec<(u32, Vec<u8>)> = vec![(1, vec![2, 0, 0, 0, 0xE4, 0x04, 0, 0])];
+    values.extend(properties.iter().cloned());
+    let mut pairs = Vec::new();
+    let mut data = Vec::new();
+    let start = 8 + values.len() * 8;
+    for (id, mut value) in values {
+        pairs.extend(id.to_le_bytes());
+        pairs.extend(u32::try_from(start + data.len()).unwrap().to_le_bytes());
+        while value.len() % 4 != 0 {
+            value.push(0);
+        }
+        data.extend(value);
+    }
+    let mut set = u32::try_from(start + data.len())
+        .unwrap()
+        .to_le_bytes()
+        .to_vec();
+    set.extend(u32::try_from(properties.len() + 1).unwrap().to_le_bytes());
+    set.extend(pairs);
+    set.extend(data);
+    let mut out = [0xFFFEu16, 0].map(u16::to_le_bytes).concat();
+    out.extend([0; 20]);
+    out.extend(1u32.to_le_bytes());
+    out.extend([0x55; 16]);
+    out.extend(48u32.to_le_bytes());
+    out.extend(set);
+    out
+}
+
+/// A property of narrow text `bytes`, with its NUL.
+fn narrow_property(bytes: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x1E, 0, 0, 0];
+    out.extend(u32::try_from(bytes.len() + 1).unwrap().to_le_bytes());
+    out.extend_from_slice(bytes);
+    out.push(0);
+    out
+}
+
+#[test]
+fn xls_properties_are_read_from_its_summary_streams() {
+    let mut author = vec![0x1F, 0, 0, 0];
+    author.extend(link_text("Shop"));
+    // 2024-03-05 14:30:09 UTC, in 100-nanosecond ticks from 1601.
+    let ticks: u64 = (1_709_649_009 + 11_644_473_600) * 10_000_000;
+    let mut created = vec![0x40, 0, 0, 0];
+    created.extend(ticks.to_le_bytes());
+    // 0x96 is an en dash in Windows-1252.
+    let summary = property_stream(&[
+        (2, narrow_property(b"Prices \x96 2024")),
+        (3, narrow_property(b"Coffee & tea")),
+        (4, author),
+        (5, narrow_property(b"prices, shop")),
+        (12, created),
+    ]);
+    let document = property_stream(&[(15, narrow_property(b"Example"))]);
+    let read = Read::open(compound(&[
+        ("Workbook", xls_stream(&[], &[])),
+        ("\u{5}SummaryInformation", summary),
+        ("\u{5}DocumentSummaryInformation", document),
+    ]));
+
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &string("Prices – 2024"));
+    assert_eq!(field(&properties, "subject"), &string("Coffee & tea"));
+    assert_eq!(field(&properties, "author"), &string("Shop"));
+    assert_eq!(field(&properties, "company"), &string("Example"));
+    assert_eq!(field(&properties, "keywords"), &string("prices, shop"));
+    let created = field(&properties, "created");
+    assert_eq!(field(created, "day"), &date(2024, 3, 5));
+    assert_eq!(field(created, "clock"), &time(14, 30, 9));
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_xls_has_no_tables() {
+    // BIFF8 has no table part, so every sheet has none, and a sheet the file lacks throws.
+    let read = Read::open(xls());
+    assert_eq!(
+        read.call("readerTables", vec![string("Shop")]),
+        strings(&[])
+    );
+    let missing = read.failure("readerTables", vec![string("Prices")]);
+    assert!(missing.contains("no sheet named `Prices`"), "{missing}");
     block_on(read.request.end()).expect("the request ends");
 }
 

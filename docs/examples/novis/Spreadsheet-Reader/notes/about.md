@@ -7,8 +7,7 @@ such as `"B2"`, `note`, the text, and `author`, the name of the person who wrote
 
 **Good to know:** the text and the author come from the file, so they are `tainted`. A CSV file has
 no notes, so the list is empty. A sheet that does not exist throws a `LogicError`. `notes` reads
-xlsx, xlsm, xlsb and ods files. In an ods file, a note is called a comment. For an xls file,
-`notes` throws an error.
+xlsx, xlsm, xlsb, xls and ods files. In an ods file, a note is called a comment.
 
 **The examples below** list the notes of a sheet, read a note without an author, and show each row
 of an import together with its notes.

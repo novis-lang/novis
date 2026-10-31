@@ -55,6 +55,7 @@ pub mod sheet;
 pub mod tokens;
 mod vba;
 mod xls;
+mod xls_extras;
 pub mod xml;
 pub mod zip;
 
@@ -324,6 +325,8 @@ pub struct Reader {
     vba_part: Option<String>,
     /// The links, notes, pictures, names and tables of an ods, read with its cells.
     ods: Option<Box<ods::Extras>>,
+    /// The links, notes, pictures, names and properties of an xls, read with its cells.
+    xls: Option<Box<xls_extras::Extras>>,
     /// What an xlsb's formulas refer to by number.
     book: Arc<tokens::Book>,
     open: Option<Open>,
@@ -493,6 +496,7 @@ impl Reader {
             let book = xls::read(&source.range(0, source.size()?)?)?;
             return Ok(Self {
                 compound: true,
+                xls: Some(Box::new(book.extras)),
                 ..Self::whole(
                     zip::Directory::default(),
                     book.sheets,
@@ -601,6 +605,7 @@ impl Reader {
             binary,
             compound: false,
             ods: None,
+            xls: None,
             book: Arc::new(formulas),
             open: None,
         })
@@ -625,6 +630,7 @@ impl Reader {
             compound: false,
             vba_part: None,
             ods: None,
+            xls: None,
             book: Arc::default(),
             open: None,
         }
