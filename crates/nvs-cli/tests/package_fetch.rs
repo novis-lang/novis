@@ -12,6 +12,11 @@
 //! That includes `vendor/package-files.toml`: a package reads a file it lists through a string
 //! literal with an empty grant line, and a write, a `..` out of its set, an unlisted file, another
 //! package's file and a link out of its folder are `E0658`.
+//!
+//! An archive that carries an `nvs.toml` is refused and leaves nothing behind
+//! (`rule:packaging/a-package-cannot-reach-its-host`). An extension package is fetched like any
+//! other, its `[[extension]]` entry is printed once, and a program calls it once that entry is in
+//! `nvs.toml` (`rule:packaging/extension-loading-is-root-controlled`).
 
 use std::cell::Cell;
 use std::fs;
@@ -212,7 +217,9 @@ impl Tree {
         let mut tar = tar::Builder::new(Vec::new());
         for (path, text) in files {
             let mut header = tar::Header::new_ustar();
-            header.set_path(path).expect("the test's path fits a header");
+            header
+                .set_path(path)
+                .expect("the test's path fits a header");
             header.set_size(text.len() as u64);
             header.set_mode(0o644);
             header.set_cksum();
@@ -405,7 +412,10 @@ fn nothing_a_package_holds_runs_during_fetch_or_vendor() {
 /// configuration file is last, so every other file is unpacked before the fetch reaches it.
 fn with_config(config: &str) -> [(&str, &str); 4] {
     [
-        ("package.toml", "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n"),
+        (
+            "package.toml",
+            "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n",
+        ),
         ("LICENSE", "MIT\n"),
         ("src/Main.nvs", MAIN),
         (config, "[grants]\n'Acme\\*' = [\"fs.write\"]\n"),
@@ -416,7 +426,11 @@ fn with_config(config: &str) -> [(&str, &str); 4] {
 /// no folder, no lock and no autoload file behind.
 fn assert_refused(tree: &Tree, config: &str) {
     let out = tree.nvs(&["pkg", "fetch"]);
-    assert!(!out.status.success(), "{config} was fetched: {}", shown(&out));
+    assert!(
+        !out.status.success(),
+        "{config} was fetched: {}",
+        shown(&out)
+    );
     assert!(
         shown(&out).contains(&format!("`{config}` is a server configuration file")),
         "{config}: {}",
@@ -426,7 +440,10 @@ fn assert_refused(tree: &Tree, config: &str) {
         assert!(!tree.app().join(path).exists(), "{config}: `{path}` exists");
     }
     for path in ["package.lock", "vendor/packages.nvs"] {
-        assert!(!tree.app().join(path).exists(), "{config}: `{path}` was written");
+        assert!(
+            !tree.app().join(path).exists(),
+            "{config}: `{path}` was written"
+        );
     }
 }
 
@@ -449,6 +466,131 @@ fn an_nvs_toml_in_any_case_and_any_folder_is_refused_at_fetch() {
         tree.publish_archive("Acme\\Http", &with_config(config));
         assert_refused(&tree, config);
     }
+}
+
+/// The extension package `Shop\Ledger`: the fixture extension `ledger.nvsx`, and a class
+/// `Report` under `src` that calls it.
+const REPORT: &str = "<?nvs\nnamespace Shop\\Ledger;\n\nfinal class Report\n{\n    \
+                      public static function total(int $cents): int\n    {\n        \
+                      return Shop\\Ledger::echoInt($cents) * 2;\n    }\n}\n";
+
+impl Tree {
+    /// `Shop\Ledger` 1.0.0, an extension package, packed by the binary and listed in the
+    /// registry, and the application's `package.toml` rewritten to need it from there.
+    fn publish_ledger(&self) {
+        let dir = self.root.join("packages/shop-ledger-1.0.0");
+        fs::create_dir_all(dir.join("src")).expect("the test makes the package");
+        fs::write(
+            dir.join("package.toml"),
+            "[package]\nname = 'Shop\\Ledger'\nversion = \"1.0.0\"\nfiles = [\"ledger.nvsx\"]\n",
+        )
+        .expect("the test writes the package's manifest");
+        fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
+        fs::write(dir.join("src/Report.nvs"), REPORT).expect("the test writes the source");
+        fs::copy(
+            nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"),
+            dir.join("ledger.nvsx"),
+        )
+        .expect("the test copies the extension");
+        let tar = self.root.join("packages/shop-ledger-1.0.0.tar");
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["pkg", "pack"])
+            .arg(&dir)
+            .arg("--out")
+            .arg(&tar)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
+        let bytes = fs::read(&tar).expect("the archive was written");
+        self.list("Shop\\Ledger", "1.0.0", "released", &[], &bytes);
+        fs::write(
+            self.app().join("package.toml"),
+            format!(
+                "[dependencies]\n'Shop\\Ledger' = \"1.0.0\"\n\n[registries]\n\
+                 Shop = {{ url = \"file:../registry\", key = \"{}\" }}\n",
+                self.key
+            ),
+        )
+        .expect("the test writes the manifest");
+    }
+}
+
+/// The `[[extension]]` entry a fetch printed, from its first line to the end of `stdout`.
+fn printed_entry(stdout: &str) -> &str {
+    stdout
+        .find("[[extension]]")
+        .map_or("", |start| &stdout[start..])
+}
+
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
+#[test]
+fn an_extension_package_is_fetched_and_its_extension_entry_is_printed() {
+    let tree = Tree::new("package-fetch-extension", HTTP);
+    tree.publish_ledger();
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let sha256 = fs::read_to_string(nvs_repo::path(
+        "tests/conformance/ext/fixtures/ledger.sha256",
+    ))
+    .expect("the fixture's pin reads");
+    let entry = format!(
+        "[[extension]]\npath   = \"vendor/shop/ledger/ledger.nvsx\"\nsha256 = \"{}\"\n",
+        sha256.split_whitespace().next().unwrap_or_default()
+    );
+    assert!(
+        stdout.contains("`Shop\\Ledger` contains an extension."),
+        "{stdout}"
+    );
+    assert_eq!(printed_entry(&stdout), entry, "{stdout}");
+    assert!(tree.app().join("vendor/shop/ledger/ledger.nvsx").is_file());
+    assert!(
+        !tree.app().join("nvs.toml").exists(),
+        "the fetch wrote `nvs.toml`"
+    );
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert!(
+        printed_entry(&String::from_utf8_lossy(&out.stdout)).is_empty(),
+        "a package locked at the same digest prints no entry again: {}",
+        shown(&out)
+    );
+}
+
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
+#[test]
+fn a_program_calls_an_extension_package_once_its_entry_is_written() {
+    let tree = Tree::new("package-fetch-extension-run", HTTP);
+    tree.publish_ledger();
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let entry = printed_entry(&String::from_utf8_lossy(&out.stdout)).to_owned();
+    fs::write(
+        tree.app().join("main.nvs"),
+        "<?nvs\nrequire './vendor/packages.nvs';\n\n\
+         echo Shop\\Ledger\\Report::total(21), \"\\n\";\n\
+         echo Shop\\Ledger\\Receipt::line('tea', 350), \"\\n\";\n",
+    )
+    .expect("the test writes the entry");
+
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(
+        !out.status.success(),
+        "the program ran with no `[[extension]]` entry: {}",
+        shown(&out)
+    );
+
+    fs::write(tree.app().join("nvs.toml"), &entry).expect("the test writes the entry");
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "42\ntea: 350 EUR\n",
+        "{}",
+        shown(&out)
+    );
 }
 
 /// `package.lock`'s text with the digest of its one package replaced.

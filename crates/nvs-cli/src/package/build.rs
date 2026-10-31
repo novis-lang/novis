@@ -15,8 +15,9 @@
 //! `nvs.toml`, a malformed `[[download]]` entry. The registry never downloads one.
 //!
 //! **Then the build checks what only a release needs** ([`checked`]): a `[package] name` and a
-//! `version`, the version the publisher sent, no git dependency, every declaration inside the
-//! package's namespace, and, given the previous release's API document, no break the version step
+//! `version`, the version the publisher sent, no git dependency, an extension file that loads
+//! with its class and source inside the package's namespace ([`pack::check_component`]), every
+//! declaration inside that namespace, and, given the previous release's API document, no break the version step
 //! does not allow ([`super::diff::report`]). The API is read from the archive's own files,
 //! unpacked into a scratch folder, so what is checked is what is served.
 //!
@@ -48,7 +49,7 @@ use serde_json::{Map, Value};
 use super::git::{self, Outbound};
 use super::index::{Fault, fault};
 use super::manifest::{Manifest, Source, Version};
-use super::{api, diff, fetch};
+use super::{api, diff, fetch, pack};
 
 /// What the JSON document's `schema` is. A change to its keys raises it: `2` added
 /// `doc_coverage`, `docs` and `summary`, and `3` added `readme`, `downloads` and `supersedes`.
@@ -172,6 +173,9 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .as_ref()
         .expect("`checked` refuses a manifest with no name");
     let unpacked = Unpacked::new(&scratch, &cloned.archive)?;
+    pack::file_set(&unpacked.0, &cloned.manifest)
+        .and_then(|entries| pack::check_component(&entries, name))
+        .map_err(|refusal| fault(format!("`{name}` at the commit `{commit}`: {refusal}")))?;
     let (document, docs) = api::extract_counted(&unpacked.0).map_err(|_| {
         fault(format!(
             "`{name}` does not compile at the commit `{commit}`. The build's standard error has \

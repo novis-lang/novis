@@ -220,7 +220,11 @@ fn build(dir: &Path) -> Result<(), String> {
 
 /// `bytes`, the file at `path`, loaded by the loader boot uses under an entry pinning their own
 /// digest and granting nothing. Loading compiles the component and never instantiates it.
-fn load(path: &Path, bytes: &[u8]) -> Result<Extension, String> {
+///
+/// # Errors
+///
+/// The loader's refusal, as its sentence.
+pub(crate) fn load(path: &Path, bytes: &[u8]) -> Result<Extension, String> {
     crate::extensions::loader()?
         .load_bytes(
             &Entry {
@@ -340,10 +344,17 @@ fn pin_entry(file: &Path) -> Result<(), String> {
     let extension = load(file, &read_nvsx(file)?)?;
     let path = std::path::absolute(file)
         .map_err(|err| format!("{}: cannot be made absolute: {err}", file.display()))?;
-    println!("[[extension]]");
-    println!("path   = {}", toml_string(&path.display().to_string()));
-    println!("sha256 = \"{}\"", extension.sha256);
+    print!("{}", entry(&path.display().to_string(), &extension.sha256));
     Ok(())
+}
+
+/// The `[[extension]]` entry that loads the file at `path` pinned to `sha256`, with no `grants`:
+/// three lines, each ending in a newline. `nvs ext pin` and `nvs pkg fetch` both print it.
+pub(crate) fn entry(path: &str, sha256: &str) -> String {
+    format!(
+        "[[extension]]\npath   = {}\nsha256 = \"{sha256}\"\n",
+        toml_string(path)
+    )
 }
 
 /// `text` as a TOML basic string: quoted, with `\`, `"` and every control character escaped.

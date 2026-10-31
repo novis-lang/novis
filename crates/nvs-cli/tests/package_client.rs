@@ -10,6 +10,8 @@
 //! The pack tests pin one fixture's digest, show the bytes do not depend on file times or on the
 //! order the files were written in, and show each file-set refusal through the binary. Each path
 //! rule and both limits are unit tests in `src/package/pack.rs`, which need no file on disk.
+//! An extension package packs the fixture extension beside its source, and two extensions or an
+//! extension whose class is outside the package's namespace are refused.
 //!
 //! The log tests show `nvs pkg fetch` reads an archive only once the registry's log proves it
 //! (`rule:packaging/the-registry-keeps-an-append-only-log`): an index line whose record publishes
@@ -338,6 +340,110 @@ fn a_symlink_is_refused() {
         },
         "`src/Link.nvs` is a symbolic link.",
     );
+}
+
+/// The fixture extension: the class `Shop\Ledger`, with the source file `Shop\Ledger\Receipt`.
+fn ledger() -> Vec<u8> {
+    fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))
+        .expect("the fixture reads")
+}
+
+/// A package `namespace` 1.0.0 with a license, a class under `src` that calls the extension,
+/// and the fixture extension at each path in `components`, each listed in `files`.
+fn extension_package(
+    name: &str,
+    namespace: &str,
+    components: &[&str],
+) -> (nvs_repo::Scratch, PathBuf) {
+    let root = nvs_repo::scratch(name);
+    let dir = root.join("pkg");
+    fs::create_dir_all(dir.join("src")).expect("the test makes its directories");
+    fs::write(
+        dir.join("package.toml"),
+        format!("[package]\nname = '{namespace}'\nversion = \"1.0.0\"\nfiles = {components:?}\n"),
+    )
+    .expect("the test writes the manifest");
+    fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
+    fs::write(
+        dir.join("src/Report.nvs"),
+        format!(
+            "<?nvs\nnamespace {namespace};\n\nfinal class Report\n{{\n    \
+             public static function total(int $cents): int\n    {{\n        \
+             return Shop\\Ledger::echoInt($cents);\n    }}\n}}\n"
+        ),
+    )
+    .expect("the test writes the class");
+    for component in components {
+        let path = dir.join(component);
+        fs::create_dir_all(path.parent().expect("a component is in a folder"))
+            .expect("the test makes its directories");
+        fs::write(path, ledger()).expect("the test copies the extension");
+    }
+    (root, dir)
+}
+
+/// A package whose `files` list names one `.nvsx` packs it beside its source, and the archive
+/// has both.
+// covers: tools:packages/nvs-pkg-pack
+#[test]
+fn an_extension_package_packs_its_component_and_its_source() {
+    let (root, dir) =
+        extension_package("package-client-extension", "Shop\\Ledger", &["ledger.nvsx"]);
+    let out = root.join("shop-ledger.tar");
+    let (stdout, stderr, ok) = pack(&dir, &out);
+    assert!(ok, "{stderr}");
+    let listed: Vec<&str> = stdout
+        .lines()
+        .filter_map(|line| line.split_whitespace().nth(1))
+        .collect();
+    for path in ["ledger.nvsx", "src/Report.nvs", "package.toml"] {
+        assert!(listed.contains(&path), "`{path}` is not packed: {stdout}");
+    }
+    let size = format!("{}  ledger.nvsx", ledger().len());
+    assert!(
+        stdout.lines().any(|line| line.trim_start() == size),
+        "the extension is packed whole: {stdout}"
+    );
+}
+
+// covers: tools:packages/nvs-pkg-pack
+#[test]
+fn a_package_with_two_components_is_refused() {
+    let (root, dir) = extension_package(
+        "package-client-two-extensions",
+        "Shop\\Ledger",
+        &["ledger.nvsx", "extra/second.nvsx"],
+    );
+    let out = root.join("refused.tar");
+    let (_, stderr, ok) = pack(&dir, &out);
+    assert!(!ok, "a package with two extensions packed");
+    assert!(
+        stderr
+            .contains("the package has two extension files, `ledger.nvsx` and `extra/second.nvsx`"),
+        "{stderr}"
+    );
+    assert!(!out.exists(), "a refused pack wrote an archive");
+}
+
+// covers: tools:packages/nvs-pkg-pack
+#[test]
+fn a_component_whose_class_is_outside_the_package_namespace_is_refused() {
+    let (root, dir) = extension_package(
+        "package-client-extension-outside",
+        "Acme\\Ledger",
+        &["ledger.nvsx"],
+    );
+    let out = root.join("refused.tar");
+    let (_, stderr, ok) = pack(&dir, &out);
+    assert!(!ok, "an extension outside its package's namespace packed");
+    assert!(
+        stderr.contains(
+            "the extension `ledger.nvsx` declares the class `Shop\\Ledger`, which is outside \
+             the package's namespace `Acme\\Ledger`"
+        ),
+        "{stderr}"
+    );
+    assert!(!out.exists(), "a refused pack wrote an archive");
 }
 
 /// The name of the log key of [`Logged`], which is also its log's origin.

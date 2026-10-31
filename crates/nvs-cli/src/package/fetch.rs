@@ -41,6 +41,12 @@
 //! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). A folder `vendor` writes
 //! again gets its files again from the cache.
 //!
+//! **An extension package is landed like any other** ([`pack::is_component`]), and for each one
+//! that is new or has a new digest the command prints the `[[extension]]` entry that loads it
+//! ([`print_extensions`]), through the function `nvs ext pin` prints with. The file is loaded
+//! first, which compiles it and runs none of it. Nothing writes `nvs.toml`
+//! (`rule:packaging/extension-loading-is-root-controlled`).
+//!
 //! **No code of a package runs** (`rule:packaging/nothing-runs-before-the-program`): the command
 //! reads archives and writes files, and compiles nothing.
 //!
@@ -263,6 +269,46 @@ pub(crate) fn land(
         "{} package(s), {written} written to {VENDOR}/",
         graph.packages.len()
     );
+    print_extensions(app.old.as_ref(), graph, &sets, &vendor)
+}
+
+/// The `[[extension]]` entry of each extension package in `graph` that `old` does not lock at
+/// its digest, printed as `nvs ext pin` prints one, with its path relative to the application's
+/// folder (`rule:packaging/extension-loading-is-root-controlled`). Nothing writes `nvs.toml`:
+/// the operator adds the entry.
+///
+/// # Errors
+///
+/// An extension file that cannot be read or does not load.
+fn print_extensions(
+    old: Option<&Lock>,
+    graph: &Graph,
+    sets: &Sets,
+    vendor: &Path,
+) -> Result<(), Failed> {
+    for selected in &graph.packages {
+        let (name, digest) = (&selected.name, &selected.release.digest);
+        let locked = old.is_some_and(|old| {
+            old.packages
+                .iter()
+                .any(|entry| entry.name == *name && entry.digest == *digest)
+        });
+        let component = sets
+            .get(name.namespace())
+            .and_then(|set| set.iter().find(|path| pack::is_component(path)));
+        let (false, Some(component)) = (locked, component) else {
+            continue;
+        };
+        let file = vendor.join(name.slug()).join(component);
+        let bytes = fs::read(&file)
+            .map_err(|err| fault(format!("cannot read `{}`: {err}", file.display())))?;
+        let shown = format!("{VENDOR}/{}/{component}", name.slug());
+        let extension = crate::ext::load(Path::new(&shown), &bytes).map_err(fault)?;
+        print!(
+            "\n`{name}` contains an extension. To load it, add this entry to your `nvs.toml`:\n\n{}",
+            crate::ext::entry(&shown, &extension.sha256)
+        );
+    }
     Ok(())
 }
 

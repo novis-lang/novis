@@ -8,6 +8,12 @@
 //! refused rather than followed or skipped, and so is an `nvs.toml`
 //! (`rule:packaging/a-package-cannot-reach-its-host`).
 //!
+//! **An extension package** is one whose `files` list names a `.nvsx`, and a set with two is
+//! refused. [`check_component`] loads the one file with the loader boot uses and checks that its
+//! class and its carried source are in the package's namespace. `pack` and `nvs registry build`
+//! call it, and the fetch and the folder checks that read [`file_set`] do not, so a kept folder
+//! compiles no component (`rule:packaging/a-package-is-its-digest`).
+//!
 //! **Every path is checked to work on every platform** ([`check_path`]), and the set as a whole
 //! against case-only twins and the two limits, [`MAX_FILES`] and [`MAX_BYTES`]. Those are
 //! constants of the format, which the registry's build and the fetch read from here.
@@ -31,7 +37,7 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{Renderer, SourceMap};
 
-use super::manifest::{self, Manifest};
+use super::manifest::{self, Manifest, Name};
 
 /// The most bytes an archive's files may add up to, counted before any compression.
 pub(crate) const MAX_BYTES: u64 = 16 * 1024 * 1024;
@@ -121,6 +127,7 @@ fn pack(dir: &Path, manifest: &Manifest, out: Option<&Path>) -> Result<(), Refus
         ));
     };
     let entries = file_set(dir, manifest)?;
+    check_component(&entries, name)?;
     let target = out.map_or_else(
         || {
             let mut file = name.slug().replace('/', "-");
@@ -188,8 +195,9 @@ fn write_file(entries: &[Entry], target: &Path) -> Result<blake3::Hash, Refusal>
 /// # Errors
 ///
 /// A missing license file, a listed file that is missing, is not a regular file, ends in `.nvs`
-/// or is already in the default set, a symlink, an `nvs.toml`, a path [`check_path`] refuses,
-/// two paths equal ignoring case, or a set over [`MAX_FILES`] or [`MAX_BYTES`].
+/// or is already in the default set, two `.nvsx` files, a symlink, an `nvs.toml`, a path
+/// [`check_path`] refuses, two paths equal ignoring case, or a set over [`MAX_FILES`] or
+/// [`MAX_BYTES`].
 pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Refusal> {
     let mut entries = Vec::new();
     entries.push(regular(dir, nvs_config::grants::FILE)?);
@@ -238,6 +246,14 @@ pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Re
         }
         entries.push(regular(dir, listed)?);
     }
+    let mut components = entries.iter().filter(|entry| is_component(&entry.path));
+    if let (Some(first), Some(second)) = (components.next(), components.next()) {
+        return Err(refuse(format!(
+            "the package has two extension files, `{}` and `{}`. A package may carry one \
+             `.nvsx` file.",
+            first.path, second.path
+        )));
+    }
     super::download::check_form(&manifest.downloads).map_err(refuse)?;
     if let Some(carried) = manifest.downloads.iter().find(|download| {
         let folded = download.path.to_lowercase();
@@ -252,6 +268,58 @@ pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Re
     }
     check_set(&mut entries)?;
     Ok(entries)
+}
+
+/// Whether the archive path `path` is an extension file, a `.nvsx` in any case.
+pub(crate) fn is_component(path: &str) -> bool {
+    path.rsplit('/')
+        .next()
+        .and_then(|file| file.rsplit_once('.'))
+        .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("nvsx"))
+}
+
+/// The one `.nvsx` among `entries`, which [`file_set`] counted, loaded by the loader boot uses,
+/// with its class and every source file it carries in the namespace of the package `name`: the
+/// namespace itself or under it (`rule:packaging/a-package-is-its-digest`). A set with no
+/// `.nvsx` passes. Loading compiles the component and runs none of it, and
+/// `rule:security/extension-manifest-only-tightens`'s `Core\` and `Novis\` refusal is the
+/// loader's own.
+///
+/// # Errors
+///
+/// A file that cannot be read or does not load, a class outside the namespace, and a source file
+/// that declares a namespace outside it.
+pub(crate) fn check_component(entries: &[Entry], name: &Name) -> Result<(), Refusal> {
+    let Some(entry) = entries.iter().find(|entry| is_component(&entry.path)) else {
+        return Ok(());
+    };
+    let bytes = fs::read(&entry.source)
+        .map_err(|err| refuse(format!("cannot read `{}`: {err}", entry.path)))?;
+    let extension = crate::ext::load(Path::new(&entry.path), &bytes)
+        .map_err(|why| refuse(format!("the extension does not load: {why}")))?;
+    let namespace = name.namespace();
+    let class = &extension.manifest.class;
+    let lower = namespace.to_lowercase();
+    let folded = class.to_lowercase();
+    if folded != lower && !folded.starts_with(&format!("{lower}\\")) {
+        return Err(refuse(format!(
+            "the extension `{}` declares the class `{class}`, which is outside the package's \
+             namespace `{namespace}`. The class must be `{namespace}` or a class under it.",
+            entry.path
+        )));
+    }
+    if let Some((file, declared)) = extension.source.outside(namespace) {
+        let declares = declared.map_or_else(
+            || "declares no namespace".to_owned(),
+            |declared| format!("declares `namespace {declared}`"),
+        );
+        return Err(refuse(format!(
+            "the extension `{}` carries the source file `{}`, which {declares}. It must be \
+             under the package's namespace `{namespace}`.",
+            entry.path, file.path
+        )));
+    }
+    Ok(())
 }
 
 /// Whether the root file `name` is packed, and if it is, whether it is a license file.
