@@ -571,13 +571,13 @@ and encryption and the standards are checked by tools other than ours.
 **Split:** the veraPDF item (`tools/nv/cmd/pdf-validate.ts`, `.github/workflows/ci.yml`) shares no
 file with the rest. A writing subagent takes it, side by side with the session, and builds nothing.
 
-- [ ] `rule:core-classes/pdf-reader-and-merge`: the `reading` resource, and `text` takes it. `wit/pdf.wit:166`, `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Reader.nvs:42`, `extensions/pdf/src/lib.rs:430`
-- [ ] `rule:core-classes/pdf-header-is-a-page-function`: string names are case-sensitive on both sides. `extensions/pdf/nvs/Page.nvs:36`, `extensions/pdf/src/layout/margin.rs:63`, `extensions/pdf/src/paginate/mod.rs:286`
-- [ ] `merge` measured once on its bench. The cause is fixed if one step holds more than half the time, and the rest is a `Cost:` sentence. `extensions/pdf/src/merge.rs:35`, `benches/members/novis/Pdf-Pages/merge.nvs:1`
-- [ ] `rule:core-classes/pdf-reader-and-merge`: predefined CMaps, or the limit stated. `extensions/pdf/src/read.rs:237`, `extensions/pdf/src/read.rs:24`, `extensions/pdf/Cargo.toml:20`
+- [x] `rule:core-classes/pdf-reader-and-merge`: the `reading` resource, and `text` takes it. `wit/pdf.wit:166`, `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/nvs/Reader.nvs:42`, `extensions/pdf/src/lib.rs:430`
+- [x] `rule:core-classes/pdf-header-is-a-page-function`: string names are case-sensitive on both sides. `extensions/pdf/nvs/Page.nvs:36`, `extensions/pdf/src/layout/margin.rs:63`, `extensions/pdf/src/paginate/mod.rs:286`
+- [x] `merge` measured once on its bench. The cause is fixed if one step holds more than half the time, and the rest is a `Cost:` sentence. `extensions/pdf/src/merge.rs:35`, `benches/members/novis/Pdf-Pages/merge.nvs:1`
+- [x] `rule:core-classes/pdf-reader-and-merge`: predefined CMaps, or the limit stated. `extensions/pdf/src/read.rs:237`, `extensions/pdf/src/read.rs:24`, `extensions/pdf/Cargo.toml:20`
 - [ ] `rule:core-classes/pdf-standards-and-passwords`: `lopdf` as a dev-dependency, and the tests the `pdf-second-reader` check names. `crates/nvs-ext/Cargo.toml:1`, `crates/nvs-ext/tests/pdf_standards.rs:1`
-- [ ] `bun nv pdf-validate` and CI's Linux job that runs it. `tools/nv/cmd/pdf-validate.ts:1`, `.github/workflows/ci.yml:1`
-- [ ] The tests and the case the `pdf-reader-and-strings` and `pdf-page-string-runs` checks name. `extensions/pdf/tests/read.rs:1`, `tests/conformance/novis/pdf-page-string-matches-the-name-as-written.nvst:1`
+- [x] `bun nv pdf-validate` and CI's Linux job that runs it. `tools/nv/cmd/pdf-validate.ts:1`, `.github/workflows/ci.yml:1`
+- [x] The tests and the case the `pdf-reader-and-strings` and `pdf-page-string-runs` checks name. `extensions/pdf/tests/read.rs:1`, `tests/conformance/novis/pdf-page-string-matches-the-name-as-written.nvst:1`
 - [ ] The `about.md` of `Reader::text` and `Page::string` state the change. The fragments state the reading, the case rule and the checks. The module doc's merge and passwords bullets go. `docs/examples/novis/Pdf-Reader/text/about.md:1`, `docs/rules/core-classes/pdf-standards-and-passwords.md:25`, `extensions/pdf/src/lib.rs:54`, `extensions/pdf/src/lib.rs:76`
 
 ### 7. a table is as wide as its columns, splits a tall rowspan, aligns its cells and draws its rows
@@ -664,30 +664,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done, and the spreadsheet lane is finished. Stage 5's three checks passed once.
+Stages 1 to 5 are done, and the spreadsheet lane is finished. Stage 6 has two items left: the
+`lopdf` second reader, and the module doc's passwords bullet that goes with it.
 
-- **Layout depth.** `layout::text::MAX_DEPTH` is 32, counted in `Cx::down`: table cells and flex
-  and grid items count, inline-blocks do not. Past it the pass returns `Invalid`. Flex and grid
-  cost about 21 KiB a level in release, so `extensions/pdf/.cargo/config.toml` gives the component
-  a 2 MiB stack. The test runs on a 256 MiB thread, because debug frames are larger.
-- **Fixed on the way.** A line holding only an inline box panicked, because parley gives it a text
-  range outside the text. `layout/text.rs` slices it with `get` now.
-- A PDF placed with `<img>` in a render still decodes with no bound set; the decision names only
-  `read` and `merge`.
-
-The sweep's nightly reds are from run 41187571578 at `857b39cad`; later commits fix each one
-(`39795c9c4`, `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`). `env-secret-proofs` has no definition in the
-tree and no log, so nothing here can turn it green.
+- Reading, strings, merge cost, CMaps and veraPDF landed, one commit each. Their new tests and
+  cases passed once by name. `Got::Typed` (`crates/nvs-ext/src/call.rs`) is boxed for clippy.
+- `pdf-validate` ran green here with Docker. Its no-Docker path and the CI step have not run.
+- **`lopdf`, nothing landed.** `lopdf = { version = "0.46", default-features = false }` builds as a
+  workspace dev-dependency, and `load_mem_with_password` opens revision 6. Its `/Perms` check runs
+  only on the user-password branch. Our password is also the owner password, so `/Perms` is never
+  checked there. The second test decrypts `/Perms` by hand: AES-256-ECB with
+  `encryption_state.file_encryption_key()`, then bytes 9..12 are `adb`, 0..4 are `/P`, and 8 is
+  `T`. That needs `aes` 0.9 as a dev-dependency too.
+- A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
+- The sweep's nightly reds are from run 41187571578 at `857b39cad`, fixed by later commits.
+  `env-secret-proofs` has no definition in the tree and no log.
 
 ### Next
 
-Stage 6, over `wit/pdf.wit`, `extensions/pdf/src/lib.rs`, `src/read.rs`, `nvs/Reader.nvs` and
-`docs/rules/core-classes/pdf-reader-and-merge.md`. Its first two items share those files; the
-veraPDF item goes to a writing subagent, as its `**Split:**` line says.
+Stage 6's last two items, then stage 7 (tables).
 
-- [ ] The `reading` resource, and `text` takes it. `wit/pdf.wit:166`, `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/src/lib.rs:430`
-- [ ] String names are case-sensitive on both sides. `extensions/pdf/nvs/Page.nvs:36`, `extensions/pdf/src/layout/margin.rs:63`, `extensions/pdf/src/paginate/mod.rs:286`
-- [ ] `merge` measured once on its bench. `extensions/pdf/src/merge.rs:35`, `benches/members/novis/Pdf-Pages/merge.nvs:1`
+- [ ] `lopdf` and `aes` as dev-dependencies (root `Cargo.toml:95`, `crates/nvs-ext/Cargo.toml`'s
+  `hayro-syntax` line), and `a_second_reader_opens_the_encrypted_file_with_the_user_password` and
+  `a_second_reader_checks_the_perms_entry` in `crates/nvs-ext/tests/pdf_standards.rs:355`, beside
+  `a_password_encrypts_with_aes_256_and_stays_byte_equal`. Run `cargo test --test pdf_standards`
+  with the two names once.
+- [ ] The passwords bullet goes from `extensions/pdf/src/lib.rs:73`, and
+  `docs/rules/core-classes/pdf-standards-and-passwords.md:30` names the second reader. Tick stage
+  6's last item, and set the stage done once `pdf-reader-and-strings`, `pdf-second-reader` and
+  `pdf-page-string-runs` pass.
 
 Expect red at the gate: a PDF test or case with tables, flex or grid nested more than 32 levels,
 which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
@@ -697,8 +702,12 @@ needs a first pass". Also expect red: `crates/nvs-cli/tests/spreadsheet_sheet.rs
 that calls `cell` with a key before its first keyed row, `column` before a data row, a lower-case
 column letter, or `print` twice; a test that matches "can hold only a finite number" or "cannot add
 parts" for a finished sheet's `cell`; an image test with a hand-cut PNG outside
-`extensions/spreadsheet/tests/`. Also the stage 2 and 3 reds the last handoff named.
+`extensions/spreadsheet/tests/`. Also the stage 2 and 3 reds the last handoff named. Also a test
+that calls the PDF `readText` export with bytes in place of the `file` from `read`, and a test or
+example that sets a `string-set` name in one case and asks for it in another.
 
 ### Backlog
 
 - A clippy run over the component crates inside `bun nv verify`: declined here, see § *Clippy* (`tools/nv/cmd/verify.ts`).
+- `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `pdf-validate` may not run
+  on a change only to a component.
