@@ -5,9 +5,9 @@
 use wasmtime::component::ResourceAny;
 
 use self::bindings::exports::nvs::pdf::engine::{
-    Asset, Attachment, Document, DroppedItem, FirstPass, FirstRender, Margins, Metadata,
-    MissingGlyph, NamedValue, Overflow, PageFacts, PageMarkup, Part, PdfInfo, RenderOptions,
-    Rendered, Standard,
+    Asset, Attachment, DecompressionBound, Document, DroppedItem, FirstPass, FirstRender, Margins,
+    Metadata, MissingGlyph, NamedValue, Overflow, PageFacts, PageMarkup, Part, PdfInfo,
+    RenderOptions, Rendered, Standard,
 };
 use self::bindings::nvs::ext::types::{Error as WitError, Instant};
 use crate::call::Error;
@@ -50,9 +50,9 @@ world! {
     render(Document) -> Rendered;
     render_first(FirstPass) -> FirstRender;
     render_second(ResourceAny, Margins) -> Rendered;
-    merge(Vec<Part>) -> Vec<u8>;
-    read(Vec<u8>) -> PdfInfo;
-    read_text(Vec<u8>, Vec<u64>) -> Vec<String>;
+    merge(Vec<Part>, DecompressionBound) -> Vec<u8>;
+    read(Vec<u8>, DecompressionBound) -> PdfInfo;
+    read_text(Vec<u8>, DecompressionBound, Vec<u64>) -> Vec<String>;
 }
 
 records! {
@@ -70,6 +70,7 @@ records! {
     Rendered { data, page_count, pages, dropped, missing_glyphs, overflows }
     FirstRender { body, facts }
     Part { data, pages }
+    DecompressionBound { max_bytes, max_ratio }
     Metadata { title, author, subject, keywords, creator, producer }
     Attachment { name, data }
     PdfInfo { page_count, metadata, attachments, invoice_xml }

@@ -1,10 +1,23 @@
 //! Reading and merging existing PDFs on the host (`rule:core-classes/pdf-reader-and-merge`):
 //! the page count, the metadata, the attachments and a page's text, merging with page lists, and
-//! the refusals every job shares.
+//! the refusals every job shares, and the decompression bound each job decodes under
+//! (`rule:core-classes/decompression-bound`).
 
-use nvs_pdf::merge::{Part, merge};
-use nvs_pdf::read::{read, text};
+use nvs_pdf::merge::Part;
+use nvs_pdf::read::{Bound, Info};
 use nvs_pdf::{Asset, Document, Error, Instant, Options, Standard, render};
+
+fn read(data: Vec<u8>) -> Result<Info, Error> {
+    nvs_pdf::read::read(data, Bound::default())
+}
+
+fn text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Error> {
+    nvs_pdf::read::text(data, pages, Bound::default())
+}
+
+fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
+    nvs_pdf::merge::merge(parts, Bound::default())
+}
 
 fn rendered(html: &str, options: Options) -> Vec<u8> {
     render(&Document {
@@ -222,4 +235,83 @@ fn an_encrypted_source_throws_in_merge_read_and_text() {
     let Err(Error::Parse(_)) = read(b"not a PDF".to_vec()) else {
         panic!("bytes that are not a PDF were read");
     };
+}
+
+#[test]
+fn a_stream_past_the_decompression_bound_throws() {
+    let data = rendered(&"<p>Shop invoice line</p>".repeat(200), Options::default());
+    let ceiling = Bound {
+        max_bytes: 100,
+        max_ratio: 1000,
+    };
+    let ratio = Bound {
+        max_bytes: 64 << 20,
+        max_ratio: 1,
+    };
+    for (bound, key) in [
+        (ceiling, "`[limits] max_decompressed`"),
+        (ratio, "`[limits] max_decompression_ratio`"),
+    ] {
+        let jobs = [
+            nvs_pdf::read::text(data.clone(), &[1], bound).map(drop),
+            nvs_pdf::merge::merge(
+                vec![Part {
+                    data: data.clone(),
+                    pages: None,
+                }],
+                bound,
+            )
+            .map(drop)
+            .or_else(|err| match err {
+                // A page is copied compressed, so a file with no object stream merges.
+                Error::Parse(_) => Err(err),
+                other => panic!("merge gave {other:?}"),
+            }),
+        ];
+        let Err(Error::Parse(message)) = &jobs[0] else {
+            panic!("text under {bound:?} gave {:?}", jobs[0]);
+        };
+        assert!(message.contains(key), "{message}");
+        if let Err(Error::Parse(message)) = &jobs[1] {
+            assert!(message.contains(key), "{message}");
+        }
+    }
+    text(data, &[1]).unwrap();
+}
+
+#[test]
+fn an_attachment_past_the_decompression_bound_throws() {
+    let padding = format!("<!-- {} -->", "Shop ".repeat(20_000));
+    let invoice = INVOICE.replacen(
+        "<rsm:ExchangedDocument>",
+        &(padding + "<rsm:ExchangedDocument>"),
+        1,
+    );
+    let data = rendered(
+        "<html lang=\"en\"><head><title>Shop</title></head><p>Invoice</p></html>",
+        Options {
+            standard: Some(Standard::PdfA3b),
+            invoice_xml: Some(invoice.clone()),
+            created: Some(Instant {
+                seconds: 1_767_225_600,
+                nanos: 0,
+            }),
+            ..Options::default()
+        },
+    );
+    let bound = Bound {
+        max_bytes: 50_000,
+        max_ratio: 1000,
+    };
+    match nvs_pdf::read::read(data.clone(), bound) {
+        Err(Error::Parse(message)) => {
+            assert!(message.contains("50000 bytes"), "{message}");
+            assert!(message.contains("`[limits] max_decompressed`"), "{message}");
+        }
+        other => panic!("an attachment past the bound gave {other:?}"),
+    }
+    assert_eq!(
+        read(data).unwrap().invoice_xml.as_deref(),
+        Some(invoice.as_str())
+    );
 }

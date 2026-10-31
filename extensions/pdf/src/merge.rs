@@ -12,6 +12,9 @@
 //! file is PDF 2.0 when a part is, and PDF 1.7 otherwise, because `krilla` refuses a page newer
 //! than the file it writes. A merge with no page returns `Invalid`.
 //!
+//! The whole merge runs under the job's [`Bound`] (`read`'s module doc), so every stream it
+//! decodes, in [`open`] or while it copies a page, stops at the bound.
+//!
 //! Every byte of the output comes from the parts, so equal parts give byte-equal files.
 
 use std::sync::Arc;
@@ -22,7 +25,7 @@ use krilla::pdf::PdfDocument;
 use krilla::{Document, SerializeSettings};
 
 use crate::Error;
-use crate::read::{index, open};
+use crate::read::{Bound, index, open, under};
 
 /// The WIT `part`: a PDF, and the pages to take from it in order, counted from 1.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -31,8 +34,12 @@ pub struct Part {
     pub pages: Option<Vec<u64>>,
 }
 
-/// One PDF of the chosen pages of `parts`, in order.
-pub fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
+/// One PDF of the chosen pages of `parts`, in order, each part opened under `bound`.
+pub fn merge(parts: Vec<Part>, bound: Bound) -> Result<Vec<u8>, Error> {
+    under(bound, || merge_parts(parts))
+}
+
+fn merge_parts(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
     let mut chosen = Vec::with_capacity(parts.len());
     let mut newest = false;
     for part in parts {

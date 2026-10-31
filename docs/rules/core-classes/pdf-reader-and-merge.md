@@ -14,7 +14,9 @@ component's (`rule:core-classes/pdf-page-is-an-image-source`).
 
 **An encrypted source throws `ParseError`** in all three, as the image side does
 (`rule:core-classes/pdf-decode-refusals`), and so does a source that does not parse. A page number
-outside its document throws `LogicError` naming the page count. Each job is one call: `Reader::open`
+outside its document throws `LogicError` naming the page count. **A stream that decompresses past
+`rule:core-classes/decompression-bound` throws `ParseError`** in all three, naming the half of the
+bound that stopped it and the `[limits]` key that raises it. Each job is one call: `Reader::open`
 reads the count, the metadata and the attachments together, and `text` takes the bytes again with only
 the pages it asks for.
 

@@ -4,8 +4,9 @@ Returns the text of one page of a PDF file.
 the file stores it, with one line of the page on each line of the result. Tables and columns are
 not rebuilt, so the text of two columns can be mixed.
 
-A page number past the end of the file throws a `LogicError`. A page whose content needs more
-memory than the PDF engine may use stops the program.
+A page number past the end of the file throws a `LogicError`. A page whose content unpacks to
+more than 64 MB, or to more than 1000 times its packed size, throws a `ParseError`. The server's
+`[limits]` set these two numbers, as for `Reader::open`.
 
 **The examples below** print the text of each page, show the error for a page past the end, and
 find the line with the total on an invoice.

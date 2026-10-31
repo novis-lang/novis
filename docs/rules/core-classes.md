@@ -3342,7 +3342,11 @@ both bounds, and an archive-wide total counts held parts only. The configured va
 the way `[image] max_pixels` does, clamped by the host before the call. Every `Core\Compress` and
 `Core\Zip` member holds its output, so each keeps both bounds. A spreadsheet reader's message names
 the part, the half of the bound that stopped it and the key that raises that half, and names no
-rule: a program's caller reads it, and has no way to call with a lower bound.
+rule: a program's caller reads it, and has no way to call with a lower bound. The PDF component's
+`Reader::open`, `Reader::text` and `Pages::merge` decode every stream under both bounds, and the
+attachments `Reader::open` holds count together against the ceiling. Their message has the
+spreadsheet reader's shape. A stream's decode stops as its output grows, in the repository's patched
+`hayro-syntax` (`vendor/hayro-syntax`), and an image's pixels are bounded by its dimensions instead.
 
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
 member, is refused until the operator raises `max_decompressed` for that deployment. The default is
@@ -4442,7 +4446,9 @@ component's ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-c
 
 **An encrypted source throws `ParseError`** in all three, as the image side does
 ([`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals)), and so does a source that does not parse. A page number
-outside its document throws `LogicError` naming the page count. Each job is one call: `Reader::open`
+outside its document throws `LogicError` naming the page count. **A stream that decompresses past
+[`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound) throws `ParseError`** in all three, naming the half of the
+bound that stopped it and the `[limits]` key that raises it. Each job is one call: `Reader::open`
 reads the count, the metadata and the attachments together, and `text` takes the bytes again with only
 the pages it asks for.
 

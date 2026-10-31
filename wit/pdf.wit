@@ -120,6 +120,18 @@ interface engine {
         pages: option<list<u64>>,
     }
 
+    /// `rule:core-classes/decompression-bound` for one call: every stream the
+    /// call decodes decompresses to at most `max-bytes`, and to at most
+    /// `max-ratio` times its compressed size, and the attachments `read`
+    /// returns to at most `max-bytes` together. The host sets both to the
+    /// request's `[limits]` before the call, so `none` reads as the shipped
+    /// default only where no host clamped it. A call past either returns
+    /// `parse`.
+    record decompression-bound {
+        max-bytes: option<u64>,
+        max-ratio: option<u64>,
+    }
+
     record metadata {
         title: option<string>,
         author: option<string>,
@@ -168,13 +180,13 @@ interface engine {
 
     /// One PDF of the parts' pages, in order. An encrypted part returns
     /// `parse`.
-    merge: func(parts: list<part>) -> result<list<u8>, error>;
+    merge: func(parts: list<part>, bound: decompression-bound) -> result<list<u8>, error>;
 
     /// The page count, metadata and attachments of a PDF.
-    read: func(data: list<u8>) -> result<pdf-info, error>;
+    read: func(data: list<u8>, bound: decompression-bound) -> result<pdf-info, error>;
 
     /// The text of each page in `pages`, in the order the file stores it.
-    read-text: func(data: list<u8>, pages: list<u64>) -> result<list<string>, error>;
+    read-text: func(data: list<u8>, bound: decompression-bound, pages: list<u64>) -> result<list<string>, error>;
 }
 
 /// The PDF component: everything an extension may import, and `engine`.

@@ -47,10 +47,9 @@
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - Tables nested 2000 deep and an invoice XML nested 1000 deep exhaust the call stack, and a
-//!   2-million-character word, 100,000 nested `div`s, a 64 MB deflate stream, a 64 MB attachment
-//!   and a page of a million `q` operators reach the component's own memory limit below the
-//!   request's cap. Each is pinned with `ends-early` under `tests/hostile/novis/Pdf-*`.
+//! - Tables nested 2000 deep exhaust the call stack, and a 2-million-character word, 100,000
+//!   nested `div`s and a page of a million `q` operators reach the component's own memory limit
+//!   below the request's cap. Each is pinned with `ends-early` under `tests/hostile/novis/Pdf-*`.
 //! - `merge` costs about 64 ms and 4.4 MB for three small pages, `Reader::text` sends the whole
 //!   file across on every call, and `Page::string` lowercases the name it is given and not the
 //!   stored ones (`nvs/Page.nvs`).
@@ -421,9 +420,9 @@ mod guest {
     use std::cell::RefCell;
 
     use exports::nvs::pdf::engine::{
-        Attachment, Document, DroppedItem, Error, FirstPass, FirstRender, Guest, GuestKept, Kept,
-        KeptBorrow, Margins, Metadata, MissingGlyph, NamedValue, Overflow, PageFacts, Part,
-        PdfInfo, Rendered, Standard,
+        Attachment, DecompressionBound, Document, DroppedItem, Error, FirstPass, FirstRender,
+        Guest, GuestKept, Kept, KeptBorrow, Margins, Metadata, MissingGlyph, NamedValue, Overflow,
+        PageFacts, Part, PdfInfo, Rendered, Standard,
     };
 
     struct Component;
@@ -567,7 +566,7 @@ mod guest {
             crate::second(body, &pages).map(rendered).map_err(error)
         }
 
-        fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
+        fn merge(parts: Vec<Part>, bound: DecompressionBound) -> Result<Vec<u8>, Error> {
             let parts = parts
                 .into_iter()
                 .map(|part| crate::merge::Part {
@@ -575,11 +574,11 @@ mod guest {
                     pages: part.pages,
                 })
                 .collect();
-            crate::merge::merge(parts).map_err(error)
+            crate::merge::merge(parts, decompression(bound)).map_err(error)
         }
 
-        fn read(data: Vec<u8>) -> Result<PdfInfo, Error> {
-            let info = crate::read::read(data).map_err(error)?;
+        fn read(data: Vec<u8>, bound: DecompressionBound) -> Result<PdfInfo, Error> {
+            let info = crate::read::read(data, decompression(bound)).map_err(error)?;
             let meta = info.metadata;
             Ok(PdfInfo {
                 page_count: info.page_count,
@@ -600,8 +599,21 @@ mod guest {
             })
         }
 
-        fn read_text(data: Vec<u8>, pages: Vec<u64>) -> Result<Vec<String>, Error> {
-            crate::read::text(data, &pages).map_err(error)
+        fn read_text(
+            data: Vec<u8>,
+            bound: DecompressionBound,
+            pages: Vec<u64>,
+        ) -> Result<Vec<String>, Error> {
+            crate::read::text(data, &pages, decompression(bound)).map_err(error)
+        }
+    }
+
+    /// The core's bound: each half the host left unset is the shipped default.
+    fn decompression(bound: DecompressionBound) -> crate::read::Bound {
+        let shipped = crate::read::Bound::default();
+        crate::read::Bound {
+            max_bytes: bound.max_bytes.unwrap_or(shipped.max_bytes),
+            max_ratio: bound.max_ratio.unwrap_or(shipped.max_ratio),
         }
     }
 

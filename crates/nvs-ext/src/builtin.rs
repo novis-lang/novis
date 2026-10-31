@@ -95,13 +95,19 @@ pub struct Decompression {
 }
 
 /// `rule:core-classes/decompression-bound` on the host's side of a call: the bound of a
-/// `Novis\Spreadsheet\Engine::readerOpen` or `::templateOpen` call, its second argument, gets
+/// `Novis\Spreadsheet\Engine::readerOpen` or `::templateOpen` call, or a
+/// `Novis\Pdf\Engine::merge`, `::read` or `::readText` call, its second argument, gets
 /// `maxBytes` and `maxRatio` set to the smaller of its own and `in_force`'s, the calling request's
 /// `[limits]`. A bound with neither gets `in_force`'s, so a call can lower the bound and never
 /// raise it. Any other call is left as it is, and a bound that is not a shape is left for the
 /// manifest's conversion to refuse.
 pub fn cap_decompression(class: &str, method: &str, args: &mut [Value], in_force: Decompression) {
-    if class != SPREADSHEET_CLASS || !matches!(method, "readerOpen" | "templateOpen") {
+    let bounded = match class {
+        SPREADSHEET_CLASS => matches!(method, "readerOpen" | "templateOpen"),
+        PDF_CLASS => matches!(method, "merge" | "read" | "readText"),
+        _ => false,
+    };
+    if !bounded {
         return;
     }
     if let Some(Value::Array(fields)) = args.get_mut(1) {

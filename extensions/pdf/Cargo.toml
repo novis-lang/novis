@@ -56,3 +56,10 @@ panic = "abort"
 # row says what the patch carries; a workspace of its own needs the row again.
 [patch.crates-io]
 html5ever = { path = "../../vendor/html5ever" }
+# The published hayro-syntax 0.7.2 with `rule:core-classes/decompression-bound`:
+# its `bound` module, and a check in each filter that decompresses, which stops
+# the decode as its output grows past the bound. No hayro-syntax release has a
+# bound, and `krilla` 0.8 pins 0.7 through `hayro-write`. The version stays
+# 0.7.2, so every crate that names 0.7 resolves to this copy, and upgrading means
+# carrying the patch onto the new release. Each patched line says `Novis:`.
+hayro-syntax = { path = "../../vendor/hayro-syntax" }

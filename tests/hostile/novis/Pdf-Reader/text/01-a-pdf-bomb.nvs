@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a request reads the text of pages built to loop, nest deeply or unpack a huge stream.
 // Each read should return text, throw an error or stop at a limit. The server keeps running.
-// hostile: ends-early 5 FATAL
 use Novis\Pdf\Reader;
 
 class Forge
@@ -76,7 +75,10 @@ try {
 }
 
 // 5. A page whose content is a small compressed stream that unpacks to 64 MB.
-// The read stops at the memory limit of the PDF engine. That ends the program, so this step is last.
-echo "step 5\n";
+// It unpacks to more than 1000 times its packed size, so `text` throws a `ParseError`.
 bytes $packed = Core\Compress::compress(Core\Str::repeat(' ', 67108864) as bytes, Core\Compress::Codec::Zlib);
-echo 'step 5 ran ', Core\Str::length(Reader::open(Forge::page($packed, ' /Filter /FlateDecode'))->text(1)), "\n";
+try {
+    echo 'step 5 ran ', Core\Str::length(Reader::open(Forge::page($packed, ' /Filter /FlateDecode'))->text(1)), "\n";
+} catch (Throwable $e) {
+    echo 'step 5 stopped ', $e::class, "\n";
+}

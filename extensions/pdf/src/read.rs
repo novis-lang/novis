@@ -15,6 +15,15 @@
 //! parses and nests deeper than `factur_x`'s bound (`factur_x`'s module doc). The name tree is walked
 //! at most [`MAX_DEPTH`] levels deep, so a cycle in it ends.
 //!
+//! **Every job decodes under a [`Bound`]** (`rule:core-classes/decompression-bound`). [`under`]
+//! sets it on the thread for the job, and the repository's patched `hayro-syntax` stops each
+//! stream's decode once its output passes `min(compressed size × ratio, ceiling)`. That covers
+//! the cross-reference and object streams [`open`] reads, the content and font streams [`text`]
+//! interprets, and each attachment [`read`] returns. A job that passed the bound returns `Parse`
+//! naming the half that stopped it, even where the interpreter went on without that stream. The
+//! attachments [`read`] returns are held together, so their total counts against the ceiling too.
+//! An image's pixels are not counted, because its own dimensions bound them.
+//!
 //! [`text`] interprets each page asked for with a device that keeps only glyphs, and writes each
 //! glyph's Unicode value in the order the content stream draws it. A glyph whose baseline moves by
 //! more than half its size, or that starts more than half its size before the last glyph ended,
@@ -28,6 +37,7 @@
 use std::sync::Arc;
 
 use hayro_interpret::font::{FontData, FontQuery, Glyph, StandardFont};
+use hayro_interpret::hayro_syntax::bound::Breach;
 use hayro_interpret::hayro_syntax::object::{Array, Dict, Object, Stream};
 use hayro_interpret::hayro_syntax::{LoadPdfError, Pdf};
 use hayro_interpret::{
@@ -70,6 +80,51 @@ pub struct Info {
     pub invoice_xml: Option<String>,
 }
 
+/// The WIT `decompression-bound` after the host's clamp: the most bytes one stream decodes to,
+/// and the most bytes of output per byte of input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bound {
+    pub max_bytes: u64,
+    pub max_ratio: u64,
+}
+
+impl Default for Bound {
+    /// The shipped `[limits] max_decompressed` and `max_decompression_ratio`.
+    fn default() -> Self {
+        Bound {
+            max_bytes: 64 << 20,
+            max_ratio: 1000,
+        }
+    }
+}
+
+/// `job` with every decode on this thread under `bound`. A job that passed the bound returns
+/// `Parse` naming the half that stopped it, whatever the job returned.
+pub fn under<T>(bound: Bound, job: impl FnOnce() -> Result<T, Error>) -> Result<T, Error> {
+    hayro_interpret::hayro_syntax::bound::set(bound.max_bytes, bound.max_ratio);
+    let result = job();
+    match hayro_interpret::hayro_syntax::bound::take() {
+        None => result,
+        Some(Breach::Ratio) => Err(over_ratio(bound.max_ratio)),
+        Some(Breach::Ceiling) => Err(over_bytes(bound.max_bytes)),
+    }
+}
+
+fn over_ratio(ratio: u64) -> Error {
+    Error::Parse(format!(
+        "A stream in the PDF decompresses to more than {ratio} times its compressed size. \
+         To allow a larger ratio, raise `[limits] max_decompression_ratio` in the server's \
+         configuration."
+    ))
+}
+
+fn over_bytes(bytes: u64) -> Error {
+    Error::Parse(format!(
+        "The PDF decompresses to more than {bytes} bytes. To allow more, raise \
+         `[limits] max_decompressed` in the server's configuration."
+    ))
+}
+
 /// The parsed document. An encrypted one and one that does not parse return `Parse`.
 pub fn open(data: Vec<u8>) -> Result<Pdf, Error> {
     Pdf::new_with_password(data, NO_PASSWORD).map_err(|err| match err {
@@ -95,8 +150,12 @@ pub fn index(page: u64, count: usize) -> Result<usize, Error> {
         })
 }
 
-/// The page count, metadata and attachments of the document `data`.
-pub fn read(data: Vec<u8>) -> Result<Info, Error> {
+/// The page count, metadata and attachments of the document `data`, decoded under `bound`.
+pub fn read(data: Vec<u8>, bound: Bound) -> Result<Info, Error> {
+    under(bound, || read_info(data, bound))
+}
+
+fn read_info(data: Vec<u8>, bound: Bound) -> Result<Info, Error> {
     let pdf = open(data)?;
     let meta = pdf.metadata();
     let decode = |field: &Option<Vec<u8>>| field.as_deref().map(text_string);
@@ -115,7 +174,8 @@ pub fn read(data: Vec<u8>) -> Result<Info, Error> {
         .and_then(|catalog| catalog.get::<Dict<'_>>(b"Names"))
         .and_then(|names| names.get::<Dict<'_>>(b"EmbeddedFiles"));
     if let Some(tree) = tree {
-        walk(&tree, 0, &mut attachments);
+        let mut room = bound.max_bytes;
+        walk(&tree, 0, &mut attachments, &mut room).ok_or_else(|| over_bytes(bound.max_bytes))?;
     }
     let invoice_xml = attachments
         .iter()
@@ -141,18 +201,24 @@ pub fn read(data: Vec<u8>) -> Result<Info, Error> {
     })
 }
 
-/// Adds each file of the name tree node `node` to `out`, in the tree's order.
-fn walk(node: &Dict<'_>, depth: usize, out: &mut Vec<(String, Vec<u8>)>) {
+/// Adds each file of the name tree node `node` to `out`, in the tree's order, and takes its
+/// size from `room`. `None` once the files together are larger than `room` was.
+fn walk(
+    node: &Dict<'_>,
+    depth: usize,
+    out: &mut Vec<(String, Vec<u8>)>,
+    room: &mut u64,
+) -> Option<()> {
     if depth >= MAX_DEPTH {
-        return;
+        return Some(());
     }
     if let Some(kids) = node.get::<Array<'_>>(b"Kids") {
         for kid in kids.iter::<Dict<'_>>() {
-            walk(&kid, depth + 1, out);
+            walk(&kid, depth + 1, out, room)?;
         }
     }
     let Some(names) = node.get::<Array<'_>>(b"Names") else {
-        return;
+        return Some(());
     };
     let mut entries = names.iter::<Object<'_>>();
     while let (Some(key), Some(spec)) = (entries.next(), entries.next()) {
@@ -160,9 +226,11 @@ fn walk(node: &Dict<'_>, depth: usize, out: &mut Vec<(String, Vec<u8>)>) {
             continue;
         };
         if let Some(file) = attachment(&spec, key) {
+            *room = room.checked_sub(file.1.len() as u64)?;
             out.push(file);
         }
     }
+    Some(())
 }
 
 /// The name and bytes of the file specification `spec`, whose key in the name tree is `key`.
@@ -204,9 +272,14 @@ fn text_string(bytes: &[u8]) -> String {
     }
 }
 
-/// The text of each page in `pages`, counted from 1, of the document `data`. A page outside the
-/// document returns `Invalid` naming the count, before any page is read.
-pub fn text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Error> {
+/// The text of each page in `pages`, counted from 1, of the document `data`, decoded under
+/// `bound`. A page outside the document returns `Invalid` naming the count, before any page is
+/// read.
+pub fn text(data: Vec<u8>, pages: &[u64], bound: Bound) -> Result<Vec<String>, Error> {
+    under(bound, || page_text(data, pages))
+}
+
+fn page_text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Error> {
     let pdf = open(data)?;
     let all = pdf.pages();
     let indices = pages

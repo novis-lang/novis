@@ -20,7 +20,7 @@ final class Reader
     /// A file that is encrypted or does not parse throws a `ParseError`.
     public static function open(bytes $pdf): Reader
     {
-        var $info = Engine::read($pdf);
+        var $info = Engine::read($pdf, { maxBytes: null, maxRatio: null });
         return new Reader($pdf, $info->pageCount, $info->metadata, $info->attachments, $info->invoiceXml);
     }
 
@@ -41,6 +41,6 @@ final class Reader
     /// Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
     public function text(uint $page): string
     {
-        return Engine::readText($this->pdf, [$page])[0];
+        return Engine::readText($this->pdf, { maxBytes: null, maxRatio: null }, [$page])[0];
     }
 }

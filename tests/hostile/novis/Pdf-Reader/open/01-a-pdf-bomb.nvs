@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a request uploads PDF files built to make the reader loop, nest deeply or unpack a huge file.
 // Each file should open, throw an error or stop at a limit. The server keeps running.
-// hostile: ends-early 6 FATAL
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
@@ -89,8 +88,7 @@ try {
 }
 
 // 6. An attached file that is a small compressed stream and unpacks to 64 MB.
-// The reader stops at the memory limit of the PDF engine. That ends the program, so this step is last.
-echo "step 6\n";
+// It unpacks to more than 1000 times its packed size, so the reader throws a `ParseError`.
 bytes $packed = Core\Compress::compress(Core\Str::repeat(' ', 67108864) as bytes, Core\Compress::Codec::Zlib);
 uint $length = Core\Bytes::length($packed);
 var $bomb = Forge::pdf([
@@ -100,4 +98,8 @@ var $bomb = Forge::pdf([
     '<< /Type /Filespec /F (big.txt) /UF (big.txt) /EF << /F 5 0 R >> >>' as bytes,
     Core\Bytes::join(["<< /Type /EmbeddedFile /Length {$length} /Filter /FlateDecode >>\nstream\n" as bytes, $packed, "\nendstream" as bytes]),
 ]);
-echo 'step 6 ran ', Core\Arr::count(Reader::open($bomb)->attachments()), "\n";
+try {
+    echo 'step 6 ran ', Core\Arr::count(Reader::open($bomb)->attachments()), "\n";
+} catch (Throwable $e) {
+    echo 'step 6 stopped ', $e::class, "\n";
+}

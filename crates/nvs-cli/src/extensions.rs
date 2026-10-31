@@ -83,7 +83,7 @@
 //! install a [`Calls`]. Before a call crosses, `nvs_ext::builtin::cap_pixels` clamps an image
 //! call's sources to the `[image] max_pixels` of the request's snapshot
 //! (`rule:core-classes/image-pixel-cap`), and `nvs_ext::builtin::cap_decompression` a spreadsheet
-//! reader's or template's bound to its `[limits]` (`rule:core-classes/decompression-bound`).
+//! reader's or template's bound, and a PDF read's or merge's, to its `[limits]` (`rule:core-classes/decompression-bound`).
 //!
 //! What it spends: each loaded component's compiled code, once per process and shared by every
 //! core, and during a reload the old set and the new one together until the swap. On disk, one

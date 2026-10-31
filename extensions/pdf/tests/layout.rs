@@ -866,7 +866,8 @@ fn an_svg_text_is_drawn_with_the_default_fonts() {
         .unwrap();
         assert!(has(&rendered.data, b"/FontFile2"), "{family}");
         assert!(has(&rendered.data, face), "{family}");
-        let text = nvs_pdf::read::text(rendered.data, &[1]).unwrap();
+        let text =
+            nvs_pdf::read::text(rendered.data, &[1], nvs_pdf::read::Bound::default()).unwrap();
         assert!(text[0].contains("Shop total"), "{family}: {text:?}");
     }
 

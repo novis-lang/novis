@@ -222,8 +222,19 @@ fn a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte() {
         let data = vec![0_u8; 4 << 20];
         let unbounded = Arc::new(Meter::new(Duration::from_secs(30), None));
         let request = host.request(unbounded.clone());
-        let out =
-            block_on(request.call_values(extension, method, vec![Value::Bytes(data.clone())]));
+        // The PDF `read` takes a `decompression-bound` after its bytes, and neither half set
+        // is the shipped default.
+        let args = |data: Vec<u8>| {
+            let mut args = vec![Value::Bytes(data)];
+            if class == PDF_CLASS {
+                args.push(Value::Array(vec![
+                    (Key::String("maxBytes".to_owned()), Value::Null),
+                    (Key::String("maxRatio".to_owned()), Value::Null),
+                ]));
+            }
+            args
+        };
+        let out = block_on(request.call_values(extension, method, args(data.clone())));
         assert!(
             matches!(out, Err(Failure::Error(Error::Parse(_)))),
             "{class}::{method} does not parse zeros: {out:?}"
@@ -233,7 +244,7 @@ fn a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte() {
 
         let budget = instance + data.len() as u64 + (1 << 20);
         let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), Some(budget))));
-        let out = block_on(request.call_values(extension, method, vec![Value::Bytes(data)]));
+        let out = block_on(request.call_values(extension, method, args(data)));
         assert!(
             matches!(out, Err(Failure::Error(Error::Parse(_)))),
             "{class}::{method} fits in {budget} bytes: {out:?}"

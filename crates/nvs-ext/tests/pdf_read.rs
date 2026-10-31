@@ -139,19 +139,26 @@ fn merge(parts: Vec<(Vec<u8>, Option<Vec<u64>>)>) -> Result<Vec<u8>, Failure> {
             ])
         })
         .collect();
-    match call("merge", vec![list(parts)])? {
+    match call("merge", vec![list(parts), unbounded()])? {
         Value::Bytes(data) => Ok(data),
         other => panic!("`merge` returned {other:?}"),
     }
 }
 
+/// A `decompression-bound` with neither half set, which the component reads as the shipped
+/// default.
+fn unbounded() -> Value {
+    shape(vec![("maxBytes", Value::Null), ("maxRatio", Value::Null)])
+}
+
 fn read(data: Vec<u8>) -> Result<Value, Failure> {
-    call("read", vec![Value::Bytes(data)])
+    call("read", vec![Value::Bytes(data), unbounded()])
 }
 
 fn text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Failure> {
     let pages = list(pages.iter().copied().map(Value::Uint).collect());
-    let Value::Array(texts) = call("readText", vec![Value::Bytes(data), pages])? else {
+    let Value::Array(texts) = call("readText", vec![Value::Bytes(data), unbounded(), pages])?
+    else {
         panic!("`readText` returned no list");
     };
     Ok(texts
