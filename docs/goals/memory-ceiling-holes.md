@@ -444,22 +444,16 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Every stage is done. The last `bun nv affected --run` is 23 of 23 green, and `bun nv verify --doc`,
-`bun nv owners --closes memory-ceiling-holes` and `bun nv ci --check` are green. The goal-end
-`ci --check` first found two reds. The website had three stale stamps, fixed in `b31d46005`. The
-goal's member changes left 318 features' perf stale. Recording them was killed as a hang, because
-the WSL build for callgrind printed nothing for 90 s; `13d5cb3a4` declares that build to the hang
-watch. The recording then found eight `Core\Compress` benches and `Process\Handle::writeStdin`
-still declaring `calls 0` from before every `Core` call was counted. `bd2749c65` declares the
-measured counts and appends 327 records. Every standing decision is now stated in the code it
-governs (`abda92ad6`), so the file can be deleted.
+`bun nv owners --closes memory-ceiling-holes` and `bun nv ci --check` are green. Every standing
+decision is stated in the code it governs (`abda92ad6`), so the file can be deleted.
 
-The first DONE was refused on `floor-debt`. One atom was red:
-`tests/hostile/core/Http-Client/stream/01-replies-that-are-not-text-or-never-end.nvs`, whose step 8
-(three million blank lines) threw the event block cap. `EventScan` counted that cap from the front
-of the reader's buffer, which an answer-table reply fills whole. `ab0b111b6` counts it from the last
-blank line that dispatched nothing, with the Rust test
-`blank_lines_past_the_block_cap_end_with_no_event`. The attack and `Core\Http\Stream::events`'s
-proofs are green, and `bun nv affected --run --since fab7e58df` is 23 of 23 green.
+The first DONE was refused on `floor-debt`: the event block cap counted from the front of the
+reader's buffer. `ab0b111b6` counts it from the last blank line that dispatched nothing, and
+`bun nv affected --run --since fab7e58df` is 23 of 23 green.
+
+The second DONE was refused on `proofs-gate`: that fix made the ten `Core\Http\Stream` and
+`Core\Http\Event` members' perf stale. `187258466` appends their ten records, and
+`bun nv proofs --gate` is green over all 1572 features.
 
 The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and
 `bun nv proofs --verify --only 'Core\Env::secret'` is green.
