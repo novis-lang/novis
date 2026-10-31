@@ -11,7 +11,8 @@
 //! else its `/F` one. A text string in UTF-16 or UTF-8 with its byte-order mark is decoded as such,
 //! and any other is read as Latin-1, which differs from PDFDocEncoding only in a few punctuation
 //! marks. The invoice XML is the attachment named `factur-x.xml`, `zugferd-invoice.xml` or
-//! `xrechnung.xml`, in any case, and one that is not UTF-8 returns `Parse`. The name tree is walked
+//! `xrechnung.xml`, in any case. One that is not UTF-8 returns `Parse`, and so does one that
+//! parses and nests deeper than `factur_x`'s bound (`factur_x`'s module doc). The name tree is walked
 //! at most [`MAX_DEPTH`] levels deep, so a cycle in it ends.
 //!
 //! [`text`] interprets each page asked for with a device that keeps only glyphs, and writes each
@@ -35,8 +36,8 @@ use hayro_interpret::{
 };
 use kurbo::{Affine, BezPath, Point, Rect};
 
-use crate::Error;
 use crate::fonts::{self, Family};
+use crate::{Error, factur_x};
 
 /// The password an encrypted document is opened with to find out that it is encrypted.
 const NO_PASSWORD: &str = "\u{0}novis: a PDF is never decrypted\u{0}";
@@ -124,8 +125,12 @@ pub fn read(data: Vec<u8>) -> Result<Info, Error> {
                 .any(|invoice| name.eq_ignore_ascii_case(invoice))
         })
         .map(|(name, data)| {
-            String::from_utf8(data.clone())
-                .map_err(|_| Error::Parse(format!("the attachment `{name}` is not UTF-8")))
+            let xml = String::from_utf8(data.clone())
+                .map_err(|_| Error::Parse(format!("the attachment `{name}` is not UTF-8")))?;
+            match factur_x::depth_error(&xml) {
+                Some(err) => Err(err),
+                None => Ok(xml),
+            }
         })
         .transpose()?;
     Ok(Info {

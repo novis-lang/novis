@@ -6,6 +6,12 @@
 //! `GuidelineSpecifiedDocumentContextParameter`, which gives the [`Level`] the metadata names.
 //! An invoice with no guideline id the standard lists is `EN 16931`.
 //!
+//! **An invoice nests at most [`MAX_DEPTH`] elements**, and [`check`] returns `Parse` for a
+//! deeper one. A real invoice nests about ten. `roxmltree`'s parse keeps no stack of its own,
+//! so the depth is counted after it, in one pass over the node tree. [`depth_error`] is that
+//! count alone, and `read` applies it to a received invoice that parses, so neither job hands a
+//! program XML deeper than any invoice.
+//!
 //! [`embed`] attaches the XML as `factur-x.xml`, `text/xml`, dated at the document's creation
 //! time, with the `AFRelationship` the level fixes: `Data` for `MINIMUM` and `BASIC WL`, which
 //! are not whole invoices, and `Alternative` for the rest. `krilla` lists it in the catalog's
@@ -32,6 +38,9 @@ use crate::Error;
 
 /// The name the standard gives the attached XML.
 pub const FILE_NAME: &str = "factur-x.xml";
+
+/// How many elements deep an invoice may nest.
+pub const MAX_DEPTH: usize = 256;
 
 /// The namespace of the Factur-X XMP fields.
 const NAMESPACE: &str = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#";
@@ -79,14 +88,14 @@ impl Level {
     }
 }
 
-/// The level of the invoice `xml`. An XML that is not well-formed, or has a DTD, returns `Parse`.
+/// The level of the invoice `xml`. An XML that is not well-formed, has a DTD, or nests more than
+/// [`MAX_DEPTH`] elements returns `Parse`.
 pub fn check(xml: &str) -> Result<Level, Error> {
-    let options = roxmltree::ParsingOptions {
-        allow_dtd: false,
-        ..roxmltree::ParsingOptions::default()
-    };
-    let tree = roxmltree::Document::parse_with_options(xml, options)
+    let tree = parse(xml)
         .map_err(|err| Error::Parse(format!("the invoice XML is not well-formed: {err}")))?;
+    if let Some(err) = too_deep(&tree) {
+        return Err(err);
+    }
     let id = tree
         .descendants()
         .find(|node| node.tag_name().name() == "GuidelineSpecifiedDocumentContextParameter")
@@ -96,6 +105,40 @@ pub fn check(xml: &str) -> Result<Level, Error> {
         })
         .and_then(|node| node.text());
     Ok(id.map_or(Level::En16931, Level::of))
+}
+
+/// `Parse` for invoice `xml` that parses and nests more than [`MAX_DEPTH`] elements, and `None`
+/// for any other.
+pub fn depth_error(xml: &str) -> Option<Error> {
+    parse(xml).ok().and_then(|tree| too_deep(&tree))
+}
+
+/// `xml` parsed with no DTD.
+fn parse(xml: &str) -> Result<roxmltree::Document<'_>, roxmltree::Error> {
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: false,
+        ..roxmltree::ParsingOptions::default()
+    };
+    roxmltree::Document::parse_with_options(xml, options)
+}
+
+/// `Parse` when `tree` nests more than [`MAX_DEPTH`] elements. Nodes come in document order, so
+/// each node's parent is counted before it.
+fn too_deep(tree: &roxmltree::Document<'_>) -> Option<Error> {
+    let mut depths = vec![0_u32; tree.descendants().count()];
+    for node in tree.root().descendants().skip(1) {
+        let parent = node
+            .parent()
+            .map_or(0, |parent| depths[parent.id().get_usize()]);
+        let depth = parent + u32::from(node.is_element());
+        if depth as usize > MAX_DEPTH {
+            return Some(Error::Parse(format!(
+                "the invoice XML nests elements more than {MAX_DEPTH} levels deep"
+            )));
+        }
+        depths[node.id().get_usize()] = depth;
+    }
+    None
 }
 
 /// Attaches `xml` to `document` as its Factur-X invoice of `level`, dated `created`.

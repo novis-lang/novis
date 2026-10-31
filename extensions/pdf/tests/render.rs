@@ -255,6 +255,30 @@ fn ten_thousand_nested_divs_render() {
 }
 
 #[test]
+fn an_invoice_xml_nested_past_the_depth_bound_throws() {
+    let nested = |depth: usize| {
+        let mut document = html("<p>x</p>");
+        document.options = Options {
+            standard: Some(Standard::PdfA3b),
+            invoice_xml: Some("<a>".repeat(depth) + &"</a>".repeat(depth)),
+            created: Some(Instant {
+                seconds: 1_767_225_600,
+                nanos: 0,
+            }),
+            ..Options::default()
+        };
+        render(&document)
+    };
+    nested(256).unwrap();
+    for depth in [257, 100_000] {
+        match nested(depth) {
+            Err(Error::Parse(message)) => assert!(message.contains("256 levels"), "{message}"),
+            other => panic!("{depth} levels: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password() {
     let mut document = html("<p>x</p>");
     document.options = Options {

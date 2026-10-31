@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-ext/tests/pdf_standards.rs",
+    "extensions/pdf/tests/render.rs",
     "tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst"
   ]
 }

@@ -4395,8 +4395,11 @@ guideline id of its `GuidelineSpecifiedDocumentContextParameter`, which gives th
 `Alternative`.
 
 An invoice XML without `Document::Standard::PdfA3b` throws `LogicError`, because Factur-X is defined
-only on PDF/A-3. An XML that is not well-formed throws `ParseError`. `Reader::invoiceXml` returns the
-XML of a received invoice ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)).
+only on PDF/A-3. An XML that is not well-formed throws `ParseError`, and so does one that nests
+elements more than 256 levels deep. A real invoice nests about ten, and the bound keeps a hostile one
+from costing more than its node tree. `Reader::invoiceXml` returns the XML of a received invoice
+([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), and throws `ParseError` for one that parses and nests
+deeper than 256 levels.
 
 An e-invoice is the one attachment businesses are required to send, and a hybrid PDF is how most of
 Europe sends it. Any other attachment is a file a reader may be asked to open, which is the
