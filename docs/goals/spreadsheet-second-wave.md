@@ -50,7 +50,7 @@ stages:
     context: [extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/zip.rs, extensions/spreadsheet/src/styles.rs, extensions/spreadsheet/nvs/Workbook.nvs, docs/rules/core-classes/spreadsheet-writes-as-a-stream.md]
   - id: 12
     title: "an ods carries every sheet-end part but charts"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/src/table.rs, extensions/spreadsheet/src/conditional.rs, extensions/spreadsheet/src/drawing.rs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 13
     title: "an ods carries charts, the component's size is recorded, and no rule owes anything"
@@ -630,11 +630,11 @@ builds.
 
 **Does:** each sheet-end part a program adds to an ods is written, in its ODF place.
 
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts`: merges, links and notes in their cells, and validation before the first sheet. `extensions/spreadsheet/src/ods/mod.rs:1`, `extensions/spreadsheet/src/tail.rs:1`
-- [ ] Hidden rows, columns and sheets, outline groups, print setup and protection. `extensions/spreadsheet/src/ods/mod.rs:1`
-- [ ] Tables as database ranges, and conditional formats as `calcext:conditional-formats`. `extensions/spreadsheet/src/table.rs:1`, `extensions/spreadsheet/src/conditional.rs:1`
-- [ ] Images as `draw:frame` in their anchor cell, with the picture in the package. `extensions/spreadsheet/src/drawing.rs:1`
-- [ ] The tests the `ods-writer-parts` check names. `extensions/spreadsheet/tests/ods.rs:1`
+- [x] `rule:core-classes/spreadsheet-sheet-end-parts`: merges, links and notes in their cells, and validation before the first sheet. `extensions/spreadsheet/src/ods/mod.rs:1`, `extensions/spreadsheet/src/tail.rs:1`
+- [x] Hidden rows, columns and sheets, outline groups, print setup and protection. `extensions/spreadsheet/src/ods/mod.rs:1`
+- [x] Tables as database ranges, and conditional formats as `calcext:conditional-formats`. `extensions/spreadsheet/src/table.rs:1`, `extensions/spreadsheet/src/conditional.rs:1`
+- [x] Images as `draw:frame` in their anchor cell, with the picture in the package. `extensions/spreadsheet/src/drawing.rs:1`
+- [x] The tests the `ods-writer-parts` check names. `extensions/spreadsheet/tests/ods.rs:1`
 
 ### 13. an ods carries charts, the component's size is recorded, and no rule owes anything
 
@@ -665,46 +665,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 11 is done. `extensions/spreadsheet/tests/ods.rs` has the seven `ods-writer-core` tests, and
-all pass. The case `tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst` passes
-on a binary built by `bun nv relink --build`. `cargo clippy --all-targets -- -D warnings` in
-`extensions/spreadsheet` is green.
+Stage 12 is done (`3c0bf91b4`). `cargo test --test ods` in `extensions/spreadsheet` passes all 14
+tests: the seven `ods-writer-core` ones, the six `ods-writer-parts` ones, and
+`ods_number_formats_with_sections_conditions_and_fractions_are_written`, which closes the old
+backlog bullet. `excel`, `template`, `sheet_end` and clippy are green.
 
-- **One reader fix.** `read/ods.rs`'s `typed_cell` keeps a cell with a formula and no value type,
-  as a formula with no cached result, the way an xlsx `<c>` with an `<f>` and no `<v>` reads.
-  Before, such a cell was dropped.
-- **A rich run that ends in a space** writes the space as `<text:s/>` before the next span. That is
-  valid ODF, and the reader and calamine read it back as a space.
-- **Rules.** The writes-as-a-stream fragment says streaming is the only way to write xlsx, has the
-  held ods paragraph with its cost, a Memory bullet, and the Declined bullet. The roster fragment
-  says ods writes, and its Not-shipped line names only the sheet-end parts and charts.
-- **Examples.** `createForFile` and `fromRows` each have a fifth example that writes an ods (the
-  fourth were the CSV ones), and both `about.md` pages say ods.
-- The sweep's reds were stale, as the last handoff said: the nightly run was on `857b39cad`, and
-  `env-secret-proofs` has no log and no definition.
+- **Shape.** The ods `Sheet` (`ods/mod.rs`) keeps a `Tail` and a `Groups` and calls the xlsx
+  checks, so both formats throw the same errors. The new `ods/parts.rs` writes the validation
+  conditions, the conditional formats, the page layout and master page, the protection key and
+  `resolve`. `resolve` turns a structured reference into A1 cells at `finish`. `drawing::place` is
+  the one image placement both writers call. Rows are written from breakpoints, with row and column
+  repeat runs, so a validation over `A2:A1048576` costs a few elements.
+- **Choices the subagent made that the design left open.** The protection key is the base64 of the
+  16-bit hash, high byte first, with `table:protection-key-digest-algorithm` set to
+  `http://docs.oasis-open.org/office/ns/table/legacy-hash-excel`. Empty rows past the data get no
+  group level. Where validations overlap, the lowest-numbered one wins. An image's `svg:x` and
+  `svg:y` are its offsets inside the cell.
+- **Never opened in LibreOffice:** these choices, the `calcext` values and the fit scale (Backlog).
+- **Rules.** `spreadsheet-sheet-end-parts.md` has an ods paragraph, and its record's `guardedBy`
+  lists `tests/ods.rs`. The roster fragment's Not-shipped line now names only charts.
+- **Sweep.** Each nightly red on `857b39cad` is fixed by a later commit (`39795c9c4`, `bfce9c2d2`,
+  `9fe05ce88`, `8ce92dda5`). `env-secret-proofs` has no log and no definition.
 
 ### Next
 
-Stage 12: the sheet-end parts in ods. Every part reaches `ods::Writer::part`
-(`extensions/spreadsheet/src/ods/mod.rs:278`), which throws now. The parts are `tail::Part`
-(`extensions/spreadsheet/src/tail.rs:280`). The xlsx writer's `part` is
-`extensions/spreadsheet/src/writer.rs:527`, and its checks are what ods should reuse.
+Stage 13: charts in ods, then the size and the rule sweep.
 
-1. Keep each part on the open `Sheet` (`ods/mod.rs:91`), checked as xlsx checks it. `Writer::part`
-   returns `()` and `Book::part` returns no bytes for ods already (`src/book.rs:78`).
-2. Merges (`table:number-columns-spanned` and `-rows-spanned`, then `table:covered-table-cell`),
-   links (`text:a` in the cell's `text:p`), and notes (`office:annotation` in the cell). The
-   `table` writer (`ods/mod.rs:733`) writes cells, so it looks each part up by cell.
-3. Validation as `table:content-validations` before the first `table:table`, and
-   `table:content-validation-name` on each cell. Groups: the row levels are already
-   `table:table-row-group`; columns need `table:table-column-group`.
-4. Tables as `table:database-range` beside the sheet filter (`ods/mod.rs:671`), conditional
-   formats as `calcext:conditional-formats`, images as `draw:frame` in the anchor cell with the
-   picture under `Pictures/` and in the manifest (`ods/mod.rs:1006`), print setup in `styles.xml`'s
-   page layout, protection as `table:protected` with the hash.
-5. The six `ods-writer-parts` tests in `extensions/spreadsheet/tests/ods.rs`. Read back with our
-   reader's extras (`read/extras.rs`, which reads ods links, notes, names, tables and images) and
-   with calamine.
+1. `Part::Chart` throws at `extensions/spreadsheet/src/ods/mod.rs:428`. Keep the chart on the
+   sheet as an image is kept (`HeldImage`, `ods/mod.rs:159`). Write it as `Object N/content.xml`
+   with `chart:chart` in a new `ods/chart.rs`, from the same `chart::Chart` the xlsx writer reads
+   (`extensions/spreadsheet/src/chart.rs`). Its `draw:frame` with `draw:object` goes in the anchor
+   cell, beside the images, and it gets its manifest entries (`manifest`, `ods/mod.rs:1853`).
+2. The two `ods-writer-charts` tests in `tests/ods.rs`. Use the read-back helpers the stage-12
+   tests use.
+3. Then the stage's other items: the roster fragment's Not-shipped line (it names only charts now),
+   the size test once by name, the `git grep` for Not shipped, `bun nv rules --render`,
+   `bun nv render --website`, and `bun nv owners --closes spreadsheet-second-wave`.
 
 To see one case's output, run `target/release/nvs test <path.nvst>` after `bun nv relink --build`.
 `bun nv suite tests/conformance/ --case <path>` judges the whole suite.
@@ -718,10 +714,12 @@ read an ods cell with a formula and no value type, which now gives a cell, or a 
 cannot read, which carries empty text inside the reader; a test that reads a table's records
 through `binary::table`, which returns four fields. From earlier stages: `meta.rs`'s enum and
 Engine lists, `spreadsheet_reader.rs`'s `Reader::Visibility`, `ext_world.rs`'s `source-bytes`, and
-a test of `Template::fill`'s help text.
+a test of `Template::fill`'s help text. From stage 12: a test that expects an ods part to throw
+"cannot be written to an ods file yet", and a test that expects the ods row-level error without
+"counting its groups", which is now the xlsx wording.
 
 ### Backlog
 
 - The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.
-- `ods/numbers.rs` has no test of a format with sections, a condition or a fraction. Stage 12's tests may add one beside the parts.
+- Open one ods with every part in LibreOffice: the protection key and its URI, the `calcext` values, the fit-to-page scale, and where an image lands (`svg:x`/`svg:y` may be read as sheet positions, not offsets in the cell). This needs a LibreOffice install. Our reader and calamine read every part back.
