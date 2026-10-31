@@ -492,6 +492,59 @@ fn code_rename_renames_a_type_and_moves_the_file_named_after_it() {
     );
 }
 
+/// A class with a type alias it uses by its bare name, and a constant.
+const ORDER: &str = "<?nvs\nnamespace Shop;\n\nfinal class Order {\n    \
+                     public const int LIMIT = 10;\n\n    type Total = int;\n\n    \
+                     public function total(): Total {\n        return 3;\n    }\n}\n";
+
+/// A second entry point that writes the alias with its owner's name.
+const REPORT: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Order;\n\n\
+                      final class Report {\n    \
+                      public static function show(Order::Total $total): void {\n        \
+                      echo $total;\n    }\n}\n\n\
+                      Report::show((new Order())->total());\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_renames_a_class_scoped_type_alias_at_every_site() {
+    let dir = project(
+        "rename-owned-alias",
+        &[("src/Order.nvs", ORDER), ("public/report.nvs", REPORT)],
+    );
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Order::Total", "Amount"]);
+    assert!(ok, "{err}");
+    let order = read(&dir, "src/Order.nvs");
+    assert!(order.contains("type Amount = int;"), "{order}");
+    assert!(order.contains("function total(): Amount {"), "{order}");
+    let report = read(&dir, "public/report.nvs");
+    assert!(
+        report.contains("show(Order::Amount $total): void"),
+        "{report}"
+    );
+    assert!(out.contains("src/Order.nvs  2 edits\n"), "{out}");
+    assert!(out.contains("public/report.nvs  1 edit\n"), "{out}");
+    assert!(!out.contains("moved"), "{out}");
+    let (_, err, ok) = run(&dir, "check", &["public/report.nvs"]);
+    assert!(ok, "the renamed project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_class_scoped_alias_name_its_owner_uses() {
+    let dir = project(
+        "rename-owned-alias-clash",
+        &[("src/Order.nvs", ORDER), ("public/report.nvs", REPORT)],
+    );
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Order::Total", "LIMIT"]);
+    assert!(!ok, "{out}");
+    assert!(
+        err.contains(r"`Shop\Order` already has a constant named `LIMIT`."),
+        "{err}"
+    );
+    assert_eq!(read(&dir, "src/Order.nvs"), ORDER);
+    assert_eq!(read(&dir, "public/report.nvs"), REPORT);
+}
+
 // covers: tools:cli/nvs-code
 #[test]
 fn code_rename_renames_a_local_at_a_position() {

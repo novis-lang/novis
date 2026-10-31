@@ -1259,6 +1259,9 @@ pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
     if !covers(name.span, offset) {
         return None;
     }
+    if let Some((class, alias)) = FileScope::of(analysed, analysed.entry).owned_alias(name.span) {
+        return Some((Target::TypeAlias { class, name: alias }, name.span));
+    }
     let resolved = written_name_in(analysed, analysed.entry, name.span)?;
     let target = match analysed.module.symbols.get(&resolved) {
         Some(symbol) => Target::Type(Cow::Borrowed(&symbol.qname)),
@@ -1317,8 +1320,8 @@ fn namespace_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Vec<Str
     FileScope::of(analysed, file).namespace_at(offset).to_vec()
 }
 
-/// The class or interface whose declaration `offset` is written inside, by its
-/// fully-qualified name, and nothing outside every one of them.
+/// The class, interface or enum whose declaration `offset` is written inside,
+/// by its fully-qualified name, and nothing outside every one of them.
 ///
 /// Walked off the entry document's statements, as [`namespace_at`] is. A
 /// bracketed namespace body is descended into, because its declarations are
@@ -1332,7 +1335,7 @@ fn class_in(analysed: &Analysed, file: SourceId, offset: BytePos) -> Option<QNam
     FileScope::of(analysed, file).class_at(offset)
 }
 
-/// The name span of the class or interface in `stmts` whose span covers
+/// The name span of the class, interface or enum in `stmts` whose span covers
 /// `offset`.
 ///
 /// Sibling statements are written one after another and never overlap, so
@@ -1347,6 +1350,7 @@ fn class_name_at(stmts: &[Stmt], offset: BytePos) -> Option<Span> {
     match &stmt.kind {
         StmtKind::ClassDecl(decl) => Some(decl.name.span),
         StmtKind::InterfaceDecl(decl) => Some(decl.name.span),
+        StmtKind::EnumDecl(decl) => Some(decl.name.span),
         StmtKind::NamespaceDecl(decl) => class_name_at(&decl.body.as_ref()?.stmts, offset),
         _ => None,
     }
@@ -1457,8 +1461,8 @@ impl<'a> FileScope<'a> {
             .map_or(&[][..], |at| &self.stated[at].1[..])
     }
 
-    /// The class or interface whose declaration `offset` is written inside, by
-    /// its fully-qualified name.
+    /// The class, interface or enum whose declaration `offset` is written
+    /// inside, by its fully-qualified name.
     pub(crate) fn class_at(&self, offset: BytePos) -> Option<QName> {
         let name = class_name_at(self.stmts, offset)?;
         Some(QName::join(
@@ -1474,6 +1478,24 @@ impl<'a> FileScope<'a> {
             nvs_hir::owned_enum_in_scope(text, Some(&owner), &self.analysed.module.symbols)
         });
         owned.or_else(|| self.resolved_name(text, name.start))
+    }
+
+    /// The owner and the name of the alias a bare name this file writes at
+    /// `name` reads, when the class, interface or enum around it declares an
+    /// alias of that name (`rule:types/class-scoped-alias`). The owner's alias
+    /// comes before every other reading of a bare name inside its body.
+    pub(crate) fn owned_alias(&self, name: Span) -> Option<(&'a QName, &'a str)> {
+        let text = text_of(self.analysed.map.file(self.file), name);
+        if text.is_empty() || text.contains('\\') {
+            return None;
+        }
+        let owner = self.class_at(name.start)?;
+        let owner = &self.analysed.module.symbols.get(&owner)?.qname;
+        self.analysed
+            .module
+            .aliases
+            .get_member(owner, text)
+            .map(|_| (owner, text))
     }
 
     /// [`resolved_name_in`] for a name this file writes.

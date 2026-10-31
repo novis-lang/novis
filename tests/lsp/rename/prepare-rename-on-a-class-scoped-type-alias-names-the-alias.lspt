@@ -1,0 +1,17 @@
+--TEST--
+`prepareRename` on a bare use of a type alias declared inside a class answers the range of the alias's name, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+final class Order
+{
+    type Total = int;
+
+    public function total(): To<|>tal
+    {
+        return 3;
+    }
+}
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:6:30-6:35

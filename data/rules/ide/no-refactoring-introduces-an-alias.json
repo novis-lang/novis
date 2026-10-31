@@ -9,6 +9,9 @@
   ],
   "guardedBy": [
     "tests/lsp/rename/a-clash-is-refused.lspt",
+    "tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt",
+    "tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt",
+    "tests/lsp/rename/prepare-rename-on-a-class-scoped-type-alias-names-the-alias.lspt",
     "tests/lsp/actions/organize-imports-sorts-and-removes-unused-lines.lspt"
   ]
 }

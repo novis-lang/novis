@@ -22,7 +22,7 @@ stages:
     context: [docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md, crates/nvs-cli/src/dap/stopped.rs, crates/nvs-cli/src/dap/mod.rs, crates/nvs-host/src/debug.rs, editors/vscode/src/debug.ts]
   - id: 5
     title: "a type alias a class declares is renamed by the editor and by nvs code rename"
-    status: open
+    status: done
     context: [docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/types/class-scoped-alias.md, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/index.rs]
   - id: 6
     title: "a child process a Core\\Task child task leaves running is ended and reported when that task ends, and the grant-table marker is gone"
@@ -99,7 +99,7 @@ checks:
   - id: alias-rename-lsp
     stage: 5
     name: "the editor renames a class-scoped type alias at every site and refuses a name its owner already uses"
-    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt, --case, tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt, --case, tests/lsp/rename/prepare-rename-on-a-class-scoped-type-alias-names-the-alias.lspt]
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt, --case, tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt, --case, tests/lsp/rename/prepare-rename-on-a-class-scoped-type-alias-names-the-alias.lspt]
     tests:
       - tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt
       - tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt
@@ -381,12 +381,12 @@ test, which touch only `editors/vscode/`. It builds nothing.
 **Split:** the three `.lspt` cases are similar files. One writing subagent writes them once the
 rename is landed. It builds nothing.
 
-- [ ] `rule:ide/no-refactoring-introduces-an-alias`: the owned-alias subject, its sites and its refusals, and `AN_OWNED_ALIAS` deleted. `crates/nvs-lsp/src/rename.rs:108`, `crates/nvs-lsp/src/rename.rs:387`
-- [ ] The index gives every bare site inside the owner's body. `crates/nvs-lsp/src/index.rs:1712`
-- [ ] The `.lspt` cases the `alias-rename-lsp` check names. `tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt:1`, `tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt:1`, `tests/lsp/rename/prepare-rename-on-a-class-scoped-type-alias-names-the-alias.lspt:1`
-- [ ] `nvs code rename` reaches it by name, its help names the alias, and the tests the `alias-rename-code` check names. `crates/nvs-lsp/src/query.rs:326`, `crates/nvs-cli/src/code.rs:131`, `crates/nvs-cli/tests/code.rs:477`
-- [ ] The CLI reference's `nvs code rename` lists the alias. `docs/reference/tools/10-cli.md:1045`
-- [ ] The rule's Built list names the class-scoped alias, the cases join `guardedBy`, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/ide/no-refactoring-introduces-an-alias.md:18`, `data/rules/ide/no-refactoring-introduces-an-alias.json:1`
+- [x] `rule:ide/no-refactoring-introduces-an-alias`: the owned-alias subject, its sites and its refusals, and `AN_OWNED_ALIAS` deleted. `crates/nvs-lsp/src/rename.rs:108`, `crates/nvs-lsp/src/rename.rs:387`
+- [x] The index gives every bare site inside the owner's body. `crates/nvs-lsp/src/index.rs:1712`
+- [x] The `.lspt` cases the `alias-rename-lsp` check names. `tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt:1`, `tests/lsp/rename/a-class-scoped-type-alias-is-refused-a-name-its-owner-uses.lspt:1`, `tests/lsp/rename/prepare-rename-on-a-class-scoped-type-alias-names-the-alias.lspt:1`
+- [x] `nvs code rename` reaches it by name, its help names the alias, and the tests the `alias-rename-code` check names. `crates/nvs-lsp/src/query.rs:326`, `crates/nvs-cli/src/code.rs:131`, `crates/nvs-cli/tests/code.rs:477`
+- [x] The CLI reference's `nvs code rename` lists the alias. `docs/reference/tools/10-cli.md:1045`
+- [x] The rule's Built list names the class-scoped alias, the cases join `guardedBy`, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/ide/no-refactoring-introduces-an-alias.md:18`, `data/rules/ide/no-refactoring-introduces-an-alias.json:1`
 
 ### 6. a child process a Core\Task child task leaves running is ended and reported when that task ends, and the grant-table marker is gone
 
@@ -420,31 +420,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4: `Stop` carries `ancestors` (`scheduler::current_ancestors`),
-not one `parent`, because a task parked in `Core\Task::all` sends no stop; the standing decision
-says why. `nvsTaskTree` lists each stopped task, then each waiting ancestor with `"stopped":
-false`, an id after every thread's and no source (`crates/nvs-cli/src/dap/stopped.rs`
-`task_tree`). The three `dap-task-tree` tests pass, and so does `vscode-task-tree` (headless: 366
-passing, lint clean). The view is `editors/vscode/src/taskview.ts` over the pure model
-`src/tasktree.ts`, installed from `src/debug.ts`. The reference, `about.md`, both rules and
-`guardedBy` say so, and gap `nvs-cli/debugger-task-tree` is deleted. The acceptance sweep's
-`env-secret-proofs` red is stale: no check of that name exists in the tree, and
-`looper check --name env-secret-proofs` says "no check matches". It comes from looper's
-service, which this session cannot edit.
+Stages 1 to 5 are done. Stage 5: the index declares an owned alias as `Owner::Name`
+(`member_names` in `crates/nvs-lsp/src/index.rs`). It records each `Owner::Name` written in a type,
+both the owner and the alias or owned enum (`owned_member`). It records each bare name inside an
+owner's body as that alias first (`FileScope::owned_alias`, `crates/nvs-lsp/src/definition.rs`).
+`class_name_at` now counts an enum as an owner. `rename.rs` has a `What::Owned` subject and an
+`owned` function, built for owned enums by the same code, and `AN_OWNED_ALIAS` is gone. Both
+`alias-rename-lsp` and `alias-rename-code` pass. The `alias-rename-lsp` check lacked `lsp-test`
+after `suite` and ran nothing; it is fixed. The CLI reference, help, rule, `guardedBy` and website
+text say so, and gap `nvs-lsp/rename-a-class-scoped-alias` is deleted. The sweep's
+`env-secret-proofs` red is stale: no check of that name exists in the tree, and it comes from
+looper's service, which this session cannot edit.
 
 ### Next
 
-Stage 5: `crates/nvs-lsp` and `crates/nvs-cli/src/code.rs`. The rename lands first, then one
-writing subagent writes the three `.lspt` cases, as the stage's Split says.
+Stage 6: `crates/nvs-runtime/src/ctx/held.rs`, `crates/nvs-stdlib/src/process.rs` and the
+`process-spawn` fragment, then the grant marker, as the stage's items say.
 
-- [ ] The owned-alias subject, its sites and its refusals, and `AN_OWNED_ALIAS` deleted. `crates/nvs-lsp/src/rename.rs:108`, `crates/nvs-lsp/src/rename.rs:387`
-- [ ] The index gives every bare site inside the owner's body. `crates/nvs-lsp/src/index.rs:1712`
-- [ ] `nvs code rename` reaches it, its help names the alias, and the `alias-rename-code` tests. `crates/nvs-lsp/src/query.rs:326`, `crates/nvs-cli/src/code.rs:131`, `crates/nvs-cli/tests/code.rs:477`
-- [ ] The three `alias-rename-lsp` cases, through the subagent. `tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt:1`
-- [ ] The CLI reference, the rule's Built list, `guardedBy`, `bun nv rules --render`, and gap `rename-a-class-scoped-alias` deleted. `docs/reference/tools/10-cli.md:1045`, `docs/rules/ide/no-refactoring-introduces-an-alias.md:18`
+- [ ] The child task's message in its context's report. `crates/nvs-runtime/src/ctx/held.rs:470`
+- [ ] A handle used outside its task names no other child. `crates/nvs-stdlib/src/process.rs:1460`
+- [ ] The two `task-child-case` cases and the `task-child-exit-status` test. `crates/nvs-cli/tests/run_command.rs:48`
+- [ ] The fragment, `guardedBy`, `about.md`, render, the gap. `docs/rules/core-classes/process-spawn.md:35`
+- [ ] The grant-table line, render, the gap, then `no-not-on-disk-left` and `owners --closes`. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
 
-No test is expected to go red. The contributions suite now pins the view ids `nvs.ast` and
-`nvs.tasks` (`editors/vscode/test/contributions/contributions.test.ts`).
+Tests that may go red at the gate: a `.lspt` or `tests/references.rs` case that counts the
+references of a class written as `Owner::Name` in a type. The owner is now a recorded use there,
+so such a list gains a row. An outline or completion case whose class declares an alias may also
+gain a `type` row. Each such change is the new behaviour, so update its expectation.
 
 ### Backlog
 

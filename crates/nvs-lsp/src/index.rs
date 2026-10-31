@@ -1283,6 +1283,11 @@ fn member_names(body: &Body<'_>) -> Vec<(Span, DeclKind, Visibility)> {
                 DeclKind::Method,
                 visibility_of(&method.modifiers),
             )),
+            // An alias takes no modifier and is reachable wherever its owner's
+            // name is (`rule:types/class-scoped-alias`).
+            ClassMemberKind::TypeAlias(alias) => {
+                Some((alias.name.span, DeclKind::TypeAlias, Visibility::Public))
+            }
             _ => None,
         })
         .collect();
@@ -1468,15 +1473,44 @@ fn occurrences<'a>(
     }
 
     let mut names = Vec::new();
+    let mut qualified = Vec::new();
     for ty in written_types_in(&loaded.stmts, 0, BytePos::MAX) {
-        type_names(ty, &mut names);
+        type_names(ty, &mut names, &mut qualified);
     }
+    // A bare name inside an owner's body is the owner's alias first, as the
+    // cursor reads it ([`FileScope::owned_alias`]).
     for name in names {
-        if let Some(symbol) = declared_name(analysed, scope, name) {
+        let symbol = scope
+            .owned_alias(name)
+            .map(|(owner, alias)| format!("{owner}::{alias}"))
+            .or_else(|| declared_name(analysed, scope, name));
+        if let Some(symbol) = symbol {
             found.push(Occurrence {
                 symbol,
                 site: site(path, name),
                 caller: caller(name),
+            });
+        }
+    }
+    // `Owner::Name` in a type is a use of the owner, and of the alias or the
+    // enum it declares under that name.
+    for (owner, member) in qualified {
+        let Some(class) = scope
+            .written_name(owner)
+            .and_then(|written| analysed.module.symbols.get(&written))
+        else {
+            continue;
+        };
+        found.push(Occurrence {
+            symbol: class.qname.to_string(),
+            site: site(path, owner),
+            caller: caller(owner),
+        });
+        if let Some(symbol) = owned_member(analysed, &class.qname, text_of(file, member)) {
+            found.push(Occurrence {
+                symbol,
+                site: site(path, member),
+                caller: caller(member),
             });
         }
     }
@@ -1675,27 +1709,51 @@ fn declared_name(analysed: &Analysed, scope: &FileScope<'_>, name: Span) -> Opti
     Some(symbol.qname.to_string())
 }
 
-/// The span of every class name written in `ty`, its type arguments included.
-fn type_names(ty: &Type, found: &mut Vec<Span>) {
+/// The alias or the enum `owner` declares under `name`, spelled the module
+/// doc's way, and nothing for a constant or a name it does not declare.
+fn owned_member(analysed: &Analysed, owner: &QName, name: &str) -> Option<String> {
+    if analysed.module.aliases.get_member(owner, name).is_some() {
+        return Some(format!("{owner}::{name}"));
+    }
+    nvs_hir::owned_enum(owner, name, &analysed.module.symbols).map(|owned| owned.to_string())
+}
+
+/// The span of every class name written in `ty`, its type arguments included,
+/// into `found`, and of the owner and the member of every `Owner::Member`
+/// into `qualified`.
+fn type_names(ty: &Type, found: &mut Vec<Span>, qualified: &mut Vec<(Span, Span)>) {
     match &ty.kind {
-        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_names(inner, found),
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_names(inner, found, qualified),
         TypeKind::Union(members) | TypeKind::Intersection(members) => {
-            members.iter().for_each(|member| type_names(member, found));
+            for member in members {
+                type_names(member, found, qualified);
+            }
         }
         TypeKind::Atom(atom) => match atom {
             TypeAtom::Name(name, args) => {
                 found.push(name.span);
-                args.iter().for_each(|arg| type_names(arg, found));
+                for arg in args {
+                    type_names(arg, found, qualified);
+                }
+            }
+            TypeAtom::Member(owner, member) | TypeAtom::MemberCase(owner, member, _) => {
+                qualified.push((owner.span, *member));
             }
             TypeAtom::Array(Some(arg))
             | TypeAtom::ClassRef(arg)
             | TypeAtom::PropertyKey(arg)
             | TypeAtom::PropertyPath(arg)
-            | TypeAtom::StringHoles { key: arg, .. } => type_names(arg, found),
-            TypeAtom::Shape(fields) => fields.iter().for_each(|field| type_names(&field.ty, found)),
+            | TypeAtom::StringHoles { key: arg, .. } => type_names(arg, found, qualified),
+            TypeAtom::Shape(fields) => {
+                for field in fields {
+                    type_names(&field.ty, found, qualified);
+                }
+            }
             TypeAtom::CallableSig { params, ret } => {
-                params.iter().for_each(|param| type_names(param, found));
-                type_names(ret, found);
+                for param in params {
+                    type_names(param, found, qualified);
+                }
+                type_names(ret, found, qualified);
             }
             _ => {}
         },

@@ -20,6 +20,11 @@
 //!   to the new name too, because the name is how an `autoload` finds it.
 //!   Each `require` literal that names the file is written again as [`moved`]
 //!   writes it, and a file already at the new path refuses the rename.
+//! - **An owned type** — a type alias or an enum a class, an interface or an
+//!   enum declares (`rule:types/class-scoped-alias`,
+//!   `rule:enums/class-scoped-enum`) — at its declaration, at every
+//!   `Owner::Name` the index holds and at every bare `Name` inside its
+//!   owner's body. Only the name after `::` changes, and no file moves.
 //! - **A member** — a method, a property, a class constant or an enum case —
 //!   at its declaration and at every occurrence the index holds
 //!   ([`SymbolIndex::declaration`], [`SymbolIndex::occurrences`]). A method
@@ -37,7 +42,7 @@
 //!
 //! # What is refused, each with a message the editor shows
 //!
-//! A cursor on no symbol; `$this`; a type alias a class declares; a type
+//! A cursor on no symbol; `$this`; a type
 //! whose name is written somewhere the index holds no site; a parameter, because a call may
 //! pass it by name; a local an anonymous function inside the body declares
 //! again; a symbol whose declaration the index does not hold, which is every
@@ -48,7 +53,9 @@
 //! be declared already on any class of the family, above it or below it; a
 //! local's may not be bound already in its body; and a type's may not be a
 //! built-in type, the name of another type in the workspace, or a name any
-//! file with a site already writes.
+//! file with a site already writes. An owned type's may not be a built-in
+//! type, a name its owner already gives a constant, an enum case, an enum or
+//! an alias, or a name its owner's file already writes.
 //!
 //! # A moved file
 //!
@@ -104,10 +111,6 @@ const CONSTRUCTOR: &str = "constructor";
 const NOTHING: &str = "There is nothing to rename here. You can rename a class, a variable, a \
                        method, a property, a constant or an enum case.";
 
-/// The message for a cursor on a type alias a class declares, until such an
-/// alias is renamed (gap:nvs-lsp/rename-a-class-scoped-alias).
-const AN_OWNED_ALIAS: &str = "Renaming a type alias that a class declares is not available yet.";
-
 /// The names a type may not take, because the language already uses each one
 /// for a type of its own.
 const BUILT_IN: [&str; 19] = [
@@ -149,6 +152,20 @@ pub fn rename(
                 return Err("The new name is the same as the old one.".to_owned());
             }
             types(documents, index, &symbol, &old, new, &sites)
+        }
+        What::Owned {
+            symbol,
+            owner,
+            old,
+            sites,
+        } => {
+            if new == old {
+                return Err("The new name is the same as the old one.".to_owned());
+            }
+            owned(documents, index, &symbol, &owner, &old, new, &sites).map(|rewrites| Renamed {
+                rewrites,
+                file: None,
+            })
         }
         What::Members {
             family,
@@ -284,7 +301,7 @@ struct Subject {
     what: What,
 }
 
-/// The three things a rename changes.
+/// The four things a rename changes.
 enum What {
     /// A class, an interface, an enum or a type alias declared outside a
     /// class.
@@ -294,6 +311,17 @@ enum What {
         /// Its last segment, which is the name a rename changes.
         old: String,
         /// Its declaration, every occurrence and every `use` that imports it.
+        sites: Vec<Site>,
+    },
+    /// A type alias or an enum that a class, an interface or an enum declares.
+    Owned {
+        /// `Owner::Name`, spelled as the index spells it.
+        symbol: String,
+        /// The fully-qualified name of the type that declares it.
+        owner: String,
+        /// The name after `::`, which is the name a rename changes.
+        old: String,
+        /// Its declaration and every occurrence.
         sites: Vec<Site>,
     },
     /// One member, or a method with every method that overrides it or that it
@@ -384,8 +412,16 @@ fn member(index: &SymbolIndex, symbol: &str, at: Site) -> Result<Subject, String
         kind,
         DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias
     ) {
-        if symbol.contains("::") {
-            return Err(AN_OWNED_ALIAS.to_owned());
+        if let Some((owner, old)) = symbol.rsplit_once("::") {
+            return Ok(Subject {
+                at,
+                what: What::Owned {
+                    symbol: symbol.to_owned(),
+                    owner: owner.to_owned(),
+                    old: old.to_owned(),
+                    sites: sites_of(index, &[symbol.to_owned()]),
+                },
+            });
         }
         let mut sites = sites_of(index, &[symbol.to_owned()]);
         sites.extend(
@@ -780,6 +816,77 @@ fn types(
         rewrites.dedup();
     }
     Ok(Renamed { rewrites, file })
+}
+
+/// The edits that rename `symbol`, an alias or an enum that `owner` declares,
+/// from `old` to `new`, after three checks.
+///
+/// The new name may not be a built-in type. The owner may not declare a
+/// constant, an enum case, an enum or an alias of that name already, because
+/// one body gives a name to one thing (`E0304`). And the owner's file may not
+/// write the new name already, because a bare site inside the owner's body
+/// would then name two things. Only the last segment of a site changes, and no
+/// file moves: an owned name has no file of its own.
+fn owned(
+    documents: &Documents,
+    index: &SymbolIndex,
+    symbol: &str,
+    owner: &str,
+    old: &str,
+    new: &str,
+    sites: &[Site],
+) -> Result<Vec<Rewrite>, String> {
+    if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
+        return Err(format!(
+            "`{new}` is a built-in type, so a type cannot be renamed to it."
+        ));
+    }
+    if let Some(clash) = index.declaration(&format!("{owner}::{new}")) {
+        return Err(format!(
+            "`{owner}` already has {} named `{new}`.",
+            clash.kind.describe()
+        ));
+    }
+    let mut texts = Texts::new(documents);
+    if let Some(declared) = index.declaration(owner) {
+        let path = &declared.site.path;
+        let file = texts
+            .file(path)
+            .ok_or_else(|| format!("`{}` could not be read.", plain(path).display()))?;
+        let tokens = tokenize(file, &mut Diagnostics::new());
+        if tokens
+            .iter()
+            .any(|token| token.kind == TokenKind::Ident && text_of(file, token.span) == new)
+        {
+            return Err(format!(
+                "`{}` already uses the name `{new}`, so `{symbol}` cannot be renamed to it.",
+                plain(path).display()
+            ));
+        }
+    }
+
+    let mut rewrites = Vec::new();
+    for site in sites {
+        let written = texts
+            .text(site)
+            .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
+        let text = if written == old {
+            new.to_owned()
+        } else if let Some(prefix) = written.strip_suffix(old).filter(|it| it.ends_with("::")) {
+            format!("{prefix}{new}")
+        } else {
+            return Err(format!(
+                "`{symbol}` is written in `{}` in a way that rename cannot change, so it cannot be \
+                 renamed.",
+                plain(&site.path).display()
+            ));
+        };
+        rewrites.push(Rewrite {
+            site: site.clone(),
+            text,
+        });
+    }
+    Ok(rewrites)
 }
 
 /// The file `symbol` is declared in, when that file declares nothing else and

@@ -1,0 +1,37 @@
+--TEST--
+a type alias declared inside a class is renamed at its declaration, at every bare use in its owner's body, and after `Owner::` in another class's types, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+require 'lib/order.nvs';
+
+use Shop\Order;
+
+final class Invoice
+{
+    public function amount(Order::To<|>tal $t): Order::Total
+    {
+        return $t;
+    }
+}
+
+echo (new Invoice())->amount(3);
+--FILE lib/order.nvs--
+<?nvs
+namespace Shop;
+
+final class Order
+{
+    type Total = int;
+
+    public function total(): Total
+    {
+        return 3;
+    }
+}
+--REQUEST--
+rename to=Sum
+--EXPECT--
+case.nvs:8:35 Sum
+case.nvs:8:53 Sum
+lib/order.nvs:6:10 Sum
+lib/order.nvs:8:30 Sum

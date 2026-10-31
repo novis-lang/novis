@@ -57311,9 +57311,11 @@ files.
 - `outline` prints what a file declares, one line each, with a class's members indented under it.
 - `types` prints the type of each variable a file declares with `var`. `:10` limits it to line 10,
   and `:10-20` to lines 10 to 20.
-- `rename` renames a class, a method, a property, a constant, an enum case or a variable everywhere
-  it is used. It is the rename the editor does. A local variable has no full name, so you give its
-  position. A class alone in a file with its name also gets a new file name.
+- `rename` renames a class, a method, a property, a constant, an enum case, a type alias or a
+  variable everywhere it is used. It is the rename the editor does. A local variable has no full
+  name, so you give its position. A class alone in a file with its name also gets a new file name.
+  A type alias that a class declares has the class's name in front, as `Shop\Order::Total`. It is
+  renamed inside the class and everywhere `Order::Total` is written.
 - `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
   `<to>` must exist, and nothing may exist at `<to>` yet.
 - `order` puts the members of each class and interface in the standard order. It is the editor's

@@ -1139,6 +1139,12 @@ outside a class: the index records each type annotation and each class written i
 the rename changes the last segment at every site and in every `use` line. A new name that another
 type in the workspace has, or that a file with a site already writes, is refused. A type declared
 alone in a file named after it renames that file with it, so an `autoload` still finds it.
+Rename of a type alias or an enum a class, an interface or an enum declares
+([`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum)): the index declares it as
+`Owner::Name` and records every `Owner::Name` written in a type and every bare `Name` inside the
+owner's body, and the rename changes the name after `::` at each. A built-in type name, a name the
+owner already gives a constant, an enum case, an enum or an alias, and a name the owner's file
+already writes are refused, and nothing moves.
 Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/organize.rs`): it deletes
 each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
 `nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`

@@ -1,0 +1,19 @@
+--TEST--
+a type alias declared inside a class renamed to a constant its owner already declares is refused, and no alias is written to resolve the clash, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+final class Order
+{
+    public const int LIMIT = 10;
+
+    type To<|>tal = int;
+
+    public function total(): Total
+    {
+        return 3;
+    }
+}
+--REQUEST--
+rename to=LIMIT
+--EXPECT--
+refused: `Order` already has a constant named `LIMIT`.

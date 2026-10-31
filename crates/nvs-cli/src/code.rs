@@ -128,12 +128,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Rename a class, a method, a property, a constant, an enum case or a
-    /// variable everywhere it is used, and save the changed files.
+    /// Rename a class, a method, a property, a constant, an enum case, a type
+    /// alias or a variable everywhere it is used, and save the changed files.
     ///
     /// This is the same rename that the editor does. A method is renamed in
     /// every class that overrides it. A class that is alone in a file with
-    /// its name also gets a new file name.
+    /// its name also gets a new file name. A type alias that a class declares
+    /// is renamed by its full name, as `Shop\Order::Total`.
     ///
     /// The command prints one line for each changed file. If the rename is
     /// not possible, it prints why, changes nothing and fails.
