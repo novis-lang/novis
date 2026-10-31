@@ -112,6 +112,7 @@ fn pass(
         ranges: BTreeMap::new(),
         depth: 0,
         deep: false,
+        steps: 0,
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
@@ -198,6 +199,7 @@ fn pass(
         missing,
         running,
         strings,
+        steps,
         ..
     } = cx;
     let mut spans = spans;
@@ -222,6 +224,7 @@ fn pass(
         ranges: BTreeMap::new(),
         depth: 0,
         deep: false,
+        steps: 0,
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
     if cx.deep {
@@ -235,6 +238,7 @@ fn pass(
         missing: cx.missing,
         anchors,
         bookmarks,
+        steps: steps + cx.steps,
     };
     Ok((laid, cx.fonts, landed, targeted))
 }
@@ -243,8 +247,9 @@ fn pass(
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
 /// whose container is not laid out yet, both by their index in the list of atoms, and the
 /// running elements and named strings met so far, what each [`Item::Here`] found, each table
-/// cell's narrowest and widest content width by its atom once measured, and how many boxes
-/// are being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
+/// cell's narrowest and widest content width by its atom once measured, how many boxes are
+/// being laid out inside each other now, whether one was past [`MAX_DEPTH`], and how many
+/// times a box was laid out down a flow of its own or its content width measured.
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -258,6 +263,7 @@ pub(super) struct Cx<'s> {
     pub(super) ranges: BTreeMap<usize, (f32, f32)>,
     depth: usize,
     deep: bool,
+    steps: usize,
 }
 
 /// What a box laid out on a page of its own met that belongs to the page the box is drawn on:
@@ -372,6 +378,7 @@ impl Cx<'_> {
     /// top-left corner at the top-left corner of the first page's content. Returns the flow
     /// and the text no font has.
     pub(super) fn down(&mut self, mut blocks: Vec<Block>, mut flow: Flow) -> (Flow, Vec<Missing>) {
+        self.steps += 1;
         let outside = std::mem::take(&mut self.missing);
         // The box's own close is the last block. Its edges are placed before its content and
         // after it, so no margin inside collapses through them.
@@ -413,6 +420,7 @@ impl Cx<'_> {
     /// at a forced break when `max` is true, and with every line broken where it can be when it
     /// is false. A text block `room` wide is as wide as that content box.
     pub(super) fn widest(&mut self, blocks: &[Block], left: f32, room: f32, max: bool) -> f32 {
+        self.steps += 1;
         let mut need: f32 = 0.0;
         for block in blocks {
             match block {

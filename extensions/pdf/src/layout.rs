@@ -396,6 +396,10 @@ pub struct Laid {
     pub anchors: BTreeMap<String, (usize, f32)>,
     /// Each heading in document order.
     pub bookmarks: Vec<Bookmark>,
+    /// How many times the last pass laid a box out down a flow of its own, such as a table
+    /// cell, a flex or grid item, an `inline-block`, a float or a margin box, or measured a
+    /// box's content width. Each level of nesting adds the same number, and a test pins that.
+    pub steps: usize,
 }
 
 /// Each picture a document draws, with the reference it was loaded from.

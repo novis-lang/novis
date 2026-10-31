@@ -2033,3 +2033,31 @@ fn a_rotated_transform_is_drawn_rotated() {
     let first = render(&document).unwrap();
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+#[test]
+fn each_level_of_nesting_lays_out_and_measures_the_same_number_of_boxes() {
+    // A box laid out or measured twice for each box around it doubles the work with each
+    // level, and 32 levels take hours. The depths stay small, so that fault fails here and
+    // does not hang. A debug build's frames are many times a release build's, so the test
+    // runs on a stack of its own.
+    let run = || {
+        for open in [
+            "<table><tr><td>",
+            "<div style=\"display:flex\">",
+            "<div style=\"display:grid\">",
+            "<div style=\"display:inline-block\">",
+            "<div style=\"float:left\">",
+        ] {
+            let steps = |depth: usize| lay(&(open.repeat(depth) + "deep")).steps;
+            let [d4, d8, d12] = [4, 8, 12].map(steps);
+            assert_eq!(d12 - d8, d8 - d4, "{open}: {d4}, {d8}, {d12}");
+            assert!(d8 - d4 <= 4 * 8, "{open}: {} per level", (d8 - d4) / 4);
+        }
+    };
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
+}
