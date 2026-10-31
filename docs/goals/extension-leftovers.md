@@ -30,7 +30,7 @@ stages:
     context: [extensions/pdf/nvs/Reader.nvs, extensions/pdf/src/read.rs, extensions/pdf/src/merge.rs, crates/nvs-ext/tests/pdf_standards.rs, docs/rules/core-classes/pdf-reader-and-merge.md]
   - id: 7
     title: "a table is as wide as its columns, splits a tall rowspan, aligns its cells and draws its rows"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/tests/tables.rs, docs/rules/core-classes/pdf-tables-across-pages.md]
   - id: 8
     title: "a mark, a string, a running element, an id and a heading are on the page they are drawn on"
@@ -586,13 +586,13 @@ file with the rest. A writing subagent takes it, side by side with the session, 
 
 **Does:** five of the table module's six faults are fixed. The sixth, a mark in a cell, is stage 8's.
 
-- [ ] `rule:core-classes/pdf-tables-across-pages`: a table without a `width` is as wide as its columns, up to its containing block. `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/layout/table.rs:303`
-- [ ] A `rowspan` piece taller than a page splits between lines. `extensions/pdf/src/layout/table.rs:335`, `extensions/pdf/src/layout/table.rs:401`
-- [ ] A cell's `vertical-align`, and a row's and a group's background and collapsed borders. `extensions/pdf/src/layout/table.rs:617`, `extensions/pdf/src/layout/table.rs:628`
-- [ ] A `display: table` element in a row is wrapped in an anonymous cell. `extensions/pdf/src/layout/inline.rs:939`, `extensions/pdf/src/layout/inline.rs:1382`
-- [ ] Each new value is in `subset.json`. `extensions/pdf/subset.json:1`
-- [ ] The tests and the case the `pdf-tables` and `pdf-tables-runs` checks name. `extensions/pdf/tests/tables.rs:1`, `tests/conformance/novis/pdf-a-table-is-as-wide-as-its-content.nvst:1`
-- [ ] The fragment states the five, and the module doc keeps only the mark sentence and `Cost:`. `docs/rules/core-classes/pdf-tables-across-pages.md:1`, `extensions/pdf/src/layout/table.rs:62`
+- [x] `rule:core-classes/pdf-tables-across-pages`: a table without a `width` is as wide as its columns, up to its containing block. `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/layout/table.rs:303`
+- [x] A `rowspan` piece taller than a page splits between lines. `extensions/pdf/src/layout/table.rs:335`, `extensions/pdf/src/layout/table.rs:401`
+- [x] A cell's `vertical-align`, and a row's and a group's background and collapsed borders. `extensions/pdf/src/layout/table.rs:617`, `extensions/pdf/src/layout/table.rs:628`
+- [x] A `display: table` element in a row is wrapped in an anonymous cell. `extensions/pdf/src/layout/inline.rs:939`, `extensions/pdf/src/layout/inline.rs:1382`
+- [x] Each new value is in `subset.json`. `extensions/pdf/subset.json:1`
+- [x] The tests and the case the `pdf-tables` and `pdf-tables-runs` checks name. `extensions/pdf/tests/tables.rs:1`, `tests/conformance/novis/pdf-a-table-is-as-wide-as-its-content.nvst:1`
+- [x] The fragment states the five, and the module doc keeps only the mark sentence and `Cost:`. `docs/rules/core-classes/pdf-tables-across-pages.md:1`, `extensions/pdf/src/layout/table.rs:62`
 
 ### 8. a mark, a string, a running element, an id and a heading are on the page they are drawn on
 
@@ -666,38 +666,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 are done, and the spreadsheet lane is finished. Stage 7 (tables) is next, and
-nothing of it has started.
+Stages 1 to 7 are done, and the spreadsheet lane is finished. Stage 8 (page attribution) is next,
+and nothing of it has started.
 
-- `lopdf` 0.46 and `aes` 0.9 are workspace dev-dependencies of `crates/nvs-ext` alone. The two
-  `a_second_reader_*` tests in `crates/nvs-ext/tests/pdf_standards.rs` passed once by name, and
-  clippy over the tree is clean. The lock gained `lopdf`, `cbc`, `ecb`, `block-padding`,
-  `rangemap` and `weezl`, all dev-only. `cargo deny` and the attribution check have not run on them.
-- The passwords bullet is gone from `extensions/pdf/src/lib.rs`, and
-  `rule:core-classes/pdf-standards-and-passwords` names both readers.
-- `pdf-validate` ran green here with Docker. Its no-Docker path and the CI step have not run.
+- Stage 7's 20 tests in `extensions/pdf/tests/tables.rs` and its case passed once. A table with no
+  `width` is as narrow as its content, so the slot examples and tests set `width: 100%`.
+- The table gap record names only the mark fault, and stage 8 deletes it.
+- The component's clippy has 8 errors outside stage 7's code, which stage 11 owns.
+- `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
+- `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
 - A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
-- The sweep's nightly reds are from run 41187571578 at `857b39cad`, fixed by later commits.
-  `env-secret-proofs` matches no check in this tree (`looper check --name` finds none) and has no log.
+- The sweep's nightly reds are run 41187571578 at `857b39cad`, fixed by later commits.
+  `env-secret-proofs` matches no check here (`looper check --name` finds none) and has no log.
 
 ### Next
 
-Stage 7, the five table faults of `extensions/pdf/src/layout/table.rs:62`. Each item's anchors
-are on its line under § 7. The tests go in `extensions/pdf/tests/tables.rs`, and the case is
-`tests/conformance/novis/pdf-a-table-is-as-wide-as-its-content.nvst`.
+Stage 8: content inside a cell, an inline-block, a float or a flex item is on the page it is
+drawn on. Each item's anchors are on its line under § 8, but table.rs and inline.rs moved:
 
-- [ ] `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/layout/table.rs:303`: a table
-  without a `width` is as wide as its columns' widest content.
-- [ ] `extensions/pdf/src/layout/table.rs:335`, `extensions/pdf/src/layout/table.rs:401`: a
-  `rowspan` piece taller than a page splits between lines.
-- [ ] `extensions/pdf/src/layout/table.rs:617`, `extensions/pdf/src/layout/table.rs:628`: a cell's
-  `vertical-align`, and a row's and a group's background and collapsed borders.
-- [ ] `extensions/pdf/src/layout/inline.rs:939`, `extensions/pdf/src/layout/inline.rs:1382`: a
-  `display: table` element in a row gets an anonymous cell.
-- [ ] `extensions/pdf/subset.json:1`, `docs/rules/core-classes/pdf-tables-across-pages.md:1`: the new
-  values and the five fixes, and the module doc keeps only the mark sentence and `Cost:`.
+- [ ] `extensions/pdf/src/layout/table.rs:875`, `extensions/pdf/src/layout/inline.rs:1645`: a
+  row's marks (`mark`, called from `rows` at `extensions/pdf/src/layout/table.rs:790` and the
+  split piece's loop), and a cell's own `data-mark` and `string-set`.
+- [ ] `extensions/pdf/src/layout/block.rs:363`, `extensions/pdf/src/paginate/mod.rs:349`: ids,
+  counters, `element()` and bookmarks, at the anchors § 8 names.
+- [ ] `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/tests/render.rs:1`: the tests the
+  `pdf-page-attribution` and `pdf-bookmarks` checks name.
 
-Expect red at the gate: a PDF test or case with tables, flex or grid nested more than 32 levels,
+Expect red at the gate: a PDF test, case or example whose table has no `width` and depends on the
+table filling its containing block: a slot overflow count, an x position, or a right-aligned
+column. Also a PDF test or case with tables, flex or grid nested more than 32 levels,
 which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
 or `merge` export without its `decompression-bound` argument. Also a test that calls the PDF
 `render` export with a `{ pages }` or `{ document, headerHeight }` shape, or matches "the second pass
