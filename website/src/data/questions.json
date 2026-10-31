@@ -9354,12 +9354,14 @@
   },
   "/reference/core/novis-pdf-document/invoicexml/": {
     "feature": "Novis\\Pdf\\Document::invoiceXml",
-    "hash": "e230e8faf021cdfd",
+    "hash": "a04615086b8e0892",
     "questions": [
       "Create a ZUGFeRD or Factur-X invoice PDF",
       "Attach invoice XML to a PDF",
       "Electronic invoice that people and accounting software can read",
-      "Why does invoice XML need PDF/A-3b?"
+      "What happens to invoice XML without PDF/A-3b?",
+      "Which error does invoice XML that is not well-formed throw?",
+      "Does the PDF render check the fields of my invoice XML?"
     ]
   },
   "/reference/core/novis-pdf-document/password/": {
@@ -9374,13 +9376,14 @@
   },
   "/reference/core/novis-pdf-document/render/": {
     "feature": "Novis\\Pdf\\Document::render",
-    "hash": "754ba6b5508541b0",
+    "hash": "df02df45ff4b4334",
     "questions": [
       "How do I get the PDF bytes to send in a response?",
       "Count the pages of a generated PDF",
       "Find CSS the PDF renderer does not support",
       "Check for text that no font can draw",
-      "Make a shipping label PDF with a barcode"
+      "Make a shipping label PDF with a barcode",
+      "How deeply can tables be nested in a PDF?"
     ]
   },
   "/reference/core/novis-pdf-document/slots/": {
@@ -9486,13 +9489,14 @@
   },
   "/reference/core/novis-pdf-pages/merge/": {
     "feature": "Novis\\Pdf\\Pages::merge",
-    "hash": "6ac78cbc268e3ffe",
+    "hash": "9b2b2ad061b86ca3",
     "questions": [
       "How do I merge several PDF files into one?",
       "Add terms and conditions to a contract PDF",
       "Split a PDF into smaller files",
       "Why does merging an encrypted PDF fail?",
-      "Join PDF files in order"
+      "Join PDF files in order",
+      "Why does merging a large compressed PDF throw a ParseError?"
     ]
   },
   "/reference/core/novis-pdf-pages/of/": {
@@ -9538,22 +9542,26 @@
   },
   "/reference/core/novis-pdf-reader/open/": {
     "feature": "Novis\\Pdf\\Reader::open",
-    "hash": "d9db42659fd5ac4c",
+    "hash": "d4e025b5f5a9b38e",
     "questions": [
       "Get the page count of an uploaded PDF",
       "Read the title and author of a PDF",
       "What happens when I open an encrypted PDF?",
-      "PDF metadata such as subject and keywords"
+      "PDF metadata such as subject and keywords",
+      "How much may a compressed PDF unpack when it is opened?",
+      "Does opening a PDF read the text of every page?"
     ]
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "a656f980fcf41ba6",
+    "hash": "fbd45767814410ef",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
       "Why is text from two columns mixed?",
-      "Search the text of every page of a PDF"
+      "Search the text of every page of a PDF",
+      "What happens when I read a PDF page past the end?",
+      "Which limit stops a PDF page that unpacks too large?"
     ]
   },
   "/reference/core/novis-pdf-rendered/": {
@@ -9744,22 +9752,24 @@
   },
   "/reference/core/novis-spreadsheet-export/bytes/": {
     "feature": "Novis\\Spreadsheet\\Export::bytes",
-    "hash": "8399f3b9773886bd",
+    "hash": "7fc532e8f3805b2b",
     "questions": [
       "Get an Excel file as bytes",
       "Attach a spreadsheet to an email",
       "Store an Excel export in a database",
-      "Return a spreadsheet inside a JSON response"
+      "Return a spreadsheet inside a JSON response",
+      "Can I call bytes twice on an export made from a generator?"
     ]
   },
   "/reference/core/novis-spreadsheet-export/constructor/": {
     "feature": "Novis\\Spreadsheet\\Export::constructor",
-    "hash": "7d5769fa082e472f",
+    "hash": "727a81a4cf326be1",
     "questions": [
       "Create an export with my own write function",
       "Short export call for a workbook with several sheets",
       "When is the export file written?",
-      "new Export arguments"
+      "new Export arguments",
+      "Allow an export to be written only once"
     ]
   },
   "/reference/core/novis-spreadsheet-export/download/": {
@@ -9815,12 +9825,13 @@
   },
   "/reference/core/novis-spreadsheet-formula/of/": {
     "feature": "Novis\\Spreadsheet\\Formula::of",
-    "hash": "1de25c7f13d6f436",
+    "hash": "68f99641f618ba98",
     "questions": [
       "Add a SUM formula to an Excel cell",
       "Can user text run as a formula?",
       "Set the cached result of a formula",
-      "Write a formula with or without the equals sign"
+      "Write a formula with or without the equals sign",
+      "How long can an Excel formula be?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/": {
@@ -9836,7 +9847,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/evaluate/": {
     "feature": "Novis\\Spreadsheet\\Reader::evaluate",
-    "hash": "00b929f0259cf093",
+    "hash": "98b5f4e9a5f74c3e",
     "questions": [
       "Compute the formulas of an uploaded Excel file",
       "Check that the saved totals of a report are right",
@@ -9847,18 +9858,19 @@
   },
   "/reference/core/novis-spreadsheet-reader/images/": {
     "feature": "Novis\\Spreadsheet\\Reader::images",
-    "hash": "95b43a525a741824",
+    "hash": "ef1a4f08f79415d9",
     "questions": [
       "Get pictures from an Excel sheet",
       "Extract product images from a spreadsheet",
       "Which cell is a picture placed at?",
       "Linked pictures in an Excel file",
-      "Read pictures from an xls, xlsb or ods file"
+      "Read pictures from an xls, xlsb or ods file",
+      "Is a picture from an uploaded spreadsheet safe to show?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/links/": {
     "feature": "Novis\\Spreadsheet\\Reader::links",
-    "hash": "3f32eac74f06b1e4",
+    "hash": "037930890ec2e82c",
     "questions": [
       "Read hyperlinks from an Excel sheet",
       "Tell a website link from a link to a cell",
@@ -9879,7 +9891,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/merged/": {
     "feature": "Novis\\Spreadsheet\\Reader::merged",
-    "hash": "6bbbdfb9456ab1fa",
+    "hash": "bde7285a147c534d",
     "questions": [
       "Find merged cells in a sheet",
       "Why are cells of a merged area null?",
@@ -9889,35 +9901,37 @@
   },
   "/reference/core/novis-spreadsheet-reader/names/": {
     "feature": "Novis\\Spreadsheet\\Reader::names",
-    "hash": "0bc23a6f4e629d41",
+    "hash": "6c6e78da2ea71f38",
     "questions": [
       "Read defined names of a workbook",
       "Find a named range such as TaxRate",
       "Which sheet can use a defined name?",
-      "What is _xlnm._FilterDatabase?"
+      "What is _xlnm._FilterDatabase?",
+      "Does names read the cells of a named range?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/notes/": {
     "feature": "Novis\\Spreadsheet\\Reader::notes",
-    "hash": "24890d3a893a1f27",
+    "hash": "6036d3b56d061d42",
     "questions": [
       "Read cell comments from an Excel file",
       "Get the author of a cell note",
       "Show each imported row with its notes",
       "Read the red-corner notes of a sheet",
-      "Read the comments of an ods file"
+      "Read the comments of an ods file",
+      "Does a line break in a note come back as _x000D_?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "b638423be753c369",
+    "hash": "7b10402ce6c5ee6f",
     "questions": [
       "Open an uploaded spreadsheet",
       "Read a CSV file as a spreadsheet",
       "Catch the error of a damaged Excel file",
       "Is the file type found from the name or the bytes?",
       "Read a CSV file with semicolons in Windows-1252",
-      "Read a UTF-16 CSV file"
+      "What happens when the uploaded file is not a spreadsheet?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/properties/": {
@@ -9933,7 +9947,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/rows/": {
     "feature": "Novis\\Spreadsheet\\Reader::rows",
-    "hash": "d5b2dafcfdc31971",
+    "hash": "60593174b68bc310",
     "questions": [
       "Read rows of an Excel sheet one by one",
       "Use the first row as column names",
@@ -9945,18 +9959,19 @@
   },
   "/reference/core/novis-spreadsheet-reader/sheets/": {
     "feature": "Novis\\Spreadsheet\\Reader::sheets",
-    "hash": "6ad31961f795b6b5",
+    "hash": "596453d03bab3022",
     "questions": [
       "List the sheets of a workbook",
       "Find hidden sheets in an Excel file",
       "What is a very hidden sheet?",
       "Read every sheet one after another",
-      "Is it a chart sheet or a worksheet?"
+      "Is it a chart sheet or a worksheet?",
+      "Get the number of rows and columns of a sheet"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/tables/": {
     "feature": "Novis\\Spreadsheet\\Reader::tables",
-    "hash": "ca97ac399967c33c",
+    "hash": "5e9f86661718469f",
     "questions": [
       "Find the Excel tables in a sheet",
       "Read the rows of a named table",
