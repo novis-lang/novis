@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-config/src/defaults.rs]
   - id: 2
     title: "bun nv proofs --probe drives every static Core member past a 16 MiB ceiling and judges each reading"
-    status: open
+    status: done
     context: [tools/nv/cmd/proofs.ts, crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/tests/meta.rs]
   - id: 3
     title: "the probe reaches instance members through each class's own factory"
@@ -128,6 +128,20 @@ cover those readers. The skip list is one constant in the command, with its reas
 from `CLASSES` (`crates/nvs-stdlib/src/registry.rs:1208`). The probe reads it from the proof binary, so
 the probe and the binary always agree.
 
+**How the probe reads what it cannot judge.** Stage 2 settled these while it built the command
+(`tools/nv/proofs/probe.ts`).
+- **A within-bound stop runs again.** A memory `FATAL` ends the program, so a stop at a small input
+  would hide every larger one. A run that a limit stopped within the bound runs again from the next
+  step, and the member's row is its worst run. Cost: one more process per stop.
+- **A shape runs only where a parameter can take it.** A string or bytes parameter takes flat alone. A
+  list or `mixed` parameter takes shared, and a `mixed` or `array<mixed>` one takes doubling. A generic
+  `T` is written `mixed`, and a member that takes one type argument gets `array<{ a: string }>`.
+- **What is not a reading is listed, never red.** A parameter the probe cannot build (an instance, a
+  shape, a numeric list) is "not built", with its type. A program that does not compile is listed with
+  its first error. A runtime crash (`panicked at`, `internal error`, `stack overflow`) is red.
+- **Only `Core\` is probed.** The `Novis\` component classes `nvs meta --json` also lists are counted
+  and not probed; their memory is the component host's.
+
 **Two at a time, like `--overshoot`.** The full run is a floor check with a 3600 s timeout. Stage 2
 records how long it took. If it takes more than 30 minutes, the sizes drop to the three largest and
 the shapes to the ones a member's parameters can take.
@@ -165,14 +179,14 @@ panics in the test that called it.
 **Split:** an `Explore` subagent lists every class in `nvs meta --json` whose members touch files,
 processes, the network, a store or the clock, for the skip list.
 
-- [ ] `bun nv proofs --probe` reads `nvs meta --json` from the proof binary and writes one program per
+- [x] `bun nv proofs --probe` reads `nvs meta --json` from the proof binary and writes one program per
   static member, by the standing decision. `tools/nv/proofs/run.ts:976`, `tools/nv/cmd/proofs.ts:15`
-- [ ] It runs them two at a time through `spawnProof` and judges each reading with the overshoot
+- [x] It runs them two at a time through `spawnProof` and judges each reading with the overshoot
   bound. It prints the worst first, then the skips with their reasons. Exit 1 on a reading past the
   bound or a killed program. `tools/nv/proofs/run.ts:888`
-- [ ] `USAGE`, the flag list and the module doc name `--probe`. `tools/nv/cmd/proofs.ts:70`, `tools/nv/cmd/proofs.ts:445`
-- [ ] The four tests the `probe-judge` check names. Run once by name: `bun test tools/nv/test/probe.test.ts`. `tools/nv/test/probe.test.ts:1`
-- [ ] Run `bun nv proofs --probe` once. Each red reading goes to stage 4's findings table. Record the
+- [x] `USAGE`, the flag list and the module doc name `--probe`. `tools/nv/cmd/proofs.ts:70`, `tools/nv/cmd/proofs.ts:445`
+- [x] The four tests the `probe-judge` check names. Run once by name: `bun test tools/nv/test/probe.test.ts`. `tools/nv/test/probe.test.ts:1`
+- [x] Run `bun nv proofs --probe` once. Each red reading goes to stage 4's findings table. Record the
   run's length in the handoff.
 
 ### 3. the probe reaches instance members through each class's own factory
@@ -194,7 +208,16 @@ gets an attack step that ends at `FATAL` within the bound.
 
 **Split:** one writing subagent per class, side by side. The session builds once they all end.
 
-- [ ] The findings table: filled in by stages 1 to 3.
+- [ ] The findings table: filled in by stages 1 to 3. Stage 2's, from `bun nv proofs --probe` on the
+  proof binary of `9925cba9a` (input is the step's flat string, ceiling 16 MiB, bound 32 MiB):
+  - [ ] `Core\Regex::compile`: flat 8 MiB pattern, 731.2 MiB (45.70x).
+  - [ ] `Core\Regex::match`, `matches`, `matchAll`, `split`, `replaceWith`: flat 2 MiB, 193.3 MiB
+    (12.08x) each. The pattern is the same 2 MiB string, so the compile is the likely site.
+  - [ ] `Core\Regex::replace`: flat 512 KiB, 72.3 MiB (4.52x).
+  - [ ] `Core\Metrics::increment`, `gauge`, `observe`: flat 8 MiB name, 37.2 MiB (2.32x).
+  - [ ] `Core\BigInt::parse`, `Core\Time\Zone::of`, `Core\Debug::startTrace`, `startProfile`,
+    `Core\Command::help`, `Core\Cldr::pluralCategory`, `ordinalCategory`: flat 8 MiB, 32.0 MiB (2.00x),
+    just past the bound. Each likely copies the input twice, such as into an error message.
 - [ ] `bun nv proofs --probe` exits 0.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -210,43 +233,36 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 1 is done (`e0a5bdadd`, `a60af1d38`). A debug build's `Ctx::new` arms `LIMITS_MEMORY`
-(`crates/nvs-runtime/src/ctx/wiring.rs:277`). The finding run was `bun nv affected --run --since
-HEAD~1`, because the guard refuses a bare `cargo test`. Every test binary the change reaches ran.
+Stages 1 and 2 are done. Stage 2's command is `9925cba9a`: `tools/nv/proofs/probe.ts`, the flag in
+`tools/nv/cmd/proofs.ts`, and `tools/nv/test/probe.test.ts` (its four tests pass, run once by name).
+The decisions it settled are under standing decisions, in *How the probe reads what it cannot judge*.
 
-- **Backstop panics: none.** Stage 1 adds nothing to stage 4's findings table.
-- **Tests that pinned the uncapped start: five.** `configured_limits.rs` and `ctx/limits.rs`'s
-  `a_context_with_no_configuration_has_no_ceiling` now expect the default in a debug build and `0` in
-  a release build. Stdlib `budget.rs`'s `an_uncapped_request_reads_a_ceiling_of_zero` and `serve.rs`'s
-  `a_scheduled_fire_runs_under_the_deployments_configuration` call `set_memory_limit(0)` with a reason.
-- **`server_memory.rs`'s no-request case** needs a thread with nothing armed. `set_memory_limit(0)`
-  arms the context's word, and the server limit stops a word-armed thread. So
-  `Ctx::clear_memory_ceiling` (`crates/nvs-runtime/src/ctx/limits.rs:262`) arms `Armed::NONE`, and the
-  case calls it. Recorded under standing decisions.
+The full run, `bun nv proofs --probe --nvs target/proof/nvs.exe`, **took 63 s**, far under the 30
+minute line, so the sizes and shapes stay as decided. Of 690 static `Core` members it ran 369, skipped
+164 by `PROBE_SKIPS` and did not build 42. **17 are red**, and they are stage 4's findings table, listed
+under stage 4. 198 finished every step, and 141 stopped at a memory limit within the bound. The worst
+green ones are `Core\Uri::buildQuery`, `Core\Csv::parse` and `Core\Path::fromCwd` at 1.50x.
 
-The acceptance sweep's reds: `env-secret-proofs` has no definition in the tree, and
-`bun tools/looper/main.ts check --name env-secret-proofs` answers "no check matches". It is stale
-state in looper's service, not a tree fault. The nightly run 41187571578 was on `857b39cad`, before
-the four fixes `39795c9c4` (browser), `bfce9c2d2` (debug-viewer shots), `593b6c565` (ASAN SQLite ODR)
-and `8ce92dda5` (the Miri memory-cap timeouts, the same six files). The next nightly should be green.
+Thirteen programs did not compile, and are listed, not red. `Core\Arr::fillKeys`, `fromKeysAndValues`
+and `from` need a typed list. `Core\Math::abs` needs a number for its bounded `T`. The `*As` members
+and `Core\Attributes` reject the `array<{ a: string }>` type argument. `Core\Path::thisDir` and
+`Core\Test::assertThrows` need a literal. They need no change for the goal.
 
-No test is expected to go red. The verify steps after `test` (6 not reached) run in stage 5.
+The acceptance sweep's reds are not tree faults. `env-secret-proofs` has no definition in the tree. It
+is stale state in looper's service. The nightly run 41187571578 ran on `857b39cad`, before the fixes
+`39795c9c4`, `bfce9c2d2`, `593b6c565` and `8ce92dda5`.
+
+The `no-probe-overshoot` check is red until stage 4 fixes the 17. No other test is expected to go red.
 
 ### Next
 
-Stage 2: `bun nv proofs --probe`. The class table is `CLASSES` at `crates/nvs-stdlib/src/classes.rs:14`
-(180 rows); `registry.rs` only re-exports it. The model is `--overshoot` at
-`tools/nv/proofs/run.ts:976`, the bound at `tools/nv/proofs/run.ts:275`, and the flags at
-`tools/nv/cmd/proofs.ts:70` and `:445`.
+Stage 3: instance members through each class's factory. The probe is `tools/nv/proofs/probe.ts`. Its
+planner is `probeProgram` and `planParam`, and `probePlan` keeps `kind: "static"` alone today. A
+receiver needs a factory per class. Start with the split's `Explore` list of each class with instance
+members and the static member or constructor that makes one from plain values. The 42 "not built"
+members (an instance, a `Core\Time\Duration`, a `Core\Charset`, a numeric list) can reuse the same
+factory table as arguments. Run `bun nv proofs --probe --only 'Core\X'` to try one class in seconds.
 
-The skip list's split is done. Besides the standing decision's classes, skip each of these, with
-its reason (`classes.rs` line of its row): `Core\Net` network (146), `Core\Socket` WebSocket (93),
-`Core\Sse` server events (96), `Core\WebPush` push sends (114), `Core\Zip` archive files (132),
-`Core\Storage` disk files (103), `Core\Session` session store (92), `Core\RateLimit` shared Redis
-(155), `Core\Script` child processes (68), `Core\Cli` terminal input (71), `Core\Env` environment
-(79), `Core\Os` host readings (151), `Core\Signal` OS signals (82), `Core\Response` sends files (90),
-`Core\Request\Part` saves uploads (88), `Core\Log` log files (99). Borderline, and probed: `Core\Debug`,
-`Core\Path`, `Core\Random`; skip only `Core\Time::zone_system` and `Core\Path::from_cwd` /
-`this_file` if they fail for reasons other than memory.
+Then stage 4, one writing subagent per class: Regex first (45.70x), then Metrics, then the seven at 2.00x.
 
 ### Backlog
