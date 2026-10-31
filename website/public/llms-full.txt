@@ -53779,7 +53779,7 @@ $page->string(string $name): ?string
 ```
 
 `string` returns the value that CSS `string-set` gives `$name` on this page.
-The name is compared without case. If no value is set yet, the result is `null`.
+The name must have the same case as in the CSS. If no value is set yet, the result is `null`.
 
 **Returns** `?string`
 
@@ -53897,6 +53897,7 @@ $reader->text(uint $page): string
 
 `text` returns the text of one page, in the order the file stores it. Pages count from 1.
 Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
+The file is read from the reader, so a call does not copy it again.
 
 **Returns** `string`
 
@@ -53930,8 +53931,8 @@ Keywords: render, renderFirst, renderSecond, merge, read, readText
 | [`Novis\Pdf\Engine::renderFirst`](#core-novis-pdf-engine-renderfirst) | `renderFirst({ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } }, headerHeight: ?string, footerHeight: ?string } $pass): { body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }` |
 | [`Novis\Pdf\Engine::renderSecond`](#core-novis-pdf-engine-rendersecond) | `renderSecond(Kept $body, { pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> } $margins): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
 | [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{ data: bytes, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes` |
-| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
-| [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>` |
+| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
+| [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(Reading $file, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>` |
 
 <a id="core-novis-pdf-engine-render"></a>
 #### `Novis\Pdf\Engine::render`
@@ -53999,30 +54000,30 @@ Returns one PDF file with the chosen pages of each part, in order. An encrypted 
 #### `Novis\Pdf\Engine::read`
 
 ```nvs skip
-Novis\Pdf\Engine::read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
+Novis\Pdf\Engine::read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
 ```
 
-Reads the page count, the metadata and the attached files of a PDF file. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
+Opens a PDF file. Returns the file for `readText`, and its page count, its metadata and its attached files. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes` |  |
 | `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 
-**Returns** `{ pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }`
+**Returns** `{ file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }`
 
 <a id="core-novis-pdf-engine-readtext"></a>
 #### `Novis\Pdf\Engine::readText`
 
 ```nvs skip
-Novis\Pdf\Engine::readText(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>
+Novis\Pdf\Engine::readText(Reading $file, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>
 ```
 
-Returns the text of each page in `pages` of a PDF file. Pages count from 1. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
+Returns the text of each page in `pages` of a file from `read`. Pages count from 1. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` |  |
+| `$file` | `Reading` |  |
 | `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 | `$pages` | `array<uint>` |  |
 

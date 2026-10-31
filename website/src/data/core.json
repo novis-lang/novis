@@ -27950,7 +27950,7 @@
           "options": [],
           "returnType": "?string",
           "doc": {
-            "shortHtml": "<code>string</code> returns the value that CSS <code>string-set</code> gives <code>$name</code> on this page.\nThe name is compared without case. If no value is set yet, the result is <code>null</code>."
+            "shortHtml": "<code>string</code> returns the value that CSS <code>string-set</code> gives <code>$name</code> on this page.\nThe name must have the same case as in the CSS. If no value is set yet, the result is <code>null</code>."
           },
           "slug": "string",
           "url": "/reference/core/novis-pdf-page/string/",
@@ -28183,7 +28183,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>."
+            "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>.\nThe file is read from the reader, so a call does not copy it again."
           },
           "slug": "text",
           "url": "/reference/core/novis-pdf-reader/text/",
