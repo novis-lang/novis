@@ -16,6 +16,8 @@
     "tests/conformance/novis/spreadsheet-reads-an-open-file.nvst",
     "tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst",
     "tests/conformance/novis/spreadsheet-bytes-that-are-not-a-spreadsheet-throw.nvst",
-    "tests/conformance/novis/spreadsheet-an-unknown-locale-throws.nvst"
+    "tests/conformance/novis/spreadsheet-an-unknown-locale-throws.nvst",
+    "tests/conformance/novis/spreadsheet-reads-back-a-totals-row-of-formulas.nvst",
+    "tests/conformance/novis/spreadsheet-a-sheet-name-from-sheets-reads-its-rows.nvst"
   ]
 }

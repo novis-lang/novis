@@ -1,0 +1,40 @@
+--TEST--
+A sheet name from `sheets()` is `tainted`, and every `Reader` method that takes a sheet accepts it, and `sheets()` counts the rows and columns of a sheet the writer wrote with no dimension: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::sheets
+// covers: Novis\Spreadsheet\Reader::rows
+// covers: Novis\Spreadsheet\Reader::merged
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $shop = $book->sheet("Shop");
+$shop->add(["item", "price"]);
+$shop->add(["tea", 3]);
+$shop->add(["cake", 4]);
+var $blog = $book->sheet("Blog");
+$blog->add(["title"]);
+$blog->add(["Hello"]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $reader = Reader::open($file);
+
+// `$info->name` comes from the file, so it is `tainted`. Each method below accepts it.
+foreach ($reader->sheets() as var $info) {
+    string $name = Core\Taint::assertTrusted($info->name, "the test prints what it wrote");
+    echo $name, ": ", $info->rows, " rows, ", $info->columns, " columns\n";
+    int $count = 0;
+    foreach ($reader->rows($info->name, {header: true}) as Row $row) {
+        $count++;
+    }
+    echo "  ", $count, " data rows, ", Core\Arr::count($reader->merged($info->name)), " merged ranges\n";
+    echo "  ", Core\Arr::count($reader->notes($info->name)), " notes, ", Core\Arr::count($reader->links($info->name)), " links\n";
+}
+--EXPECT--
+Shop: 3 rows, 2 columns
+  2 data rows, 0 merged ranges
+  0 notes, 0 links
+Blog: 2 rows, 1 columns
+  1 data rows, 0 merged ranges
+  0 notes, 0 links

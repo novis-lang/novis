@@ -5,7 +5,9 @@ with a red corner.
 such as `"B2"`, `note`, the text, and `author`, the name of the person who wrote it. `author` is
 `null` when the note has no author.
 
-**Good to know:** the text and the author come from the file, so they are `tainted`. A CSV file has
+**Good to know:** the text and the author come from the file, so they are `tainted`. Excel saves some
+characters, such as a line break, as a code like `_x000D_`. `notes` converts each code back to its
+character. A CSV file has
 no notes, so the list is empty. A sheet that does not exist throws a `LogicError`. `notes` reads
 xlsx, xlsm, xlsb, xls and ods files. In an ods file, a note is called a comment.
 

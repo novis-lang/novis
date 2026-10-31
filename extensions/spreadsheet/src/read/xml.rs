@@ -197,8 +197,8 @@ fn code(digits: &[u8], radix: u32) -> Result<char, Error> {
         .ok_or_else(|| entity(digits))
 }
 
-/// Decodes Excel's `_xHHHH_` escapes in cell text, which the writer adds for characters XML
-/// cannot carry (`crate::xml`'s module doc).
+/// Decodes Excel's `_xHHHH_` escapes in cell and note text, which the writer adds for characters
+/// XML cannot carry (`crate::xml`'s module doc).
 pub fn unescape(text: String) -> String {
     if !text.contains("_x") {
         return text;

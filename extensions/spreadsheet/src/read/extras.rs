@@ -332,10 +332,12 @@ impl Reader {
                         if let Some((noted, by, text)) = note.take() {
                             notes.push(Note {
                                 noted,
-                                note: text,
+                                // A note's text has Excel's `_xHHHH_` escapes, as a cell's has.
+                                note: xml::unescape(text),
                                 author: by
                                     .and_then(|by| authors.get(by).cloned())
-                                    .filter(|author| !author.is_empty()),
+                                    .filter(|author| !author.is_empty())
+                                    .map(xml::unescape),
                             });
                         }
                     }

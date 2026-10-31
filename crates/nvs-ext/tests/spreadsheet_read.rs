@@ -286,13 +286,10 @@ impl Read {
         let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
         let request = host.request(meter.clone());
         let source = Value::Bytes(bytes);
-        let reader = block_on(request.call_values(
-            &extension,
-            "readerOpen",
-            vec![source.clone(), bound],
-        ))
-        .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
-        .unwrap();
+        let reader =
+            block_on(request.call_values(&extension, "readerOpen", vec![source.clone(), bound]))
+                .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
+                .unwrap();
         Self {
             request,
             extension,
@@ -1162,12 +1159,13 @@ fn sheets_gives_name_position_visibility_size_and_kind() {
                 worksheet()
             ),
             ("Blog".to_owned(), 1, "Hidden".to_owned(), 0, 0, worksheet()),
+            // `A1` over no cell is counted from the rows, and there are none.
             (
                 "Lists".to_owned(),
                 2,
                 "VeryHidden".to_owned(),
-                1,
-                1,
+                0,
+                0,
                 worksheet()
             ),
         ]
@@ -3818,7 +3816,8 @@ fn open_failure(bytes: Vec<u8>, bound: Value) -> String {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
-    match block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(bytes), bound])) {
+    match block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(bytes), bound]))
+    {
         Ok(value) => panic!("`readerOpen` answered {value:?}"),
         Err(err) => err.to_string(),
     }
@@ -3865,10 +3864,16 @@ fn a_reader_call_with_another_source_throws() {
     *changed.last_mut().unwrap() ^= 1;
     for source in [changed, other] {
         let args = vec![read.reader.clone(), Value::Bytes(source)];
-        let err = block_on(read.request.call_values(&read.extension, "readerSheets", args))
-            .expect_err("a call with another source throws")
-            .to_string();
-        assert!(err.contains("The file changed after `Reader::open`"), "{err}");
+        let err = block_on(
+            read.request
+                .call_values(&read.extension, "readerSheets", args),
+        )
+        .expect_err("a call with another source throws")
+        .to_string();
+        assert!(
+            err.contains("The file changed after `Reader::open`"),
+            "{err}"
+        );
     }
     // The file it opened still reads.
     assert_eq!(entries(&read.call("readerSheets", vec![])).len(), 1);
@@ -3903,10 +3908,19 @@ fn a_decompression_bound_message_names_no_rule() {
     assert!(!err.contains("rule:"), "{err}");
     block_on(read.request.end()).expect("the request ends");
 
-    let ratio = shape(vec![("maxBytes", Value::Null), ("maxRatio", Value::Uint(1))]);
+    let ratio = shape(vec![
+        ("maxBytes", Value::Null),
+        ("maxRatio", Value::Uint(1)),
+    ]);
     let err = open_failure(titled(10), ratio);
-    assert!(err.contains("more than 1 times its compressed size"), "{err}");
-    assert!(err.contains("raise `[limits] max_decompression_ratio`"), "{err}");
+    assert!(
+        err.contains("more than 1 times its compressed size"),
+        "{err}"
+    );
+    assert!(
+        err.contains("raise `[limits] max_decompression_ratio`"),
+        "{err}"
+    );
     assert!(!err.contains("rule:"), "{err}");
 }
 
@@ -3930,6 +3944,279 @@ fn an_unknown_locale_throws_naming_it() {
     for locale in ["de-CH", "fr-BE", "en-GB", "en"] {
         let batch = read.batch(with_locale(locale), 10);
         assert_eq!(entries(field(&batch, "rows")).len(), 1, "{locale}");
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// The options `asked` with each key of `set` replaced.
+fn with(asked: &Options<'_>, set: &[(&str, Value)]) -> Value {
+    let Value::Array(mut fields) = asked.value() else {
+        panic!("the options are a shape");
+    };
+    for (key, value) in &mut fields {
+        if let Some((_, given)) = set
+            .iter()
+            .find(|(name, _)| *key == Key::String((*name).to_owned()))
+        {
+            *value = given.clone();
+        }
+    }
+    Value::Array(fields)
+}
+
+/// The rows, columns and name of each sheet `readerSheets` lists.
+fn sizes(read: &Read) -> Vec<(String, u64, u64)> {
+    entries(&read.call("readerSheets", vec![]))
+        .into_iter()
+        .map(|sheet| {
+            let (Value::String(name), Value::Uint(rows), Value::Uint(columns)) = (
+                field(sheet, "name"),
+                field(sheet, "rows"),
+                field(sheet, "columns"),
+            ) else {
+                panic!("{sheet:?} is not a sheet's shape");
+            };
+            (name.clone(), *rows, *columns)
+        })
+        .collect()
+}
+
+#[test]
+fn a_row_of_formulas_without_cached_values_reads_back() {
+    // Row 2 is a totals row as a writer writes it: formulas, and no cached value. Row 3 has a
+    // styled cell with no value, which is still an empty row.
+    let data = [
+        row(1, &[("", 0, "<v>2</v>"), ("", 0, "<v>3</v>")]),
+        row(2, &[("", 0, "<f>SUM(A1)</f>"), ("", 0, "<f>B1*2</f>")]),
+        row(3, &[("", 0, "")]),
+        row(4, &[("", 0, "<v>5</v>")]),
+    ]
+    .concat();
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![
+            (1, vec![(1, integer(2)), (2, integer(3))]),
+            (2, vec![(1, Value::Null), (2, Value::Null)]),
+            (4, vec![(1, integer(5))]),
+        ]
+    );
+    let formulas = Options {
+        formulas: true,
+        ..options("Shop")
+    };
+    let batch = read.batch(formulas.value(), 10);
+    let rows = entries(field(&batch, "rows"));
+    assert_eq!(rows.len(), 3);
+    let totals: Vec<(&Value, &Value)> = entries(field(rows[1], "cells"))
+        .into_iter()
+        .map(|cell| (field(cell, "value"), field(cell, "formula")))
+        .collect();
+    assert_eq!(
+        totals,
+        vec![
+            (&Value::Null, &string("SUM(A1)")),
+            (&Value::Null, &string("B1*2")),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn sheets_counts_a_sheet_with_no_dimension() {
+    let three = [
+        row(1, &[("", 0, "<v>1</v>")]),
+        row(
+            3,
+            &[
+                ("", 0, "<v>1</v>"),
+                ("", 0, "<v>2</v>"),
+                ("", 0, "<v>3</v>"),
+            ],
+        ),
+    ]
+    .concat();
+    let read = Read::open(xlsx(
+        &[
+            // No dimension, as this component's writer writes a sheet.
+            sheet("Shop", three.clone()),
+            // `A1` over a sheet with more cells.
+            Sheet {
+                dimension: Some("A1"),
+                ..sheet("Blog", three)
+            },
+            // `A1` over one cell.
+            Sheet {
+                dimension: Some("A1"),
+                ..sheet("One", row(1, &[("", 0, "<v>1</v>")]))
+            },
+            // A dimension the file declares is the size.
+            Sheet {
+                dimension: Some("A1:D20"),
+                ..sheet("Lists", row(1, &[("", 0, "<v>1</v>")]))
+            },
+        ],
+        &[],
+    ));
+    assert_eq!(
+        sizes(&read),
+        vec![
+            ("Shop".to_owned(), 3, 3),
+            ("Blog".to_owned(), 3, 3),
+            ("One".to_owned(), 1, 1),
+            ("Lists".to_owned(), 20, 4),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn sheets_reads_each_sheet_once_per_reader() {
+    // The sheet has no dimension, so the first call reads all of its rows.
+    let mut data = String::new();
+    for n in 1..=20_000u64 {
+        data.push_str(&row(n, &[("", 0, &format!("<v>{n}</v>"))]));
+    }
+    let bytes = xlsx(&[sheet("Shop", data)], &[]);
+    let size = bytes.len() as u64;
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let lends = Arc::new(Lends {
+        meter: Meter::new(Duration::from_secs(60), None),
+        source: bytes,
+        reads: Mutex::new(Vec::new()),
+    });
+    let request = host.request(lends.clone());
+    let source = Value::Lent { id: 0, size };
+    let reader =
+        block_on(request.call_values(&extension, "readerOpen", vec![source.clone(), shipped()]))
+            .unwrap_or_else(|err| panic!("`readerOpen` answers: {err}"))
+            .unwrap();
+    let sheets = || {
+        let before = lends.reads.lock().unwrap().len();
+        let args = vec![reader.clone(), source.clone()];
+        let sheets = block_on(request.call_values(&extension, "readerSheets", args))
+            .unwrap_or_else(|err| panic!("`readerSheets` answers: {err}"))
+            .unwrap();
+        let reads = lends.reads.lock().unwrap()[before..].to_vec();
+        (sheets, reads)
+    };
+    let (first, reads) = sheets();
+    assert_eq!(field(entries(&first)[0], "rows"), &Value::Uint(20_000));
+    assert!(
+        reads.len() > 2,
+        "the first call read {} ranges",
+        reads.len()
+    );
+    for _ in 0..2 {
+        // A later call reads only the two ends of the file, to check it is the same file.
+        let (again, reads) = sheets();
+        assert_eq!(again, first);
+        assert_eq!(reads.len(), 2, "{reads:?}");
+        assert!(reads.iter().all(|(_, length)| *length <= 512), "{reads:?}");
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_merged_fill_copies_the_text() {
+    // A1:B2 is merged, and A1 is a date with the format `dd/mm/yyyy`. Row 3 ends the sheet
+    // after the range.
+    let data = [
+        row(1, &[("", 5, "<v>45306</v>")]),
+        row(3, &[("", 0, "<v>7</v>")]),
+    ]
+    .concat();
+    let read = Read::open(xlsx(
+        &[Sheet {
+            tail: r#"<mergeCells count="1"><mergeCell ref="A1:B2"/></mergeCells>"#.to_owned(),
+            ..sheet("Shop", data)
+        }],
+        &[],
+    ));
+    let fill = Options {
+        fill_merged: true,
+        ..options("Shop")
+    };
+    let displays = |asked: Value| -> Vec<Vec<Value>> {
+        entries(field(&read.batch(asked, 10), "rows"))
+            .into_iter()
+            .take(2)
+            .map(|row| {
+                entries(field(row, "cells"))
+                    .into_iter()
+                    .map(|cell| field(cell, "display").clone())
+                    .collect()
+            })
+            .collect()
+    };
+    let date = string("15/01/2024");
+    assert_eq!(
+        displays(with(&fill, &[("textAll", Value::Bool(true))])),
+        vec![
+            vec![date.clone(), date.clone()],
+            vec![date.clone(), date.clone()]
+        ]
+    );
+    // Only a column `text` names gets the text.
+    assert_eq!(
+        displays(with(&fill, &[("text", strings(&["B"]))])),
+        vec![vec![Value::Null, date.clone()], vec![Value::Null, date]]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_note_decodes_its_escapes() {
+    let comments = r#"<?xml version="1.0"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Ann_x0020_Lee</author></authors><commentList><comment ref="A1" authorId="0"><text><t xml:space="preserve">one_x000D_
+two_x0000_</t></text></comment></commentList></comments>"#;
+    let read = Read::open(package(
+        &[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))],
+        &[],
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                rels(&[("rIdC", "comments", "../comments1.xml", false)]),
+            ),
+            ("xl/comments1.xml", comments.as_bytes().to_vec()),
+        ],
+    ));
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    let notes = entries(&notes);
+    assert_eq!(field(notes[0], "note"), &string("one\r\ntwo\0"));
+    assert_eq!(field(notes[0], "author"), &string("Ann Lee"));
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn builtin_formats_14_and_22_render_as_excel_shows_them_in_en_us() {
+    // Style 1 is the built-in format 14, and style 2 is 22. Excel in en-US shows `m/d/yyyy`
+    // and `m/d/yyyy h:mm`, whatever locale the read renders with.
+    let read = Read::open(xlsx(
+        &[sheet(
+            "Shop",
+            row(1, &[("", 1, "<v>45306</v>"), ("", 2, "<v>45306.75</v>")]),
+        )],
+        &[],
+    ));
+    for locale in ["en", "de", "fr-CH"] {
+        let asked = with(
+            &options("Shop"),
+            &[
+                ("textAll", Value::Bool(true)),
+                ("locale", Value::String(locale.to_owned())),
+            ],
+        );
+        let batch = read.batch(asked, 10);
+        let shown: Vec<&Value> = entries(field(entries(field(&batch, "rows"))[0], "cells"))
+            .into_iter()
+            .map(|cell| field(cell, "display"))
+            .collect();
+        assert_eq!(
+            shown,
+            vec![&string("1/15/2024"), &string("1/15/2024 18:00")],
+            "{locale}"
+        );
     }
     block_on(read.request.end()).expect("the request ends");
 }

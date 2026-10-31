@@ -86,8 +86,8 @@ impl Merge {
 pub struct Fill {
     /// The ranges the read has not reached, the one that starts first at the end.
     pending: Vec<Merge>,
-    /// The ranges the read is inside, each with its top-left value.
-    active: Vec<(Merge, Option<Read>)>,
+    /// The ranges the read is inside, each with its top-left value and the text it displays.
+    active: Vec<(Merge, Option<(Read, String)>)>,
 }
 
 impl Fill {
@@ -117,8 +117,8 @@ impl Fill {
         starting
     }
 
-    /// Gives the range at `at` in `active` its top-left value.
-    pub fn set(&mut self, at: usize, value: Option<Read>) {
+    /// Gives the range at `at` in `active` its top-left value and the text it displays.
+    pub fn set(&mut self, at: usize, value: Option<(Read, String)>) {
         if let Some((_, slot)) = self.active.get_mut(at) {
             *slot = value;
         }
@@ -141,25 +141,33 @@ impl Fill {
             .min()
     }
 
-    /// Gives each cell of `row` that lies in a range the range's top-left value. A range whose
-    /// top-left cell is empty changes nothing.
-    pub fn fill(&self, row: &mut ReadRow) {
+    /// Gives each cell of `row` that lies in a range the range's top-left value. A cell in a
+    /// column of `shown` also gets the top-left cell's displayed text. A range whose top-left
+    /// cell is empty changes nothing.
+    pub fn fill(&self, row: &mut ReadRow, shown: &[(u64, u64)]) {
         let mut added = Vec::new();
         for (range, value) in &self.active {
-            let Some(value) = value else {
+            let Some((value, text)) = value else {
                 continue;
             };
             if !(range.first_row..=range.last_row).contains(&row.number) {
                 continue;
             }
             for column in range.first_column..=range.last_column {
+                let display = shown
+                    .iter()
+                    .any(|&(first, last)| (first..=last).contains(&column))
+                    .then(|| text.clone());
                 match row.cells.binary_search_by_key(&column, |cell| cell.column) {
-                    Ok(at) => row.cells[at].value = Some(value.clone()),
+                    Ok(at) => {
+                        row.cells[at].value = Some(value.clone());
+                        row.cells[at].display = display;
+                    }
                     Err(_) => added.push(ReadCell {
                         column,
                         value: Some(value.clone()),
                         formula: None,
-                        display: None,
+                        display,
                     }),
                 }
             }

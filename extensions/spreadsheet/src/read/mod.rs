@@ -337,6 +337,9 @@ pub struct Reader {
     seal: Seal,
     /// The document properties, read at the first [`Reader::properties`].
     properties: std::cell::OnceCell<crate::Properties>,
+    /// Every sheet's facts, read at the first [`Reader::sheets`]. Memory: a name and a few
+    /// numbers per sheet, per reader.
+    facts: std::cell::OnceCell<Vec<SheetInfo>>,
 }
 
 /// The bytes at each end of a source that its [`Seal`] hashes.
@@ -408,6 +411,23 @@ impl Cursor {
                 (last.number, columns)
             })),
         }
+    }
+
+    /// The rows and columns of the sheet. A sheet that declares no dimension, or only `A1`, is
+    /// counted from its rows: the last row with a cell, and the last column of any row.
+    fn size(&mut self, source: &dyn Source) -> Result<(u64, u64), Error> {
+        let declared = self.dimension(source)?;
+        if let Some(size) = declared.filter(|&(rows, columns)| rows > 1 || columns > 1) {
+            return Ok(size);
+        }
+        let (mut rows, mut columns) = (0, 0);
+        while let Some(row) = self.next(source)? {
+            if let Some(last) = row.cells.iter().map(|cell| cell.column).max() {
+                rows = row.number;
+                columns = columns.max(last);
+            }
+        }
+        Ok((rows, columns))
     }
 
     fn next(&mut self, source: &dyn Source) -> Result<Option<sheet::RawRow>, Error> {
@@ -691,6 +711,7 @@ impl Reader {
             evaluated: None,
             seal: Seal::default(),
             properties: std::cell::OnceCell::new(),
+            facts: std::cell::OnceCell::new(),
         })
     }
 
@@ -719,6 +740,7 @@ impl Reader {
             evaluated: None,
             seal: Seal::default(),
             properties: std::cell::OnceCell::new(),
+            facts: std::cell::OnceCell::new(),
         }
     }
 
@@ -813,14 +835,16 @@ impl Reader {
         }
     }
 
-    /// Every sheet, in tab order.
+    /// Every sheet, in tab order. The first call reads each sheet's size, and the reader keeps
+    /// the list for every later call.
     pub fn sheets(&self, source: &dyn Source) -> Result<Vec<SheetInfo>, Error> {
+        if let Some(facts) = self.facts.get() {
+            return Ok(facts.clone());
+        }
         let mut out = Vec::with_capacity(self.sheets.len());
         for (position, listed) in self.sheets.iter().enumerate() {
             let (rows, columns) = if listed.kind == SheetKind::Worksheet {
-                self.cursor(source, &listed.name, false)?
-                    .dimension(source)?
-                    .unwrap_or((0, 0))
+                self.cursor(source, &listed.name, false)?.size(source)?
             } else {
                 (0, 0)
             };
@@ -833,7 +857,7 @@ impl Reader {
                 kind: listed.kind,
             });
         }
-        Ok(out)
+        Ok(self.facts.get_or_init(|| out).clone())
     }
 
     /// The header's keys: each header cell's text, a duplicate numbered, and an empty one its
@@ -986,13 +1010,13 @@ impl Reader {
             };
             open.next = raw.number + 1;
             self.overlay(&options.sheet, &mut raw);
-            self.reach(source, &raw)?;
+            self.reach(source, &raw, locale)?;
             if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
             }
             let mut row = self.row(source, raw, options, &shown, locale)?;
             if let Some(fill) = self.open.as_ref().and_then(|open| open.fill.as_ref()) {
-                fill.fill(&mut row);
+                fill.fill(&mut row, &shown);
             }
             row.cells.retain(|cell| {
                 selected.is_empty()
@@ -1000,7 +1024,7 @@ impl Reader {
                         .iter()
                         .any(|&(first, last)| (first..=last).contains(&cell.column))
             });
-            if row.cells.iter().all(|cell| cell.value.is_none()) && !options.keep_empty_rows {
+            if row.cells.is_empty() && !options.keep_empty_rows {
                 continue;
             }
             rows.push(row);
@@ -1009,8 +1033,13 @@ impl Reader {
     }
 
     /// Moves a fill to the row `raw`, and keeps the top-left value of each range that starts in
-    /// it. Does nothing for a read that does not fill.
-    fn reach(&mut self, source: &dyn Source, raw: &sheet::RawRow) -> Result<(), Error> {
+    /// it, with the text it displays under `locale`. Does nothing for a read that does not fill.
+    fn reach(
+        &mut self,
+        source: &dyn Source,
+        raw: &sheet::RawRow,
+        locale: Locale,
+    ) -> Result<(), Error> {
         let Some(fill) = self.open.as_mut().and_then(|open| open.fill.as_mut()) else {
             return Ok(());
         };
@@ -1024,7 +1053,12 @@ impl Reader {
         let mut values = Vec::with_capacity(starting.len());
         for (at, column) in starting {
             let value = match raw.cells.iter().find(|cell| cell.column == column) {
-                Some(cell) => self.value(cell)?,
+                Some(cell) => self
+                    .value(cell)?
+                    .map(|value| {
+                        let text = self.display(cell, &value, locale);
+                        (value, text)
+                    }),
                 None => None,
             };
             values.push((at, value));
@@ -1075,7 +1109,8 @@ impl Reader {
             .collect()
     }
 
-    /// `raw` as read cells, every empty cell dropped. A cell in a column of `shown` carries
+    /// `raw` as read cells, every empty cell dropped. A formula cell with no cached value is kept,
+    /// with no value. A cell in a column of `shown` carries
     /// its displayed text, with the separators and names of `locale`.
     fn row(
         &mut self,
@@ -1102,11 +1137,13 @@ impl Reader {
                 }
                 _ => None,
             };
+            // A formula cell is a cell even with no cached value, so a row of formulas is kept.
             // Empty text is a formula the reader could not decode, which gives no `Formula`.
+            let is_formula = cell.formula.is_some();
             let formula = cell
                 .formula
                 .filter(|text| options.formulas && !text.is_empty());
-            if value.is_none() && formula.is_none() {
+            if value.is_none() && !is_formula {
                 continue;
             }
             cells.push(ReadCell {

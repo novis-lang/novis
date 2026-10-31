@@ -38,16 +38,6 @@
 //! **Not done yet.** None of these is checked against Excel, and they are
 //! gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
-//! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as
-//!   `m/d/yyyy h:mm`, as Excel shows them in en-US, where SSF uses `m/d/yy`.
-//! - Merges (`read::merge`): a merged fill copies no `display`.
-//! - Extras (`read::extras`): `notes` returns the `_x000D_` and `_x0000_` escapes undecoded.
-//! - Rows (`read::sheet`): `Reader::rows` skips a row whose cells are all formulas with no cached
-//!   value, so a totals row of formulas this writer wrote does not read back.
-//! - Sheets (`read`, `nvs/Reader.nvs`): `Reader::sheets` gives `rows: 0, columns: 0` for a file
-//!   [`Writer`] wrote, because the writer writes no sheet dimension, and it reads every sheet on
-//!   each call. A sheet name from `sheets()` is a `tainted string`, and the other methods take
-//!   `string|int`.
 //! - Sheet-end parts (`drawing`, `tail`, `nvs/Sheet.nvs`): `Sheet::image` accepts a PNG cut to 30
 //!   bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits for a `whole`
 //!   rule. A second `Sheet::print` replaces the first one's settings.

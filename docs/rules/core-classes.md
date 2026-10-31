@@ -5462,16 +5462,17 @@ yields its rows, so a read holds one batch at a time.
 | `zone` | `'UTC'` | the zone a read `DateTime` is in |
 | `text` | none | the columns, by header or letter, that read as their displayed text; `true` for all |
 | `formulas` | `false` | `true` reads a formula cell as its `Formula` |
-| `emptyRows` | `'skip'` | `'keep'` yields an empty row |
+| `emptyRows` | `'skip'` | `'keep'` yields an empty row. A row with no cell is empty; a formula cell with no cached value is a cell, which reads as `null`, or as its `Formula` with `cached` `null` under `formulas: true` |
 | `merged` | `'first'` | `'fill'` gives every cell of a merged range its value |
 | `hidden` | `'read'` | `'skip'` leaves hidden rows out |
-| `locale` | `'en'` | the separators and the month and day names `text` renders with. A tag whose language the reader has no names for throws `LogicError` naming it |
+| `locale` | `'en'` | the separators and the month and day names `text` renders with. A tag whose language the reader has no names for throws `LogicError` naming it. The built-in formats 14 and 22 render as Excel shows them in en-US, `m/d/yyyy` and `m/d/yyyy h:mm`, whatever the locale: Excel is the reference, and SheetJS's `m/d/yy` is not |
 
 **Merged ranges.** `merged($sheet)` gives a sheet's ranges as A1 text, `'A1:C2'`, in the file's
 order. An xlsx or xlsb sheet lists them after its rows, so the call reads the sheet's part to its
 end; an xls or ods has them from the open. Without a fill, a range's value is in its top-left cell
 only. **`merged: 'fill'` reads the ranges before the first row**, at that one more pass over the
 part, and gives every cell of a range the top-left value, the cells outside `columns` dropped after.
+A filled cell in a `text` column reads as the top-left cell's displayed text.
 A row the file does not write is yielded when it lies in a range below its top row. A range whose
 top-left cell is above `from` still fills the rows below it, because the cursor reads every row
 from the first. A range past the grid throws. The fill keeps each range, 32 bytes, and the top-left
@@ -5484,7 +5485,12 @@ by column letter. A CSV read takes the same options and gives the same row shape
 all `string`.
 
 **`sheets()`** gives one shape per sheet: `name`, `position`, `visibility` (`Reader::Visibility`), `rows`
-and `columns` as the file declares them, and `kind` (`Reader::SheetKind`, `Worksheet` or `Chartsheet`). **The extras
+and `columns` as the file declares them, and `kind` (`Reader::SheetKind`, `Worksheet` or `Chartsheet`).
+A sheet that declares no dimension, or only `A1`, is counted from its rows: the last row with a cell
+and the last column of any row. The first call reads every sheet's facts, and the reader keeps them
+for every later call. Memory: a name and a few numbers per sheet, per reader. Every method that takes
+a sheet takes `tainted string|int`, so a name from `sheets()` goes back as it is: the name is only
+compared with the file's own sheet names. **The extras
 read on request**, each for one sheet or the workbook: `merged`, `links`, `notes`, `names`, `tables`,
 `images` (as bytes with their anchor), `properties` and `macros`. An external link, a linked image or a
 data connection reads as data and is never followed ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)): a

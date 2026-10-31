@@ -91,7 +91,7 @@ final class Reader
 
     /// `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
     /// When you read rows, the value of a merged range is in its top-left cell. With `merged: 'fill'`, every cell of the range has that value.
-    public function merged(string|int $sheet): array<tainted string>
+    public function merged(tainted string|int $sheet): array<tainted string>
     {
         string $name = $this->sheetName($sheet);
         if ($this->reader == null) {
@@ -102,7 +102,7 @@ final class Reader
 
     /// `links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
     /// `external` is `true` for a URL or a file. Reading a file never opens its links.
-    public function links(string|int $sheet): array<Link>
+    public function links(tainted string|int $sheet): array<Link>
     {
         string $name = $this->sheetName($sheet);
         if ($this->reader == null) {
@@ -112,7 +112,7 @@ final class Reader
     }
 
     /// `notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
-    public function notes(string|int $sheet): array<Note>
+    public function notes(tainted string|int $sheet): array<Note>
     {
         string $name = $this->sheetName($sheet);
         if ($this->reader == null) {
@@ -132,7 +132,7 @@ final class Reader
     }
 
     /// `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
-    public function tables(string|int $sheet): array<Table>
+    public function tables(tainted string|int $sheet): array<Table>
     {
         string $name = $this->sheetName($sheet);
         if ($this->reader == null) {
@@ -158,7 +158,7 @@ final class Reader
 
     /// `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
     /// A linked picture has empty `image` bytes, and `link` is its target. Reading a file never fetches a link.
-    public function images(string|int $sheet): array<Image>
+    public function images(tainted string|int $sheet): array<Image>
     {
         string $name = $this->sheetName($sheet);
         if ($this->reader == null) {
@@ -192,7 +192,7 @@ final class Reader
 
     /// `rows` reads the sheet `$sheet`, by name or by position from 0, and gives one `Row` at a time. With `header: true`, the keys are the header cells.
     /// `text: ["Zip"]` reads the column `Zip` as the text Excel shows, so `1234` with the format `00000` is `"01234"`. `text: true` reads every column this way.
-    public function rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
+    public function rows(tainted string|int $sheet, RowOptions $options = null): Iterator<Row>
     {
         bool|array<string> $text = $options?->text ?? false;
         Asked $asked = {
@@ -528,23 +528,31 @@ final class Reader
         return $reader;
     }
 
-    private function sheetName(string|int $sheet): string
+    // A sheet name may come from `sheets()`, so it is `tainted`. The name is only compared with
+    // the file's own sheet names, and it is never written anywhere.
+    private function sheetName(tainted string|int $sheet): string
     {
+        string|int $asked = 0;
+        if ($sheet is string) {
+            $asked = Core\Taint::assertTrusted($sheet, 'a sheet name is only compared with the sheet names of the same file');
+        } elseif ($sheet is int) {
+            $asked = $sheet;
+        }
         if ($this->reader == null) {
-            if (($sheet is string && $sheet == 'Sheet1') || ($sheet is int && $sheet == 0)) {
+            if (($asked is string && $asked == 'Sheet1') || ($asked is int && $asked == 0)) {
                 return 'Sheet1';
             }
-            throw new LogicError("A CSV file has one sheet, `Sheet1` at position 0. It has no sheet `{$sheet}`.");
+            throw new LogicError("A CSV file has one sheet, `Sheet1` at position 0. It has no sheet `{$asked}`.");
         }
-        if ($sheet is string) {
-            return $sheet;
+        if ($asked is string) {
+            return $asked;
         }
         foreach ($this->sheets() as var $info) {
-            if ($info->position as int == $sheet) {
+            if ($info->position as int == $asked) {
                 return Core\Taint::assertTrusted($info->name, 'the file gave this sheet name, and it goes back only to the same file');
             }
         }
-        throw new LogicError("The workbook has no sheet at position {$sheet}. The first sheet is at position 0.");
+        throw new LogicError("The workbook has no sheet at position {$asked}. The first sheet is at position 0.");
     }
 
     private static function with(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $limit, bool $keepEmptyRows, bool $shown): Asked

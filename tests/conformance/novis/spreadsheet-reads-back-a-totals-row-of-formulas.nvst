@@ -1,0 +1,52 @@
+--TEST--
+A totals row of formulas with no cached value reads back: each cell is `null`, or its `Formula` with `cached` `null` under `formulas: true`, and only a row with no cell is skipped: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::rows
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function value(mixed $value): string
+    {
+        if ($value == null) {
+            return "null";
+        }
+        if ($value is int) {
+            return "int " . ($value as string);
+        }
+        if ($value is Formula) {
+            string $cached = $value->cached == null ? "null" : "a value";
+            return "Formula " . Core\Taint::assertTrusted($value->text, "the test prints what it wrote") . ", cached " . $cached;
+        }
+        return "another value";
+    }
+}
+
+// The last row is a totals row. The writer stores no result for a formula.
+bytes $file = Workbook::fromRows([
+    ["price" => 2, "count" => 1],
+    ["price" => 3, "count" => 4],
+    ["price" => Formula::of("SUM(A2:A3)"), "count" => Formula::of("SUM(B2:B3)")],
+])->bytes();
+var $reader = Reader::open($file);
+
+array<bool> $both = [false, true];
+foreach ($both as bool $formulas) {
+    echo "formulas: ", $formulas ? "true" : "false", "\n";
+    foreach ($reader->rows(0, {header: true, formulas: $formulas}) as Row $row) {
+        echo $row->number, ": price ", Show::value($row->values["price"]), ", count ", Show::value($row->values["count"]), "\n";
+    }
+}
+--EXPECT--
+formulas: false
+2: price int 2, count int 1
+3: price int 3, count int 4
+4: price null, count null
+formulas: true
+2: price int 2, count int 1
+3: price int 3, count int 4
+4: price Formula SUM(A2:A3), cached null, count Formula SUM(B2:B3), cached null
