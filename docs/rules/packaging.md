@@ -2470,15 +2470,16 @@ because the website has no operator account. `Releases::withhold` saves the reas
 entry together, and the index file, signed with the log's key, shows `{"withheld": {"reason"}}`. The
 registry's own archive route answers `451` for a withheld digest. Once the log and the index have the
 reason, the job deletes the archive from every store and from the work folder (`Stores::remove`), and
-running it again finishes a delete a store failed. Resolution refuses a withheld version and prints its
+running it again finishes a delete a store failed. With a `purge` in `hosting.json`, it then sends
+one `POST` to the CDN's purge API for the archive's address under every file host (`Stores::purge`),
+through the outbound address check a webhook passes; a failed purge fails the job, and running it
+again sends every purge again. Without `purge`, a CDN in front of a store may serve a cached archive
+until its cache lifetime ends, as `apps/registry/README.md` says. Resolution refuses a withheld version and prints its
 reason (`crates/nvs-cli/src/package/resolve.rs`). The policy page is `GET /policy`
 (`apps/registry/src/PolicyPage.nvs`).
 
 `nvs pkg audit` reports a locked version that is withheld, with its reason
 ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
-
-**Not on disk.** A CDN in front of a store may serve a cached archive until its cache lifetime ends,
-because the service never purges a CDN (gap:nvs-cli/withhold-purges-the-cdn).
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 
@@ -2523,7 +2524,8 @@ of each package's name, readme summary and doc comments. A query keeps its first
 and digits, so no full-text operator reaches the index. A pending, withheld or unlisted version counts
 for nothing, and a package with no other version is not returned. `Ranking::facts` reads every fact in
 one query per request, and the package page (`apps/registry/src/PackagePage.nvs`) shows each fact, the
-score and a link to the formula. `Downloads` counts both kinds of download through `Downloads::add`.
+score and a link to the formula. The website's first page, `GET /?q=` (`apps/registry/src/HomePage.nvs`),
+is the same search in the default order, with a link to each package page. `Downloads` counts both kinds of download through `Downloads::add`.
 
 A package's summary is the first paragraph of its readme, which `nvs registry build` prints beside
 `doc_coverage`, `docs`, `readme`, `downloads` and `supersedes` (`crates/nvs-cli/src/package/build.rs`).

@@ -58,6 +58,9 @@ final class Site
         // `https://mirror.example.org/registry.example.com/checkpoint`, or an empty string for none.
         // `nvs pkg audit` reads both copies and fails when they do not agree.
         public readonly string $checkpointCopy = '',
+        // The purge API of the CDN in front of `hosts`, or `null` for none. A withheld archive is
+        // then purged from the CDN. With none, the CDN may serve its copy until its cache lifetime ends.
+        public readonly ?Purge $purge = null,
     )
     {}
 
@@ -113,6 +116,7 @@ final class Site
             Site::optionalPath(Site::text($settings, 'pushKey', ''), $base, 'pushKey'),
             Site::text($settings, 'pushSubject', ''),
             Site::checkpointCopyOf($settings),
+            Purge::of($settings, $base),
         );
     }
 

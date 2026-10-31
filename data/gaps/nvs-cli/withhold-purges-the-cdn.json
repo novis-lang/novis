@@ -1,6 +1,0 @@
-{
-  "module": "apps/registry/jobs/withhold.nvs",
-  "title": "A withhold deletes the archive from every store but does not purge a CDN in front of one.",
-  "text": "A CDN may serve the withheld archive until its cache lifetime ends. Closing it purges the archive's URL on each configured CDN once the stores have deleted it, and running the job again retries a purge that failed (`rule:packaging/the-operator-only-withholds`).",
-  "goal": "registry-service"
-}

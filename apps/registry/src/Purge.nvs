@@ -1,0 +1,66 @@
+<?nvs
+namespace Registry;
+
+use Core\Http;
+use Core\Http\Client;
+use Core\IO;
+use Core\Str;
+use Core\Time\Duration;
+use Core\Uri;
+use RuntimeError;
+
+// The setting `purge` of `hosting.json`: the API of the CDN in front of the file hosts.
+// Each purge is a `POST` to `url`, with `{url}` replaced by the address of one file, as Bunny's
+// purge API takes it. The credential is in one header, as for an `http` store.
+final class Purge
+{
+    // A purge waits this many seconds for the CDN, and then it fails.
+    private const int SECONDS = 30;
+
+    public function constructor(
+        // The address of the purge API, with `{url}` in it, such as `https://api.bunny.net/purge?url={url}`.
+        public readonly string $url,
+        // The name of the header with the credential, such as `AccessKey`.
+        public readonly string $header,
+        // The file with the credential.
+        public readonly string $secret,
+    )
+    {}
+
+    // Reads `purge` from `hosting.json`. The result is `null` when the setting is left out.
+    // A relative path is relative to `$base`, the folder of `hosting.json`.
+    // It throws a `RuntimeError` when a setting is missing or wrong, or the credential file does not exist.
+    public static function of(array<mixed> $settings, string $base): ?Purge
+    {
+        if (($settings['purge'] ?? null) == null) {
+            return null;
+        }
+        var $purge = $settings['purge'] as array<mixed>;
+        string $url = Site::text($purge, 'url', 'purge');
+        if (!Str::startsWith($url, 'https://') || !Str::contains($url, '{url}')) {
+            throw new RuntimeError('hosting.json: `purge.url` must start with `https://` and contain `{url}`.');
+        }
+        return new Purge(
+            $url,
+            Site::text($purge, 'header', 'purge'),
+            Site::secretPath(Site::text($purge, 'secret', 'purge'), $base, 'purge.secret'),
+        );
+    }
+
+    // Asks the CDN to drop its copy of the file at `$address`, such as
+    // `https://cdn.example.com/archive/aa.tar`. The address is percent-encoded into `{url}`.
+    // The API address is checked as a webhook address is, so it is never an internal address.
+    // It throws a `RuntimeError` when the CDN gives a status outside 200 to 299, or does not answer.
+    public function send(string $address): void
+    {
+        string $target = Str::replace($this->url, '{url}', Uri::encodeComponent($address));
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::post(Http::allowUrl($target), {
+            headers: [$this->header => $credential],
+            deadline: Duration::seconds(Purge::SECONDS),
+        });
+        if ($response->status() < 200 || $response->status() > 299) {
+            throw new RuntimeError('The CDN answered ' . $response->status() . ' to the purge of ' . $address . '.');
+        }
+    }
+}

@@ -19,6 +19,12 @@ final class StoresTest
     // The address of the fake `http` store.
     private const string URL = 'https://storage.example.com/zone/';
 
+    // The address of the fake purge API. The address is reserved for examples, so it is not internal.
+    private const string PURGE = 'https://203.0.113.7/purge';
+
+    // The file hosts of the purge tests. The second one has no `/` at the end.
+    private const array<string> HOSTS = ['https://cdn-a.example.com/', 'https://cdn-b.example.com'];
+
     #[Test]
     public function anHttpStoreGetsEachFileInOrder(): void
     {
@@ -26,7 +32,7 @@ final class StoresTest
         try {
             Test::answerHttp(StoresTest::URL . '*', 201);
             var $db = StoresTest::database();
-            var $stores = new Stores($db, StoresTest::site($folder, [StoresTest::http($folder), new Store('dir', $folder . '/files')]));
+            var $stores = new Stores($db, StoresTest::site($folder, [StoresTest::http($folder), new Store('dir', $folder . '/files')], []));
             StoresTest::queue($stores);
 
             Test::assertTrue($stores->send());
@@ -61,7 +67,7 @@ final class StoresTest
         string $folder = StoresTest::folder();
         try {
             Test::answerHttp(StoresTest::URL . 'archive/aa.tar', 404);
-            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [StoresTest::http($folder)]));
+            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [StoresTest::http($folder)], []));
 
             // The store does not have the file, and that is not an error.
             Test::assertTrue($stores->remove('archive/aa.tar'));
@@ -88,7 +94,7 @@ final class StoresTest
             var $db = StoresTest::database();
             IO::makeDir($folder . '/files/log');
             IO::write($folder . '/files/log/checkpoint', "test\n0\nold\n");
-            var $stores = new Stores($db, StoresTest::site($folder, [new Store('dir', $folder . '/files'), StoresTest::http($folder)]));
+            var $stores = new Stores($db, StoresTest::site($folder, [new Store('dir', $folder . '/files'), StoresTest::http($folder)], []));
             StoresTest::queue($stores);
 
             Test::assertTrue(!$stores->send());
@@ -111,6 +117,69 @@ final class StoresTest
         } finally {
             StoresTest::remove($folder);
         }
+    }
+
+    #[Test]
+    public function aPurgeIsOnePostForEachHost(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::PURGE . '*', 200);
+            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [], StoresTest::HOSTS, StoresTest::purge($folder)));
+
+            Test::assertTrue($stores->purge('archive/aa.tar'));
+
+            // Each host gets one `POST` with the address of its copy of the archive, and the key.
+            array<string> $urls = [];
+            foreach (Test::sentHttp() as SentRequest $request) {
+                Test::assertTrue($request->method() == Method::Post);
+                Test::assertSame($request->header('AccessKey'), 'the cdn key');
+                $urls[] = $request->url();
+            }
+            Test::assertSame($urls, [
+                StoresTest::PURGE . '?url=https%3A%2F%2Fcdn-a.example.com%2Farchive%2Faa.tar',
+                StoresTest::PURGE . '?url=https%3A%2F%2Fcdn-b.example.com%2Farchive%2Faa.tar',
+            ]);
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function withNoPurgeNothingIsSent(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::PURGE . '*', 200);
+            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [], StoresTest::HOSTS));
+
+            Test::assertTrue($stores->purge('archive/aa.tar'));
+            Test::assertSame(Core\Arr::count(Test::sentHttp()), 0);
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function aPurgeThatFailsReturnsFalse(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::PURGE . '*', 500);
+            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [], StoresTest::HOSTS, StoresTest::purge($folder)));
+
+            // The withhold job stops with an error when this is `false`, and running it again purges again.
+            Test::assertTrue(!$stores->purge('archive/aa.tar'));
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    // A purge API at the fake address, with its key in a file in `$folder`.
+    private static function purge(string $folder): Purge
+    {
+        IO::write($folder . '/cdn.key', "the cdn key\n");
+        return new Purge(StoresTest::PURGE . '?url={url}', 'AccessKey', $folder . '/cdn.key');
     }
 
     // Writes five files to the work folder and queues them in the reverse of the order they are sent.
@@ -157,8 +226,9 @@ final class StoresTest
         IO::write($file, $text);
     }
 
-    // The settings of `hosting.json`, with the work folder in `$folder` and the stores `$stores`.
-    private static function site(string $folder, array<Store> $stores): Site
+    // The settings of `hosting.json`, with the work folder in `$folder`, the stores `$stores`,
+    // the file hosts `$hosts` and the purge API `$purge`.
+    private static function site(string $folder, array<Store> $stores, array<string> $hosts, ?Purge $purge = null): Site
     {
         var $loaded = Site::load();
         return new Site(
@@ -169,7 +239,7 @@ final class StoresTest
             $loaded->projectAccount,
             $folder . '/work',
             $stores,
-            [],
+            $hosts,
             new Store('dir', $folder . '/backup'),
             '',
             5,
@@ -179,6 +249,8 @@ final class StoresTest
             $loaded->logName,
             '',
             '',
+            '',
+            $purge,
         );
     }
 

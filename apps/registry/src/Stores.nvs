@@ -53,6 +53,25 @@ final class Stores
         return true;
     }
 
+    // Asks the CDN to drop the file `$path` under every address in `hosts`, after `remove`.
+    // It sends nothing when `hosting.json` has no `purge`. It returns `false` when a purge fails,
+    // and running it again sends every purge again.
+    public function purge(string $path): bool
+    {
+        ?Purge $purge = $this->site->purge;
+        if ($purge == null) {
+            return true;
+        }
+        try {
+            foreach ($this->site->hosts as string $host) {
+                $purge->send(Core\Str::trimEnd($host, { characters: '/' }) . '/' . $path);
+            }
+        } catch (RuntimeError $error) {
+            return false;
+        }
+        return true;
+    }
+
     // Sends every waiting file to every store. Every store gets all files of one rank before any
     // store gets a file of the next rank, so no store has the checkpoint while another store fails.
     // It returns `true` when every store has every file. When one store fails, it stops and returns
