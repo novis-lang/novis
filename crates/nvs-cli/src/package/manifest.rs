@@ -187,6 +187,13 @@ impl FromStr for Range {
     }
 }
 
+impl Range {
+    /// Whether the range covers `version`: `from` or above, and below `until` when there is one.
+    pub(crate) fn contains(self, version: Version) -> bool {
+        version >= self.from && self.until.is_none_or(|until| version < until)
+    }
+}
+
 impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.until {

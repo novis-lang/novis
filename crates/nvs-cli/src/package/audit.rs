@@ -4,10 +4,11 @@
 //! **Audit reads the lock, never the network's idea of the graph.** For each registry a locked
 //! package comes from, it reads the registry's advisory feed and checks it against the whole log
 //! ([`Seen::advisories`]), so a feed that hides an advisory is an error, not a clean report. Each
-//! locked version under a retraction or a withhold is reported with its reason and its fix: the
-//! smallest version above it that a command may choose ([`minimum::choosable`]), is under no
-//! advisory, and is at least the retraction's `fixed_in`. An unlisted version is not an advisory
-//! and is not reported. A git dependency comes from no registry and is not audited.
+//! locked version under a retraction, a withhold or inside an advisory's [`Range`] is reported
+//! with its reason and its fix: the smallest version above it that a command may choose
+//! ([`minimum::choosable`]), is under no advisory, and is at least the retraction's `fixed_in` or
+//! the range's end. An advisory is reported with its `id` and its summary as the reason, and a
+//! range with no end has no fix. An unlisted version is not an advisory and is not reported. A git dependency comes from no registry and is not audited.
 //!
 //! **The second copy of the checkpoint** that a registry's root file names is compared with the
 //! log the file host serves ([`Seen::compare_copy`]). Two logs that disagree, and a copy that
@@ -45,7 +46,7 @@ use super::entry::Entry;
 use super::fetch::{self, App, Failed};
 use super::index::{Index, fault};
 use super::lock::Locked;
-use super::manifest::Version;
+use super::manifest::{Range, Version};
 use super::minimum;
 use super::proof::Seen;
 use super::resolve::line;
@@ -56,12 +57,15 @@ struct Found {
     /// The package's namespace.
     package: String,
     version: String,
-    /// `retract` or `withhold`.
+    /// `retract`, `withhold` or `advisory`.
     kind: &'static str,
+    /// The advisory's id, `acme/http-1`, for kind `advisory` alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
     reason: String,
     /// The number of the advisory's record in the registry's log.
     log: u64,
-    /// The version the retraction names as its fix.
+    /// The version the retraction names as its fix, or the end of the advisory's range.
     fixed_in: Option<String>,
     /// The smallest version that clears the advisory, or `None` when no version does yet.
     bump: Option<String>,
@@ -201,6 +205,14 @@ fn names(entry: &Entry, slug: &str, version: Version) -> bool {
             version: named,
             ..
         } => package == slug && named.parse::<Version>().is_ok_and(|named| named == version),
+        Entry::Advisory {
+            package, versions, ..
+        } => {
+            package == slug
+                && versions
+                    .parse::<Range>()
+                    .is_ok_and(|range| range.contains(version))
+        }
         _ => false,
     }
 }
@@ -214,12 +226,27 @@ fn found(
     all: &[Advisory],
     now: u64,
 ) -> Found {
-    let (kind, reason, fixed_in) = match &advisory.entry {
+    let (kind, id, reason, fixed_in) = match &advisory.entry {
         Entry::Retract {
             reason, fixed_in, ..
-        } => ("retract", reason.clone(), fixed_in.clone()),
-        Entry::Withhold { reason, .. } => ("withhold", reason.clone(), None),
-        _ => unreachable!("a feed lists retractions and withholds only"),
+        } => ("retract", None, reason.clone(), fixed_in.clone()),
+        Entry::Withhold { reason, .. } => ("withhold", None, reason.clone(), None),
+        Entry::Advisory {
+            id,
+            versions,
+            summary,
+            ..
+        } => (
+            "advisory",
+            Some(id.clone()),
+            summary.clone(),
+            versions
+                .parse::<Range>()
+                .ok()
+                .and_then(|range| range.until)
+                .map(|until| until.to_string()),
+        ),
+        _ => unreachable!("a feed lists retractions, withholds and advisories only"),
     };
     let floor = fixed_in
         .as_deref()
@@ -243,6 +270,7 @@ fn found(
         package: locked.name.to_string(),
         version: locked.version.to_string(),
         kind,
+        id,
         reason,
         log: advisory.log,
         fixed_in,
@@ -299,10 +327,10 @@ fn warn(unmatched: &[Unmatched]) {
 /// `report` as text on standard output.
 fn print(report: &Report) {
     for found in &report.advisories {
-        let what = if found.kind == "retract" {
-            "is retracted"
-        } else {
-            "is withheld by the registry"
+        let what = match (found.kind, &found.id) {
+            ("retract", _) => "is retracted".to_owned(),
+            ("advisory", Some(id)) => format!("has the advisory `{id}`"),
+            _ => "is withheld by the registry".to_owned(),
         };
         println!(
             "`{}` {} {what}: {}",

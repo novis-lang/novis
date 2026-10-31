@@ -506,6 +506,66 @@ fn audit_names_a_locked_withheld_version_and_the_release_that_clears_it() {
     );
 }
 
+fn advisory(versions: &str) -> serde_json::Value {
+    serde_json::json!({
+        "v": 1, "kind": "advisory", "id": "acme/http-1", "package": "acme/http",
+        "versions": versions, "summary": "It leaks the session cookie.",
+    })
+}
+
+/// The range `1.0.0..1.1.1` covers the locked 1.1.0 and ends at the released 1.1.1, which clears
+/// it. The index line stays `released`: an advisory does not change a version's state.
+#[test]
+fn audit_names_a_locked_version_an_advisory_covers_and_the_version_that_clears_it() {
+    let tree = Locked::new("audit-advisory-closed");
+    tree.advise(&advisory("1.0.0..1.1.1"), &serde_json::json!("released"));
+    let out = tree.nvs(&["pkg", "audit"]);
+    assert!(!out.status.success(), "{}", shown(&out));
+    assert!(
+        stdout(&out).contains(
+            "`Acme\\Http` 1.1.0 has the advisory `acme/http-1`: It leaks the session cookie.\n  \
+             Update to 1.1.1 or newer."
+        ),
+        "{}",
+        shown(&out)
+    );
+    let json = tree.nvs(&["pkg", "audit", "--json"]);
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&json)).expect("audit prints JSON");
+    assert_eq!(
+        report["advisories"],
+        serde_json::json!([{
+            "package": "Acme\\Http",
+            "version": "1.1.0",
+            "kind": "advisory",
+            "id": "acme/http-1",
+            "reason": "It leaks the session cookie.",
+            "log": 2,
+            "fixed_in": "1.1.1",
+            "bump": "1.1.1",
+        }]),
+        "{}",
+        shown(&json)
+    );
+}
+
+/// The range `1.0.0..` has no end, so it covers 1.1.1 too, and no released version clears it.
+#[test]
+fn audit_reports_an_advisory_with_no_fixed_version_and_no_fix() {
+    let tree = Locked::new("audit-advisory-open");
+    tree.advise(&advisory("1.0.0.."), &serde_json::json!("released"));
+    let out = tree.nvs(&["pkg", "audit"]);
+    assert!(!out.status.success(), "{}", shown(&out));
+    assert!(
+        stdout(&out).contains(
+            "`Acme\\Http` 1.1.0 has the advisory `acme/http-1`: It leaks the session cookie.\n  \
+             No released version fixes it yet."
+        ),
+        "{}",
+        shown(&out)
+    );
+}
+
 /// An unlisted version is not an advisory. The registry names no second copy of its checkpoint,
 /// so audit says so once and still succeeds.
 #[test]
