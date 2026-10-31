@@ -416,6 +416,20 @@ property or value is a line in `extensions/pdf/subset.json` (`rule:core-classes/
   `break-inside: avoid` keeps a table row, a flex container and an inline-block whole.
 - `counter()` and `target-counter()` read any named counter. `element()` reads `start` and
   `first-except` as CSS GCPM says.
+- **A margin box's `counter(name)`** is the value after the first change on the page, else the
+  value in force when the page starts, as `string(name)` reads a string. The walk records a change
+  only for the names the `@page` margin boxes read, as a `margin::Set` of a third kind beside
+  strings and marks, so a document whose margins read no counter pays nothing. Memory: one entry per
+  change of a counter a margin reads, per render.
+- **`target-counter(url, name)`** reads the counter's value at the target element, after that
+  element's own `counter-reset` and `counter-increment`. `Targets` maps each `id` to its page and its
+  counters, the walk records them, and the pass loop reruns while they differ, as it does for pages.
+- **Page attribution, as built.** A box laid out on a page of its own leaves an `Item::Here` where it
+  meets an `id`, a heading, a string, a mark or a running element (`Cx::note`,
+  `extensions/pdf/src/layout/text.rs`). `Cx::attribute` lands each on the page the item ends on,
+  the first copy only, and takes the items off before `Laid` is returned. Strings, running elements
+  and bookmarks are then sorted by page and top. A fact found this way is never at a page's top for
+  `string(name, start)`.
 - A `margin: auto` on a flex item takes the free space. `align-items: baseline` aligns first
   baselines. `flex.rs:163` already parses `baseline`, so the session checks what is missing before
   it writes.
@@ -599,13 +613,20 @@ file with the rest. A writing subagent takes it, side by side with the session, 
 **Does:** content inside a cell, an inline-block, a float or a flex item is recorded on the page it
 is drawn on, and counters and `element()` read as CSS says.
 
-- [ ] `rule:core-classes/pdf-css-subset`: a `data-mark`, `string-set` or running element inside a cell, an inline-block, a float or a flex item is recorded on its drawn page. `extensions/pdf/src/layout/inline.rs:1588`, `extensions/pdf/src/layout/inline.rs:1599`, `extensions/pdf/src/layout/table.rs:662`
-- [ ] An `id` there has its page, and so does an `id` in a running element. `extensions/pdf/src/layout/block.rs:363`, `extensions/pdf/src/layout/block.rs:381`
+- [x] `rule:core-classes/pdf-css-subset`: a `data-mark`, `string-set` or running element inside a cell, an inline-block, a float or a flex item is recorded on its drawn page. `extensions/pdf/src/layout/inline.rs:1588`, `extensions/pdf/src/layout/inline.rs:1599`, `extensions/pdf/src/layout/table.rs:662`
+- [x] An `id` there has its page, and so does an `id` in a running element. `extensions/pdf/src/layout/block.rs:363`, `extensions/pdf/src/layout/block.rs:381`
 - [ ] `counter()` in a margin box and `target-counter()` read any counter. `extensions/pdf/src/paginate/mod.rs:349`, `extensions/pdf/src/layout/inline.rs:448`
 - [ ] `element()` reads `start` and `first-except`. `extensions/pdf/src/paginate/mod.rs:376`, `extensions/pdf/src/layout/margin.rs:124`
-- [ ] `rule:core-classes/pdf-standards-and-passwords`: a heading there has its bookmark. `extensions/pdf/src/layout/block.rs:387`, `extensions/pdf/src/write.rs:382`
+- [x] `rule:core-classes/pdf-standards-and-passwords`: a heading there has its bookmark. `extensions/pdf/src/layout/block.rs:387`, `extensions/pdf/src/write.rs:382`
 - [ ] The tests the `pdf-page-attribution` and `pdf-bookmarks` checks name. `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/tests/render.rs:1`
+  - [x] the three attribution tests and the bookmark test, each passed once
+  - [ ] `target_counter_reads_any_counter`, `a_margin_box_reads_a_named_counter`
+  - [ ] `element_start_and_first_except_read_as_css_says`
 - [ ] The marks attack still passes. The table module's list goes, with its bold lead, and `Cost:` stays. Delete `data/gaps/nvs-pdf/pdf-table-leftovers.json`. The pagination bullet loses these sentences. `tests/hostile/novis/Pdf-Page/marks/01-hostile-marks.nvs:1`, `extensions/pdf/src/layout/table.rs:62`, `extensions/pdf/src/lib.rs:57`
+  - [x] the table list and the gap record are gone, and `Cost:` stays
+  - [x] the pagination and writing bullets lost the attribution and bookmark sentences
+  - [ ] the counter and `element()` sentences go with their items
+  - [ ] the marks attack runs once (`bun nv proofs --run --only 'Novis\Pdf\Page::marks'`)
 
 ### 9. page breaks keep what avoid asks for, and a left or right page sets its own line widths
 
@@ -666,13 +687,13 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done, and the spreadsheet lane is finished. Stage 8 (page attribution) is next,
-and nothing of it has started.
+Stages 1 to 7 are done, and the spreadsheet lane is finished. Stage 8's page attribution landed in
+`0e707041f`: marks, strings, running elements, ids and headings inside a cell, an inline-block, a
+float or a flex item are on their drawn page. The counter and `element()` items are left.
 
-- Stage 7's 20 tests in `extensions/pdf/tests/tables.rs` and its case passed once. A table with no
-  `width` is as narrow as its content, so the slot examples and tests set `width: 100%`.
-- The table gap record names only the mark fault, and stage 8 deletes it.
-- The component's clippy has 8 errors outside stage 7's code, which stage 11 owns.
+- The four new tests in `extensions/pdf/tests/paginate.rs` and `extensions/pdf/tests/render.rs`
+  passed once. The table gap record is deleted, and `owners --closes` names only `pdf-leftovers`.
+- The component's clippy has the same 8 errors, all outside stage 8's code, which stage 11 owns.
 - `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
 - `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
 - A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
@@ -681,18 +702,21 @@ and nothing of it has started.
 
 ### Next
 
-Stage 8: content inside a cell, an inline-block, a float or a flex item is on the page it is
-drawn on. Each item's anchors are on its line under § 8, but table.rs and inline.rs moved:
+The rest of stage 8, by the two counter decisions under § *Standing decisions*:
 
-- [ ] `extensions/pdf/src/layout/table.rs:875`, `extensions/pdf/src/layout/inline.rs:1645`: a
-  row's marks (`mark`, called from `rows` at `extensions/pdf/src/layout/table.rs:790` and the
-  split piece's loop), and a cell's own `data-mark` and `string-set`.
-- [ ] `extensions/pdf/src/layout/block.rs:363`, `extensions/pdf/src/paginate/mod.rs:349`: ids,
-  counters, `element()` and bookmarks, at the anchors § 8 names.
-- [ ] `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/tests/render.rs:1`: the tests the
-  `pdf-page-attribution` and `pdf-bookmarks` checks name.
+- [ ] `extensions/pdf/src/layout/inline.rs:366` (`Targets`) and `:448` (`target-counter`): each
+  `id`'s counters beside its page. Snapshot after `counters.apply` and the `list-item` change near
+  `extensions/pdf/src/layout/inline.rs:1683`.
+- [ ] `extensions/pdf/src/paginate/mod.rs:347` (`content`'s `counter`) and
+  `extensions/pdf/src/layout/margin.rs:66` (`Set`): a counter change of a name a margin reads.
+- [ ] `extensions/pdf/src/paginate/mod.rs:377` (`element`) and `extensions/pdf/src/layout/margin.rs:126`
+  (`pick`): `start` and `first-except`, with a `top` on `margin::Running`.
+- [ ] `extensions/pdf/tests/paginate.rs:1`, `extensions/pdf/src/lib.rs:53`: the three tests the
+  `pdf-page-attribution` check still names, the pagination bullet's counter and `element()`
+  sentences, and the marks attack once. Then stage 8 is done.
 
-Expect red at the gate: a PDF test, case or example whose table has no `width` and depends on the
+Expect red at the gate: a PDF test whose margin box or bookmark order assumed a string, mark,
+running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
 table filling its containing block: a slot overflow count, an x position, or a right-aligned
 column. Also a PDF test or case with tables, flex or grid nested more than 32 levels,
 which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
