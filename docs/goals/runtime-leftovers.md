@@ -26,7 +26,7 @@ stages:
     context: [docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/types/class-scoped-alias.md, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/index.rs]
   - id: 6
     title: "a child process a Core\\Task child task leaves running is ended and reported when that task ends, and the grant-table marker is gone"
-    status: open
+    status: done
     context: [docs/rules/core-classes/process-spawn.md, crates/nvs-runtime/src/ctx/held.rs, crates/nvs-stdlib/src/process.rs, docs/rules/security/authority-is-the-enclosing-namespace.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -395,13 +395,13 @@ cannot cross tasks, and the stale grant-table line is deleted.
 
 Two groups that share no file: the child-task report (items 1 to 5), then the grant marker (item 6).
 
-- [ ] `rule:core-classes/process-spawn`: a child task's context reports the task message, the root keeps its own. `crates/nvs-runtime/src/ctx/held.rs:470`, `crates/nvs-runtime/src/ctx/held.rs:489`
-- [ ] A handle used outside its task never names another child, as the standing decision says. `crates/nvs-stdlib/src/process.rs:1240`, `crates/nvs-stdlib/src/process.rs:1266`
-- [ ] The two conformance cases the `task-child-case` check names, each run once by name. `tests/conformance/core/process-spawn-a-child-a-child-task-leaves-running-is-stopped-when-that-task-ends.nvst:1`, `tests/conformance/core/process-spawn-a-handle-used-outside-its-task-names-no-other-child.nvst:1`
-- [ ] The test the `task-child-exit-status` check names. `crates/nvs-cli/tests/run_command.rs:48`, `crates/nvs-cli/src/main.rs:2647`
-- [ ] The fragment's Not-on-disk paragraph becomes present-tense prose, the cases join `guardedBy`, and `Core\Process::spawn`'s `about.md` gains its sentence. Then `bun nv rules --render`, and delete the gap record `--closes` lists for it. `docs/rules/core-classes/process-spawn.md:35`, `data/rules/core-classes/process-spawn.json:1`, `docs/examples/core/Process/spawn/about.md:1`
-- [ ] `rule:security/authority-is-the-enclosing-namespace`: delete the stale Not-on-disk line, then `bun nv rules --render`, and delete the gap record `--closes` lists for it. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
-- [ ] The `no-not-on-disk-left` check and `bun nv owners --closes runtime-leftovers` pass. `tools/nv/cmd/owners.ts:1`
+- [x] `rule:core-classes/process-spawn`: a child task's context reports the task message, the root keeps its own. `crates/nvs-runtime/src/ctx/held.rs:470`, `crates/nvs-runtime/src/ctx/held.rs:489`
+- [x] A handle used outside its task never names another child, as the standing decision says. `crates/nvs-stdlib/src/process.rs:1240`, `crates/nvs-stdlib/src/process.rs:1266`
+- [x] The two conformance cases the `task-child-case` check names, each run once by name. `tests/conformance/core/process-spawn-a-child-a-child-task-leaves-running-is-stopped-when-that-task-ends.nvst:1`, `tests/conformance/core/process-spawn-a-handle-used-outside-its-task-names-no-other-child.nvst:1`
+- [x] The test the `task-child-exit-status` check names. `crates/nvs-cli/tests/run_command.rs:48`, `crates/nvs-cli/src/main.rs:2647`
+- [x] The fragment's Not-on-disk paragraph becomes present-tense prose, the cases join `guardedBy`, and `Core\Process::spawn`'s `about.md` gains its sentence. Then `bun nv rules --render`, and delete the gap record `--closes` lists for it. `docs/rules/core-classes/process-spawn.md:35`, `data/rules/core-classes/process-spawn.json:1`, `docs/examples/core/Process/spawn/about.md:1`
+- [x] `rule:security/authority-is-the-enclosing-namespace`: delete the stale Not-on-disk line, then `bun nv rules --render`, and delete the gap record `--closes` lists for it. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
+- [x] The `no-not-on-disk-left` check and `bun nv owners --closes runtime-leftovers` pass. `tools/nv/cmd/owners.ts:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -420,34 +420,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5: the index declares an owned alias as `Owner::Name`
-(`member_names` in `crates/nvs-lsp/src/index.rs`). It records each `Owner::Name` written in a type,
-both the owner and the alias or owned enum (`owned_member`). It records each bare name inside an
-owner's body as that alias first (`FileScope::owned_alias`, `crates/nvs-lsp/src/definition.rs`).
-`class_name_at` now counts an enum as an owner. `rename.rs` has a `What::Owned` subject and an
-`owned` function, built for owned enums by the same code, and `AN_OWNED_ALIAS` is gone. Both
-`alias-rename-lsp` and `alias-rename-code` pass. The `alias-rename-lsp` check lacked `lsp-test`
-after `suite` and ran nothing; it is fixed. The CLI reference, help, rule, `guardedBy` and website
-text say so, and gap `nvs-lsp/rename-a-class-scoped-alias` is deleted. The sweep's
-`env-secret-proofs` red is stale: no check of that name exists in the tree, and it comes from
-looper's service, which this session cannot edit.
+Stages 1 to 6 are done. Stage 6: a `Core\Task` child task's context (`task_child`, set in
+`Ctx::child`) reports "…when the task that started it ended…" from `end_abandoned_children`
+(`crates/nvs-runtime/src/ctx/held.rs:495`), and the root keeps its message. A process handle's key
+now comes from the process-wide `NEXT_CHILD_KEY` (`crates/nvs-runtime/src/ctx/held.rs:425`), and each
+table finds a key by binary search. So a handle a child task returns names nothing in the parent's
+table, and a member on it is the `FATAL` from `not_this_tasks` (`crates/nvs-stdlib/src/process.rs:1470`),
+whose message is now plain user text. The checker does not keep a handle inside its task, so the
+runtime check is the guard. Both `task-child-case` cases pass, and
+`a_child_a_task_left_running_is_reported_and_the_run_still_exits_0` passes. The `.nvst` harness cannot
+match standard error on a run that exits 0, so the cargo test checks the record. The two fragment
+markers were already gone, and `owners --closes runtime-leftovers` lists nothing. The fragment,
+`guardedBy` and `about.md` say what is built. The sweep's `env-secret-proofs` red is stale: no check
+or log of that name exists in the tree.
 
 ### Next
 
-Stage 6: `crates/nvs-runtime/src/ctx/held.rs`, `crates/nvs-stdlib/src/process.rs` and the
-`process-spawn` fragment, then the grant marker, as the stage's items say.
+Stage 7, the gate: start `looper verify` with `run_in_background`, end the turn, then fix every
+failure in one pass and run it once more. Then the goal-end gates in AGENTS.md § *In the loop*.
 
-- [ ] The child task's message in its context's report. `crates/nvs-runtime/src/ctx/held.rs:470`
-- [ ] A handle used outside its task names no other child. `crates/nvs-stdlib/src/process.rs:1460`
-- [ ] The two `task-child-case` cases and the `task-child-exit-status` test. `crates/nvs-cli/tests/run_command.rs:48`
-- [ ] The fragment, `guardedBy`, `about.md`, render, the gap. `docs/rules/core-classes/process-spawn.md:35`
-- [ ] The grant-table line, render, the gap, then `no-not-on-disk-left` and `owners --closes`. `docs/rules/security/authority-is-the-enclosing-namespace.md:16`
+- [ ] `looper verify` over the whole goal. `docs/goals/runtime-leftovers.md:406`
+- [ ] Fix every failure in one pass. `crates/nvs-runtime/src/ctx/held.rs:425`
+- [ ] `looper verify` once more, green, then `bun nv verify --doc`, `bun nv owners --closes runtime-leftovers` and `bun nv ci --check`. `tools/nv/cmd/owners.ts:1`
 
-Tests that may go red at the gate: a `.lspt` or `tests/references.rs` case that counts the
-references of a class written as `Owner::Name` in a type. The owner is now a recorded use there,
-so such a list gains a row. An outline or completion case whose class declares an alias may also
-gain a `type` row. Each such change is the new behaviour, so update its expectation.
+Tests that may go red at the gate:
+
+- A `.lspt` or `tests/references.rs` case that counts the references of a class written as
+  `Owner::Name` in a type. The owner is now a recorded use there, so such a list gains a row. An
+  outline or completion case whose class declares an alias may also gain a `type` row. Each is the
+  new behaviour, so update its expectation.
+- A test in `crates/nvs-stdlib/src/process.rs` or elsewhere that assumes a child's key is `1`, or
+  matches the old "was asked of a child this task does not hold" message. Keys are no longer
+  positions, so read the key from the handle's slot.
 
 ### Backlog
 
-- A `Core\IO\File` handle is a key into its task's table too (`crates/nvs-runtime/src/ctx/held.rs:370`). If stage 6 confirms the cross-task hole for a process handle, file a gap record for the file handle under `data/gaps/nvs-runtime/`.
+- The file, socket, reader, connection and started-script tables still key by position, so a handle
+  a child task returns can name the parent's resource. Gap `data/gaps/nvs-runtime/handle-keys-cross-tasks.json`
+  gives it to `release-polish`.
