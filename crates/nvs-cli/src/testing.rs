@@ -144,8 +144,9 @@ pub(crate) fn judge_margin(
                 warn(
                     what,
                     &format!(
-                        "{ratio:.2}x is under the soft bound of {soft}x on a {load} run. The \
-                         hard bound of {hard}x holds, so the test passes."
+                        "{ratio:.2}x{detail} is under the soft bound of {soft}x on a {load} \
+                         run. The hard bound of {hard}x holds, so the test passes. [attempt \
+                         {attempt} of {ATTEMPTS}: yardstick {before:.0} ns then {after:.0} ns]"
                     ),
                 );
             }

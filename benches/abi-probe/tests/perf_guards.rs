@@ -324,8 +324,9 @@ fn judge_where_measurable(
                 warn(
                     what,
                     &format!(
-                        "{figure} is past the soft bound of {soft} on a {load} run. The hard \
-                         bound of {hard} holds, so the test passes."
+                        "{figure}{} is past the soft bound of {soft} on a {load} run. The hard \
+                         bound of {hard} holds, so the test passes. [{marker}]",
+                        reading.detail
                     ),
                 );
             }

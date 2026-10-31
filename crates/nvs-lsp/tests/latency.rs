@@ -233,7 +233,8 @@ fn judge(what: &str, why: &str, mut op: impl FnMut()) {
                     what,
                     &format!(
                         "{figure} is past the soft bound of {SOFT_MS} ms on a {load} run. The \
-                         hard bound of {HARD_MS} ms holds, so the test passes."
+                         hard bound of {HARD_MS} ms holds, so the test passes. [attempt \
+                         {attempt} of {ATTEMPTS}: yardstick {before:.0} ns then {after:.0} ns]"
                     ),
                 );
             }
