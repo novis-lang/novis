@@ -54,7 +54,7 @@ stages:
     context: [extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/src/table.rs, extensions/spreadsheet/src/conditional.rs, extensions/spreadsheet/src/drawing.rs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 13
     title: "an ods carries charts, the component's size is recorded, and no rule owes anything"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/chart.rs, crates/nvs-ext/tests/builtin.rs, tools/nv/cmd/owners.ts]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
@@ -641,12 +641,12 @@ builds.
 **Does:** charts reach ods, the size is re-recorded, and every check of the goal but the gate's
 passes.
 
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts`: each chart as `Object N/content.xml` with `chart:chart`, its frame in the anchor cell, and its manifest entry. `extensions/spreadsheet/src/ods/chart.rs:1`, `extensions/spreadsheet/src/chart.rs:1`
-- [ ] The tests the `ods-writer-charts` check names. `extensions/spreadsheet/tests/ods.rs:1`
-- [ ] The evaluation fragment's Not-shipped line goes, and its roster paragraph says ods writes. The module doc's second-wave sentence goes. Delete the record. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:35`, `extensions/spreadsheet/src/lib.rs:38`
-- [ ] `cargo test --test builtin the_recorded_growth_matches_the_embedded_components` runs once. The size it names goes into the module doc. `extensions/spreadsheet/src/lib.rs:33`, `crates/nvs-ext/tests/builtin.rs:163`
-- [ ] `git grep -n -E "\*\*(Not shipped|Not on disk)\." -- "docs/rules/core-classes/spreadsheet-*.md"` finds nothing. `bun nv rules --render` and `bun nv render --website` are run. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
-- [ ] `bun nv owners --closes spreadsheet-second-wave` passes. `tools/nv/cmd/owners.ts:1`
+- [x] `rule:core-classes/spreadsheet-sheet-end-parts`: each chart as `Object N/content.xml` with `chart:chart`, its frame in the anchor cell, and its manifest entry. `extensions/spreadsheet/src/ods/chart.rs:1`, `extensions/spreadsheet/src/chart.rs:1`
+- [x] The tests the `ods-writer-charts` check names. `extensions/spreadsheet/tests/ods.rs:1`
+- [x] The evaluation fragment's Not-shipped line goes, and its roster paragraph says ods writes. The module doc's second-wave sentence goes. Delete the record. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:35`, `extensions/spreadsheet/src/lib.rs:38`
+- [x] `cargo test --test builtin the_recorded_growth_matches_the_embedded_components` runs once. The size it names goes into the module doc. `extensions/spreadsheet/src/lib.rs:33`, `crates/nvs-ext/tests/builtin.rs:163`
+- [x] `git grep -n -E "\*\*(Not shipped|Not on disk)\." -- "docs/rules/core-classes/spreadsheet-*.md"` finds nothing. `bun nv rules --render` and `bun nv render --website` are run. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
+- [x] `bun nv owners --closes spreadsheet-second-wave` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 14. the goal is verified once, and every failure is fixed
 
@@ -665,45 +665,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 12 is done (`3c0bf91b4`). `cargo test --test ods` in `extensions/spreadsheet` passes all 14
-tests: the seven `ods-writer-core` ones, the six `ods-writer-parts` ones, and
-`ods_number_formats_with_sections_conditions_and_fractions_are_written`, which closes the old
-backlog bullet. `excel`, `template`, `sheet_end` and clippy are green.
+Stage 13 is done (`0bbb196d2`). `every_chart_type_of_the_subset_is_written_to_ods` and
+`a_combination_of_two_types_is_written_to_ods` pass, and clippy is green in
+`extensions/spreadsheet`. The size test ran once and named 1.59 MiB, which is in
+`extensions/spreadsheet/src/lib.rs:33` (was 0.96 MiB). The `git grep` for Not shipped finds nothing,
+`bun nv rules --render` and `bun nv render --website` ran, and `bun nv owners --closes
+spreadsheet-second-wave` passes. The record `spreadsheet-evaluate-and-write-ods` is deleted.
 
-- **Shape.** The ods `Sheet` (`ods/mod.rs`) keeps a `Tail` and a `Groups` and calls the xlsx
-  checks, so both formats throw the same errors. The new `ods/parts.rs` writes the validation
-  conditions, the conditional formats, the page layout and master page, the protection key and
-  `resolve`. `resolve` turns a structured reference into A1 cells at `finish`. `drawing::place` is
-  the one image placement both writers call. Rows are written from breakpoints, with row and column
-  repeat runs, so a validation over `A2:A1048576` costs a few elements.
-- **Choices the subagent made that the design left open.** The protection key is the base64 of the
-  16-bit hash, high byte first, with `table:protection-key-digest-algorithm` set to
-  `http://docs.oasis-open.org/office/ns/table/legacy-hash-excel`. Empty rows past the data get no
-  group level. Where validations overlap, the lowest-numbered one wins. An image's `svg:x` and
-  `svg:y` are its offsets inside the cell.
-- **Never opened in LibreOffice:** these choices, the `calcext` values and the fit scale (Backlog).
-- **Rules.** `spreadsheet-sheet-end-parts.md` has an ods paragraph, and its record's `guardedBy`
-  lists `tests/ods.rs`. The roster fragment's Not-shipped line now names only charts.
-- **Sweep.** Each nightly red on `857b39cad` is fixed by a later commit (`39795c9c4`, `bfce9c2d2`,
-  `9fe05ce88`, `8ce92dda5`). `env-secret-proofs` has no log and no definition.
+- **Shape.** `ods/chart.rs` writes `Object <n>/content.xml` from the same `chart::Planned` the xlsx
+  writer writes. `drawing::place_chart` is the one chart placement both writers call. The ods
+  `Sheet` keeps `HeldChart`s beside its `HeldImage`s, each with a `z` in the order they were added,
+  and `Spot::lead` writes the frames in that order. A range that ends at the column's last row grows
+  to the sheet's last row at `finish`.
+- **Choices the design left open.** A series name is `loext:label-string`, because ODF 1.3 names a
+  series only by a cell. The categories are the x axis's `chart:categories`, from the first
+  non-scatter series that has them, and a scatter series' x values are its `chart:domain`. The frame
+  carries `draw:notify-on-update-of-ranges` with every range the chart reads.
+- **Sweep.** `env-secret-proofs` is stale again: no goal, floor or `looper.toml` in this tree or its
+  history defines it. The nightly reds are all on `857b39cad`, and each is fixed by a later commit:
+  browser by `39795c9c4`, the debug-viewer shots by `bfce9c2d2`, asan's SQLite ODR by `9fe05ce88`,
+  and every Miri timeout, the `nvs-runtime` budget test included, by `8ce92dda5`.
 
 ### Next
 
-Stage 13: charts in ods, then the size and the rule sweep.
-
-1. `Part::Chart` throws at `extensions/spreadsheet/src/ods/mod.rs:428`. Keep the chart on the
-   sheet as an image is kept (`HeldImage`, `ods/mod.rs:159`). Write it as `Object N/content.xml`
-   with `chart:chart` in a new `ods/chart.rs`, from the same `chart::Chart` the xlsx writer reads
-   (`extensions/spreadsheet/src/chart.rs`). Its `draw:frame` with `draw:object` goes in the anchor
-   cell, beside the images, and it gets its manifest entries (`manifest`, `ods/mod.rs:1853`).
-2. The two `ods-writer-charts` tests in `tests/ods.rs`. Use the read-back helpers the stage-12
-   tests use.
-3. Then the stage's other items: the roster fragment's Not-shipped line (it names only charts now),
-   the size test once by name, the `git grep` for Not shipped, `bun nv rules --render`,
-   `bun nv render --website`, and `bun nv owners --closes spreadsheet-second-wave`.
-
-To see one case's output, run `target/release/nvs test <path.nvst>` after `bun nv relink --build`.
-`bun nv suite tests/conformance/ --case <path>` judges the whole suite.
+Stage 14, the gate. Start `looper verify` with `run_in_background` and end the turn to wait. Then
+fix every failure in one pass, grouped by cause, and run it once more. Before `DONE`: `bun nv verify
+--doc`, `bun nv owners --closes spreadsheet-second-wave`, and `bun nv ci --check`, each red fixed.
 
 Tests that may go red at the gate: `crates/nvs-cli/tests/meta.rs` and
 `crates/nvs-stdlib/tests/ext_world.rs` where they list `writerOpen`'s parameter type or the
@@ -722,4 +709,4 @@ a test of `Template::fill`'s help text. From stage 12: a test that expects an od
 
 - The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.
-- Open one ods with every part in LibreOffice: the protection key and its URI, the `calcext` values, the fit-to-page scale, and where an image lands (`svg:x`/`svg:y` may be read as sheet positions, not offsets in the cell). This needs a LibreOffice install. Our reader and calamine read every part back.
+- Open one ods with every part in LibreOffice: the chart objects and their `loext:label-string` names, the protection key and its URI, the `calcext` values, the fit-to-page scale, and where an image lands (`svg:x`/`svg:y` may be read as sheet positions, not offsets in the cell). This needs a LibreOffice install. Our reader and calamine read every part back.
