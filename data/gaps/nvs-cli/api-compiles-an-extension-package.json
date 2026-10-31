@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/package/api.rs",
+  "title": "`nvs pkg api` does not compile an extension package whose source calls its component.",
+  "text": "The API extraction compiles the package with no extension set, so a class under `src` that calls the package's own `.nvsx` class is `E0303`, and `nvs registry build` refuses every such package. Closing it adds the package's one component, checked by `pack::check_component`, to the compile's extension set, so its class and carried source resolve (`rule:packaging/a-package-is-its-digest`).",
+  "goal": "registry-service"
+}
