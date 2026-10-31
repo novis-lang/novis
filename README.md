@@ -119,8 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Regular expressions, services and the debugger.** *Working on it now.* A `[regex]` setting in `nvs.toml` can stop slow patterns from compiling. A service can listen on a port below 1024 through socket activation. The debugger shows your tasks as a tree.
-2. **Spreadsheets and PDF.** `Novis\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.
+1. **Spreadsheets and PDF.** *Working on it now.* `Novis\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.
 <!-- roadmap:end -->
 
 ## Contributing
