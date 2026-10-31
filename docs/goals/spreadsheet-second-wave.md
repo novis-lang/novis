@@ -26,7 +26,7 @@ stages:
     context: [extensions/spreadsheet/src/read/binary.rs, extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/read/mod.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 6
     title: "an xlsb reads its links, notes, names, tables and images"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/binary.rs, extensions/spreadsheet/src/read/extras.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 7
     title: "an xls reads its links, notes, names, images and properties"
@@ -522,11 +522,11 @@ gives a `Formula` with `formulas: true`.
 
 **Does:** every extra reads from an xlsb, through the same shapes as an xlsx.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `BrtHLink` from the sheet part, scanned to its end as `merged` is, with the sheet's relationships. `extensions/spreadsheet/src/read/binary.rs:293`, `extensions/spreadsheet/src/read/extras.rs:194`
-- [ ] Notes from the comments part, and names from `BrtName` with `tokens.rs`. `extensions/spreadsheet/src/read/binary.rs:208`, `extensions/spreadsheet/src/read/extras.rs:229`, `extensions/spreadsheet/src/read/extras.rs:299`
-- [ ] Tables from the table parts, and images from the drawing part. `extensions/spreadsheet/src/read/extras.rs:341`, `extensions/spreadsheet/src/read/extras.rs:379`
-- [ ] The tests the `xlsb-reads-every-extra` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1370`
-- [ ] Each extra's `about.md` names xlsb. The fragment and the module doc lose xlsb. Delete the record. `docs/examples/novis/Spreadsheet-Reader/links/about.md:1`, `extensions/spreadsheet/src/lib.rs:57`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `BrtHLink` from the sheet part, scanned to its end as `merged` is, with the sheet's relationships. `extensions/spreadsheet/src/read/binary.rs:293`, `extensions/spreadsheet/src/read/extras.rs:194`
+- [x] Notes from the comments part, and names from `BrtName` with `tokens.rs`. `extensions/spreadsheet/src/read/binary.rs:208`, `extensions/spreadsheet/src/read/extras.rs:229`, `extensions/spreadsheet/src/read/extras.rs:299`
+- [x] Tables from the table parts, and images from the drawing part. `extensions/spreadsheet/src/read/extras.rs:341`, `extensions/spreadsheet/src/read/extras.rs:379`
+- [x] The tests the `xlsb-reads-every-extra` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1370`
+- [x] Each extra's `about.md` names xlsb. The fragment and the module doc lose xlsb. The record also covers xls, so stage 7 deletes it. `docs/examples/novis/Spreadsheet-Reader/links/about.md:1`, `extensions/spreadsheet/src/lib.rs:57`
 
 ### 7. an xls reads its links, notes, names, images and properties
 
@@ -535,6 +535,7 @@ gives a `Formula` with `formulas: true`.
 - [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `xls::read` keeps `HLINK`, `NOTE` with its `OBJ` and `TXO`, `NAME` and the picture store with each anchor. `extensions/spreadsheet/src/read/xls.rs:231`
 - [ ] `properties` reads the two summary streams from the compound file. `extensions/spreadsheet/src/read/cfb.rs:77`, `extensions/spreadsheet/src/read/extras.rs:475`
 - [ ] The extras answer an xls, and `format_name` goes once no format is refused. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:160`
+- [ ] The decoder gives a reference into another workbook as `[n]Sheet!A1`, as an xlsx file writes it: an xls `SUPBOOK` lists its sheet names, and an xlsb `BrtSupBookSrc` names an external link part whose `BrtSupTabs` lists them. An xlsb name over another workbook then has its reference, and the fragment's sentence on it goes. `extensions/spreadsheet/src/read/tokens.rs:738`, `extensions/spreadsheet/src/read/tokens.rs:877`
 - [ ] The tests the `xls-reads-every-extra` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:1846`
 - [ ] Each extra's `about.md` and `properties`' `about.md` stop naming a format that throws. The fragment's Not-shipped paragraph goes, the extras sentence names `tables` on an xls, and the module doc's extras bullet goes. Delete the records. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`, `extensions/spreadsheet/src/lib.rs:57`
 

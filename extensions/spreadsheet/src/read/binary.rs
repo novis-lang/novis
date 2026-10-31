@@ -28,6 +28,7 @@ use super::sheet::{self, RawCell, RawRow};
 use super::tokens::{self, Biff, Linked, Place};
 use super::zip::{Entry, Part};
 use super::{MOST_COLUMNS, MOST_ROWS, Source, Strings};
+use crate::cells::column_letters;
 use crate::{Error, Visibility};
 
 const ROW_HEADER: u16 = 0;
@@ -251,7 +252,12 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
             // A count, then each `XTI`: its `SupBook` and its first and last sheet.
             EXTERN_SHEET => {
                 let count = u32_at(body, 0)? as usize;
-                for xti in body.get(4..).unwrap_or_default().chunks_exact(12).take(count) {
+                for xti in body
+                    .get(4..)
+                    .unwrap_or_default()
+                    .chunks_exact(12)
+                    .take(count)
+                {
                     let at = |n: usize| [xti[n], xti[n + 1], xti[n + 2], xti[n + 3]];
                     book.book.xti.push((
                         u32::from_le_bytes(at(0)),
@@ -332,20 +338,33 @@ pub fn strings(source: &dyn Source, entry: &Entry) -> Result<Strings, Error> {
 /// Each is a `BrtMergeCell` record: its first and last row and its first and last column, each
 /// from 0.
 pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
+    let mut ranges = Vec::new();
+    scan(source, entry, |kind, body| {
+        if kind == MERGE_CELL {
+            let corner = |at| u32_at(body, at).map(|n| u64::from(n) + 1);
+            ranges.push(Merge::new(
+                (corner(0)?, corner(4)?),
+                (corner(8)?, corner(12)?),
+            )?);
+        }
+        Ok(())
+    })?;
+    Ok(ranges)
+}
+
+/// Calls `each` with every record of the sheet part `entry`, read a block at a time to its end.
+pub fn scan(
+    source: &dyn Source,
+    entry: &Entry,
+    mut each: impl FnMut(u16, &[u8]) -> Result<(), Error>,
+) -> Result<(), Error> {
     let mut part = Part::open(source, entry)?;
     let mut buf = Vec::new();
     let mut at = 0;
-    let mut ranges = Vec::new();
     loop {
         match record(&buf[at..])? {
             Some((kind, body, length)) => {
-                if kind == MERGE_CELL {
-                    let corner = |at| u32_at(body, at).map(|n| u64::from(n) + 1);
-                    ranges.push(Merge::new(
-                        (corner(0)?, corner(4)?),
-                        (corner(8)?, corner(12)?),
-                    )?);
-                }
+                each(kind, body)?;
                 at += length;
             }
             None => {
@@ -353,13 +372,162 @@ pub fn merged(source: &dyn Source, entry: &Entry) -> Result<Vec<Merge>, Error> {
                 at = 0;
                 if !part.fill(source, &mut buf)? {
                     if buf.is_empty() {
-                        return Ok(ranges);
+                        return Ok(());
                     }
                     return Err(broken("a worksheet ends inside a record"));
                 }
             }
         }
     }
+}
+
+/// The cell or range of the `RfX` at `at`: its first and last row and its first and last
+/// column, each from 0. One cell is `A1`, and more are `A1:B2`.
+fn range_at(body: &[u8], at: usize) -> Result<String, Error> {
+    let cell = |row: u32, column: u32| {
+        let mut out = String::new();
+        column_letters(&mut out, column);
+        out.push_str(itoa::Buffer::new().format(u64::from(row) + 1));
+        out
+    };
+    let (first, last) = (u32_at(body, at)?, u32_at(body, at + 4)?);
+    let (left, right) = (u32_at(body, at + 8)?, u32_at(body, at + 12)?);
+    let mut out = cell(first, left);
+    if (first, left) != (last, right) {
+        out.push(':');
+        out.push_str(&cell(last, right));
+    }
+    Ok(out)
+}
+
+/// A string at `at` that is `None` when it is missing or empty, and the bytes it takes.
+fn some_at(body: &[u8], at: usize) -> Result<(Option<String>, usize), Error> {
+    let (text, used) = wide_at(body, at)?;
+    Ok((text.filter(|text| !text.is_empty()), used))
+}
+
+/// A sheet's `BrtHLink`, as [`hyperlink`] reads it.
+pub const HYPERLINK: u16 = 494;
+
+/// One hyperlink of a sheet part: its cell or range, the relationship id of its target, the
+/// place in the workbook it goes to, its tooltip and its text.
+pub struct Hyperlink {
+    pub anchor: String,
+    pub rel: Option<String>,
+    pub location: Option<String>,
+    pub tooltip: Option<String>,
+    pub display: Option<String>,
+}
+
+/// A `BrtHLink` record's body: its `RfX`, and then its relationship id, location, tooltip and
+/// display text.
+pub fn hyperlink(body: &[u8]) -> Result<Hyperlink, Error> {
+    let anchor = range_at(body, 0)?;
+    let (rel, used) = some_at(body, 16)?;
+    let mut at = 16 + used;
+    let (location, used) = some_at(body, at)?;
+    at += used;
+    let (tooltip, used) = some_at(body, at)?;
+    at += used;
+    let (display, _) = some_at(body, at)?;
+    Ok(Hyperlink {
+        anchor,
+        rel,
+        location,
+        tooltip,
+        display,
+    })
+}
+
+const COMMENT_AUTHOR: u16 = 632;
+const BEGIN_COMMENT: u16 = 635;
+const END_COMMENT: u16 = 636;
+const COMMENT_TEXT: u16 = 637;
+
+/// The notes of a comments part, `xl/comments1.bin`: each one's cell, text and author, in order.
+/// A `BrtCommentAuthor` is one name of the authors list, and a `BrtBeginComment` names its
+/// author by index and its cell. Its `BrtCommentText` is a rich string, a byte of flags and then
+/// the text, whose runs are not read.
+pub fn comments(part: &[u8]) -> Result<Vec<(String, String, Option<String>)>, Error> {
+    let mut authors = Vec::new();
+    let mut notes = Vec::new();
+    let mut open: Option<(String, Option<usize>, String)> = None;
+    for item in records(part) {
+        let (kind, body) = item?;
+        match kind {
+            COMMENT_AUTHOR => authors.push(wide_at(body, 0)?.0.unwrap_or_default()),
+            BEGIN_COMMENT => {
+                let by = usize::try_from(u32_at(body, 0)?).ok();
+                let noted = range_at(body, 4)?;
+                let noted = noted.split(':').next().unwrap_or_default().to_owned();
+                open = Some((noted, by, String::new()));
+            }
+            COMMENT_TEXT => {
+                if let Some((_, _, text)) = open.as_mut() {
+                    *text = wide_at(body, 1)?.0.unwrap_or_default();
+                }
+            }
+            END_COMMENT => {
+                if let Some((noted, by, text)) = open.take() {
+                    let author = by
+                        .and_then(|by| authors.get(by).cloned())
+                        .filter(|author: &String| !author.is_empty());
+                    notes.push((noted, text, author));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(notes)
+}
+
+/// A defined name: its name, the index of the sheet it is local to, and its formula's text.
+pub type DefinedName = (String, Option<usize>, Option<String>);
+
+/// The defined names of `xl/workbook.bin`, each its name, the index of the sheet it is local to
+/// and its formula's text. A `BrtName` is its flags, a shortcut key, the sheet's index or
+/// `0xFFFFFFFF` for the workbook, its name and its parsed formula. A formula the decoder cannot
+/// read, such as one over another workbook, has no text.
+pub fn names(part: &[u8], book: &tokens::Book) -> Result<Vec<DefinedName>, Error> {
+    let mut names = Vec::new();
+    for item in records(part) {
+        let (kind, body) = item?;
+        if kind != NAME {
+            continue;
+        }
+        let sheet = u32_at(body, 5)?;
+        let (name, used) = wide_at(body, 9)?;
+        let reference = parsed_at(body, 9 + used).and_then(|(tokens, extra)| {
+            let place = Place {
+                base: (0, 0),
+                shared: true,
+            };
+            tokens::decode(Biff::Twelve, tokens, extra, place, book)
+        });
+        let sheet = (sheet != u32::MAX)
+            .then(|| usize::try_from(sheet).ok())
+            .flatten();
+        names.push((name.unwrap_or_default(), sheet, reference));
+    }
+    Ok(names)
+}
+
+const BEGIN_LIST: u16 = 343;
+
+/// The range and the name of the table part `part`, `xl/tables/table1.bin`, from its
+/// `BrtBeginList`: its `RfX`, twelve numbers of four bytes, and its name and its display name.
+/// The display name is the one a formula uses, and the name is used when it is missing.
+pub fn table(part: &[u8]) -> Result<Option<(String, String)>, Error> {
+    for item in records(part) {
+        let (kind, body) = item?;
+        if kind == BEGIN_LIST {
+            let range = range_at(body, 0)?;
+            let (name, used) = some_at(body, 64)?;
+            let (shown, _) = some_at(body, 64 + used)?;
+            return Ok(Some((range, shown.or(name).unwrap_or_default())));
+        }
+    }
+    Ok(None)
 }
 
 /// A cell record's cell: its column from 1 and its style index, with no value yet.
@@ -574,7 +742,8 @@ impl Cursor {
                     }
                     self.last = number;
                     self.waiting.clear();
-                    self.shared.retain(|shared| u64::from(shared.rows.1) + 1 >= number);
+                    self.shared
+                        .retain(|shared| u64::from(shared.rows.1) + 1 >= number);
                     let hidden = body.get(11).is_some_and(|flags| flags & 0x10 != 0);
                     done = self.row.replace(RawRow {
                         number,

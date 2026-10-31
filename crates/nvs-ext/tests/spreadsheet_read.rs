@@ -1317,6 +1317,17 @@ fn xlsb(data: &[u8], shared: &[&str]) -> Vec<u8> {
 
 /// [`xlsb`] with the records `globals` after the sheets of its workbook part.
 fn xlsb_with(data: &[u8], shared: &[&str], globals: &[u8]) -> Vec<u8> {
+    xlsb_package(data, &[], shared, globals, &[])
+}
+
+/// [`xlsb_with`] with the records `tail` after the sheet data of `Shop`, and the parts `extra`.
+fn xlsb_package(
+    data: &[u8],
+    tail: &[u8],
+    shared: &[&str],
+    globals: &[u8],
+    extra: &[(&str, Vec<u8>)],
+) -> Vec<u8> {
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let package = "http://schemas.openxmlformats.org/package/2006/relationships";
     let mut book = record(153, &[0; 12]);
@@ -1353,8 +1364,9 @@ fn xlsb_with(data: &[u8], shared: &[&str], globals: &[u8]) -> Vec<u8> {
     sheet.extend(record(145, &[]));
     sheet.extend_from_slice(data);
     sheet.extend(record(146, &[]));
+    sheet.extend_from_slice(tail);
     let lists = [record(145, &[]), record(146, &[])].concat();
-    zip(&[
+    let mut parts = vec![
         ("[Content_Types].xml", b"<Types/>".to_vec()),
         (
             "_rels/.rels",
@@ -1369,7 +1381,9 @@ fn xlsb_with(data: &[u8], shared: &[&str], globals: &[u8]) -> Vec<u8> {
         ("xl/sharedStrings.bin", sst),
         ("xl/worksheets/sheet1.bin", sheet),
         ("xl/worksheets/sheet2.bin", lists),
-    ])
+    ];
+    parts.extend(extra.iter().cloned());
+    zip(&parts)
 }
 
 #[test]
@@ -1587,49 +1601,170 @@ fn every_operand_and_operator_token_decodes_to_a1_text() {
     let sum_tokens = [
         &[0x19, 0x40, 0, 1][..],
         &[0x29, 13, 0],
-        &area12((0, 2), (column_bits(0, true, true), column_bits(0, true, true))),
+        &area12(
+            (0, 2),
+            (column_bits(0, true, true), column_bits(0, true, true)),
+        ),
         &[0x19, 0x10, 0, 0],
     ]
     .concat();
     let cases: Vec<(Vec<u8>, Vec<u8>, &str)> = vec![
         (
-            [a1(), ref12(1, 1, (true, false)), ref12(2, 2, (false, true)), vec![0x05, 0x03]].concat(),
+            [
+                a1(),
+                ref12(1, 1, (true, false)),
+                ref12(2, 2, (false, true)),
+                vec![0x05, 0x03],
+            ]
+            .concat(),
             vec![],
             "A1+B$2*$C3",
         ),
-        ([a1(), vec![0x13, 0x14], int(2), vec![0x07]].concat(), vec![], "-A1%^2"),
-        ([int(1), int(2), vec![0x04, 0x15], int(3), vec![0x06]].concat(), vec![], "(1-2)/3"),
-        ([text("a\"b"), vec![0x1D, 1, 0x08]].concat(), vec![], "\"a\"\"b\"&TRUE"),
-        ([int(1), int(2), vec![0x09], int(3), int(4), vec![0x0A, 0x0B]].concat(), vec![], "1<2=3<=4"),
-        ([int(1), int(2), vec![0x0C], int(3), vec![0x0E], int(4), vec![0x0D]].concat(), vec![], "1>=2<>3>4"),
         (
-            [a1(), ref12(0, 2, (true, true)), vec![0x10, 0x15], ref12(0, 1, (true, true)), ref12(1, 1, (true, true)), vec![0x11, 0x0F]].concat(),
+            [a1(), vec![0x13, 0x14], int(2), vec![0x07]].concat(),
+            vec![],
+            "-A1%^2",
+        ),
+        (
+            [int(1), int(2), vec![0x04, 0x15], int(3), vec![0x06]].concat(),
+            vec![],
+            "(1-2)/3",
+        ),
+        (
+            [text("a\"b"), vec![0x1D, 1, 0x08]].concat(),
+            vec![],
+            "\"a\"\"b\"&TRUE",
+        ),
+        (
+            [int(1), int(2), vec![0x09], int(3), int(4), vec![0x0A, 0x0B]].concat(),
+            vec![],
+            "1<2=3<=4",
+        ),
+        (
+            [
+                int(1),
+                int(2),
+                vec![0x0C],
+                int(3),
+                vec![0x0E],
+                int(4),
+                vec![0x0D],
+            ]
+            .concat(),
+            vec![],
+            "1>=2<>3>4",
+        ),
+        (
+            [
+                a1(),
+                ref12(0, 2, (true, true)),
+                vec![0x10, 0x15],
+                ref12(0, 1, (true, true)),
+                ref12(1, 1, (true, true)),
+                vec![0x11, 0x0F],
+            ]
+            .concat(),
             vec![],
             "(A1,C1) B1:B2",
         ),
-        (area12((0, 1), (column_bits(0, false, false), column_bits(1, true, true))), vec![], "$A$1:B2"),
-        (area12((0, 1_048_575), (column_bits(0, true, true), column_bits(0, true, true))), vec![], "A:A"),
-        (area12((0, 1), (column_bits(0, true, false), column_bits(16_383, true, false))), vec![], "$1:$2"),
-        ([&[0x3A, 0, 0][..], &0u32.to_le_bytes(), &column_bits(0, true, true).to_le_bytes()].concat(), vec![], "Lists!A1"),
         (
-            [&[0x3B, 1, 0][..], &1u32.to_le_bytes(), &2u32.to_le_bytes(), &column_bits(1, false, false).to_le_bytes(), &column_bits(2, true, true).to_le_bytes()].concat(),
+            area12(
+                (0, 1),
+                (column_bits(0, false, false), column_bits(1, true, true)),
+            ),
+            vec![],
+            "$A$1:B2",
+        ),
+        (
+            area12(
+                (0, 1_048_575),
+                (column_bits(0, true, true), column_bits(0, true, true)),
+            ),
+            vec![],
+            "A:A",
+        ),
+        (
+            area12(
+                (0, 1),
+                (
+                    column_bits(0, true, false),
+                    column_bits(16_383, true, false),
+                ),
+            ),
+            vec![],
+            "$1:$2",
+        ),
+        (
+            [
+                &[0x3A, 0, 0][..],
+                &0u32.to_le_bytes(),
+                &column_bits(0, true, true).to_le_bytes(),
+            ]
+            .concat(),
+            vec![],
+            "Lists!A1",
+        ),
+        (
+            [
+                &[0x3B, 1, 0][..],
+                &1u32.to_le_bytes(),
+                &2u32.to_le_bytes(),
+                &column_bits(1, false, false).to_le_bytes(),
+                &column_bits(2, true, true).to_le_bytes(),
+            ]
+            .concat(),
             vec![],
             "Shop:Lists!$B$2:C3",
         ),
-        ([&[0x3A, 2, 0][..], &0u32.to_le_bytes(), &column_bits(0, true, true).to_le_bytes()].concat(), vec![], "#REF!A1"),
+        (
+            [
+                &[0x3A, 2, 0][..],
+                &0u32.to_le_bytes(),
+                &column_bits(0, true, true).to_le_bytes(),
+            ]
+            .concat(),
+            vec![],
+            "#REF!A1",
+        ),
         ([0x2A, 0, 0, 0, 0, 0, 0].to_vec(), vec![], "#REF!"),
-        ([&[0x1C, 0x07, 0x1F][..], &1.5f64.to_le_bytes(), &[0x03]].concat(), vec![], "#DIV/0!+1.5"),
-        ([a1(), vec![0x16], int(2), vec![0x22, 3, 1, 0]].concat(), vec![], "IF(A1,,2)"),
-        ([vec![0x60], vec![0; 14]].concat(), array_extra, "{1,2;\"x\",TRUE}"),
-        ([&[0x23][..], &1u32.to_le_bytes(), &int(2), &[0x05]].concat(), vec![], "Rate*2"),
+        (
+            [&[0x1C, 0x07, 0x1F][..], &1.5f64.to_le_bytes(), &[0x03]].concat(),
+            vec![],
+            "#DIV/0!+1.5",
+        ),
+        (
+            [a1(), vec![0x16], int(2), vec![0x22, 3, 1, 0]].concat(),
+            vec![],
+            "IF(A1,,2)",
+        ),
+        (
+            [vec![0x60], vec![0; 14]].concat(),
+            array_extra,
+            "{1,2;\"x\",TRUE}",
+        ),
+        (
+            [&[0x23][..], &1u32.to_le_bytes(), &int(2), &[0x05]].concat(),
+            vec![],
+            "Rate*2",
+        ),
         (sum_tokens, vec![], "SUM(A1:A3)"),
     ];
     let mut data = binary_row(1, false);
     for (n, (tokens, extra, _)) in cases.iter().enumerate() {
-        data.extend(binary_formula(u32::try_from(n).unwrap(), 0.0, tokens, extra));
+        data.extend(binary_formula(
+            u32::try_from(n).unwrap(),
+            0.0,
+            tokens,
+            extra,
+        ));
     }
     // A structured reference is a token the decoder does not read, so its cell gives no formula.
-    data.extend(binary_formula(30, 0.0, &[0x18, 0x19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], &[]));
+    data.extend(binary_formula(
+        30,
+        0.0,
+        &[0x18, 0x19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        &[],
+    ));
     let read = Read::open(xlsb_with(&data, &[], &xlsb_globals()));
     let mut expected: Vec<Value> = cases.iter().map(|(.., text)| string(text)).collect();
     expected.push(Value::Null);
@@ -1641,14 +1776,26 @@ fn every_operand_and_operator_token_decodes_to_a1_text() {
 fn a_function_token_decodes_by_excels_function_table() {
     let func = |index: u16| [&[0x21][..], &index.to_le_bytes()].concat();
     let cases: Vec<(Vec<u8>, Value)> = vec![
-        ([&[0x1F][..], &1.5f64.to_le_bytes(), &int(0), &func(27)].concat(), string("ROUND(1.5,0)")),
         (
-            [ref12(0, 0, (true, true)), ref12(0, 1, (true, true)), ref12(0, 2, (true, true)), vec![0x22, 3, 4, 0]].concat(),
+            [&[0x1F][..], &1.5f64.to_le_bytes(), &int(0), &func(27)].concat(),
+            string("ROUND(1.5,0)"),
+        ),
+        (
+            [
+                ref12(0, 0, (true, true)),
+                ref12(0, 1, (true, true)),
+                ref12(0, 2, (true, true)),
+                vec![0x22, 3, 4, 0],
+            ]
+            .concat(),
             string("SUM(A1,B1,C1)"),
         ),
         (func(19), string("PI()")),
         // The value class of a token, 0x41 for `ptgFunc`, reads as its reference class does.
-        ([ref12(0, 0, (true, true)), int(0), vec![0x41, 0xE0, 0x01]].concat(), string("IFERROR(A1,0)")),
+        (
+            [ref12(0, 0, (true, true)), int(0), vec![0x41, 0xE0, 0x01]].concat(),
+            string("IFERROR(A1,0)"),
+        ),
         // `SUM` takes a varying number of arguments, so a `ptgFunc` of it is not valid.
         ([ref12(0, 0, (true, true)), func(4)].concat(), Value::Null),
         // An index past Excel's table names no function.
@@ -1686,7 +1833,9 @@ fn xls_globals() -> Vec<u8> {
     name.extend(b"_xlfn.XLOOKUP");
     name.extend([2, 0, 0x1C, 0x17]);
     out.extend(biff(0x0023, &name));
-    let xti = [2u16, 0, 1, 1, 1, 0xFFFE, 0xFFFE].map(u16::to_le_bytes).concat();
+    let xti = [2u16, 0, 1, 1, 1, 0xFFFE, 0xFFFE]
+        .map(u16::to_le_bytes)
+        .concat();
     out.extend(biff(0x0017, &xti));
     let mut rate = vec![0, 0, 0, 4];
     rate.extend([0; 10]);
@@ -1759,7 +1908,12 @@ fn an_xls_and_an_xlsb_formula_read_as_a_formula() {
     let exp = [&[0x01][..], &1u32.to_le_bytes()].concat();
     data.extend(binary_formula(1, 2.0, &exp, &[]));
     let mut shared = [1u32, 2, 1, 1].map(u32::to_le_bytes).concat();
-    let relative = [&[0x2C][..], &u32::MAX.to_le_bytes(), &0xFFFFu16.to_le_bytes()].concat();
+    let relative = [
+        &[0x2C][..],
+        &u32::MAX.to_le_bytes(),
+        &0xFFFFu16.to_le_bytes(),
+    ]
+    .concat();
     shared.extend(u32::try_from(relative.len()).unwrap().to_le_bytes());
     shared.extend(&relative);
     shared.extend(0u32.to_le_bytes());
@@ -2794,6 +2948,271 @@ fn an_external_link_or_connection_reads_as_data_and_is_never_followed() {
         field(entries(&names)[0], "reference"),
         &string("[1]Prices!$A$1")
     );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An xlsb string that may be missing: [`wide`], or the count `0xFFFFFFFF` for none.
+fn nullable(text: Option<&str>) -> Vec<u8> {
+    text.map_or_else(|| u32::MAX.to_le_bytes().to_vec(), wide)
+}
+
+/// An xlsb `RfX`: the first and last row and the first and last column, each from 0.
+fn rfx(rows: (u32, u32), columns: (u32, u32)) -> Vec<u8> {
+    [rows.0, rows.1, columns.0, columns.1]
+        .iter()
+        .flat_map(|n| n.to_le_bytes())
+        .collect()
+}
+
+/// A `BrtHLink` over `range` with a relationship id, a location, a tooltip and a display text.
+fn binary_link(
+    range: &[u8],
+    rel: Option<&str>,
+    location: &str,
+    tooltip: &str,
+    display: &str,
+) -> Vec<u8> {
+    let mut body = range.to_vec();
+    body.extend(nullable(rel));
+    for text in [location, tooltip, display] {
+        body.extend(wide(text));
+    }
+    record(494, &body)
+}
+
+/// A `BrtName` of `name`, local to the sheet `sheet` or to the workbook, whose formula is
+/// `tokens`.
+fn binary_name(name: &str, sheet: Option<u32>, tokens: &[u8]) -> Vec<u8> {
+    let mut body = vec![0; 5];
+    body.extend(sheet.unwrap_or(u32::MAX).to_le_bytes());
+    body.extend(wide(name));
+    body.extend(u32::try_from(tokens.len()).unwrap().to_le_bytes());
+    body.extend_from_slice(tokens);
+    body.extend(0u32.to_le_bytes());
+    body.extend(nullable(None));
+    record(39, &body)
+}
+
+/// An xlsb `ptgArea3d` through the `XTI` `xti`, with every row and column absolute.
+fn area3d(xti: u16, rows: (u32, u32), columns: (u16, u16)) -> Vec<u8> {
+    let mut out = vec![0x3B];
+    out.extend(xti.to_le_bytes());
+    out.extend_from_slice(&area12(rows, columns)[1..]);
+    out
+}
+
+/// The `SupBook` of this workbook, then one of another workbook when `other` is set, and the
+/// `XTI`s `xti`: each a `SupBook` and a first and last sheet.
+fn binary_externals(other: bool, xti: &[(u32, i32, i32)]) -> Vec<u8> {
+    let mut out = record(357, &[]);
+    if other {
+        out.extend(record(355, &nullable(Some("rId9"))));
+    }
+    let mut list = u32::try_from(xti.len()).unwrap().to_le_bytes().to_vec();
+    for (linked, first, last) in xti {
+        list.extend(linked.to_le_bytes());
+        list.extend(first.to_le_bytes());
+        list.extend(last.to_le_bytes());
+    }
+    out.extend(record(362, &list));
+    out
+}
+
+#[test]
+fn xlsb_links_notes_names_tables_and_images_are_read() {
+    let tail = [
+        binary_link(
+            &rfx((0, 0), (0, 0)),
+            Some("rIdL"),
+            "",
+            "Open the shop",
+            "Shop site",
+        ),
+        binary_link(&rfx((0, 1), (1, 1)), None, "'Lists'!A1", "", ""),
+    ]
+    .concat();
+    let mut globals = binary_externals(false, &[(0, 0, 0), (0, 1, 1)]);
+    globals.extend(binary_name("Prices", None, &area3d(0, (0, 2), (0, 1))));
+    globals.extend(binary_name(
+        "_xlnm.Print_Area",
+        Some(1),
+        &area3d(1, (0, 8), (0, 2)),
+    ));
+    let mut comments = record(628, &[]);
+    comments.extend(record(630, &[]));
+    for author in ["Ann", "Bo & Co"] {
+        comments.extend(record(632, &wide(author)));
+    }
+    comments.extend(record(631, &[]));
+    comments.extend(record(633, &[]));
+    for (author, row, column, text) in [(1u32, 0, 0, "Bo: check the price"), (0, 1, 1, "Plain")] {
+        let mut begin = author.to_le_bytes().to_vec();
+        begin.extend(rfx((row, row), (column, column)));
+        begin.extend([0; 16]);
+        comments.extend(record(635, &begin));
+        comments.extend(record(637, &[&[0u8][..], &wide(text)].concat()));
+        comments.extend(record(636, &[]));
+    }
+    comments.extend(record(634, &[]));
+    comments.extend(record(629, &[]));
+    let mut list = rfx((0, 2), (0, 1));
+    list.extend([0; 48]);
+    list.extend(nullable(Some("Table1")));
+    list.extend(nullable(Some("Prices")));
+    list.extend(nullable(None));
+    let table = [record(343, &list), record(344, &[])].concat();
+    let read = Read::open(xlsb_package(
+        &binary_row(1, false),
+        &tail,
+        &[],
+        &globals,
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.bin.rels",
+                rels(&[
+                    ("rIdL", "hyperlink", "https://example.com/shop", true),
+                    ("rIdC", "comments", "../comments1.bin", false),
+                    ("rIdT", "table", "../tables/table1.bin", false),
+                    ("rIdD", "drawing", "../drawings/drawing1.xml", false),
+                ]),
+            ),
+            ("xl/comments1.bin", comments),
+            ("xl/tables/table1.bin", table),
+            (
+                "xl/drawings/drawing1.xml",
+                drawing(&[("twoCellAnchor", Some((2, 4)), r#"r:embed="rIdP""#)]),
+            ),
+            (
+                "xl/drawings/_rels/drawing1.xml.rels",
+                rels(&[("rIdP", "image", "../media/image1.png", false)]),
+            ),
+            ("xl/media/image1.png", PNG.to_vec()),
+        ],
+    ));
+
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(links.len(), 2);
+    assert_eq!(field(links[0], "anchor"), &string("A1"));
+    assert_eq!(
+        field(links[0], "target"),
+        &string("https://example.com/shop")
+    );
+    assert_eq!(field(links[0], "text"), &string("Shop site"));
+    assert_eq!(field(links[0], "tooltip"), &string("Open the shop"));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+    // A link to a place in the workbook is its location, and an empty text is no text.
+    assert_eq!(field(links[1], "anchor"), &string("B1:B2"));
+    assert_eq!(field(links[1], "target"), &string("'Lists'!A1"));
+    assert_eq!(field(links[1], "text"), &Value::Null);
+    assert_eq!(field(links[1], "external"), &Value::Bool(false));
+
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    let notes = entries(&notes);
+    assert_eq!(notes.len(), 2);
+    assert_eq!(field(notes[0], "noted"), &string("A1"));
+    assert_eq!(field(notes[0], "note"), &string("Bo: check the price"));
+    assert_eq!(field(notes[0], "author"), &string("Bo & Co"));
+    assert_eq!(field(notes[1], "noted"), &string("B2"));
+    assert_eq!(field(notes[1], "author"), &string("Ann"));
+
+    // A name's formula is decoded to the text an xlsx file writes.
+    let names = read.call("readerNames", vec![]);
+    let names = entries(&names);
+    assert_eq!(names.len(), 2);
+    assert_eq!(field(names[0], "name"), &string("Prices"));
+    assert_eq!(field(names[0], "reference"), &string("Shop!$A$1:$B$3"));
+    assert_eq!(field(names[0], "sheet"), &Value::Null);
+    assert_eq!(field(names[1], "name"), &string("_xlnm.Print_Area"));
+    assert_eq!(field(names[1], "reference"), &string("Lists!$A$1:$C$9"));
+    assert_eq!(field(names[1], "sheet"), &string("Lists"));
+
+    let tables = read.call("readerTables", vec![string("Shop")]);
+    let tables = entries(&tables);
+    assert_eq!(tables.len(), 1);
+    assert_eq!(field(tables[0], "table"), &string("A1:B3"));
+    assert_eq!(field(tables[0], "name"), &string("Prices"));
+    assert_eq!(field(tables[0], "sheet"), &string("Shop"));
+
+    // The drawing of an xlsb is XML, as an xlsx's is.
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 1);
+    assert_eq!(field(images[0], "at"), &string("C5"));
+    assert_eq!(field(images[0], "image"), &Value::Bytes(PNG.to_vec()));
+    assert_eq!(field(images[0], "format"), &string("png"));
+
+    for method in ["readerLinks", "readerNotes", "readerTables", "readerImages"] {
+        assert_eq!(
+            read.call(method, vec![string("Lists")]),
+            strings(&[]),
+            "{method}"
+        );
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_xlsb_external_link_reads_as_data() {
+    // Every target names a file that exists on this machine. Following one would put its bytes
+    // in the result.
+    let manifest = nvs_repo::path("Cargo.toml");
+    let file = format!(
+        "file:///{}",
+        manifest.display().to_string().replace('\\', "/")
+    );
+    let file = file.as_str();
+    let tail = binary_link(&rfx((0, 0), (0, 0)), Some("rIdL"), "", "", "");
+    let mut globals = binary_externals(true, &[(0, 0, 0), (1, 0, 0)]);
+    let mut remote = vec![0x3A];
+    remote.extend(1u16.to_le_bytes());
+    remote.extend(0u32.to_le_bytes());
+    remote.extend(0u16.to_le_bytes());
+    globals.extend(binary_name("Remote", None, &remote));
+    let read = Read::open(xlsb_package(
+        &binary_row(1, false),
+        &tail,
+        &[],
+        &globals,
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.bin.rels",
+                rels(&[
+                    ("rIdL", "hyperlink", file, true),
+                    ("rIdD", "drawing", "../drawings/drawing1.xml", false),
+                ]),
+            ),
+            (
+                "xl/drawings/drawing1.xml",
+                drawing(&[("oneCellAnchor", Some((0, 0)), r#"r:link="rIdP""#)]),
+            ),
+            (
+                "xl/drawings/_rels/drawing1.xml.rels",
+                rels(&[("rIdP", "image", file, true)]),
+            ),
+        ],
+    ));
+
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(field(links[0], "target"), &string(file));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 1);
+    assert_eq!(field(images[0], "image"), &Value::Bytes(Vec::new()));
+    assert_eq!(field(images[0], "link"), &string(file));
+
+    // A name over another workbook is listed, and nothing of that workbook is read.
+    let names = read.call("readerNames", vec![]);
+    let names = entries(&names);
+    assert_eq!(names.len(), 1);
+    assert_eq!(field(names[0], "name"), &string("Remote"));
+    let Value::String(reference) = field(names[0], "reference") else {
+        panic!("a reference is text");
+    };
+    assert!(!reference.contains("Cargo"), "{reference}");
     block_on(read.request.end()).expect("the request ends");
 }
 

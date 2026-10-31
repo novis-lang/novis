@@ -15,14 +15,21 @@
 //! `link` with no bytes, and a defined name over another workbook is its reference's text. A data
 //! connection or an external-workbook part is never read.
 //!
-//! **Formats.** The sheet extras and the names are read from an xlsx, xlsm or ods, and the
-//! properties from any zip package. Asking an xlsb or xls file for one throws naming the format,
-//! so an empty list always means the file has none.
+//! **xlsb.** The sheet part and the parts it names are records ([`super::binary`]): a hyperlink is
+//! a `BrtHLink` in the sheet part, a note is in a comments part of records, and a table is the
+//! `BrtBeginList` of its part. A defined name is a `BrtName` of the workbook part, its formula
+//! decoded by [`super::tokens`]. A name the decoder cannot read, such as one over another
+//! workbook, is listed with an empty reference. The relationships and the drawing are XML, as in
+//! an xlsx.
+//!
+//! **Formats.** The sheet extras and the names are read from an xlsx, xlsm, xlsb or ods, and the
+//! properties from any zip package. Asking an xls file for one throws naming the format, so an
+//! empty list always means the file has none.
 //!
 //! What it spends, per call: the part it reads whole, or one block of a sheet's part and the
 //! inflater's window, and the list it returns. An image's bytes are held once, in the list.
 
-use super::{Reader, Source, civil, days_from_civil, letters, relationships, sheet, xml};
+use super::{Reader, Source, binary, civil, days_from_civil, letters, relationships, sheet, xml};
 use crate::{Clock, Error, Properties, TimeOfDay};
 use xml::Token;
 
@@ -146,12 +153,13 @@ fn instant(text: &str) -> Option<Clock> {
 }
 
 impl Reader {
-    /// The workbook part of an xlsx or xlsm, or an error naming `what` for any other format.
-    fn xml_workbook(&self, what: &str) -> Result<&str, Error> {
+    /// The workbook part of an xlsx, xlsm or xlsb, or an error naming `what` for any other
+    /// format.
+    fn package_workbook(&self, what: &str) -> Result<&str, Error> {
         match &self.workbook {
-            Some(part) if !self.binary => Ok(part),
-            _ => Err(Error::Runtime(format!(
-                "`{what}` reads xlsx, xlsm and ods files. This version of Novis does not read it from {}.",
+            Some(part) => Ok(part),
+            None => Err(Error::Runtime(format!(
+                "`{what}` reads xlsx, xlsm, xlsb and ods files. This version of Novis does not read it from {}.",
                 self.format_name()
             ))),
         }
@@ -177,7 +185,7 @@ impl Reader {
         }
     }
 
-    /// The relationships of the sheet `name` of an xlsx or xlsm. A sheet with no part gives
+    /// The relationships of the sheet `name` of an xlsx, xlsm or xlsb. A sheet with no part gives
     /// `None`.
     fn sheet_rels(
         &self,
@@ -185,7 +193,7 @@ impl Reader {
         name: &str,
         what: &str,
     ) -> Result<Option<Vec<(String, String, String, bool)>>, Error> {
-        self.xml_workbook(what)?;
+        self.package_workbook(what)?;
         match &self.listed(name)?.part {
             Some(part) => relationships(source, &self.directory, part).map(Some),
             None => Ok(None),
@@ -210,21 +218,45 @@ impl Reader {
         };
         let entry = self.part(self.listed(name)?)?;
         let mut links = Vec::new();
+        let target = |rel: Option<&str>, location: Option<String>| {
+            let rel = rel.and_then(|id| rels.iter().find(|(rid, _, _, _)| rid == id));
+            match (rel, location) {
+                (Some((_, _, target, external)), Some(location)) => {
+                    Some((format!("{target}#{location}"), *external))
+                }
+                (Some((_, _, target, external)), None) => Some((target.clone(), *external)),
+                (None, Some(location)) => Some((location, false)),
+                (None, None) => None,
+            }
+        };
+        if self.binary {
+            binary::scan(source, entry, |kind, body| {
+                if kind != binary::HYPERLINK {
+                    return Ok(());
+                }
+                let link = binary::hyperlink(body)?;
+                if let Some((target, external)) = target(link.rel.as_deref(), link.location) {
+                    links.push(Link {
+                        anchor: link.anchor,
+                        target,
+                        text: link.display,
+                        tooltip: link.tooltip,
+                        external,
+                    });
+                }
+                Ok(())
+            })?;
+            return Ok(links);
+        }
         sheet::scan(source, entry, |tag, attrs| {
             if tag != b"hyperlink" {
                 return Ok(());
             }
             let anchor = xml::attr_text(attrs, b"ref")?.unwrap_or_default();
             let location = xml::attr_text(attrs, b"location")?;
-            let rel = xml::attr_text(attrs, b"id")?
-                .and_then(|id| rels.iter().find(|(rid, _, _, _)| *rid == id));
-            let (target, external) = match (rel, location) {
-                (Some((_, _, target, external)), Some(location)) => {
-                    (format!("{target}#{location}"), *external)
-                }
-                (Some((_, _, target, external)), None) => (target.clone(), *external),
-                (None, Some(location)) => (location, false),
-                (None, None) => return Ok(()),
+            let rel = xml::attr_text(attrs, b"id")?;
+            let Some((target, external)) = target(rel.as_deref(), location) else {
+                return Ok(());
             };
             links.push(Link {
                 anchor,
@@ -255,6 +287,16 @@ impl Reader {
         else {
             return Ok(Vec::new());
         };
+        if self.binary {
+            return Ok(binary::comments(&bytes)?
+                .into_iter()
+                .map(|(noted, note, author)| Note {
+                    noted,
+                    note,
+                    author,
+                })
+                .collect());
+        }
         let mut authors = Vec::new();
         let mut notes = Vec::new();
         let mut author: Option<String> = None;
@@ -316,10 +358,22 @@ impl Reader {
         if let Some(extras) = &self.ods {
             return Ok(extras.names.clone());
         }
-        let part = self.xml_workbook("names")?;
+        let part = self.package_workbook("names")?;
         let Some(bytes) = self.whole_part(source, part)? else {
             return Ok(Vec::new());
         };
+        if self.binary {
+            return Ok(binary::names(&bytes, &self.book)?
+                .into_iter()
+                .map(|(name, sheet, reference)| Name {
+                    name,
+                    reference: reference.unwrap_or_default(),
+                    sheet: sheet
+                        .and_then(|id| self.sheets.get(id))
+                        .map(|listed| listed.name.clone()),
+                })
+                .collect());
+        }
         let mut names = Vec::new();
         let mut open: Option<Name> = None;
         let mut at = 0;
@@ -377,6 +431,16 @@ impl Reader {
             let Some(bytes) = self.whole_part(source, target)? else {
                 continue;
             };
+            if self.binary {
+                if let Some((table, shown)) = binary::table(&bytes)? {
+                    tables.push(Table {
+                        table,
+                        name: shown,
+                        sheet: name.to_owned(),
+                    });
+                }
+                continue;
+            }
             let mut at = 0;
             while let Some((token, size)) = xml::next(&bytes[at..])? {
                 at += size;

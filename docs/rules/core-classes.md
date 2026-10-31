@@ -5461,8 +5461,14 @@ and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Rea
 `extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
 ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 
-**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb or xls file, and
-`properties` from an xls file: each throws naming the format
+**The extras of an xlsb** are read from its records: a hyperlink is a `BrtHLink` of the sheet part,
+a note is in a comments part of records, a table is the `BrtBeginList` of its part, and a defined
+name is a `BrtName` of the workbook part, whose formula the token decoder turns into its text. The
+drawing and the relationships are XML, as in an xlsx (`extensions/spreadsheet/src/read/extras.rs`).
+
+**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xls file, and
+`properties` from an xls file: each throws naming the format. An xlsb name over another workbook
+is listed with an empty reference
 (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
