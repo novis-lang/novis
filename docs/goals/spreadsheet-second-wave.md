@@ -38,7 +38,7 @@ stages:
     context: [extensions/spreadsheet/src/template/mod.rs, extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/template/sheet.rs, extensions/spreadsheet/nvs/Template.nvs, docs/rules/core-classes/spreadsheet-template-fill.md]
   - id: 9
     title: "the evaluator parses formula text and computes a workbook in dependency order"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/read/mod.rs, docs/rules/core-classes/spreadsheet-value-types.md]
   - id: 10
     title: "the function set, and Reader::evaluate"
@@ -437,6 +437,27 @@ Not-shipped sentence, and adds its tests to the record's `guardedBy`. The sessio
 `bun nv rules --render`, and `bun nv render --website` where a page changed. The website's enum list
 is `website/src/content/docs/syntax/values/enums.mdx:3`.
 
+**The evaluator's own bounds**, decided in stage 9 (`extensions/spreadsheet/src/eval/`):
+- Formula text the parser cannot read is listed as `token`, with the formula, as an undecoded
+  token is. So is text past the stack bounds: parentheses and calls more than 64 deep (Excel's own
+  limit), a tree more than 512 nodes deep, or more than 4,096 operators and calls.
+- A result of more than one cell, and a range used as one value (`=A1:A3*2`), is a spill or an
+  array formula, and is listed as `reference` with the range. `ROW` and `COLUMN` of a reference
+  more than one row or column wide are listed as `function`. A call with an argument count Excel
+  does not accept is listed as `function`.
+- Text converts to a number when it is a number, a percentage, an ISO date or a clock time. Other
+  text is `#VALUE!`. A date in a locale's own order (`1/15/2024`) is other text, because the
+  result would depend on the machine. The fragment states this bound in stage 10.
+- An unknown name is `#NAME?`, as Excel gives. A name chain more than 64 deep is listed as
+  `circular`. A sheet-qualified name (`Summary!Rate`) reads only that sheet's names.
+- A cell that reads a cell not computed reads its stored value, and is computed.
+- `ROW`, `COLUMN`, `ROWS` and `COLUMNS` read no cells, so a reference in them is not a dependency
+  and `=ROWS(A1:A9)` in `A1` is not circular.
+- `IF` evaluates only the branch it takes, so a function outside the set in the other branch is
+  not listed.
+Home: the module docs of `eval/mod.rs`, `eval/parse.rs` and `eval/value.rs` now, and the fragment
+from stage 10.
+
 **Trade-offs, as a whole.** Security: the new readers parse hostile bytes in the sandbox, the
 evaluator computes only on request, and nothing is fetched. Latency: none on any existing path. An
 evaluate call and an ods write cost what the rows cost. Memory: a decoded CSV, an evaluated
@@ -560,11 +581,11 @@ gives a `Formula` with `formulas: true`.
 formula cell with the operators and a first few functions (`SUM`, `IF`, and the reference
 functions).
 
-- [ ] `rule:core-classes/spreadsheet-evaluation-and-roster`: the parser covers references, ranges, sheets, names, structured references, constants, operators and calls. Its reference tokens are the shifter's. `extensions/spreadsheet/src/eval/parse.rs:1`, `extensions/spreadsheet/src/template/shift.rs:44`
-- [ ] The grid, the dependency order, the circular check, and the list of what was not computed. `extensions/spreadsheet/src/eval/mod.rs:1`
-- [ ] Values, coercion and errors by Excel's rules, with the `CellError` cases. `extensions/spreadsheet/src/eval/value.rs:1`
-- [ ] The function table with its first entries. `extensions/spreadsheet/src/eval/functions.rs:1`
-- [ ] The tests the `evaluator-core` check names. `extensions/spreadsheet/tests/evaluate.rs:1`
+- [x] `rule:core-classes/spreadsheet-evaluation-and-roster`: the parser covers references, ranges, sheets, names, structured references, constants, operators and calls. Its reference tokens are the shifter's. `extensions/spreadsheet/src/eval/parse.rs:1`, `extensions/spreadsheet/src/template/shift.rs:44`
+- [x] The grid, the dependency order, the circular check, and the list of what was not computed. `extensions/spreadsheet/src/eval/mod.rs:1`
+- [x] Values, coercion and errors by Excel's rules, with the `CellError` cases. `extensions/spreadsheet/src/eval/value.rs:1`
+- [x] The function table with its first entries. `extensions/spreadsheet/src/eval/functions.rs:1`
+- [x] The tests the `evaluator-core` check names. `extensions/spreadsheet/tests/evaluate.rs:1`
 
 ### 10. the function set, and Reader::evaluate
 
@@ -633,49 +654,48 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 8 are done. Stage 9, the evaluator, is next, and nothing of it exists yet.
+Stages 1 to 9 are done. Stage 10, the function set and `Reader::evaluate`, is next.
 
-- **Template values** landed in `ffc9cfe20`, which ends stage 8. `Template::fill`
-  (`extensions/spreadsheet/src/template/mod.rs`) checks before any byte: a list named twice, two
-  values for one path, and every placeholder outside a list's rows on every sheet
-  (`check_values`). `items` throws on a list with no block. The new
-  `extensions/spreadsheet/src/template/formats.rs` reads `styles.xml` at `open`, gives a date,
-  time or duration in an undated style a new `cellXfs` entry through `Moves::formats`, and
-  `finish` writes `styles.xml` after every other part. `Template.nvs`'s `walk` keeps `$seen` and
-  throws naming both keys. The module doc's bullet and the gap record
-  `spreadsheet-unchecked-against-excel` are gone, and the fragment states each rule as a fact.
-- **Checks run once:** `cargo test --test template` in `extensions/spreadsheet`, all 22 green, and
-  the six template conformance cases, two of them new
-  (`spreadsheet-a-template-key-given-twice-throws.nvst`,
-  `spreadsheet-a-template-date-gets-a-date-format.nvst`), all green.
-  `bun nv proofs --id 'Novis\Spreadsheet\Template::fill'` owes nothing.
+- **The evaluator** landed in one commit, which ends stage 9. `extensions/spreadsheet/src/eval/`:
+  `parse.rs` turns A1 text into an `Expr` (the shifter's `sheet`, `row_digits`, `row_only`, `ends`
+  and `ident` are now `pub(crate)`, and its own `column` reads letters in either case), `value.rs`
+  has `Value` and Excel's coercion, `mod.rs` has `Book` (the sparse grid, names, tables), the
+  Tarjan order with an explicit stack, the circular check and `Missed`, and `functions.rs` has the
+  sorted table with `COLUMN`, `COLUMNS`, `IF`, `ROW`, `ROWS` and `SUM`. `CellError::of` is now
+  `pub(crate)`. Each bound decided is under **The evaluator's own bounds** in the standing
+  decisions. No export reaches `eval` yet, and the fragment's On disk paragraph says so.
+- **Checks run once:** `cargo test --test evaluate` in `extensions/spreadsheet`, all 7 of the
+  `evaluator-core` check green. A 20,000-cell chain computes; a 1,000-deep nesting is `token`.
+- The parser first overflowed a debug test thread's stack at 256 levels of nesting (about ten
+  frames a level), so nesting is bounded at 64, apart from the tree's height of 512.
 
-The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new.
-The sweep's `env-secret-proofs` red is stale: nothing in the tree defines it, and its log is gone.
+The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new
+(they stop clippy before it lints `tests/evaluate.rs`). The sweep's `env-secret-proofs` red is
+stale: no check of that name exists (`looper check --name env-secret` finds none), and its log is
+gone.
 
 ### Next
 
-Stage 9, in this order. The evaluator is new code under `extensions/spreadsheet/src/eval/`, and
-no other stage edits it.
+Stage 10, in the order its **Split:** line gives.
 
-1. **The parser**, `src/eval/parse.rs`. A1 formula text into a tree: numbers, strings, booleans,
-   error constants, cells, ranges, whole rows and columns, sheet-qualified references
-   (`'Q1 sales'!A1`), 3D references (listed as `reference`), defined names, structured references
-   (`Table[Column]`, `[@x]`, `[#This Row]` and the other `#` items), unary and binary operators
-   with Excel's precedence (`:`, space, `,` union inside parentheses, `-` negation, `%`, `^`,
-   `*` `/`, `+` `-`, `&`, comparisons), and calls. Reuse the shifter's reference lexing
-   (`extensions/spreadsheet/src/template/shift.rs:44` `cell`, `:76` `row_only`, `:91` `sheet`) by
-   making those functions `pub(crate)`.
-2. **Values**, `src/eval/value.rs`: number, text, boolean, blank, error (`crate::read::CellError`,
-   `extensions/spreadsheet/src/read/mod.rs:93`), and a range. Excel's coercion: text to number in
-   arithmetic, blank as 0 or `""`, booleans as 1 and 0, and errors propagating.
-3. **The grid and order**, `src/eval/mod.rs`: a sparse grid per sheet (`BTreeMap<(row, col)>`),
-   the dependency order by a depth-first walk with an explicit stack (no recursion, so a deep chain
-   cannot overflow the guest's stack), the circular check, and the list of what was not computed
-   as `(cell, kind, text)`.
-4. **The table**, `src/eval/functions.rs`: one static array of `(name, fn)`; this stage adds `SUM`,
-   `IF`, `ROW`, `COLUMN`, `ROWS` and `COLUMNS`. Stage 10 adds the rest.
-5. **The tests** the `evaluator-core` check names, in `extensions/spreadsheet/tests/evaluate.rs`.
+1. **The table's rows.** Add every function of **The function set** to `FUNCTIONS`
+   (`extensions/spreadsheet/src/eval/functions.rs:22`), kept sorted, since `find` searches it by
+   halves. A function gets `fn(&mut Ctx, &[Expr]) -> Result<Operand, Miss>`: `ctx.eval` for a
+   reference, `ctx.scalar` for one value, and `ctx.cells(sheet, rect)` for the non-blank cells of
+   a range. The three batches go to writing subagents in their own files under `src/eval/`
+   (`math.rs`, `text.rs`, `lookup.rs`), and the session adds the table lines. `TEXT` renders
+   through `crate::format::render` (`extensions/spreadsheet/src/format/mod.rs:402`). `TODAY`,
+   `NOW`, `RAND`, `RANDBETWEEN`, `INDIRECT` and `OFFSET` stay out, so they are listed as
+   `function` already.
+2. **Feeding the evaluator.** At `reader-evaluate`, build a `Book` from every sheet: each cell's
+   value by the read table turned into a `Value`, and each formula through `Book::formula`
+   (`extensions/spreadsheet/src/eval/mod.rs:174`) with its text, `None` for an undecoded token.
+   Names from `Reader::names`, and tables from `Reader::tables`, give `Name` and `Table`. Then
+   `Book::evaluate` (`:220`), and keep the `Book` on the reader as the overlay `reader-rows` reads.
+3. **The export and the Novis half**, the WIT, `lib.rs`, `manifest.json` and `Reader.nvs` anchors
+   the stage's items name.
+4. **The tests, the cases and the proofs** its items name, and the fragment rewritten with the
+   evaluator's bounds stated as facts.
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
@@ -688,7 +708,8 @@ list `Reader::open`'s parameters. From stages 4 to 7, no test is expected to go 
 test ran. From stage 8, every test in `extensions/spreadsheet/tests/template.rs` that reads the
 sheet's tail, because `SHEET_TAIL` gained an `extLst`: the whole file has since run green, so
 none is expected. A test that reads `Template::fill`'s help text, which gained a line about an
-`Iterator` and one about two keys for one placeholder.
+`Iterator` and one about two keys for one placeholder. From stage 9, none: the code is new, and
+the shifter's functions changed only their visibility.
 
 ### Backlog
 
