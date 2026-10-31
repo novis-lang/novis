@@ -281,17 +281,21 @@ pub(crate) fn is_component(path: &str) -> bool {
 /// The one `.nvsx` among `entries`, which [`file_set`] counted, loaded by the loader boot uses,
 /// with its class and every source file it carries in the namespace of the package `name`: the
 /// namespace itself or under it (`rule:packaging/a-package-is-its-digest`). A set with no
-/// `.nvsx` passes. Loading compiles the component and runs none of it, and
+/// `.nvsx` passes with `None`. Loading compiles the component and runs none of it, and
 /// `rule:security/extension-manifest-only-tightens`'s `Core\` and `Novis\` refusal is the
-/// loader's own.
+/// loader's own. The manifest returned carries the component's source files, so a compile typed
+/// against it resolves the carried classes as `nvs check` does ([`super::api::extract_counted`]).
 ///
 /// # Errors
 ///
 /// A file that cannot be read or does not load, a class outside the namespace, and a source file
 /// that declares a namespace outside it.
-pub(crate) fn check_component(entries: &[Entry], name: &Name) -> Result<(), Refusal> {
+pub(crate) fn check_component(
+    entries: &[Entry],
+    name: &Name,
+) -> Result<Option<nvs_ext::manifest::Manifest>, Refusal> {
     let Some(entry) = entries.iter().find(|entry| is_component(&entry.path)) else {
-        return Ok(());
+        return Ok(None);
     };
     let bytes = fs::read(&entry.source)
         .map_err(|err| refuse(format!("cannot read `{}`: {err}", entry.path)))?;
@@ -319,7 +323,10 @@ pub(crate) fn check_component(entries: &[Entry], name: &Name) -> Result<(), Refu
             entry.path, file.path
         )));
     }
-    Ok(())
+    Ok(Some(nvs_ext::manifest::Manifest {
+        source: extension.source.files,
+        ..extension.manifest
+    }))
 }
 
 /// Whether the root file `name` is packed, and if it is, whether it is a license file.

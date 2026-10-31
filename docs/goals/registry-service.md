@@ -6,7 +6,7 @@ context: [docs/rules/packaging/the-registry-is-a-novis-program.md, apps/registry
 stages:
   - id: 1
     title: "nvs pkg fetch refuses an archive with an nvs.toml, and an extension package is packed and fetched as one"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/fetch.rs, crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/ext.rs, docs/rules/packaging/a-package-is-its-digest.md, docs/rules/packaging/an-extension-package-carries-two-payloads.md]
   - id: 2
     title: "the registry logs an advisory against a range of versions, and a withhold purges the CDN"
@@ -283,7 +283,7 @@ goal's records.
 - [x] The five extension-package tests the check names, on the fixture component `tests/conformance/ext/fixtures/ledger.nvsx`, run once by name. `crates/nvs-cli/tests/package_client.rs:181`, `crates/nvs-cli/tests/package_fetch.rs:292`
 - [x] A fourth fetch example: a vendored extension package and its `[[extension]]` entry in the example's `nvs.toml`. `bun nv proofs --comments` passes on it. The `pack` feature's `about.md` and reference section name the extension package. `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/04-a-package-with-a-component.nvs:1`, `docs/examples/tools/packages/nvs-pkg-pack/about.md:1`, `docs/reference/tools/35-packages.md:376`
 - [x] `docs/rules/packaging/a-package-is-its-digest.md:74` loses its Not-on-disk section, and the body states the extension package as the standing decision gives it. Delete the gap record. `bun nv proofs --id 'tools:packages/nvs-pkg-pack'` prints `complete.`. `docs/rules/packaging/an-extension-package-carries-two-payloads.md:13`
-- [ ] `nvs pkg api` and `nvs registry build` compile an extension package whose `src` calls its own component: the API extraction adds the package's one `.nvsx`, checked by `pack::check_component`, to the compile's extension set. A `registry_build` test builds `Shop\Ledger` from a commit. Delete the gap record. `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-cli/src/package/build.rs:174`, `data/gaps/nvs-cli/api-compiles-an-extension-package.json`
+- [x] `nvs pkg api` and `nvs registry build` compile an extension package whose `src` calls its own component: the API extraction adds the package's one `.nvsx`, checked by `pack::check_component`, to the compile's extension set. A `registry_build` test builds `Shop\Ledger` from a commit. Delete the gap record. `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-cli/src/package/build.rs:174`, `data/gaps/nvs-cli/api-compiles-an-extension-package.json`
 
 ### 2. the registry logs an advisory against a range of versions, and a withhold purges the CDN
 
@@ -365,34 +365,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is built but for one item. `nvs pkg fetch` refuses an archive with an `nvs.toml` through
-`pack::check_not_server_config`, the one check `pack` makes too. An extension package (one
-`.nvsx` in `files`) is checked by `pack::check_component` in `pack` and `nvs registry build`, and
-fetch prints its entry through `crate::ext::entry`, which `nvs ext pin` prints with. The seven
-tests the `fetch-and-extension-package-tests` check names pass, and `looper check` is green on it.
-Both features print `complete.`, and both gap records are deleted. The fourth fetch example adds
-an `nvs.toml` to its feature folder, and examples 01-03 still pass under it.
+Stage 1 is done. `pack::check_component` now returns the component's manifest with its carried
+source, and `api::extract_counted` takes it as the compile's extension set: `nvs registry build`
+passes the one its check loaded, and `nvs pkg api`/`diff` load it themselves (`api::component`),
+only when `files` lists a `.nvsx`, so a package without one is never held to pack's license check.
+`nvs pkg api` on the example's `vendor/shop/ledger` prints `Price` and the carried `Receipt`. The
+new test `an_extension_package_whose_source_calls_its_component_builds` passes, the gap record is
+deleted, and `package_fetch`, `package_client` and `registry_build` are green whole.
 
-Found while writing the example: `nvs pkg api` compiles a package with no extension set, so an
-extension package whose `src` calls its own class is `E0303`, and `nvs registry build` refuses it.
-It is a new gap record, `data/gaps/nvs-cli/api-compiles-an-extension-package.json`, and the last
-item of stage 1. Reproduce with
-`nvs pkg api docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/vendor/shop/ledger`.
-
-The sweep's `env-secret-proofs` red is stale: no check, goal or floor names it, and
-`bun nv proofs --verify --only 'CoreEnv::secret'` is green.
+The sweep's `env-secret-proofs` red is stale: no check, goal, floor or log in the tree names it.
 
 ### Next
 
-Stage 1's last item, then stage 1's status goes to `done`. Files
-`crates/nvs-cli/src/package/api.rs`, `build.rs`, `crates/nvs-cli/tests/registry_build.rs`.
+Stage 2, files `crates/nvs-cli/src/package/{entry,advisory,manifest}.rs`,
+`crates/nvs-cli/src/registry.rs`, `crates/nvs-cli/tests/{registry_log,package_audit}.rs`. Its first
+three items are one group (the Rust side); the registry app's items follow.
 
-- [ ] Find how `api::extract_counted` builds its compile (`crates/nvs-cli/src/package/api.rs:129`) and where `nvs check` fills an extension set (`nvs_hir::ExtensionClass::source`, `rule:packaging/an-extension-package-carries-two-payloads`).
-- [ ] Add the package's one `.nvsx`, loaded through `crate::ext::load`, to that set. `nvs pkg api` on the example's `vendor/shop/ledger` then prints the API. `crates/nvs-cli/src/ext.rs:227`
-- [ ] A `registry_build` test that builds an extension package from a commit. Delete the gap record. `crates/nvs-cli/tests/registry_build.rs:44`
-
-Then stage 2, files `crates/nvs-cli/src/package/{entry,advisory}.rs`, `apps/registry/`: the
-`versions` range parser (`crates/nvs-cli/src/package/entry.rs:91`).
+- [ ] The `versions` parser, `A..B` and `A..`, on the client's version type, and `Entry::parse` refusing a malformed range. `crates/nvs-cli/src/package/entry.rs:91`, `crates/nvs-cli/src/package/manifest.rs:111`
+- [ ] `is_advisory` takes `Entry::Advisory`; `nvs registry log advisories` and `log verify` list it. `crates/nvs-cli/src/package/advisory.rs:83`, `crates/nvs-cli/src/registry.rs:169`, `crates/nvs-cli/src/registry.rs:394`
+- [ ] The three `advisory-entry-tests` tests, run once by name. `crates/nvs-cli/tests/registry_log.rs:1`, `crates/nvs-cli/tests/package_audit.rs:125`
 
 No test is expected to go red.
 

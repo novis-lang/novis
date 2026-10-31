@@ -7,7 +7,9 @@
 //! (`rule:packaging/nothing-runs-before-the-program`). A package that does not check prints nothing
 //! and exits non-zero, as `nvs check` does. A file outside `src`, such as a test, is not the API. A
 //! package whose source names another package's declarations does not check, because nothing here
-//! fetches its dependencies.
+//! fetches its dependencies. An extension package's one `.nvsx` is loaded and checked as `nvs pkg
+//! pack` checks it, and the compile is typed against its manifest and carried source, so a class
+//! under `src` that calls the component checks; nothing of the component runs.
 //!
 //! ## What is written
 //!
@@ -122,11 +124,47 @@ impl Docs {
 /// The API document of the package in `dir`, or the exit code to return. Each way to fail has
 /// already reported on standard error.
 pub(crate) fn extract(dir: &Path) -> Result<Value, ExitCode> {
-    extract_counted(dir).map(|(document, _)| document)
+    extract_counted(dir, component(dir)?).map(|(document, _)| document)
 }
 
-/// [`extract`]'s document, and its declarations' [`Docs`].
-pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Docs), ExitCode> {
+/// The manifest of the package's one `.nvsx`, checked by [`super::pack::check_component`] over
+/// the package's [`super::pack::file_set`], or `None` for a folder with no `package.toml`, an
+/// application's, or a package whose `files` lists no `.nvsx`.
+fn component(dir: &Path) -> Result<Option<nvs_ext::manifest::Manifest>, ExitCode> {
+    let path = dir.join(nvs_config::grants::FILE);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let mut sources = SourceMap::new();
+    let manifest = super::manifest::read(&path, &mut sources).map_err(|diagnostic| {
+        let mut err = std::io::stderr().lock();
+        // Standard error that cannot be written to has nobody to tell.
+        let _ = nvs_diagnostics::Renderer::new().render(&diagnostic, &sources, &mut err);
+        ExitCode::FAILURE
+    })?;
+    let Some(name) = &manifest.name else {
+        return Ok(None);
+    };
+    // A package with no `.nvsx` compiles as before, so this command never makes the checks that
+    // only a pack needs, such as the license file.
+    if !manifest.files.iter().any(|file| super::pack::is_component(file)) {
+        return Ok(None);
+    }
+    super::pack::file_set(dir, &manifest)
+        .and_then(|entries| super::pack::check_component(&entries, name))
+        .map_err(|refusal| {
+            eprintln!("error: {refusal}");
+            ExitCode::FAILURE
+        })
+}
+
+/// [`extract`]'s document, and its declarations' [`Docs`]. `component` is the package's
+/// extension, which the compile is typed against, so a class under `src` that calls it checks
+/// (`rule:packaging/a-package-is-its-digest`).
+pub(crate) fn extract_counted(
+    dir: &Path,
+    component: Option<nvs_ext::manifest::Manifest>,
+) -> Result<(Value, Docs), ExitCode> {
     let src = dir.join("src");
     let mut files = Vec::new();
     let mut cases = false;
@@ -145,7 +183,7 @@ pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Docs), ExitCode> {
         map,
         &entry,
         None,
-        Vec::new(),
+        component.into_iter().collect(),
         false,
         crate::Sink::Text,
         crate::config::Init::Never,

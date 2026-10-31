@@ -19,7 +19,8 @@
 //! with its class and source inside the package's namespace ([`pack::check_component`]), every
 //! declaration inside that namespace, and, given the previous release's API document, no break the version step
 //! does not allow ([`super::diff::report`]). The API is read from the archive's own files,
-//! unpacked into a scratch folder, so what is checked is what is served.
+//! unpacked into a scratch folder, so what is checked is what is served, and its compile is typed
+//! against the extension file the check loaded, so source that calls the component checks.
 //!
 //! **What it prints is one JSON document** on standard output, for the service: `"ok": true` with
 //! the name, the version, the digest, every file, the dependencies with their minimums, the
@@ -173,10 +174,10 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .as_ref()
         .expect("`checked` refuses a manifest with no name");
     let unpacked = Unpacked::new(&scratch, &cloned.archive)?;
-    pack::file_set(&unpacked.0, &cloned.manifest)
+    let component = pack::file_set(&unpacked.0, &cloned.manifest)
         .and_then(|entries| pack::check_component(&entries, name))
         .map_err(|refusal| fault(format!("`{name}` at the commit `{commit}`: {refusal}")))?;
-    let (document, docs) = api::extract_counted(&unpacked.0).map_err(|_| {
+    let (document, docs) = api::extract_counted(&unpacked.0, component).map_err(|_| {
         fault(format!(
             "`{name}` does not compile at the commit `{commit}`. The build's standard error has \
              the errors."

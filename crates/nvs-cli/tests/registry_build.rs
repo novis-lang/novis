@@ -946,6 +946,46 @@ fn a_class_outside_the_package_namespace_is_refused() {
     );
 }
 
+/// An extension package whose source calls the class its component carries builds: the API
+/// compile is typed against the package's one `.nvsx`.
+#[test]
+fn an_extension_package_whose_source_calls_its_component_builds() {
+    let case = Case::new("registry-build-extension");
+    case.write(
+        "package.toml",
+        b"[package]\nname = 'Shop\\Ledger'\nversion = \"1.0.0\"\nfiles = [\"ledger.nvsx\"]\n",
+    );
+    case.write("LICENSE", b"MIT\n");
+    case.write(
+        "ledger.nvsx",
+        &fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))
+            .expect("the fixture reads"),
+    );
+    case.write(
+        "src/Price.nvs",
+        b"<?nvs\nnamespace Shop\\Ledger;\n\nfinal class Price\n{\n    \
+          public static function show(int $cents): string\n    {\n        \
+          return Shop\\Ledger\\Receipt::line('total', $cents);\n    }\n}\n",
+    );
+    let commit = case.commit("extension");
+    let host = Host::start(&case);
+
+    let (out, json) = case.build(&host, &commit, &[]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(json["ok"], true, "{json}");
+    assert_eq!(json["name"], "Shop\\Ledger", "{json}");
+    let paths: Vec<&str> = json["files"]
+        .as_array()
+        .expect("`files` is a list")
+        .iter()
+        .filter_map(|file| file["path"].as_str())
+        .collect();
+    assert_eq!(
+        paths,
+        ["LICENSE", "ledger.nvsx", "package.toml", "src/Price.nvs"]
+    );
+}
+
 /// A minor version that removes a public method breaks the API the previous build wrote, so it
 /// is refused, and `api.changes` lists the change.
 #[test]
