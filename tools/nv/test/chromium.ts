@@ -31,6 +31,7 @@ if (!EXE && process.env.NV_BROWSER) throw new Error("NV_BROWSER is set and no Ch
 export class Browser {
   private next = 0;
   private waiting = new Map<number, (m: { result?: unknown; error?: { message: string } }) => void>();
+  private listeners: ((method: string, params: any, sessionId?: string) => void)[] = [];
 
   private constructor(
     private proc: ReturnType<typeof Bun.spawn>,
@@ -40,7 +41,13 @@ export class Browser {
     ws.onmessage = (e) => {
       const m = JSON.parse(String(e.data));
       if (m.id !== undefined) this.waiting.get(m.id)?.(m);
+      else if (m.method) for (const l of this.listeners) l(m.method, m.params, m.sessionId);
     };
+  }
+
+  /** Calls `listener` with every event Chromium sends, from any session. */
+  on(listener: (method: string, params: any, sessionId?: string) => void) {
+    this.listeners.push(listener);
   }
 
   /** Starts Chromium with `flags`, its profile under `.agent-tmp/` named after `name`. */
