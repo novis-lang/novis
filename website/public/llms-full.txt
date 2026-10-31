@@ -53922,27 +53922,60 @@ new Novis\Pdf\Rendered(bytes $bytes, uint $pageCount, array<Dropped> $dropped, a
 <a id="core-novis-pdf-engine"></a>
 ### `Novis\Pdf\Engine`
 
-Keywords: render, merge, read, readText
+Keywords: render, renderFirst, renderSecond, merge, read, readText
 
 | Member | Signature |
 |---|---|
-| [`Novis\Pdf\Engine::render`](#core-novis-pdf-engine-render) | `render(Pass $pass): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
-| [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{ data: bytes, pages: ?array<uint> }> $parts): bytes` |
-| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
-| [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(bytes $data, array<uint> $pages): array<string>` |
+| [`Novis\Pdf\Engine::render`](#core-novis-pdf-engine-render) | `render({ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } } $document): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
+| [`Novis\Pdf\Engine::renderFirst`](#core-novis-pdf-engine-renderfirst) | `renderFirst({ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } }, headerHeight: ?string, footerHeight: ?string } $pass): { body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }` |
+| [`Novis\Pdf\Engine::renderSecond`](#core-novis-pdf-engine-rendersecond) | `renderSecond(Kept $body, { pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> } $margins): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }` |
+| [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{ data: bytes, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes` |
+| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }` |
+| [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>` |
 
 <a id="core-novis-pdf-engine-render"></a>
 #### `Novis\Pdf\Engine::render`
 
 ```nvs skip
-Novis\Pdf\Engine::render(Pass $pass): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }
+Novis\Pdf\Engine::render({ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } } $document): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }
 ```
 
 Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$pass` | `Pass` |  |
+| `$document` | `{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } }` |  |
+
+**Returns** `{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }`
+
+<a id="core-novis-pdf-engine-renderfirst"></a>
+#### `Novis\Pdf\Engine::renderFirst`
+
+```nvs skip
+Novis\Pdf\Engine::renderFirst({ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } }, headerHeight: ?string, footerHeight: ?string } $pass): { body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }
+```
+
+Lays out the body of a document that has header, footer or slot functions. Returns the laid-out body and the facts of each page. The file is empty.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$pass` | `{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\Time\Instant } }, headerHeight: ?string, footerHeight: ?string }` |  |
+
+**Returns** `{ body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }`
+
+<a id="core-novis-pdf-engine-rendersecond"></a>
+#### `Novis\Pdf\Engine::renderSecond`
+
+```nvs skip
+Novis\Pdf\Engine::renderSecond(Kept $body, { pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> } $margins): { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }
+```
+
+Draws the markup of each page on a body from `renderFirst`, and returns the PDF file. Each body is written once.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `Kept` |  |
+| `$margins` | `{ pages: array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> }` |  |
 
 **Returns** `{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }`
 
@@ -53950,14 +53983,15 @@ Renders an HTML document to a PDF file. Returns the file, its pages, and what th
 #### `Novis\Pdf\Engine::merge`
 
 ```nvs skip
-Novis\Pdf\Engine::merge(array<{ data: bytes, pages: ?array<uint> }> $parts): bytes
+Novis\Pdf\Engine::merge(array<{ data: bytes, pages: ?array<uint> }> $parts, { maxBytes: ?uint, maxRatio: ?uint } $bound): bytes
 ```
 
-Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`.
+Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$parts` | `array<{ data: bytes, pages: ?array<uint> }>` |  |
+| `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 
 **Returns** `bytes`
 
@@ -53965,14 +53999,15 @@ Returns one PDF file with the chosen pages of each part, in order. An encrypted 
 #### `Novis\Pdf\Engine::read`
 
 ```nvs skip
-Novis\Pdf\Engine::read(bytes $data): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
+Novis\Pdf\Engine::read(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound): { pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }
 ```
 
-Reads the page count, the metadata and the attached files of a PDF file.
+Reads the page count, the metadata and the attached files of a PDF file. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes` |  |
+| `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 
 **Returns** `{ pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }`
 
@@ -53980,14 +54015,15 @@ Reads the page count, the metadata and the attached files of a PDF file.
 #### `Novis\Pdf\Engine::readText`
 
 ```nvs skip
-Novis\Pdf\Engine::readText(bytes $data, array<uint> $pages): array<string>
+Novis\Pdf\Engine::readText(bytes $data, { maxBytes: ?uint, maxRatio: ?uint } $bound, array<uint> $pages): array<string>
 ```
 
-Returns the text of each page in `pages` of a PDF file. Pages count from 1.
+Returns the text of each page in `pages` of a PDF file. Pages count from 1. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes` |  |
+| `$bound` | `{ maxBytes: ?uint, maxRatio: ?uint }` |  |
 | `$pages` | `array<uint>` |  |
 
 **Returns** `array<string>`
@@ -54174,7 +54210,7 @@ Keywords: constructor, download, save, to, bytes
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Export::constructor`](#core-novis-spreadsheet-export-constructor) | `constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null)` |
+| [`Novis\Spreadsheet\Export::constructor`](#core-novis-spreadsheet-export-constructor) | `constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null, bool $once = false)` |
 | [`Novis\Spreadsheet\Export->download`](#core-novis-spreadsheet-export-download) | `download(string $name): void` |
 | [`Novis\Spreadsheet\Export->save`](#core-novis-spreadsheet-export-save) | `save(string $path): Written` |
 | [`Novis\Spreadsheet\Export->to`](#core-novis-spreadsheet-export-to) | `to(Core\IO\File $file): Written` |
@@ -54184,11 +54220,11 @@ Keywords: constructor, download, save, to, bytes
 #### `Novis\Spreadsheet\Export::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Export(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null)
+new Novis\Spreadsheet\Export(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null, bool $once = false)
 ```
 
 `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
-`$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.
+`$fill` writes a filled template, and keeps the whole file in `Written::bytes` when its second argument is `true`. With `$once`, a second write throws a `LogicError`.
 
 <a id="core-novis-spreadsheet-export-download"></a>
 #### `Novis\Spreadsheet\Export->download`
@@ -54277,15 +54313,15 @@ Keywords: open, sheets, macros, merged, links, notes, names, tables, evaluate, i
 | [`Novis\Spreadsheet\Reader::open`](#core-novis-spreadsheet-reader-open) | `open(tainted bytes\|Core\IO\File $source, OpenOptions $options = null): Reader` |
 | [`Novis\Spreadsheet\Reader->sheets`](#core-novis-spreadsheet-reader-sheets) | `sheets(): array<SheetInfo>` |
 | [`Novis\Spreadsheet\Reader->macros`](#core-novis-spreadsheet-reader-macros) | `macros(): array<tainted string>` |
-| [`Novis\Spreadsheet\Reader->merged`](#core-novis-spreadsheet-reader-merged) | `merged(string\|int $sheet): array<tainted string>` |
-| [`Novis\Spreadsheet\Reader->links`](#core-novis-spreadsheet-reader-links) | `links(string\|int $sheet): array<Link>` |
-| [`Novis\Spreadsheet\Reader->notes`](#core-novis-spreadsheet-reader-notes) | `notes(string\|int $sheet): array<Note>` |
+| [`Novis\Spreadsheet\Reader->merged`](#core-novis-spreadsheet-reader-merged) | `merged(tainted string\|int $sheet): array<tainted string>` |
+| [`Novis\Spreadsheet\Reader->links`](#core-novis-spreadsheet-reader-links) | `links(tainted string\|int $sheet): array<Link>` |
+| [`Novis\Spreadsheet\Reader->notes`](#core-novis-spreadsheet-reader-notes) | `notes(tainted string\|int $sheet): array<Note>` |
 | [`Novis\Spreadsheet\Reader->names`](#core-novis-spreadsheet-reader-names) | `names(): array<Name>` |
-| [`Novis\Spreadsheet\Reader->tables`](#core-novis-spreadsheet-reader-tables) | `tables(string\|int $sheet): array<Table>` |
+| [`Novis\Spreadsheet\Reader->tables`](#core-novis-spreadsheet-reader-tables) | `tables(tainted string\|int $sheet): array<Table>` |
 | [`Novis\Spreadsheet\Reader->evaluate`](#core-novis-spreadsheet-reader-evaluate) | `evaluate(): array<Missed>` |
-| [`Novis\Spreadsheet\Reader->images`](#core-novis-spreadsheet-reader-images) | `images(string\|int $sheet): array<Image>` |
+| [`Novis\Spreadsheet\Reader->images`](#core-novis-spreadsheet-reader-images) | `images(tainted string\|int $sheet): array<Image>` |
 | [`Novis\Spreadsheet\Reader->properties`](#core-novis-spreadsheet-reader-properties) | `properties(): Properties` |
-| [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
+| [`Novis\Spreadsheet\Reader->rows`](#core-novis-spreadsheet-reader-rows) | `rows(tainted string\|int $sheet, RowOptions $options = null): Iterator<Row>` |
 
 <a id="core-novis-spreadsheet-reader-open"></a>
 #### `Novis\Spreadsheet\Reader::open`
@@ -54326,7 +54362,7 @@ Reading a file never runs its macros.
 #### `Novis\Spreadsheet\Reader->merged`
 
 ```nvs skip
-$reader->merged(string|int $sheet): array<tainted string>
+$reader->merged(tainted string|int $sheet): array<tainted string>
 ```
 
 `merged` returns the merged cells of the sheet `$sheet`, by name or by position from 0. Each one is a range such as `"A1:C2"`.
@@ -54338,7 +54374,7 @@ When you read rows, the value of a merged range is in its top-left cell. With `m
 #### `Novis\Spreadsheet\Reader->links`
 
 ```nvs skip
-$reader->links(string|int $sheet): array<Link>
+$reader->links(tainted string|int $sheet): array<Link>
 ```
 
 `links` returns the hyperlinks of the sheet `$sheet`. `anchor` is the cell, such as `"B2"`, and `target` is where the link goes.
@@ -54350,7 +54386,7 @@ $reader->links(string|int $sheet): array<Link>
 #### `Novis\Spreadsheet\Reader->notes`
 
 ```nvs skip
-$reader->notes(string|int $sheet): array<Note>
+$reader->notes(tainted string|int $sheet): array<Note>
 ```
 
 `notes` returns the notes of the sheet `$sheet`. Each one has its cell in `noted`, its text in `note`, and its `author`.
@@ -54373,7 +54409,7 @@ $reader->names(): array<Name>
 #### `Novis\Spreadsheet\Reader->tables`
 
 ```nvs skip
-$reader->tables(string|int $sheet): array<Table>
+$reader->tables(tainted string|int $sheet): array<Table>
 ```
 
 `tables` returns the Excel tables of the sheet `$sheet`. `table` is the range, such as `"A1:C10"`, and `name` is the table name.
@@ -54396,7 +54432,7 @@ It returns the cells it could not compute, and each one keeps the result saved i
 #### `Novis\Spreadsheet\Reader->images`
 
 ```nvs skip
-$reader->images(string|int $sheet): array<Image>
+$reader->images(tainted string|int $sheet): array<Image>
 ```
 
 `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.
@@ -54420,7 +54456,7 @@ A property the file does not have is `null`, and every property of a CSV file is
 #### `Novis\Spreadsheet\Reader->rows`
 
 ```nvs skip
-$reader->rows(string|int $sheet, RowOptions $options = null): Iterator<Row>
+$reader->rows(tainted string|int $sheet, RowOptions $options = null): Iterator<Row>
 ```
 
 `rows` reads the sheet `$sheet`, by name or by position from 0, and gives one `Row` at a time. With `header: true`, the keys are the header cells.
@@ -54453,7 +54489,7 @@ Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, g
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)` |
+| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)` |
 | [`Novis\Spreadsheet\Sheet->add`](#core-novis-spreadsheet-sheet-add) | `add(array<mixed> $row, RowOptions $options = null): Sheet` |
 | [`Novis\Spreadsheet\Sheet->addAll`](#core-novis-spreadsheet-sheet-addall) | `addAll(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows): Sheet` |
 | [`Novis\Spreadsheet\Sheet->cell`](#core-novis-spreadsheet-sheet-cell) | `cell(string $key, int $row): string` |
@@ -54474,11 +54510,11 @@ Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, g
 #### `Novis\Spreadsheet\Sheet::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)
+new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)
 ```
 
 `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
-`$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.
+`$add` adds a row. `$ready` sends the rows that wait, checks that the sheet is open, and with `true` last checks for a data row. `$position` returns the column of a key.
 
 <a id="core-novis-spreadsheet-sheet-add"></a>
 #### `Novis\Spreadsheet\Sheet->add`
@@ -54512,7 +54548,7 @@ $sheet->cell(string $key, int $row): string
 ```
 
 `cell` returns the address of the column `$key` in row `$row`, such as `'C7'`.
-`$key` is a column key or a column letter, such as `'qty'` or `'C'`.
+`$key` is a column key or an upper-case column letter, such as `'qty'` or `'C'`. A key needs the `columns` option or a row with keys first.
 
 **Returns** `string`
 
@@ -54524,7 +54560,7 @@ $sheet->column(string $key): string
 ```
 
 `column` returns the cells of the column `$key` in the rows added so far, such as `'C2:C1043'`.
-The header row is not in the range. Call it after the last row to get every row.
+The header row is not in the range. Call it after the last row to get every row. Before the first data row, it throws a `LogicError`.
 
 **Returns** `string`
 
@@ -54617,8 +54653,8 @@ $sheet->conditional(string $range, Conditional $rule): Sheet
 $sheet->image(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
 ```
 
-`image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
-`width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
+`image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
+`width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell. An image that ends after column `XFD` or row 1,048,576 throws.
 
 **Returns** `Sheet`
 
@@ -54642,7 +54678,7 @@ $sheet->print(PrintOptions $options): Sheet
 ```
 
 `print` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
-`repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row.
+`repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row. A second `print` throws a `LogicError`.
 
 **Returns** `Sheet`
 
@@ -54763,8 +54799,7 @@ Keywords: createForDownload, createForFile, createForStream, createInMemory, fro
 Novis\Spreadsheet\Workbook::createForDownload(string $name, Options $options = null): Workbook
 ```
 
-`Workbook::createForDownload` sends the file to the browser as a download named `$name`.
-The response headers are sent at once, and each part of the file is sent when it is ready.
+`Workbook::createForDownload` sends the file to the browser as a download named `$name`. The headers are sent at once, and each part of the file when it is ready.
 If the program stops before `finish`, the download is cut off and the error log names `$name`.
 
 **Returns** `Workbook`
@@ -54812,7 +54847,7 @@ Novis\Spreadsheet\Workbook::fromRows(array<array<mixed>>|Iterable<array<mixed>>|
 ```
 
 `Workbook::fromRows` makes a workbook with one sheet that has every row of `$rows`. Call `download`, `save`, `to` or `bytes` on the result to write it.
-`$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
+`$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`. An `Iterator` of rows, such as a generator, is written once.
 
 **Returns** `Export`
 

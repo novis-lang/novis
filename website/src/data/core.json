@@ -28802,7 +28802,7 @@
           "static": false,
           "receiver": "export",
           "generics": null,
-          "signature": "constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null): void",
+          "signature": "constructor(callable(Workbook): void $write, Options $options, ?callable(callable(bytes): void, bool): Written $fill = null, bool $once = false): void",
           "params": [
             {
               "kind": "param",
@@ -28827,12 +28827,20 @@
               "default": "null",
               "optional": true,
               "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "once",
+              "type": "bool",
+              "default": "false",
+              "optional": true,
+              "variadic": false
             }
           ],
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Export</code> makes an export that adds its rows with <code>$write</code>. <code>Workbook::fromRows</code> and <code>Template::fill</code> make one for you.\n<code>$fill</code> writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in <code>Written::bytes</code> when its second argument is <code>true</code>."
+            "shortHtml": "<code>new Export</code> makes an export that adds its rows with <code>$write</code>. <code>Workbook::fromRows</code> and <code>Template::fill</code> make one for you.\n<code>$fill</code> writes a filled template, and keeps the whole file in <code>Written::bytes</code> when its second argument is <code>true</code>. With <code>$once</code>, a second write throws a <code>LogicError</code>."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-export/constructor/",
@@ -29166,12 +29174,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "merged(string|int $sheet): array<tainted string>",
+          "signature": "merged(tainted string|int $sheet): array<tainted string>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29192,12 +29200,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "links(string|int $sheet): array<Link>",
+          "signature": "links(tainted string|int $sheet): array<Link>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29218,12 +29226,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "notes(string|int $sheet): array<Note>",
+          "signature": "notes(tainted string|int $sheet): array<Note>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29261,12 +29269,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "tables(string|int $sheet): array<Table>",
+          "signature": "tables(tainted string|int $sheet): array<Table>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29304,12 +29312,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "images(string|int $sheet): array<Image>",
+          "signature": "images(tainted string|int $sheet): array<Image>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29347,12 +29355,12 @@
           "static": false,
           "receiver": "reader",
           "generics": null,
-          "signature": "rows(string|int $sheet, RowOptions $options = null): Iterator<Row>",
+          "signature": "rows(tainted string|int $sheet, RowOptions $options = null): Iterator<Row>",
           "params": [
             {
               "kind": "param",
               "name": "sheet",
-              "type": "string|int",
+              "type": "tainted string|int",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29466,7 +29474,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint): void $ready, callable(bytes): void $send, callable(uint, string): uint $position): void",
+          "signature": "constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position): void",
           "params": [
             {
               "kind": "param",
@@ -29495,7 +29503,7 @@
             {
               "kind": "param",
               "name": "ready",
-              "type": "callable(uint, ?uint): void",
+              "type": "callable(uint, ?uint, bool): void",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29520,7 +29528,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Sheet</code> makes a sheet of a workbook. <code>Workbook::sheet</code> makes one for you.\n<code>$add</code> adds a row. <code>$ready</code> sends the rows that wait and checks that the sheet is still open. <code>$position</code> finds the column of a key."
+            "shortHtml": "<code>new Sheet</code> makes a sheet of a workbook. <code>Workbook::sheet</code> makes one for you.\n<code>$add</code> adds a row. <code>$ready</code> sends the rows that wait, checks that the sheet is open, and with <code>true</code> last checks for a data row. <code>$position</code> returns the column of a key."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-sheet/constructor/",
@@ -29614,7 +29622,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "<code>cell</code> returns the address of the column <code>$key</code> in row <code>$row</code>, such as <code>'C7'</code>.\n<code>$key</code> is a column key or a column letter, such as <code>'qty'</code> or <code>'C'</code>."
+            "shortHtml": "<code>cell</code> returns the address of the column <code>$key</code> in row <code>$row</code>, such as <code>'C7'</code>.\n<code>$key</code> is a column key or an upper-case column letter, such as <code>'qty'</code> or <code>'C'</code>. A key needs the <code>columns</code> option or a row with keys first."
           },
           "slug": "cell",
           "url": "/reference/core/novis-spreadsheet-sheet/cell/",
@@ -29640,7 +29648,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "<code>column</code> returns the cells of the column <code>$key</code> in the rows added so far, such as <code>'C2:C1043'</code>.\nThe header row is not in the range. Call it after the last row to get every row."
+            "shortHtml": "<code>column</code> returns the cells of the column <code>$key</code> in the rows added so far, such as <code>'C2:C1043'</code>.\nThe header row is not in the range. Call it after the last row to get every row. Before the first data row, it throws a <code>LogicError</code>."
           },
           "slug": "column",
           "url": "/reference/core/novis-spreadsheet-sheet/column/",
@@ -29928,7 +29936,7 @@
           "options": [],
           "returnType": "Sheet",
           "doc": {
-            "shortHtml": "<code>image</code> puts the PNG, JPEG or GIF image <code>$data</code> at the cell <code>$cell</code>. Any other format throws a <code>LogicError</code>.\n<code>width</code> and <code>height</code> are in pixels. <code>offsetX</code> and <code>offsetY</code> move the image from the corner of the cell."
+            "shortHtml": "<code>image</code> puts the PNG, JPEG or GIF image <code>$data</code> at the cell <code>$cell</code>. Any other format, or a file that is cut short, throws a <code>LogicError</code>.\n<code>width</code> and <code>height</code> are in pixels. <code>offsetX</code> and <code>offsetY</code> move the image from the corner of the cell. An image that ends after column <code>XFD</code> or row 1,048,576 throws."
           },
           "slug": "image",
           "url": "/reference/core/novis-spreadsheet-sheet/image/",
@@ -29996,7 +30004,7 @@
           "options": [],
           "returnType": "Sheet",
           "doc": {
-            "shortHtml": "<code>print</code> sets how the sheet is printed. <code>orientation</code> is <code>'portrait'</code> or <code>'landscape'</code>. <code>fitToPage</code> sets the number of pages wide and tall.\n<code>repeatRows</code>, such as <code>'1:1'</code>, prints those rows on every page. <code>area</code> is the range to print. Set <code>fitToPage</code> before the first row."
+            "shortHtml": "<code>print</code> sets how the sheet is printed. <code>orientation</code> is <code>'portrait'</code> or <code>'landscape'</code>. <code>fitToPage</code> sets the number of pages wide and tall.\n<code>repeatRows</code>, such as <code>'1:1'</code>, prints those rows on every page. <code>area</code> is the range to print. Set <code>fitToPage</code> before the first row. A second <code>print</code> throws a <code>LogicError</code>."
           },
           "slug": "print",
           "url": "/reference/core/novis-spreadsheet-sheet/print/",
@@ -30357,7 +30365,7 @@
           "options": [],
           "returnType": "Workbook",
           "doc": {
-            "shortHtml": "<code>Workbook::createForDownload</code> sends the file to the browser as a download named <code>$name</code>.\nThe response headers are sent at once, and each part of the file is sent when it is ready.\nIf the program stops before <code>finish</code>, the download is cut off and the error log names <code>$name</code>."
+            "shortHtml": "<code>Workbook::createForDownload</code> sends the file to the browser as a download named <code>$name</code>. The headers are sent at once, and each part of the file when it is ready.\nIf the program stops before <code>finish</code>, the download is cut off and the error log names <code>$name</code>."
           },
           "slug": "createfordownload",
           "url": "/reference/core/novis-spreadsheet-workbook/createfordownload/",
@@ -30485,7 +30493,7 @@
           "options": [],
           "returnType": "Export",
           "doc": {
-            "shortHtml": "<code>Workbook::fromRows</code> makes a workbook with one sheet that has every row of <code>$rows</code>. Call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result to write it.\n<code>$options</code> has the workbook options and the sheet options. <code>sheet</code> is the name of the sheet, and the default is <code>'Sheet1'</code>."
+            "shortHtml": "<code>Workbook::fromRows</code> makes a workbook with one sheet that has every row of <code>$rows</code>. Call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result to write it.\n<code>$options</code> has the workbook options and the sheet options. <code>sheet</code> is the name of the sheet, and the default is <code>'Sheet1'</code>. An <code>Iterator</code> of rows, such as a generator, is written once."
           },
           "slug": "fromrows",
           "url": "/reference/core/novis-spreadsheet-workbook/fromrows/",
