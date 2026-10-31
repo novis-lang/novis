@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-ir/src/lower/mod.rs, extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Style.nvs, docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md]
   - id: 2
     title: "Cell::rich writes rich text in one cell"
-    status: open
+    status: done
     context: [extensions/spreadsheet/nvs/Cell.nvs, extensions/spreadsheet/nvs/Workbook.nvs, extensions/spreadsheet/src/cells.rs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 3
     title: "a CSV reads and writes in any dialect Core\\Csv takes and in any Core\\Charset"
@@ -469,12 +469,12 @@ It builds nothing.
 **Does:** a program writes styled runs in one cell, and the writer's existing rich-text path is
 reached from Novis.
 
-- [ ] `rule:core-classes/spreadsheet-roster`: `Cell::rich`, the `runs` property, and the run checks the standing decision gives. `extensions/spreadsheet/nvs/Cell.nvs:4`
-- [ ] The Novis half sends a rich cell as `cell-value::rich`, each run's style an id from `writer-style`. `extensions/spreadsheet/nvs/Workbook.nvs:349`, `wit/spreadsheet.wit:73`, `extensions/spreadsheet/src/cells.rs:285`
-- [ ] The CSV path writes a rich cell as its joined text. `extensions/spreadsheet/nvs/Workbook.nvs:588`
-- [ ] The conformance cases the `rich-cell` check names. `tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst:1`, `tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst:1`
-- [ ] Feature proofs for `Novis\Spreadsheet\Cell::rich`: `about.md`, three examples, the bench and the attack. `docs/examples/novis/Spreadsheet-Cell/rich/about.md:1`, `benches/members/novis/Spreadsheet-Cell/rich.nvs:1`, `tests/hostile/novis/Spreadsheet-Cell/rich/01-runs-that-are-huge-or-empty.nvs:1`
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts` and the roster drop `Cell::rich` from their Not-shipped and On-disk lines. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:50`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
+- [x] `rule:core-classes/spreadsheet-roster`: `Cell::rich`, the `runs` property, and the run checks the standing decision gives. `extensions/spreadsheet/nvs/Cell.nvs:4`
+- [x] The Novis half sends a rich cell as `cell-value::rich`, each run's style an id from `writer-style`. `extensions/spreadsheet/nvs/Workbook.nvs:349`, `wit/spreadsheet.wit:73`, `extensions/spreadsheet/src/cells.rs:285`
+- [x] The CSV path writes a rich cell as its joined text. `extensions/spreadsheet/nvs/Workbook.nvs:588`
+- [x] The conformance cases the `rich-cell` check names. `tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst:1`, `tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst:1`
+- [x] Feature proofs for `Novis\Spreadsheet\Cell::rich`: `about.md`, three examples, the bench and the attack. `docs/examples/novis/Spreadsheet-Cell/rich/about.md:1`, `benches/members/novis/Spreadsheet-Cell/rich.nvs:1`, `tests/hostile/novis/Spreadsheet-Cell/rich/01-runs-that-are-huge-or-empty.nvs:1`
+- [x] `rule:core-classes/spreadsheet-sheet-end-parts` and the roster drop `Cell::rich` from their Not-shipped and On-disk lines. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:50`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
 
 ### 3. a CSV reads and writes in any dialect Core\Csv takes and in any Core\Charset
 
@@ -622,35 +622,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. A generator body that builds or reads a shape declares its class, and
-`Reader::walk` reads each batch itself. Every spreadsheet enum but `CellError` names its owner in
-the manifest, and `ChartKind` is now `Chart::Kind`. The 13 type pages moved to
-`docs/examples/types/Novis-Spreadsheet-<Owner>-<Enum>/`, and the website is rendered. Both stage 1
-acceptance checks pass: `cargo test --test generator_shapes` and the two `.nvst` cases. The record
-`spreadsheet-style-enums` is deleted. The sweep's `env-secret-proofs` red is stale: no goal, floor or
-`looper.toml` defines it, and `bun tools/looper/main.ts check --name env-secret-proofs` finds no such
-check.
+Stages 1 and 2 are done. `Cell::rich` makes one text cell of runs, and `Cell` has a readonly
+`runs` (`?array<Run>`, `null` for every other cell). A run's style that sets a non-font field, or
+an empty list, throws `LogicError`. `Workbook::queue` sends a rich cell as `{ runs: … }` with each
+run's `styleId`, and `csvField` writes the runs' text joined, through the same formula guard. The
+`rich-cell` check is green (`bun nv suite` over its two cases), and so is the new Rust test
+`a_rich_cell_writes_each_run_with_its_own_font` in `crates/nvs-cli/tests/spreadsheet_values.rs`.
+`bun nv proofs --id 'Novis\Spreadsheet\Cell::rich'` owes nothing, and its bench is recorded. The
+roster states the rich cell, the sheet-end parts fragment has no Not-shipped line, the record
+`spreadsheet-cell-rich` is deleted, and the website is rendered.
 
-The five `Sheet::` enum pages (`Sheet-RuleKind`, `-Operator`, `-TotalFunction`, `-ConditionalKind`,
-`-Orientation`) are not `bun nv proofs` features, before or after the move, because no reference
-entry lists them. Their examples ran in no check this session.
+`runs` is nullable because a constructor parameter's default must be a constant, and `[]` is not
+one (E0451). `new Cell($value, $style)` still works.
+
+The sweep's `env-secret-proofs` red is stale again: nothing defines it, and its log file does not
+exist.
 
 ### Next
 
-Stage 2, `Cell::rich`, over `extensions/spreadsheet/nvs/Cell.nvs`, `extensions/spreadsheet/nvs/Workbook.nvs`
-and `extensions/spreadsheet/src/cells.rs`.
+Stage 3, the CSV dialect and charset, over `extensions/spreadsheet/nvs/Reader.nvs`,
+`extensions/spreadsheet/nvs/Workbook.nvs` and `docs/rules/core-classes/spreadsheet-has-no-io.md`.
+Read `Core\Csv`'s and `Core\Encoding`'s option names from `crates/nvs-stdlib/src/csv.rs` and
+`crates/nvs-stdlib/src/encoding.rs` first.
 
-- [ ] `rule:core-classes/spreadsheet-roster`: `Cell::rich`, the `runs` property, and the run checks the standing decision gives. `extensions/spreadsheet/nvs/Cell.nvs:4`
-- [ ] The Novis half sends a rich cell as `cell-value::rich`, each run's style an id from `writer-style`. `extensions/spreadsheet/nvs/Workbook.nvs:349`, `wit/spreadsheet.wit:73`, `extensions/spreadsheet/src/cells.rs:285`
-- [ ] The CSV path writes a rich cell as its joined text. `extensions/spreadsheet/nvs/Workbook.nvs:588`
-- [ ] The conformance cases the `rich-cell` check names. `tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst:1`, `tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst:1`
-- [ ] Feature proofs for `Novis\Spreadsheet\Cell::rich`. `docs/examples/novis/Spreadsheet-Cell/rich/about.md:1`, `benches/members/novis/Spreadsheet-Cell/rich.nvs:1`, `tests/hostile/novis/Spreadsheet-Cell/rich/01-runs-that-are-huge-or-empty.nvs:1`
-- [ ] The roster's and the sheet-end parts' Not-shipped lines drop `Cell::rich`. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:60`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
+- [ ] `Reader::open`'s `csv` options, the UTF-16 BOM, the whole-text decode, and the dialect passed to `Core\Csv`. `extensions/spreadsheet/nvs/Reader.nvs:34`, `extensions/spreadsheet/nvs/Reader.nvs:291`, `extensions/spreadsheet/nvs/Reader.nvs:377`, `extensions/spreadsheet/nvs/Reader.nvs:396`
+- [ ] `Workbook`'s and `fromRows`'s `csv` options, passed to `Core\Csv::format`, and the encode with its error. `extensions/spreadsheet/nvs/Workbook.nvs:12`, `extensions/spreadsheet/nvs/Workbook.nvs:15`, `extensions/spreadsheet/nvs/Workbook.nvs:611`
+- [ ] The three conformance cases the `csv-dialect-and-encoding` check names. `tests/conformance/novis/spreadsheet-reads-csv-in-another-dialect-and-charset.nvst:1`
+- [ ] A fourth example and an `about.md` paragraph for `Reader::open`, `Workbook::createForFile` and `Workbook::fromRows`. `docs/examples/novis/Spreadsheet-Reader/open/about.md:4`
+- [ ] The fragment states the options, the cost and the charset rule, and drops its Not-shipped line. Delete the record. `docs/rules/core-classes/spreadsheet-has-no-io.md:74`
 
-Tests that may go red at the gate, from stage 1: `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
+Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
-`CellError`. Also `crates/nvs-cli/tests/spreadsheet_reader.rs`, which now writes
-`Reader::Visibility`. Neither ran this session.
+`CellError`, and `crates/nvs-cli/tests/spreadsheet_reader.rs`, which now writes
+`Reader::Visibility`. From stage 2, `crates/nvs-stdlib/tests/ext_world.rs` and `meta.rs` if either
+lists `Cell`'s members or its constructor's parameters. None of them ran this session.
 
 ### Backlog
 
