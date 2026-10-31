@@ -454,7 +454,11 @@ fn a_child_a_task_left_running_is_reported_and_the_run_still_exits_0() {
         ),
     )
     .unwrap();
-    fs::write(dir.join("nvs.toml"), "[capabilities.process]\nexec = true\n").unwrap();
+    fs::write(
+        dir.join("nvs.toml"),
+        "[capabilities.process]\nexec = true\n",
+    )
+    .unwrap();
 
     let out = run_in(&dir, &["main.nvs"]);
     let stderr = String::from_utf8_lossy(&out.stderr);
