@@ -2,7 +2,7 @@
 //! fill copies every byte it does not change (`rule:core-classes/spreadsheet-template-fill`).
 //!
 //! [`Sheet::parse`] finds `<sheetData>`, and in it each row and cell with the byte ranges of
-//! their `r` attributes and of a formula's text and `ref`. A cell's text, inline or from the
+//! their `r` attributes and of a formula's text, `ref` and shared group. A cell's text, inline or from the
 //! shared strings, is kept only when it holds `{{`. A row or a cell `Template::set` adds has no
 //! range, and a cell it fills has its value.
 
@@ -25,6 +25,9 @@ pub struct Cell {
     pub formula: Option<(Range<usize>, String)>,
     /// The range of a formula's `ref` attribute.
     pub formula_ref: Option<Range<usize>>,
+    /// A shared formula's group: the range of its `si` attribute and its number. The cell with
+    /// the formula's text is the group's first cell, and the others have no text.
+    pub shared: Option<(Range<usize>, u32)>,
     /// A value `set` gave the cell.
     pub set: Option<Option<Value>>,
 }
@@ -53,6 +56,8 @@ pub struct Sheet {
     /// Whether the sheet's data was `<sheetData/>`, which a fill writes as an open and a close.
     pub self_closed: bool,
     pub rows: Vec<Row>,
+    /// One past the highest shared formula group, the first number a new group may take.
+    pub next_group: u32,
 }
 
 fn broken(path: &str) -> Error {
@@ -110,6 +115,7 @@ impl Sheet {
         // The element whose text is being read: `v`, `t` or `f`.
         let mut reading: Option<&[u8]> = None;
         let mut in_phonetic = false;
+        let mut next_group = 0;
         while let Some((token, length)) = xml::next(&bytes[at..])? {
             let start = at;
             at += length;
@@ -159,6 +165,7 @@ impl Sheet {
                             text: None,
                             formula: None,
                             formula_ref: None,
+                            shared: None,
                             set: None,
                         };
                         if empty {
@@ -171,6 +178,13 @@ impl Sheet {
                     b"f" if cell.is_some() => {
                         let (made, _, _) = cell.as_mut().expect("checked");
                         made.formula_ref = span(bytes, attrs, b"ref");
+                        if xml::attr(attrs, b"t") == Some(b"shared")
+                            && let Some(at) = span(bytes, attrs, b"si")
+                        {
+                            let group: u32 = xml[at.clone()].parse().map_err(|_| broken(&path))?;
+                            next_group = next_group.max(group.saturating_add(1));
+                            made.shared = Some((at, group));
+                        }
                         if !empty {
                             reading = Some(b"f");
                         }
@@ -245,6 +259,7 @@ impl Sheet {
             tail_at,
             self_closed,
             rows,
+            next_group,
         })
     }
 
@@ -287,6 +302,7 @@ impl Row {
                         text: None,
                         formula: None,
                         formula_ref: None,
+                        shared: None,
                         set: None,
                     },
                 );

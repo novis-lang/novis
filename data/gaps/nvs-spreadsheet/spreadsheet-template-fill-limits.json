@@ -1,6 +1,6 @@
 {
   "module": "extensions/spreadsheet/src/template",
-  "title": "A template's shared formulas and `x14` conditional formats are not moved, and an `Iterator` is not a list.",
-  "text": "Closing it gives each copy of a shared formula its own `si`, shifts an `x14` conditional format under `extLst`, and takes an `Iterator` as a list in `$data` (`rule:core-classes/spreadsheet-template-fill`).",
+  "title": "A template takes an array as a list, and an `Iterator` is not a list.",
+  "text": "Closing it takes an `Iterator` as a list in `$data`, drained in batches as an array is sent (`rule:core-classes/spreadsheet-template-fill`).",
   "goal": "spreadsheet-second-wave"
 }

@@ -5285,7 +5285,10 @@ part on it names a row a list on a later sheet moves. It then costs the memory o
 
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
-autofilter, data validation, conditional formats, tables, drawing anchors and chart ranges. A range
+autofilter, data validation, conditional formats (an `x14` one under `extLst` too), tables, drawing
+anchors and chart ranges. A shared formula (`<f t="shared">`) whose first cell is in a block gets a
+new group number (`si`) in every copy but the first, numbered after the sheet's highest, so no two
+copies share one; a group whose first cell is outside the block keeps its number. A range
 that covers the template row grows with the block, so `SUM(C5:C5)` over a block of 100 items becomes
 `SUM(C5:C104)`. The shifter tokenizes A1 references — relative, absolute, ranges, whole rows and
 columns, and references to other sheets — and leaves every other character of formula text as it was.
@@ -5312,10 +5315,8 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **On disk.** `Template::open`, `set` and `fill`, and an `Export` from `fill` to all four targets
 (`extensions/spreadsheet/nvs/Template.nvs`, `extensions/spreadsheet/src/template/`).
 
-**Not shipped.** A
-shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its copies share one
-`si`, and an `x14` conditional format under `extLst` is not moved. A list is an array: an
-`Iterator` in `$data` is not a list (gap:nvs-spreadsheet/spreadsheet-template-fill-limits).
+**Not shipped.** A list is an array: an `Iterator` in `$data` is not a list
+(gap:nvs-spreadsheet/spreadsheet-template-fill-limits).
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody

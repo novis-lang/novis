@@ -37,12 +37,9 @@
 //!
 //! **Not done yet.** Writing ods and an evaluate call are named in their rules'
 //! fragments. These are the rest, and none of them is checked against Excel. The template
-//! bullets are gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets from
+//! values bullet is gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets from
 //! number formats on are gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
 //!
-//! - Template rows (`template`): a shared formula (`<f t="shared">`) in a repeated row is copied as
-//!   it is, so its copies share one `si`, and an `x14` conditional format under `extLst` is not
-//!   shifted.
 //! - Template values (`template`): a NUL in a filled value is written raw. A flat key
 //!   `'customer.name'` and a nested `customer.name` collide. `set('A1', …)` with no sheet name
 //!   writes to the first sheet. A `Date` into a cell with no date format is written as a bare

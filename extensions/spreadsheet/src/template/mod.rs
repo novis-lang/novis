@@ -89,6 +89,8 @@ struct Filling {
     next_row: usize,
     /// Every closed block's move, each page's in a run from its `base`.
     shifts: Vec<Shift>,
+    /// The next shared formula group a copy of a block may take on the sheet being written.
+    next_group: u32,
     /// The rows written to the sheet being written, and every sheet written so far.
     rows_out: u64,
     rows: Vec<SheetRows>,
@@ -395,7 +397,14 @@ fn rewrite_part(text: &str, home: &str, shifts: &[Shift]) -> Result<String, Erro
                     .checked_sub(2)
                     .map(|at| stack[at])
                     .unwrap_or_default();
-                if FORMULA_ELEMENTS.contains(&inner) {
+                if inner == b"sqref" {
+                    // An `x14` conditional format's `xm:sqref` holds its ranges as text.
+                    let raw = String::from_utf8_lossy(raw);
+                    let moved = shift::apply_list(&raw, home, shifts);
+                    if moved != raw {
+                        edits.push((from..from + raw.len(), moved));
+                    }
+                } else if FORMULA_ELEMENTS.contains(&inner) {
                     let mut decoded = String::new();
                     xml::decode(raw, &mut decoded)?;
                     let moved = shift::apply(&decoded, home, shifts);
@@ -786,6 +795,7 @@ impl Template {
             current: 0,
             next_row: 0,
             shifts: Vec::new(),
+            next_group: 0,
             rows_out: 0,
             rows: Vec::new(),
             archive: Archive::new(),
@@ -1027,6 +1037,7 @@ fn enter(sheets: &[Sheet], filling: &mut Filling, at: usize) -> Result<(), Error
     filling.archive.begin(&sheet.path)?;
     filling.next_row = 0;
     filling.rows_out = 0;
+    filling.next_group = sheet.next_group;
     let mut out = String::new();
     head(&mut out, sheet, true);
     let top = filling.blocks[page.first].top;
@@ -1081,6 +1092,7 @@ fn write_held(sheets: &[Sheet], filling: &mut Filling, page: Page) -> Result<(),
     filling.archive.begin(&sheet.path)?;
     filling.next_row = 0;
     filling.rows_out = 0;
+    filling.next_group = sheet.next_group;
     let mut out = String::new();
     head(&mut out, sheet, true);
     for at in page.first..page.end {
@@ -1136,7 +1148,11 @@ fn rows_until(
             })
         });
         let values = &filling.values;
-        write_row(out, sheet, row, number, &filling.shifts, &|path| {
+        let moves = Moves {
+            shifts: &filling.shifts,
+            groups: &[],
+        };
+        write_row(out, sheet, row, number, &moves, &|path| {
             values.get(path).map(Option::as_ref)
         })?;
         filling.rows_out += 1;
@@ -1224,20 +1240,40 @@ fn item_rows(
         .map(|(path, value)| (path.as_str(), value.as_ref()))
         .collect();
     let (from, to) = (block.top, block.bottom);
+    let written = block.written;
+    let rows_of = || {
+        sheet
+            .rows
+            .iter()
+            .filter(move |row| (from..=to).contains(&row.number))
+    };
+    // A shared formula whose first cell is in the block gets a new group in every copy but the
+    // first, numbered after the sheet's highest, so no two copies share one.
+    let mut groups: Vec<(u32, u32)> = Vec::new();
+    if written > 0 {
+        for cell in rows_of().flat_map(|row| &row.cells) {
+            if let (Some((_, group)), Some(_)) = (&cell.shared, &cell.formula)
+                && !groups.iter().any(|(old, _)| old == group)
+            {
+                groups.push((*group, filling.next_group));
+                filling.next_group += 1;
+            }
+        }
+    }
     let values = &filling.values;
+    let moves = Moves {
+        shifts: &shifts,
+        groups: &groups,
+    };
     let mut rows = 0;
-    for row in sheet
-        .rows
-        .iter()
-        .filter(|row| (from..=to).contains(&row.number))
-    {
+    for row in rows_of() {
         let number = top + copy + (row.number - from);
         write_row(
             out,
             sheet,
             row,
             number,
-            &shifts,
+            &moves,
             &|path| match path.strip_prefix(&prefix) {
                 Some(field) => fields.get(field).copied(),
                 None => values.get(path).map(Option::as_ref),
@@ -1250,14 +1286,21 @@ fn item_rows(
     Ok(())
 }
 
-/// Appends `row` as row `number`, its formulas moved by `shifts` and its placeholders filled by
-/// `lookup`.
+/// What a copied row changes in its formulas: the moves of its references, and each shared
+/// formula group's new number, old first.
+struct Moves<'s> {
+    shifts: &'s [Shift],
+    groups: &'s [(u32, u32)],
+}
+
+/// Appends `row` as row `number`, its formulas changed by `moves` and its placeholders filled
+/// by `lookup`.
 fn write_row<'v>(
     out: &mut String,
     sheet: &Sheet,
     row: &Row,
     number: u32,
-    shifts: &[Shift],
+    moves: &Moves<'_>,
     lookup: &dyn Fn(&str) -> Option<Option<&'v Value>>,
 ) -> Result<(), Error> {
     let xml = &sheet.xml;
@@ -1275,7 +1318,7 @@ fn write_row<'v>(
         return Ok(());
     }
     for cell in &row.cells {
-        write_cell(out, sheet, row, cell, number, shifts, lookup)?;
+        write_cell(out, sheet, row, cell, number, moves, lookup)?;
     }
     out.push_str("</row>");
     Ok(())
@@ -1287,9 +1330,10 @@ fn write_cell<'v>(
     row: &Row,
     cell: &Cell,
     number: u32,
-    shifts: &[Shift],
+    moves: &Moves<'_>,
     lookup: &dyn Fn(&str) -> Option<Option<&'v Value>>,
 ) -> Result<(), Error> {
+    let Moves { shifts, groups } = *moves;
     let reference = crate::cells::reference(cell.column, number);
     if let Some(value) = &cell.set {
         return value_cell(out, &reference, cell.style.as_deref(), value.as_ref());
@@ -1350,6 +1394,11 @@ fn write_cell<'v>(
         if moved != current {
             edits.push((at.clone(), moved));
         }
+    }
+    if let Some((at, group)) = &cell.shared
+        && let Some((_, new)) = groups.iter().find(|(old, _)| old == group)
+    {
+        edits.push((at.clone(), new.to_string()));
     }
     splice(out, &sheet.xml, raw.clone(), &mut edits);
     Ok(())

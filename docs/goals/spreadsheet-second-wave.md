@@ -546,8 +546,8 @@ gives a `Formula` with `formulas: true`.
 **Does:** `fill` takes lists on any sheet, and the two copy faults the fragment names are fixed.
 
 - [x] `rule:core-classes/spreadsheet-template-fill`: the one-sheet check goes, and the sheets with blocks stream in workbook order, each with its own shifts. `extensions/spreadsheet/src/template/mod.rs:646`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:795`
-- [ ] A shared formula's `si` and `ref` per copy. `extensions/spreadsheet/src/template/mod.rs:265`, `extensions/spreadsheet/src/template/sheet.rs:95`
-- [ ] `extLst`'s `x14:conditionalFormatting` moves its `xm:sqref` and `xm:f`. `extensions/spreadsheet/src/template/mod.rs:332`, `extensions/spreadsheet/src/template/shift.rs:265`
+- [x] A shared formula's `si` and `ref` per copy. `extensions/spreadsheet/src/template/mod.rs:265`, `extensions/spreadsheet/src/template/sheet.rs:95`
+- [x] `extLst`'s `x14:conditionalFormatting` moves its `xm:sqref` and `xm:f`. `extensions/spreadsheet/src/template/mod.rs:332`, `extensions/spreadsheet/src/template/shift.rs:265`
 - [ ] The Novis half sends lists in block order, and an `Iterator` in `$data` is a list drained in batches. `extensions/spreadsheet/nvs/Template.nvs:57`, `extensions/spreadsheet/nvs/Template.nvs:78`, `extensions/spreadsheet/nvs/Template.nvs:141`
 - [ ] Template values: the escape, the key collision, the date format, the missing placeholder at `fill`, and the two export errors. The first-sheet rule goes into the fragment as a fact. `extensions/spreadsheet/src/template/mod.rs:552`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:758`, `extensions/spreadsheet/src/lib.rs:1398`, `extensions/spreadsheet/src/lib.rs:1412`, `extensions/spreadsheet/nvs/Template.nvs:66`
 - [x] The table formula form: a `rust_xlsxwriter` fixture with a calculated column under `tests/fixtures/excel/`, and the test the `table-formula-form` check names. This item shares no file with the rest of the stage. `extensions/spreadsheet/src/table.rs:411`, `extensions/spreadsheet/tests/excel.rs:1`

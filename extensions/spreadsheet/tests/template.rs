@@ -52,7 +52,8 @@ const SHEET_TAIL: &str = concat!(
     r#"<mergeCells count="1"><mergeCell ref="A6:C6"/></mergeCells>"#,
     r#"<conditionalFormatting sqref="D5:D6"><cfRule type="expression" dxfId="0" priority="1"><formula>D5&gt;100</formula></cfRule></conditionalFormatting>"#,
     r#"<dataValidations count="1"><dataValidation type="whole" sqref="B7"><formula1>0</formula1></dataValidation></dataValidations>"#,
-    r#"<drawing r:id="rId1"/><tableParts count="1"><tablePart r:id="rId2"/></tableParts></worksheet>"#,
+    r#"<drawing r:id="rId1"/><tableParts count="1"><tablePart r:id="rId2"/></tableParts>"#,
+    r#"<extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:conditionalFormattings><x14:conditionalFormatting xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:cfRule type="expression" priority="2" id="{00000000-0000-0000-0000-000000000001}"><xm:f>A7&gt;D6</xm:f></x14:cfRule><xm:sqref>D5:D6 A7</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst></worksheet>"#,
 );
 
 fn sheet(rows: &str) -> String {
@@ -503,6 +504,53 @@ fn lists_on_two_sheets_each_repeat_and_shift_every_reference_to_their_sheet() {
                 .contains(r#"localSheetId="0">Invoice!$A$1:$D$10</definedName>"#)
         );
     }
+}
+
+#[test]
+fn a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy() {
+    // Row 5 shares `B5*C5` over D5:E5 as group 0, and row 7 shares `A6` over B7:C7 as group 3.
+    let rows = INVOICE
+        .replace(
+            r#"<c r="D5" s="2"><f>B5*C5</f><v>0</v></c>"#,
+            r#"<c r="D5" s="2"><f t="shared" ref="D5:E5" si="0">B5*C5</f><v>0</v></c><c r="E5"><f t="shared" si="0"/><v>0</v></c>"#,
+        )
+        .replace(
+            r#"<c r="A7"><f>D6+Summary!B2</f><v>0</v></c>"#,
+            r#"<c r="A7"><f>D6+Summary!B2</f><v>0</v></c><c r="B7"><f t="shared" ref="B7:C7" si="3">A6</f><v>0</v></c><c r="C7"><f t="shared" si="3"/><v>0</v></c>"#,
+        );
+    let items = (1..=3).map(item).collect();
+    let out = fill(
+        &template(&rows, "", false),
+        &[],
+        header(),
+        &[("items", items)],
+    )
+    .unwrap();
+    let sheet = &parts(&out)["xl/worksheets/sheet1.xml"];
+    // The first copy keeps group 0, and each later copy takes the next free number.
+    for (row, group) in [(5, 0), (6, 4), (7, 5)] {
+        let master = format!(
+            r#"<c r="D{row}" s="2"><f t="shared" ref="D{row}:E{row}" si="{group}">B{row}*C{row}</f>"#
+        );
+        let follower = format!(r#"<c r="E{row}"><f t="shared" si="{group}"/>"#);
+        assert!(
+            sheet.contains(&master) && sheet.contains(&follower),
+            "{sheet}"
+        );
+    }
+    // A group below the block moves with its rows and keeps its number.
+    assert!(
+        sheet.contains(r#"<c r="B9"><f t="shared" ref="B9:C9" si="3">A8</f>"#)
+            && sheet.contains(r#"<c r="C9"><f t="shared" si="3"/>"#),
+        "{sheet}"
+    );
+}
+
+#[test]
+fn an_x14_conditional_format_moves_with_its_rows() {
+    let sheet = &invoice(3)["xl/worksheets/sheet1.xml"];
+    assert!(sheet.contains("<xm:f>A9&gt;D8</xm:f>"), "{sheet}");
+    assert!(sheet.contains("<xm:sqref>D5:D8 A9</xm:sqref>"), "{sheet}");
 }
 
 #[test]
