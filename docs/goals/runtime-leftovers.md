@@ -30,7 +30,7 @@ stages:
     context: [docs/rules/core-classes/process-spawn.md, crates/nvs-runtime/src/ctx/held.rs, crates/nvs-stdlib/src/process.rs, docs/rules/security/authority-is-the-enclosing-namespace.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: regex-backtracking-config
@@ -412,46 +412,32 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stage 6: a `Core\Task` child task's context (`task_child`, set in
-`Ctx::child`) reports "…when the task that started it ended…" from `end_abandoned_children`
-(`crates/nvs-runtime/src/ctx/held.rs:495`), and the root keeps its message. A process handle's key
-now comes from the process-wide `NEXT_CHILD_KEY` (`crates/nvs-runtime/src/ctx/held.rs:425`), and each
-table finds a key by binary search. So a handle a child task returns names nothing in the parent's
-table, and a member on it is the `FATAL` from `not_this_tasks` (`crates/nvs-stdlib/src/process.rs:1470`),
-whose message is now plain user text. The checker does not keep a handle inside its task, so the
-runtime check is the guard. Both `task-child-case` cases pass, and
-`a_child_a_task_left_running_is_reported_and_the_run_still_exits_0` passes. The `.nvst` harness cannot
-match standard error on a run that exits 0, so the cargo test checks the record. The two fragment
-markers were already gone, and `owners --closes runtime-leftovers` lists nothing. The fragment,
-`guardedBy` and `about.md` say what is built. The sweep's `env-secret-proofs` red is stale: no check
-or log of that name exists in the tree.
+Every stage is done. `looper verify` (run as `bun tools/looper/main.ts verify`, because the
+installed `looper` has no `verify`) passed. Its only change was rustfmt's layout of the stage-6
+test in `crates/nvs-cli/tests/run_command.rs`, which it applied and ran again green. The goal-end
+gates then found three things, each fixed in its own commit:
+
+- `bun nv verify --doc`: two `[`unit`]` links in `crates/nvs-cli/src/service.rs` were ambiguous
+  with the primitive type, so they are now `[`unit()`]`.
+- `bun nv ci --check`'s proofs gate: the 22 `Core\Regex` and `Core\Process` members were perf
+  stale after stages 2 and 6, so `bun nv proofs --record-perf` measured them again.
+- `bun nv ci --check`'s website stale guard: the debugger and editor pages now describe the Novis
+  Tasks view, and the questions of the eight pages this goal changed are written and stamped.
+
+`bun nv owners --closes runtime-leftovers` lists nothing, and `bun nv ci --check` is green. The
+sweep's `env-secret-proofs` red is stale: no check or log of that name exists in the tree.
 
 ### Next
 
-Stage 7, the gate: start `looper verify` with `run_in_background`, end the turn, then fix every
-failure in one pass and run it once more. Then the goal-end gates in AGENTS.md § *In the loop*.
-
-- [ ] `looper verify` over the whole goal. `docs/goals/runtime-leftovers.md:406`
-- [ ] Fix every failure in one pass. `crates/nvs-runtime/src/ctx/held.rs:425`
-- [ ] `looper verify` once more, green, then `bun nv verify --doc`, `bun nv owners --closes runtime-leftovers` and `bun nv ci --check`. `tools/nv/cmd/owners.ts:1`
-
-Tests that may go red at the gate:
-
-- A `.lspt` or `tests/references.rs` case that counts the references of a class written as
-  `Owner::Name` in a type. The owner is now a recorded use there, so such a list gains a row. An
-  outline or completion case whose class declares an alias may also gain a `type` row. Each is the
-  new behaviour, so update its expectation.
-- A test in `crates/nvs-stdlib/src/process.rs` or elsewhere that assumes a child's key is `1`, or
-  matches the old "was asked of a child this task does not hold" message. Keys are no longer
-  positions, so read the key from the handle's slot.
+Nothing. The goal is reached, and the driver runs its acceptance checks and retires it.
 
 ### Backlog
 
