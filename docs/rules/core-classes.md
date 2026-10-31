@@ -4390,6 +4390,13 @@ is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three stand
 password. All of it is pinned by `crates/nvs-ext/tests/pdf_standards.rs`, which opens the encrypted
 file with `hayro-syntax`.
 
+**Tools other than ours check the files.** `bun nv pdf-validate` (`tools/nv/cmd/pdf-validate.ts`)
+renders a PDF/A-2b, a PDF/A-3b file with a Factur-X invoice and a PDF/UA-1 file with the built
+binary, and runs veraPDF's `verapdf/cli` image, pinned by digest, on each with its flavour. It fails
+naming each file that is not compliant and its first failed rules. CI's `proofs` job runs it on its
+Linux leg. Where Docker runs no Linux containers, it says so and exits 0, as a `requires: <service>`
+program is skipped.
+
 **Declined:**
 - **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a
   request to the reader that any tool ignores.

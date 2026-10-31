@@ -482,6 +482,13 @@ jobs:
       - name: Feature proofs
         run: bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
+      # The PDF/A-2b, PDF/A-3b and PDF/UA-1 files the same binary writes, checked by veraPDF's image,
+      # pinned by digest in `tools/nv/cmd/pdf-validate.ts` (`rule:core-classes/pdf-standards-and-passwords`).
+      # Linux only: the other legs' Docker runs no Linux containers.
+      - name: PDF standards (veraPDF)
+        if: runner.os == 'Linux'
+        run: bun nv pdf-validate --bin target/proof/nvs
+
       # The website's stale guard, against the same binary: the nav and sidebars, every snippet run
       # against its `.out`, no broken id or stale page, every page's search questions, every language
       # and type feature on a Syntax page, the Guides, Tools and In depth sections' shape, every goal
