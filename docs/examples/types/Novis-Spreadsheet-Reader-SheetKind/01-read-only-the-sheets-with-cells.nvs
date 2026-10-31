@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the rows of each sheet that has cells, and skip a sheet with only a chart.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('North')->addAll([['Shop', 'Sales'], ['North 1', 120]]);
+$book->sheet('South')->addAll([['Shop', 'Sales'], ['South 1', 200]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// A `Chartsheet` has no rows to read. A file from Excel can have one.
+// This file has two worksheets, so this prints the first cell of both.
+foreach ($reader->sheets() as var $info) {
+    if ($info->kind == Reader::SheetKind::Worksheet) {
+        foreach ($reader->rows($info->position as int, { limit: 1 }) as var $row) {
+            echo $info->name, ': ', $row->values['A'] as string, "\n";
+        }
+    } else {
+        echo $info->name, ": a chart\n";
+    }
+}

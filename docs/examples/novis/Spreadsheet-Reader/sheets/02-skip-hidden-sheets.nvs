@@ -1,7 +1,6 @@
 <?nvs
 // Shows how to find the sheets a person can see, and skip the hidden ones.
 use Novis\Spreadsheet\Reader;
-use Novis\Spreadsheet\Visibility;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
@@ -10,9 +9,9 @@ $book->sheet('Lookup', { hidden: true })->add(['Code', 'Rate']);
 $book->sheet('Summary')->add(['Total']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
-// `visibility` is `Visibility::Visible` for a sheet that shows a tab in Excel.
+// `visibility` is `Reader::Visibility::Visible` for a sheet that shows a tab in Excel.
 foreach ($reader->sheets() as var $info) {
-    if ($info->visibility == Visibility::Visible) {
+    if ($info->visibility == Reader::Visibility::Visible) {
         echo $info->name, " is visible\n";
     } else {
         echo $info->name, " is hidden\n";

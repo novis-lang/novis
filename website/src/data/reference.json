@@ -2248,105 +2248,105 @@
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-align",
-      "url": "/reference/types/novis-spreadsheet-align/",
-      "title": "Novis\\Spreadsheet\\Align",
+      "slug": "novis-spreadsheet-chart-kind",
+      "url": "/reference/types/novis-spreadsheet-chart-kind/",
+      "title": "Novis\\Spreadsheet\\Chart::Kind",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Align",
-        "title": "Novis\\Spreadsheet\\Align",
-        "examples": "types/Novis-Spreadsheet-Align"
+        "id": "Novis\\Spreadsheet\\Chart::Kind",
+        "title": "Novis\\Spreadsheet\\Chart::Kind",
+        "examples": "types/Novis-Spreadsheet-Chart-Kind"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-chartkind",
-      "url": "/reference/types/novis-spreadsheet-chartkind/",
-      "title": "Novis\\Spreadsheet\\ChartKind",
+      "slug": "novis-spreadsheet-chart-legend",
+      "url": "/reference/types/novis-spreadsheet-chart-legend/",
+      "title": "Novis\\Spreadsheet\\Chart::Legend",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\ChartKind",
-        "title": "Novis\\Spreadsheet\\ChartKind",
-        "examples": "types/Novis-Spreadsheet-ChartKind"
+        "id": "Novis\\Spreadsheet\\Chart::Legend",
+        "title": "Novis\\Spreadsheet\\Chart::Legend",
+        "examples": "types/Novis-Spreadsheet-Chart-Legend"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-legend",
-      "url": "/reference/types/novis-spreadsheet-legend/",
-      "title": "Novis\\Spreadsheet\\Legend",
+      "slug": "novis-spreadsheet-reader-sheetkind",
+      "url": "/reference/types/novis-spreadsheet-reader-sheetkind/",
+      "title": "Novis\\Spreadsheet\\Reader::SheetKind",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Legend",
-        "title": "Novis\\Spreadsheet\\Legend",
-        "examples": "types/Novis-Spreadsheet-Legend"
+        "id": "Novis\\Spreadsheet\\Reader::SheetKind",
+        "title": "Novis\\Spreadsheet\\Reader::SheetKind",
+        "examples": "types/Novis-Spreadsheet-Reader-SheetKind"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-line",
-      "url": "/reference/types/novis-spreadsheet-line/",
-      "title": "Novis\\Spreadsheet\\Line",
+      "slug": "novis-spreadsheet-reader-visibility",
+      "url": "/reference/types/novis-spreadsheet-reader-visibility/",
+      "title": "Novis\\Spreadsheet\\Reader::Visibility",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Line",
-        "title": "Novis\\Spreadsheet\\Line",
-        "examples": "types/Novis-Spreadsheet-Line"
+        "id": "Novis\\Spreadsheet\\Reader::Visibility",
+        "title": "Novis\\Spreadsheet\\Reader::Visibility",
+        "examples": "types/Novis-Spreadsheet-Reader-Visibility"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-sheetkind",
-      "url": "/reference/types/novis-spreadsheet-sheetkind/",
-      "title": "Novis\\Spreadsheet\\SheetKind",
+      "slug": "novis-spreadsheet-style-align",
+      "url": "/reference/types/novis-spreadsheet-style-align/",
+      "title": "Novis\\Spreadsheet\\Style::Align",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\SheetKind",
-        "title": "Novis\\Spreadsheet\\SheetKind",
-        "examples": "types/Novis-Spreadsheet-SheetKind"
+        "id": "Novis\\Spreadsheet\\Style::Align",
+        "title": "Novis\\Spreadsheet\\Style::Align",
+        "examples": "types/Novis-Spreadsheet-Style-Align"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-underline",
-      "url": "/reference/types/novis-spreadsheet-underline/",
-      "title": "Novis\\Spreadsheet\\Underline",
+      "slug": "novis-spreadsheet-style-line",
+      "url": "/reference/types/novis-spreadsheet-style-line/",
+      "title": "Novis\\Spreadsheet\\Style::Line",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Underline",
-        "title": "Novis\\Spreadsheet\\Underline",
-        "examples": "types/Novis-Spreadsheet-Underline"
+        "id": "Novis\\Spreadsheet\\Style::Line",
+        "title": "Novis\\Spreadsheet\\Style::Line",
+        "examples": "types/Novis-Spreadsheet-Style-Line"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-valign",
-      "url": "/reference/types/novis-spreadsheet-valign/",
-      "title": "Novis\\Spreadsheet\\Valign",
+      "slug": "novis-spreadsheet-style-underline",
+      "url": "/reference/types/novis-spreadsheet-style-underline/",
+      "title": "Novis\\Spreadsheet\\Style::Underline",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Valign",
-        "title": "Novis\\Spreadsheet\\Valign",
-        "examples": "types/Novis-Spreadsheet-Valign"
+        "id": "Novis\\Spreadsheet\\Style::Underline",
+        "title": "Novis\\Spreadsheet\\Style::Underline",
+        "examples": "types/Novis-Spreadsheet-Style-Underline"
       },
       "keys": []
     },
     {
       "area": "types",
-      "slug": "novis-spreadsheet-visibility",
-      "url": "/reference/types/novis-spreadsheet-visibility/",
-      "title": "Novis\\Spreadsheet\\Visibility",
+      "slug": "novis-spreadsheet-style-valign",
+      "url": "/reference/types/novis-spreadsheet-style-valign/",
+      "title": "Novis\\Spreadsheet\\Style::Valign",
       "group": "Enums",
       "intro": {
-        "id": "Novis\\Spreadsheet\\Visibility",
-        "title": "Novis\\Spreadsheet\\Visibility",
-        "examples": "types/Novis-Spreadsheet-Visibility"
+        "id": "Novis\\Spreadsheet\\Style::Valign",
+        "title": "Novis\\Spreadsheet\\Style::Valign",
+        "examples": "types/Novis-Spreadsheet-Style-Valign"
       },
       "keys": []
     },

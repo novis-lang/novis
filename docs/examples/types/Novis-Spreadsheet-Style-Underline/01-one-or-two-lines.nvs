@@ -1,0 +1,25 @@
+<?nvs
+// Shows the `Style::Underline` that each value of the style field `underline` gives.
+use Novis\Spreadsheet\Style;
+
+class Underlines
+{
+    // Returns the name of an underline, or "none" when the text has no underline.
+    public static function name(?Style::Underline $underline): string
+    {
+        return match ($underline) {
+            Style::Underline::Single => 'Single',
+            Style::Underline::Double => 'Double',
+            null => 'none',
+        };
+    }
+}
+
+// `true` is the same as "single". This prints "Single".
+echo Underlines::name(Style::of({ underline: true })->fields->underline), "\n";
+
+// This prints "Double".
+echo Underlines::name(Style::of({ underline: 'double' })->fields->underline), "\n";
+
+// `false` gives no underline. This prints "none".
+echo Underlines::name(Style::of({ underline: false })->fields->underline), "\n";

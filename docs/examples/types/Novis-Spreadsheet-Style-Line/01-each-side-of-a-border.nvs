@@ -1,0 +1,31 @@
+<?nvs
+// Shows the `Style::Line` that each side of a border gets from `Style::of`.
+use Novis\Spreadsheet\Style;
+
+class Lines
+{
+    // Returns the name of a line, or "none" for a side without a line.
+    public static function name(?Style::Line $line): string
+    {
+        return match ($line) {
+            Style::Line::Thin => 'Thin',
+            Style::Line::Medium => 'Medium',
+            Style::Line::Thick => 'Thick',
+            Style::Line::Dashed => 'Dashed',
+            Style::Line::Dotted => 'Dotted',
+            Style::Line::Double => 'Double',
+            null => 'none',
+        };
+    }
+}
+
+// A string sets the same line on all four sides. This prints "Thin" four times.
+var $box = Style::of({ border: 'thin' })->fields->border;
+echo Lines::name($box?->top), ' ', Lines::name($box?->right), ' ';
+echo Lines::name($box?->bottom), ' ', Lines::name($box?->left), "\n";
+
+// A shape sets each side alone. Here only the top and the bottom have a line.
+// This prints "Double none Thick none".
+var $total = Style::of({ border: { top: 'double', bottom: 'thick' } })->fields->border;
+echo Lines::name($total?->top), ' ', Lines::name($total?->right), ' ';
+echo Lines::name($total?->bottom), ' ', Lines::name($total?->left), "\n";

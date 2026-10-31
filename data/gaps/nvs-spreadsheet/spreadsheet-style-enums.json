@@ -1,6 +1,0 @@
-{
-  "module": "extensions/spreadsheet/manifest.json",
-  "title": "The style enums and `Visibility` are at namespace scope, where the enum rule places each in the one class that uses it.",
-  "text": "Closing it declares each enum only `Style` uses under `Style` and `Visibility` under `Reader`, and updates every signature and example that names them (`rule:enums/an-enum-lives-in-the-class-that-uses-it`, `rule:core-classes/spreadsheet-styles-and-defaults`).",
-  "goal": "spreadsheet-second-wave"
-}

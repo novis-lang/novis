@@ -1,0 +1,24 @@
+<?nvs
+// Shows the `Style::Valign` that each value of the style field `valign` gives.
+use Novis\Spreadsheet\Style;
+
+class Places
+{
+    // Returns the name of a place, or "default" when the style does not set one.
+    public static function name(?Style::Valign $valign): string
+    {
+        return match ($valign) {
+            Style::Valign::Top => 'Top',
+            Style::Valign::Center => 'Center',
+            Style::Valign::Bottom => 'Bottom',
+            null => 'default',
+        };
+    }
+}
+
+// A note in a tall row is easier to read from the top. This prints "Top".
+var $note = Style::of({ wrap: true, valign: 'top' });
+echo Places::name($note->fields->valign), "\n";
+
+// A style without `valign` takes it from the row or the column. This prints "default".
+echo Places::name(Style::of({ bold: true })->fields->valign), "\n";

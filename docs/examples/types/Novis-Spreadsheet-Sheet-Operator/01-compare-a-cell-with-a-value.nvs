@@ -1,0 +1,24 @@
+<?nvs
+// Shows the `Sheet::Operator` that each value of the option `operator` writes into the file.
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $stock = $book->sheet('Stock');
+$stock->add(['item' => 'Tea', 'qty' => 3]);
+
+// Each rule colors the `qty` cells that match it.
+// `between` and `notBetween` need two values. The other operators need one.
+var $red = Style::of({ fill: '#FFC7CE' });
+$stock->conditional('B2:B99', { kind: 'cell', operator: 'less', values: ['5'], style: $red });
+$stock->conditional('B2:B99', { kind: 'cell', operator: 'notBetween', values: ['1', '500'], style: $red });
+$stock->conditional('B2:B99', { kind: 'cell', operator: 'equal', values: ['0'], style: $red });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// Excel reads the operator from the file.
+// This prints "lessThan", "notBetween" and "equal".
+var $sheet = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+var $rules = Core\Str::split($sheet, "operator=\"");
+foreach (Core\Arr::slice($rules, 1) as tainted string $rule) {
+    echo Core\Str::before($rule, "\"") ?? '', "\n";
+}

@@ -1,0 +1,26 @@
+<?nvs
+// Shows the `Chart::Legend` that each value of the chart option `legend` gives.
+use Novis\Spreadsheet\Chart;
+
+class Legends
+{
+    public static function name(Chart::Legend $legend): string
+    {
+        return match ($legend) {
+            Chart::Legend::Hidden => 'Hidden',
+            Chart::Legend::Top => 'Top',
+            Chart::Legend::Right => 'Right',
+            Chart::Legend::Bottom => 'Bottom',
+            Chart::Legend::Left => 'Left',
+        };
+    }
+}
+
+// Without the option, the legend is on the right. This prints "Right".
+echo Legends::name(Chart::column()->legend), "\n";
+
+// This prints "Bottom".
+echo Legends::name(Chart::pie({ legend: 'bottom' })->legend), "\n";
+
+// A chart with one series often needs no legend. This prints "Hidden".
+echo Legends::name(Chart::line({ legend: 'hidden' })->legend), "\n";

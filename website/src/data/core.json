@@ -28363,7 +28363,38 @@
       "id": "Novis.Spreadsheet.Chart",
       "name": "Novis\\Spreadsheet\\Chart",
       "summary": "One chart for a sheet. Start it with its type, such as `Chart::column()`, then add its data with `series`.\n`Sheet::chart` puts the chart on a sheet. A `Chart` does not change: each method returns a new chart.",
-      "enums": [],
+      "enums": [
+        {
+          "name": "Kind",
+          "cases": [
+            "Column",
+            "Bar",
+            "Line",
+            "Area",
+            "Pie",
+            "Doughnut",
+            "Scatter"
+          ],
+          "raw": "Kind { Column, Bar, Line, Area, Pie, Doughnut, Scatter }",
+          "doc": {
+            "shortHtml": "The type of a chart."
+          }
+        },
+        {
+          "name": "Legend",
+          "cases": [
+            "Hidden",
+            "Top",
+            "Right",
+            "Bottom",
+            "Left"
+          ],
+          "raw": "Legend { Hidden, Top, Right, Bottom, Left }",
+          "doc": {
+            "shortHtml": "Where a chart shows its legend. <code>Hidden</code> shows no legend."
+          }
+        }
+      ],
       "types": [
         {
           "name": "Series",
@@ -28371,7 +28402,7 @@
         },
         {
           "name": "Layer",
-          "type": "{ kind: ChartKind, series: array<Series> }"
+          "type": "{ kind: Kind, series: array<Series> }"
         },
         {
           "name": "Options",
@@ -28390,12 +28421,12 @@
           "static": false,
           "receiver": "chart",
           "generics": null,
-          "signature": "constructor(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels): void",
+          "signature": "constructor(Kind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels): void",
           "params": [
             {
               "kind": "param",
               "name": "kind",
-              "type": "ChartKind",
+              "type": "Kind",
               "default": null,
               "optional": false,
               "variadic": false
@@ -28953,7 +28984,31 @@
       "id": "Novis.Spreadsheet.Reader",
       "name": "Novis\\Spreadsheet\\Reader",
       "summary": "A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV.\nOpen one with `Reader::open`. Every string and `bytes` value it returns is `tainted`, because it comes from the file.",
-      "enums": [],
+      "enums": [
+        {
+          "name": "Visibility",
+          "cases": [
+            "Visible",
+            "Hidden",
+            "VeryHidden"
+          ],
+          "raw": "Visibility { Visible, Hidden, VeryHidden }",
+          "doc": {
+            "shortHtml": "Whether a sheet is shown. A person can show a <code>Hidden</code> sheet again in Excel. Only a program can show a <code>VeryHidden</code> sheet."
+          }
+        },
+        {
+          "name": "SheetKind",
+          "cases": [
+            "Worksheet",
+            "Chartsheet"
+          ],
+          "raw": "SheetKind { Worksheet, Chartsheet }",
+          "doc": {
+            "shortHtml": "Whether a sheet has cells or only a chart."
+          }
+        }
+      ],
       "types": [
         {
           "name": "RowOptions",
@@ -29910,7 +29965,60 @@
       "id": "Novis.Spreadsheet.Style",
       "name": "Novis\\Spreadsheet\\Style",
       "summary": "A set of style fields for a cell, a row, a column or a header row. Make one with `Style::of`.\nA cell uses each field from its own style first, then from its row, then from its column.",
-      "enums": [],
+      "enums": [
+        {
+          "name": "Line",
+          "cases": [
+            "Thin",
+            "Medium",
+            "Thick",
+            "Dashed",
+            "Dotted",
+            "Double"
+          ],
+          "raw": "Line { Thin, Medium, Thick, Dashed, Dotted, Double }",
+          "doc": {
+            "shortHtml": "The kind of line a border has."
+          }
+        },
+        {
+          "name": "Underline",
+          "cases": [
+            "Single",
+            "Double"
+          ],
+          "raw": "Underline { Single, Double }",
+          "doc": {
+            "shortHtml": "One or two lines under the text."
+          }
+        },
+        {
+          "name": "Align",
+          "cases": [
+            "Left",
+            "Center",
+            "Right",
+            "Fill",
+            "Justify"
+          ],
+          "raw": "Align { Left, Center, Right, Fill, Justify }",
+          "doc": {
+            "shortHtml": "Where the text sits from left to right in its cell."
+          }
+        },
+        {
+          "name": "Valign",
+          "cases": [
+            "Top",
+            "Center",
+            "Bottom"
+          ],
+          "raw": "Valign { Top, Center, Bottom }",
+          "doc": {
+            "shortHtml": "Where the text sits from top to bottom in its cell."
+          }
+        }
+      ],
       "types": [
         {
           "name": "Lines",

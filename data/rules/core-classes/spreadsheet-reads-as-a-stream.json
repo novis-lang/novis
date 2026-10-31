@@ -13,6 +13,7 @@
     "crates/nvs-stdlib/src/zip.rs",
     "crates/nvs-stdlib/tests/ext_world.rs",
     "tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst",
-    "tests/conformance/novis/spreadsheet-reads-an-open-file.nvst"
+    "tests/conformance/novis/spreadsheet-reads-an-open-file.nvst",
+    "tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst"
   ]
 }

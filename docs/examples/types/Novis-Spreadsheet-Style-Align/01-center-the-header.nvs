@@ -1,0 +1,17 @@
+<?nvs
+// Shows a header row with its text in the center of each cell.
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+// The style field `align` is a string. `Style::of` turns it into a `Style::Align` case.
+// This prints "center".
+var $header = Style::of({ bold: true, align: 'center' });
+echo $header->fields->align == Style::Align::Center ? 'center' : 'not center', "\n";
+
+var $book = Workbook::createInMemory();
+$book->sheet('Prices', { headerStyle: $header })->add(['item' => 'Tea', 'price' => 2.5]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The file tells Excel where the text goes. This prints `true`.
+var $styles = Core\Zip::read($file, 'xl/styles.xml') as string;
+echo Core\Str::contains($styles, "<alignment horizontal=\"center\"/>") ? 'true' : 'false', "\n";

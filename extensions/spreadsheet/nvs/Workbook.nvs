@@ -17,7 +17,7 @@ final class Workbook
     type Value = { text: string }|{ number: float }|{ integer: int }|{ decimal: string }|{ boolean: bool }|{ date: Core\Time\Date }|{ time: Core\Time\TimeOfDay }|{ duration: Core\Time\Duration }|{ day: Core\Time\Date, clock: Core\Time\TimeOfDay }|{ formula: string, cachedText: ?string, cachedNumber: ?float }|{ runs: array<{ text: string, style: ?uint }> };
     type Entry = { value: ?Value, style: ?uint };
     type Row = { cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool };
-    type Layout = { name: string, position: ?uint, visibility: Visibility, columns: array<{ width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool }>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: { defaultStyle: bool, style: ?uint, freeze: bool, filter: bool }, newSheetOnOverflow: bool };
+    type Layout = { name: string, position: ?uint, visibility: Reader::Visibility, columns: array<{ width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool }>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: { defaultStyle: bool, style: ?uint, freeze: bool, filter: bool }, newSheetOnOverflow: bool };
 
     private ?Core\Response\Stream $response = null;
     private ?Core\IO\File $file = null;
@@ -160,12 +160,12 @@ final class Workbook
         if ($overflow != null && $overflow != 'newSheet') {
             throw new LogicError("The sheet option `overflow` is `'newSheet'`. The sheet `{$name}` has `'{$overflow}'`.");
         }
-        Visibility $visibility = Visibility::Visible;
+        Reader::Visibility $visibility = Reader::Visibility::Visible;
         bool|string|null $hidden = $options?->hidden ?? null;
         if ($hidden == 'very') {
-            $visibility = Visibility::VeryHidden;
+            $visibility = Reader::Visibility::VeryHidden;
         } elseif ($hidden == true) {
-            $visibility = Visibility::Hidden;
+            $visibility = Reader::Visibility::Hidden;
         } elseif ($hidden is string) {
             throw new LogicError("The sheet option `hidden` is `true`, `false` or `'very'`. The sheet `{$name}` has `'{$hidden}'`.");
         }

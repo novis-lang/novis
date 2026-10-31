@@ -1,0 +1,29 @@
+<?nvs
+// Shows the `Chart::Kind` of the chart that each start method makes.
+use Novis\Spreadsheet\Chart;
+
+class Kinds
+{
+    public static function name(Chart::Kind $kind): string
+    {
+        return match ($kind) {
+            Chart::Kind::Column => 'Column',
+            Chart::Kind::Bar => 'Bar',
+            Chart::Kind::Line => 'Line',
+            Chart::Kind::Area => 'Area',
+            Chart::Kind::Pie => 'Pie',
+            Chart::Kind::Doughnut => 'Doughnut',
+            Chart::Kind::Scatter => 'Scatter',
+        };
+    }
+}
+
+// `kind` is the type of the chart. This prints "Column", "Pie" and "Scatter".
+array<Chart> $charts = [Chart::column(), Chart::pie(), Chart::scatter()];
+foreach ($charts as Chart $chart) {
+    echo Kinds::name($chart->kind), "\n";
+}
+
+// `combine` keeps the type of the first chart. This prints "Column".
+var $both = Chart::column()->series('B2:B9')->combine(Chart::line()->series('C2:C9'));
+echo Kinds::name($both->kind), "\n";

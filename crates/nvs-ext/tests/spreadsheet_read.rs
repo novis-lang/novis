@@ -1090,7 +1090,7 @@ fn empty_rows_merged_cells_and_hidden_rows_follow_their_options() {
     }
 }
 
-// covers: Novis\Spreadsheet\Visibility
+// covers: Novis\Spreadsheet\Reader::Visibility
 #[test]
 fn sheets_gives_name_position_visibility_size_and_kind() {
     let book = xlsx(
@@ -1175,7 +1175,7 @@ fn sheets_gives_name_position_visibility_size_and_kind() {
     block_on(read.request.end()).expect("the request ends");
 }
 
-// covers: Novis\Spreadsheet\SheetKind
+// covers: Novis\Spreadsheet\Reader::SheetKind
 #[test]
 fn a_chartsheet_is_listed_as_one_and_has_no_rows() {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";

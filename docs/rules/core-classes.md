@@ -4733,7 +4733,7 @@ surfaced as data and nothing resolved.
 
 `rule:core-classes/spreadsheet-roster`
 
-`Novis\Spreadsheet` is twelve classes and one enum, with `Engine` the manifest class whose static
+`Novis\Spreadsheet` is twelve classes and one enum at namespace scope, with `Engine` the manifest class whose static
 methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 
 | Class | What it is | Its members |
@@ -4755,8 +4755,19 @@ The enum is `CellError`, the cell error values `#NULL!`, `#DIV/0!`, `#VALUE!`, `
 `#NUM!`, `#N/A`, `#GETTING_DATA`, `#SPILL!` and `#CALC!` as the cases `Null`, `DivZero`, `Value`,
 `Ref`, `Name`, `Num`, `NotAvailable`, `GettingData`, `Spill` and `Calc`. It stays at namespace scope,
 because a cell value is `mixed` in every signature that carries one and no member names it
-([`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it)). `Reader::Visibility` (`Visible`, `Hidden`,
-`VeryHidden`) is the one owned enum, the type of a `sheets()` entry's `visibility`.
+([`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it)). Every other enum lives in the class that uses
+it, and an enum that repeated its owner's name drops it:
+
+| Owner | Its enums |
+|---|---|
+| `Style` | `Line`, `Underline`, `Align`, `Valign`, the types of a style's fields |
+| `Reader` | `Visibility` and `SheetKind`, the types of a `sheets()` entry's `visibility` and `kind` |
+| `Sheet` | `RuleKind`, `Operator`, `TotalFunction`, `ConditionalKind` and `Orientation`, the cases its sheet-end parts send |
+| `Chart` | `Kind` and `Legend`, the types of a chart's `kind` and `legend` |
+
+`Workbook` sends a sheet's visibility as a `Reader::Visibility`, and `Sheet` sends a style as a
+`Style`'s enums and a chart as a `Chart`'s: those are sent to `Engine` alone, and no signature a
+program calls names them.
 
 **The target comes first, and the verb last.** A program that writes row by row names where the bytes
 go when it creates the `Workbook`, so a download's headers leave at once; a one-call helper
@@ -4778,12 +4789,11 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
 **On disk.** Every member the table names but `Cell::rich`, in `extensions/spreadsheet/nvs/`, and
-the enums in `extensions/spreadsheet/manifest.json`. A `Style` also has the readonly `fields` and
+the enums in `extensions/spreadsheet/manifest.json`, each with its `owner`. A `Style` also has the readonly `fields` and
 `key` that `Workbook` reads.
 
 **Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
-`Cell` is `of` alone (gap:nvs-spreadsheet/spreadsheet-cell-rich). `Visibility` is at namespace
-scope with the style enums, not owned by `Reader` (gap:nvs-spreadsheet/spreadsheet-style-enums).
+`Cell` is `of` alone (gap:nvs-spreadsheet/spreadsheet-cell-rich).
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -5095,10 +5105,8 @@ a sheet.
 **On disk.** `Style::of`, `Cell::of`, the row's `style`, `columns` with `header`, `width`, `format`,
 `style`, `hidden` and `formula`, the header row and its four defaults, and auto width through the
 number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
-`extensions/spreadsheet/src/width.rs`).
-
-**Not shipped.** The style enums under `Style`: they are at namespace scope
-(gap:nvs-spreadsheet/spreadsheet-style-enums).
+`extensions/spreadsheet/src/width.rs`). A style's fields hold the enums `Style::Line`,
+`Style::Underline`, `Style::Align` and `Style::Valign`, which `Style::of` makes from their strings.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on
@@ -5336,8 +5344,8 @@ nothing, and a repeat past the grid throws.
 **`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
 its `number` is the **row number in the file**, and its `values` the row's array. The row number is
 not the `foreach` key, because a cursor carries no key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)), and a
-generator yields a class and not a shape. The generator only yields: a batch's shapes are read in an
-ordinary method, which the compiler lowers where it does not yet lower them inside a generator.
+generator yields a class and not a shape. The generator reads each batch the engine returns and
+yields its rows, so a read holds one batch at a time.
 
 | Option | Default | What it does |
 |---|---|---|
@@ -5370,7 +5378,7 @@ by column letter. A CSV read takes the same options and gives the same row shape
 all `string`.
 
 **`sheets()`** gives one shape per sheet: `name`, `position`, `visibility` (`Reader::Visibility`), `rows`
-and `columns` as the file declares them, and `kind` (`'worksheet'` or `'chartsheet'`). **The extras
+and `columns` as the file declares them, and `kind` (`Reader::SheetKind`, `Worksheet` or `Chartsheet`). **The extras
 read on request**, each for one sheet or the workbook: `merged`, `links`, `notes`, `names`, `tables`,
 `images` (as bytes with their anchor), `properties` and `macros`. An external link, a linked image or a
 data connection reads as data and is never followed ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)): a

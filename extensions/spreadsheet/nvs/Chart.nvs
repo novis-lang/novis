@@ -8,14 +8,14 @@ use LogicError;
 final class Chart
 {
     type Series = { values: string, categories: ?string, name: ?string, color: ?string };
-    type Layer = { kind: ChartKind, series: array<Series> };
+    type Layer = { kind: Kind, series: array<Series> };
     type Options = ?{ title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool };
     type SeriesOptions = ?{ categories?: string, name?: string, color?: string };
 
     /// `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
     /// `combined` has the types and series that `combine` added.
     public function constructor(
-        public readonly ChartKind $kind,
+        public readonly Kind $kind,
         public readonly array<Series> $series,
         public readonly array<Layer> $combined,
         public readonly ?string $title,
@@ -30,43 +30,43 @@ final class Chart
     /// `title` is the chart's title. `xTitle` and `yTitle` are the titles of its axes. `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. `labels` shows each value on the chart.
     public static function column(Options $options = null): Chart
     {
-        return self::start(ChartKind::Column, $options);
+        return self::start(Kind::Column, $options);
     }
 
     /// `Chart::bar` starts a chart of horizontal bars. It takes the same options as `Chart::column`.
     public static function bar(Options $options = null): Chart
     {
-        return self::start(ChartKind::Bar, $options);
+        return self::start(Kind::Bar, $options);
     }
 
     /// `Chart::line` starts a chart that joins the values of each series with a line. It takes the same options as `Chart::column`.
     public static function line(Options $options = null): Chart
     {
-        return self::start(ChartKind::Line, $options);
+        return self::start(Kind::Line, $options);
     }
 
     /// `Chart::area` starts a line chart with the space under each line filled. It takes the same options as `Chart::column`.
     public static function area(Options $options = null): Chart
     {
-        return self::start(ChartKind::Area, $options);
+        return self::start(Kind::Area, $options);
     }
 
     /// `Chart::pie` starts a pie chart. Each value of the first series is one slice. It takes the same options as `Chart::column`.
     public static function pie(Options $options = null): Chart
     {
-        return self::start(ChartKind::Pie, $options);
+        return self::start(Kind::Pie, $options);
     }
 
     /// `Chart::doughnut` starts a pie chart with a hole in the middle. It takes the same options as `Chart::column`.
     public static function doughnut(Options $options = null): Chart
     {
-        return self::start(ChartKind::Doughnut, $options);
+        return self::start(Kind::Doughnut, $options);
     }
 
     /// `Chart::scatter` starts a chart of points. A series' `categories` are the x values of its points. It takes the same options as `Chart::column`.
     public static function scatter(Options $options = null): Chart
     {
-        return self::start(ChartKind::Scatter, $options);
+        return self::start(Kind::Scatter, $options);
     }
 
     /// `series` returns the chart with one more series. `$values` is a range, such as `$sheet->column('sales')`.
@@ -95,7 +95,7 @@ final class Chart
         return new Chart($this->kind, $this->series, $combined, $this->title, $this->xTitle, $this->yTitle, $this->legend, $this->labels);
     }
 
-    private static function start(ChartKind $kind, Options $options): Chart
+    private static function start(Kind $kind, Options $options): Chart
     {
         return new Chart(
             $kind,

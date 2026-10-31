@@ -62,10 +62,8 @@ a sheet.
 **On disk.** `Style::of`, `Cell::of`, the row's `style`, `columns` with `header`, `width`, `format`,
 `style`, `hidden` and `formula`, the header row and its four defaults, and auto width through the
 number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
-`extensions/spreadsheet/src/width.rs`).
-
-**Not shipped.** The style enums under `Style`: they are at namespace scope
-(gap:nvs-spreadsheet/spreadsheet-style-enums).
+`extensions/spreadsheet/src/width.rs`). A style's fields hold the enums `Style::Line`,
+`Style::Underline`, `Style::Align` and `Style::Valign`, which `Style::of` makes from their strings.
 
 **Declined:**
 - **A style as an options bag on every call, with no value.** A report repeats the same few styles on

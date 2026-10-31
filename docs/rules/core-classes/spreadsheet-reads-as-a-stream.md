@@ -36,8 +36,8 @@ nothing, and a repeat past the grid throws.
 **`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
 its `number` is the **row number in the file**, and its `values` the row's array. The row number is
 not the `foreach` key, because a cursor carries no key (`rule:iteration/foreach-subjects`), and a
-generator yields a class and not a shape. The generator only yields: a batch's shapes are read in an
-ordinary method, which the compiler lowers where it does not yet lower them inside a generator.
+generator yields a class and not a shape. The generator reads each batch the engine returns and
+yields its rows, so a read holds one batch at a time.
 
 | Option | Default | What it does |
 |---|---|---|
@@ -70,7 +70,7 @@ by column letter. A CSV read takes the same options and gives the same row shape
 all `string`.
 
 **`sheets()`** gives one shape per sheet: `name`, `position`, `visibility` (`Reader::Visibility`), `rows`
-and `columns` as the file declares them, and `kind` (`'worksheet'` or `'chartsheet'`). **The extras
+and `columns` as the file declares them, and `kind` (`Reader::SheetKind`, `Worksheet` or `Chartsheet`). **The extras
 read on request**, each for one sheet or the workbook: `merged`, `links`, `notes`, `names`, `tables`,
 `images` (as bytes with their anchor), `properties` and `macros`. An external link, a linked image or a
 data connection reads as data and is never followed (`rule:core-classes/spreadsheet-has-no-io`): a

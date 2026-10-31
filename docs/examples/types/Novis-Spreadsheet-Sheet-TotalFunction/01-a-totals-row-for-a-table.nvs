@@ -1,0 +1,20 @@
+<?nvs
+// Shows a table with a totals row that uses a different function for each column.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet('Orders');
+$orders->add(['item' => 'Tea', 'qty' => 3, 'price' => 2.5]);
+$orders->add(['item' => 'Cake', 'qty' => 4, 'price' => 3.0]);
+
+// `'sum'` is `Sheet::TotalFunction::Sum`, and `'average'` is `Sheet::TotalFunction::Average`.
+$orders->table('A1:C3', { name: 'Orders', totals: ['qty' => 'sum', 'price' => 'average'] });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The totals row has a `SUBTOTAL` formula for each column. 109 is a sum and 101 is an average.
+// This prints "SUBTOTAL(109,Orders[qty])" and "SUBTOTAL(101,Orders[price])".
+var $sheet = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+var $formulas = Core\Str::split($sheet, '<f>');
+foreach (Core\Arr::slice($formulas, 1) as tainted string $formula) {
+    echo Core\Str::before($formula, '</f>') ?? '', "\n";
+}

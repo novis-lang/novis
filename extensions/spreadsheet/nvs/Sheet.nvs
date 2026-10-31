@@ -20,9 +20,9 @@ final class Sheet
         |{ validated: string, kind: RuleKind, operator: ?Operator, values: array<string>, inputTitle: ?string, inputMessage: ?string, errorTitle: ?string, errorMessage: ?string, allowEmpty: bool }
         |{ grouped: string, collapsed: bool }
         |{ table: string, name: ?string, style: ?string, banded: bool, filter: bool, totals: array<{ column: string, function: ?TotalFunction, formula: ?string }> }
-        |{ formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool } }
+        |{ formatted: string, kind: ConditionalKind, operator: ?Operator, values: array<string>, colors: array<string>, icons: ?string, rank: ?uint, percent: bool, style: ?{ font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Style::Underline, color: ?string, fill: ?string, border: ?{ top: ?Style::Line, right: ?Style::Line, bottom: ?Style::Line, left: ?Style::Line }, borderColor: ?string, align: ?Style::Align, valign: ?Style::Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool } }
         |{ at: string, image: bytes, width: ?float, height: ?float, offsetX: ?float, offsetY: ?float }
-        |{ placed: string, layers: array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float }
+        |{ placed: string, layers: array<{ kind: Chart::Kind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Chart::Legend, labels: bool, width: ?float, height: ?float }
         |{ orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{ top: float, right: float, bottom: float, left: float }, header: ?string, footer: ?string, repeatRows: ?string, area: ?string }
         |{ password: ?string, allow: array<string> };
     type PrintOptions = { orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
@@ -256,7 +256,7 @@ final class Sheet
     /// A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
     public function chart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet
     {
-        array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }> $layers = [{ kind: $chart->kind, series: $chart->series }];
+        array<{ kind: Chart::Kind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }> $layers = [{ kind: $chart->kind, series: $chart->series }];
         foreach ($chart->combined as var $layer) {
             $layers[] = $layer;
         }

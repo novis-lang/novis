@@ -6,7 +6,7 @@ context: [docs/rules/core-classes/spreadsheet-roster.md, docs/rules/core-classes
 stages:
   - id: 1
     title: "a generator body reads shapes, and every enum but CellError lives in the class that uses it"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-ir/src/lower/mod.rs, extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Style.nvs, docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md]
   - id: 2
     title: "Cell::rich writes rich text in one cell"
@@ -226,7 +226,9 @@ stays out. `Reader::walk` then reads each batch itself, and `batch` goes.
 **Enums.** Every manifest enum but `CellError` names an `owner`, which `crates/nvs-ext/src/manifest.rs:47`
 already supports. `Line`, `Underline`, `Align` and `Valign` go to `Style`. `Visibility` and
 `SheetKind` go to `Reader`. `RuleKind`, `Operator`, `TotalFunction`, `ConditionalKind` and
-`Orientation` go to `Sheet`. `ChartKind` and `Legend` go to `Chart`. `CellError` stays at namespace
+`Orientation` go to `Sheet`. `ChartKind` and `Legend` go to `Chart`, and `ChartKind` is renamed
+`Chart::Kind`, because `rule:enums/an-enum-lives-in-the-class-that-uses-it` drops the owner's word
+from a name that repeats it. Enums cross the WIT by their cases, so the rename needs no WIT change. `CellError` stays at namespace
 scope, because no signature names it (`rule:core-classes/spreadsheet-roster`). The rule's
 "`kind` (`'worksheet'` or `'chartsheet'`)" becomes `Reader::SheetKind`, which is what `sheets()`
 returns today. Home: `rule:core-classes/spreadsheet-roster` and
@@ -453,14 +455,14 @@ spreadsheet enum is reached through its class.
 A writing subagent moves them and rewrites their examples once the manifest's owners have landed.
 It builds nothing.
 
-- [ ] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes spreadsheet-second-wave` lists this goal's records. `tools/nv/cmd/owners.ts:1`
-- [ ] `rule:iteration/generators`: the advance body takes `low.shapes` and extends `classes`, as an ordinary method does. `crates/nvs-ir/src/lower/generator.rs:910`, `crates/nvs-ir/src/lower/mod.rs:1619`
-- [ ] The tests the `generator-lowering-keeps-shape-classes` check names. `crates/nvs-ir/tests/generator_shapes.rs:1`. The conformance case: `tests/conformance/iter/a-generator-builds-and-reads-a-shape.nvst:1`
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `walk` reads each batch itself, `batch` goes, and the sentence at `:39` says the generator reads the batch. `extensions/spreadsheet/nvs/Reader.nvs:189`, `extensions/spreadsheet/nvs/Reader.nvs:241`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:39`
-- [ ] The playbook bullet drops its shape half, and keeps the `self::` half and its `until`. `docs/agent/playbook/writing-novis/a-generator-body-that-names-self-or-builds-or-reads-a-shape.md:1`
-- [ ] `rule:core-classes/spreadsheet-styles-and-defaults`, `rule:core-classes/spreadsheet-roster`: each enum's `owner` as the standing decision lists. Every `.nvs` that names one uses `Owner::Enum`. `extensions/spreadsheet/manifest.json:259`, `extensions/spreadsheet/nvs/Style.nvs:12`, `extensions/spreadsheet/nvs/Reader.nvs:13`, `extensions/spreadsheet/nvs/Sheet.nvs:23`, `extensions/spreadsheet/nvs/Chart.nvs:45`, `extensions/spreadsheet/nvs/Workbook.nvs:20`
-- [ ] The conformance case `tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst:1`. The enum type pages move, and the website's enum list names the owned enums. `website/src/content/docs/syntax/values/enums.mdx:3`
-- [ ] The roster's opening sentence, `:24` and its **On disk.** paragraph, the `kind` sentence at `reads-as-a-stream.md:73`, and the styles fragment's Not-shipped line are rewritten. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:24`, `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:67`
+- [x] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes spreadsheet-second-wave` lists this goal's records. `tools/nv/cmd/owners.ts:1`
+- [x] `rule:iteration/generators`: the advance body takes `low.shapes` and extends `classes`, as an ordinary method does. `crates/nvs-ir/src/lower/generator.rs:910`, `crates/nvs-ir/src/lower/mod.rs:1619`
+- [x] The tests the `generator-lowering-keeps-shape-classes` check names. `crates/nvs-ir/tests/generator_shapes.rs:1`. The conformance case: `tests/conformance/iter/a-generator-builds-and-reads-a-shape.nvst:1`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `walk` reads each batch itself, `batch` goes, and the sentence at `:39` says the generator reads the batch. `extensions/spreadsheet/nvs/Reader.nvs:189`, `extensions/spreadsheet/nvs/Reader.nvs:241`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:39`
+- [x] The playbook bullet drops its shape half, and keeps the `self::` half and its `until`. `docs/agent/playbook/writing-novis/a-generator-body-that-names-self.md:1`
+- [x] `rule:core-classes/spreadsheet-styles-and-defaults`, `rule:core-classes/spreadsheet-roster`: each enum's `owner` as the standing decision lists. Every `.nvs` that names one uses `Owner::Enum`. `extensions/spreadsheet/manifest.json:259`, `extensions/spreadsheet/nvs/Style.nvs:12`, `extensions/spreadsheet/nvs/Reader.nvs:13`, `extensions/spreadsheet/nvs/Sheet.nvs:23`, `extensions/spreadsheet/nvs/Chart.nvs:45`, `extensions/spreadsheet/nvs/Workbook.nvs:20`
+- [x] The conformance case `tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst:1`. The enum type pages move, and the website's enum list names the owned enums. `website/src/content/docs/syntax/values/enums.mdx:3`
+- [x] The roster's opening sentence, `:24` and its **On disk.** paragraph, the `kind` sentence at `reads-as-a-stream.md:73`, and the styles fragment's Not-shipped line are rewritten. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:24`, `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:67`
 
 ### 2. Cell::rich writes rich text in one cell
 
@@ -620,29 +622,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built. The goal waits on `release-hygiene`, whose gap records name this goal. The
-generator site comes from reading the code, and no test reproduces it yet: `lower_generator_advance`
-never takes `low.shapes` (`crates/nvs-ir/src/lower/generator.rs:910`).
+Stage 1 is done. A generator body that builds or reads a shape declares its class, and
+`Reader::walk` reads each batch itself. Every spreadsheet enum but `CellError` names its owner in
+the manifest, and `ChartKind` is now `Chart::Kind`. The 13 type pages moved to
+`docs/examples/types/Novis-Spreadsheet-<Owner>-<Enum>/`, and the website is rendered. Both stage 1
+acceptance checks pass: `cargo test --test generator_shapes` and the two `.nvst` cases. The record
+`spreadsheet-style-enums` is deleted. The sweep's `env-secret-proofs` red is stale: no goal, floor or
+`looper.toml` defines it, and `bun tools/looper/main.ts check --name env-secret-proofs` finds no such
+check.
+
+The five `Sheet::` enum pages (`Sheet-RuleKind`, `-Operator`, `-TotalFunction`, `-ConditionalKind`,
+`-Orientation`) are not `bun nv proofs` features, before or after the move, because no reference
+entry lists them. Their examples ran in no check this session.
 
 ### Next
 
-Stage 1, over `crates/nvs-ir/src/lower/generator.rs`, `extensions/spreadsheet/manifest.json` and the
-`.nvs` files of `extensions/spreadsheet/nvs/`. Gate: `bun nv owners --check` exits 0, and
-`bun nv owners --closes spreadsheet-second-wave` lists this goal's records.
+Stage 2, `Cell::rich`, over `extensions/spreadsheet/nvs/Cell.nvs`, `extensions/spreadsheet/nvs/Workbook.nvs`
+and `extensions/spreadsheet/src/cells.rs`.
 
-- [ ] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes spreadsheet-second-wave` lists this goal's records. `tools/nv/cmd/owners.ts:1`
-- [ ] `rule:iteration/generators`: the advance body takes `low.shapes` and extends `classes`. `crates/nvs-ir/src/lower/generator.rs:910`, `crates/nvs-ir/src/lower/mod.rs:1619`
-- [ ] The tests the `generator-lowering-keeps-shape-classes` check names, and the conformance case. `crates/nvs-ir/tests/generator_shapes.rs:1`, `tests/conformance/iter/a-generator-builds-and-reads-a-shape.nvst:1`
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `walk` reads each batch itself, and `batch` goes. `extensions/spreadsheet/nvs/Reader.nvs:189`, `extensions/spreadsheet/nvs/Reader.nvs:241`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:39`
-- [ ] The playbook bullet drops its shape half. `docs/agent/playbook/writing-novis/a-generator-body-that-names-self-or-builds-or-reads-a-shape.md:1`
-- [ ] `rule:core-classes/spreadsheet-styles-and-defaults`: each enum's `owner`, and every `.nvs` that names one. `extensions/spreadsheet/manifest.json:259`, `extensions/spreadsheet/nvs/Style.nvs:12`, `extensions/spreadsheet/nvs/Reader.nvs:13`, `extensions/spreadsheet/nvs/Sheet.nvs:23`, `extensions/spreadsheet/nvs/Chart.nvs:45`
-- [ ] The enum case, the moved type pages, and the website's enum list. `tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst:1`, `website/src/content/docs/syntax/values/enums.mdx:3`
-- [ ] `rule:core-classes/spreadsheet-roster`: the roster and styles fragments are rewritten. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:24`, `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:67`
+- [ ] `rule:core-classes/spreadsheet-roster`: `Cell::rich`, the `runs` property, and the run checks the standing decision gives. `extensions/spreadsheet/nvs/Cell.nvs:4`
+- [ ] The Novis half sends a rich cell as `cell-value::rich`, each run's style an id from `writer-style`. `extensions/spreadsheet/nvs/Workbook.nvs:349`, `wit/spreadsheet.wit:73`, `extensions/spreadsheet/src/cells.rs:285`
+- [ ] The CSV path writes a rich cell as its joined text. `extensions/spreadsheet/nvs/Workbook.nvs:588`
+- [ ] The conformance cases the `rich-cell` check names. `tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst:1`, `tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst:1`
+- [ ] Feature proofs for `Novis\Spreadsheet\Cell::rich`. `docs/examples/novis/Spreadsheet-Cell/rich/about.md:1`, `benches/members/novis/Spreadsheet-Cell/rich.nvs:1`, `tests/hostile/novis/Spreadsheet-Cell/rich/01-runs-that-are-huge-or-empty.nvs:1`
+- [ ] The roster's and the sheet-end parts' Not-shipped lines drop `Cell::rich`. Delete the record. `docs/rules/core-classes/spreadsheet-roster.md:60`, `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:83`
 
-No existing test is expected to go red, except a `.nvst` or example that names an enum at namespace
-scope. Stage 1 updates those.
+Tests that may go red at the gate, from stage 1: `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
+enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
+`CellError`. Also `crates/nvs-cli/tests/spreadsheet_reader.rs`, which now writes
+`Reader::Visibility`. Neither ran this session.
 
 ### Backlog
 
-- The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal.
+- The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.

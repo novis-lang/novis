@@ -9,6 +9,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/ext_world.rs",
+    "tests/conformance/novis/spreadsheet-an-enum-lives-in-the-class-that-uses-it.nvst",
     "crates/nvs-cli/tests/spreadsheet_workbook.rs",
     "crates/nvs-cli/tests/spreadsheet_sheet.rs",
     "crates/nvs-cli/tests/spreadsheet_reader.rs",

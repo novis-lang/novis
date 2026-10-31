@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to print a sheet with many columns on wide pages.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $report = $book->sheet('Report');
+
+// `'landscape'` is `Sheet::Orientation::Landscape`, so each page is wider than it is tall.
+$report->print({ orientation: 'landscape', fitToPage: { width: 1 } });
+$report->add(['shop' => 'North', 'jan' => 120, 'feb' => 150, 'mar' => 170]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The file tells Excel how to print the sheet. This prints `true`.
+var $sheet = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($sheet, "orientation=\"landscape\"") ? 'true' : 'false', "\n";

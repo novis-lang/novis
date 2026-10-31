@@ -205,11 +205,23 @@ final class Reader
             if ($most == 0) {
                 return;
             }
-            array<Row> $rows = $this->batch($asked, $headerRow, $next, $left, $most, $keys, $zone);
-            uint $count = Core\Arr::count($rows);
-            foreach ($rows as Row $row) {
+            var $batch = Engine::readerRows($this->engine(), $this->source, Reader::with($asked, $headerRow, $next, $left, $asked->keepEmptyRows, true), $most);
+            uint $count = Core\Arr::count($batch->rows);
+            foreach ($batch->rows as var $row) {
+                array<mixed> $values = [];
+                uint $column = 0;
+                foreach ($keys as tainted string $named) {
+                    $column = $column + 1;
+                    if (Reader::selected($asked->columns, $column)) {
+                        $values[$named] = null;
+                    }
+                }
+                foreach ($row->cells as var $cell) {
+                    tainted string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : Reader::letters($cell->column);
+                    $values[$key] = Reader::value($cell->value, $cell->formula, $cell->display, $asked->formulas, $zone);
+                }
                 $next = $row->number + 1;
-                yield $row;
+                yield new Row($row->number, $values);
             }
             if ($count < $most) {
                 return;
@@ -238,27 +250,6 @@ final class Reader
         return Engine::readerHeader($this->engine(), $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
     }
 
-    private function batch(Asked $asked, ?uint $headerRow, ?uint $from, ?uint $left, uint $most, array<tainted string> $keys, Core\Time\Zone $zone): array<Row>
-    {
-        var $batch = Engine::readerRows($this->engine(), $this->source, self::with($asked, $headerRow, $from, $left, $asked->keepEmptyRows, true), $most);
-        array<Row> $rows = [];
-        foreach ($batch->rows as var $row) {
-            array<mixed> $values = [];
-            uint $column = 0;
-            foreach ($keys as tainted string $named) {
-                $column = $column + 1;
-                if (self::selected($asked->columns, $column)) {
-                    $values[$named] = null;
-                }
-            }
-            foreach ($row->cells as var $cell) {
-                tainted string $key = $cell->column <= Core\Arr::count($keys) ? $keys[$cell->column - 1] : self::letters($cell->column);
-                $values[$key] = self::value($cell->value, $cell->formula, $cell->display, $asked->formulas, $zone);
-            }
-            $rows[] = new Row($row->number, $values);
-        }
-        return $rows;
-    }
 
     // Reads a CSV file one record at a time. Only the header row and the empty rows are kept out, and each row is numbered by its record.
     private function csvWalk(bool $findHeader, ?uint $headerRow, ?uint $from, ?uint $limit, array<string> $columns, bool $keepEmptyRows): Iterator<Row>

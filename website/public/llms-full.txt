@@ -54029,7 +54029,7 @@ Keywords: constructor, column, bar, line, area, pie, doughnut, scatter, series, 
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Chart::constructor`](#core-novis-spreadsheet-chart-constructor) | `constructor(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)` |
+| [`Novis\Spreadsheet\Chart::constructor`](#core-novis-spreadsheet-chart-constructor) | `constructor(Kind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)` |
 | [`Novis\Spreadsheet\Chart::column`](#core-novis-spreadsheet-chart-column) | `column(Options $options = null): Chart` |
 | [`Novis\Spreadsheet\Chart::bar`](#core-novis-spreadsheet-chart-bar) | `bar(Options $options = null): Chart` |
 | [`Novis\Spreadsheet\Chart::line`](#core-novis-spreadsheet-chart-line) | `line(Options $options = null): Chart` |
@@ -54044,7 +54044,7 @@ Keywords: constructor, column, bar, line, area, pie, doughnut, scatter, series, 
 #### `Novis\Spreadsheet\Chart::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Chart(ChartKind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)
+new Novis\Spreadsheet\Chart(Kind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)
 ```
 
 `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
@@ -56129,104 +56129,104 @@ A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `P
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-line"></a>
-#### `Novis\Spreadsheet\Line`
+<a id="enum-novis-spreadsheet-style-line"></a>
+#### `Novis\Spreadsheet\Style::Line`
 
 The kind of line a border has.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-underline"></a>
-#### `Novis\Spreadsheet\Underline`
+<a id="enum-novis-spreadsheet-style-underline"></a>
+#### `Novis\Spreadsheet\Style::Underline`
 
 One or two lines under the text.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-align"></a>
-#### `Novis\Spreadsheet\Align`
+<a id="enum-novis-spreadsheet-style-align"></a>
+#### `Novis\Spreadsheet\Style::Align`
 
 Where the text sits from left to right in its cell.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-valign"></a>
-#### `Novis\Spreadsheet\Valign`
+<a id="enum-novis-spreadsheet-style-valign"></a>
+#### `Novis\Spreadsheet\Style::Valign`
 
 Where the text sits from top to bottom in its cell.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-visibility"></a>
-#### `Novis\Spreadsheet\Visibility`
+<a id="enum-novis-spreadsheet-reader-visibility"></a>
+#### `Novis\Spreadsheet\Reader::Visibility`
 
 Whether a sheet is shown. A person can show a `Hidden` sheet again in Excel. Only a program can show a `VeryHidden` sheet.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-rulekind"></a>
-#### `Novis\Spreadsheet\RuleKind`
+<a id="enum-novis-spreadsheet-sheet-rulekind"></a>
+#### `Novis\Spreadsheet\Sheet::RuleKind`
 
 What a data validation checks: a value from a list, a whole number, a decimal number, a date, the length of a text, or a formula.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-operator"></a>
-#### `Novis\Spreadsheet\Operator`
+<a id="enum-novis-spreadsheet-sheet-operator"></a>
+#### `Novis\Spreadsheet\Sheet::Operator`
 
 How a value is compared with the values of a rule. `Between` and `NotBetween` need two values. The others need one.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-totalfunction"></a>
-#### `Novis\Spreadsheet\TotalFunction`
+<a id="enum-novis-spreadsheet-sheet-totalfunction"></a>
+#### `Novis\Spreadsheet\Sheet::TotalFunction`
 
 The function the totals row of a table uses for a column.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-conditionalkind"></a>
-#### `Novis\Spreadsheet\ConditionalKind`
+<a id="enum-novis-spreadsheet-sheet-conditionalkind"></a>
+#### `Novis\Spreadsheet\Sheet::ConditionalKind`
 
 The kind of a conditional format rule.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-chartkind"></a>
-#### `Novis\Spreadsheet\ChartKind`
+<a id="enum-novis-spreadsheet-chart-kind"></a>
+#### `Novis\Spreadsheet\Chart::Kind`
 
 The type of a chart.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-legend"></a>
-#### `Novis\Spreadsheet\Legend`
+<a id="enum-novis-spreadsheet-chart-legend"></a>
+#### `Novis\Spreadsheet\Chart::Legend`
 
 Where a chart shows its legend. `Hidden` shows no legend.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-orientation"></a>
-#### `Novis\Spreadsheet\Orientation`
+<a id="enum-novis-spreadsheet-sheet-orientation"></a>
+#### `Novis\Spreadsheet\Sheet::Orientation`
 
 Whether a printed page is tall or wide.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-spreadsheet-sheetkind"></a>
-#### `Novis\Spreadsheet\SheetKind`
+<a id="enum-novis-spreadsheet-reader-sheetkind"></a>
+#### `Novis\Spreadsheet\Reader::SheetKind`
 
 Whether a sheet has cells or only a chart.
 

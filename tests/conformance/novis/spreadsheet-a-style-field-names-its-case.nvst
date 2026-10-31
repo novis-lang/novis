@@ -2,26 +2,22 @@
 `Style::of` turns the strings of `border`, `underline`, `align` and `valign` into their `Line`, `Underline`, `Align` and `Valign` cases, the styles part writes each case as Excel names it, and a string outside the set throws: rule:core-classes/spreadsheet-styles-and-defaults
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Line, Novis\Spreadsheet\Underline, Novis\Spreadsheet\Align, Novis\Spreadsheet\Valign
-use Novis\Spreadsheet\Align;
-use Novis\Spreadsheet\Line;
+// covers: Novis\Spreadsheet\Style::Line, Novis\Spreadsheet\Style::Underline, Novis\Spreadsheet\Style::Align, Novis\Spreadsheet\Style::Valign
 use Novis\Spreadsheet\Style;
-use Novis\Spreadsheet\Underline;
-use Novis\Spreadsheet\Valign;
 use Novis\Spreadsheet\Workbook;
 
 var $style = Style::of({border: {top: "thin", bottom: "double"}, underline: true, align: "justify", valign: "center"});
 var $fields = $style->fields;
-echo $fields->border?->top == Line::Thin ? "top thin" : "top wrong", "\n";
-echo $fields->border?->bottom == Line::Double ? "bottom double" : "bottom wrong", "\n";
+echo $fields->border?->top == Style::Line::Thin ? "top thin" : "top wrong", "\n";
+echo $fields->border?->bottom == Style::Line::Double ? "bottom double" : "bottom wrong", "\n";
 echo $fields->border?->left == null ? "left none" : "left wrong", "\n";
-echo $fields->underline == Underline::Single ? "underline single" : "underline wrong", "\n";
-echo $fields->align == Align::Justify ? "align justify" : "align wrong", "\n";
-echo $fields->valign == Valign::Center ? "valign center" : "valign wrong", "\n";
+echo $fields->underline == Style::Underline::Single ? "underline single" : "underline wrong", "\n";
+echo $fields->align == Style::Align::Justify ? "align justify" : "align wrong", "\n";
+echo $fields->valign == Style::Valign::Center ? "valign center" : "valign wrong", "\n";
 
 var $all = Style::of({border: "dotted", underline: "double", align: "fill", valign: "bottom"})->fields;
-echo $all->border?->right == Line::Dotted && $all->underline == Underline::Double ? "dotted, double" : "wrong", "\n";
-echo $all->align == Align::Fill && $all->valign == Valign::Bottom ? "fill, bottom" : "wrong", "\n";
+echo $all->border?->right == Style::Line::Dotted && $all->underline == Style::Underline::Double ? "dotted, double" : "wrong", "\n";
+echo $all->align == Style::Align::Fill && $all->valign == Style::Valign::Bottom ? "fill, bottom" : "wrong", "\n";
 echo Style::of({underline: false})->fields->underline == null ? "no underline" : "underline", "\n";
 
 var $book = Workbook::createInMemory();

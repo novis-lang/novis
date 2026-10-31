@@ -1,0 +1,47 @@
+--TEST--
+Each spreadsheet enum but `CellError` is reached through the class that uses it, and `Reader::rows` reads a header and its rows in one generator — `rule:core-classes/spreadsheet-roster`
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Reader::Visibility, Novis\Spreadsheet\Reader::SheetKind
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $style = Style::of({ border: 'thin', underline: true, align: 'center', valign: 'top' });
+echo $style->fields->align == Style::Align::Center ? "Style::Align" : "wrong", "\n";
+echo $style->fields->valign == Style::Valign::Top ? "Style::Valign" : "wrong", "\n";
+echo $style->fields->underline == Style::Underline::Single ? "Style::Underline" : "wrong", "\n";
+echo $style->fields->border?->top == Style::Line::Thin ? "Style::Line" : "wrong", "\n";
+
+var $chart = Chart::pie({ legend: 'bottom' });
+echo $chart->kind == Chart::Kind::Pie ? "Chart::Kind" : "wrong", "\n";
+echo $chart->legend == Chart::Legend::Bottom ? "Chart::Legend" : "wrong", "\n";
+
+array<Novis\Spreadsheet\Sheet::Orientation> $sides = [Novis\Spreadsheet\Sheet::Orientation::Portrait, Novis\Spreadsheet\Sheet::Orientation::Landscape];
+echo Core\Arr::count($sides), " orientations\n";
+
+var $book = Workbook::createInMemory();
+$book->sheet('Prices')->addAll([['item' => 'Tea', 'price' => 2.5], ['item' => 'Cake', 'price' => 4]]);
+$book->sheet('Codes', { hidden: true })->add(['code' => 'T']);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+foreach ($reader->sheets() as var $info) {
+    string $shown = $info->visibility == Reader::Visibility::Visible ? "visible" : "hidden";
+    string $kind = $info->kind == Reader::SheetKind::Worksheet ? "worksheet" : "chartsheet";
+    echo $info->name, " ", $shown, " ", $kind, "\n";
+}
+foreach ($reader->rows('Prices', { header: true }) as var $row) {
+    echo $row->number, " ", $row->values['item'], " ", $row->values['price'], "\n";
+}
+--EXPECT--
+Style::Align
+Style::Valign
+Style::Underline
+Style::Line
+Chart::Kind
+Chart::Legend
+2 orientations
+Prices visible worksheet
+Codes hidden worksheet
+2 Tea 2.5
+3 Cake 4

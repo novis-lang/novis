@@ -22,7 +22,7 @@ fn scratch(case: &str) -> PathBuf {
 fn run(case: &str, toml: Option<&str>, body: &str) -> String {
     let dir = scratch(case);
     let program = format!(
-        "<?nvs\nuse Novis\\Spreadsheet\\Reader;\nuse Novis\\Spreadsheet\\Row;\nuse Novis\\Spreadsheet\\Visibility;\nuse Novis\\Spreadsheet\\Workbook;\n{body}"
+        "<?nvs\nuse Novis\\Spreadsheet\\Reader;\nuse Novis\\Spreadsheet\\Row;\nuse Novis\\Spreadsheet\\Workbook;\n{body}"
     );
     fs::write(dir.join("main.nvs"), program).unwrap();
     if let Some(toml) = toml {
@@ -74,7 +74,7 @@ fn open_lists_the_sheets_and_reads_the_rows() {
         r#"
 var $reader = Reader::open($file);
 foreach ($reader->sheets() as var $info) {
-    echo $info->position, " ", $info->name, " ", $info->visibility == Visibility::Visible ? "visible" : "hidden", "\n";
+    echo $info->position, " ", $info->name, " ", $info->visibility == Reader::Visibility::Visible ? "visible" : "hidden", "\n";
 }
 foreach ($reader->rows("Shop", {header: true}) as Row $row) {
     echo $row->number, " ", Core\Json::encode($row->values), "\n";

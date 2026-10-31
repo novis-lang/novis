@@ -2,8 +2,8 @@
 The option a validation, a conditional format, a totals row and the print setup are given becomes its `RuleKind`, `Operator`, `ConditionalKind`, `TotalFunction` and `Orientation` case, and the sheet and table parts write each case as Excel names it: rule:core-classes/spreadsheet-sheet-end-parts
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\RuleKind, Novis\Spreadsheet\Operator, Novis\Spreadsheet\ConditionalKind
-// covers: Novis\Spreadsheet\TotalFunction, Novis\Spreadsheet\Orientation
+// covers: Novis\Spreadsheet\Sheet::RuleKind, Novis\Spreadsheet\Sheet::Operator, Novis\Spreadsheet\Sheet::ConditionalKind
+// covers: Novis\Spreadsheet\Sheet::TotalFunction, Novis\Spreadsheet\Sheet::Orientation
 use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 

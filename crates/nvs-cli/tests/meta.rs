@@ -430,14 +430,17 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         ["open", "set", "fill"]
     );
     for name in [
-        "Line",
-        "Underline",
-        "Align",
-        "Valign",
-        "Visibility",
-        "RuleKind",
-        "Operator",
-        "Orientation",
+        r"Style::Line",
+        r"Style::Underline",
+        r"Style::Align",
+        r"Style::Valign",
+        r"Reader::Visibility",
+        r"Reader::SheetKind",
+        r"Sheet::RuleKind",
+        r"Sheet::Operator",
+        r"Sheet::Orientation",
+        r"Chart::Kind",
+        r"CellError",
     ] {
         core_enum(&document, &format!(r"Novis\Spreadsheet\{name}"));
     }

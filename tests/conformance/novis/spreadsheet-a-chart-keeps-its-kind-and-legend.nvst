@@ -1,21 +1,19 @@
 --TEST--
-Each `Chart` start method gives its `ChartKind`, `combine` keeps the first chart's kind, the option `legend` gives its `Legend` case with `Right` when it is left out, and the chart part writes the kind and the legend's place: rule:core-classes/spreadsheet-sheet-end-parts
+Each `Chart` start method gives its `Chart::Kind`, `combine` keeps the first chart's kind, the option `legend` gives its `Legend` case with `Right` when it is left out, and the chart part writes the kind and the legend's place: rule:core-classes/spreadsheet-sheet-end-parts
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\ChartKind, Novis\Spreadsheet\Legend
+// covers: Novis\Spreadsheet\Chart::Kind, Novis\Spreadsheet\Chart::Legend
 use Novis\Spreadsheet\Chart;
-use Novis\Spreadsheet\ChartKind;
-use Novis\Spreadsheet\Legend;
 use Novis\Spreadsheet\Workbook;
 
-array<{chart: Chart, kind: ChartKind}> $starts = [
-    {chart: Chart::column(), kind: ChartKind::Column},
-    {chart: Chart::bar(), kind: ChartKind::Bar},
-    {chart: Chart::line(), kind: ChartKind::Line},
-    {chart: Chart::area(), kind: ChartKind::Area},
-    {chart: Chart::pie(), kind: ChartKind::Pie},
-    {chart: Chart::doughnut(), kind: ChartKind::Doughnut},
-    {chart: Chart::scatter(), kind: ChartKind::Scatter},
+array<{chart: Chart, kind: Chart::Kind}> $starts = [
+    {chart: Chart::column(), kind: Chart::Kind::Column},
+    {chart: Chart::bar(), kind: Chart::Kind::Bar},
+    {chart: Chart::line(), kind: Chart::Kind::Line},
+    {chart: Chart::area(), kind: Chart::Kind::Area},
+    {chart: Chart::pie(), kind: Chart::Kind::Pie},
+    {chart: Chart::doughnut(), kind: Chart::Kind::Doughnut},
+    {chart: Chart::scatter(), kind: Chart::Kind::Scatter},
 ];
 int $matching = 0;
 foreach ($starts as var $start) {
@@ -25,15 +23,15 @@ foreach ($starts as var $start) {
 }
 echo $matching, " of 7 kinds match\n";
 var $both = Chart::area()->series("B2:B3")->combine(Chart::line()->series("C2:C3"));
-echo $both->kind == ChartKind::Area ? "combine keeps area" : "combine changes the kind", "\n";
+echo $both->kind == Chart::Kind::Area ? "combine keeps area" : "combine changes the kind", "\n";
 
-echo Chart::column()->legend == Legend::Right ? "default right" : "default wrong", "\n";
-array<{name: string, legend: Legend}> $places = [
-    {name: "hidden", legend: Legend::Hidden},
-    {name: "top", legend: Legend::Top},
-    {name: "right", legend: Legend::Right},
-    {name: "bottom", legend: Legend::Bottom},
-    {name: "left", legend: Legend::Left},
+echo Chart::column()->legend == Chart::Legend::Right ? "default right" : "default wrong", "\n";
+array<{name: string, legend: Chart::Legend}> $places = [
+    {name: "hidden", legend: Chart::Legend::Hidden},
+    {name: "top", legend: Chart::Legend::Top},
+    {name: "right", legend: Chart::Legend::Right},
+    {name: "bottom", legend: Chart::Legend::Bottom},
+    {name: "left", legend: Chart::Legend::Left},
 ];
 foreach ($places as var $place) {
     echo $place->name, ": ", Chart::bar({legend: $place->name})->legend == $place->legend ? "matches" : "wrong", "\n";
