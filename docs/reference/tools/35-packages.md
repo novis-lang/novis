@@ -864,6 +864,35 @@ The page of a version, `/packages/<vendor>/<name>/<version>`, also shows the cap
 version needs and what changed from the version before. It shows the changes to the API, every file
 in the archive with its size, and every file the package downloads from another host.
 
+## Your account and your packages
+
+An account is one or more passkeys. It has no email address and no password. You create one on
+`/signup`. Your browser first does a short calculation, and then it makes a passkey on your device.
+The page then shows ten recovery codes. Each code signs you in one time when you have no passkey.
+Write them down, because the registry shows them only once.
+
+You sign in on `/signin`, with a passkey or with a recovery code. Some changes need a passkey
+sign-in from the last 15 minutes. When your sign-in is older, the page asks for your passkey first.
+A recovery code is not enough for these changes.
+
 Your account page, `/account`, shows your passkeys, your tokens and your vendors. It also shows your
-devices and webhooks, your messages and the days left before you must sign in to publish again. The
-page `/policy` says what the people who run the registry can do with a package.
+devices and webhooks, your messages and the days left before you must sign in to publish again. On
+it you can:
+
+- add a passkey, for example on a second device;
+- make a publish token for a vendor or a package, and revoke it;
+- add and remove the other owners of your vendors;
+- get messages in this browser, or at a webhook address, and check that each one works.
+
+When you own the vendor of a package, its page also has the forms that change it:
+
+- **Unlist** and **List again**, for one version or for every version;
+- **Retract**, with a reason and the version that fixes the problem;
+- **Send the advisory**, for a range of versions such as `1.0.0..1.2.0`;
+- **Move the package**, to another repository or another folder in it.
+
+The page of a pending version has a **Release now** button. The first version at `0.1.0` or higher
+waits until an owner confirms its API. Its page shows that API, and **Confirm the API and release**
+releases it. After that, only a new major version may break this API.
+
+The page `/policy` says what the people who run the registry can do with a package.

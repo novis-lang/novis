@@ -47,5 +47,7 @@ The signed public list of pending releases is `GET /feeds/pending` (`Feeds::pend
 publish` and `nvs pkg whoami` print the account's pending releases
 (`crates/nvs-cli/src/package/login.rs`).
 
-**Not on disk.** The website has no page where an owner confirms a release or a stable API with a
-passkey (gap:nvs-cli/release-confirmation-pages).
+The page of a pending version shows an owner a "Release now" button. The page of the first version
+at `0.1.0` or higher shows the API from `.../api` and a form that confirms it
+(`apps/registry/src/PackagePage.nvs`). Each sends its route through `/registry.js`, which signs in
+with a passkey first when the route answers `403`.

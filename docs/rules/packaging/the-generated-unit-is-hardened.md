@@ -74,6 +74,6 @@ The `sd_notify` protocol is a datagram to
 `$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
 `rule:packaging/a-c-dependency-answers-two-questions` does not arise.
 
-**Not on disk.** Socket activation, which gives a privileged port with an empty capability set, is
-not written (gap:nvs-cli/socket-activation). It changes how `nvs serve` gets its listener, so it is a
-server change, and the unit generator follows it.
+**`nvs serve` binds its own listeners**, so a privileged port is the one case where the unit grants a
+capability. The unit has no `.socket` unit beside it, and `CAP_NET_BIND_SERVICE` is the only ambient
+capability it ever names.

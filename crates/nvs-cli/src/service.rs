@@ -100,6 +100,10 @@
 //! other choice; it would refuse the common layout of a binary in a user's
 //! home, and `read-only` still leaves the service no write outside its grants.
 //!
+//! **Not on disk.** Socket activation, which gives a privileged port with an empty capability set,
+//! is not written (gap:nvs-cli/socket-activation). It changes how `nvs serve` gets its listener, so
+//! it is a server change, and [`unit()`] follows it with a `.socket` unit.
+//!
 //! **Every verb is a plan of actions, and [`registration`] builds them.**
 //! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
 //! function from a [`Plan`] to a list of [`registration::Action`]s — the

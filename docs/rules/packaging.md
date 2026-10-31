@@ -1535,6 +1535,15 @@ those files are served from is configuration ([`packaging/registry-hosting-is-co
 | `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api)) |
 | `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
 
+**The pages** are rendered on the server with `html` templates through one layout, and every page
+sends `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`.
+One same-origin script, `/registry.js`, runs every WebAuthn ceremony and sends every `POST` and
+`DELETE` a page makes, to the same routes and with the same access as any other client. A step whose
+route needs a passkey from the last 15 minutes runs the sign-in first when the route answers `403`. A
+service worker, `/push.js`, shows each push message and sends the code of a test push back. There is no
+framework, no build step and no third-party script. `tools/nv/test/registry-browser.test.ts` drives
+the pages in a real Chromium with a virtual passkey.
+
 `nvs registry` is operator surface for the service and prints no help in a user's command list. The
 `nvs pkg` commands are the user's ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)).
 
@@ -1670,6 +1679,9 @@ with **no email, no SMS and no password**, and it is bound to no forge.
 - **There is no human recovery.** Losing every passkey and every recovery code loses the account. Its
   packages keep working, and its co-owners keep publishing; the guide advises two owners per vendor.
 - **Contact with an owner** is the inbox on the website and the package's public repository.
+- **The pages** are `/signup`, where the browser solves the proof-of-work with `crypto.subtle` and then
+  makes the passkey, `/signin`, with a passkey or a recovery code, and `/account`, which adds a passkey
+  ([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
 
 Every way an account is usually taken over goes through something this design does not have. A
 password is phished or reused; a mailbox is taken over and its reset link followed; an SMS code is
@@ -1761,7 +1773,9 @@ cannot publish and cannot be added as an owner.
   registry's VAPID key. An owner may register any number of devices. A device is added only while signed
   in with a passkey, and adding or removing one notifies every other device and webhook of that account.
   A subscription the push service reports gone is dropped, and the account page lists each device with
-  the date it last answered.
+  the date it last answered. The account page subscribes the browser with the key from `/api/push/key`
+  and adds, tests, verifies and removes each device and webhook
+  ([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
 - **Webhooks**: a signed POST to a URL the owner gives, such as ntfy, Matrix, Discord or the owner's own
   server. It is sent through the outbound address table, so an internal host is refused, and it is
   retried. Each message also carries a one-time "I am here" link
@@ -1785,8 +1799,10 @@ Each line after the name and the count is one JSON object. The log's public key 
 client's note reader or any C2SP library. So a copy of a feed can be checked, wherever it came from. The
 inbox, `GET /api/inbox`, is the same rows for a signed-in account.
 
-**A verified channel is mandatory.** A push device is verified by the action on a test push, which
-sends back the one-time code inside the encrypted payload. A webhook is verified by a one-time code the
+**A verified channel is mandatory.** A push device is verified when its test push arrives: the
+registry's service worker sends back the one-time code inside the encrypted payload, which only a
+subscription a passkey session registered can decrypt. A reminder's "Yes, I am here" stays a click on
+the message, because that answer proves a person is there. A webhook is verified by a one-time code the
 registry sends to it, which the owner returns on the website or through the link in the message. **A
 channel that stops working stops counting**: the push service reports it gone, or a webhook still fails
 after its retries. An account whose last channel fails cannot publish until it verifies one again.
@@ -1897,7 +1913,8 @@ and the service runs it through `Registry\Builder` for every publish (`apps/regi
 The service binds the repository URL and the directory at the first publish, and refuses a publish
 from another repository. An owner who signed in with a passkey in the last 15 minutes moves the
 package with `POST /api/packages/<vendor>/<name>/repository` (`App::rebind`), which writes a
-`repository` log entry and notifies the vendor's owners (`Events::repository`).
+`repository` log entry and notifies the vendor's owners (`Events::repository`). The package page
+gives an owner the form that sends it (`apps/registry/src/PackagePage.nvs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
 
@@ -2195,8 +2212,10 @@ The signed public list of pending releases is `GET /feeds/pending` (`Feeds::pend
 publish` and `nvs pkg whoami` print the account's pending releases
 (`crates/nvs-cli/src/package/login.rs`).
 
-**Not on disk.** The website has no page where an owner confirms a release or a stable API with a
-passkey (gap:nvs-cli/release-confirmation-pages).
+The page of a pending version shows an owner a "Release now" button. The page of the first version
+at `0.1.0` or higher shows the API from `.../api` and a form that confirms it
+(`apps/registry/src/PackagePage.nvs`). Each sends its route through `/registry.js`, which signs in
+with a passkey first when the route answers `403`.
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -2342,7 +2361,9 @@ minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their 
 (`crates/nvs-cli/src/package/minimum.rs`). Each `unlist` and `relist` entry also writes the owners'
 notice in its transaction (`apps/registry/src/Events.nvs`). Search counts no unlisted version and
 returns no package whose every version is unlisted (`apps/registry/src/Ranking.nvs`), and the package
-page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`).
+page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`). An owner's package page
+has an Unlist or List again button on each version and one for every version, and the forms that
+retract a version and send an advisory.
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
@@ -4179,9 +4200,9 @@ The `sd_notify` protocol is a datagram to
 `$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
 [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) does not arise.
 
-**Not on disk.** Socket activation, which gives a privileged port with an empty capability set, is
-not written (gap:nvs-cli/socket-activation). It changes how `nvs serve` gets its listener, so it is a
-server change, and the unit generator follows it.
+**`nvs serve` binds its own listeners**, so a privileged port is the one case where the unit grants a
+capability. The unit has no `.socket` unit beside it, and `CAP_NET_BIND_SERVICE` is the only ambient
+capability it ever names.
 
 <sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 

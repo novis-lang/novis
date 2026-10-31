@@ -40,4 +40,5 @@ and the service runs it through `Registry\Builder` for every publish (`apps/regi
 The service binds the repository URL and the directory at the first publish, and refuses a publish
 from another repository. An owner who signed in with a passkey in the last 15 minutes moves the
 package with `POST /api/packages/<vendor>/<name>/repository` (`App::rebind`), which writes a
-`repository` log entry and notifies the vendor's owners (`Events::repository`).
+`repository` log entry and notifies the vendor's owners (`Events::repository`). The package page
+gives an owner the form that sends it (`apps/registry/src/PackagePage.nvs`).

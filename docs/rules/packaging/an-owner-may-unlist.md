@@ -25,4 +25,6 @@ minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their 
 (`crates/nvs-cli/src/package/minimum.rs`). Each `unlist` and `relist` entry also writes the owners'
 notice in its transaction (`apps/registry/src/Events.nvs`). Search counts no unlisted version and
 returns no package whose every version is unlisted (`apps/registry/src/Ranking.nvs`), and the package
-page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`).
+page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`). An owner's package page
+has an Unlist or List again button on each version and one for every version, and the forms that
+retract a version and send an advisory.
