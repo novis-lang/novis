@@ -11,6 +11,14 @@
       "goals": [
         "extension-leftovers"
       ]
+    },
+    {
+      "title": "Request limits inside every call",
+      "text": "Every `Core` method is tested against a small memory limit, and each method that goes past it is fixed. A long call inside the runtime also stops at the request's time, CPU and stack limits.",
+      "goals": [
+        "memory-overshoot-net",
+        "limits-within-one-call"
+      ]
     }
   ]
 }
