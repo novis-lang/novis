@@ -50,7 +50,7 @@ stages:
     context: [extensions/pdf/src/layout/flex.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/fonts.rs, crates/nvs-ext/tests/builtin.rs, tools/nv/cmd/owners.ts]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: names-and-references
@@ -729,68 +729,41 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 11 are done. `pdf-attacks` is green through `bun tools/looper/main.ts check`
-(`e633ea609`): with `Block::Flex` boxed, 100,000 nested `div`s render under 128 MiB, so
-`tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs` lost its `ends-early`
-line and `rule:core-classes/pdf-one-engine` names two inputs that reach the limit, as the
-standing decision on nested `div`s allows. `bun nv rules --render` and `bun nv owners --closes
-extension-leftovers` ran clean.
+Every stage is done, and the goal is reached. The gate, `bun nv affected --run`, ran three times:
 
-- Stage 12 started: the installed `looper` has neither `verify` nor `check`, so the gate is
-  `bun nv affected --run`, written to `.agent-tmp/verify.log`. Read its tail first.
-- `extensions/pdf/src/layout/flex.rs`'s `fit` was reformatted by rustfmt with the slice.
-  `tests/paginate.rs:218` has a rustfmt diff that predates this stage.
-- Still open from stage 10: `lopdf` and `aes` have not been through `cargo deny` or the attribution
-  check; `pdf-validate`'s no-Docker path and CI step have not run; a PDF placed with `<img>` decodes
-  with no bound.
-- The sweep's nightly reds (run 41187571578) each match a fix made before that run was read, and
-  none was rerun. `env-secret-proofs` has no check or log, so the sweep's line is stale.
+- The first run's ten red binaries were all out of memory (the Windows page file ran out), and
+  each passed alone. No code change followed: the next run had no memory error.
+- The second run's only red was `nvs-stdlib`'s `ldap` test. A Samba add, modify or delete waited
+  past its 30 s deadline under load, in both runs, while every read passed. `eb5b85257` sets
+  `ldb:nosync = true` in `tests/db/compose.yaml`, as Samba's own test suite does.
+- The third run is green: 23 of 23 steps, 8341 tests.
+
+`bun nv verify --doc`, `bun nv owners --closes extension-leftovers`, `bun nv owners --check` and
+`bun nv ci --check` pass. All 32 acceptance checks are green through `bun tools/looper/main.ts
+check`; the driver runs the five reach checks.
+
+- A PDF placed with `<img>` is decoded with no bound when the document is written. It is now the
+  gap record `data/gaps/nvs-pdf/a-placed-pdf-decodes-without-a-bound.json`, owned by
+  `release-polish`.
+- `release-polish`'s backlog gained the `ci-changes` `proofs` filter and `pdf-validate`'s first
+  CI run.
+- The nightly reds of run 41187571578 each have a later fix: `39795c9c4` (browser), `bfce9c2d2`
+  (site shots), `4e17d05aa` and `593b6c565` (asan), `8ce92dda5` (Miri timeouts). None has run in
+  CI yet. `env-secret-proofs` has no check or log, so the sweep's line is stale.
 
 ### Next
 
-Stage 12.
-
-- [ ] `docs/goals/extension-leftovers.md:723`: `bun nv affected --run` in the background, every
-  failure fixed in one pass, and once more. Then the goal-end gates: `bun nv verify --doc`,
-  `bun nv owners --closes extension-leftovers`, `bun nv ci --check`. A stale release binary hits
-  the limit at the nested-`div` step, so run `bun nv relink --build` before a proofs run on it.
-
-Expect red at the gate: a PDF test whose flex layout put a container's `::before` or `::after`
-text above or below the items, or that counted a `<br>` in a container as nothing. A test whose
-SVG `<text>` with an unknown family expected Liberation Serif. A test that read `Mark`'s single
-glyph, or an inline box's side in an `rtl` line. a PDF test whose paint order or item index assumed a transformed box was
-drawn in the flow, now that it is a layer at `z-index: 0`. A test that matched a corner's radius
-as one `Length`. Also a PDF test whose margin box or bookmark order assumed a string, mark,
-running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
-table filling its containing block: a slot overflow count, an x position, or a right-aligned
-column. Also a PDF test or case with tables, flex or grid nested more than 32 levels,
-which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
-or `merge` export without its `decompression-bound` argument. Also a test that calls the PDF
-`render` export with a `{ pages }` or `{ document, headerHeight }` shape, or matches "the second pass
-needs a first pass". Also expect red: `crates/nvs-cli/tests/spreadsheet_sheet.rs` or another test
-that calls `cell` with a key before its first keyed row, `column` before a data row, a lower-case
-column letter, or `print` twice; a test that matches "can hold only a finite number" or "cannot add
-parts" for a finished sheet's `cell`; an image test with a hand-cut PNG outside
-`extensions/spreadsheet/tests/`. Also the stage 2 and 3 reds the last handoff named. Also a test
-that calls the PDF `readText` export with bytes in place of the `file` from `read`, and a test or
-example that sets a `string-set` name in one case and asks for it in another. Also a PDF test,
-case or example whose margin box read a named counter as 0, or whose `element(name, start)` or
-`element(name, first-except)` read as `first`. Also a PDF test, case or example with
-`break-after: avoid` or `break-before: avoid` whose page count or first line on a page assumed the
-break was taken. Also a PDF test, case or example with a `:left` or `:right` page of another width
-whose x positions or line count assumed the first page's width. Also one with a float after the
-start of a paragraph's text whose top assumed the paragraph's top.
+- [ ] `docs/goals/extension-leftovers.md:1`: the driver retires the goal, runs the reach checks,
+  and runs `bun nv relink --build --hook`.
 
 ### Backlog
 
 - A clippy run over the component crates inside `bun nv verify`: declined here, see § *Clippy* (`tools/nv/cmd/verify.ts`).
-- `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `pdf-validate` may not run
-  on a change only to a component.
