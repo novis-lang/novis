@@ -11,34 +11,15 @@
 //! otherwise. `[h]`, `[mm]` and `[ss]` are the whole hours, minutes or seconds the serial is,
 //! and a negative serial shows with its sign under them. Under any other date part a negative
 //! serial or one past 9999-12-31 has no date, and [`render`] returns `None`.
+//!
+//! `mmm` is the locale's abbreviated month name, `mmmm` its full name and `mmmmm` the full
+//! name's first letter. `ddd` and `dddd` are the abbreviated and full day names
+//! (`super::names`).
 
-use super::locale::Separators;
+use super::locale::Locale;
 use super::{Section, Token};
 use crate::read::{civil, days_from_civil};
 
-const MONTHS: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
-const DAYS: [&str; 7] = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-];
 /// The serial of 9999-12-31 in the 1900 system.
 const LAST: i64 = 2_958_465;
 
@@ -80,12 +61,8 @@ fn padded(value: i64, width: usize) -> String {
 }
 
 /// `serial` under the date section `section`, or `None` for a serial with no date.
-pub fn render(
-    section: &Section,
-    serial: f64,
-    date1904: bool,
-    separators: Separators,
-) -> Option<String> {
+pub fn render(section: &Section, serial: f64, date1904: bool, locale: Locale) -> Option<String> {
+    let names = locale.names;
     let tokens = &section.tokens;
     let elapsed = tokens.iter().any(|t| matches!(t, Token::Elapsed(..)));
     if serial < 0.0 && !elapsed {
@@ -148,18 +125,18 @@ pub fn render(
                 out.push_str(&padded(minute, (*n).min(2)));
             }
             Token::Part('m', n) => {
-                let name = MONTHS[(month - 1) as usize];
+                let at = (month - 1) as usize;
                 match n {
                     1 | 2 => out.push_str(&padded(month, *n)),
-                    3 => out.push_str(&name[..3]),
-                    5 => out.push_str(&name[..1]),
-                    _ => out.push_str(name),
+                    3 => out.push_str(names.months_short[at]),
+                    5 => out.extend(names.months[at].chars().next()),
+                    _ => out.push_str(names.months[at]),
                 }
             }
             Token::Part('d', n) => match n {
                 1 | 2 => out.push_str(&padded(date, *n)),
-                3 => out.push_str(&DAYS[weekday][..3]),
-                _ => out.push_str(DAYS[weekday]),
+                3 => out.push_str(names.days_short[weekday]),
+                _ => out.push_str(names.days[weekday]),
             },
             Token::Part('h', n) => out.push_str(&padded(shown_hour, (*n).min(2))),
             Token::Part('s', n) => out.push_str(&padded(second, (*n).min(2))),
@@ -173,15 +150,13 @@ pub fn render(
             }
             Token::Meridiem(None) => out.push_str(if hour >= 12 { "PM" } else { "AM" }),
             Token::Meridiem(Some((am, pm))) => out.push(if hour >= 12 { *pm } else { *am }),
-            Token::Point
-                if precision > 0 && tokens.get(at + 1) == Some(&Token::Digit('0')) =>
-            {
+            Token::Point if precision > 0 && tokens.get(at + 1) == Some(&Token::Digit('0')) => {
                 let run = tokens[at + 1..]
                     .iter()
                     .take_while(|t| **t == Token::Digit('0'))
                     .count();
                 let digits = padded(fraction, precision);
-                out.push_str(separators.decimal);
+                out.push_str(locale.separators.decimal);
                 out.push_str(&digits[..run.min(precision)]);
                 at += run;
             }

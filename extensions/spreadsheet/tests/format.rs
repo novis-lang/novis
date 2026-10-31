@@ -1,7 +1,9 @@
 //! The number-format renderer: a value as Excel displays it under its format code
 //! (`rule:core-classes/spreadsheet-reads-as-a-stream`'s `text` option).
 
-use nvs_spreadsheet::format::{self, Condition, Op, Options, Separators, Token, Value, locale};
+use nvs_spreadsheet::format::{
+    self, Condition, Locale, Op, Options, Separators, Token, Value, locale,
+};
 use nvs_spreadsheet::read::format::{builtin as builtin_kind, classify};
 
 fn render(code: &str, value: f64) -> String {
@@ -18,7 +20,7 @@ fn in_1904(code: &str, value: f64) -> String {
 
 fn in_locale(code: &str, value: f64, tag: &str) -> String {
     let options = Options {
-        separators: locale::of_tag(tag),
+        locale: Locale::of_tag(tag),
         ..Options::default()
     };
     format::render(code, Value::Number(value), &options)
@@ -116,7 +118,10 @@ fn sections_conditions_and_colours_parse() {
     assert_eq!(format::choose(&sections, 3.0), (1, false));
     assert_eq!(format::choose(&sections, 0.5), (2, false));
     assert_eq!(render("[Green]0.0;[Magenta]-0.0;[Color10]0", -1.25), "-1.3");
-    assert_eq!(render("[<=-1]\"low\";[>=1]\"high\";\"between\"", 0.5), "between");
+    assert_eq!(
+        render("[<=-1]\"low\";[>=1]\"high\";\"between\"", 0.5),
+        "between"
+    );
     assert_eq!(render("_(* #,##0_)", 12.0), " 12 ");
 }
 
@@ -154,8 +159,14 @@ fn separators_follow_the_locale_and_a_locale_prefix() {
     assert_eq!(in_locale("#,##0.00", 1234567.5, "en"), "1,234,567.50");
     assert_eq!(in_locale("#,##0.00", 1234567.5, "de"), "1.234.567,50");
     assert_eq!(in_locale("#,##0.00", 1234567.5, "de-CH"), "1'234'567.50");
-    assert_eq!(in_locale("#,##0.00", 1234567.5, "fr"), "1\u{202f}234\u{202f}567,50");
-    assert_eq!(in_locale("#,##0.00", 1234567.5, "sv-SE"), "1\u{a0}234\u{a0}567,50");
+    assert_eq!(
+        in_locale("#,##0.00", 1234567.5, "fr"),
+        "1\u{202f}234\u{202f}567,50"
+    );
+    assert_eq!(
+        in_locale("#,##0.00", 1234567.5, "sv-SE"),
+        "1\u{a0}234\u{a0}567,50"
+    );
     assert_eq!(in_locale("#,##0.00", 1234567.5, "ja"), "1,234,567.50");
     assert_eq!(in_locale("#,##0.00", 1234567.5, "xx"), "1,234,567.50");
     assert_eq!(in_locale("General", 0.25, "de"), "0,25");
@@ -166,4 +177,44 @@ fn separators_follow_the_locale_and_a_locale_prefix() {
     assert_eq!(locale::of_tag("de_AT"), locale::of_tag("de-AT"));
     assert_eq!(locale::of_id(0xFFFF), None);
     assert_eq!(locale::of_tag("en-US"), Separators::EN);
+}
+
+/// 45306 is Monday 2024-01-15.
+const MONDAY: f64 = 45306.0;
+
+#[test]
+fn month_and_day_names_follow_the_locale() {
+    assert_eq!(
+        in_locale("dddd, d. mmmm yyyy", MONDAY, "de"),
+        "Montag, 15. Januar 2024"
+    );
+    assert_eq!(in_locale("ddd d mmm", MONDAY, "de-CH"), "Mo. 15 Jan.");
+    assert_eq!(in_locale("dddd d mmmm", MONDAY, "fr"), "lundi 15 janvier");
+    assert_eq!(in_locale("d mmmm", MONDAY, "ru"), "15 января");
+    assert_eq!(in_locale("ddd", MONDAY, "pl"), "pon.");
+    assert_eq!(in_locale("mmmm", 45366.0, "de"), "März");
+    // `mmmmm` is the first letter of the full name, which may be more than one byte.
+    assert_eq!(in_locale("mmmmm", MONDAY, "el"), "Ι");
+    assert_eq!(in_locale("dddd", MONDAY, "no"), "mandag");
+    // A `[$-407]` prefix picks German names whatever the read's locale is.
+    assert_eq!(render("[$-407]dddd mmmm", MONDAY), "Montag Januar");
+    assert_eq!(
+        in_locale("[$-409]dddd mmmm", MONDAY, "de"),
+        "Monday January"
+    );
+    assert_eq!(Locale::of_id(0x040C), Some(Locale::of_tag("fr")));
+    assert_eq!(Locale::of_tag("de_AT").names, Locale::of_tag("de").names);
+}
+
+#[test]
+fn a_locale_with_no_names_row_renders_english_names() {
+    assert_eq!(
+        in_locale("dddd mmmm mmm ddd", MONDAY, "en"),
+        "Monday January Jan Mon"
+    );
+    assert_eq!(in_locale("dddd mmmm", MONDAY, "ja"), "Monday January");
+    assert_eq!(in_locale("dddd mmmm", MONDAY, "xx"), "Monday January");
+    assert_eq!(render("[$-411]dddd mmmm", MONDAY), "Monday January");
+    assert_eq!(render("[$-FFFF]dddd", MONDAY), "Monday");
+    assert_eq!(Locale::of_tag("ja"), Locale::EN);
 }

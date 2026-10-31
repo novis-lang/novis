@@ -59,7 +59,7 @@ pub mod zip;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::format::{Options, Separators, Value, locale};
+use crate::format::{Locale, Options, Value};
 use crate::{Clock, Date, Error, TimeOfDay, Visibility};
 use format::{Kind, Style};
 use merge::{Fill, Merge};
@@ -751,7 +751,7 @@ impl Reader {
                 None => raw.number >= from,
             };
             if wanted {
-                let row = self.row(source, raw, options, &[], Separators::EN)?;
+                let row = self.row(source, raw, options, &[], Locale::EN)?;
                 if options.header_row.is_some() || row.cells.iter().any(|cell| cell.value.is_some())
                 {
                     break row;
@@ -824,7 +824,7 @@ impl Reader {
                 shown,
             });
         }
-        let separators = locale::of_tag(&options.locale);
+        let locale = Locale::of_tag(&options.locale);
         let shown = self
             .open
             .as_ref()
@@ -871,7 +871,7 @@ impl Reader {
             if raw.number < from || (options.skip_hidden && raw.hidden) {
                 continue;
             }
-            let mut row = self.row(source, raw, options, &shown, separators)?;
+            let mut row = self.row(source, raw, options, &shown, locale)?;
             if let Some(fill) = self.open.as_ref().and_then(|open| open.fill.as_ref()) {
                 fill.fill(&mut row);
             }
@@ -957,14 +957,14 @@ impl Reader {
     }
 
     /// `raw` as read cells, every empty cell dropped. A cell in a column of `shown` carries
-    /// its displayed text, with the decimal and group separators `separators`.
+    /// its displayed text, with the separators and names of `locale`.
     fn row(
         &mut self,
         source: &dyn Source,
         raw: sheet::RawRow,
         options: &ReadOptions,
         shown: &[(u64, u64)],
-        separators: Separators,
+        locale: Locale,
     ) -> Result<ReadRow, Error> {
         let needs_strings = raw.cells.iter().any(|cell| cell.kind == b"s");
         if needs_strings {
@@ -979,7 +979,7 @@ impl Reader {
                         .iter()
                         .any(|&(first, last)| (first..=last).contains(&cell.column)) =>
                 {
-                    Some(self.display(&cell, value, separators))
+                    Some(self.display(&cell, value, locale))
                 }
                 _ => None,
             };
@@ -1061,14 +1061,14 @@ impl Reader {
 
     /// The text `cell`, read as `value`, displays under its style's number format. A number is
     /// rendered from the serial the file stores, so a date shows as its format writes it.
-    fn display(&self, cell: &sheet::RawCell, value: &Read, separators: Separators) -> String {
+    fn display(&self, cell: &sheet::RawCell, value: &Read, locale: Locale) -> String {
         let code = self
             .styles
             .get(cell.style as usize)
             .map_or("General", |style| &style.code);
         let options = Options {
             date1904: self.date1904,
-            separators,
+            locale,
         };
         let shown = match value {
             Read::Text(text) => Value::Text(text),

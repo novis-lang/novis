@@ -1,11 +1,41 @@
 //! The separators a rendered number uses: those of the read's `locale`, or of a section's
-//! `[$-407]` prefix.
+//! `[$-407]` prefix. A [`Locale`] is those separators and the locale's month and day names.
 //!
 //! Each row is CLDR's decimal and group separator for its locale, the ones `Novis\Intl`'s
 //! `NumberFormat::decimal` writes. [`of_tag`] finds a tag's row, or its language's, and a tag
 //! with no row has English separators. [`of_id`] maps a Windows locale id, the number of a
 //! `[$-407]` prefix, to its tag. The upper bits of the prefix name a calendar or a digit
 //! system, and are not read. Grouping is by three digits in every locale.
+
+use super::names::{self, Names};
+
+/// The separators and the month and day names of one locale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Locale {
+    pub separators: Separators,
+    pub names: &'static Names,
+}
+
+impl Locale {
+    pub const EN: Self = Self {
+        separators: Separators::EN,
+        names: &names::ENGLISH,
+    };
+
+    /// The locale `tag`, such as `de` or `de-CH`.
+    pub fn of_tag(tag: &str) -> Self {
+        Self {
+            separators: of_tag(tag),
+            names: names::of_tag(tag),
+        }
+    }
+
+    /// The locale of the Windows locale id in a `[$-407]` prefix, or `None` for an id with no
+    /// row.
+    pub fn of_id(id: u32) -> Option<Self> {
+        tag_of_id(id).map(Self::of_tag)
+    }
+}
 
 /// A decimal separator and a group separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,8 +166,13 @@ const IDS: &[(u32, &str)] = &[
 /// The separators of the Windows locale id in a `[$-407]` prefix, or `None` for an id with no
 /// row.
 pub fn of_id(id: u32) -> Option<Separators> {
+    tag_of_id(id).map(of_tag)
+}
+
+/// The tag of the Windows locale id in a `[$-407]` prefix, or `None` for an id with no row.
+fn tag_of_id(id: u32) -> Option<&'static str> {
     let id = id & 0xFFFF;
     IDS.iter()
         .find(|(known, _)| *known == id)
-        .map(|(_, tag)| of_tag(tag))
+        .map(|(_, tag)| *tag)
 }

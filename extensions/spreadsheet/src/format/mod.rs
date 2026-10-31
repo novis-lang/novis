@@ -11,22 +11,23 @@
 //!
 //! A section is lexed once ([`lex`]) into literals and the parts that show the value. A colour is
 //! parsed and dropped, `_x` is one space and `*x` is dropped, because a rendered text has no
-//! cell to fill. `[$€-407]` is the literal `€` and the locale `0x407`, whose separators the
-//! section uses ([`locale`]). A section with a date or a time part is rendered by [`date`] and
-//! any other by [`number`], `General` by [`number::general`].
+//! cell to fill. `[$€-407]` is the literal `€` and the locale `0x407`, whose separators and
+//! month and day names the section uses ([`locale`], [`names`]). A section with no prefix uses
+//! the read's `locale`. A section with a date or a time part is rendered by [`date`] and any
+//! other by [`number`], `General` by [`number::general`].
 //!
 //! The digits of a number are its first 15 significant digits, rounded half away from zero at
-//! the last digit shown, which is how Excel shows `2.675` under `0.00` as `2.68`. Month and day
-//! names are English, whatever the locale.
+//! the last digit shown, which is how Excel shows `2.675` under `0.00` as `2.68`.
 //!
 //! What it spends: the lexed section and the text it returns, per cell rendered. Nothing is kept
 //! between cells.
 
 pub mod date;
 pub mod locale;
+pub mod names;
 pub mod number;
 
-pub use locale::Separators;
+pub use locale::{Locale, Separators};
 
 /// A value to render.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,15 +44,15 @@ pub enum Value<'a> {
 pub struct Options {
     /// Whether serials count from 1904-01-01 and not from 1900.
     pub date1904: bool,
-    /// The separators a section with no locale prefix uses.
-    pub separators: Separators,
+    /// The separators and names a section with no locale prefix uses.
+    pub locale: Locale,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             date1904: false,
-            separators: Separators::EN,
+            locale: Locale::EN,
         }
     }
 }
@@ -420,15 +421,16 @@ pub fn render(code: &str, value: Value<'_>, options: &Options) -> String {
             if section.tokens.is_empty() && sections.len() > 1 {
                 return String::new();
             }
-            let separators = section
+            let local = section
                 .locale
-                .and_then(locale::of_id)
-                .unwrap_or(options.separators);
+                .and_then(Locale::of_id)
+                .unwrap_or(options.locale);
+            let separators = local.separators;
             if section.has_at() || section.tokens.is_empty() {
                 return number::general(v, separators);
             }
             if section.is_date() {
-                if let Some(text) = date::render(section, v, options.date1904, separators) {
+                if let Some(text) = date::render(section, v, options.date1904, local) {
                     return text;
                 }
                 return number::general(v, separators);
