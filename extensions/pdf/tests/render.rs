@@ -334,3 +334,19 @@ fn an_invoice_needs_pdf_a3b_and_pdf_a_has_no_password() {
     };
     render(&document).unwrap();
 }
+
+#[test]
+fn a_heading_in_an_inline_block_float_flex_item_or_cell_has_a_bookmark() {
+    let rendered = render(&html(
+        "<div style='display: inline-block'><h2>Shop</h2></div>
+        <div style='float: left'><h2>Blog</h2></div>
+        <div style='display: flex'><div><h2>News</h2></div></div>
+        <table><tr><td><h2>Team</h2></td></tr></table>",
+    ))
+    .unwrap();
+    assert!(contains(&rendered.data, b"/Type/Outlines"));
+    for title in ["Shop", "Blog", "News", "Team"] {
+        let entry = format!("/Title({title})");
+        assert!(contains(&rendered.data, entry.as_bytes()), "{title}");
+    }
+}

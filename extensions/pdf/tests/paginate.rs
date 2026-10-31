@@ -657,3 +657,76 @@ fn title_meta_and_lang_become_metadata() {
     let data = rendered("<p>Shop</p>");
     assert!(!contains(&data, b"/Title(") && !contains(&data, b"/Lang("));
 }
+
+/// Twelve lines, so what comes after them starts on the second page.
+fn twelve() -> String {
+    "<p>Line</p>".repeat(12)
+}
+
+/// The value the page at `page` gives a named string or a mark of `name`.
+fn fact<'l>(facts: &'l [(String, String)], name: &str) -> Option<&'l str> {
+    facts
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, v)| v.as_str())
+}
+
+#[test]
+fn a_mark_or_string_in_a_table_cell_is_on_the_page_its_row_is_drawn_on() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>td {{ padding: 0 }} .s {{ string-set: cell content(text) }}</style>
+        {}<table><tr><td><div data-mark='row: two'>Shop</div><div class=s>Blog</div></td></tr>
+        </table>",
+        twelve()
+    ));
+    assert_eq!(laid.pages.len(), 2);
+    assert_eq!(fact(&laid.pages[0].marks, "row"), None);
+    assert_eq!(fact(&laid.pages[0].strings, "cell"), None);
+    assert_eq!(fact(&laid.pages[1].marks, "row"), Some("two"));
+    assert_eq!(fact(&laid.pages[1].strings, "cell"), Some("Blog"));
+}
+
+#[test]
+fn a_string_or_running_element_in_an_inline_block_float_or_flex_item_is_on_its_page() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        @page {{ @top-center {{ content: element(head) }} }}
+        .a {{ string-set: a content(text) }}
+        .b {{ string-set: b content(text) }}
+        .c {{ string-set: c content(text) }}
+        .head {{ position: running(head) }}
+        </style>
+        {}<div style='display: inline-block'><div class=a>Shop</div>
+        <div class=head>Team</div></div>
+        <div style='float: left'><div class=b>Blog</div></div>
+        <div style='display: flex'><div><div class=c>News</div></div></div>",
+        twelve()
+    ));
+    assert_eq!(laid.pages.len(), 2);
+    for (name, value) in [("a", "Shop"), ("b", "Blog"), ("c", "News")] {
+        assert_eq!(fact(&laid.pages[0].strings, name), None, "{name}");
+        assert_eq!(fact(&laid.pages[1].strings, name), Some(value), "{name}");
+    }
+    // The page before the running element's has no header, and its own page draws it.
+    assert_eq!(band(&laid, 0, 0.0, 50.0).0, "");
+    assert_eq!(band(&laid, 1, 0.0, 50.0).0, "Team");
+}
+
+#[test]
+fn an_id_in_an_inline_block_float_flex_item_cell_or_running_element_has_its_page() {
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>.head {{ position: running(head) }}</style>
+        {}<div style='display: inline-block'><p id=shop>Shop</p></div>
+        <div style='float: left'><p id=blog>Blog</p></div>
+        <div style='display: flex'><div><p id=news>News</p></div></div>
+        <table><tr><td><p id=team>Team</p></td></tr></table>
+        <div class=head><p id=help>Help</p></div><p>End</p>",
+        twelve()
+    ));
+    assert_eq!(laid.pages.len(), 2);
+    for id in ["shop", "blog", "news", "team", "help"] {
+        let (page, top) = laid.anchors[id];
+        assert_eq!(page, 1, "{id}");
+        assert!(top >= 50.0 && top < 250.0, "{id} at {top}");
+    }
+}

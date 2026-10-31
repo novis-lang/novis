@@ -27,7 +27,9 @@ in the dropped list, and a clean fixture whose three lists are empty.
 drops with its selector and position, and each element the subset does not render as `<name>` at its
 start tag, and `Rendered::missingGlyphs` lists each character no font has
 (`extensions/pdf/tests/layout.rs`). `Rendered::overflows` lists margin, header, footer and slot
-markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). What the layout does not do yet is in
+markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). A `data-mark`, a `string-set`, a
+running element and an `id` inside a table cell, an inline-block, a float or a flex item are on the
+page that box draws them on (`extensions/pdf/tests/paginate.rs`). What the layout does not do yet is in
 the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 
 **Declined:**

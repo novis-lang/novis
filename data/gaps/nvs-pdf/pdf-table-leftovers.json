@@ -1,6 +1,0 @@
-{
-  "module": "extensions/pdf/src/layout/table.rs",
-  "title": "A PDF table sets a cell's `data-mark` and `string-set` on the table's first page.",
-  "text": "Closing it puts a cell's `data-mark` and `string-set` on the page its row is drawn on (`rule:core-classes/pdf-tables-across-pages`).",
-  "goal": "extension-leftovers"
-}

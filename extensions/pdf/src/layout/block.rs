@@ -382,18 +382,23 @@ impl Flow {
     /// Lands every `id` and heading waiting at `top` on the page at index `page`.
     fn arrive(&mut self, page: usize, top: f32) {
         for anchor in std::mem::take(&mut self.waiting) {
-            match anchor {
-                Anchor::Id(id) => {
-                    self.landed.entry(id.clone()).or_insert(page + 1);
-                    self.tops.entry(id).or_insert((page, top));
-                }
-                Anchor::Heading(level, title) => self.bookmarks.push(Bookmark {
-                    level,
-                    title,
-                    page,
-                    y: top,
-                }),
+            self.put(anchor, page, top);
+        }
+    }
+
+    /// Lands the `id` or heading `anchor` at `top` on the page at index `page`.
+    pub(super) fn put(&mut self, anchor: Anchor, page: usize, top: f32) {
+        match anchor {
+            Anchor::Id(id) => {
+                self.landed.entry(id.clone()).or_insert(page + 1);
+                self.tops.entry(id).or_insert((page, top));
             }
+            Anchor::Heading(level, title) => self.bookmarks.push(Bookmark {
+                level,
+                title,
+                page,
+                y: top,
+            }),
         }
     }
 
@@ -506,13 +511,14 @@ impl Flow {
     }
 
     /// Whether nothing is drawn on the last page and nothing has taken space on it. An
-    /// [`Item::Tag`] or [`Item::Untag`] draws nothing, so a page holding only those is empty.
+    /// [`Item::Tag`], [`Item::Untag`] or [`Item::Here`] draws nothing, so a page holding only
+    /// those is empty.
     fn empty(&self) -> bool {
         self.cursor <= self.start
             && self.pages.last().is_some_and(|p| {
                 p.items
                     .iter()
-                    .all(|item| matches!(item, Item::Tag(_) | Item::Untag))
+                    .all(|item| matches!(item, Item::Tag(_) | Item::Untag | Item::Here { .. }))
             })
     }
 

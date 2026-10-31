@@ -54,14 +54,11 @@
 //!
 //! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
 //!   of another width than the first page of its name keeps that page's line widths, a margin
-//!   box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an
-//!   inline-block, float or flex item counts as on the first page, and `element()`'s `start` and
-//!   `first-except` read as `first`. An `id` inside an inline-block, float, flex item, table cell
-//!   or running element is on no page, and `target-counter()` reads only `page`.
+//!   box's counter other than `page` and `pages` is 0, `element()`'s `start` and `first-except`
+//!   read as `first`, and `target-counter()` reads only `page`.
 //!   `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and
 //!   `break-before: avoid` do nothing.
-//! - Writing (`write`): a link inside a transformed box keeps its untransformed box, and a heading
-//!   inside an inline-block, float, flex item or table cell has no bookmark.
+//! - Writing (`write`): a link inside a transformed box keeps its untransformed box.
 //! - Layout (`layout`, `layout::block`, `layout::grid`, `layout::flex`, `layout::boxes`): an
 //!   absolute box without a `width` is not stretched by `left` with `right`, a transformed box is
 //!   not a containing block, a float in the middle of a paragraph is placed at its top and does

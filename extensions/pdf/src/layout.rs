@@ -122,8 +122,9 @@
 //! **A table of contents.** A `target-counter()` in `content` prints the page, counting from 1,
 //! of the first element whose `id` its `url()`, string or `attr()` names, and nothing for an
 //! `id` no element has or a counter other than `page`. An element lands on the page its first
-//! box placed after it starts on, and an `id` inside an `inline-block`, float, flex item or
-//! running element lands on no page. A `leader()` is an empty `parley` inline box that takes
+//! box placed after it starts on. An `id` inside an `inline-block`, float, flex item or table
+//! cell lands on the page that box draws it on, and one inside a running element on the
+//! running element's page. A `leader()` is an empty `parley` inline box that takes
 //! the room left on its line, shared with the other leaders there; the text is shaped and broken
 //! again with it, and its one character (`.` for `dotted`, `_` for `solid`, a space for
 //! `space`, or the first of its string) is drawn across it, lined up from the content box's
@@ -264,6 +265,10 @@ pub enum Item {
     /// [`Item::Untag`]. It draws nothing: the writer tags the content between them with it.
     Tag(Role),
     Untag,
+    /// Where a box laid out on a page of its own met an `id`, a heading, a named string, a
+    /// mark or a running element: the index of what it met, and its top. It draws nothing, and
+    /// the layout takes it off the page once it knows the page it is on.
+    Here { at: usize, y: f32 },
 }
 
 /// What an element is in the document's structure: the tag the writer gives its content.

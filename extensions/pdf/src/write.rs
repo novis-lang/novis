@@ -618,6 +618,8 @@ pub fn write(
                         tags.untag();
                     }
                 }
+                // The layout takes every one off its page before the writer reads it.
+                Item::Here { .. } => {}
                 Item::Link {
                     href,
                     x,

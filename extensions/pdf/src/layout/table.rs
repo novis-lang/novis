@@ -70,9 +70,6 @@
 //! together when they fit on a page and not under the last row, and split between rows when
 //! they do not fit on a page.
 //!
-//! **Not done yet.** A `data-mark` or `string-set` inside a cell counts as on the first page
-//! (gap:nvs-pdf/pdf-table-leftovers).
-//!
 //! Cost: each cell is laid out once at each of its two content widths, once at its column
 //! width and once more when its row is taller, taller than a page, or its `vertical-align` is
 //! not `top`. A table inside a box sized by its content, such as an `inline-block`, lays its
@@ -81,8 +78,8 @@
 
 use super::block::{BoxGeometry, Flow};
 use super::flex::fit;
-use super::text::{Cx, Placed, carry, shift};
-use super::{Block, Item, MARGIN, Role, keyword, margin};
+use super::text::{Cx, Here, Placed, carry, shift};
+use super::{Block, Item, MARGIN, Role, keyword};
 use crate::css::{Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
@@ -871,16 +868,15 @@ impl Cx<'_> {
             .items
     }
 
-    /// Sets the marks of the row `row` on the last page of `flow`.
-    fn mark(&mut self, row: &Laid, flow: &Flow) {
+    /// Sets the marks of the row `row` on the page of `flow` it is drawn on.
+    fn mark(&mut self, row: &Laid, flow: &mut Flow) {
         for (name, value) in &row.marks {
-            self.strings.push(margin::Set {
+            let mark = Here::String {
                 name: name.clone(),
                 value: value.clone(),
-                page: flow.pages.len() - 1,
-                top: false,
                 mark: true,
-            });
+            };
+            self.note(flow, mark);
         }
     }
 

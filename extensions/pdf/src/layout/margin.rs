@@ -14,16 +14,16 @@
 //! It is on the page the next box placed after it starts on. A box whose `content` is
 //! `element(name)` draws a copy of it, aligned in the box's area as the box's text would be; the
 //! box's own margins, borders, padding and background are not drawn. A running element inside an
-//! inline-block, a float or a flex item counts as on the first page.
+//! inline-block, a float, a flex item or a table cell is on the page that box draws it on.
 //!
 //! **Named strings.** An element's `string-set` is kept with the page it is set on, and a box's
-//! `string()` reads it by `paginate`'s module doc. A `string-set` inside an inline-block, a float
-//! or a flex item counts as on the first page.
+//! `string()` reads it by `paginate`'s module doc. A `string-set` inside an inline-block, a float,
+//! a flex item or a table cell is set on the page that box draws it on, and one inside a running
+//! element on the running element's page.
 //!
 //! **Page facts.** Each page carries its named strings, each name's value as `string(name)`
-//! reads it there, and the `data-mark` marks set on it in document order. A mark is set on a
-//! page as a named string is, a table row's on the page the row is first drawn on, and one
-//! inside an inline-block, a float, a flex item or a table cell counts as on the first page.
+//! reads it there, and the `data-mark` marks set on it, from the top of the page down. A mark is
+//! set on a page as a named string is, and a table row's on the page the row is first drawn on.
 //!
 //! **Markup over a margin.** [`overlay`] draws a document laid out on its own, such as the markup
 //! of a header function, over one page's margin: clipped to the margin's area, and in place of
@@ -49,24 +49,26 @@ use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
 use crate::paginate::{self, Sheet, Which};
 
-/// A running element laid out: its name, the index of the page it is on, its items with its
-/// margin box's top-left corner at 0, 0, the margin box's width and height, and the text no font
-/// has.
+/// A running element laid out: its name, the index of the page it is on and its top there, its
+/// items with its margin box's top-left corner at 0, 0, the margin box's width and height, and
+/// the text no font has.
 pub(super) struct Running {
     pub(super) name: String,
     pub(super) page: usize,
+    pub(super) y: f32,
     pub(super) items: Vec<Item>,
     pub(super) size: [f32; 2],
     pub(super) missing: Vec<Missing>,
 }
 
 /// A named string an element's `string-set` sets: its name as written, its value, the index of
-/// the page it is set on, and whether it is set at that page's top. With `mark` set, it is a
-/// `data-mark` mark instead.
+/// the page it is set on and its top there, and whether it is set at that page's top. With
+/// `mark` set, it is a `data-mark` mark instead.
 pub(super) struct Set {
     pub(super) name: String,
     pub(super) value: String,
     pub(super) page: usize,
+    pub(super) y: f32,
     pub(super) top: bool,
     pub(super) mark: bool,
 }

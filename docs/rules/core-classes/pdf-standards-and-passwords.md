@@ -5,7 +5,9 @@ standard it chose throws `LogicError` naming what broke — an image with no `al
 font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
 document, because `krilla` validates against one. PDF/A needs `Document::created`, because the
 component reads no clock, and PDF/UA-1 needs a `<title>`. A missing glyph, reported and never thrown
-otherwise, throws under any of the three, because each forbids the empty box drawn for it.
+otherwise, throws under any of the three, because each forbids the empty box drawn for it. Every
+heading has an outline entry on the page it is drawn on, a heading inside a table cell, an
+inline-block, a float or a flex item included.
 
 **`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
 file key are derived from a hash of the document and the password, so equal input stays byte-equal

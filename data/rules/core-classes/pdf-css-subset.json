@@ -9,6 +9,7 @@
   "guardedBy": [
     "extensions/pdf/tests/css.rs",
     "extensions/pdf/tests/layout.rs",
+    "extensions/pdf/tests/paginate.rs",
     "tests/conformance/novis/pdf-a-render-result-lists-what-it-could-not-draw.nvst"
   ]
 }

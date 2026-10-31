@@ -13,7 +13,9 @@ use parley::{
 use super::block::Flow;
 use super::inline::{Targets, blocks, is_bidi_control};
 use super::margin;
-use super::{Atom, Block, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes};
+use super::{
+    Anchor, Atom, Block, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes,
+};
 use crate::Error;
 use crate::assets::Assets;
 use crate::css::{Color, Styles};
@@ -104,6 +106,7 @@ fn pass(
         waiting: Vec::with_capacity(atoms.len()),
         running: Vec::new(),
         strings: Vec::new(),
+        heres: Vec::new(),
         depth: 0,
         deep: false,
     };
@@ -131,10 +134,11 @@ fn pass(
         flow.close();
     }
     flow.land();
+    flow.finish([MARGIN, first.content_width(), 0.0], None);
+    cx.attribute(&mut flow);
     let landed = std::mem::take(&mut flow.landed);
     let tops = std::mem::take(&mut flow.tops);
     let mut bookmarks = std::mem::take(&mut flow.bookmarks);
-    flow.finish([MARGIN, first.content_width(), 0.0], None);
     // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
     for (index, page) in flow.pages.iter_mut().enumerate() {
         let geometry = sheet.page(index, page.blank, page.name.as_deref());
@@ -206,6 +210,7 @@ fn pass(
         waiting: Vec::new(),
         running: Vec::new(),
         strings: Vec::new(),
+        heres: Vec::new(),
         depth: 0,
         deep: false,
     };
@@ -228,8 +233,8 @@ fn pass(
 /// What laying out every block shares: the shaping context, the fonts, the text styles, the
 /// text no font has, each `inline-block` box laid out so far, and the blocks of each flex item
 /// whose container is not laid out yet, both by their index in the list of atoms, and the
-/// running elements and named strings met so far in document order, and how many boxes are
-/// being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
+/// running elements and named strings met so far, what each [`Item::Here`] found, and how
+/// many boxes are being laid out inside each other now, and whether one was past [`MAX_DEPTH`].
 pub(super) struct Cx<'s> {
     lcx: LayoutContext<usize>,
     fonts: Fonts,
@@ -238,9 +243,36 @@ pub(super) struct Cx<'s> {
     placed: Vec<Placed>,
     pub(super) waiting: Vec<Option<Vec<Block>>>,
     running: Vec<margin::Running>,
-    pub(super) strings: Vec<margin::Set>,
+    strings: Vec<margin::Set>,
+    heres: Vec<Option<Here>>,
     depth: usize,
     deep: bool,
+}
+
+/// What a box laid out on a page of its own met that belongs to the page the box is drawn on:
+/// an `id` or a heading, a named string or, with `mark`, a `data-mark` mark, or a running
+/// element.
+pub(super) enum Here {
+    Anchor(Anchor),
+    String {
+        name: String,
+        value: String,
+        mark: bool,
+    },
+    Running(margin::Running),
+}
+
+/// Takes every [`Item::Here`] off `items`, and returns each one's index and top, in order.
+fn take_heres(items: &mut Vec<Item>) -> Vec<(usize, f32)> {
+    let mut out = Vec::new();
+    items.retain(|item| match item {
+        Item::Here { at, y } => {
+            out.push((*at, *y));
+            false
+        }
+        _ => true,
+    });
+    out
 }
 
 /// The error of a document nested past [`MAX_DEPTH`].
@@ -491,7 +523,7 @@ impl Cx<'_> {
             .into_iter()
             .map(|a| (a, self.placed[a].clone(), self.waiting[a].clone()))
             .collect();
-        let (running, strings) = (self.running.len(), self.strings.len());
+        let (running, strings, heres) = (self.running.len(), self.strings.len(), self.heres.len());
         let margin = match blocks.first() {
             Some(Block::Open(g)) => g.margin[0] + g.margin[2],
             _ => 0.0,
@@ -499,6 +531,7 @@ impl Cx<'_> {
         let height = self.lay(blocks, VerticalAlign::BASELINE).height;
         self.running.truncate(running);
         self.strings.truncate(strings);
+        self.heres.truncate(heres);
         for (a, placed, waiting) in saved {
             self.placed[a] = placed;
             self.waiting[a] = waiting;
@@ -542,6 +575,79 @@ impl Cx<'_> {
                 | Block::Tag(_) => {}
             }
         }
+    }
+
+    /// Records `here` on the page the next box placed starts on. In the document's flow that page
+    /// is known now. In a box laid out on a page of its own, an [`Item::Here`] at the cursor
+    /// waits until [`Cx::attribute`] finds the page the box is drawn on.
+    pub(super) fn note(&mut self, flow: &mut Flow, here: Here) {
+        if self.depth > 0 {
+            self.heres.push(Some(here));
+            let y = MARGIN + flow.cursor;
+            flow.page().items.push(Item::Here {
+                at: self.heres.len() - 1,
+                y,
+            });
+            return;
+        }
+        if let Here::Anchor(anchor) = here {
+            flow.target(anchor);
+            return;
+        }
+        let page = flow.landing();
+        let y = if page == flow.pages.len() - 1 {
+            flow.cursor
+        } else {
+            0.0
+        };
+        let top = flow.at_top();
+        self.land(flow, here, page, y, top);
+    }
+
+    /// Records `here` at `y` on the page at index `page`, at the page's top when `top`. What a
+    /// running element met is on the running element's page.
+    fn land(&mut self, flow: &mut Flow, here: Here, page: usize, y: f32, top: bool) {
+        match here {
+            Here::Anchor(anchor) => flow.put(anchor, page, y),
+            Here::String { name, value, mark } => self.strings.push(margin::Set {
+                name,
+                value,
+                page,
+                y,
+                top,
+                mark,
+            }),
+            Here::Running(mut running) => {
+                for (at, _) in take_heres(&mut running.items) {
+                    if let Some(inner) = self.heres[at].take() {
+                        self.land(flow, inner, page, y, top);
+                    }
+                }
+                running.page = page;
+                running.y = y;
+                self.running.push(running);
+            }
+        }
+    }
+
+    /// Lands what each [`Item::Here`] on `flow`'s pages found on the page it is drawn on, the
+    /// first copy of each, and takes the items off. The named strings, marks, running elements
+    /// and headings are then in page order, and from the top of each page down.
+    fn attribute(&mut self, flow: &mut Flow) {
+        for page in 0..flow.pages.len() {
+            for (at, y) in take_heres(&mut flow.pages[page].items) {
+                if let Some(here) = self.heres[at].take() {
+                    self.land(flow, here, page, y - MARGIN, false);
+                }
+            }
+        }
+        let order = |a: (usize, f32), b: (usize, f32)| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1));
+        self.strings
+            .sort_by(|a, b| order((a.page, a.y), (b.page, b.y)));
+        self.running
+            .sort_by(|a, b| order((a.page, a.y), (b.page, b.y)));
+        flow.bookmarks
+            .sort_by(|a, b| order((a.page, a.y), (b.page, b.y)));
     }
 
     /// Lays `blocks` out down `flow`.
@@ -616,27 +722,20 @@ impl Cx<'_> {
                 }
                 Block::Running { atom, name } => {
                     let placed = &mut self.placed[atom];
-                    self.running.push(margin::Running {
+                    let running = margin::Running {
                         name,
-                        page: flow.landing(),
+                        page: 0,
+                        y: 0.0,
                         items: std::mem::take(&mut placed.items),
                         size: [placed.width, placed.height],
                         missing: std::mem::take(&mut placed.missing),
-                    });
+                    };
+                    self.note(flow, Here::Running(running));
                 }
-                Block::String { name, value, mark } => self.strings.push(margin::Set {
-                    name,
-                    value,
-                    page: flow.landing(),
-                    top: flow.at_top(),
-                    mark,
-                }),
-                // An `id` in a box laid out on a page of its own is not on any page yet.
-                Block::Target(anchor) => {
-                    if flow.paginates() {
-                        flow.target(anchor);
-                    }
+                Block::String { name, value, mark } => {
+                    self.note(flow, Here::String { name, value, mark });
                 }
+                Block::Target(anchor) => self.note(flow, Here::Anchor(anchor)),
                 Block::Tag(role) => flow.page().items.push(match role {
                     Some(role) => Item::Tag(role),
                     None => Item::Untag,
@@ -1416,6 +1515,7 @@ pub(super) fn shift(mut item: Item, dx: f32, dy: f32) -> Item {
                 *m = super::transform::shift(*m, dx, dy);
             }
         }
+        Item::Here { y, .. } => *y += dy,
         Item::End | Item::Tag(_) | Item::Untag => {}
     }
     item
