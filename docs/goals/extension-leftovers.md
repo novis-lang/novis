@@ -18,7 +18,7 @@ stages:
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/merge.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/nvs/Reader.nvs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 4
     title: "sheet-end parts, addresses and values are checked once, the spreadsheet list is gone, and its size is recorded"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/drawing.rs, extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/nvs/Sheet.nvs, extensions/spreadsheet/nvs/Workbook.nvs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 5
     title: "a render inside a header keeps its own first pass, and nesting and decoding stop at named bounds"
@@ -431,6 +431,17 @@ follows AGENTS.md § *Text an end user reads*.
 to that rule's `guardedBy` in `data/rules/core-classes/<rule>.json`. A session then runs
 `bun nv rules --render` once.
 
+**The ods bullet is a stated limit.** `spreadsheet-second-wave` retired with the module doc's
+ods bullet still in it. No test opens a written ods in LibreOffice, and the tree runs no LibreOffice,
+so the bullet is a plain paragraph of `extensions/spreadsheet/src/lib.rs`'s module doc: a written
+ods is checked by reading it back, and the parts it names follow the schema as written. Home: that
+module doc.
+
+**A `whole` rule's bounds are whole numbers or formulas.** The writer wrote no text-length limit
+for a `whole` rule. The fault was that a bound such as `2.5` or `abc` was written as given, so
+`tail.rs`'s `whole_bound` throws `LogicError` for one, and `a_whole_number_rule_writes_no_text_limits`
+pins it.
+
 **Sizes.** Stage 4 and stage 11 each run `the_recorded_growth_matches_the_embedded_components` once,
 by name. Each writes the size the failure names into its module doc
 (`extensions/spreadsheet/src/lib.rs:33`, `extensions/pdf/src/lib.rs:39`) and states the growth in
@@ -507,17 +518,17 @@ re-recorded.
 Rust items (`drawing.rs`, `tail.rs`, `writer.rs` and their tests) touch disjoint files. Two writing
 subagents take one half each, side by side, and neither builds. The session builds once both end.
 
-- [ ] `rule:core-classes/spreadsheet-sheet-end-parts`: a PNG is checked chunk by chunk to `IEND`, and an image or chart ending past the grid throws. `extensions/spreadsheet/src/drawing.rs:95`, `extensions/spreadsheet/src/drawing.rs:309`, `extensions/spreadsheet/nvs/Sheet.nvs:243`
-- [ ] A `whole` rule writes no text limits, and a second `print` throws. `extensions/spreadsheet/src/tail.rs:612`, `extensions/spreadsheet/src/tail.rs:717`, `extensions/spreadsheet/nvs/Sheet.nvs:278`
-- [ ] `rule:core-classes/spreadsheet-roster`: a key before the first keyed row, `column` before the first data row, and `cell` on a finished sheet. `extensions/spreadsheet/nvs/Workbook.nvs:421`, `extensions/spreadsheet/nvs/Workbook.nvs:324`, `extensions/spreadsheet/nvs/Sheet.nvs:74`, `extensions/spreadsheet/nvs/Sheet.nvs:84`
-- [ ] The `writerCell` and `writerColumn` exports check the column before the cast, and `writerColumn` throws with no data row. `extensions/spreadsheet/src/lib.rs:1144`, `extensions/spreadsheet/src/lib.rs:1154`
-- [ ] `rule:core-classes/spreadsheet-styles-and-defaults`: a header with `autofilter: true` writes its filter name. `extensions/spreadsheet/src/writer.rs:1064`, `extensions/spreadsheet/src/writer.rs:1103`
-- [ ] `rule:core-classes/spreadsheet-value-types`: NaN and the infinities throw on the CSV path. `extensions/spreadsheet/nvs/Workbook.nvs:603`, `extensions/spreadsheet/src/cells.rs:151`
-- [ ] `rule:core-classes/spreadsheet-writes-as-a-stream`: an `Export` of an `Iterator` writes once. `extensions/spreadsheet/nvs/Workbook.nvs:94`, `extensions/spreadsheet/nvs/Export.nvs:67`
-- [ ] The tests and cases the `sheet-end-parts`, `writer-values` and `addresses-and-values-runs` checks name. `extensions/spreadsheet/tests/sheet_end.rs:1`, `extensions/spreadsheet/tests/write.rs:1`, `tests/conformance/novis/spreadsheet-a-key-before-the-first-keyed-row-throws.nvst:1`
-- [ ] The attacks the `spreadsheet-attacks` check runs catch each new error and pass. `tests/hostile/novis/Spreadsheet-Export/bytes/01-huge-cells-and-a-used-generator.nvs:1`, `tests/hostile/novis/Spreadsheet-Sheet/image/01-files-that-pretend-to-be-images.nvs:1`
-- [ ] The fragments and `about.md` files state each change. The list's last bullets and its bold lead go, and `Cost:` stays as a paragraph. Delete `data/gaps/nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers.json`. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:93`
-- [ ] `cargo test --test builtin the_recorded_growth_matches_the_embedded_components` runs once, and the size it names goes into the module doc. `extensions/spreadsheet/src/lib.rs:33`, `crates/nvs-ext/tests/builtin.rs:163`
+- [x] `rule:core-classes/spreadsheet-sheet-end-parts`: a PNG is checked chunk by chunk to `IEND`, and an image or chart ending past the grid throws. `extensions/spreadsheet/src/drawing.rs:95`, `extensions/spreadsheet/src/drawing.rs:309`, `extensions/spreadsheet/nvs/Sheet.nvs:243`
+- [x] A `whole` rule writes no text limits, and a second `print` throws. `extensions/spreadsheet/src/tail.rs:612`, `extensions/spreadsheet/src/tail.rs:717`, `extensions/spreadsheet/nvs/Sheet.nvs:278`
+- [x] `rule:core-classes/spreadsheet-roster`: a key before the first keyed row, `column` before the first data row, and `cell` on a finished sheet. `extensions/spreadsheet/nvs/Workbook.nvs:421`, `extensions/spreadsheet/nvs/Workbook.nvs:324`, `extensions/spreadsheet/nvs/Sheet.nvs:74`, `extensions/spreadsheet/nvs/Sheet.nvs:84`
+- [x] The `writerCell` and `writerColumn` exports check the column before the cast, and `writerColumn` throws with no data row. `extensions/spreadsheet/src/lib.rs:1144`, `extensions/spreadsheet/src/lib.rs:1154`
+- [x] `rule:core-classes/spreadsheet-styles-and-defaults`: a header with `autofilter: true` writes its filter name. `extensions/spreadsheet/src/writer.rs:1064`, `extensions/spreadsheet/src/writer.rs:1103`
+- [x] `rule:core-classes/spreadsheet-value-types`: NaN and the infinities throw on the CSV path. `extensions/spreadsheet/nvs/Workbook.nvs:603`, `extensions/spreadsheet/src/cells.rs:151`
+- [x] `rule:core-classes/spreadsheet-writes-as-a-stream`: an `Export` of an `Iterator` writes once. `extensions/spreadsheet/nvs/Workbook.nvs:94`, `extensions/spreadsheet/nvs/Export.nvs:67`
+- [x] The tests and cases the `sheet-end-parts`, `writer-values` and `addresses-and-values-runs` checks name. `extensions/spreadsheet/tests/sheet_end.rs:1`, `extensions/spreadsheet/tests/write.rs:1`, `tests/conformance/novis/spreadsheet-a-key-before-the-first-keyed-row-throws.nvst:1`
+- [x] The attacks the `spreadsheet-attacks` check runs catch each new error and pass. `tests/hostile/novis/Spreadsheet-Export/bytes/01-huge-cells-and-a-used-generator.nvs:1`, `tests/hostile/novis/Spreadsheet-Sheet/image/01-files-that-pretend-to-be-images.nvs:1`
+- [x] The fragments and `about.md` files state each change. The list's last bullets and its bold lead go, and `Cost:` stays as a paragraph. Delete `data/gaps/nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers.json`. `extensions/spreadsheet/src/lib.rs:38`, `extensions/spreadsheet/src/lib.rs:93`
+- [x] `cargo test --test builtin the_recorded_growth_matches_the_embedded_components` runs once, and the size it names goes into the module doc. `extensions/spreadsheet/src/lib.rs:33`, `crates/nvs-ext/tests/builtin.rs:163`
 
 ### 5. a render inside a header keeps its own first pass, and nesting and decoding stop at named bounds
 
@@ -634,39 +645,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 3 are done and committed. Stage 3: `read::Reader::row` keeps a formula cell with no
-cached value (value `None`), and `rows` skips only a row with no cell, so a totals row reads as
-`null`s, or as `Formula`s with `cached` `null`. `Cursor::size` (`read/mod.rs`) counts a sheet with
-no dimension, or `A1`, from its rows; an empty sheet that says `A1` is now `0, 0`, and
-`sheets_gives_name_position_visibility_size_and_kind` pins it. `Reader::sheets` keeps its list in
-a `facts` `OnceCell`. `merge::Fill` keeps each range's top-left value with its display text, and
-`fill` gives the text to cells in a `text` column. `notes` runs `xml::unescape` on the note and the
-author. Every `Reader.nvs` sheet parameter is `tainted string|int`, and `sheetName` takes the name
-out with `is string` then `Core\Taint::assertTrusted`. The checks `reader-reads-what-the-file-has`
-and `-runs` ran green once by name, and the proofs of `Reader::sheets`, `rows`, `notes`, `merged`
-and `tables` are green. The module doc lost its five reader bullets. The sweep's nightly reds and
-`env-secret-proofs` are as stage 2's handoff said: fixed by later commits, and no definition.
+Stages 1 to 4 are done and committed, and the spreadsheet lane is finished. Stage 4:
+`drawing.rs`'s `png_size` walks a PNG's chunks to `IEND` (no CRC), and `Drawing::fits` throws for
+an image or chart that ends past `XFD` or row 1,048,576, called from `end_sheet`, so it throws at
+`sheet()` or `finish()`. `tail.rs` throws for a second `print` and for a `whole` bound that is no
+whole number or formula. `Writer::cell` and `column` take `u64`, and `column` throws with no data
+row. Novis half: `Workbook::position` reads only upper-case letters, a key before the first keyed
+row throws, `ready` takes a third `bool` for the data-row check, a finished sheet's message names
+it, `csvBytes` throws for NaN and the infinities, and `Export` takes `once` for an `Iterator`.
+`ReadOptions::default()` now gives `locale` `en`, which fixed ten `ods.rs` tests that stage 2 made
+red. The `Formula::of` attack catches the empty formula's new error. The module doc's list and its
+gap record are gone, and the size test passed, so 1.59 MiB stays. The checks `sheet-end-parts`,
+`writer-values`, `addresses-and-values-runs`, `spreadsheet-attacks` and `spreadsheet-size-recorded`
+ran green once.
 
 ### Next
 
-Stage 4, over `extensions/spreadsheet/src/drawing.rs`, `src/tail.rs`, `src/writer.rs`,
-`src/lib.rs`, `nvs/Sheet.nvs`, `nvs/Workbook.nvs` and `nvs/Export.nvs`. Its gate is stage 1's,
-already green. Follow its `**Split:**` line: one subagent for the Novis half, one for the Rust half.
+Stage 5, the PDF lane, over `extensions/pdf/src/lib.rs`, `wit/pdf.wit`, `extensions/pdf/nvs/Document.nvs`,
+`extensions/pdf/src/factur_x.rs`, `src/read.rs`, `src/merge.rs` and `src/layout/text.rs`.
 
-- [ ] A PNG is checked chunk by chunk to `IEND`, and an image or chart past the grid throws. `extensions/spreadsheet/src/drawing.rs:95`, `extensions/spreadsheet/nvs/Sheet.nvs:243`
-- [ ] A `whole` rule writes no text limits, and a second `print` throws. `extensions/spreadsheet/src/tail.rs:653`, `extensions/spreadsheet/src/tail.rs:534`, `extensions/spreadsheet/nvs/Sheet.nvs:278`
-- [ ] A key before the first keyed row, `column` before a data row, `cell` on a finished sheet. `extensions/spreadsheet/nvs/Sheet.nvs:74`, `extensions/spreadsheet/nvs/Sheet.nvs:84`, `extensions/spreadsheet/nvs/Workbook.nvs:421`
-- [ ] `writerCell` and `writerColumn` check the column before the cast. `extensions/spreadsheet/src/lib.rs:1144`
-- [ ] The filter name, NaN on CSV, an `Iterator` export once. `extensions/spreadsheet/src/writer.rs:1064`, `extensions/spreadsheet/nvs/Workbook.nvs:603`, `extensions/spreadsheet/nvs/Export.nvs:67`
-- [ ] The tests, cases, attacks, fragments and `about.md` files, the list and its gap record gone, and the size recorded. `extensions/spreadsheet/src/lib.rs:38`, `crates/nvs-ext/tests/builtin.rs:163`
+- [ ] Gate: `bun nv owners --check` exits 0, and `bun nv owners --closes extension-leftovers` lists the two PDF records. `tools/nv/cmd/owners.ts:1`
+- [ ] The `kept` resource replaces `KEPT`, and `Document.nvs` passes it from `first` to `second`. `extensions/pdf/src/lib.rs:430`, `wit/pdf.wit:83`, `extensions/pdf/nvs/Document.nvs:97`
+- [ ] The `pdf-nested-render-runs` case, and the header attack's step 3. `tests/hostile/novis/Pdf-Document/header/01-headers-that-throw-load-and-render-again.nvs:32`
+- [ ] The layout depth bound, measured, with its error. `extensions/pdf/src/layout/text.rs:505`
+- [ ] Invoice XML past 256 levels throws. `extensions/pdf/src/factur_x.rs:83`
+- [ ] Every decoded stream and attachment runs under the decompression bound. `extensions/pdf/src/read.rs:173`, `extensions/pdf/src/merge.rs:35`
+- [ ] The tests, the attacks, and the stated limits. `extensions/pdf/tests/render.rs:1`, `docs/rules/core-classes/pdf-one-engine.md:1`, `extensions/pdf/src/lib.rs:47`
 
-Expect red at the gate: any test that expects a row of only uncached formulas to be skipped, or an
-empty sheet with `<dimension ref="A1"/>` to be `1, 1` in `sheets()` (an evaluate test in
-`crates/nvs-ext/tests/spreadsheet_read.rs` or `extensions/spreadsheet/tests/` is the likeliest).
-Also the stage 2 reds: a test outside `spreadsheet_read.rs` that reads with `max` 0, an unknown
-`locale`, or control bytes as CSV, and any match on the old open message or a bound's `rule:` text.
+A new WIT export also needs `crates/nvs-cli/tests/meta.rs`'s member list (the playbook's first
+trap). Expect red at the gate: `crates/nvs-cli/tests/spreadsheet_sheet.rs` or another test that
+calls `cell` with a key before its first keyed row, `column` before a data row, a lower-case column
+letter, or `print` twice; a test that matches "can hold only a finite number" or "cannot add parts"
+for a finished sheet's `cell`; an image test with a hand-cut PNG outside `extensions/spreadsheet/tests/`.
+Also the stage 2 and 3 reds the last handoff named.
 
 ### Backlog
 
-- The module doc bullets before `extensions/spreadsheet/src/lib.rs:53`, and the ods and extras bullets: owned by `spreadsheet-second-wave` (`docs/goals/spreadsheet-second-wave.md`).
 - A clippy run over the component crates inside `bun nv verify`: declined here, see § *Clippy* (`tools/nv/cmd/verify.ts`).
