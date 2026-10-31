@@ -1826,11 +1826,15 @@ mod tests {
     /// Stage 3's two growth seams under a 1 MiB ceiling. Each is asked to
     /// grow to 64 MiB in one call, stops near its ceiling, and records the
     /// breach the request's next poll reports.
+    ///
+    /// Under Miri, the ceiling is 64 KiB and each is asked for 1 MiB, still
+    /// sixteen times the ceiling, because four million appends take longer
+    /// than a test may run.
     mod a_buffer_stops_at_its_ceiling {
         use crate::budget::{ByteWriter, Stopped};
 
-        const CEILING: usize = 1 << 20;
-        const ASKED: usize = 64 << 20;
+        const CEILING: usize = if cfg!(miri) { 64 << 10 } else { 1 << 20 };
+        const ASKED: usize = if cfg!(miri) { 1 << 20 } else { 64 << 20 };
 
         #[test]
         fn an_array_a_producer_fills_stops_growing_at_the_ceiling() {

@@ -3361,8 +3361,10 @@ pub(crate) mod tests {
     // covers: Core\Cache\Store::forget
     #[test]
     fn a_forgotten_key_leaves_no_key_bytes_behind() {
+        // Under Miri, a 16 KiB key, so hashing and copying it stays quick.
+        const KEY_SHIFT: u32 = if cfg!(miri) { 14 } else { 20 };
         let mut tier = Entries::default();
-        let key = vec![b'k'; 1 << 20];
+        let key = vec![b'k'; 1 << KEY_SHIFT];
         tier.put(&key, b"v", Lifetime::Forever, None);
         let held = budget::live_bytes();
         tier.forget(&key);
@@ -3370,8 +3372,9 @@ pub(crate) mod tests {
         assert_eq!(tier.order.len(), 1, "the stale slot waits for the sweep");
         assert!(tier.keys.is_empty(), "a stale slot still names its key");
         assert!(
-            budget::live_bytes() <= held - (1 << 20),
-            "the forget kept the key's megabyte: {held} then {}",
+            budget::live_bytes() <= held - (1 << KEY_SHIFT),
+            "the forget kept the key's {} bytes: {held} then {}",
+            key.len(),
             budget::live_bytes()
         );
         assert!(!tier.forget_oldest(), "a stale slot evicted nothing");

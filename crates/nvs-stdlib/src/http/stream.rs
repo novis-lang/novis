@@ -1583,6 +1583,11 @@ mod tests {
             "the id was already in force"
         );
 
+        // The cap is the fixed `BLOCK_CEILING`, megabytes of lines that take
+        // Miri minutes to scan, so the cap half runs only outside Miri.
+        if cfg!(miri) {
+            return;
+        }
         let mut scan = EventScan::new(Value::null());
         let mut open = b"data: x\n".to_vec();
         open.extend(b": c\n".repeat(super::BLOCK_CEILING / 4 + 1));
@@ -1598,6 +1603,7 @@ mod tests {
     /// The block cap counts from the last blank line, so a reply that arrives
     /// whole and holds only blank lines past the cap ends with no event.
     #[test]
+    #[cfg_attr(miri, ignore = "fills the fixed `BLOCK_CEILING`, too slow for Miri")]
     fn blank_lines_past_the_block_cap_end_with_no_event() {
         let blank = b"\r".repeat(super::BLOCK_CEILING + 1);
         assert!(

@@ -805,8 +805,11 @@ mod tests {
     // covers: Core\Ast::parse
     #[test]
     fn a_tree_past_the_memory_limit_stops_the_parse_at_the_limit() {
-        const LIMIT: usize = 1 << 20;
-        let source = Value::text(&format!("<?nvs {}", "echo 1 + 2;".repeat(50_000)));
+        // Under Miri, a sixteenth of the limit and of the statements, so the
+        // tree still outgrows the limit in the same ratio.
+        const LIMIT: usize = if cfg!(miri) { 64 << 10 } else { 1 << 20 };
+        const STATEMENTS: usize = if cfg!(miri) { 3_125 } else { 50_000 };
+        let source = Value::text(&format!("<?nvs {}", "echo 1 + 2;".repeat(STATEMENTS)));
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_memory_limit(LIMIT);
 
@@ -815,7 +818,7 @@ mod tests {
 
         assert!(
             answered.is_err(),
-            "the tree of 50,000 statements does not fit"
+            "the tree of {STATEMENTS} statements does not fit"
         );
         let refusal = refusal.expect("a refusal leaves its message in the context");
         assert!(refusal.contains("memory limit"), "{refusal}");

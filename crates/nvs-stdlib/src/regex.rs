@@ -2990,6 +2990,7 @@ mod tests {
     /// is compiled and not kept. A verbose-mode comment makes the text long
     /// and the program small.
     #[test]
+    #[cfg_attr(miri, ignore = "fills the fixed pattern-text cap, too slow for Miri")]
     fn the_cache_keeps_at_most_its_bound_in_pattern_text() {
         let long = |nth: usize| format!("(?x)long-{nth} # {}", "c".repeat(CACHE_PATTERN_BYTES / 3));
         for nth in 0..6 {

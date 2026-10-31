@@ -6725,11 +6725,14 @@ mod tests {
     // covers: Core\Arr::flattenDeep
     #[test]
     fn flatten_deep_stops_at_the_memory_limit_over_many_rows() {
-        const LIMIT: usize = 64 << 10;
+        // Under Miri, an eighth of the limit and of each row, so the rows
+        // still outgrow the limit in the same ratio.
+        const LIMIT: usize = if cfg!(miri) { 8 << 10 } else { 64 << 10 };
+        const ROW: i64 = if cfg!(miri) { 1_250 } else { 10_000 };
         let mut rows = NvsArray::new();
         for _ in 0..16 {
             let mut row = NvsArray::new();
-            for n in 0..10_000 {
+            for n in 0..ROW {
                 row.append(Value::int(n));
             }
             rows.append(Value::array(row));
@@ -6740,7 +6743,7 @@ mod tests {
 
         let answered = call(super::nvs_core_arr_flatten_deep, &mut ctx, &[subject]);
 
-        assert!(answered.is_err(), "160,000 values do not fit");
+        assert!(answered.is_err(), "16 rows of {ROW} values do not fit");
         assert!(nvs_runtime::budget::refused(), "the breach is recorded");
         assert!(
             ctx.memory_peak() < 2 * LIMIT,
