@@ -25,6 +25,12 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A changed parameter list on a built-in component's export needs three edits outside the
+  component, and the build passes without any of them.** `wit/<name>.wit`, the component's
+  `manifest.json` and `crates/nvs-ext/src/typed/<name>.rs`'s signature list must agree. A stale
+  typed list fails only at call time, as "the method takes 2 arguments, and the call passed 2",
+  where the first number is the typed list's. Edit all three in one slice, then run
+  `cargo test --test builtin`. See `crates/nvs-ext/src/typed/pdf.rs`.
 - **A package's proofs group is `package:<namespace>`, such as `--group 'package:Novis\Rest'`.**
   `--group 'Novis\Rest'` and `--group 'Novis\Rest\Client'` both answer `no group`, while
   `--id 'Novis\Rest\Client'` takes the class. A bench declares `// bench: complexity constant` when
