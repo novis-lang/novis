@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/budget/gauge.rs, docs/rules/http-server/admission-is-arithmetic-not-a-number.md, docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md, docs/rules/observability/a-memory-peak-is-recorded-not-asked-for.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: linux-test-cost-guard
@@ -157,40 +157,34 @@ are recorded.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 2 is done. One `#[repr(C)]` struct, `Counters`, in one `const` `thread_local!` (`COUNTERS`)
-replaces `LIVE`, `PEAK`, `CEILING`, `REQUESTS`, `TOTAL`, `DETACHING`, `DETACHED`, `LIVE_MARK` and
-`DETACHED_MARK` (`crates/nvs-runtime/src/budget.rs:265`). A `const` assertion holds the hot fields
-inside 64 bytes (`HOT_SPAN`, 49 bytes). `add` and `carry` look it up once and pass it to `record` and
-`shift`. `gauge::far_from` takes the mark's value, and `gauge::report` sets the marks in the struct.
-`budget`'s § *What it spends*, `gauge`'s module doc and three rule fragments say one lookup, and the
-chapters are rendered. The testing chapter's stage-1 sentence was unrendered and is now committed
-(`7cf28ce35`). `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+The goal is reached. `bun nv verify` over the whole goal was green on its first run, so the fix pass
+had nothing to fix. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes
+allocation-counters` (no gap) and `bun nv ci --check`. The acceptance check `linux-test-cost-guard`
+passes.
 
-The before and after figures are in the stage commit's message. Windows: update 1.62 to 1.36 ns,
-pooled 4.47 to 3.88 ns. WSL's update read 1.30 and 2.34 ns on the old tree and 3.10 and 2.94 ns on
-the new one, but `budget::carry`'s disassembly is the same instructions in both, so Linux code did
-not change and that spread is noise. A new standing decision says why the struct is not `align(64)`.
-The sweep's reds are stale: nightly `41187571578` predates the fixes, and `env-secret-proofs` has no
-definition.
+The gate's one change: the standing decision that `Counters` is not `align(64)` now lives in its doc
+comment (`crates/nvs-runtime/src/budget.rs:269`), and `gauge.rs`'s `use` order is rustfmt's. Every
+other decision already had its home: `Counters`' doc, `gauge`'s module doc,
+`rule:testing/perf-two-mechanisms` and `tools/nv/cmd/linux-test.ts`'s header.
 
-No test is expected to go red. The cells' values, order and every public reader's result are
-unchanged; only where they are stored moved.
+The sweep's reds were all stale. Nightly `41187571578` ran on `857b39cad`, 130 commits back, and each
+of its four causes has a fix since: the browser suite (`39795c9c4`), the debug viewer's shots
+(`bfce9c2d2`), ASAN's SQLite ODR pair (`593b6c565`) and the Miri memory-cap timeouts (`8ce92dda5`).
+`env-secret-proofs` has no definition in any goal or `looper.toml`.
+
+No test is expected to go red.
 
 ### Next
 
-Stage 3, the gate: start `looper verify` with `run_in_background`, fix every failure in one pass, and
-run it once more. `nvs-runtime`'s budget tests (`crates/nvs-runtime/src/budget.rs:1850`), the
-count-based guards in `benches/abi-probe/tests/perf_guards.rs` and Miri's `nvs-runtime` units are
-the ones this change reaches. Then the goal-end gates: `bun nv verify --doc`,
-`bun nv owners --closes allocation-counters`, `bun nv ci --check`.
+Nothing in this goal. The chain goes on to `memory-overshoot-net`.
 
 ### Backlog
 
