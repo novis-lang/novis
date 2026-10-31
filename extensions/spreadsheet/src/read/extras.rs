@@ -30,7 +30,10 @@
 //! What it spends, per call: the part it reads whole, or one block of a sheet's part and the
 //! inflater's window, and the list it returns. An image's bytes are held once, in the list.
 
-use super::{Reader, Source, binary, civil, days_from_civil, letters, relationships, sheet, xml};
+use super::{
+    Reader, Relationship, Source, binary, civil, days_from_civil, letters, relationships, sheet,
+    xml,
+};
 use crate::{Clock, Error, Properties, TimeOfDay};
 use xml::Token;
 
@@ -190,7 +193,7 @@ impl Reader {
         &self,
         source: &dyn Source,
         name: &str,
-    ) -> Result<Option<Vec<(String, String, String, bool)>>, Error> {
+    ) -> Result<Option<Vec<Relationship>>, Error> {
         self.package_workbook()?;
         match &self.listed(name)?.part {
             Some(part) => relationships(source, &self.directory, part).map(Some),

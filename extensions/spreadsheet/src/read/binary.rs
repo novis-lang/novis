@@ -169,7 +169,9 @@ fn wide_at(body: &[u8], at: usize) -> Result<(Option<String>, usize), Error> {
         .and_then(|length| body.get(at + 4..at + 4 + length))
         .ok_or_else(|| broken("a string is longer than its record"))?;
     let units = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|unit| u16::from_le_bytes([unit[0], unit[1]]));
     Ok((
         Some(
@@ -265,7 +267,9 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
                 for xti in body
                     .get(4..)
                     .unwrap_or_default()
-                    .chunks_exact(12)
+                    .as_chunks::<12>()
+                    .0
+                    .iter()
                     .take(count)
                 {
                     let at = |n: usize| [xti[n], xti[n + 1], xti[n + 2], xti[n + 3]];

@@ -96,7 +96,9 @@ fn records(stream: &[u8], mut at: usize) -> impl Iterator<Item = Result<(u16, &[
 fn characters(bytes: &[u8], wide: bool) -> String {
     if wide {
         let units = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|unit| u16::from_le_bytes([unit[0], unit[1]]));
         char::decode_utf16(units)
             .map(|c| c.unwrap_or('\u{FFFD}'))
@@ -414,7 +416,9 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
                 for xti in body
                     .get(2..)
                     .unwrap_or_default()
-                    .chunks_exact(6)
+                    .as_chunks::<6>()
+                    .0
+                    .iter()
                     .take(count)
                 {
                     let sheet = |n: usize| i32::from(i16::from_le_bytes([xti[n], xti[n + 1]]));

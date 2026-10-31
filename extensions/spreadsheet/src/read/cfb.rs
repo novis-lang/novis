@@ -127,10 +127,12 @@ impl<'a> File<'a> {
         }
         file.table = table;
         let directory = file.chain(u32_at(bytes, 48)?, None)?;
-        for entry in directory.chunks_exact(128) {
+        for entry in directory.as_chunks::<128>().0 {
             let length = usize::from(u16_at(entry, 64)?).min(64);
             let units = entry[..length.saturating_sub(2)]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|unit| u16::from_le_bytes([unit[0], unit[1]]));
             let name = char::decode_utf16(units)
                 .map(|c| c.unwrap_or('\u{FFFD}'))
@@ -157,7 +159,9 @@ impl<'a> File<'a> {
             }
             let mini = file.chain(u32_at(bytes, 60)?, None)?;
             file.mini_table = mini
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
                 .collect();
         }

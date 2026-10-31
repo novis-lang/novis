@@ -1526,9 +1526,12 @@ fn images_match_the_excel_made_fixtures() {
     }
 }
 
+/// One chart layer's series, each as `(categories, values)`.
+type Ranges<'a> = Vec<(Option<&'a str>, &'a str)>;
+
 /// A chart at `E9` of the default size, as each chart file was made, with one layer per
-/// `(kind, series)` and its series as `(categories, values)`.
-fn excel_chart(layers: Vec<(chart::Kind, Vec<(Option<&str>, &str)>)>) -> Chart {
+/// `(kind, series)`.
+fn excel_chart(layers: Vec<(chart::Kind, Ranges)>) -> Chart {
     Chart {
         placed: "E9".to_owned(),
         layers: layers

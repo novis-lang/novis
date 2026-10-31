@@ -84,7 +84,7 @@ impl Source for [u8] {
 
     fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, Error> {
         let start = usize::try_from(offset).map_or(self.len(), |at| at.min(self.len()));
-        let take = usize::try_from(length).map_or(usize::MAX, |n| n);
+        let take = usize::try_from(length).unwrap_or(usize::MAX);
         Ok(self[start..start + take.min(self.len() - start)].to_vec())
     }
 }
@@ -416,13 +416,15 @@ fn resolve(base: &str, target: &str) -> String {
     parts.join("/")
 }
 
-/// The relationships part of `part`: each id, its type's last segment, its target and whether it
-/// is external. An external target is kept as text and never followed.
+/// One relationship: its id, its type's last segment, its target and whether it is external.
+type Relationship = (String, String, String, bool);
+
+/// The relationships part of `part`. An external target is kept as text and never followed.
 fn relationships(
     source: &dyn Source,
     directory: &zip::Directory,
     part: &str,
-) -> Result<Vec<(String, String, String, bool)>, Error> {
+) -> Result<Vec<Relationship>, Error> {
     let (folder, file) = part.rsplit_once('/').unwrap_or(("", part));
     let rels = if folder.is_empty() {
         format!("_rels/{file}.rels")

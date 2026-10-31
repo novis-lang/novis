@@ -8,18 +8,18 @@
 use crate::tail::Part;
 use crate::{Error, Finished, Row, SheetOptions, Style, WorkbookOptions, Writer, ods};
 
-/// A workbook being written, in one of the two formats. The xlsx writer is boxed, because it
-/// is much larger than the ods one.
+/// A workbook being written, in one of the two formats. Each writer is boxed, because the two
+/// differ in size.
 pub enum Book {
     Xlsx(Box<Writer>),
-    Ods(ods::Writer),
+    Ods(Box<ods::Writer>),
 }
 
 impl Book {
     /// A workbook with nothing written yet, an ods when `options.ods` is set.
     pub fn open(options: WorkbookOptions) -> Result<Self, Error> {
         if options.ods {
-            ods::Writer::open(options).map(Book::Ods)
+            ods::Writer::open(options).map(|writer| Book::Ods(Box::new(writer)))
         } else {
             Writer::open(options).map(|writer| Book::Xlsx(Box::new(writer)))
         }

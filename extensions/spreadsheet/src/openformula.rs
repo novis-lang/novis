@@ -189,13 +189,12 @@ struct End {
 /// quotes.
 fn end(text: &str) -> End {
     let (mut source, mut rest) = (None, text);
-    if rest.starts_with('\'') {
-        if let Some(len) = quoted_len(rest, '\'') {
-            if rest[len..].starts_with('#') {
-                source = Some(unquote(&rest[..len]));
-                rest = &rest[len + 1..];
-            }
-        }
+    if rest.starts_with('\'')
+        && let Some(len) = quoted_len(rest, '\'')
+        && rest[len..].starts_with('#')
+    {
+        source = Some(unquote(&rest[..len]));
+        rest = &rest[len + 1..];
     }
     let mut dot = None;
     let mut at = 0;
@@ -430,18 +429,18 @@ pub fn from_a1(formula: &str) -> String {
                 continue;
             }
             '\'' => {
-                if let Some(len) = quoted_len(rest, '\'') {
-                    if rest[len..].starts_with('!') {
-                        let sheets = unquote(&rest[..len]);
-                        let consumed =
-                            reference_from_a1(&rest[len + 1..], Some(sheets.as_str()), &mut out);
-                        if consumed == 0 {
-                            out.push_str(&rest[..=len]);
-                        }
-                        at += len + 1 + consumed;
-                        last_was_reference = true;
-                        continue;
+                if let Some(len) = quoted_len(rest, '\'')
+                    && rest[len..].starts_with('!')
+                {
+                    let sheets = unquote(&rest[..len]);
+                    let consumed =
+                        reference_from_a1(&rest[len + 1..], Some(sheets.as_str()), &mut out);
+                    if consumed == 0 {
+                        out.push_str(&rest[..=len]);
                     }
+                    at += len + 1 + consumed;
+                    last_was_reference = true;
+                    continue;
                 }
                 out.push('\'');
             }

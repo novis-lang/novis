@@ -120,7 +120,9 @@ pub fn names(dir: &[u8]) -> Result<Vec<String>, Error> {
             MODULE_NAME_UNICODE => {
                 if let Some(last) = names.last_mut() {
                     let units = body
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|unit| u16::from_le_bytes([unit[0], unit[1]]));
                     *last = char::decode_utf16(units)
                         .map(|c| c.unwrap_or('\u{FFFD}'))
