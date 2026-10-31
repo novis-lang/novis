@@ -877,6 +877,61 @@ final class App
         }
     }
 
+    // Sends an advisory about a range of versions, such as `1.0.0..1.2.0`, with a summary.
+    // With a passkey sign-in in the last 15 minutes, the feed lists it at once. With a token alone,
+    // it is listed seven days later, and an owner can send it again with a passkey to list it at once.
+    #[Route(path: '/api/packages/{vendor}/{name}/advisory', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function advise(tainted string $vendor, tainted string $name): void
+    {
+        var $db = Schema::open();
+        var $releases = new Releases($db);
+        ?string $key = $releases->packageOf($vendor, $name);
+        if ($key == null) {
+            App::fail(404, 'There is no such package.');
+            return;
+        }
+        try {
+            var $asked = Request::jsonAs<AdvisoryRequest>();
+            ?VersionRange $range = VersionRange::of($asked->versions);
+            if ($range == null) {
+                App::fail(422, 'The versions must be a range, such as 1.0.0..1.2.0, or 1.0.0.. when no version fixes it yet. The first version must be lower than the second.');
+                return;
+            }
+            string $summary = Str::trim(Core\Taint::assertTrusted($asked->summary, 'a summary is text the feed shows as JSON'));
+            if ($summary == '' || Str::length($summary) > App::REASON_LENGTH) {
+                App::fail(422, 'The summary must have 1 to 500 characters.');
+                return;
+            }
+            int $now = Core\Time::now()->toEpochSeconds();
+            int $from = $now;
+            if (!App::ownsWithPasskey($db, $key)) {
+                if (Session::account() != null) {
+                    // A signed-in visitor who is not an owner, or whose passkey sign-in is too old.
+                    App::fail(403, 'Sign in with a passkey as an owner of the package first.');
+                    return;
+                }
+                if (new Tokens($db)->allows(Tokens::bearer(), $key) == null) {
+                    App::fail(401, 'Send a publish token for this package, or sign in with a passkey.');
+                    return;
+                }
+                $from = $now + Publish::PENDING_DAYS * 86400;
+            }
+            ?string $id = $releases->advise($key, $range, $summary, $from);
+            if ($id == null) {
+                App::fail(409, 'This advisory is sent already.');
+                return;
+            }
+            bool $sent = App::flush($db);
+            string $text = $from == $now
+                ? 'The advisory ' . $id . ' is in the feed.'
+                : 'The advisory ' . $id . ' is in the feed from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can send it again now with a passkey on the website.';
+            Response::json({ id: $id, message: $text, sent: $sent });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with versions and a summary.');
+        }
+    }
+
     // Signs the visitor out.
     #[Route(path: '/api/signout', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
@@ -886,7 +941,7 @@ final class App
         Response::setStatus(204);
     }
 
-    // The longest reason of a retraction, in characters.
+    // The longest reason of a retraction and the longest summary of an advisory, in characters.
     private const int REASON_LENGTH = 500;
 
     // Releases a pending version, or confirms its stable API when `$stable` is `true`.

@@ -46,6 +46,18 @@ final class Events
         Notices::add($db, Notices::vendorOf($key), null, $kind, $key, $version, $text);
     }
 
+    // An owner sent the advisory `$id`, such as `acme/http-1`, about the versions `$versions` of `$key`.
+    // The log adds its entry from the time `$due`, and the owners get the message now.
+    // It returns the id of the waiting entry.
+    public static function advisory(Transaction $tx, string $key, string $id, string $versions, string $summary, int $due): int
+    {
+        string $entry = Events::trusted(Json::encode({ v: 1, kind: 'advisory', id: $id, package: Index::slug($key), versions: $versions, summary: $summary }));
+        var $write = $tx->execute('insert into events (entry, package, due) values (?, null, ?)', [$entry, $due]);
+        string $text = 'An advisory about versions ' . $versions . ' of `' . Notices::nameOf($tx, $key) . '` was sent. The summary: ' . $summary;
+        Notices::add($tx, Notices::vendorOf($key), null, 'advisory', $key, null, $text);
+        return ($write->lastId() ?? 0) as int;
+    }
+
     // An account became an owner of a vendor, or stopped being one. `$change` is `added` or `removed`.
     // The log names packages, so there is one entry for each package of the vendor.
     public static function ownership(Connection|Transaction $db, string $vendor, string $account, string $change): void

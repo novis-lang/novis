@@ -53,6 +53,28 @@ final class PackagePageTest
         PackagePageTest::has($page, '<li>0.0.2 is retracted from 2026-06-10. The reason is: It deletes files. Version 0.0.4 fixes it.</li>');
     }
 
+    // An advisory is on the package page, and on the page of each version in its range.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function anAdvisoryIsOnThePagesOfTheVersionsItCovers(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 200 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '1.0.0', $now - 200 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '1.2.0', $now - 100 * PackagePageTest::DAY);
+        ?VersionRange $range = VersionRange::of('1.0.0..1.2.0');
+        if ($range == null) {
+            throw new RuntimeError('The range is not read.');
+        }
+        Test::assertSame(new Releases($db)->advise($key, $range, 'It leaks headers.', $now), 'acme/http-1');
+
+        string $item = '<li>The advisory <code>acme/http-1</code> is about the versions <code>1.0.0..1.2.0</code>, from 2026-06-15. It leaks headers.</li>';
+        PackagePageTest::has(PackagePageTest::packagePage($db, $now, $key), $item);
+        PackagePageTest::has(PackagePageTest::source(new PackagePage($db, $now)->version($key, '1.0.0')), $item);
+        string $fixed = PackagePageTest::source(new PackagePage($db, $now)->version($key, '1.2.0'));
+        Test::assertTrue(!Str::contains($fixed, 'acme/http-1'));
+    }
+
     // Every fact the score reads is on the package page, with the link to the formula.
     #[Test(at: '2026-06-15T12:00:00Z')]
     public function everyFactOfTheScoreIsOnThePage(): void

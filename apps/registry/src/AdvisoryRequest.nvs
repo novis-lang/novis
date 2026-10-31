@@ -1,0 +1,18 @@
+<?nvs
+namespace Registry;
+
+// The JSON that sends an advisory: the versions it covers and a summary,
+// such as `{"versions": "1.0.0..1.2.0", "summary": "A crafted header reads other requests."}`.
+// `versions` is a range, as `VersionRange` reads it.
+#[Core\Json\Derive]
+final class AdvisoryRequest
+{
+    public tainted string $versions;
+    public tainted string $summary;
+
+    public function constructor(tainted string $versions, tainted string $summary)
+    {
+        $this->versions = $versions;
+        $this->summary = $summary;
+    }
+}

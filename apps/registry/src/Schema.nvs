@@ -162,8 +162,21 @@ final class Schema
             [],
         );
         // The entries of the log that wait to be added, one line of JSON each, in the order of `id`.
-        // `package` is the package whose index file changes, or null. `Index` deletes a row once the log has it.
-        $db->execute('create table if not exists events (id integer primary key, entry text not null, package text)', []);
+        // `package` is the package whose index file changes, or null. `due` is the time from which the
+        // log may add the entry, or null for the next run. `Index` deletes a row once the log has it.
+        $db->execute('create table if not exists events (id integer primary key, entry text not null, package text, due integer)', []);
+        // A database made before `due` has an `events` table without it.
+        if ($db->query('select 1 from pragma_table_info(?) where name = ?', ['events', 'due'])->count() == 0) {
+            $db->execute('alter table events add column due integer', []);
+        }
+        // The advisories of each package. `id` is the package and a number, such as `acme/http-1`.
+        // `versions` is a range such as `1.0.0..1.2.0`. `shows_at` is the time the advisory goes into
+        // the log and the feed. `event` is the id of its row in `events`. Cost: one short row per advisory.
+        $db->execute(
+            'create table if not exists advisories (id text primary key, package text not null, versions text not null, '
+                . 'summary text not null, shows_at integer not null, event integer)',
+            [],
+        );
         // One message to the owners for each event, such as a publish, a token or an unlist.
         // `vendor` is the vendor in lower case, or null for a token of a vendor nobody owns yet.
         // `account` is the account the event is about, such as an owner who was removed, or null.

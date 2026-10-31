@@ -1,0 +1,76 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Str;
+
+// The versions an advisory covers. `1.0.0..1.2.0` is every version from 1.0.0 up to 1.2.0,
+// and 1.2.0 is not in it. `1.0.0..` is every version from 1.0.0, when no version fixes it yet.
+// The first version must be lower than the second. `nvs registry log append` checks a range the same way.
+final class VersionRange
+{
+    private array<int> $from;
+    private ?array<int> $until;
+
+    public function constructor(array<int> $from, ?array<int> $until)
+    {
+        $this->from = $from;
+        $this->until = $until;
+    }
+
+    // Returns the range that `$text` is, such as `1.0.0..1.2.0`. When it is not a range, the result is `null`.
+    public static function of(tainted string $text): ?VersionRange
+    {
+        array<tainted string> $ends = Str::split($text, '..');
+        if (Arr::count($ends) != 2) {
+            return null;
+        }
+        ?array<int> $from = Publish::versionOf($ends[0]);
+        if ($from == null) {
+            return null;
+        }
+        if ($ends[1] == '') {
+            return new VersionRange($from, null);
+        }
+        ?array<int> $until = Publish::versionOf($ends[1]);
+        if ($until == null || VersionRange::compare($from, $until) >= 0) {
+            return null;
+        }
+        return new VersionRange($from, $until);
+    }
+
+    // Returns `true` when the version `$version`, such as `1.1.0`, is in the range.
+    public function contains(tainted string $version): bool
+    {
+        ?array<int> $parts = Publish::versionOf($version);
+        if ($parts == null) {
+            return false;
+        }
+        ?array<int> $until = $this->until;
+        return VersionRange::compare($this->from, $parts) <= 0 && ($until == null || VersionRange::compare($parts, $until) < 0);
+    }
+
+    // The range as text, such as `1.0.0..1.2.0` or `1.0.0..`.
+    public function text(): string
+    {
+        ?array<int> $until = $this->until;
+        string $end = $until == null ? '' : VersionRange::join($until);
+        return VersionRange::join($this->from) . '..' . $end;
+    }
+
+    private static function join(array<int> $parts): string
+    {
+        return $parts[0] . '.' . $parts[1] . '.' . $parts[2];
+    }
+
+    // Returns -1, 0 or 1 when `$a` is lower than, the same as or higher than `$b`.
+    private static function compare(array<int> $a, array<int> $b): int
+    {
+        for (int $i = 0; $i < 3; $i++) {
+            if ($a[$i] != $b[$i]) {
+                return $a[$i] < $b[$i] ? -1 : 1;
+            }
+        }
+        return 0;
+    }
+}

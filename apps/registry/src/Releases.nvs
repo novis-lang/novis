@@ -191,6 +191,39 @@ final class Releases
         });
     }
 
+    // Sends an advisory about the versions `$range` of the package `$key`, with a summary.
+    // `$from` is the time the advisory goes into the log and the feed: now for a passkey, seven days
+    // later for a token alone. The same advisory sent again with an earlier time moves the time forward.
+    // It returns the id of the advisory, such as `acme/http-1`. When the same advisory is sent
+    // already from that time or earlier, the result is `null`.
+    public function advise(string $key, VersionRange $range, string $summary, int $from): ?string
+    {
+        string $versions = $range->text();
+        return $this->db->transaction(fn(Transaction $tx): ?string => {
+            var $same = $tx->query('select id, shows_at, event from advisories where package = ? and versions = ? and summary = ?', [$key, $versions, $summary]);
+            foreach ($same as Row $row) {
+                if (($row->int('shows_at') ?? 0) <= $from) {
+                    return null;
+                }
+                string $found = Releases::trusted($row->string('id'));
+                $tx->execute('update advisories set shows_at = ? where id = ?', [$from, $found]);
+                $tx->execute('update events set due = ? where id = ?', [$from, $row->int('event')]);
+                return $found;
+            }
+            int $count = 0;
+            foreach ($tx->query('select count(*) as n from advisories where package = ?', [$key]) as Row $row) {
+                $count = $row->int('n') ?? 0;
+            }
+            string $id = Index::slug($key) . '-' . ($count + 1);
+            int $event = Events::advisory($tx, $key, $id, $versions, $summary, $from);
+            $tx->execute(
+                'insert into advisories (id, package, versions, summary, shows_at, event) values (?, ?, ?, ?, ?, ?)',
+                [$id, $key, $versions, $summary, $from, $event],
+            );
+            return $id;
+        });
+    }
+
     // Withholds the bytes of a version, for malware or a legal order. Only the operator does this.
     // The name, the version and the digest stay in the index and the log, with the reason.
     // It returns `false` when the version is withheld already.

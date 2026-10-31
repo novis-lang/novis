@@ -4,7 +4,10 @@ namespace Registry;
 use Core\Db;
 use Core\Db\Connection;
 use Core\Db\Driver;
+use Core\Db\Row;
+
 use Core\Encoding;
+use Core\Http\Method;
 use Core\IO;
 use Core\Json;
 use Core\Path;
@@ -12,8 +15,10 @@ use Core\Random;
 use Core\Str;
 use Core\Test;
 use Core\Time;
+use Core\Time\Duration;
+use RuntimeError;
 
-// Tests for the advisory feed and the second copy of the checkpoint
+// Tests for the advisories, the advisory feed and the second copy of the checkpoint
 // (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
 // Each test has its own database in memory and its own folder under `work`. The log is a test
 // double that writes each line it adds to `log.txt`, and writes a feed file when it is asked to.
@@ -30,6 +35,96 @@ final class AdvisoriesTest
     // The two entries that `package_audit.rs` appends, in canonical form.
     private const string RETRACT = '{"fixed_in":"1.1.1","kind":"retract","package":"acme/http","reason":"It deletes files.","v":1,"version":"1.1.0"}';
     private const string WITHHOLD = '{"kind":"withhold","package":"acme/http","reason":"Malware.","v":1,"version":"1.2.0"}';
+
+    // The entry of the first advisory of `Acme\Http`, in canonical form.
+    private const string ADVISORY = '{"id":"acme/http-1","kind":"advisory","package":"acme/http","summary":"It leaks headers.","v":1,"versions":"1.0.0..1.2.0"}';
+
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anAdvisorySentWithATokenGoesIntoTheLogSevenDaysLater(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            int $now = Time::now()->toEpochSeconds();
+            ?string $id = new Releases($db)->advise(AdvisoriesTest::KEY, AdvisoriesTest::range('1.0.0..1.2.0'), 'It leaks headers.', $now + 7 * 86400);
+            Test::assertSame($id, 'acme/http-1');
+            var $log = AdvisoriesTest::log($folder);
+            var $index = new Index($db, $log, AdvisoriesTest::site($folder, ''));
+            Test::assertTrue($index->flush());
+            // The entry waits, so the log has nothing yet.
+            Test::assertTrue(!IO::exists($folder . '/log.txt'));
+            Test::advance(Duration::days(7));
+            Test::assertTrue($index->flush());
+            Test::assertSame(AdvisoriesTest::logged($folder), [AdvisoriesTest::ADVISORY]);
+            Test::assertCalled($log, Log::advisories, { times: 1 });
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anOwnerWithAPasskeySendsAWaitingAdvisoryAgainAndTheLogHasItAtOnce(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            var $releases = new Releases($db);
+            int $now = Time::now()->toEpochSeconds();
+            var $range = AdvisoriesTest::range('1.0.0..1.2.0');
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, $range, 'It leaks headers.', $now + 7 * 86400), 'acme/http-1');
+            // The same advisory with an earlier time keeps its id and moves its time forward.
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, $range, 'It leaks headers.', $now), 'acme/http-1');
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, $range, 'It leaks headers.', $now), null);
+            Test::assertTrue(new Index($db, AdvisoriesTest::log($folder), AdvisoriesTest::site($folder, ''))->flush());
+            Test::assertSame(AdvisoriesTest::logged($folder), [AdvisoriesTest::ADVISORY]);
+            // The owners get one message, when the advisory is first sent.
+            var $notices = $db->query("select count(*) as n from notices where kind = 'advisory' and package = ?", [AdvisoriesTest::KEY]);
+            foreach ($notices as Row $row) {
+                Test::assertSame($row->int('n'), 1);
+            }
+            // Another range is a second advisory.
+            Test::assertSame($releases->advise(AdvisoriesTest::KEY, AdvisoriesTest::range('1.2.0..'), 'It is slow.', $now), 'acme/http-2');
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function aRangeHasTwoVersionsAndTheFirstIsLower(): void
+    {
+        Test::assertSame(AdvisoriesTest::range('1.0.0..1.2.0')->text(), '1.0.0..1.2.0');
+        Test::assertSame(AdvisoriesTest::range('1.0.0..')->text(), '1.0.0..');
+        Test::assertTrue(AdvisoriesTest::range('1.0.0..1.2.0')->contains('1.1.9'));
+        Test::assertTrue(!AdvisoriesTest::range('1.0.0..1.2.0')->contains('1.2.0'));
+        Test::assertTrue(!AdvisoriesTest::range('1.0.0..1.2.0')->contains('0.9.0'));
+        Test::assertTrue(AdvisoriesTest::range('1.0.0..')->contains('10.0.0'));
+        array<string> $malformed = ['1.0.0', '1.2.0..1.0.0', '1.0.0..1.0.0', '..1.0.0', '1.0..2.0.0', '1.0.0...2.0.0', '01.0.0..', '1.0.0..2.0.0..3.0.0'];
+        foreach ($malformed as string $text) {
+            Test::assertSame(VersionRange::of($text), null);
+        }
+    }
+
+    #[Test]
+    public function theRouteAnswers422ForAMalformedRange(): void
+    {
+        var $db = Schema::open();
+        string $vendor = 'V' . Encoding::toHex(Random::bytes(4));
+        $db->execute('insert into vendors (key, name, created_at) values (?, ?, 0)', [Str::lower($vendor), $vendor]);
+        $db->execute(
+            "insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, 'https://git.example.com/project.git', '', 0)",
+            [Str::lower($vendor) . '\\http', $vendor . '\\Http', Str::lower($vendor)],
+        );
+        array<string> $headers = ['content-type' => 'application/json'];
+        array<string> $malformed = ['1.2.0..1.0.0', '1.0', '1.0.0..1.0.0', '1.0.0...'];
+        foreach ($malformed as string $versions) {
+            string $body = '{"versions": "' . $versions . '", "summary": "It leaks headers."}';
+            var $response = Test::request(Method::Post, '/api/packages/' . $vendor . '/http/advisory', { headers: $headers, body: $body });
+            Test::assertSame($response->status(), 422);
+        }
+    }
 
     #[Test(at: '2026-03-01T12:00:00Z')]
     public function aRetractionAndAWithholdAreLoggedAndTheFeedIsWrittenAndSent(): void
@@ -122,6 +217,16 @@ final class AdvisoriesTest
                 . "values (?, ?, ?, ?, ?, ?, 10, 'https://git.example.com/acme/http.git', '', ?, ?, 'token', '', '', 0, null, '{}', '{\"required\":[],\"optional\":[]}', 0)",
             [AdvisoriesTest::KEY, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, 'blake3:' . Encoding::toHex(Random::bytes(32)), Str::repeat('1', 40), AdvisoriesTest::OWNER],
         );
+    }
+
+    // The range that `$text` is. The test fails when it is not a range.
+    private static function range(string $text): VersionRange
+    {
+        ?VersionRange $range = VersionRange::of($text);
+        if ($range == null) {
+            throw new RuntimeError('`' . $text . '` is not a range.');
+        }
+        return $range;
     }
 
     // A log double that adds every line to `log.txt` in `$folder`. Its feed is a file with one line.

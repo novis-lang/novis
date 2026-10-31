@@ -99,7 +99,9 @@ final class Index
         string $lines = '';
         int $last = 0;
         array<string> $changed = [];
-        foreach ($tx->query('select id, entry, package from events order by id', []) as Row $row) {
+        // An entry with a `due` time later than now, such as an advisory sent with a token, waits.
+        int $now = Core\Time::now()->toEpochSeconds();
+        foreach ($tx->query('select id, entry, package from events where due is null or due <= ? order by id', [$now]) as Row $row) {
             $lines .= Index::trusted($row->string('entry')) . "\n";
             $last = $row->int('id') ?? 0;
             ?string $package = Index::optional($row->string('package'));
@@ -144,8 +146,9 @@ final class Index
             foreach ($written as string $path) {
                 $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
             }
-            $tx->execute('delete from events where id <= ?', [$last]);
-            $this->advised = Str::contains($lines, '"kind":"retract"') || Str::contains($lines, '"kind":"withhold"');
+            $tx->execute('delete from events where id <= ? and (due is null or due <= ?)', [$last, $now]);
+            $this->advised = Str::contains($lines, '"kind":"retract"') || Str::contains($lines, '"kind":"withhold"')
+                || Str::contains($lines, '"kind":"advisory"');
         }
         return $changed;
     }
@@ -153,7 +156,8 @@ final class Index
     // Runs once a day, from `jobs/daily.nvs`. It adds every release that is not in the log yet.
     // Then it writes every index file and the advisory feed again, signs every file, and sends
     // them and `registry.json` to every store. So a version whose seven days have passed is released,
-    // and a feed that a failed run did not write is written.
+    // an advisory whose seven days have passed is in the feed, and a feed that a failed run did not
+    // write is written.
     // It returns `false` when a step fails. The next run does every step again.
     // Memory: one index file at a time.
     public function daily(): bool

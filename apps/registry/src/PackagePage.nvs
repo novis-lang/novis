@@ -60,7 +60,7 @@ final class PackagePage
             + $this->replacedBy($name)
             + html`<h2>Versions</h2>
 <table><tr><th>Version</th><th>State</th><th>Published</th><th>Repository</th><th>Commit</th></tr>{$versions}</table>`
-            + $this->advisories($rows)
+            + $this->advisories($key, $rows, null)
             + $this->ranking($key)
             + $this->owners($key)
             + PackagePage::readme($newest);
@@ -94,7 +94,7 @@ final class PackagePage
 <tr><th>Archive</th><td><code>{$digest}</code>, {$size}</td></tr>
 </table>`
                 + $this->replaces($row)
-                + $this->advisories([$row])
+                + $this->advisories($key, [$row], $version)
                 + $this->capabilities($key, $row)
                 + $this->changes($row)
                 + PackagePage::files($row)
@@ -302,10 +302,11 @@ final class PackagePage
         return $found->count() == 0 ? html`` : html`<p>These packages say that they replace this one:</p><ul>{$items}</ul>`;
     }
 
-    // The retractions and the withholds of these releases, each with its reason, and a link to the
-    // signed feed. The feed lists the same retractions and withholds, from the log.
-    // Cost: none. The rows are the ones the page shows.
-    private function advisories(array<Row> $rows): Markup
+    // The retractions and the withholds of these releases, each with its reason, then the advisories
+    // of the package `$key`, and a link to the signed feed. With a version in `$only`, only the
+    // advisories whose range has that version are shown. The feed lists the same things, from the log.
+    // Cost: one query for the advisories. The rows are the ones the page shows.
+    private function advisories(string $key, array<Row> $rows, ?string $only): Markup
     {
         string $feed = $this->feed;
         var $link = html`<p>Every advisory of this registry is in <a href="{$feed}">the signed advisory feed</a>. <code>nvs pkg audit</code> reads it.</p>`;
@@ -328,8 +329,21 @@ final class PackagePage
                 $any = true;
             }
         }
+        var $sent = $this->db->query('select id, versions, summary, shows_at from advisories where package = ? order by shows_at, id', [$key]);
+        foreach ($sent as Row $row) {
+            tainted string $versions = PackagePage::raw($row, 'versions');
+            ?VersionRange $range = VersionRange::of($versions);
+            if ($range == null || ($only != null && !$range->contains($only))) {
+                continue;
+            }
+            tainted string $id = PackagePage::raw($row, 'id');
+            tainted string $summary = PackagePage::raw($row, 'summary');
+            string $shows = PackagePage::date($row->int('shows_at') ?? 0);
+            $items = $items + html`<li>The advisory <code>{$id}</code> is about the versions <code>{$versions}</code>, from {$shows}. {$summary}</li>`;
+            $any = true;
+        }
         if (!$any) {
-            return html`<h2>Advisories</h2><p>No version is retracted or withheld.</p>` + $link;
+            return html`<h2>Advisories</h2><p>No version is retracted or withheld, and the package has no advisory.</p>` + $link;
         }
         return html`<h2>Advisories</h2><ul>{$items}</ul>` + $link;
     }
