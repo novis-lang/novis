@@ -20,6 +20,15 @@ those files are served from is configuration (`rule:packaging/registry-hosting-i
 | `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions (`rule:packaging/only-a-major-may-break-the-api`) |
 | `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
 
+**The pages** are rendered on the server with `html` templates through one layout, and every page
+sends `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`.
+One same-origin script, `/registry.js`, runs every WebAuthn ceremony and sends every `POST` and
+`DELETE` a page makes, to the same routes and with the same access as any other client. A step whose
+route needs a passkey from the last 15 minutes runs the sign-in first when the route answers `403`. A
+service worker, `/push.js`, shows each push message and sends the code of a test push back. There is no
+framework, no build step and no third-party script. `tools/nv/test/registry-browser.test.ts` drives
+the pages in a real Chromium with a virtual passkey.
+
 `nvs registry` is operator surface for the service and prints no help in a user's command list. The
 `nvs pkg` commands are the user's (`rule:packaging/package-toml-is-a-tool-input`).
 

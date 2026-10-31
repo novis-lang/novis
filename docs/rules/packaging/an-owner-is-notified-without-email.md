@@ -9,7 +9,9 @@ cannot publish and cannot be added as an owner.
   registry's VAPID key. An owner may register any number of devices. A device is added only while signed
   in with a passkey, and adding or removing one notifies every other device and webhook of that account.
   A subscription the push service reports gone is dropped, and the account page lists each device with
-  the date it last answered.
+  the date it last answered. The account page subscribes the browser with the key from `/api/push/key`
+  and adds, tests, verifies and removes each device and webhook
+  (`rule:packaging/the-registry-is-a-novis-program`).
 - **Webhooks**: a signed POST to a URL the owner gives, such as ntfy, Matrix, Discord or the owner's own
   server. It is sent through the outbound address table, so an internal host is refused, and it is
   retried. Each message also carries a one-time "I am here" link
@@ -33,8 +35,10 @@ Each line after the name and the count is one JSON object. The log's public key 
 client's note reader or any C2SP library. So a copy of a feed can be checked, wherever it came from. The
 inbox, `GET /api/inbox`, is the same rows for a signed-in account.
 
-**A verified channel is mandatory.** A push device is verified by the action on a test push, which
-sends back the one-time code inside the encrypted payload. A webhook is verified by a one-time code the
+**A verified channel is mandatory.** A push device is verified when its test push arrives: the
+registry's service worker sends back the one-time code inside the encrypted payload, which only a
+subscription a passkey session registered can decrypt. A reminder's "Yes, I am here" stays a click on
+the message, because that answer proves a person is there. A webhook is verified by a one-time code the
 registry sends to it, which the owner returns on the website or through the link in the message. **A
 channel that stops working stops counting**: the push service reports it gone, or a webhook still fails
 after its retries. An account whose last channel fails cannot publish until it verifies one again.

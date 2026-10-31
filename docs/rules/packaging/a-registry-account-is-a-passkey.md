@@ -9,6 +9,9 @@ with **no email, no SMS and no password**, and it is bound to no forge.
 - **There is no human recovery.** Losing every passkey and every recovery code loses the account. Its
   packages keep working, and its co-owners keep publishing; the guide advises two owners per vendor.
 - **Contact with an owner** is the inbox on the website and the package's public repository.
+- **The pages** are `/signup`, where the browser solves the proof-of-work with `crypto.subtle` and then
+  makes the passkey, `/signin`, with a passkey or a recovery code, and `/account`, which adds a passkey
+  (`rule:packaging/the-registry-is-a-novis-program`).
 
 Every way an account is usually taken over goes through something this design does not have. A
 password is phished or reused; a mailbox is taken over and its reset link followed; an SMS code is
