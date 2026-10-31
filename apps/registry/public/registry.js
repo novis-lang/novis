@@ -89,6 +89,11 @@ async function withPasskey(form, step) {
   return check(await step());
 }
 
+// The address of the package of a form, such as `/api/packages/acme/http`.
+function packagePath(form) {
+  return '/api/packages/' + form.dataset.package;
+}
+
 // Shows a value the registry gives only once, such as a new token.
 function showOnce(section, field, value) {
   document.getElementById(field).textContent = value;
@@ -188,6 +193,44 @@ const steps = {
   },
   async 'remove-channel'(form) {
     check(await send('DELETE', '/api/channels/' + encodeURIComponent(form.dataset.id)));
+    return null;
+  },
+  async release(form) {
+    await withPasskey(form, () => send('POST', packagePath(form) + '/' + form.dataset.version + '/release'));
+    return null;
+  },
+  async 'show-api'(form) {
+    const answer = check(await send('GET', packagePath(form) + '/' + form.dataset.version + '/api'));
+    const api = document.getElementById('api');
+    api.textContent = JSON.stringify(answer.api, null, 2);
+    api.hidden = false;
+    return 'This is the API you confirm. Read it below.';
+  },
+  async stable(form) {
+    await withPasskey(form, () => send('POST', packagePath(form) + '/' + form.dataset.version + '/stable'));
+    return null;
+  },
+  async unlist(form) {
+    await withPasskey(form, () => send('POST', packagePath(form) + '/unlist', { version: form.dataset.version }));
+    return null;
+  },
+  async relist(form) {
+    await withPasskey(form, () => send('POST', packagePath(form) + '/relist', { version: form.dataset.version }));
+    return null;
+  },
+  async retract(form, fields) {
+    const body = { version: fields.get('version'), reason: fields.get('reason'), fixedIn: fields.get('fixedIn') };
+    await withPasskey(form, () => send('POST', packagePath(form) + '/retract', body));
+    return null;
+  },
+  async advisory(form, fields) {
+    const body = { versions: fields.get('versions'), summary: fields.get('summary') };
+    await withPasskey(form, () => send('POST', packagePath(form) + '/advisory', body));
+    return null;
+  },
+  async repository(form, fields) {
+    const body = { repository: fields.get('repository'), directory: fields.get('directory') };
+    await withPasskey(form, () => send('POST', packagePath(form) + '/repository', body));
     return null;
   },
 };

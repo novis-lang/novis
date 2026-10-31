@@ -17,6 +17,9 @@ use Core\Uri;
 // package it replaces, its owners and their history, its retractions and withholds, every fact
 // `Ranking` reads, and the readme. The version page adds the capabilities and what changed in
 // them, the changes to the API, the files of the archive and the files from other hosts.
+// An owner also sees the forms that change the package: unlist, retract, an advisory and a move to
+// another repository, and on the page of a waiting version the form that releases it.
+// Every form calls the route any other client calls, and the route checks the owner again.
 // A text a publisher wrote, such as the readme, is escaped and shown as plain text.
 // Cost: a few queries per page, each over the rows of one package or one vendor.
 final class PackagePage
@@ -27,13 +30,16 @@ final class PackagePage
     private Connection $db;
     private int $now;
     private string $feed;
+    private string $viewer;
 
     // `$feed` is the address of the signed advisory feed, which the *Advisories* section links to.
-    public function constructor(Connection $db, int $now, string $feed = '/log/advisories')
+    // `$viewer` is the account that sees the page, or `''` for a visitor who is not signed in.
+    public function constructor(Connection $db, int $now, string $feed = '/log/advisories', string $viewer = '')
     {
         $this->db = $db;
         $this->now = $now;
         $this->feed = $feed;
+        $this->viewer = $viewer;
     }
 
     // The page of the package `$key`, such as `acme\http`, or `null` when it has no release.
@@ -45,6 +51,8 @@ final class PackagePage
         }
         string $name = Notices::nameOf($this->db, $key);
         Row $newest = $rows[0];
+        bool $owns = $this->owns($key);
+        string $slug = Index::slug($key);
         var $versions = html``;
         foreach ($rows as Row $row) {
             string $version = PackagePage::text($row, 'version');
@@ -53,13 +61,21 @@ final class PackagePage
             tainted string $commit = PackagePage::raw($row, 'git_commit');
             string $published = PackagePage::date($row->int('published_at') ?? 0);
             string $state = $this->stateOf($key, $row);
-            $versions = $versions + html`<tr><td><a href="{$link}">{$version}</a></td><td>{$state}</td><td>{$published}</td><td>{$repository}</td><td><code>{$commit}</code></td></tr>`;
+            var $change = html``;
+            if ($owns) {
+                $change = $row->int('unlisted_at') == null
+                    ? html`<td><form data-action="unlist" data-passkey data-package="{$slug}" data-version="{$version}"><button>Unlist</button></form></td>`
+                    : html`<td><form data-action="relist" data-passkey data-package="{$slug}" data-version="{$version}"><button>List again</button></form></td>`;
+            }
+            $versions = $versions + html`<tr><td><a href="{$link}">{$version}</a></td><td>{$state}</td><td>{$published}</td><td>{$repository}</td><td><code>{$commit}</code></td>{$change}</tr>`;
         }
+        var $changeHead = $owns ? html`<th>Change</th>` : html``;
         var $content = html`<h1>{$name}</h1>`
             + $this->replaces($newest)
             + $this->replacedBy($name)
             + html`<h2>Versions</h2>
-<table><tr><th>Version</th><th>State</th><th>Published</th><th>Repository</th><th>Commit</th></tr>{$versions}</table>`
+<table><tr><th>Version</th><th>State</th><th>Published</th><th>Repository</th><th>Commit</th>{$changeHead}</tr>{$versions}</table>`
+            + ($owns ? $this->manage($key, $slug) : html``)
             + $this->advisories($key, $rows, null)
             + $this->ranking($key)
             + $this->owners($key)
@@ -93,6 +109,7 @@ final class PackagePage
 <tr><th>Commit</th><td><code>{$commit}</code></td></tr>
 <tr><th>Archive</th><td><code>{$digest}</code>, {$size}</td></tr>
 </table>`
+                + $this->confirmation($key, $row, $version)
                 + $this->replaces($row)
                 + $this->advisories($key, [$row], $version)
                 + $this->capabilities($key, $row)
@@ -103,6 +120,68 @@ final class PackagePage
             return PackagePage::layout($name . ' ' . $version, $content);
         }
         return null;
+    }
+
+    // Returns `true` when the account that sees the page owns the vendor of the package `$key`.
+    private function owns(string $key): bool
+    {
+        return $this->viewer != '' && new Vendors($this->db)->isOwner(Str::before($key, '\\') ?? $key, $this->viewer);
+    }
+
+    // The forms of an owner on the package page. `$slug` is the package in a path, such as `acme/http`.
+    private function manage(string $key, string $slug): Markup
+    {
+        tainted string $repository = '';
+        tainted string $directory = '';
+        foreach ($this->db->query('select repository, directory from packages where key = ?', [$key]) as Row $row) {
+            $repository = PackagePage::raw($row, 'repository');
+            $directory = PackagePage::raw($row, 'directory');
+        }
+        return html`<h2>Change this package</h2>
+<p>You see this part because you are an owner. Each change needs a passkey sign-in from the last 15 minutes. If your sign-in is older, the page asks for your passkey first.</p>
+<h3>Unlist every version</h3>
+<p>A search does not show an unlisted version, and <code>nvs pkg add</code> does not choose it. Programs that use it can still fetch it.</p>
+<form data-action="unlist" data-passkey data-package="{$slug}" data-version=""><button>Unlist every version</button></form>
+<form data-action="relist" data-passkey data-package="{$slug}" data-version=""><button>List every version again</button></form>
+<h3>Retract a version</h3>
+<p>Retract a version that is broken or dangerous. <code>nvs pkg audit</code> shows the reason to every program that uses it.</p>
+<form data-action="retract" data-passkey data-package="{$slug}"><label>Version <input name="version" required></label>
+<label>Reason <input name="reason" required maxlength="500"></label>
+<label>Version that fixes it, or empty <input name="fixedIn"></label> <button>Retract</button></form>
+<h3>Send an advisory</h3>
+<p>An advisory is a warning about a range of versions. <code>1.0.0..1.2.0</code> is every version from 1.0.0 up to 1.2.0, without 1.2.0. <code>1.0.0..</code> is every version from 1.0.0. Use it when no version fixes the problem yet.</p>
+<form data-action="advisory" data-passkey data-package="{$slug}"><label>Versions <input name="versions" required></label>
+<label>Summary <input name="summary" required maxlength="500"></label> <button>Send the advisory</button></form>
+<h3>Move to another repository</h3>
+<p>The registry builds the next version from this repository and folder.</p>
+<form data-action="repository" data-passkey data-package="{$slug}"><label>Repository, an <code>https://</code> address <input name="repository" type="url" required value="{$repository}"></label>
+<label>Folder in the repository, or empty for the top folder <input name="directory" value="{$directory}"></label> <button>Move the package</button></form>`;
+    }
+
+    // The form that releases a waiting version now, or the form that confirms the first stable API.
+    // Only an owner sees it, and only while the version waits.
+    private function confirmation(string $key, Row $row, string $version): Markup
+    {
+        if (!$this->owns($key) || PackagePage::raw($row, 'withheld') != '') {
+            return html``;
+        }
+        var $releases = new Releases($this->db);
+        string $slug = Index::slug($key);
+        if ($releases->needsStable($key, $version)) {
+            return html`<h2>Confirm the stable API</h2>
+<p>This is the first version at 0.1.0 or higher. It is released when an owner confirms its API. After that, only a new major version may break this API.</p>
+<form data-action="show-api" data-package="{$slug}" data-version="{$version}"><button>Show the API</button></form>
+<pre id="api" hidden></pre>
+<form data-action="stable" data-passkey data-package="{$slug}" data-version="{$version}"><label><input name="read" type="checkbox" required> I read this API. Only a new major version may break it.</label> <button>Confirm the API and release</button></form>`;
+        }
+        ?int $at = $releases->selectableAt($this->db, $key, $version);
+        if ($at == null || $at <= $this->now) {
+            return html``;
+        }
+        string $until = PackagePage::date($at);
+        return html`<h2>Release now</h2>
+<p>This version is pending until {$until}. Every owner got a message about it. If you checked it, you can release it now.</p>
+<form data-action="release" data-passkey data-package="{$slug}" data-version="{$version}"><button>Release now</button></form>`;
     }
 
     // The state of a release at this time: `withheld`, `retracted`, `unlisted`, `waits for an owner`,

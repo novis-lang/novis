@@ -25,6 +25,9 @@ final class PackagePageTest
     // The account that published every release in these tests.
     private const string OWNER = '0123456789abcdef0123456789abcdef';
 
+    // A signed-in account that owns no vendor.
+    private const string OTHER = 'fedcba9876543210fedcba9876543210';
+
     // Each state of a version is on the package page, with its reason.
     #[Test(at: '2026-06-15T12:00:00Z')]
     public function eachVersionShowsItsStateAndItsReason(): void
@@ -165,6 +168,62 @@ final class PackagePageTest
         Test::assertTrue(!Str::contains($page, '<script>'));
     }
 
+    // An owner sees the forms that change the package, and the form that releases each waiting version.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function anOwnerSeesTheFormsThatChangeThePackage(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::owned($db, $now);
+
+        string $page = PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->package($key));
+        PackagePageTest::has($page, '<th>Commit</th><th>Change</th></tr>');
+        PackagePageTest::has($page, '<form data-action="unlist" data-passkey data-package="acme/http" data-version="0.0.1"><button>Unlist</button></form>');
+        PackagePageTest::has($page, '<form data-action="relist" data-passkey data-package="acme/http" data-version="0.0.3"><button>List again</button></form>');
+        PackagePageTest::has($page, '<form data-action="unlist" data-passkey data-package="acme/http" data-version=""><button>Unlist every version</button></form>');
+        PackagePageTest::has($page, '<form data-action="retract" data-passkey data-package="acme/http">');
+        PackagePageTest::has($page, '<form data-action="advisory" data-passkey data-package="acme/http">');
+        PackagePageTest::has($page, '<input name="repository" type="url" required value="https://git.example.com/project.git">');
+
+        // 0.0.2 waits seven days, so its page has "Release now".
+        string $pending = PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->version($key, '0.0.2'));
+        PackagePageTest::has($pending, '<p>This version is pending until 2026-06-18.');
+        PackagePageTest::has($pending, '<form data-action="release" data-passkey data-package="acme/http" data-version="0.0.2"><button>Release now</button></form>');
+        // 0.1.0 is the first stable version, so its page shows the API and confirms it.
+        string $stable = PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->version($key, '0.1.0'));
+        PackagePageTest::has($stable, '<form data-action="show-api" data-package="acme/http" data-version="0.1.0"><button>Show the API</button></form>');
+        PackagePageTest::has($stable, '<form data-action="stable" data-passkey data-package="acme/http" data-version="0.1.0">');
+        Test::assertTrue(!Str::contains($stable, 'data-action="release"'));
+        // 0.0.1 is released, so its page has neither form.
+        string $released = PackagePageTest::source(new PackagePage($db, $now, '/log/advisories', PackagePageTest::OWNER)->version($key, '0.0.1'));
+        Test::assertTrue(!Str::contains($released, 'data-action="release"'));
+        Test::assertTrue(!Str::contains($released, 'data-action="stable"'));
+    }
+
+    // A signed-in account that is not an owner, and a visitor who is not signed in, see no form that changes the package.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function onlyAnOwnerSeesTheFormsThatChangeThePackage(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::owned($db, $now);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [PackagePageTest::OTHER]);
+
+        array<string> $viewers = [PackagePageTest::OTHER, ''];
+        foreach ($viewers as string $viewer) {
+            var $pages = new PackagePage($db, $now, '/log/advisories', $viewer);
+            array<string> $sources = [
+                PackagePageTest::source($pages->package($key)),
+                PackagePageTest::source($pages->version($key, '0.0.2')),
+                PackagePageTest::source($pages->version($key, '0.1.0')),
+            ];
+            foreach ($sources as string $page) {
+                Test::assertTrue(!Str::contains($page, 'data-action'));
+                Test::assertTrue(!Str::contains($page, '<h2>Change this package</h2>'));
+            }
+        }
+    }
+
     // An unknown package and an unknown version both get the status 404.
     #[Test]
     public function anUnknownPackageOrVersionGets404(): void
@@ -191,6 +250,20 @@ final class PackagePageTest
         Schema::setUp($db);
         $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [PackagePageTest::OWNER]);
         return $db;
+    }
+
+    // Adds `Acme\Http`, owned by `OWNER`, with the released 0.0.1, 0.0.2 out in three days,
+    // the unlisted 0.0.3, and 0.1.0, which waits for an owner to confirm its API. Returns its key.
+    private static function owned(Connection $db, int $now): string
+    {
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 100 * PackagePageTest::DAY);
+        $db->execute('insert into owners (vendor, account, added_at) values (?, ?, 0)', ['acme', PackagePageTest::OWNER]);
+        PackagePageTest::release($db, $key, '0.0.1', $now - 100 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.2', $now - 4 * PackagePageTest::DAY, $now + 3 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.3', $now - 50 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.1.0', $now - PackagePageTest::DAY);
+        Test::assertTrue(new Releases($db)->unlist($key, '0.0.3', false));
+        return $key;
     }
 
     // Adds the package `$name` and its vendor. Returns its key, such as `acme\http`.
