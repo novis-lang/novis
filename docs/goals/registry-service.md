@@ -270,6 +270,22 @@ of `Search::find` in `Sort::Default`, through `PackagePage::layout`, so it gets 
 script with every other page. Home: `rule:packaging/search-sorts-by-the-readers-choice`. It is
 one query and one template, as the package page is.
 
+**The pages as built (stage 4).**
+- The two scripts are served by the routes `/registry.js` and `/push.js` with
+  `Core\Response::sendFile`, the standing fallback. Production sets `static = false`, so the
+  static policy never serves a file under `public/` there. `nvs.toml`'s `fs.read` names both files.
+- A form or button with `data-action` names its step in `registry.js`'s `steps`. A form whose
+  route needs a passkey from the last 15 minutes also has `data-passkey`, and only those run the
+  sign-in after a `403`. Another `403`, such as an owner with no verified channel, is shown as is.
+- A test push is verified when it arrives: `push.js` sends the code back from its `push` event and
+  also shows the message. Headless Chromium cannot click a notification, and receiving the
+  encrypted code already proves the subscription reaches this browser, which a passkey session
+  registered. A reminder's "Yes, I am here" stays a click on the message's action, because that
+  answer is a proof that a person is there. Stage 4's rule item rewrites the sentence of
+  `rule:packaging/an-owner-is-notified-without-email` that says "the action on a test push".
+- `Core\Test::request` carries neither the body nor the content type of a `sendFile` answer, so the
+  registry tests check the scripts' status alone and the browser suite proves the rest.
+
 **Trade-offs.** Security: the fetch refusal and the extension check close two paths into a host,
 and every page action keeps the passkey check its route already has. Latency: nothing on a
 program's request path changes. A registry page is one query and one template, as now. Memory:
@@ -341,11 +357,11 @@ change, and a real browser test drives them.
 
 **Split:** none. The pages share the layout, the script and the test file.
 
-- [ ] The page helper sends the CSP, and the layout loads `registry.js`. `rule:packaging/the-registry-is-a-novis-program`. `apps/registry/src/App.nvs:1041`, `apps/registry/src/PackagePage.nvs:503`
-- [ ] `/signup`: the proof-of-work with `crypto.subtle`, then the passkey registration. `/signin`: a passkey and a recovery-code form. `rule:packaging/a-registry-account-is-a-passkey`. `apps/registry/src/App.nvs:100`, `apps/registry/src/App.nvs:152`, `apps/registry/src/App.nvs:182`, `apps/registry/public/registry.js:1`
-- [ ] The account page's forms: add a passkey, make and revoke a token (shown once), add and remove an owner, add and verify a webhook, sign out. Each runs the sign-in first when its route answers `403`. `apps/registry/src/AccountPage.nvs:30`, `apps/registry/src/App.nvs:267`, `apps/registry/src/App.nvs:307`, `apps/registry/src/App.nvs:370`, `apps/registry/src/App.nvs:475`
-- [ ] Push: the account page subscribes with the key from `/api/push/key`, and `push.js` shows a message and sends its code back for a test push and for the "I am here" action. `rule:packaging/an-owner-is-notified-without-email`, `rule:packaging/an-account-stays-active-by-proof-not-by-token`. `apps/registry/src/App.nvs:427`, `apps/registry/src/App.nvs:519`, `apps/registry/src/App.nvs:239`, `apps/registry/public/push.js:1`
-- [ ] Registry tests for what each page shows to a visitor, a recovery-code session and a passkey session. `apps/registry/src/AccountPageTest.nvs:1`
+- [x] The page helper sends the CSP, and the layout loads `registry.js`. `rule:packaging/the-registry-is-a-novis-program`. `apps/registry/src/App.nvs:1041`, `apps/registry/src/PackagePage.nvs:503`
+- [x] `/signup`: the proof-of-work with `crypto.subtle`, then the passkey registration. `/signin`: a passkey and a recovery-code form. `rule:packaging/a-registry-account-is-a-passkey`. `apps/registry/src/App.nvs:100`, `apps/registry/src/App.nvs:152`, `apps/registry/src/App.nvs:182`, `apps/registry/public/registry.js:1`
+- [x] The account page's forms: add a passkey, make and revoke a token (shown once), add and remove an owner, add and verify a webhook, sign out. Each runs the sign-in first when its route answers `403`. `apps/registry/src/AccountPage.nvs:30`, `apps/registry/src/App.nvs:267`, `apps/registry/src/App.nvs:307`, `apps/registry/src/App.nvs:370`, `apps/registry/src/App.nvs:475`
+- [x] Push: the account page subscribes with the key from `/api/push/key`, and `push.js` shows a message and sends its code back for a test push and for the "I am here" action. `rule:packaging/an-owner-is-notified-without-email`, `rule:packaging/an-account-stays-active-by-proof-not-by-token`. `apps/registry/src/App.nvs:427`, `apps/registry/src/App.nvs:519`, `apps/registry/src/App.nvs:239`, `apps/registry/public/push.js:1`
+- [x] Registry tests for what each page shows to a visitor, a recovery-code session and a passkey session. `apps/registry/src/AccountPageTest.nvs:1`
 - [ ] The browser suite and its first seven tests from the `registry-browser-tests` check, run once by name with `NV_BROWSER=1`. `tools/nv/test/registry-browser.test.ts:1`, `tools/nv/test/chromium.ts:31`, `tools/nv/lib/shoot.ts:141`
 - [ ] Every rule a page serves names it in one sentence. Delete the gap records of the sign-up, sign-in and push pages. `docs/rules/packaging/a-registry-account-is-a-passkey.md:11`, `docs/rules/packaging/an-owner-is-notified-without-email.md:1`
 
@@ -381,29 +397,28 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 3 is done. `Range::contains` (`crates/nvs-cli/src/package/manifest.rs`) decides a range,
-and audit (`crates/nvs-cli/src/package/audit.rs`, `names` and `found`) reports a locked version
-inside an advisory's range with kind `advisory`, its `id`, the summary and the range's end as
-`fixed_in`. `nvs pkg advise` is `crates/nvs-cli/src/package/advise.rs`, wired in
-`crates/nvs-cli/src/package/mod.rs`. The four tests of `advise-and-audit-tests` pass, run once by
-name, and so does the unit test `a_package_name_is_sent_as_its_slug`. The reference section,
-the rule (no Not-on-disk part now), audit's `about.md` and the proofs of
-`tools:packages/nvs-pkg-advise` are in, and `bun nv proofs --id` prints `complete.` for both
-features. The gap record `audit-reports-an-advisory` is deleted.
+Stage 4's code is in, and its browser suite and rule sentences are not. Every page goes through
+`App::html` (`apps/registry/src/App.nvs:1149`), which sets `App::POLICY`, and the layout
+(`apps/registry/src/PackagePage.nvs:517`) loads `/registry.js` and has the `#status` line the script
+writes to. `/signup` and `/signin` are `apps/registry/src/SignInPage.nvs`, routed at
+`apps/registry/src/App.nvs:115`, and the scripts' routes are at `apps/registry/src/App.nvs:131`.
+`AccountPage::of` (`apps/registry/src/AccountPage.nvs:33`) takes `$withPasskey` and has every form of
+the stage's account item, plus the reminder days and a test, verify and remove per channel.
+`apps/registry/public/registry.js` has the ceremonies (`steps` at line 112, `withPasskey` at line 82),
+and `apps/registry/public/push.js` the service worker. The six tests of `AccountPageTest` pass, run
+once by name. Nothing ran in a browser yet. See the standing decision *The pages as built*.
 
-The sweep's `env-secret-proofs` red is still stale: no check by that name exists in the tree
-(`bun tools/looper/main.ts check --name env-secret-proofs` finds none).
+The sweep's `env-secret-proofs` red is still stale: no check by that name exists in the tree and
+it has no log.
 
 ### Next
 
-Stage 4, the sign-up, sign-in and account pages. Files: `apps/registry/src/App.nvs`,
-`apps/registry/src/PackagePage.nvs`, `apps/registry/src/AccountPage.nvs`, new
-`apps/registry/public/registry.js` and `push.js`, new `tools/nv/test/registry-browser.test.ts`.
+Stage 4's last two items. Files: new `tools/nv/test/registry-browser.test.ts`, and
+`apps/registry/public/registry.js` and `push.js` for what the browser finds.
 
-- [ ] One page helper that sends the CSP and the HTML, for every page. Today each route calls `Response::html` itself, as at `apps/registry/src/App.nvs:66`, `apps/registry/src/App.nvs:97` and `apps/registry/src/App.nvs:252`. The layout `apps/registry/src/PackagePage.nvs:517` loads `/registry.js`.
-- [ ] `apps/registry/public/index.nvs:1` is the only file under `public/`. Check the static policy serves `registry.js` from there, else take the standing decision's fallback route.
-- [ ] Then `/signup` and `/signin` (`apps/registry/src/App.nvs:100`), the account page's forms (`apps/registry/src/AccountPage.nvs:30`), push, and the browser suite, in the stage's order.
+- [ ] The browser suite (`tools/nv/test/chromium.ts:31`, `tools/nv/lib/shoot.ts:141`, the serve pattern of `crates/nvs-cli/tests/registry_build.rs:15`) with the first seven tests of `registry-browser-tests`, run once by name with `NV_BROWSER=1`. A step's end is the `#status` text or a navigation to `/account`. The test push reaches `push.js` through CDP `ServiceWorker.deliverPushMessage` with the decrypted payload, and the device then counts.
+- [ ] The rule sentences: `docs/rules/packaging/a-registry-account-is-a-passkey.md:11`, `docs/rules/packaging/an-owner-is-notified-without-email.md` (the test push is verified when it arrives), `docs/rules/packaging/the-registry-is-a-novis-program.md`. Delete the gap records of the sign-up, sign-in and push pages (`grep -rl registry-service data/gaps`).
 
-No test is expected to go red.
+No test is expected to go red. `AccountPageTest`'s three old tests were updated for the new columns.
 
 ### Backlog
