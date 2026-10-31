@@ -14,7 +14,7 @@ stages:
     context: [tools/nv/cmd/proofs.ts, crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/tests/meta.rs]
   - id: 3
     title: "the probe reaches instance members through each class's own factory"
-    status: open
+    status: done
     context: [tools/nv/cmd/proofs.ts, crates/nvs-stdlib/src/registry.rs]
   - id: 4
     title: "every member the probe or the test ceiling found past the bound is fixed and has an attack"
@@ -141,6 +141,15 @@ the probe and the binary always agree.
   its first error. A runtime crash (`panicked at`, `internal error`, `stack overflow`) is red.
 - **Only `Core\` is probed.** The `Novis\` component classes `nvs meta --json` also lists are counted
   and not probed; their memory is the component host's.
+- **A receiver comes from a hand-written factory table.** `nvs meta --json` lists no constructors, so
+  `PROBE_FACTORIES` (`tools/nv/proofs/probe.ts`) is one expression per class, with the smallest
+  arguments that make a value. Stage 3 read the classes from `nvs meta --json` itself, not from an
+  `Explore` list, because the binary's own list is the one that cannot be stale. The receiver is made
+  fresh in each step, so one step's growth does not carry into the next. A parameter of a class in the
+  table takes the same expression. A class with instance members and no row is a skip, and
+  `PROBE_NO_FACTORY` names why for the ones that need a request, a test run, another task or another
+  receiver. A factory that throws is listed with its error, never red. Cost: one table to keep, and a
+  new class's instance members are skipped, by name, until it has a row.
 
 **Two at a time, like `--overshoot`.** The full run is a floor check with a 3600 s timeout. Stage 2
 records how long it took. If it takes more than 30 minutes, the sizes drop to the three largest and
@@ -194,11 +203,11 @@ processes, the network, a store or the clock, for the skip list.
 **Split:** an `Explore` subagent lists each class with instance members and the static member or
 constructor that makes one from plain values.
 
-- [ ] The probe makes a receiver from each class's factory with the smallest arguments, then calls each
+- [x] The probe makes a receiver from each class's factory with the smallest arguments, then calls each
   instance member with the standing decision's sizes and shapes. A class with no factory the probe can
   call is a skip with its reason. `tools/nv/proofs/run.ts:976`
-- [ ] A test in `tools/nv/test/probe.test.ts` that an instance member gets a receiver from its factory. Run once by name.
-- [ ] Run `bun nv proofs --probe` once. Each new red reading goes to stage 4's findings table.
+- [x] A test in `tools/nv/test/probe.test.ts` that an instance member gets a receiver from its factory. Run once by name.
+- [x] Run `bun nv proofs --probe` once. Each new red reading goes to stage 4's findings table.
 
 ### 4. every member the probe or the test ceiling found past the bound is fixed and has an attack
 
@@ -218,6 +227,9 @@ gets an attack step that ends at `FATAL` within the bound.
   - [ ] `Core\BigInt::parse`, `Core\Time\Zone::of`, `Core\Debug::startTrace`, `startProfile`,
     `Core\Command::help`, `Core\Cldr::pluralCategory`, `ordinalCategory`: flat 8 MiB, 32.0 MiB (2.00x),
     just past the bound. Each likely copies the input twice, such as into an error message.
+  - [ ] Stage 3's, from instance members on a receiver from `PROBE_FACTORIES`:
+    `Core\Regex\Match::group`, `Core\Reflect\ClassInfo::constant`, `Core\Reflect\EnumInfo::valueOf`:
+    flat 8 MiB, 32.0 MiB (2.00x) each, the same shape as the seven above.
 - [ ] `bun nv proofs --probe` exits 0.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -233,15 +245,16 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2's command is `9925cba9a`: `tools/nv/proofs/probe.ts`, the flag in
-`tools/nv/cmd/proofs.ts`, and `tools/nv/test/probe.test.ts` (its four tests pass, run once by name).
-The decisions it settled are under standing decisions, in *How the probe reads what it cannot judge*.
+Stages 1, 2 and 3 are done. Stage 3 added `PROBE_FACTORIES` and `PROBE_NO_FACTORY` to
+`tools/nv/proofs/probe.ts`: an instance member runs on a fresh receiver per step, and a parameter of a
+class in the table takes the same expression. The judge names a setup that threw (a factory) and does
+not make it red. `tools/nv/test/probe.test.ts` has five tests, all passing, run once by name.
 
-The full run, `bun nv proofs --probe --nvs target/proof/nvs.exe`, **took 63 s**, far under the 30
-minute line, so the sizes and shapes stay as decided. Of 690 static `Core` members it ran 369, skipped
-164 by `PROBE_SKIPS` and did not build 42. **17 are red**, and they are stage 4's findings table, listed
-under stage 4. 198 finished every step, and 141 stopped at a memory limit within the bound. The worst
-green ones are `Core\Uri::buildQuery`, `Core\Csv::parse` and `Core\Path::fromCwd` at 1.50x.
+The full run, `bun nv proofs --probe --nvs target/proof/nvs.exe`, now covers static and instance
+members: **555 run in 62 s**, 459 skipped (by `PROBE_SKIPS` or no factory), 27 not built (down from 42).
+No factory threw. **20 are red**: stage 2's 17 and three instance members, all listed under stage 4.
+The seven 2.00x statics and the three new ones all hold exactly 32.0 MiB on a flat 8 MiB string, so
+they likely share one cause: the string argument copied once more on the way in.
 
 Thirteen programs did not compile, and are listed, not red. `Core\Arr::fillKeys`, `fromKeysAndValues`
 and `from` need a typed list. `Core\Math::abs` needs a number for its bounded `T`. The `*As` members
@@ -252,17 +265,16 @@ The acceptance sweep's reds are not tree faults. `env-secret-proofs` has no defi
 is stale state in looper's service. The nightly run 41187571578 ran on `857b39cad`, before the fixes
 `39795c9c4`, `bfce9c2d2`, `593b6c565` and `8ce92dda5`.
 
-The `no-probe-overshoot` check is red until stage 4 fixes the 17. No other test is expected to go red.
+The `no-probe-overshoot` check is red until stage 4 fixes the 20. No other test is expected to go red.
 
 ### Next
 
-Stage 3: instance members through each class's factory. The probe is `tools/nv/proofs/probe.ts`. Its
-planner is `probeProgram` and `planParam`, and `probePlan` keeps `kind: "static"` alone today. A
-receiver needs a factory per class. Start with the split's `Explore` list of each class with instance
-members and the static member or constructor that makes one from plain values. The 42 "not built"
-members (an instance, a `Core\Time\Duration`, a `Core\Charset`, a numeric list) can reuse the same
-factory table as arguments. Run `bun nv proofs --probe --only 'Core\X'` to try one class in seconds.
-
-Then stage 4, one writing subagent per class: Regex first (45.70x), then Metrics, then the seven at 2.00x.
+Stage 4, the fixes. Regex first: `Core\Regex::compile` at 45.70x, and the five members at 12.08x that
+take a pattern string, which likely share the compile site. Then `Core\Metrics` (2.32x on a long name).
+Before giving the ten 2.00x members to subagents, check whether one shared site copies a string
+argument (an argument conversion or a tainted-string check); if so it is one fix, not ten. Each fix
+goes through `NvsArray`, `ByteWriter`, `StrWriter` or `affords`, and each fixed member gets an attack
+step ending at `FATAL` within the bound. Rerun one class with
+`bun nv proofs --probe --nvs target/proof/nvs.exe --only 'Core\Regex'` after the proof binary rebuilds.
 
 ### Backlog

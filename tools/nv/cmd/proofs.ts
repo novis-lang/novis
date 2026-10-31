@@ -15,8 +15,9 @@
 //     bun nv proofs --overshoot            run every attack whose `ends-early` names `FATAL`, two at a time,
 //                                          and print how far past its memory ceiling each got, worst
 //                                          first; exit 1 when one is past the bound or the host killed it
-//     bun nv proofs --probe [--only NAME...] write a program per static `Core` member that lowers its own
-//                                          memory limit to 16 MiB and calls the member on growing inputs
+//     bun nv proofs --probe [--only NAME...] write a program per `Core` member that lowers its own memory
+//                                          limit to 16 MiB and calls the member, on a receiver from its
+//                                          class's factory when it is an instance member, on growing inputs
 //                                          of three shapes, run them two at a time, and print each
 //                                          reading worst first, then the skips with their reasons; exit 1
 //                                          when one is past the --overshoot bound, the host killed it or

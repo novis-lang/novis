@@ -1,4 +1,4 @@
-// `bun nv proofs --probe`: drives every static `Core` member past a small memory ceiling and judges how far
+// `bun nv proofs --probe`: drives every `Core` member past a small memory ceiling and judges how far
 // past it each one got, with the same bound `--overshoot` holds an attack to (`overshootBound`).
 //
 // The members come from `nvs meta --json` on the proof binary, so the probe and the binary always agree.
@@ -12,8 +12,13 @@
 //
 // An integer or float parameter takes `0`, `1`, the size and the largest value its type allows, one call
 // each. A callback gets a function that returns its first argument. Any other parameter takes its type's
-// smallest value: `false`, `0`, an enum's first case. A parameter of a type the probe cannot build (a
-// class instance, a shape, a numeric list) leaves the member listed as not built, with the type named.
+// smallest value: `false`, `0`, an enum's first case, or the value `PROBE_FACTORIES` makes of its class.
+// A parameter of a type the probe cannot build (a shape, a numeric list, a class with no factory) leaves
+// the member listed as not built, with the type named.
+//
+// An instance member is called on a receiver its class's `PROBE_FACTORIES` expression makes, fresh at the
+// start of each step, with the smallest arguments that make one. A class with no factory is a skip, and
+// `PROBE_NO_FACTORY` says why. A factory that throws ends its program, and its row names the error.
 //
 // Each step is a static method of its own, so its inputs are freed before the next step builds its own.
 // Each call is in a `try`: a catchable throw is the member refusing, which passes, and so does a finished
@@ -86,6 +91,66 @@ export const PROBE_SKIPS: ReadonlyArray<readonly [string, string]> = [
   ["Core\\Signal", "waits on OS signals"],
   ["Core\\Time::sleep", "sleeps"],
 ];
+
+/**
+ * How the probe makes a value of each `Core` class it cannot write as a literal: the expression, with the
+ * smallest arguments that make one. An instance member's receiver comes from here, made fresh at each
+ * step, and so does a parameter of one of these types. `nvs meta --json` lists no constructors, so the
+ * table is written by hand. A factory that throws ends its program, and the row names the error.
+ */
+export const PROBE_FACTORIES: ReadonlyArray<readonly [string, string]> = [
+  ["Core\\BigInt", "Core\\BigInt::of(1)"],
+  ["Core\\Regex\\Match", "Core\\Regex::match('a', 'a') ?? throw new LogicError('no match')"],
+  ["Core\\Time\\Instant", "Core\\Time::fromEpoch(0)"],
+  ["Core\\Time\\Zone", "Core\\Time\\Zone::of('UTC')"],
+  ["Core\\Time\\DateTime", "Core\\Time::at(2000, 1, 1, Core\\Time\\Zone::of('UTC'))"],
+  ["Core\\Time\\Date", "Core\\Time\\Date::at(2000, 1, 1)"],
+  ["Core\\Time\\TimeOfDay", "Core\\Time\\TimeOfDay::at(0, 0)"],
+  ["Core\\Time\\Duration", "Core\\Time\\Duration::nanoseconds(1)"],
+  ["Core\\ObjectMap", "new Core\\ObjectMap<mixed, mixed>()"],
+  ["Core\\ObjectSet", "new Core\\ObjectSet<mixed>()"],
+  ["Core\\Heap", "new Core\\Heap<mixed>()"],
+  ["Core\\Random\\Seeded", "new Core\\Random\\Seeded(1)"],
+  ["Core\\Uuid", "Core\\Uuid::v4()"],
+  ["Core\\Hash\\Stream", "Core\\Hash::stream(Core\\Hash::Digest::Crc32)"],
+  ["Core\\Uri", "Core\\Uri::parse('https://example.com/')"],
+  ["Core\\Crypto\\KeyPair", "Core\\Crypto::generateKeyPair(Core\\Crypto\\KeyKind::P256)"],
+  ["Core\\Crypto\\PublicKey", "Core\\Crypto::generateKeyPair(Core\\Crypto\\KeyKind::P256)->publicKey()"],
+  ["Core\\Xml\\Node", "Core\\Xml::parse('<a/>')"],
+  ["Core\\Xml\\Reader", "Core\\Xml::reader('<a/>')"],
+  ["Core\\Xml\\Writer", "Core\\Xml::writer()"],
+  ["Core\\Compress\\Compressor", "Core\\Compress::compressor(Core\\Compress::Codec::Gzip)"],
+  ["Core\\Compress\\Decompressor", "Core\\Compress::decompressor(Core\\Compress::Codec::Gzip)"],
+  ["Core\\Reflect\\ClassInfo", "Core\\Reflect::forClass('Probe') ?? throw new LogicError('no class')"],
+  ["Core\\Reflect\\EnumInfo", "Core\\Reflect\\EnumInfo::of('Core\\Arr::Order') ?? throw new LogicError('no enum')"],
+  ["Core\\Ast\\Node", "Core\\Ast::parse('<?nvs echo 1;')"],
+  ["Core\\Html\\Markup", "Core\\Html::escape('a')"],
+  ["Core\\Jwe\\Key", "Core\\Jwe\\Key::shared(Core\\Bytes::fill(32, 1) as secret bytes)"],
+  ["Core\\Charset", "Core\\Charset::Utf8"],
+];
+
+/** The classes with instance members that `PROBE_FACTORIES` has no factory for, and why. */
+export const PROBE_NO_FACTORY: ReadonlyArray<readonly [string, string]> = [
+  ["Core\\Router\\Match", "is made only from the program's routes"],
+  ["Core\\Test", "is made only by `Core\\Test` while a test runs"],
+  ["Core\\Task\\Channel", "waits for another task when it is full"],
+  ["Core\\Passkey\\Credential", "needs a registered passkey"],
+  ["Core\\Request\\Mount", "needs a served request"],
+  ["Core\\Reflect\\MethodInfo", "is made only from a `Core\\Reflect\\ClassInfo`"],
+  ["Core\\Reflect\\PropertyInfo", "is made only from a `Core\\Reflect\\ClassInfo`"],
+  ["Core\\Reflect\\ParameterInfo", "is made only from a `Core\\Reflect\\MethodInfo`"],
+  ["Core\\Reflect\\ConstantInfo", "is made only from a `Core\\Reflect\\ClassInfo`"],
+  ["Core\\Reflect\\AttributeInfo", "is made only from a `Core\\Reflect\\ClassInfo`"],
+];
+
+const FACTORIES = new Map(PROBE_FACTORIES);
+
+/** Why the probe makes no receiver for an instance member of `cls`, or null when `factories` has one. */
+export function noFactoryReason(cls: string, factories: ReadonlyMap<string, string> = FACTORIES): string | null {
+  if (factories.has(cls)) return null;
+  for (const [name, why] of PROBE_NO_FACTORY) if (name === cls || cls.startsWith(`${name}\\`)) return `no factory: the receiver ${why}`;
+  return "no factory: `PROBE_FACTORIES` has none for this class";
+}
 
 /** Why the probe skips this member, or null when it calls it. */
 export function skipReason(cls: string, member: string): string | null {
@@ -179,7 +244,7 @@ function qualified(arm: string): [string, string] {
 }
 
 /** How the probe builds a value of type `type`, or why it cannot. */
-export function planParam(type: string, enums: Map<string, string>): Plan | string {
+export function planParam(type: string, enums: Map<string, string>, factories: ReadonlyMap<string, string> = FACTORIES): Plan | string {
   if (/^string<|propertyPath<|^method$/.test(type)) return `cannot build a \`${type}\` argument`;
   const decl = ungeneric(type);
   const callable = /^\??callable(\((.*)\)\s*:\s*(.+))?$/s.exec(decl);
@@ -197,6 +262,7 @@ export function planParam(type: string, enums: Map<string, string>): Plan | stri
     else if (base === "decimal") plan = { kind: "fixed", expr: "(0 as decimal)" };
     else if (enums.has(base)) plan = { kind: "fixed", expr: `${base}::${enums.get(base)}` };
     else if (enums.has(base.replace(/::\w+$/, ""))) plan = { kind: "fixed", expr: base };
+    else if (factories.has(base)) plan = { kind: "fixed", expr: factories.get(base)! };
     else if (/^array<(.*)>$/s.test(base)) {
       const inner = /^array<(.*)>$/s.exec(base)![1]!;
       const elem = splitTop(inner, "|")
@@ -295,16 +361,21 @@ function doubling(v: string, size: number, asList: boolean): string[] {
   ];
 }
 
-/** The probe program of one static member, or why the probe cannot build it. */
-export function probeProgram(cls: string, m: MetaMember, enums: Map<string, string>): Probe | string {
+/** The probe program of one member, or why the probe cannot build it. An instance member's receiver is
+ * `factories`' value of its class, made fresh at the start of each step. */
+export function probeProgram(cls: string, m: MetaMember, enums: Map<string, string>, factories: ReadonlyMap<string, string> = FACTORIES): Probe | string {
   const member = `${cls}::${m.name}`;
+  const instance = m.kind === "instance";
+  if (instance && !factories.has(cls)) return noFactoryReason(cls, factories)!;
   const generics = /^\w+<([^>(]*)>\(/.exec(m.signature ?? "");
   const arity = generics ? generics[1]!.split(",").length : 0;
   if (arity > 1) return `needs ${arity} type arguments`;
-  const callee = arity === 1 ? `${member}<${TYPE_ARGUMENT}>` : member;
+  const name = instance ? `$r->${m.name}` : member;
+  const callee = arity === 1 ? `${name}<${TYPE_ARGUMENT}>` : name;
+  const receiver = instance ? [`var $r = ${factories.get(cls)!};`] : [];
   const plans: Plan[] = [];
   for (const p of m.params ?? []) {
-    const plan = planParam(p.type, enums);
+    const plan = planParam(p.type, enums, factories);
     if (typeof plan === "string") {
       // An optional parameter the probe cannot build is left out, with every one after it.
       if (p.default !== undefined) break;
@@ -321,7 +392,7 @@ export function probeProgram(cls: string, m: MetaMember, enums: Map<string, stri
     for (const shape of shapes) {
       for (const value of values) {
         const step = { index: steps.length, shape, size, value };
-        const setup: string[] = [];
+        const setup: string[] = [...receiver];
         const exprs = plans.map((p, i) => {
           if (p.kind === "sized") {
             const a = sizedArg(p, i, shape, size);
@@ -378,8 +449,9 @@ function enumCases(meta: ProbeMeta): Map<string, string> {
   return out;
 }
 
-/** Every static `Core` member's program, and every member the probe skips with its reason. */
-export function probePlan(meta: ProbeMeta): { probes: Probe[]; skips: Skip[]; unbuilt: Skip[]; other: number } {
+/** Every `Core` member's program, static and instance, and every member the probe skips with its reason.
+ * An instance member of a class with no factory is a skip. */
+export function probePlan(meta: ProbeMeta, factories: ReadonlyMap<string, string> = FACTORIES): { probes: Probe[]; skips: Skip[]; unbuilt: Skip[]; other: number } {
   const enums = enumCases(meta);
   const probes: Probe[] = [];
   const skips: Skip[] = [];
@@ -391,14 +463,14 @@ export function probePlan(meta: ProbeMeta): { probes: Probe[]; skips: Skip[]; un
       continue;
     }
     for (const m of c.members) {
-      if (m.kind !== "static") continue;
+      if (m.kind !== "static" && m.kind !== "instance") continue;
       const member = `${c.name}::${m.name}`;
-      const why = skipReason(c.name, m.name);
+      const why = skipReason(c.name, m.name) ?? (m.kind === "instance" ? noFactoryReason(c.name, factories) : null);
       if (why !== null) {
         skips.push({ member, reason: why });
         continue;
       }
-      const probe = probeProgram(c.name, m, enums);
+      const probe = probeProgram(c.name, m, enums, factories);
       if (typeof probe === "string") unbuilt.push({ member, reason: probe });
       else probes.push(probe);
     }
@@ -484,6 +556,11 @@ export function judgeProbe(member: string, ran: Ran): ProbeRow {
   if (step === null && /^error\[/m.test(ran.stderr)) {
     const first = ran.stderr.split(/\r?\n/).find((l) => l.startsWith("error[")) ?? "";
     return { ...row, note: `did not compile: ${first.slice(0, 160)}` };
+  }
+  // Every call is inside a `try`, so an uncaught error came from a step's setup: a receiver's factory.
+  const uncaught = /^\{"level":"error","msg":("(?:[^"\\]|\\.)*"),"fields":\{"class":"([^"]+)"/m.exec(ran.stderr);
+  if (reading === null && !finished(ran) && uncaught !== null) {
+    return { ...row, note: `its setup threw an uncaught ${uncaught[2]} ${at}: ${(JSON.parse(uncaught[1]!) as string).slice(0, 160)}` };
   }
   return row;
 }

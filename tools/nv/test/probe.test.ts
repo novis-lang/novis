@@ -27,6 +27,25 @@ const META: ProbeMeta = {
         { kind: "instance", name: "count", params: [] },
       ],
     },
+    {
+      name: "Core\\BigInt",
+      members: [{ kind: "instance", name: "add", params: [{ name: "other", type: "Core\\BigInt" }], returns: "Core\\BigInt", signature: "add(Core\\BigInt $other): Core\\BigInt" }],
+    },
+    {
+      name: "Core\\ObjectMap",
+      members: [
+        {
+          kind: "instance",
+          name: "set",
+          params: [
+            { name: "key", type: "K" },
+            { name: "value", type: "V" },
+          ],
+          returns: "void",
+          signature: "set(K $key, V $value): void",
+        },
+      ],
+    },
     { name: "Core\\IO", members: [{ kind: "static", name: "read", params: [{ name: "path", type: "string" }], returns: "string" }] },
     { name: "Core\\Time", members: [{ kind: "static", name: "sleep", params: [{ name: "d", type: "Core\\Time\\Duration" }], returns: "void" }] },
   ],
@@ -56,8 +75,25 @@ test("a callback parameter gets a function that returns its argument", () => {
   const { probes } = probePlan(META);
   const map = probes.find((p) => p.member === "Core\\Arr::map")!;
   expect(probeSource(map)).toContain("Core\\Arr::map($p0, fn($a0, $a1) => $a0);");
-  // An instance member is not a static member's probe.
+});
+
+test("an instance member gets a receiver from its factory", () => {
+  const { probes, skips } = probePlan(META);
+  const add = probes.find((p) => p.member === "Core\\BigInt::add")!;
+  const source = probeSource(add);
+  // Each step makes a fresh receiver, and a parameter of a class with a factory gets one too.
+  expect(source).toContain("var $r = Core\\BigInt::of(1);");
+  expect(source).toContain("$r->add(Core\\BigInt::of(1));");
+  const set = probes.find((p) => p.member === "Core\\ObjectMap::set")!;
+  expect(probeSource(set)).toContain("var $r = new Core\\ObjectMap<mixed, mixed>();");
+  expect(probeSource(set)).toMatch(/\$r->set\(\$p0, \$p1\);/);
+  // A class with no factory is a skip, with its reason.
   expect(probes.some((p) => p.member === "Core\\Arr::count")).toBe(false);
+  expect(skips).toContainEqual({ member: "Core\\Arr::count", reason: "no factory: `PROBE_FACTORIES` has none for this class" });
+  // A factory that throws is named, and is not red.
+  const threw = judgeProbe("Core\\BigInt::add", ran("", '{"level":"error","msg":"no match","fields":{"class":"LogicError"},"nodes":[]}\n'));
+  expect(threw.red).toBe(false);
+  expect(threw.note).toBe("its setup threw an uncaught LogicError before its first step: no match");
 });
 
 test("a member of an excluded class is listed as skipped with its reason", () => {
