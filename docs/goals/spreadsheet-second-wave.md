@@ -596,13 +596,13 @@ and information; text; and lookup, date and time. Each goes to a writing subagen
 file under `src/eval/`. The table is one line per function, which the session adds. None of them
 builds.
 
-- [ ] `rule:core-classes/spreadsheet-evaluation-and-roster`: every function of the set, `TEXT` through the number-format renderer. `extensions/spreadsheet/src/eval/functions.rs:1`, `extensions/spreadsheet/src/format/mod.rs:401`
-- [ ] The `reader-evaluate` export and the overlay that `reader-rows` reads computed results from. `wit/spreadsheet.wit:637`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:794`, `extensions/spreadsheet/manifest.json:90`
-- [ ] Every format feeds the evaluator: xlsx text, xls and xlsb tokens through `tokens.rs`, and ods through `openformula.rs`. `extensions/spreadsheet/src/read/mod.rs:1004`
-- [ ] `Reader::evaluate` in the Novis half, and a CSV returns `[]`. `extensions/spreadsheet/nvs/Reader.nvs:134`
+- [x] `rule:core-classes/spreadsheet-evaluation-and-roster`: every function of the set, `TEXT` through the number-format renderer. `extensions/spreadsheet/src/eval/functions.rs:1`, `extensions/spreadsheet/src/format/mod.rs:401`
+- [x] The `reader-evaluate` export and the overlay that `reader-rows` reads computed results from. `wit/spreadsheet.wit:637`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:794`, `extensions/spreadsheet/manifest.json:90`
+- [x] Every format feeds the evaluator: xlsx text, xls and xlsb tokens through `tokens.rs`, and ods through `openformula.rs`. `extensions/spreadsheet/src/read/mod.rs:1004`
+- [x] `Reader::evaluate` in the Novis half, and a CSV returns `[]`. `extensions/spreadsheet/nvs/Reader.nvs:134`
 - [ ] The tests and cases the `evaluator-functions` and `reader-evaluate-runs` checks name. `extensions/spreadsheet/tests/evaluate.rs:1`, `tests/conformance/novis/spreadsheet-evaluate-computes-a-report-it-wrote.nvst:1`, `tests/conformance/novis/spreadsheet-evaluate-lists-what-it-could-not-compute.nvst:1`
 - [ ] Feature proofs for `Novis\Spreadsheet\Reader::evaluate`: `about.md`, three examples, the bench and the attack (a workbook of circular references and deep chains). `docs/examples/novis/Spreadsheet-Reader/evaluate/about.md:1`, `benches/members/novis/Spreadsheet-Reader/evaluate.nvs:1`, `tests/hostile/novis/Spreadsheet-Reader/evaluate/01-a-workbook-that-never-stops-computing.nvs:1`
-- [ ] The fragment states the call, the set, the bounds and the costs. Its Not-shipped line keeps only writing ods. The roster's `Reader` row names `evaluate`. Delete the record. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:23`, `docs/rules/core-classes/spreadsheet-roster.md:10`
+- [x] The fragment states the call, the set, the bounds and the costs. Its Not-shipped line keeps only writing ods. The roster's `Reader` row names `evaluate`. Delete the record. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:23`, `docs/rules/core-classes/spreadsheet-roster.md:10`
 
 ### 11. Workbook writes an ods with values, styles, columns and formulas
 
@@ -654,62 +654,49 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 9 are done. Stage 10, the function set and `Reader::evaluate`, is next.
+Stage 10 is built and the workspace builds with no warning; nothing of it has run (context budget).
+Items 1 to 4 and 7 are ticked.
 
-- **The evaluator** landed in one commit, which ends stage 9. `extensions/spreadsheet/src/eval/`:
-  `parse.rs` turns A1 text into an `Expr` (the shifter's `sheet`, `row_digits`, `row_only`, `ends`
-  and `ident` are now `pub(crate)`, and its own `column` reads letters in either case), `value.rs`
-  has `Value` and Excel's coercion, `mod.rs` has `Book` (the sparse grid, names, tables), the
-  Tarjan order with an explicit stack, the circular check and `Missed`, and `functions.rs` has the
-  sorted table with `COLUMN`, `COLUMNS`, `IF`, `ROW`, `ROWS` and `SUM`. `CellError::of` is now
-  `pub(crate)`. Each bound decided is under **The evaluator's own bounds** in the standing
-  decisions. No export reaches `eval` yet, and the fragment's On disk paragraph says so.
-- **Checks run once:** `cargo test --test evaluate` in `extensions/spreadsheet`, all 7 of the
-  `evaluator-core` check green. A 20,000-cell chain computes; a 1,000-deep nesting is `token`.
-- The parser first overflowed a debug test thread's stack at 256 levels of nesting (about ten
-  frames a level), so nesting is bounded at 64, apart from the tree's height of 512.
-
-The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new
-(they stop clippy before it lints `tests/evaluate.rs`). The sweep's `env-secret-proofs` red is
-stale: no check of that name exists (`looper check --name env-secret` finds none), and its log is
-gone.
+- **Functions**: 104 sorted rows in `eval/functions.rs:22`, from `eval/math.rs`, `text.rs`,
+  `lookup.rs` and `date.rs` (subagent-written). Inputs a batch cannot match Excel on are listed;
+  each file's module doc names them. New `Ctx` and `Book` helpers are in `eval/mod.rs`.
+- **Feeding**: `read/evaluate.rs` builds the `Book` (names, `table_rows` with header and totals
+  counts) and `Reader::overlay` gives `rows()` the computed results. An undecodable formula is
+  `Some("")` in xls, xlsb and ods. xlsx shared formulas now move to each cell (`eval/moved.rs`).
+- **Export**: `reader-evaluate` in the WIT, guest, manifest, typed table, both export lists, and
+  `Reader::evaluate` in `Reader.nvs`.
+- **Rule**: fragment and roster rewritten. The gap `spreadsheet-evaluate-and-write-ods` is narrowed
+  to writing ods, not deleted: stages 11 to 13 still owe it. `bun nv rules --render` not run.
+- **Written, never run**: `tests/evaluate.rs` and `tests/evaluate/*.rs`, the two conformance
+  cases (their expected output is partly a guess), and the proofs (no `.out` files yet).
+- The sweep's `env-secret-proofs` red is stale: no such check exists.
 
 ### Next
 
-Stage 10, in the order its **Split:** line gives.
+Finish stage 10, then stage 11.
 
-1. **The table's rows.** Add every function of **The function set** to `FUNCTIONS`
-   (`extensions/spreadsheet/src/eval/functions.rs:22`), kept sorted, since `find` searches it by
-   halves. A function gets `fn(&mut Ctx, &[Expr]) -> Result<Operand, Miss>`: `ctx.eval` for a
-   reference, `ctx.scalar` for one value, and `ctx.cells(sheet, rect)` for the non-blank cells of
-   a range. The three batches go to writing subagents in their own files under `src/eval/`
-   (`math.rs`, `text.rs`, `lookup.rs`), and the session adds the table lines. `TEXT` renders
-   through `crate::format::render` (`extensions/spreadsheet/src/format/mod.rs:402`). `TODAY`,
-   `NOW`, `RAND`, `RANDBETWEEN`, `INDIRECT` and `OFFSET` stay out, so they are listed as
-   `function` already.
-2. **Feeding the evaluator.** At `reader-evaluate`, build a `Book` from every sheet: each cell's
-   value by the read table turned into a `Value`, and each formula through `Book::formula`
-   (`extensions/spreadsheet/src/eval/mod.rs:174`) with its text, `None` for an undecoded token.
-   Names from `Reader::names`, and tables from `Reader::tables`, give `Name` and `Table`. Then
-   `Book::evaluate` (`:220`), and keep the `Book` on the reader as the overlay `reader-rows` reads.
-3. **The export and the Novis half**, the WIT, `lib.rs`, `manifest.json` and `Reader.nvs` anchors
-   the stage's items name.
-4. **The tests, the cases and the proofs** its items name, and the fragment rewritten with the
-   evaluator's bounds stated as facts.
+1. Run `cargo test --test evaluate` in `extensions/spreadsheet` once, and fix each case that
+   fails. A wrong Excel expectation in a case is fixed against Excel's documented behaviour; a
+   function that cannot match is listed for that input, never computed differently.
+   `a_computed_result_reads_by_the_read_table` is still owed: write it in
+   `crates/nvs-ext/tests/spreadsheet_read.rs` or in `tests/evaluate.rs` through `Reader::evaluate`
+   (a date-formatted formula cell reads back as a date, and a cell `rows()` skipped before reads).
+2. `bun nv relink --build`, then run the two `reader-evaluate-runs` cases with `bun nv suite
+   tests/conformance/ --case <path>`, and fix the cases or `Reader.nvs` to what the code gives.
+3. Produce the three examples' `.out` files, then `bun nv proofs --id
+   'Novis\Spreadsheet\Reader::evaluate'` and `bun nv proofs --comments` on the new `.nvs` files.
+   Tick items 5 and 6.
+4. `bun nv rules --render`, and set stage 10 done once `evaluator-functions` and
+   `reader-evaluate-runs` pass.
 
-Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
-enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
-`CellError`, and `crates/nvs-cli/tests/spreadsheet_reader.rs`, which now writes
-`Reader::Visibility`. From stage 2, `crates/nvs-stdlib/tests/ext_world.rs` and `meta.rs` if either
-lists `Cell`'s members or its constructor's parameters. From stage 3, `meta.rs`'s Engine method list
-and `ext_world.rs`'s export list, which now name `sourceBytes` and `source-bytes`. The new
-`source_bytes` row in `crates/nvs-ext/src/typed/spreadsheet.rs` also builds. `meta.rs` may also
-list `Reader::open`'s parameters. From stages 4 to 7, no test is expected to go red: every changed
-test ran. From stage 8, every test in `extensions/spreadsheet/tests/template.rs` that reads the
-sheet's tail, because `SHEET_TAIL` gained an `extLst`: the whole file has since run green, so
-none is expected. A test that reads `Template::fill`'s help text, which gained a line about an
-`Iterator` and one about two keys for one placeholder. From stage 9, none: the code is new, and
-the shifter's functions changed only their visibility.
+Tests that may go red at the gate: from stage 10, `crates/nvs-cli/tests/meta.rs` and
+`crates/nvs-stdlib/tests/ext_world.rs`, whose export lists now name `readerEvaluate` and
+`reader-evaluate` (the order may be wrong); `crates/nvs-ext/tests/spreadsheet_read.rs` tests that
+read an xls, xlsb or ods formula the decoder cannot read, since such a cell now carries empty text
+inside the reader (hidden from `formulas: true`); a test that reads a table's records through
+`binary::table`, which now returns four fields. From earlier stages, as the last handoff said:
+`meta.rs`'s enum and Engine lists, `spreadsheet_reader.rs`'s `Reader::Visibility`, `ext_world.rs`'s
+`source-bytes`, and a test of `Template::fill`'s help text.
 
 ### Backlog
 
