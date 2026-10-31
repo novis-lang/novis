@@ -1113,13 +1113,13 @@
   },
   "/reference/cli/nvs-code/": {
     "feature": "tools:cli/nvs-code",
-    "hash": "78b16f6e145f5f22",
+    "hash": "d4ab7ce51709d270",
     "questions": [
       "Find every place a method is used in my project",
       "Rename a class or a method everywhere from the terminal",
       "Move a file and update every require that loads it",
       "Which methods call this method, and which routes reach it?",
-      "Find a class or a method when I know only part of its name",
+      "Rename a type alias declared inside a class",
       "Sort the properties and methods of every class in my project"
     ]
   },
@@ -1137,13 +1137,13 @@
   },
   "/reference/cli/nvs-dap/": {
     "feature": "tools:editor/nvs-dap",
-    "hash": "90b163dcf00c5f05",
+    "hash": "894cd41ad9f221e8",
     "questions": [
       "How do I debug a Novis program in VS Code?",
       "Set a breakpoint that stops only when a condition is true",
       "Step through a request while my development server runs",
       "Debug my #[Test] methods one at a time",
-      "Stop the program where an exception is thrown",
+      "See which task started each task while debugging",
       "Debug a program that runs inside a Docker container"
     ]
   },
@@ -1284,13 +1284,13 @@
   },
   "/reference/cli/nvs-service/": {
     "feature": "tools:server/nvs-service",
-    "hash": "fb87885a52c1d29b",
+    "hash": "0010465748aaea8b",
     "questions": [
       "Start my web server automatically when the machine boots",
       "Install my app as a systemd unit on Linux",
       "Run my server as a Windows service",
       "Restart my server automatically after it crashes",
-      "Why did my stopped service end, and what did it print?",
+      "Run my service on port 80 or 443 without root",
       "Which of my apps did not compile when the service started?"
     ]
   },
@@ -1392,14 +1392,14 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "4afd1f36579d319b",
+    "hash": "13d2e24c6827adfc",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
       "Why are passwords blurred in my editor?",
       "Class names and methods have the same colour in VS Code",
-      "Start the Novis debugger from launch.json in VS Code"
+      "Show my program's tasks as a tree while debugging in VS Code"
     ]
   },
   "/reference/config/app/": {
@@ -1651,6 +1651,17 @@
       "What value do I get for a setting the file does not have?"
     ]
   },
+  "/reference/config/regex/": {
+    "feature": "directive:regex.backtracking",
+    "hash": "9588a664f74aca11",
+    "questions": [
+      "How do I stop slow regular expressions on my server?",
+      "Forbid lookaround and backreferences in regex patterns",
+      "Warn about regex patterns that use the backtracking engine",
+      "Why does my regex with a backreference throw a RuntimeError?",
+      "Protect my server against ReDoS attacks"
+    ]
+  },
   "/reference/config/schedule/": {
     "feature": "directive:schedule",
     "hash": "0b39fbf2256bfe8d",
@@ -1698,11 +1709,11 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "0a3d6dd54ad8b515",
+    "hash": "9a115837c7e099a1",
     "questions": [
       "Which sections can I write in the configuration file?",
-      "Why do I get an unknown key error at startup?",
       "Configure a database connection or mail server",
+      "Which block turns off slow backtracking in regular expressions?",
       "What does error E0601 mean in my configuration?",
       "What does warning W1024 mean for an empty unknown section?",
       "Can I put a setting outside any section in nvs.toml?"
@@ -10897,13 +10908,14 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "6413f39c28a8b815",
+    "hash": "0cfc1aed31a73f11",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
       "Start a long-running program and talk to it",
       "Send lines to a program and read them back",
-      "Why does starting a program on my server throw an error?"
+      "Why does starting a program on my server throw an error?",
+      "What happens to a program still running when a task ends?"
     ]
   },
   "/reference/core/process-handle/": {
@@ -11949,13 +11961,14 @@
   },
   "/reference/core/regex/compile/": {
     "feature": "Core\\Regex::compile",
-    "hash": "765152d9a3812316",
+    "hash": "cfb26ce2e1ae9356",
     "questions": [
       "How do I reuse one regex pattern many times?",
       "Make a pattern ignore upper and lower case",
       "How do I set regex options like multiline or dot-all?",
       "Check that a regex pattern is valid before using it",
-      "Prepare a regular expression once with flags"
+      "Prepare a regular expression once with flags",
+      "Why does my pattern with a lookbehind not compile?"
     ]
   },
   "/reference/core/regex/match/": {
@@ -18090,25 +18103,25 @@
   },
   "/tools/debugger/": {
     "feature": "tools/debugger/index.mdx",
-    "hash": "ae67f7fe0bea23d7",
+    "hash": "96ff80afcf1ec811",
     "questions": [
       "What do I put in launch.json to debug a Novis file?",
       "Watch a variable change on each pass through a loop",
       "See the value a method returned after I step out of it",
       "Which keys step over, into and out of a line in VS Code?",
-      "Print a message at a line without stopping the program",
+      "See which task started each task while the program is stopped",
       "Can I attach the debugger to a server that is already running?"
     ]
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "a0dbdc503fc147cf",
+    "hash": "554508911bb82ea7",
     "questions": [
       "How do I install the VS Code extension from a .vsix file?",
       "Rename a method in every file of my project at once",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
-      "Put the properties and methods of a class in order in the editor",
+      "Where is the Novis Tasks view when I debug in VS Code?",
       "See where a tainted value came from in the editor"
     ]
   },

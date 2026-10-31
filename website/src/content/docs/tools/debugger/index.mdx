@@ -93,6 +93,16 @@ A `secret` value, such as a password, is hidden in the Variables view.
 In the Breakpoints view, **Uncaught Exceptions** is on by default. The program stops at a `throw`
 when no `catch` handles the exception. **All Exceptions** stops the program at every `throw`.
 
+## See the tasks of the program
+
+Each task of the program is a thread in the Call Stack view. When one task stops, every task of the
+same request stops.
+
+While the program is stopped, the **Novis Tasks** view in Run and Debug shows each task under the
+task that started it. For example, the functions you give to `Core\Task::all` are shown under the
+task that called it. A task that waits for its child tasks is shown as `waiting`. Click a stopped
+task to open its file at the line where it stopped.
+
 ## What the debugger cannot do
 
 `nvs dap` only starts programs. It cannot attach to a program that is already running. So you
