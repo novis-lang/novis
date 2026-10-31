@@ -9,8 +9,8 @@ stages:
     status: done
     context: [crates/nvs-lsp/tests/latency.rs, crates/nvs-cli/src/testing.rs, tools/nv/cmd/linux-test.ts, tools/nv/test/linux-test.test.ts]
   - id: 2
-    title: "an allocation and a free each look up the memory counters once"
-    status: open
+    title: an allocation and a free each look up the memory counters once
+    status: done
     context: [crates/nvs-runtime/src/budget/gauge.rs, docs/rules/http-server/admission-is-arithmetic-not-a-number.md, docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md, docs/rules/observability/a-memory-peak-is-recorded-not-asked-for.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -21,8 +21,7 @@ checks:
     stage: 1
     name: linux-test runs a release cost guard with -p and still refuses a debug -p
     run: [bun, test, tools/nv/test/linux-test.test.ts]
-    tests:
-      - a release run of one package's test binary is accepted
+    tests: ["a release run of one package's test binary is accepted"]
   - id: owners-closes
     stage: 3
     name: no gap record or designed rule names this goal
@@ -67,6 +66,12 @@ bytes; `DETACHED` and `DETACHED_MARK`, read only inside a `Detached` bracket, fo
 cell stays where it is: `TURN`, `POLLED`, the refusal bit, `IDLE`, `IDLE_MARK`, `SHARES` and `GAUGE`
 are off the per-allocation path.
 
+**The struct is not over-aligned.** Its hot fields span 49 bytes from an 8-aligned start, so they may
+cross a cache line. `#[repr(align(64))]` on a thread-local is held to the platform loader's TLS
+alignment, which this tree has never tested on Windows, Miri or ASAN, and Linux's figures show no
+cost to buy back. The `const` assertion holds the hot fields inside 64 bytes, so a later `align(64)`
+is one attribute.
+
 **The marks move into `budget`.** `gauge::report` already reads `budget`'s `LIVE` and `DETACHED`, so
 the two modules share this state today. Keeping the marks in `gauge` would cost a second lookup per
 call for no separation that exists. `gauge`'s module doc says the marks it compares against live in
@@ -98,8 +103,10 @@ ahead of it on the chain, and its anchor moves with this goal's edit.
 **Trade-offs.**
 - Security: none. The cap, the mark and the ceiling check read and write the same values in the same
   order. The count-based guards and the budget tests prove it.
-- Latency: on macOS an allocation round trip goes from about ten thread-local calls to two. On Linux
-  it takes one address computation and one cache line instead of several.
+- Latency: on macOS an allocation round trip goes from about ten thread-local calls to two. On
+  Windows the guards' update went from 1.62 ns to 1.36 ns and the pooled round trip from 4.47 ns to
+  3.88 ns. On Linux nothing changes: `budget::carry`'s disassembly before and after is the same
+  instructions, one `%fs` offset per cell, because a local-exec thread-local already costs no lookup.
 - Memory: none per request or per task. Per thread, the same cells and at most a few bytes of padding.
 - Simplicity: one struct replaces nine cells, and each allocation shows in one place what it touches.
   A warning in a CI log needs no rerun to read.
@@ -129,23 +136,23 @@ and `bun nv linux-test` can run the two allocator guards in release under WSL.
 **Does:** the standing decision's one struct replaces the nine cells, and the figures before and after
 are recorded.
 
-- [ ] **Before**, on the unchanged tree: run the two guards in release with their figures printed, on
+- [x] **Before**, on the unchanged tree: run the two guards in release with their figures printed, on
   Windows and in WSL. This run is the stage's requirement, because it is the measurement.
   `cargo test --release -p nvs-abi-probe --test perf_guards -- --nocapture an_allocation_round_trip the_memory_mark`
   and `bun nv linux-test --release -p nvs-abi-probe --test perf_guards -- --nocapture an_allocation_round_trip the_memory_mark`.
   Record each figure line in the handoff.
-- [ ] The counter struct and its `thread_local!`, with the 64-byte `const` assertion, replace the
+- [x] The counter struct and its `thread_local!`, with the 64-byte `const` assertion, replace the
   cells. `crates/nvs-runtime/src/budget.rs:265`, `crates/nvs-runtime/src/budget/gauge.rs:125`
-- [ ] `add`, `record` and `carry` take the struct once, and `gauge::far_from` and `gauge::report` read
+- [x] `add`, `record` and `carry` take the struct once, and `gauge::far_from` and `gauge::report` read
   the marks from it. `crates/nvs-runtime/src/budget.rs:1437`, `crates/nvs-runtime/src/budget/gauge.rs:157`
-- [ ] Every other reader and writer of the moved cells, the public readers and the tests among them,
+- [x] Every other reader and writer of the moved cells, the public readers and the tests among them,
   goes through the struct. `crates/nvs-runtime/src/budget.rs:1020`
-- [ ] The cost sentences say one lookup: `budget`'s § *What it spends*, `gauge`'s module doc, and
+- [x] The cost sentences say one lookup: `budget`'s § *What it spends*, `gauge`'s module doc, and
   each rule fragment that counts thread-local cells or reads on this path.
   `crates/nvs-runtime/src/budget.rs:191`, `docs/rules/http-server/admission-is-arithmetic-not-a-number.md:13`,
   `docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:55`,
   `docs/rules/observability/a-memory-peak-is-recorded-not-asked-for.md:32`
-- [ ] **After**: the same two runs as before. Record each figure line in the handoff and in the
+- [x] **After**: the same two runs as before. Record each figure line in the handoff and in the
   commit message, beside the before figures.
 
 ### 3. the goal is verified once, and every failure is fixed
@@ -158,28 +165,36 @@ are recorded.
 
 ### State
 
-Stage 1 is done. Each of the three timing judges' soft-bound warnings carries the figure, its detail
-and the attempt marker with both yardstick readings (`d5de2d9ab`), and the rule says so.
-`bun nv linux-test` takes `-p` beside `--release` and still refuses a debug `-p`. A package name no
-longer counts as a filter, so `--release -p <crate>` alone is refused as the whole suite
-(`b266fb9d9`). `bun test tools/nv/test/linux-test.test.ts` is green, 6 tests.
+Stage 2 is done. One `#[repr(C)]` struct, `Counters`, in one `const` `thread_local!` (`COUNTERS`)
+replaces `LIVE`, `PEAK`, `CEILING`, `REQUESTS`, `TOTAL`, `DETACHING`, `DETACHED`, `LIVE_MARK` and
+`DETACHED_MARK` (`crates/nvs-runtime/src/budget.rs:265`). A `const` assertion holds the hot fields
+inside 64 bytes (`HOT_SPAN`, 49 bytes). `add` and `carry` look it up once and pass it to `record` and
+`shift`. `gauge::far_from` takes the mark's value, and `gauge::report` sets the marks in the struct.
+`budget`'s § *What it spends*, `gauge`'s module doc and three rule fragments say one lookup, and the
+chapters are rendered. The testing chapter's stage-1 sentence was unrendered and is now committed
+(`7cf28ce35`). `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
-The run's sweep listed nightly reds of run `41187571578` and `env-secret-proofs`. The run started
-at 10:10 on 2026-10-31, before each red's fix (`39795c9c4`, `bfce9c2d2`, `4e17d05aa`, `593b6c565`,
-`8ce92dda5`), and none of those has run in a nightly yet. `env-secret-proofs` was a check of the
-retired `extension-leftovers` and has no definition or log, so its sweep line is stale.
+The before and after figures are in the stage commit's message. Windows: update 1.62 to 1.36 ns,
+pooled 4.47 to 3.88 ns. WSL's update read 1.30 and 2.34 ns on the old tree and 3.10 and 2.94 ns on
+the new one, but `budget::carry`'s disassembly is the same instructions in both, so Linux code did
+not change and that spread is noise. A new standing decision says why the struct is not `align(64)`.
+The sweep's reds are stale: nightly `41187571578` predates the fixes, and `env-secret-proofs` has no
+definition.
 
-No test is expected to go red from stage 1: only warning text and `refusal` changed.
+No test is expected to go red. The cells' values, order and every public reader's result are
+unchanged; only where they are stored moved.
 
 ### Next
 
-Stage 2, starting with the **Before** run: `cargo test --release -p nvs-abi-probe --test perf_guards
--- --nocapture an_allocation_round_trip the_memory_mark`, then the same through `bun nv linux-test`
-with `run_in_background` and unfiltered (the playbook's linux-test trap). The WSL release build is
-cold, so expect tens of minutes. Then the struct: `crates/nvs-runtime/src/budget.rs:265`,
-`crates/nvs-runtime/src/budget/gauge.rs:125`, `crates/nvs-runtime/src/budget.rs:1437`. No gate.
+Stage 3, the gate: start `looper verify` with `run_in_background`, fix every failure in one pass, and
+run it once more. `nvs-runtime`'s budget tests (`crates/nvs-runtime/src/budget.rs:1850`), the
+count-based guards in `benches/abi-probe/tests/perf_guards.rs` and Miri's `nvs-runtime` units are
+the ones this change reaches. Then the goal-end gates: `bun nv verify --doc`,
+`bun nv owners --closes allocation-counters`, `bun nv ci --check`.
 
 ### Backlog
 
 - If a steady CI run still warns on either allocator guard after this goal's push, decide the soft
-  bound from the times the warning prints (`rule:testing/perf-two-mechanisms`).
+  bound from the times the warning prints (`rule:testing/perf-two-mechanisms`). On WSL the update
+  guard warns on two of four steady runs of either tree: its platform heap is 5.8 ns, so a quarter of
+  it is 1.5 ns, which the update reaches on noise alone.
