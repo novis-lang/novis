@@ -1,0 +1,60 @@
+--TEST--
+`Template::fill` takes a list from an `Iterator`, such as a generator, and writes one row for each item it gives, past the first batch of 1,000: rule:core-classes/spreadsheet-template-fill
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Template::fill
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+final class Orders
+{
+    // This generator gives 2,500 orders, one at a time.
+    public static function all(): Iterator<array<mixed>>
+    {
+        int $at = 1;
+        while ($at <= 2500) {
+            yield ["number" => $at, "qty" => $at % 7];
+            $at = $at + 1;
+        }
+    }
+}
+
+var $design = Workbook::createInMemory();
+$design->sheet("Orders")->addAll([
+    ["Order", "Qty"],
+    ["{{orders.number}}", "{{orders.qty}}"],
+    ["Sum", Formula::of("SUM(B2:B2)")],
+]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The list `orders` is the generator. Its 2,500 items fill rows 2 to 2501.
+var $written = Template::open($template)->fill(["orders" => Orders::all()])->save("orders.xlsx");
+echo "rows: ", $written->rows["Orders"], "\n";
+
+Core\IO\File $saved = Core\IO::open("orders.xlsx", Core\IO::FileMode::Read);
+foreach (Reader::open($saved)->rows("Orders", {formulas: true}) as Row $row) {
+    if ($row->number == 2 || $row->number == 1001 || $row->number == 1002 || $row->number == 2501) {
+        echo "row ", $row->number, ": ", $row->values["A"] as int, "\n";
+    }
+    if ($row->number == 2502) {
+        mixed $sum = $row->values["B"];
+        if ($sum is Formula) {
+            echo "sum: ", Core\Taint::assertTrusted($sum->text, "the test prints what it wrote"), "\n";
+        }
+    }
+}
+$saved->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+rows: 2502
+row 2: 1
+row 1001: 1000
+row 1002: 1001
+row 2501: 2500
+sum: SUM(B2:B2501)

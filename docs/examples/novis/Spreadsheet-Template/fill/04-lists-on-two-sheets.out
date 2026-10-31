@@ -1,0 +1,11 @@
+Orders
+row 1 A: "Order" B: "Total"
+row 2 A: 101 B: 30
+row 3 A: 102 B: 45
+row 4 A: 103 B: 25
+row 5 A: "Sum" B: =SUM(B2:B4)
+Summary
+row 1 A: "Cost" B: "Amount"
+row 2 A: "Rent" B: 50
+row 3 A: "Power" B: 10
+row 4 A: "Profit" B: =Orders!B5-SUM(B2:B3)

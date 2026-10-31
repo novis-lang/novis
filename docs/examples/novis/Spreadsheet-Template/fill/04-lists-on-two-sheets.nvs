@@ -1,0 +1,53 @@
+<?nvs
+// Shows how to fill a list on each of two sheets, with one list from a generator.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+final class Orders
+{
+    // This generator gives one order at a time. A real program can read them from a database.
+    public static function all(): Iterator<array<mixed>>
+    {
+        yield ['number' => 101, 'total' => 30];
+        yield ['number' => 102, 'total' => 45];
+        yield ['number' => 103, 'total' => 25];
+    }
+}
+
+// Each sheet has one list row. The total on `Summary` uses the sum on `Orders`.
+var $design = Workbook::createInMemory();
+$design->sheet('Orders')->addAll([
+    ['Order', 'Total'],
+    ['{{orders.number}}', '{{orders.total}}'],
+    ['Sum', Formula::of('SUM(B2:B2)')],
+]);
+$design->sheet('Summary')->addAll([
+    ['Cost', 'Amount'],
+    ['{{costs.name}}', '{{costs.amount}}'],
+    ['Profit', Formula::of('Orders!B3-SUM(B2:B2)')],
+]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The sum on `Orders` moves to row 5. The formula on `Summary` changes to `Orders!B5`.
+bytes $report = Template::open($template)->fill([
+    'orders' => Orders::all(),
+    'costs' => [
+        ['name' => 'Rent', 'amount' => 50],
+        ['name' => 'Power', 'amount' => 10],
+    ],
+])->bytes();
+
+var $reader = Reader::open($report);
+array<string> $sheets = ['Orders', 'Summary'];
+foreach ($sheets as string $sheet) {
+    echo $sheet, "\n";
+    foreach ($reader->rows($sheet, { formulas: true }) as var $row) {
+        echo 'row ', $row->number;
+        foreach ($row->values as tainted string $column => mixed $value) {
+            echo ' ', $column, ': ', $value is Formula ? '=' . $value->text : Core\Json::encode($value);
+        }
+        echo "\n";
+    }
+}

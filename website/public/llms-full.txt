@@ -54400,7 +54400,7 @@ $reader->properties(): Properties
 ```
 
 `properties` returns the title, subject, author, company and keywords of the workbook, and the time it was created.
-A property the file does not have is `null`, and every property of a CSV file is `null`. An xls or ods file throws an error.
+A property the file does not have is `null`, and every property of a CSV file is `null`.
 
 **Returns** `Properties`
 
@@ -54722,6 +54722,7 @@ $template->fill(array<mixed> $data): Export
 ```
 
 `fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+A list in `$data` is an array or an `Iterator`, such as a generator. The items of an `Iterator` are read while the file is written.
 The file is written when you call `download`, `save`, `to` or `bytes` on the result.
 
 **Returns** `Export`

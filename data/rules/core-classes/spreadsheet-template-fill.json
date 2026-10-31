@@ -11,6 +11,8 @@
     "extensions/spreadsheet/tests/excel.rs",
     "crates/nvs-ext/tests/spreadsheet_hostile.rs",
     "tests/conformance/novis/spreadsheet-a-template-fills-an-item-list.nvst",
-    "tests/conformance/novis/spreadsheet-a-missing-placeholder-throws.nvst"
+    "tests/conformance/novis/spreadsheet-a-missing-placeholder-throws.nvst",
+    "tests/conformance/novis/spreadsheet-a-template-fills-lists-on-two-sheets.nvst",
+    "tests/conformance/novis/spreadsheet-a-template-list-is-an-iterator.nvst"
   ]
 }

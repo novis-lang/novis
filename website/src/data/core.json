@@ -29314,7 +29314,7 @@
           "options": [],
           "returnType": "Properties",
           "doc": {
-            "shortHtml": "<code>properties</code> returns the title, subject, author, company and keywords of the workbook, and the time it was created.\nA property the file does not have is <code>null</code>, and every property of a CSV file is <code>null</code>. An xls or ods file throws an error."
+            "shortHtml": "<code>properties</code> returns the title, subject, author, company and keywords of the workbook, and the time it was created.\nA property the file does not have is <code>null</code>, and every property of a CSV file is <code>null</code>."
           },
           "slug": "properties",
           "url": "/reference/core/novis-spreadsheet-reader/properties/",
@@ -30256,7 +30256,7 @@
           "options": [],
           "returnType": "Export",
           "doc": {
-            "shortHtml": "<code>fill</code> puts the value at each placeholder's path in <code>$data</code> into its cell. A placeholder that <code>$data</code> does not have throws an error.\nThe file is written when you call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result."
+            "shortHtml": "<code>fill</code> puts the value at each placeholder's path in <code>$data</code> into its cell. A placeholder that <code>$data</code> does not have throws an error.\nA list in <code>$data</code> is an array or an <code>Iterator</code>, such as a generator. The items of an <code>Iterator</code> are read while the file is written.\nThe file is written when you call <code>download</code>, <code>save</code>, <code>to</code> or <code>bytes</code> on the result."
           },
           "slug": "fill",
           "url": "/reference/core/novis-spreadsheet-template/fill/",

@@ -1,6 +1,7 @@
 <?nvs
 namespace Novis\Spreadsheet;
 
+use Iterator;
 use LogicError;
 
 /// A workbook designed in Excel, with placeholders such as `{{customer.name}}` in its cells. Open one with `Template::open`.
@@ -16,8 +17,10 @@ final class Template
     private bytes $first;
     private array<string> $order = [];
     private array<string> $names = [];
-    private array<array<mixed>> $lists = [];
+    private array<array<mixed>|Iterator<mixed>> $lists = [];
     private array<bytes> $kept = [];
+    // The items of the list `write` is sending, until there are 1,000 of them.
+    private array<array<Placeholder>> $batch = [];
     // The placeholders `walk` finds, and the list it is inside, or `null`.
     private array<Placeholder> $found = [];
     private ?string $inside = null;
@@ -53,6 +56,7 @@ final class Template
     }
 
     /// `fill` puts the value at each placeholder's path in `$data` into its cell. A placeholder that `$data` does not have throws an error.
+    /// A list in `$data` is an array or an `Iterator`, such as a generator. The items of an `Iterator` are read while the file is written.
     /// The file is written when you call `download`, `save`, `to` or `bytes` on the result.
     public function fill(array<mixed> $data): Export
     {
@@ -78,18 +82,27 @@ final class Template
             if ($value is array<mixed>) {
                 if (!Core\Arr::isList($value)) {
                     $this->walk($path . '.', $value);
-                } elseif ($this->inside != null) {
-                    string $outer = $this->inside ?? '';
-                    throw new LogicError("The list `{$path}` is inside the list `{$outer}`. A template cannot repeat a list inside a list.");
                 } else {
-                    $this->names[] = $path;
-                    $this->lists[$path] = $value;
+                    $this->keep($path, $value);
                 }
+            } elseif ($value is Iterator<mixed>) {
+                $this->keep($path, $value);
             } else {
                 string $list = $this->inside == null ? '' : ($this->inside ?? '') . '.';
                 $this->found[] = { path: $path, value: $this->cell($value, '{{' . $list . $path . '}}') };
             }
         }
+    }
+
+    // Keeps the list at `$path` for `write`. A list inside a list throws.
+    private function keep(string $path, array<mixed>|Iterator<mixed> $list): void
+    {
+        if ($this->inside != null) {
+            string $outer = $this->inside ?? '';
+            throw new LogicError("The list `{$path}` is inside the list `{$outer}`. A template cannot repeat a list inside a list.");
+        }
+        $this->names[] = $path;
+        $this->lists[$path] = $list;
     }
 
     // Sends the filled file to `$send`: the part `fill` wrote, the items of each list in batches of 1,000, and the rest.
@@ -101,16 +114,20 @@ final class Template
         $this->written = true;
         $this->deliver($send, $keep, $this->first);
         foreach ($this->order as string $name) {
-            array<array<Placeholder>> $batch = [];
-            foreach ($this->lists[$name] as mixed $item) {
-                $batch[] = $this->item($name, $item);
-                if (Core\Arr::count($batch) >= 1000) {
-                    $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $batch }));
-                    $batch = [];
+            $this->batch = [];
+            array<mixed>|Iterator<mixed> $list = $this->lists[$name];
+            if ($list is Iterator<mixed>) {
+                foreach ($list as mixed $item) {
+                    $this->add($send, $keep, $name, $item);
+                }
+            } elseif ($list is array<mixed>) {
+                foreach ($list as mixed $item) {
+                    $this->add($send, $keep, $name, $item);
                 }
             }
-            if (Core\Arr::count($batch) > 0) {
-                $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $batch }));
+            if (Core\Arr::count($this->batch) > 0) {
+                $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $this->batch }));
+                $this->batch = [];
             }
         }
         var $last = Engine::templateFinish($this->filling, $this->source);
@@ -125,6 +142,16 @@ final class Template
         var $whole = Core\Bytes::join($this->kept);
         $this->kept = [];
         return new Written($rows, $last->size as int, $whole);
+    }
+
+    // Adds one item of the list `$name` to the batch, and sends the batch once it has 1,000 items.
+    private function add(callable(bytes): void $send, bool $keep, string $name, mixed $item): void
+    {
+        $this->batch[] = $this->item($name, $item);
+        if (Core\Arr::count($this->batch) >= 1000) {
+            $this->deliver($send, $keep, Engine::templateItems($this->filling, { name: $name, items: $this->batch }));
+            $this->batch = [];
+        }
     }
 
     private function deliver(callable(bytes): void $send, bool $keep, bytes $chunk): void

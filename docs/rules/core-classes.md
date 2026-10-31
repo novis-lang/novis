@@ -5274,7 +5274,10 @@ formula refers to the cells that do.
 item of `$data['items']`, each copy with the template row's style and height. A block of several rows
 repeats as one when a defined name equal to the list's name covers it, so an item can span two rows.
 **A list inside a list throws**, naming both. An item whose copy would end past row 1,048,576 throws
-`LogicError` naming the list, before any of its rows is written.
+`LogicError` naming the list, before any of its rows is written. **A list is an array or an
+`Iterator`**, such as a generator. The items go to the component in batches of 1,000 whichever it
+is, and an `Iterator` is read only while the file is written, so a list of any length on a sheet that
+streams costs one batch.
 
 **Lists on several sheets.** Each sheet may repeat its own lists, and the sheets with lists are
 written in workbook order, each with its own shifts. The lists are filled in the order their blocks
@@ -5314,9 +5317,6 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 
 **On disk.** `Template::open`, `set` and `fill`, and an `Export` from `fill` to all four targets
 (`extensions/spreadsheet/nvs/Template.nvs`, `extensions/spreadsheet/src/template/`).
-
-**Not shipped.** A list is an array: an `Iterator` in `$data` is not a list
-(gap:nvs-spreadsheet/spreadsheet-template-fill-limits).
 
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
