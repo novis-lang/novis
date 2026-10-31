@@ -57,8 +57,11 @@ advisory is in neither the log nor the feed for seven days. The same advisory se
 passkey moves that time to now. The package page lists each advisory, and a version's page lists the
 ones whose range has that version (`PackagePage.nvs`).
 
-**Not on disk.** Audit does not report an advisory, and no client command sends one
-(gap:nvs-cli/audit-reports-an-advisory).
+The client is `nvs pkg advise <package> <versions> <summary>` (`crates/nvs-cli/src/package/advise.rs`),
+one request to that route with the stored publish token, shaped like `nvs pkg retract`. Audit
+reports each locked version whose advisory's range contains it (`Range::contains`), with the `id`,
+the summary as the reason and `B` as the version that clears it. An `A..` range has no fix.
+Resolution does not change: only a retraction or a withhold stops a version from being selected.
 
 Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
 nobody asked for does not arrive on its own (`rule:packaging/resolution-takes-the-highest-minimum`),

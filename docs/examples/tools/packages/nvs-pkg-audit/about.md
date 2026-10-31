@@ -1,6 +1,7 @@
 `nvs pkg audit` lists each version in your `package.lock` that has an advisory. An advisory is a
-retraction or a withhold of a version. For each one, the command prints the reason and the smallest
-version that fixes it. It exits with an error while a locked version has an advisory, so you can run
+retraction or a withhold of a version, or an advisory that an owner sent for a range of versions
+with `nvs pkg advise`. For each one, the command prints the reason and the smallest version that
+fixes it. It exits with an error while a locked version has an advisory, so you can run
 it in CI. `--json` prints the same report as JSON.
 
 The registry publishes its advisories in a signed file. Every advisory is also an entry in the
