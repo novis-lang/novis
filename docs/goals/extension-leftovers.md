@@ -22,7 +22,7 @@ stages:
     context: [extensions/spreadsheet/src/drawing.rs, extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/nvs/Sheet.nvs, extensions/spreadsheet/nvs/Workbook.nvs, docs/rules/core-classes/spreadsheet-sheet-end-parts.md]
   - id: 5
     title: "a render inside a header keeps its own first pass, and nesting and decoding stop at named bounds"
-    status: open
+    status: done
     context: [extensions/pdf/src/lib.rs, wit/pdf.wit, extensions/pdf/nvs/Document.nvs, extensions/pdf/src/read.rs, docs/rules/core-classes/pdf-header-is-a-page-function.md]
   - id: 6
     title: "a reader keeps its file in the engine, page strings match as written, and a second reader checks the passwords"
@@ -544,7 +544,11 @@ decoded streams throw a named error.
 - [x] The conformance case the `pdf-nested-render-runs` check names, and the header attack's step 3 renders both documents. `tests/conformance/novis/pdf-a-header-may-render-another-document.nvst:1`, `tests/hostile/novis/Pdf-Document/header/01-headers-that-throw-load-and-render-again.nvs:32`
   - [x] the case passes under `bun nv suite`
   - [x] step 3 needs no change: it printed `stopped`, and now it renders both documents
-- [ ] `rule:core-classes/pdf-one-engine`: the layout depth bound, measured, with its error. `extensions/pdf/src/layout/text.rs:505`, `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/parse.rs:27`
+- [x] `rule:core-classes/pdf-one-engine`: the layout depth bound, measured, with its error. `extensions/pdf/src/layout/text.rs:505`, `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/parse.rs:27`
+  - [x] measured on the release binary: flex and grid exhaust the 1 MiB stack at about 50 levels, tables nest past 128, inline-blocks do not recurse
+  - [x] `MAX_DEPTH` 32, counted in `Cx::down`; the stack is raised to 2 MiB (the safe fallback), so 32 levels leave over half free
+  - [x] past it the pass returns `Invalid`, and `layout_nested_past_the_depth_bound_throws` passes
+  - [x] a line of inline boxes alone no longer panics (`an_inline_block_alone_on_its_line_renders`)
 - [x] `rule:core-classes/pdf-factur-x-is-the-one-attachment`: invoice XML past 256 levels throws. `extensions/pdf/src/factur_x.rs:83`
   - [x] `factur_x::check` counts depth after the parse, which keeps no stack, and `read` applies `depth_error` to a received invoice
   - [x] `an_invoice_xml_nested_past_the_depth_bound_throws`, the fragment, `guardedBy` and `invoiceXml`'s `about.md`
@@ -553,8 +557,11 @@ decoded streams throw a named error.
   - [x] `wit/pdf.wit`, the manifest, `typed/pdf.rs`, the guest and the Novis halves carry a `decompression-bound`, and `cap_decompression` clamps it
   - [x] `a_stream_past_the_decompression_bound_throws` and `an_attachment_past_the_decompression_bound_throws` pass
   - [x] the three bomb attacks catch `ParseError`, and the two fragments and three `about.md` say so
-- [ ] The tests the `pdf-nesting-and-decoding-bounds` and `pdf-decoding-bounds` checks name. The bomb, nesting and XML attacks catch the new errors. `extensions/pdf/tests/render.rs:1`, `extensions/pdf/tests/read.rs:1`, `tests/hostile/novis/Pdf-Reader/open/01-a-pdf-bomb.nvs:4`, `tests/hostile/novis/Pdf-Document/invoiceXml/01-a-billion-laughs.nvs:5`, `tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs:5`
-- [ ] Limits: the two-million-character word, the million `q` operators and, if still at the limit, the nested `div`s are stated in the fragment with the memory limit's size. Their attacks keep `ends-early`. The module doc's first two bullets go. `docs/rules/core-classes/pdf-one-engine.md:1`, `tests/hostile/novis/Pdf-Document/fromHtml/02-one-word-of-two-million-characters.nvs:4`, `tests/hostile/novis/Pdf-Reader/text/02-a-page-that-saves-its-state.nvs:4`, `extensions/pdf/src/lib.rs:47`
+- [x] The tests the `pdf-nesting-and-decoding-bounds` and `pdf-decoding-bounds` checks name. The bomb, nesting and XML attacks catch the new errors. `extensions/pdf/tests/render.rs:1`, `extensions/pdf/tests/read.rs:1`, `tests/hostile/novis/Pdf-Reader/open/01-a-pdf-bomb.nvs:4`, `tests/hostile/novis/Pdf-Document/invoiceXml/01-a-billion-laughs.nvs:5`, `tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs:5`
+- [x] Limits: the two-million-character word, the million `q` operators and, if still at the limit, the nested `div`s are stated in the fragment with the memory limit's size. Their attacks keep `ends-early`. The module doc's first two bullets go.
+  - [x] 100,000 divs still end at 128 MiB, and time is linear (12,500 to 50,000 render), so all three are limits
+  - [x] `pdf-one-engine.md` states the depth bound and the three limits, and `guardedBy` names `tests/render.rs`
+  - [x] the first bullet is gone; the second is stage 6's last item `docs/rules/core-classes/pdf-one-engine.md:1`, `tests/hostile/novis/Pdf-Document/fromHtml/02-one-word-of-two-million-characters.nvs:4`, `tests/hostile/novis/Pdf-Reader/text/02-a-page-that-saves-its-state.nvs:4`, `extensions/pdf/src/lib.rs:47`
 
 ### 6. a reader keeps its file in the engine, page strings match as written, and a second reader checks the passwords
 
@@ -657,38 +664,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done, and the spreadsheet lane is finished. Stage 5's first four items are
-committed: the `kept` resource (`578850f8f`), invoice XML depth (`8db775a34`) and the
-decompression bound (`eb5cd4273`).
+Stages 1 to 5 are done, and the spreadsheet lane is finished. Stage 5's three checks passed once.
 
-- **Invoice depth.** `factur_x::MAX_DEPTH` is 256. `roxmltree` 0.21's parse is iterative, so
-  `too_deep` counts after it, four bytes per node. `read` throws only for an attachment that parses
-  and is too deep; a malformed received invoice is still returned as it is.
-- **Decompression.** `vendor/hayro-syntax` is the published 0.7.2 with `src/bound.rs` and lines
-  marked `Novis:` in `filter/mod.rs`, `filter/lzw_flate.rs` and `filter/run_length.rs`.
-  `extensions/pdf/Cargo.toml`'s `[patch.crates-io]` row names it. `read::under` sets the bound on
-  the thread and turns a breach into `Parse`. `read`, `read-text` and `merge` take
-  `decompression-bound` as their second argument, and `cap_decompression` clamps `PDF_CLASS`'s
-  `merge`, `read` and `readText`. A PDF placed with `<img>` in a render runs with no bound set:
-  `render` has no bound argument, and the decision names only `read` and `merge`.
-- The `pdf-decoding-bounds` tests, the new invoice test, `pdf_read`, `builtin`, `pdf` and
-  `ext_world` passed once. The three bomb attacks print `stopped ParseError`.
+- **Layout depth.** `layout::text::MAX_DEPTH` is 32, counted in `Cx::down`: table cells and flex
+  and grid items count, inline-blocks do not. Past it the pass returns `Invalid`. Flex and grid
+  cost about 21 KiB a level in release, so `extensions/pdf/.cargo/config.toml` gives the component
+  a 2 MiB stack. The test runs on a 256 MiB thread, because debug frames are larger.
+- **Fixed on the way.** A line holding only an inline box panicked, because parley gives it a text
+  range outside the text. `layout/text.rs` slices it with `get` now.
+- A PDF placed with `<img>` in a render still decodes with no bound set; the decision names only
+  `read` and `merge`.
 
-The sweep's nightly reds are from run 41187571578 at `857b39cad`, long behind HEAD. Later commits
-fix each one: `39795c9c4` (browser `NVS_BIN`), `bfce9c2d2` (debug-viewer shots), `9fe05ce88` (asan
-ODR pair) and `8ce92dda5` (the seven Miri timeouts). `env-secret-proofs` has no definition in the
-tree and no log under `.looper/loops/main/checks/`, so nothing here can turn it green.
+The sweep's nightly reds are from run 41187571578 at `857b39cad`; later commits fix each one
+(`39795c9c4`, `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`). `env-secret-proofs` has no definition in the
+tree and no log, so nothing here can turn it green.
 
 ### Next
 
-The rest of stage 5, over `extensions/pdf/src/layout/text.rs`, `src/layout/table.rs`,
-`src/parse.rs`, `tests/render.rs` and `docs/rules/core-classes/pdf-one-engine.md`.
+Stage 6, over `wit/pdf.wit`, `extensions/pdf/src/lib.rs`, `src/read.rs`, `nvs/Reader.nvs` and
+`docs/rules/core-classes/pdf-reader-and-merge.md`. Its first two items share those files; the
+veraPDF item goes to a writing subagent, as its `**Split:**` line says.
 
-- [ ] The layout depth bound, measured, with its error, and `layout_nested_past_the_depth_bound_throws` in `extensions/pdf/tests/render.rs`. `extensions/pdf/src/layout/text.rs:505`, `extensions/pdf/src/layout/table.rs:265`, `extensions/pdf/src/parse.rs:27`
-- [ ] The nesting attack catches the new error. `tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs:5`
-- [ ] The stated limits in `pdf-one-engine.md`, and the module doc's first bullet goes. Its decoding and invoice parts are already gone. `docs/rules/core-classes/pdf-one-engine.md:1`, `extensions/pdf/src/lib.rs:47`
+- [ ] The `reading` resource, and `text` takes it. `wit/pdf.wit:166`, `extensions/pdf/nvs/Reader.nvs:21`, `extensions/pdf/src/lib.rs:430`
+- [ ] String names are case-sensitive on both sides. `extensions/pdf/nvs/Page.nvs:36`, `extensions/pdf/src/layout/margin.rs:63`, `extensions/pdf/src/paginate/mod.rs:286`
+- [ ] `merge` measured once on its bench. `extensions/pdf/src/merge.rs:35`, `benches/members/novis/Pdf-Pages/merge.nvs:1`
 
-Expect red at the gate: a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
+Expect red at the gate: a PDF test or case with tables, flex or grid nested more than 32 levels,
+which now throws `LogicError`. Also a test outside `crates/nvs-ext/tests/` that calls the PDF `read`, `readText`
 or `merge` export without its `decompression-bound` argument. Also a test that calls the PDF
 `render` export with a `{ pages }` or `{ document, headerHeight }` shape, or matches "the second pass
 needs a first pass". Also expect red: `crates/nvs-cli/tests/spreadsheet_sheet.rs` or another test
