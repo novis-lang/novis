@@ -8,6 +8,8 @@
   "guardedBy": [
     "crates/nvs-stdlib/src/process.rs",
     "tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst",
+    "tests/conformance/core/process-spawn-a-child-a-child-task-leaves-running-is-stopped-when-that-task-ends.nvst",
+    "tests/conformance/core/process-spawn-a-handle-used-outside-its-task-names-no-other-child.nvst",
     "benches/abi-probe/tests/perf_guards.rs"
   ]
 }

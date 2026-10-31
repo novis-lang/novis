@@ -1451,18 +1451,27 @@ fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
 /// one about: a handle names a child for as long as its task runs, and the one
 /// window in which its slot is empty is the inside of a
 /// [`nvs_core_process_handle_wait`] — which the coroutine that would have to
-/// ask is itself suspended in. So an empty slot is a value that reached another
-/// task, and failing closed on it is the whole of what this checks.
+/// ask is itself suspended in. A key is unique in the process
+/// ([`nvs_runtime::Ctx::hold_spawned_child`]), so a handle a child task
+/// returned to its parent names no child in the parent's table. A missing key
+/// is therefore a value that reached another task, and failing closed on it is
+/// the whole of what this checks.
 ///
 /// # Errors
 ///
 /// A `Fault::fatal`, on the reading above.
 fn child_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut HeldChild, Fault> {
-    ctx.spawned_child_mut(key).ok_or_else(|| {
-        Fault::fatal(format!(
-            "{HANDLE_NAME}::{member} was asked of a child this task does not hold"
-        ))
-    })
+    ctx.spawned_child_mut(key)
+        .ok_or_else(|| not_this_tasks(member))
+}
+
+/// The fault for a handle this task did not file: the message the program
+/// reads when a handle reached a task other than the one that called `spawn`.
+fn not_this_tasks(member: &str) -> Fault {
+    Fault::fatal(format!(
+        "`{HANDLE_NAME}::{member}` was called on a handle from another task. A handle \
+         works only in the task that called `Core\\Process::spawn`."
+    ))
 }
 
 /// What the operating system said, as this class's `IOError` naming the program
@@ -1521,9 +1530,7 @@ fn off_core<T: Send + 'static>(
         return Ok(nvs_host::blocking::run(job));
     };
     let Some(held) = ctx.take_spawned_child(key) else {
-        return Err(Fault::fatal(format!(
-            "{HANDLE_NAME}::{member} was asked of a child this task does not hold"
-        )));
+        return Err(not_this_tasks(member));
     };
     let (held, done) = nvs_host::blocking::run(move || {
         let mut held = held;
@@ -1656,9 +1663,7 @@ nvs_runtime::nvs_helper! {
         let capture = Capture::of(ctx);
         live_child(ctx, key, "wait")?;
         let Some(mut held) = ctx.take_spawned_child(key) else {
-            return Err(Fault::fatal(format!(
-                "{HANDLE_NAME}::wait was asked of a child this task does not hold"
-            )));
+            return Err(not_this_tasks("wait"));
         };
         // The program called `wait()`, so the end of the program does not
         // report this child — `nvs_runtime::Ctx::end_abandoned_children`.

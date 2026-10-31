@@ -33,7 +33,9 @@ before the watcher itself was killed. nvs finds a killed watcher at its next chi
 `warn` record to the log and starts another.
 
 A child started inside a `Core\Task` child task is ended and reported when that task ends. Under
-`nvs run`, that report does not change the exit status.
+`nvs run`, that report does not change the exit status. A handle names its child only in the task that
+spawned it: a handle a child task returns names no child of the task that receives it, and any member
+called on it there is a `FATAL`.
 
 Both members take the same options bag, `rule:core-classes/process-options`, and its `timeout` bounds
 every handle member that parks.

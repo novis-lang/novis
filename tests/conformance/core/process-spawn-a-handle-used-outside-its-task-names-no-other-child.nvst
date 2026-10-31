@@ -1,0 +1,35 @@
+--TEST--
+A `Core\Process\Handle` that a child task returns names no process in the task that receives it, so calling it there stops the program and leaves that task's own process alone — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// A task returns a handle, and `kill()` on it outside the task stops the program.
+// That call does not stop the program's own process, so it is reported at the end.
+
+string $path = "/bin/cat";
+if (Core\Env::OS == Core\Env::Platform::Windows) {
+    $path = "C:\\Windows\\System32\\sort.exe";
+}
+Core\Process\Handle $own = Core\Process::spawn($path, []);
+var $result = Core\Task::all({
+    handle: fn (): Core\Process\Handle => {
+        string $path = "/bin/cat";
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
+            $path = "C:\\Windows\\System32\\sort.exe";
+        }
+        Core\Process\Handle $child = Core\Process::spawn($path, []);
+        $child->kill();
+        return $child;
+    },
+});
+echo "the task returned its handle\n";
+$result->handle->kill();
+echo "this line does not run\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+the task returned its handle
+--EXPECTF-ERROR--
+FATAL: `Core\Process\Handle::kill` was called on a handle from another task. A handle works only in the task that called `Core\Process::spawn`.
+{"level":"error","msg":"A process started with `Core\\Process::spawn` was still running when the program ended, so it was stopped. Call `wait()` or `kill()` on its handle before the program ends.","fields":{"program":"%s"}}

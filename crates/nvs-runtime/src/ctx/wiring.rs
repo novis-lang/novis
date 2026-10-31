@@ -180,6 +180,7 @@ impl Ctx {
             later: None,
             in_later: false,
             in_deferred: false,
+            task_child: false,
             main_ended: false,
             slotted: false,
             pending: None,

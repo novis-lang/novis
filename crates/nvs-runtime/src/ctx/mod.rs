@@ -863,6 +863,12 @@ pub struct Ctx {
     ///
     /// **What it spends:** one byte per context.
     pub(crate) in_deferred: bool,
+    /// Whether this context runs a `Core\Task` child task, set by
+    /// [`Ctx::child`] alone. [`Ctx::end_abandoned_children`] reads it to say
+    /// that the task ended, not the program.
+    ///
+    /// **What it spends:** one byte per context.
+    pub(crate) task_child: bool,
     /// Whether this request's own frame has returned, so its main script is
     /// over and `Core\Response::slotted()` throws. Set by
     /// [`crate::later::run_later`] and copied by [`Ctx::child`], so a slot and
@@ -1576,7 +1582,7 @@ pub struct Ctx {
     /// The children this task has spawned, by the key its `Core\Process\Handle`
     /// carries — see [`Ctx::hold_spawned_child`], and [`HeldChild`] for the
     /// kill that makes none of them outlive this context.
-    spawned_children: Vec<Option<HeldChild>>,
+    spawned_children: Vec<(u64, Option<HeldChild>)>,
     /// The sockets this request has opened and not yet closed, by the key its
     /// `Core\Net\Stream` or `Core\Net\Listener` carries — see
     /// [`Ctx::hold_open_socket`].

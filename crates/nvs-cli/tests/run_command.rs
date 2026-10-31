@@ -432,6 +432,46 @@ fn nvs_run_ends_with_the_status_its_reference_table_names() {
     assert!(wrong.stdout.is_empty(), "nothing ran");
 }
 
+/// A process a `Core\Task` child task leaves running is stopped when that task
+/// ends, and its `error` record on standard error says the task ended. The
+/// task's end is not the program's, so the run still exits `0`, as
+/// `rule:core-classes/process-spawn` says.
+// covers: Core\Process::spawn
+#[test]
+fn a_child_a_task_left_running_is_reported_and_the_run_still_exits_0() {
+    let dir = scratch("task-child-exit-status");
+    let path = if cfg!(windows) {
+        r"C:\\Windows\\System32\\sort.exe"
+    } else {
+        "/bin/cat"
+    };
+    fs::write(
+        dir.join("main.nvs"),
+        format!(
+            "<?nvs\nvar $done = Core\\Task::all({{\n    started: fn (): int => {{\n        \
+             Core\\Process\\Handle $child = Core\\Process::spawn(\"{path}\", []);\n        \
+             return 1;\n    }},\n}});\necho \"tasks done: \", $done->started, \"\\n\";\n"
+        ),
+    )
+    .unwrap();
+    fs::write(dir.join("nvs.toml"), "[capabilities.process]\nexec = true\n").unwrap();
+
+    let out = run_in(&dir, &["main.nvs"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "the task's report: {stderr}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "tasks done: 1\n");
+    let records: Vec<&str> = stderr
+        .lines()
+        .filter(|line| line.contains("Core\\\\Process::spawn"))
+        .collect();
+    assert_eq!(records.len(), 1, "one record for the one process: {stderr}");
+    assert!(
+        records[0].contains(r#""level":"error""#)
+            && records[0].contains("when the task that started it ended"),
+        "the record is an error that names the task: {stderr}"
+    );
+}
+
 /// A program that starts PowerShell, which starts a second PowerShell on its
 /// own and prints its own process id and then the second one's. Both keep
 /// running for two minutes. `nvs` passes the line on and sleeps too.

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/ctx/held.rs",
+  "title": "A file, socket, reader, connection or started-script handle is a position in its task's table, so one a `Core\\Task` child task returns can name the parent's own resource at the same position.",
+  "text": "Closing it files each of those tables under process-wide keys, as `Ctx::hold_spawned_child` does, adds a conformance case per class in the shape of `tests/conformance/core/process-spawn-a-handle-used-outside-its-task-names-no-other-child.nvst`, and deletes this record.",
+  "goal": "release-polish"
+}

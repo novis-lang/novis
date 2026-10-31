@@ -21,6 +21,11 @@
 
 use super::*;
 
+/// The next key [`Ctx::hold_spawned_child`] files a child under, shared by
+/// every context in the process so that no two tasks ever file the same key.
+/// It starts at one, so a zeroed slot never holds a key.
+static NEXT_CHILD_KEY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// A database connection a request is holding open — `nvs_db`'s `Connection`,
 /// and the seam that lets a [`Ctx`] hold one without naming it.
 ///
@@ -402,24 +407,40 @@ impl Ctx {
     /// [`HeldChild`]'s own `Drop` is that kill, so the table needs no teardown
     /// arm of its own beyond dropping the field.
     ///
+    /// **The key is unique in the process, not an index into this table.** A
+    /// handle is an ordinary value, so a `Core\Task` child task can return one
+    /// to the task that started it. An index would then name whatever child the
+    /// parent filed at the same position. A key drawn from [`NEXT_CHILD_KEY`]
+    /// names nothing in any other table, so a handle used outside its task
+    /// reads no child and fails closed in `nvs-stdlib`'s `child_of`. The keys
+    /// one table files only ever grow, so a lookup is a binary search.
+    ///
     /// **What it spends:** one [`HeldChild`] — a process handle and up to three
-    /// pipes — per `spawn` this task performed, *including* the ones it has
-    /// since waited for, because a key is never reused. That is
-    /// [`Ctx::hold_open_file`]'s trade for its reason: a stale handle reads an
-    /// empty slot and throws, where a recycled key would address whatever child
-    /// the same slot now holds.
+    /// pipes — and its eight-byte key per `spawn` this task performed,
+    /// *including* the ones it has since waited for, because a key is never
+    /// reused. That is [`Ctx::hold_open_file`]'s trade for its reason: a stale
+    /// handle reads an empty slot and throws, where a recycled key would
+    /// address whatever child the same slot now holds. One atomic add per
+    /// `spawn`, beside the cost of starting a process.
     pub fn hold_spawned_child(&mut self, child: HeldChild) -> u64 {
-        self.spawned_children.push(Some(child));
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.spawned_children.len() as u64
+        let key = NEXT_CHILD_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.spawned_children.push((key, Some(child)));
+        key
+    }
+
+    /// The position of the child `key` names in this task's table, or `None`
+    /// for a key another task filed.
+    fn spawned_child_at(&self, key: u64) -> Option<usize> {
+        self.spawned_children
+            .binary_search_by_key(&key, |(filed, _)| *filed)
+            .ok()
     }
 
     /// The child `key` names, borrowed for one pipe hand-off or one kill, or
     /// `None` for a key this task never filed and for one a wait is holding.
     pub fn spawned_child_mut(&mut self, key: u64) -> Option<&mut HeldChild> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.spawned_children.get_mut(index)?.as_mut()
+        let index = self.spawned_child_at(key)?;
+        self.spawned_children.get_mut(index)?.1.as_mut()
     }
 
     /// Takes the child `key` names out for the length of one off-core wait, or
@@ -434,17 +455,17 @@ impl Ctx {
     /// child there instead.
     #[must_use]
     pub fn take_spawned_child(&mut self, key: u64) -> Option<HeldChild> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.spawned_children.get_mut(index)?.take()
+        let index = self.spawned_child_at(key)?;
+        self.spawned_children.get_mut(index)?.1.take()
     }
 
     /// Puts a child [`Ctx::take_spawned_child`] lent out back in its own slot,
     /// so that the key the program is holding still names it.
     pub fn restore_spawned_child(&mut self, key: u64, child: HeldChild) {
-        let Some(index) = key.checked_sub(1).and_then(|at| usize::try_from(at).ok()) else {
+        let Some(index) = self.spawned_child_at(key) else {
             return;
         };
-        if let Some(slot) = self.spawned_children.get_mut(index) {
+        if let Some((_, slot)) = self.spawned_children.get_mut(index) {
             *slot = Some(child);
         }
     }
@@ -465,11 +486,19 @@ impl Ctx {
     /// calls this itself, after it reports how the script ended, so it can also
     /// set the exit code; every other context reaches it from its own `Drop`.
     ///
+    /// A `Core\Task` child task's context says the task ended rather than the
+    /// program, because the program is still running. It reaches this from its
+    /// `Drop`, so its report never changes the exit status of `nvs run`.
+    ///
     /// **What it spends:** one `try_wait` per child still in the table, once,
     /// when the task ends, and nothing for a task that spawned none.
     pub fn end_abandoned_children(&mut self) -> bool {
         let mut abandoned = Vec::new();
-        for held in self.spawned_children.iter_mut().flatten() {
+        for held in self
+            .spawned_children
+            .iter_mut()
+            .filter_map(|(_, held)| held.as_mut())
+        {
             if held.settled {
                 continue;
             }
@@ -485,13 +514,17 @@ impl Ctx {
             let _ = held.reap();
             abandoned.push(std::mem::take(&mut held.program));
         }
+        let message = if self.task_child {
+            "A process started with `Core\\Process::spawn` was still running when the \
+             task that started it ended, so it was stopped. Call `wait()` or `kill()` on \
+             its handle before the task ends."
+        } else {
+            "A process started with `Core\\Process::spawn` was still running when the \
+             program ended, so it was stopped. Call `wait()` or `kill()` on its handle \
+             before the program ends."
+        };
         for program in &abandoned {
-            let mut record = crate::floor::note(
-                nvs_render::Level::Error,
-                "A process started with `Core\\Process::spawn` was still running when the \
-                 program ended, so it was stopped. Call `wait()` or `kill()` on its handle \
-                 before the program ends.",
-            );
+            let mut record = crate::floor::note(nvs_render::Level::Error, message);
             record
                 .envelope
                 .fields

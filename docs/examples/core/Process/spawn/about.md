@@ -12,3 +12,6 @@ must name the program or its folder. Otherwise `spawn` throws a `RuntimeError`.
 Call `wait()` or `kill()` before your script or request ends. A program that still runs then is
 stopped, and an error is reported. With `nvs run`, the exit code is `1`. With `nvs serve`, the error
 is in the request log.
+
+A program started inside a `Core\Task` child task is stopped when that task ends, and an error is
+reported. The exit code does not change. A handle works only in the task that called `spawn`.

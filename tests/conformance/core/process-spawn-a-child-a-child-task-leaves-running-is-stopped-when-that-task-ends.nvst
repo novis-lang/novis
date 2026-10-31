@@ -1,0 +1,24 @@
+--TEST--
+A child process that a `Core\Task` child task leaves running is stopped when that task ends, and the run still succeeds — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// The task starts a process and ends without calling `wait()` or `kill()`.
+// The process is stopped when the task ends, and the program goes on and exits with 0.
+
+var $done = Core\Task::all({
+    started: fn (): int => {
+        string $path = "/bin/cat";
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
+            $path = "C:\\Windows\\System32\\sort.exe";
+        }
+        Core\Process\Handle $child = Core\Process::spawn($path, []);
+        return 1;
+    },
+});
+echo "tasks done: ", $done->started, "\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+tasks done: 1
