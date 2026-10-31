@@ -152,6 +152,50 @@ impl fmt::Display for Version {
     }
 }
 
+/// The versions an advisory covers (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`):
+/// `A..B`, from `A` up to `B` and not including it, or `A..`, from `A` with no fixed version yet.
+/// `A` is below `B`. There is no list and no other operator: a second range is a second advisory.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct Range {
+    pub(crate) from: Version,
+    /// The first version the advisory does not cover, when one fixes it.
+    pub(crate) until: Option<Version>,
+}
+
+impl FromStr for Range {
+    type Err = String;
+
+    fn from_str(text: &str) -> Result<Self, String> {
+        let shape = || {
+            format!(
+                "`{text}` is not a range of versions. Write `1.2.0..1.2.4` for the versions from \
+                 1.2.0 up to 1.2.4, or `1.2.0..` when no version fixes it yet."
+            )
+        };
+        let (from, until) = text.split_once("..").ok_or_else(shape)?;
+        let from = Version::from_str(from).map_err(|_| shape())?;
+        let until = match until {
+            "" => None,
+            until => Some(Version::from_str(until).map_err(|_| shape())?),
+        };
+        if until.is_some_and(|until| until <= from) {
+            return Err(format!(
+                "`{text}` is an empty range. The first version must be lower than the second."
+            ));
+        }
+        Ok(Self { from, until })
+    }
+}
+
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.until {
+            Some(until) => write!(f, "{}..{until}", self.from),
+            None => write!(f, "{}..", self.from),
+        }
+    }
+}
+
 /// A package's name: its root namespace, `Vendor\Package`, without a leading `\`.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) struct Name(String);

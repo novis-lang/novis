@@ -142,6 +142,48 @@ fn an_entry_outside_the_closed_list_adds_nothing() {
     assert!(!setup.log().join("tile").exists());
 }
 
+fn advisory(n: u32, versions: &str) -> String {
+    format!(
+        r#"{{"v":1,"kind":"advisory","id":"acme/http-{n}","package":"acme/http","versions":"{versions}","summary":"It leaks the session cookie."}}"#
+    )
+}
+
+#[test]
+fn an_advisory_entry_with_a_closed_or_open_range_is_logged() {
+    let setup = Setup::new("registry-log-advisory");
+    let closed = advisory(1, "1.2.0..1.2.4");
+    let open = advisory(2, "2.0.0..");
+    let appended = setup.append(&[&publish(0), &closed, &open]);
+    assert!(appended.status.success(), "{}", stderr(&appended));
+    let bundle = std::fs::read(setup.log().join("tile/entries/000.p/3")).unwrap();
+    for range in [
+        &br#""versions":"1.2.0..1.2.4""#[..],
+        br#""versions":"2.0.0..""#,
+    ] {
+        assert!(bundle.windows(range.len()).any(|w| w == range));
+    }
+    let verified = setup.verify();
+    assert!(verified.status.success(), "{}", stderr(&verified));
+}
+
+#[test]
+fn an_advisory_entry_with_a_malformed_range_is_refused() {
+    for (n, versions) in ["1.2.4..1.2.0", "1.2.0", "1.2..", "1.2.0..1.3.0,2.0.0.."]
+        .into_iter()
+        .enumerate()
+    {
+        let setup = Setup::new(&format!("registry-log-advisory-bad-{n}"));
+        let good = publish(0);
+        let bad = advisory(1, versions);
+        let refused = setup.append(&[&good, &bad]);
+        assert!(!refused.status.success(), "{versions}");
+        let why = stderr(&refused);
+        assert!(why.contains("line 2"), "{why}");
+        assert!(why.contains(versions), "{why}");
+        assert!(!setup.log().join("checkpoint").exists(), "{versions}");
+    }
+}
+
 #[test]
 fn a_key_file_another_account_can_change_is_refused() {
     let setup = Setup::new("registry-log-key");

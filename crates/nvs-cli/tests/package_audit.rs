@@ -144,6 +144,31 @@ fn the_feed_lists_every_advisory_and_agrees_with_the_log() {
 }
 
 #[test]
+fn the_feed_lists_an_advisory_entry_and_agrees_with_the_log() {
+    let setup = Setup::new("audit-feed-advisory");
+    let advisory = r#"{"v":1,"kind":"advisory","id":"acme/http-1","package":"acme/http","versions":"1.0.0..1.1.1","summary":"It leaks the session cookie."}"#;
+    let appended = setup.append(&[advisory]);
+    assert!(appended.status.success(), "{}", stderr(&appended));
+    let written = setup.advisories();
+    assert!(written.status.success(), "{}", stderr(&written));
+    assert!(
+        stdout(&written).contains("lists 3 advisories in the log of 5 entries"),
+        "{}",
+        stdout(&written)
+    );
+    let feed = std::fs::read_to_string(setup.feed()).unwrap();
+    assert!(feed.contains(r#""log":4"#), "{feed}");
+    assert!(feed.contains(r#""versions":"1.0.0..1.1.1""#), "{feed}");
+    let verified = setup.verify();
+    assert!(verified.status.success(), "{}", stderr(&verified));
+    assert!(
+        stdout(&verified).contains("lists 3 advisories, every one in the first 5 entries"),
+        "{}",
+        stdout(&verified)
+    );
+}
+
+#[test]
 fn a_feed_with_one_changed_byte_does_not_open() {
     let setup = Setup::new("audit-feed-changed");
     let written = setup.advisories();

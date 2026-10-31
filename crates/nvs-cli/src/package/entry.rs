@@ -3,7 +3,8 @@
 //! on, a closed list, each written as canonical JSON with a schema version.
 //!
 //! An entry is a JSON object with `"v": 1`, a `"kind"` and that kind's fields, every one a string
-//! that is not empty, each `version` and `fixed_in` a package version and each `digest` a package's BLAKE3
+//! that is not empty, each `version` and `fixed_in` a package version, each `versions` a
+//! [`Range`] of them, and each `digest` a package's BLAKE3
 //! digest, 64 lowercase hex digits (`rule:packaging/a-package-is-its-digest`). Its canonical
 //! form has the keys sorted by their bytes, no whitespace, and strings escaped as `serde_json`
 //! escapes them: `"`, `\` and the control characters alone, which is RFC 8785's form for such an
@@ -19,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::index;
-use super::manifest::Version;
+use super::manifest::{Range, Version};
 
 /// The schema version every entry carries as `"v"`.
 pub(crate) const SCHEMA: u64 = 1;
@@ -121,6 +122,9 @@ impl Entry {
                 Value::String(text) if key == "version" || key == "fixed_in" => {
                     Version::from_str(text)?;
                 }
+                Value::String(text) if key == "versions" => {
+                    Range::from_str(text)?;
+                }
                 Value::String(text) if key == "digest" && index::digest(text).is_none() => {
                     return Err(format!("`{text}` is not 64 lowercase hex digits"));
                 }
@@ -209,6 +213,34 @@ mod tests {
             r#"[1]"#,
         ] {
             assert!(Entry::parse(json.as_bytes()).is_err(), "{json}");
+        }
+    }
+
+    #[test]
+    fn an_advisory_range_is_closed_or_open_and_never_empty() {
+        let advisory = |versions: &str| {
+            format!(
+                r#"{{"v":1,"kind":"advisory","id":"a/b-1","package":"a/b","versions":"{versions}","summary":"s"}}"#
+            )
+        };
+        for good in ["1.2.0..1.2.4", "1.2.0..", "0.0.0..0.0.1"] {
+            assert!(Entry::parse(advisory(good).as_bytes()).is_ok(), "{good}");
+        }
+        for bad in [
+            "1.2.0",
+            "..1.2.4",
+            "1.2.4..1.2.0",
+            "1.2.0..1.2.0",
+            "1.2..1.3.0",
+            "1.2.0...1.3.0",
+            "1.2.0..1.3.0..",
+            "1.2.0..1.3.0,2.0.0..",
+            ">=1.2.0",
+        ] {
+            assert!(Entry::parse(advisory(bad).as_bytes()).is_err(), "{bad}");
+        }
+        for text in ["1.2.0..1.2.4", "1.2.0.."] {
+            assert_eq!(text.parse::<Range>().unwrap().to_string(), text);
         }
     }
 }

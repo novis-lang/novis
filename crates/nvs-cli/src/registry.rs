@@ -24,7 +24,8 @@
 //! the service copies a log from a file host it cannot list.
 //!
 //! `log advisories` writes the advisory feed, the file [`advisory::FILE`] in the log's directory:
-//! every retraction and withhold the log holds, signed with the key file and the log's checkpoint.
+//! every retraction, withhold and advisory the log holds, signed with the key file and the log's
+//! checkpoint.
 //! It reads every entry of the log, so the service runs it after each append that logs an
 //! advisory. `log verify` checks the feed too when the directory has one: it must name a size the
 //! log has reached, with that size's root hash, and list exactly the advisories of the records
@@ -166,12 +167,12 @@ enum LogCommand {
         #[arg(long)]
         entries: bool,
     },
-    /// Write the advisory feed: every retraction and withhold in the log.
+    /// Write the advisory feed: every retraction, withhold and advisory in the log.
     ///
     /// The command reads every entry of the log and writes the file
     /// `advisories` in the log's directory, signed with the key. Clients read
     /// it to find the versions they must not use. Run it after each change
-    /// that retracts or withholds a version.
+    /// that retracts or withholds a version, or adds an advisory.
     Advisories {
         /// The log's directory.
         dir: PathBuf,

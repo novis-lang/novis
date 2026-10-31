@@ -1,5 +1,6 @@
 //! The registry's advisory feed (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`):
-//! every retraction and every withhold in the log, in one signed file a client reads in one fetch.
+//! every retraction, withhold and advisory in the log, in one signed file a client reads in one
+//! fetch.
 //!
 //! The feed is the file [`FILE`] in the log's directory, a signed note whose text is its JSON on
 //! one line, signed as an index file is ([`index::sign`]): `schema`, `advisories`, `signed_at`
@@ -8,8 +9,8 @@
 //!
 //! **The feed is checked against the log, never trusted alone.** [`Feed::open`] needs the log's
 //! pinned key. [`Feed::against`] then walks every record of the log up to the feed's size, and
-//! a retraction or a withhold the feed does not list is an error, as is a listed record that the
-//! log has with other bytes. A feed that hides an advisory therefore disagrees with the log. Only
+//! a retraction, a withhold or an advisory the feed does not list is an error, as is a listed
+//! record that the log has with other bytes. A feed that hides an advisory therefore disagrees with the log. Only
 //! [`is_advisory`]'s kinds are in the feed: an unlist is not an advisory.
 //!
 //! **Memory:** an opened feed holds every advisory the registry ever logged, and the walk holds
@@ -46,7 +47,7 @@ struct Line {
     entry: Value,
 }
 
-/// One advisory: a log record that retracts or withholds a version.
+/// One advisory: a log record that retracts or withholds a version, or warns of a range of them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Advisory {
     /// The number of its record in the log.
@@ -79,9 +80,12 @@ impl Advisory {
     }
 }
 
-/// Whether the feed lists `entry`: a retraction or a withhold.
+/// Whether the feed lists `entry`: a retraction, a withhold or an advisory.
 pub(crate) fn is_advisory(entry: &Entry) -> bool {
-    matches!(entry, Entry::Retract { .. } | Entry::Withhold { .. })
+    matches!(
+        entry,
+        Entry::Retract { .. } | Entry::Withhold { .. } | Entry::Advisory { .. }
+    )
 }
 
 /// The feed of `advisories`, each a record's number and its bytes, signed by `signer` at `at`
@@ -141,7 +145,9 @@ impl Feed {
             let json = serde_json::to_vec(&line.entry).expect("a JSON value serializes");
             let entry = Entry::parse(&json).map_err(|why| format!("record {n}: {why}"))?;
             if !is_advisory(&entry) {
-                return Err(format!("record {n} is not a retraction or a withhold"));
+                return Err(format!(
+                    "record {n} is not a retraction, a withhold or an advisory"
+                ));
             }
             let record = entry.canonical();
             advisories.push(Advisory {
@@ -321,6 +327,9 @@ mod tests {
         let listed = vec![(0, records[0].clone())];
         let note = sign(&listed, &signer(), &checkpoint(&records), NOW).unwrap();
         let err = Feed::open(note.as_bytes(), &signer().verifier(), NOW).unwrap_err();
-        assert!(err.contains("not a retraction or a withhold"), "{err}");
+        assert!(
+            err.contains("not a retraction, a withhold or an advisory"),
+            "{err}"
+        );
     }
 }

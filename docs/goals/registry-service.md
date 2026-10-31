@@ -290,9 +290,9 @@ goal's records.
 **Does:** an advisory is a log entry with a checked range, the registry has its route, and the
 feed and the package page list it. A withhold also asks the CDN to drop the archive.
 
-- [ ] The `versions` parser: `A..B` and `A..`, on the client's version type. `Entry::parse` refuses a malformed range. `rule:packaging/a-known-bad-version-is-retracted-not-deleted`. `crates/nvs-cli/src/package/entry.rs:91`, `crates/nvs-cli/src/package/manifest.rs:111`
-- [ ] `is_advisory` takes `Entry::Advisory`, and `nvs registry log advisories` and `log verify` list it. `crates/nvs-cli/src/package/advisory.rs:83`, `crates/nvs-cli/src/registry.rs:169`, `crates/nvs-cli/src/registry.rs:394`
-- [ ] The three tests the `advisory-entry-tests` check names, run once by name. `crates/nvs-cli/tests/registry_log.rs:1`, `crates/nvs-cli/tests/package_audit.rs:125`
+- [x] The `versions` parser: `A..B` and `A..`, on the client's version type. `Entry::parse` refuses a malformed range. `rule:packaging/a-known-bad-version-is-retracted-not-deleted`. `crates/nvs-cli/src/package/entry.rs:91`, `crates/nvs-cli/src/package/manifest.rs:111`
+- [x] `is_advisory` takes `Entry::Advisory`, and `nvs registry log advisories` and `log verify` list it. `crates/nvs-cli/src/package/advisory.rs:83`, `crates/nvs-cli/src/registry.rs:169`, `crates/nvs-cli/src/registry.rs:394`
+- [x] The three tests the `advisory-entry-tests` check names, run once by name. `crates/nvs-cli/tests/registry_log.rs:1`, `crates/nvs-cli/tests/package_audit.rs:125`
 - [ ] The route `POST /api/packages/{vendor}/{name}/advisory`, its `AdvisoryRequest`, `Releases::advise` with the seven days for a token, and `Events::advisory` with its log entry and notice in one transaction. `apps/registry/src/App.nvs:826`, `apps/registry/src/RetractRequest.nvs:1`, `apps/registry/src/Releases.nvs:177`, `apps/registry/src/Events.nvs:35`
 - [ ] The package page and the version page show each advisory with its id, range and summary. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/PackagePage.nvs:71`
 - [ ] Registry tests: a token's advisory is pending, a passkey's is at once, a malformed range is `422`, and the owners get one notice. `apps/registry/src/AdvisoriesTest.nvs:1`
@@ -365,25 +365,27 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `pack::check_component` now returns the component's manifest with its carried
-source, and `api::extract_counted` takes it as the compile's extension set: `nvs registry build`
-passes the one its check loaded, and `nvs pkg api`/`diff` load it themselves (`api::component`),
-only when `files` lists a `.nvsx`, so a package without one is never held to pack's license check.
-`nvs pkg api` on the example's `vendor/shop/ledger` prints `Price` and the carried `Receipt`. The
-new test `an_extension_package_whose_source_calls_its_component_builds` passes, the gap record is
-deleted, and `package_fetch`, `package_client` and `registry_build` are green whole.
+Stage 2's Rust side is done. `manifest::Range` (`A..B`, `A..`, with `A` below `B`) parses an
+advisory's `versions`, `Entry::parse` refuses an `advisory` entry whose range it does not read, and
+`is_advisory` takes `Entry::Advisory`, so `nvs registry log advisories` writes it and `log verify`
+checks it. The three `advisory-entry-tests` tests and the entry and advisory unit tests pass, run
+once by name. `Range` has no `contains` yet: stage 3's audit adds it with its first caller, since
+clippy refuses dead code. Audit's `names` still matches retractions and withholds only, so an
+advisory in the feed is ignored by audit until stage 3. The rule's feed paragraph names the advisory
+and its range, and its Not-on-disk part and gap record `nvs-cli/advisory-route-and-range` now name
+only the route and audit.
 
-The sweep's `env-secret-proofs` red is stale: no check, goal, floor or log in the tree names it.
+The sweep's `env-secret-proofs` red is stale: its log does not exist and nothing in the tree names it.
 
 ### Next
 
-Stage 2, files `crates/nvs-cli/src/package/{entry,advisory,manifest}.rs`,
-`crates/nvs-cli/src/registry.rs`, `crates/nvs-cli/tests/{registry_log,package_audit}.rs`. Its first
-three items are one group (the Rust side); the registry app's items follow.
+Stage 2's registry app, files `apps/registry/src/{App,Releases,Events,PackagePage}.nvs`, a new
+`AdvisoryRequest.nvs`, and `AdvisoriesTest.nvs`. The purge items (`Site`, `jobs/withhold.nvs`,
+`StoresTest.nvs`, README) are a second group with disjoint files.
 
-- [ ] The `versions` parser, `A..B` and `A..`, on the client's version type, and `Entry::parse` refusing a malformed range. `crates/nvs-cli/src/package/entry.rs:91`, `crates/nvs-cli/src/package/manifest.rs:111`
-- [ ] `is_advisory` takes `Entry::Advisory`; `nvs registry log advisories` and `log verify` list it. `crates/nvs-cli/src/package/advisory.rs:83`, `crates/nvs-cli/src/registry.rs:169`, `crates/nvs-cli/src/registry.rs:394`
-- [ ] The three `advisory-entry-tests` tests, run once by name. `crates/nvs-cli/tests/registry_log.rs:1`, `crates/nvs-cli/tests/package_audit.rs:125`
+- [ ] The route, shaped like `retract` (`apps/registry/src/App.nvs:826`), with `AdvisoryRequest` `{versions, summary}` (`apps/registry/src/RetractRequest.nvs:1`). The range check in Novis must agree with `crates/nvs-cli/src/package/manifest.rs:155` `Range`: a malformed one is `422`.
+- [ ] `Releases::advise` beside `Releases::retract` (`apps/registry/src/Releases.nvs:177`): one row, the id `<vendor>/<name>-<n>`, the seven days for a token, and `Events` writing the `advisory` log entry and the owners' notice in the transaction (`apps/registry/src/Events.nvs:35`).
+- [ ] The package and version pages list each advisory (`apps/registry/src/PackagePage.nvs:40`, `:71`), then `AdvisoriesTest.nvs` as the stage's item says.
 
 No test is expected to go red.
 
