@@ -3259,7 +3259,10 @@ They answer "did this commit regress".
 
 A timing past its hard bound is measured again, up to three attempts, and only the last attempt is
 judged: a burst of load that lands on one attempt passes on the next, and a change of kind is past
-the bound on every attempt. The soft-bound warning is written straight to standard output, because
+the bound on every attempt. The soft-bound warning carries what that attempt's printed line does:
+the figure, its detail with the times behind it and their yardstick ratios, and the attempt marker
+with the load and both yardstick readings, so a warning in a CI log is read without a rerun. It is
+written straight to standard output, because
 libtest holds back what a passing test prints; on GitHub Actions it is a `::warning` command, which
 lists it among the run's annotations, and a line in the file `GITHUB_STEP_SUMMARY` names. Each
 attempt sits between two readings of a yardstick, a fixed scalar loop, and is labelled `noisy` when
