@@ -4,7 +4,8 @@
 //! Liberation Sans, Serif and Mono in regular, bold, italic and bold italic are embedded from
 //! `extensions/fonts/`, the files the image component embeds too. `sans-serif`, Arial and
 //! Helvetica are Sans, `serif`, Times and Times New Roman are Serif, and `monospace` and Courier
-//! are Mono, compared without case. Any other name, and no name, is Sans.
+//! are Mono, compared without case. Any other name, and no name, is Sans. An SVG `<text>` maps
+//! its `font-family` the same way, through [`svg_font_resolver`].
 //!
 //! The font context is `parley`'s with `fontique`'s system discovery off: the collection holds
 //! the twelve faces and the document's `@font-face` fonts and nothing else, so a render on any
@@ -117,9 +118,8 @@ pub fn face_index(data: &[u8]) -> Option<usize> {
 }
 
 /// The font database `usvg` lays out an SVG's `<text>` with: the twelve faces and no system
-/// font, `serif`, `sans-serif` and `monospace` mapped to Liberation, and any other family
-/// name falling back to Liberation Serif, as `usvg` falls back to `serif`. It is built on first
-/// use and shared, and it borrows the embedded bytes.
+/// font, with `serif`, `sans-serif` and `monospace` mapped to Liberation. It is built on first
+/// use and shared, and it borrows the embedded bytes. [`svg_font_resolver`] picks a face from it.
 pub fn svg_database() -> Arc<usvg::fontdb::Database> {
     static DATABASE: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     let database = DATABASE.get_or_init(|| {
@@ -133,6 +133,46 @@ pub fn svg_database() -> Arc<usvg::fontdb::Database> {
         Arc::new(database)
     });
     Arc::clone(database)
+}
+
+/// How `usvg` picks an SVG `<text>`'s face from [`svg_database`]: each `font-family` name maps
+/// as HTML's does ([`Family::known`]), so Arial is Liberation Sans and Courier Liberation Mono,
+/// and a list where no name maps is Liberation Sans. A character the face has no glyph for falls
+/// back as `usvg` does.
+pub fn svg_font_resolver() -> usvg::FontResolver<'static> {
+    use usvg::FontFamily as Svg;
+    use usvg::fontdb::{Family as Db, Query, Stretch, Style as Slant, Weight};
+    usvg::FontResolver {
+        select_font: Box::new(|font, database| {
+            let mut families: Vec<Db<'_>> = font
+                .families()
+                .iter()
+                .map(|family| match family {
+                    Svg::Serif => Db::Serif,
+                    Svg::SansSerif => Db::SansSerif,
+                    Svg::Monospace => Db::Monospace,
+                    Svg::Cursive => Db::Cursive,
+                    Svg::Fantasy => Db::Fantasy,
+                    Svg::Named(name) => match Family::known(name) {
+                        Some(known) => Db::Name(known.registered_name()),
+                        None => Db::Name(name),
+                    },
+                })
+                .collect();
+            families.push(Db::SansSerif);
+            database.query(&Query {
+                families: &families,
+                weight: Weight(font.weight()),
+                stretch: Stretch::Normal,
+                style: match font.style() {
+                    usvg::FontStyle::Normal => Slant::Normal,
+                    usvg::FontStyle::Italic => Slant::Italic,
+                    usvg::FontStyle::Oblique => Slant::Oblique,
+                },
+            })
+        }),
+        select_fallback: usvg::FontResolver::default_fallback_selector(),
+    }
 }
 
 /// A font context that holds the twelve faces and no system font.

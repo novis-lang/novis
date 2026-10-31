@@ -4143,9 +4143,12 @@ another width than the first page of its name lays out its lines at its own widt
 its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
 absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
 `transform` is the containing block of the absolute boxes inside it
-(`extensions/pdf/tests/layout.rs`). What the
-layout does not do yet is in
-the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
+(`extensions/pdf/tests/layout.rs`). A flex container's `::before` and `::after` and a `<br>` in it
+are flex items, `align-items: baseline` aligns the items' first lines, and an `auto` margin on an
+item takes the free space. An inline box in a right-to-left line has its start side at its right,
+and `hyphenate-character` sets the text drawn at a break inside a word
+(`extensions/pdf/tests/layout.rs`). What the layout does not do is stated in the module docs of
+`extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
@@ -4542,7 +4545,8 @@ because the crossing takes a non-negative `int` as a `uint` (`crates/nvs-ext/src
 
 The PDF component carries **Liberation Sans, Serif and Mono in regular, bold, italic and bold
 italic**, so a plain document renders with no font in its asset map. `sans-serif`, Arial and Helvetica
-map to Sans, `serif`, Times and Times New Roman to Serif, and `monospace` and Courier to Mono. The same
+map to Sans, `serif`, Times and Times New Roman to Serif, and `monospace` and Courier to Mono. An
+SVG `<text>`'s `font-family` maps the same way, and a list where no name maps is Sans in both. The same
 twelve files stand in for the standard-14 fonts when the image component rasterises a PDF
 ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)), and live once in the tree under `extensions/fonts/`.
 

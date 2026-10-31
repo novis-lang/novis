@@ -1,6 +1,7 @@
 The PDF component carries **Liberation Sans, Serif and Mono in regular, bold, italic and bold
 italic**, so a plain document renders with no font in its asset map. `sans-serif`, Arial and Helvetica
-map to Sans, `serif`, Times and Times New Roman to Serif, and `monospace` and Courier to Mono. The same
+map to Sans, `serif`, Times and Times New Roman to Serif, and `monospace` and Courier to Mono. An
+SVG `<text>`'s `font-family` maps the same way, and a list where no name maps is Sans in both. The same
 twelve files stand in for the standard-14 fonts when the image component rasterises a PDF
 (`rule:core-classes/pdf-page-is-an-image-source`), and live once in the tree under `extensions/fonts/`.
 

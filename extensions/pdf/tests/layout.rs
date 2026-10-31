@@ -904,7 +904,7 @@ fn an_inline_svg_is_vector_content_in_the_output() {
 #[test]
 fn an_svg_text_is_drawn_with_the_default_fonts() {
     // An SVG's `<text>` lays out over the twelve default faces and is drawn as glyphs, so the
-    // output embeds a font and its text reads back. A family the database lacks is Serif.
+    // output embeds a font and its text reads back. A family no default maps to is Sans.
     let svg = |family: &str| {
         format!(
             "<svg width='200' height='40'><text x='4' y='24' font-family='{family}' \
@@ -915,7 +915,7 @@ fn an_svg_text_is_drawn_with_the_default_fonts() {
     for (family, face) in [
         ("monospace", &b"LiberationMono"[..]),
         ("sans-serif", b"LiberationSans"),
-        ("Unknown", b"LiberationSerif"),
+        ("Unknown", b"LiberationSans"),
     ] {
         let rendered = render(&Document {
             html: svg(family),

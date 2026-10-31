@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "extensions/pdf/tests/layout.rs",
+    "extensions/pdf/tests/render.rs",
     "crates/nvs-ext/tests/pdf.rs"
   ]
 }

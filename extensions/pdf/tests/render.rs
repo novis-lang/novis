@@ -390,3 +390,27 @@ fn a_heading_in_an_inline_block_float_flex_item_or_cell_has_a_bookmark() {
         assert!(contains(&rendered.data, entry.as_bytes()), "{title}");
     }
 }
+
+#[test]
+fn an_svg_font_family_maps_as_html_does() {
+    // An SVG `<text>`'s family maps to the Liberation face an HTML `font-family` maps it to, and
+    // a list whose first name no default has takes the next name that maps.
+    for (family, face) in [
+        ("Arial", "LiberationSans"),
+        ("Helvetica", "LiberationSans"),
+        ("Courier", "LiberationMono"),
+        ("'Courier New'", "LiberationMono"),
+        ("'Times New Roman'", "LiberationSerif"),
+        ("Brand, Courier", "LiberationMono"),
+        ("Brand", "LiberationSans"),
+    ] {
+        let rendered = render(&html(&format!(
+            "<svg width='200' height='40'><text x='4' y='24' font-family=\"{family}\"              font-size='16'>Shop total</text></svg>"
+        )))
+        .unwrap();
+        for other in ["LiberationSans", "LiberationSerif", "LiberationMono"] {
+            let found = contains(&rendered.data, other.as_bytes());
+            assert_eq!(found, other == face, "{family}: {other}");
+        }
+    }
+}
