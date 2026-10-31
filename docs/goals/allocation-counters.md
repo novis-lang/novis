@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/budget.rs, benches/abi-probe/tests/perf_guards.
 stages:
   - id: 1
     title: "every soft-bound warning prints the times behind its figure, and linux-test runs a cost guard"
-    status: open
+    status: done
     context: [crates/nvs-lsp/tests/latency.rs, crates/nvs-cli/src/testing.rs, tools/nv/cmd/linux-test.ts, tools/nv/test/linux-test.test.ts]
   - id: 2
     title: "an allocation and a free each look up the memory counters once"
@@ -111,17 +111,17 @@ ahead of it on the chain, and its anchor moves with this goal's edit.
 **Does:** a CI annotation from any timing judge shows both times, their yardstick ratios and the load,
 and `bun nv linux-test` can run the two allocator guards in release under WSL.
 
-- [ ] `perf_guards.rs`'s `judge_where_measurable` passes `reading.detail` and `marker` into the `warn`
+- [x] `perf_guards.rs`'s `judge_where_measurable` passes `reading.detail` and `marker` into the `warn`
   message. `benches/abi-probe/tests/perf_guards.rs:283`
-- [ ] `latency.rs`'s `judge` adds the attempt and both yardstick readings to its warning.
+- [x] `latency.rs`'s `judge` adds the attempt and both yardstick readings to its warning.
   `crates/nvs-lsp/tests/latency.rs:212`
-- [ ] `testing.rs`'s `judge_margin` adds `detail` and the attempt marker to its warning.
+- [x] `testing.rs`'s `judge_margin` adds `detail` and the attempt marker to its warning.
   `crates/nvs-cli/src/testing.rs:119`
-- [ ] The rule's sentence on the soft-bound warning says the warning carries the times, the detail
+- [x] The rule's sentence on the soft-bound warning says the warning carries the times, the detail
   and the attempt marker. `docs/rules/testing/perf-two-mechanisms.md:14`
-- [ ] `linux-test`'s `refusal` accepts `-p` beside `--release`, its `USAGE` and header name the
+- [x] `linux-test`'s `refusal` accepts `-p` beside `--release`, its `USAGE` and header name the
   release form. `tools/nv/cmd/linux-test.ts:37`, `tools/nv/cmd/linux-test.ts:28`
-- [ ] The test `a release run of one package's test binary is accepted`, beside the existing `-p`
+- [x] The test `a release run of one package's test binary is accepted`, beside the existing `-p`
   refusals. Run once by name: `bun test tools/nv/test/linux-test.test.ts`. `tools/nv/test/linux-test.test.ts:15`
 
 ### 2. an allocation and a free each look up the memory counters once
@@ -158,13 +158,26 @@ are recorded.
 
 ### State
 
-Not started. The goal was written on 2026-10-31 from the user's question about the cost guards'
-soft-bound warnings, using CI run `41205606956`.
+Stage 1 is done. Each of the three timing judges' soft-bound warnings carries the figure, its detail
+and the attempt marker with both yardstick readings (`d5de2d9ab`), and the rule says so.
+`bun nv linux-test` takes `-p` beside `--release` and still refuses a debug `-p`. A package name no
+longer counts as a filter, so `--release -p <crate>` alone is refused as the whole suite
+(`b266fb9d9`). `bun test tools/nv/test/linux-test.test.ts` is green, 6 tests.
+
+The run's sweep listed nightly reds of run `41187571578` and `env-secret-proofs`. The run started
+at 10:10 on 2026-10-31, before each red's fix (`39795c9c4`, `bfce9c2d2`, `4e17d05aa`, `593b6c565`,
+`8ce92dda5`), and none of those has run in a nightly yet. `env-secret-proofs` was a check of the
+retired `extension-leftovers` and has no definition or log, so its sweep line is stale.
+
+No test is expected to go red from stage 1: only warning text and `refusal` changed.
 
 ### Next
 
-Stage 1: `benches/abi-probe/tests/perf_guards.rs:283`, `crates/nvs-lsp/tests/latency.rs:212`,
-`crates/nvs-cli/src/testing.rs:119`, `tools/nv/cmd/linux-test.ts:37`. No gate.
+Stage 2, starting with the **Before** run: `cargo test --release -p nvs-abi-probe --test perf_guards
+-- --nocapture an_allocation_round_trip the_memory_mark`, then the same through `bun nv linux-test`
+with `run_in_background` and unfiltered (the playbook's linux-test trap). The WSL release build is
+cold, so expect tens of minutes. Then the struct: `crates/nvs-runtime/src/budget.rs:265`,
+`crates/nvs-runtime/src/budget/gauge.rs:125`, `crates/nvs-runtime/src/budget.rs:1437`. No gate.
 
 ### Backlog
 
