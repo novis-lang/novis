@@ -4788,12 +4788,17 @@ a lying record length, a bomb — throws `ParseError`. Anything else the compone
 `RuntimeError`. A trap throws `ExtensionError`, and the request's memory or CPU cap ends the request
 ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
-**On disk.** Every member the table names but `Cell::rich`, in `extensions/spreadsheet/nvs/`, and
-the enums in `extensions/spreadsheet/manifest.json`, each with its `owner`. A `Style` also has the readonly `fields` and
-`key` that `Workbook` reads.
+**A rich cell is one text cell of runs.** `Cell::rich` takes each run's `text` and an optional
+`Style` that sets font fields alone: `font`, `size`, `bold`, `italic`, `strike`, `underline` and
+`color`. Any other field throws `LogicError` naming the field and the run, because Excel styles a
+run's font and nothing else, and an empty list throws too. The cell's fill, border, alignment and
+format come from its row and its column. A rich cell has `value` `null` and its runs in the readonly
+`runs`, which is `null` for every other cell. `Workbook` sends it as `cell-value::rich`, each run's
+style a `writer-style` id. The reader reads it as its runs' text joined, and CSV writes that text.
 
-**Not shipped.** `Cell::rich`: the writer writes rich text, and no Novis method reaches it, so a
-`Cell` is `of` alone (gap:nvs-spreadsheet/spreadsheet-cell-rich).
+**On disk.** Every member the table names, in `extensions/spreadsheet/nvs/`, and the enums in
+`extensions/spreadsheet/manifest.json`, each with its `owner`. A `Style` also has the readonly
+`fields` and `key` that `Workbook` reads.
 
 **Declined:**
 - **One `Spreadsheet` class with every member.** Writing, reading and filling share no state, and a
@@ -5208,9 +5213,6 @@ and they are small beside the rows.
 **On disk.** Every sheet-end part above, called from `extensions/spreadsheet/nvs/Sheet.nvs` and
 written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `drawing.rs` and
 `chart.rs`.
-
-**Not shipped.** `Cell::rich`, so no Novis method writes rich text in one cell
-([`core-classes/spreadsheet-roster`](core-classes.md#core-classes-spreadsheet-roster), gap:nvs-spreadsheet/spreadsheet-cell-rich).
 
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for

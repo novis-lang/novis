@@ -1,0 +1,19 @@
+<?nvs
+// Shows a rich cell in a row with a fill. The parts set the font, and the row sets the fill.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Workbook;
+use Novis\Spreadsheet\Style;
+
+var $red = Style::of({ color: '#C00000', bold: true });
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Stock', { header: false });
+
+// The whole row has a yellow fill. The number in the first cell is red and bold.
+$sheet->add([Cell::rich([{ text: 'Only ' }, { text: '3', style: $red }, { text: ' left' }]), 'Pens'], {
+    style: Style::of({ fill: '#FFF2CC' }),
+});
+
+// `runs` contains the parts. `value` is `null` for a rich cell.
+var $cell = Cell::rich([{ text: 'a' }, { text: 'b', style: $red }]);
+echo Core\Arr::count($cell->runs ?? []), ' parts, value is ', $cell->value == null ? 'null' : 'set', "\n";
+echo $book->finish()->rows['Stock'], " row written\n";

@@ -16,6 +16,8 @@
     "crates/nvs-cli/tests/spreadsheet_template.rs",
     "crates/nvs-cli/tests/spreadsheet_chart.rs",
     "crates/nvs-cli/tests/spreadsheet_values.rs",
-    "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst"
+    "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst",
+    "tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst",
+    "tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst"
   ]
 }

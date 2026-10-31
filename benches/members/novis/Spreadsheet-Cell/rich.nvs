@@ -1,0 +1,24 @@
+<?nvs
+// Makes a cell of three text parts, as a report does for a note with one bold word.
+// bench: iterations 2048
+// bench: complexity constant
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $bold = Style::of({ bold: true });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $cell = Cell::rich([{ text: 'Pay ' }, { text: 'today', style: $bold }, { text: '.' }]);
+            $total = $total + Core\Arr::count($cell->runs ?? []);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

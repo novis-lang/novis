@@ -1,0 +1,2 @@
+Part 2 of `Cell::rich` has a style with `fill`. A part can only set font fields: `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`.
+`Cell::rich` needs at least one part, such as `[{ text: 'Total' }]`.

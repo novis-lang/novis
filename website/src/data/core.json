@@ -28281,9 +28281,14 @@
     {
       "id": "Novis.Spreadsheet.Cell",
       "name": "Novis\\Spreadsheet\\Cell",
-      "summary": "One value with its own `Style`. Make one with `Cell::of` and put it in a row in place of the value.",
+      "summary": "One value with its own `Style`, or one cell of rich text. Make one with `Cell::of` or `Cell::rich` and put it in a row in place of the value.",
       "enums": [],
-      "types": [],
+      "types": [
+        {
+          "name": "Run",
+          "type": "{ text: string, style: ?Style }"
+        }
+      ],
       "constants": [],
       "members": [
         {
@@ -28292,7 +28297,7 @@
           "static": false,
           "receiver": "cell",
           "generics": null,
-          "signature": "constructor(mixed $value, Style $style): void",
+          "signature": "constructor(mixed $value, Style $style, ?array<Run> $runs = null): void",
           "params": [
             {
               "kind": "param",
@@ -28309,12 +28314,20 @@
               "default": null,
               "optional": false,
               "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "runs",
+              "type": "?array<Run>",
+              "default": "null",
+              "optional": true,
+              "variadic": false
             }
           ],
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Cell</code> makes a cell from its values. <code>Cell::of</code> makes one for you."
+            "shortHtml": "<code>new Cell</code> makes a cell from its values. <code>Cell::of</code> and <code>Cell::rich</code> make one for you.\n<code>runs</code> has the parts of a rich text cell. It is <code>null</code> for every other cell."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-cell/constructor/",
@@ -28353,11 +28366,37 @@
           "slug": "of",
           "url": "/reference/core/novis-spreadsheet-cell/of/",
           "examples": "novis/Spreadsheet-Cell/of"
+        },
+        {
+          "id": "Novis.Spreadsheet.Cell.rich",
+          "name": "rich",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "rich(array<{ text: string, style?: Style }> $runs): Cell",
+          "params": [
+            {
+              "kind": "param",
+              "name": "runs",
+              "type": "array<{ text: string, style?: Style }>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Cell",
+          "doc": {
+            "shortHtml": "<code>Cell::rich</code> makes one text cell from parts that each have their own font, such as one bold word.\nA part's <code>style</code> may set <code>font</code>, <code>size</code>, <code>bold</code>, <code>italic</code>, <code>strike</code>, <code>underline</code> and <code>color</code>. The cell's fill, border, alignment and format come from its row and its column.\nThe cell's <code>value</code> is <code>null</code>. A CSV file and a reader give the text of all parts together."
+          },
+          "slug": "rich",
+          "url": "/reference/core/novis-spreadsheet-cell/rich/",
+          "examples": "novis/Spreadsheet-Cell/rich"
         }
       ],
       "slug": "novis-spreadsheet-cell",
       "url": "/reference/core/novis-spreadsheet-cell/",
-      "summaryHtml": "<p>One value with its own <code>Style</code>. Make one with <code>Cell::of</code> and put it in a row in place of the value.</p>"
+      "summaryHtml": "<p>One value with its own <code>Style</code>, or one cell of rich text. Make one with <code>Cell::of</code> or <code>Cell::rich</code> and put it in a row in place of the value.</p>"
     },
     {
       "id": "Novis.Spreadsheet.Chart",

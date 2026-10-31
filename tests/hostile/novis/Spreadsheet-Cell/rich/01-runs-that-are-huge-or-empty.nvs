@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a request writes rich cells with huge, empty or hostile parts.
+// Each export should give a file or throw an error. The server keeps running.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one cell as an Excel file and as a CSV file, and prints what happened.
+    public static function attempt(int $step, Cell $cell): void
+    {
+        array<string> $formats = ['xlsx', 'csv'];
+        foreach ($formats as string $format) {
+            try {
+                bytes $file = Workbook::fromRows([['note' => $cell]], { format: $format })->bytes();
+                echo 'step ', $step, ' ', $format, ' ran ', Core\Bytes::length($file) > 0 ? 'file' : 'empty', "\n";
+            } catch (Throwable $e) {
+                echo 'step ', $step, ' ', $format, ' stopped ', $e::class, "\n";
+            }
+        }
+    }
+
+    // This method makes a rich cell and prints the error if `Cell::rich` throws one.
+    public static function make(int $step, array<{ text: string, style?: Style }> $runs): ?Cell
+    {
+        try {
+            return Cell::rich($runs);
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+            return null;
+        }
+    }
+}
+
+var $bold = Style::of({ bold: true });
+
+// 1. No parts, and parts whose text is empty.
+Attack::make(1, []);
+var $blank = Attack::make(1, [{ text: '' }, { text: '', style: $bold }]);
+if ($blank != null) {
+    Attack::attempt(1, $blank);
+}
+
+// 2. Two parts of 20,000 characters, more than one cell can contain together.
+var $huge = Attack::make(2, [{ text: Core\Str::repeat('x', 20000) }, { text: Core\Str::repeat('y', 20000), style: $bold }]);
+if ($huge != null) {
+    Attack::attempt(2, $huge);
+}
+
+// 3. 10,000 parts of one character each.
+array<{ text: string, style?: Style }> $many = [];
+for (int $at = 0; $at < 10000; $at++) {
+    $many[] = { text: 'a', style: $bold };
+}
+var $crowd = Attack::make(3, $many);
+if ($crowd != null) {
+    Attack::attempt(3, $crowd);
+}
+
+// 4. A part with XML and a formula as text, and a part whose style sets a fill.
+var $markup = Attack::make(4, [{ text: '=cmd|\' /C calc\'!A0' }, { text: '</t></r></is><f>1</f>', style: $bold }]);
+if ($markup != null) {
+    Attack::attempt(4, $markup);
+}
+Attack::make(4, [{ text: 'x', style: Style::of({ fill: '#FF0000' }) }]);

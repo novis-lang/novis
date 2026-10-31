@@ -80,9 +80,6 @@ and they are small beside the rows.
 written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `drawing.rs` and
 `chart.rs`.
 
-**Not shipped.** `Cell::rich`, so no Novis method writes rich text in one cell
-(`rule:core-classes/spreadsheet-roster`, gap:nvs-spreadsheet/spreadsheet-cell-rich).
-
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
   a feature a reader builds in Excel from the data in seconds.

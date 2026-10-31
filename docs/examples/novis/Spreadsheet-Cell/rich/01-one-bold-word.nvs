@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to write a cell with one bold word in its text.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $bold = Style::of({ bold: true });
+
+// The cell has three parts. Only the middle part is bold.
+var $note = Cell::rich([
+    { text: 'Pay ' },
+    { text: 'before Friday', style: $bold },
+    { text: ', please.' },
+]);
+
+bytes $file = Workbook::fromRows([['invoice' => 1042, 'note' => $note]])->bytes();
+
+// The reader gives the text of all parts together.
+foreach (Reader::open($file)->rows('Sheet1', { header: true }) as var $row) {
+    echo $row->values['invoice'], ': ', $row->values['note'], "\n";
+}

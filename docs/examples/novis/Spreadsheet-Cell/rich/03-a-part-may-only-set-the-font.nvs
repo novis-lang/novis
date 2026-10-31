@@ -1,0 +1,18 @@
+<?nvs
+// Shows the error you get when a part of a rich cell has a style with a fill.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+
+// `fill` is not a font field, so `Cell::rich` throws a `LogicError`.
+try {
+    Cell::rich([{ text: 'Total' }, { text: ' 42', style: Style::of({ fill: '#FFFF00' }) }]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// An empty list also throws.
+try {
+    Cell::rich([]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

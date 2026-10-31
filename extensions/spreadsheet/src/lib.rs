@@ -35,7 +35,7 @@
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 //!
-//! **Not done yet.** `Cell::rich`, writing ods and an evaluate call are named in their rules'
+//! **Not done yet.** Writing ods and an evaluate call are named in their rules'
 //! fragments. These are the rest, and none of them is checked against Excel. The tables and
 //! template bullets are gap:nvs-spreadsheet/spreadsheet-unchecked-against-excel, and the bullets
 //! from number formats on are gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:

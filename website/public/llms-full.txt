@@ -53995,21 +53995,23 @@ Returns the text of each page in `pages` of a PDF file. Pages count from 1.
 <a id="core-novis-spreadsheet-cell"></a>
 ### `Novis\Spreadsheet\Cell`
 
-Keywords: constructor, of
+Keywords: constructor, of, rich
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Cell::constructor`](#core-novis-spreadsheet-cell-constructor) | `constructor(mixed $value, Style $style)` |
+| [`Novis\Spreadsheet\Cell::constructor`](#core-novis-spreadsheet-cell-constructor) | `constructor(mixed $value, Style $style, ?array<Run> $runs = null)` |
 | [`Novis\Spreadsheet\Cell::of`](#core-novis-spreadsheet-cell-of) | `of(mixed $value, Style $style): Cell` |
+| [`Novis\Spreadsheet\Cell::rich`](#core-novis-spreadsheet-cell-rich) | `rich(array<{ text: string, style?: Style }> $runs): Cell` |
 
 <a id="core-novis-spreadsheet-cell-constructor"></a>
 #### `Novis\Spreadsheet\Cell::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Cell(mixed $value, Style $style)
+new Novis\Spreadsheet\Cell(mixed $value, Style $style, ?array<Run> $runs = null)
 ```
 
-`new Cell` makes a cell from its values. `Cell::of` makes one for you.
+`new Cell` makes a cell from its values. `Cell::of` and `Cell::rich` make one for you.
+`runs` has the parts of a rich text cell. It is `null` for every other cell.
 
 <a id="core-novis-spreadsheet-cell-of"></a>
 #### `Novis\Spreadsheet\Cell::of`
@@ -54019,6 +54021,19 @@ Novis\Spreadsheet\Cell::of(mixed $value, Style $style): Cell
 ```
 
 `Cell::of` gives `$value` the style `$style`. The cell uses each field of `$style` first, then the fields of its row and its column.
+
+**Returns** `Cell`
+
+<a id="core-novis-spreadsheet-cell-rich"></a>
+#### `Novis\Spreadsheet\Cell::rich`
+
+```nvs skip
+Novis\Spreadsheet\Cell::rich(array<{ text: string, style?: Style }> $runs): Cell
+```
+
+`Cell::rich` makes one text cell from parts that each have their own font, such as one bold word.
+A part's `style` may set `font`, `size`, `bold`, `italic`, `strike`, `underline` and `color`. The cell's fill, border, alignment and format come from its row and its column.
+The cell's `value` is `null`. A CSV file and a reader give the text of all parts together.
 
 **Returns** `Cell`
 
