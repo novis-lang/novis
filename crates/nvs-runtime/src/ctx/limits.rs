@@ -249,6 +249,21 @@ impl Ctx {
         self.arm_memory_ceiling();
     }
 
+    /// Arms nothing on this thread: no ceiling and no word to report a crossing
+    /// into, which is the state of work that serves no request.
+    ///
+    /// [`Self::set_memory_limit`] with `0` is a request under no ceiling, and
+    /// the server's own memory limit still stops it (`budget::gauge`). Work
+    /// with no request is never stopped by that limit. A release build's
+    /// [`Ctx::new`] starts in this state, and a debug build's starts under the
+    /// shipped default ceiling, so engine work and its tests call this to
+    /// leave it. A later [`Self::set_memory_limit`] or configuration arms the
+    /// context again.
+    pub fn clear_memory_ceiling(&mut self) {
+        self.memory_limit = 0;
+        crate::budget::arm(crate::budget::Armed::NONE);
+    }
+
     /// Reads this request's baseline again at the thread's balance now, starts
     /// its memory peak there, and arms its ceiling against it.
     ///
@@ -1451,12 +1466,19 @@ mod tests {
         assert!(!ctx.over_memory_limit());
     }
 
-    /// A context nobody configured is uncapped, which is why every other test
-    /// in this file allocates freely without arranging anything.
+    /// A context nobody configured has no output ceiling, and its memory
+    /// ceiling is the shipped default in a debug build and none in a release
+    /// build. Every other test in this file stays far under 128 MiB, so it
+    /// allocates freely without arranging anything.
     #[test]
     fn a_context_with_no_configuration_has_no_ceiling() {
         let ctx = Ctx::buffered();
-        assert_eq!(ctx.memory_limit(), 0);
+        let unconfigured = if cfg!(debug_assertions) {
+            usize::try_from(nvs_config::defaults::LIMITS_MEMORY).expect("128 MiB fits a usize")
+        } else {
+            0
+        };
+        assert_eq!(ctx.memory_limit(), unconfigured);
         assert!(!ctx.over_memory_limit());
         assert_eq!(ctx.output_limit(), 0);
         assert!(!ctx.over_output_limit());

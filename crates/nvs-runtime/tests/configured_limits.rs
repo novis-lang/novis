@@ -143,9 +143,16 @@ fn an_uncapped_memory_is_no_ceiling_and_a_malformed_one_is_the_default() {
     let malformed = ctx_reading("[limits]\nmemory = \"a lot\"\n");
     assert_ne!(unstated, 0, "the unstated default is a ceiling");
     assert_eq!(malformed.memory_limit(), unstated);
+    // A debug build starts every context under the shipped default, so a Rust
+    // test runs the overshoot backstop; a release build starts it uncapped.
+    let unconfigured = if cfg!(debug_assertions) {
+        usize::try_from(nvs_config::defaults::LIMITS_MEMORY).expect("128 MiB fits a usize")
+    } else {
+        0
+    };
     assert_eq!(
         Ctx::new(OutputSink::Buffer(Vec::new())).memory_limit(),
-        0,
+        unconfigured,
         "a request with no configuration at all",
     );
 }

@@ -3596,11 +3596,10 @@ mod tests {
             current: holding(&granted),
         };
         let mut ctx = Ctx::new(OutputSink::Sink);
-        assert_eq!(
-            ctx.memory_limit(),
-            0,
-            "the context the ticker builds a fire on holds no tree, so it starts uncapped"
-        );
+        // Uncapped at the start, so the ceiling read below can only be the
+        // deployment's. A debug build arms the shipped default in `Ctx::new`,
+        // so the case takes it off.
+        ctx.set_memory_limit(0);
         let built = nvs_runtime::script::scoped(&Compiles, || {
             nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
         });

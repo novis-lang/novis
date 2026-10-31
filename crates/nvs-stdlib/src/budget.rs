@@ -251,6 +251,9 @@ mod tests {
     #[test]
     fn an_uncapped_request_reads_a_ceiling_of_zero() {
         let mut ctx = Ctx::new(OutputSink::Sink);
+        // The case is a request under no cap. A debug build arms the shipped
+        // default in `Ctx::new`, so the case takes it off.
+        ctx.set_memory_limit(0);
         assert_eq!(
             answer(nvs_core_budget_memory_limit, &mut ctx),
             0,

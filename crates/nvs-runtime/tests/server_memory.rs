@@ -219,7 +219,10 @@ fn a_crossing_stops_the_request_that_grew_and_no_other() {
     // Work with no request armed is never stopped.
     std::thread::spawn(|| {
         let _gauge = budget::CoreGauge::claim();
-        let ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        // Work with no request arms nothing. A debug build arms the shipped
+        // default in `Ctx::new`, so the case takes it off.
+        ctx.clear_memory_ceiling();
         let over = vec![0_u8; 8 * MIB];
         assert!(
             !ctx.safepoint_flags().contains(SafepointFlags::MEMORY_LIMIT)
