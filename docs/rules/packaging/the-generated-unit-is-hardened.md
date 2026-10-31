@@ -1,6 +1,10 @@
 The generated unit carries what a hand-written one usually does not:
 
 ```ini
+[Unit]
+Requires=web.socket
+After=network.target web.socket
+
 [Service]
 Type=notify
 ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
@@ -12,9 +16,22 @@ ProtectHome=true
 ReadWritePaths=-/usr/bin/.nvsdata/cache -/usr/bin/.nvsdata/tmp -/usr/bin/.nvsdata/lsp -/usr/bin/.nvsdata/logs
 PrivateTmp=true
 CapabilityBoundingSet=
-AmbientCapabilities=CAP_NET_BIND_SERVICE
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallFilter=@system-service
+```
+
+and, for a server that binds a privileged port, `web.socket` beside it:
+
+```ini
+[Unit]
+PartOf=web.service
+
+[Socket]
+ListenStream=0.0.0.0:443
+ListenStream=127.0.0.1:8000
+
+[Install]
+WantedBy=sockets.target
 ```
 
 **`ReadWritePaths=` is the write half of the install's grant list, and nothing else.**
@@ -55,11 +72,13 @@ and lets `ReadWritePaths=` open the granted ones; every other unit keeps `true`.
 was the alternative, and it would refuse the common case of a binary in a user's home for no write the
 service does not already hold.
 
-`AmbientCapabilities` is emitted **only** when the addresses the server binds include a privileged
-port, so the ordinary case grants nothing at all. **The addresses, and the sockets above, are the ones
-`serve` binds:** `[server] listen` of the configuration the service reads, unless the stored argv gives
+**The socket unit is written only when the addresses the server binds include a privileged port**, and
+without one the service unit is exactly as above minus its `Requires=` and the socket in `After=`.
+**The addresses, and the sockets above, are the ones `serve` binds:** `[server] listen` of the
+configuration the service reads (`127.0.0.1:8000` when it writes none), unless the stored argv gives
 `serve` a `--listen`, which replaces the whole set with one TCP address, or a `--port`, which keeps each
-entry's host and turns a socket into TCP. Either flag therefore leaves no socket folder. An argument of
+entry's host and turns a socket into `127.0.0.1` on that port. Either flag therefore leaves no socket
+folder. An argument of
 `run` spelled `--port` is the program's and is not read. `MemoryMax` is derived from the config's
 `[limits]` rather than invented. `Type=notify` means `READY=1` after the listener binds — so
 `systemctl start` does not return before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the
@@ -74,6 +93,25 @@ The `sd_notify` protocol is a datagram to
 `$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
 `rule:packaging/a-c-dependency-answers-two-questions` does not arise.
 
-**`nvs serve` binds its own listeners**, so a privileged port is the one case where the unit grants a
-capability. The unit has no `.socket` unit beside it, and `CAP_NET_BIND_SERVICE` is the only ambient
-capability it ever names.
+**A privileged port is bound by systemd, so the service never holds `CAP_NET_BIND_SERVICE`.** The
+socket unit has one `ListenStream=` for each TCP address of the set, privileged or not, so a service's
+TCP sockets have one way in; an address with port `0` is left to `nvs serve`, since a port systemd
+chose would match no entry. A Unix socket stays `nvs serve`'s, bound under `RuntimeDirectory=` with
+`socket_mode` on it. `install` writes both files, then enables the socket ahead of the service, and
+`uninstall` disables the socket first, because while it listens a connection would start the service
+again, then removes both. A restart keeps the socket open, so a connection made during it waits
+rather than being refused.
+
+**`nvs serve` adopts what systemd passes, on Linux.** At the top of the boot, before any thread, it
+reads `LISTEN_PID` and `LISTEN_FDS` and removes both with `LISTEN_FDNAMES`. It takes the descriptors
+from 3 only when `LISTEN_PID` is its own pid, so variables inherited from a parent take nothing, and
+sets `FD_CLOEXEC` on each so no program it spawns inherits a listener. Each passed socket is the
+listener of the TCP entry on its local address; an entry with none is bound as before. A passed
+socket on an address no entry names stops the start, naming that address: `[server] listen` is
+`Boot`-class, and under activation a changed set also needs `nvs service install` again, so that
+refusal is the one place the mismatch can be seen. The protocol is two variables and a run of
+descriptors, so it needs no `libsystemd` either. Elsewhere nothing is passed and nothing changes.
+
+**Cost.** One descriptor per address, held for the life of the process; nothing per request. Declined:
+`AmbientCapabilities=CAP_NET_BIND_SERVICE` for a privileged port, because a capability the
+process holds is one a compromise of it holds too.

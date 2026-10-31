@@ -500,6 +500,37 @@ each path tells systemd to skip a folder that does not exist. If the `nvs` binar
 of these folders is in `/home`, `/root` or `/run/user`, the unit has `ProtectHome=read-only`. With
 `ProtectHome=true` the service could not read or write there.
 
+A port below 1024 is a privileged port. Only root may listen on one, and the service does not run as
+root. When `[server] listen` or the command has a privileged port, `install` also writes a socket
+unit, `/etc/systemd/system/shop.socket`. systemd listens on every TCP address of the server, and
+passes those sockets to the server when it starts. The service then needs no extra permission. A
+connection that arrives while the server restarts waits for it. A Unix socket is still created by the
+server. `unit` prints the socket unit after the service unit:
+
+```text
+$ nvs service unit shop -- serve /srv/shop/public/index.nvs --listen 0.0.0.0:443 --config /srv/shop/nvs.toml
+[Unit]
+Description=Novis service shop
+Requires=shop.socket
+After=network.target shop.socket
+...
+
+# shop.socket
+[Unit]
+Description=Novis service shop sockets
+PartOf=shop.service
+
+[Socket]
+ListenStream=0.0.0.0:443
+
+[Install]
+WantedBy=sockets.target
+```
+
+The socket unit lists the addresses that the server had when you installed it. If you change
+`[server] listen`, run `uninstall` and then `install` again. The server stops at start when systemd passes a socket for an
+address that `[server] listen` does not list.
+
 **`start`** and **`stop`** send the request to the service manager. After a stop the server drains
 (§ *Stopping and reloading: the drain*). **`status`** prints the state that the service manager
 reports:

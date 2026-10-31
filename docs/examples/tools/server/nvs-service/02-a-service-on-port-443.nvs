@@ -1,0 +1,12 @@
+<?nvs
+// Shows which ports make `nvs service install` write a socket unit beside the service unit.
+// A port from 1 to 1023 is a privileged port. Only root may listen on one.
+
+// These are the ports of `listen = ["0.0.0.0:443", "127.0.0.1:8000"]` in `[server]`.
+array<int> $ports = [443, 8000];
+
+// Port 443 is privileged, so `install` also writes `shop.socket`.
+// systemd then listens on both addresses, and the service runs without root.
+foreach ($ports as int $port) {
+    echo 'port ', $port, ': ', $port < 1024 ? 'privileged' : 'not privileged', "\n";
+}

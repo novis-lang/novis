@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/regex.rs, crates/nvs-config/src/default.toml, docs/reference/tools/20-config.md, docs/rules/config/every-block-is-argued-where-it-is-added.md]
   - id: 3
     title: "a service on a privileged port gets its socket from a systemd socket unit and holds no capability"
-    status: open
+    status: done
     context: [docs/rules/packaging/the-generated-unit-is-hardened.md, crates/nvs-cli/src/service.rs, crates/nvs-cli/src/serve.rs, docs/reference/tools/25-server.md]
   - id: 4
     title: "nvs dap answers the task tree, and the VS Code extension shows it"
@@ -346,14 +346,14 @@ what systemd passes it.
 **Split:** none. The adoption tests run in WSL with `bun nv linux-test --bin nvs adopting_`, once,
 after the build is green.
 
-- [ ] `rule:packaging/the-generated-unit-is-hardened`: `listeners` also returns the TCP addresses, and `Plan` carries them. `crates/nvs-cli/src/service.rs:5038`, `crates/nvs-cli/src/service.rs:518`
-- [ ] The `.socket` text, and `unit` adds `Requires=` and `After=` and drops `AmbientCapabilities=` when a socket unit is written. `crates/nvs-cli/src/service.rs:923`, `crates/nvs-cli/src/service.rs:985`
-- [ ] `destination`, the install actions and the uninstall actions handle both files. `crates/nvs-cli/src/service.rs:1798`, `crates/nvs-cli/src/service.rs:2691`, `crates/nvs-cli/src/service.rs:2795`
-- [ ] The tests the `socket-unit` check names, and the old `AmbientCapabilities` assertion becomes their first. `crates/nvs-cli/src/service.rs:5766`
-- [ ] `nvs serve` adopts the passed sockets on Linux before `bind_all`. `crates/nvs-cli/src/serve.rs:624`, `crates/nvs-cli/src/serve.rs:2858`
-- [ ] The tests the `socket-adoption-linux` check names, run with `bun nv linux-test`. `crates/nvs-cli/src/serve.rs:3731`
-- [ ] The server reference and the `nvs service` feature describe the socket unit, with a second example. `bun nv proofs --id 'tools:server/nvs-service'` owes nothing. `docs/reference/tools/25-server.md:391`, `docs/examples/tools/server/nvs-service/about.md:1`, `docs/examples/tools/server/nvs-service/02-a-service-on-port-443.nvs:1`
-- [ ] The fragment's example unit, its `AmbientCapabilities` paragraph and its last paragraph say what is built, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/packaging/the-generated-unit-is-hardened.md:77`
+- [x] `rule:packaging/the-generated-unit-is-hardened`: `listeners` also returns the TCP addresses, and `Plan` carries them. `crates/nvs-cli/src/service.rs:5038`, `crates/nvs-cli/src/service.rs:518`
+- [x] The `.socket` text, and `unit` adds `Requires=` and `After=` and drops `AmbientCapabilities=` when a socket unit is written. `crates/nvs-cli/src/service.rs:923`, `crates/nvs-cli/src/service.rs:985`
+- [x] `destination`, the install actions and the uninstall actions handle both files. `crates/nvs-cli/src/service.rs:1798`, `crates/nvs-cli/src/service.rs:2691`, `crates/nvs-cli/src/service.rs:2795`
+- [x] The tests the `socket-unit` check names, and the old `AmbientCapabilities` assertion becomes their first. `crates/nvs-cli/src/service.rs:5766`
+- [x] `nvs serve` adopts the passed sockets on Linux before `bind_all`. `crates/nvs-cli/src/serve.rs:624`, `crates/nvs-cli/src/serve.rs:2858`
+- [x] The tests the `socket-adoption-linux` check names, run with `bun nv linux-test`. `crates/nvs-cli/src/serve.rs:3731`
+- [x] The server reference and the `nvs service` feature describe the socket unit, with a second example. `bun nv proofs --id 'tools:server/nvs-service'` owes nothing. `docs/reference/tools/25-server.md:391`, `docs/examples/tools/server/nvs-service/about.md:1`, `docs/examples/tools/server/nvs-service/02-a-service-on-port-443.nvs:1`
+- [x] The fragment's example unit, its `AmbientCapabilities` paragraph and its last paragraph say what is built, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/packaging/the-generated-unit-is-hardened.md:77`
 
 ### 4. nvs dap answers the task tree, and the VS Code extension shows it
 
@@ -417,28 +417,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done, and all four regex checks are green. Under `deny` a pattern built at run
-time that only the backtracking engine accepts throws a `RuntimeError` at the call that compiles
-it, before that engine is built, on a cache hit as on a miss (`compiled_prepared` and `build`'s
-`Backtrack` argument in `crates/nvs-stdlib/src/regex.rs`). A malformed pattern keeps its own
-message. Only `Core\Regex::compile` takes a checked literal, so a literal given to `matches` or
-`replace` meets the run-time throw. The three conformance cases pass, the reference, the template,
-`Core\Regex::compile`'s `about.md` and the fragment say so, and gap
-`nvs-stdlib/regex-deny-at-run-time` is deleted. `directive:regex.backtracking` owes no proof.
-The sweep's `env-secret-proofs` red is stale: no such check and no log exist.
+Stages 1, 2 and 3 are done. The `socket-unit` tests pass on Windows and the `socket-adoption-linux`
+tests pass in WSL. `Host` and `Plan` carry `tcp` (the TCP addresses, `--listen` and `--port`
+applied, `127.0.0.1:8000` by default) in place of `privileged_port`. `socket_unit` renders
+`<name>.socket` when one address is privileged; `destination` takes a `UnitFile`; `Stored` has
+`socket_unit`, read by `registration::has_a_socket_unit`. `nvs serve` reads the passed sockets
+first thing in `serve::run` (`passed_by_systemd`, Linux only, it sets `FD_CLOEXEC`) and binds
+through `bind_adopting`. A port-`0` address is never in the socket unit. The reference, the
+feature (second example `02-a-service-on-port-443.nvs`) and the fragment say so, the rule's title
+changed in `data/rules/`, and gap `nvs-cli/socket-activation` is deleted. Clippy never ran over
+the Linux-only adoption code: `bun nv linux-test` builds the tests only. A rustfmt diff stage 2
+left in `crates/nvs-stdlib/src/regex.rs` is fixed in its own commit.
 
 ### Next
 
-Stage 3, socket activation, in `crates/nvs-cli/src/service.rs` and `crates/nvs-cli/src/serve.rs`.
-Stages 4 and 5 touch disjoint files and may run beside it.
+Stage 4, the adapter half first: `crates/nvs-host` and `crates/nvs-cli/src/dap`. Stage 5 touches
+disjoint files and may run beside it.
 
-- [ ] `listeners` also returns the TCP addresses, and `Plan` carries them. `crates/nvs-cli/src/service.rs:5042`, `crates/nvs-cli/src/service.rs:520`
-- [ ] The `.socket` text; `unit` adds `Requires=` and `After=` and drops `AmbientCapabilities=` when a socket unit is written. `crates/nvs-cli/src/service.rs:927`, `crates/nvs-cli/src/service.rs:990`
-- [ ] `destination`, install and uninstall handle both files. `crates/nvs-cli/src/service.rs:1802`
-- [ ] The `socket-unit` tests; the old `AmbientCapabilities` assertion becomes their first. `crates/nvs-cli/src/service.rs:5770`
-- [ ] `nvs serve` adopts passed sockets on Linux before `bind_all`, and the `socket-adoption-linux` tests run with `bun nv linux-test`. `crates/nvs-cli/src/serve.rs:624`, `crates/nvs-cli/src/serve.rs:2858`
+- [ ] `Stop` gains `parent`, filled from `Scheduler::parent_of` when the task stops. `crates/nvs-host/src/debug.rs:284`, `crates/nvs-host/src/scheduler.rs:1344`
+- [ ] `initialize` reports `supportsNvsTaskTree`, and `nvsTaskTree` is answered from the round. `crates/nvs-cli/src/dap/mod.rs:302`, `crates/nvs-cli/src/dap/mod.rs:356`, `crates/nvs-cli/src/dap/stopped.rs:128`
+- [ ] The `dap-task-tree` tests. `crates/nvs-cli/tests/dap.rs:609`
+- [ ] Then the VS Code view through one writing subagent, as the stage's Split says. `editors/vscode/src/debug.ts:34`, `editors/vscode/package.json:313`
 
-No test is expected to go red.
+No test is expected to go red. The `the_listen_flags_of_serve_decide_the_port_and_the_sockets`
+test in `crates/nvs-cli/src/service.rs` now asserts addresses where it asserted a flag.
 
 ### Backlog
 

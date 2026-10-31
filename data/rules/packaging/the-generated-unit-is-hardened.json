@@ -1,5 +1,5 @@
 {
-  "title": "The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port",
+  "title": "The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and a socket unit for a privileged port, so the service holds no capability",
   "status": "shipped",
   "seeAlso": [
     "packaging/the-unit-is-printed-and-install-is-the-opt-in",
