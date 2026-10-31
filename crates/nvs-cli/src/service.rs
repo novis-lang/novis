@@ -516,10 +516,11 @@ pub(crate) struct Host {
     /// `[limits] memory`, which `rule:packaging/the-generated-unit-is-hardened` derives `MemoryMax` from rather than
     /// inventing one.
     pub(crate) memory_max: Option<String>,
-    /// Whether the server binds a privileged port, which is the only condition
-    /// under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
-    /// [`listeners`] answers it.
-    pub(crate) privileged_port: bool,
+    /// The TCP addresses the server binds, as `host:port`. One with a
+    /// privileged port is the only condition under which
+    /// `rule:packaging/the-generated-unit-is-hardened` writes a socket unit
+    /// ([`socket_unit`]). [`listeners`] answers it.
+    pub(crate) tcp: Vec<String>,
     /// The Unix sockets the server binds, as written: the sockets whose folders
     /// `rule:packaging/the-generated-unit-is-hardened` creates or opens. [`listeners`] answers it.
     pub(crate) sockets: Vec<String>,
@@ -559,7 +560,8 @@ pub(crate) struct Plan {
     argv: Vec<String>,
     account: Option<String>,
     memory_max: Option<String>,
-    privileged_port: bool,
+    /// [`Host::tcp`].
+    tcp: Vec<String>,
     /// [`Host::sockets`].
     sockets: Vec<String>,
     /// [`Host::socket_mode`].
@@ -735,7 +737,7 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         argv,
         account: request.account.map(str::to_owned),
         memory_max: host.memory_max.clone(),
-        privileged_port: host.privileged_port,
+        tcp: host.tcp.clone(),
         sockets: host.sockets.clone(),
         socket_mode: host.socket_mode,
         data: host.data_folder.clone(),
@@ -909,10 +911,11 @@ pub(crate) fn image_path(plan: &Plan) -> String {
 /// `rule:packaging/the-generated-unit-is-hardened`'s systemd unit, rendered from a checked plan.
 ///
 /// Some of its lines are conditions rather than constants, and each is stated
-/// in that section: `AmbientCapabilities` is emitted **only** when the
-/// addresses the server binds include a privileged port ([`listeners`]), so
-/// the ordinary case grants nothing at all, and `MemoryMax` is derived from
-/// `[limits]` rather than invented.
+/// in that section: when the addresses the server binds include a privileged
+/// port ([`listeners`]), the unit `Requires=` the [`socket_unit`] that binds
+/// them and is ordered after it, so the service itself never holds
+/// `CAP_NET_BIND_SERVICE`. `MemoryMax` is derived from `[limits]` rather than
+/// invented.
 ///
 /// `ReadWritePaths=` is the write half of [`registration::grants`] and the
 /// folder of each socket outside `/run`, `RuntimeDirectory=` the folder of
@@ -931,7 +934,13 @@ pub(crate) fn unit(plan: &Plan) -> String {
         "Description=Novis service {}\n",
         plan.name.replace('%', "%%")
     ));
-    out.push_str("After=network.target\n\n");
+    if socket_activated(plan) {
+        let socket = unit_word(&format!("{}.socket", plan.name.replace('%', "%%")));
+        out.push_str(&format!("Requires={socket}\n"));
+        out.push_str(&format!("After=network.target {socket}\n\n"));
+    } else {
+        out.push_str("After=network.target\n\n");
+    }
 
     out.push_str("[Service]\n");
     out.push_str("Type=notify\n");
@@ -986,15 +995,56 @@ pub(crate) fn unit(plan: &Plan) -> String {
     }
     out.push_str("PrivateTmp=true\n");
     out.push_str("CapabilityBoundingSet=\n");
-    if plan.privileged_port {
-        out.push_str("AmbientCapabilities=CAP_NET_BIND_SERVICE\n");
-    }
     out.push_str("RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX\n");
     out.push_str("SystemCallFilter=@system-service\n\n");
 
     out.push_str("[Install]\n");
     out.push_str("WantedBy=multi-user.target\n");
     out
+}
+
+/// Whether the plan's server binds a privileged port, which is the one case
+/// in which `rule:packaging/the-generated-unit-is-hardened` has systemd bind
+/// its TCP addresses through a [`socket_unit`].
+fn socket_activated(plan: &Plan) -> bool {
+    plan.tcp
+        .iter()
+        .any(|address| port_of(address).is_some_and(privileged_port))
+}
+
+/// `rule:packaging/the-generated-unit-is-hardened`'s socket unit, written
+/// beside the service when [`socket_activated`] says so, and `None` otherwise.
+///
+/// It has one `ListenStream=` for each TCP address of the set, privileged or
+/// not, so every TCP socket of the service is acquired the same way. An
+/// address with port `0` is left out: `nvs serve` binds it itself, because a
+/// port systemd chose would match no `listen` entry. A Unix socket is not
+/// listed either, since `nvs serve` binds it under `RuntimeDirectory=` with
+/// `[server] socket_mode` on it. Every value is a [`unit_word`] with its `%`
+/// doubled, as in [`unit`].
+pub(crate) fn socket_unit(plan: &Plan) -> Option<String> {
+    if !socket_activated(plan) {
+        return None;
+    }
+    let name = plan.name.replace('%', "%%");
+    let mut out = String::new();
+    out.push_str("[Unit]\n");
+    out.push_str(&format!("Description=Novis service {name} sockets\n"));
+    out.push_str(&format!(
+        "PartOf={}\n\n",
+        unit_word(&format!("{name}.service"))
+    ));
+    out.push_str("[Socket]\n");
+    for address in plan.tcp.iter().filter(|address| port_of(address) != Some(0)) {
+        out.push_str(&format!(
+            "ListenStream={}\n",
+            unit_word(&address.replace('%', "%%"))
+        ));
+    }
+    out.push('\n');
+    out.push_str("[Install]\n");
+    out.push_str("WantedBy=sockets.target\n");
+    Some(out)
 }
 
 /// The folders the sockets `sockets` are created in, split the way
@@ -1799,10 +1849,35 @@ mod systemd {
 /// `root` is the system unit directory rather than a constant, so the printing
 /// half of `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` can be asserted against a directory a test owns and can then
 /// find still empty.
-pub(crate) fn destination(delivery: Delivery, name: &str, root: &Path) -> Option<PathBuf> {
+pub(crate) fn destination(
+    delivery: Delivery,
+    name: &str,
+    root: &Path,
+    file: UnitFile,
+) -> Option<PathBuf> {
     match delivery {
         Delivery::Print => None,
-        Delivery::Install => Some(root.join(format!("{name}.service"))),
+        Delivery::Install => Some(root.join(format!("{name}.{}", file.suffix()))),
+    }
+}
+
+/// The two files a systemd install can write: the service, and the
+/// [`socket_unit`] a privileged port adds beside it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum UnitFile {
+    /// `<name>.service`, which [`unit`] renders.
+    Service,
+    /// `<name>.socket`, which [`socket_unit`] renders.
+    Socket,
+}
+
+impl UnitFile {
+    /// The file's suffix, which is also the unit type systemd reads it as.
+    fn suffix(self) -> &'static str {
+        match self {
+            Self::Service => "service",
+            Self::Socket => "socket",
+        }
     }
 }
 
@@ -1993,6 +2068,9 @@ pub(crate) mod registration {
         /// The binary the service runs, read back with the argv, whose
         /// default data folder is the one the install granted on.
         pub(crate) exe: Option<PathBuf>,
+        /// Whether the install wrote a [`socket_unit`] beside the service,
+        /// which an uninstall disables and removes too.
+        pub(crate) socket_unit: bool,
     }
 
     /// A Linux account as the password database holds it: what `User=` names
@@ -2692,10 +2770,20 @@ pub(crate) mod registration {
             }
             Platform::Linux => {
                 let mut out = vec![Action::WriteUnit {
-                    path: destination(Delivery::Install, &plan.name, unit_root)
+                    path: destination(Delivery::Install, &plan.name, unit_root, UnitFile::Service)
                         .expect("an installing delivery names a unit file"),
                     text: unit(plan),
                 }];
+                // The socket unit the service `Requires=`, written before
+                // `daemon-reload` reads either of them.
+                let socket = socket_unit(plan);
+                if let Some(text) = &socket {
+                    out.push(Action::WriteUnit {
+                        path: destination(Delivery::Install, &plan.name, unit_root, UnitFile::Socket)
+                            .expect("an installing delivery names a unit file"),
+                        text: text.clone(),
+                    });
+                }
                 // Then, and never before: `daemon-reload` is what makes the
                 // file a unit systemd knows about, and an `enable` ahead of it
                 // would be asked about a name it has not read yet.
@@ -2722,13 +2810,25 @@ pub(crate) mod registration {
                     }
                 }
                 if registration.start.enabled() {
-                    out.push(Action::Systemctl {
-                        argv: vec!["enable".to_owned(), plan.name.clone()],
-                    });
+                    // The socket first, so it is listening before the service
+                    // that adopts it is started.
+                    let mut argv = vec!["enable".to_owned()];
+                    if socket.is_some() {
+                        argv.push(format!("{}.socket", plan.name));
+                    }
+                    argv.push(plan.name.clone());
+                    out.push(Action::Systemctl { argv });
                 }
                 out
             }
         }
+    }
+
+    /// Whether an install wrote a [`socket_unit`] for the service `name` into
+    /// `unit_root`, which is what [`Stored::socket_unit`] is read back from.
+    pub(crate) fn has_a_socket_unit(name: &str, unit_root: &Path) -> bool {
+        destination(Delivery::Install, name, unit_root, UnitFile::Socket)
+            .is_some_and(|socket| socket.is_file())
     }
 
     /// `uninstall`'s steps, which leave no key, no source, no unit and no
@@ -2771,13 +2871,25 @@ pub(crate) mod registration {
                 out
             }
             Platform::Linux => {
-                let mut out = vec![Action::Systemctl {
+                // The socket first: while it still listens, a connection to it
+                // would start the service again.
+                let mut out = Vec::new();
+                if stored.socket_unit {
+                    out.push(Action::Systemctl {
+                        argv: vec![
+                            "disable".to_owned(),
+                            "--now".to_owned(),
+                            format!("{}.socket", stored.name),
+                        ],
+                    });
+                }
+                out.push(Action::Systemctl {
                     argv: vec![
                         "disable".to_owned(),
                         "--now".to_owned(),
                         stored.name.clone(),
                     ],
-                }];
+                });
                 // A unit with no `User=` ran as root, and the install gave
                 // root nothing.
                 if stored.account != "root" {
@@ -2796,9 +2908,20 @@ pub(crate) mod registration {
                     }
                 }
                 out.push(Action::RemoveUnit {
-                    path: destination(Delivery::Install, &stored.name, unit_root)
+                    path: destination(Delivery::Install, &stored.name, unit_root, UnitFile::Service)
                         .expect("an installing delivery names a unit file"),
                 });
+                if stored.socket_unit {
+                    out.push(Action::RemoveUnit {
+                        path: destination(
+                            Delivery::Install,
+                            &stored.name,
+                            unit_root,
+                            UnitFile::Socket,
+                        )
+                        .expect("an installing delivery names a unit file"),
+                    });
+                }
                 out.push(Action::Systemctl {
                     argv: vec!["daemon-reload".to_owned()],
                 });
@@ -3214,9 +3337,10 @@ pub(crate) mod registration {
         }
 
         fn stored(&self, name: &str, unit_root: &Path) -> std::io::Result<Stored> {
-            let path = destination(Delivery::Install, name, unit_root)
+            let path = destination(Delivery::Install, name, unit_root, UnitFile::Service)
                 .expect("an installing delivery names a unit file");
             let text = std::fs::read_to_string(path)?;
+            let socket_unit = has_a_socket_unit(name, unit_root);
             let mut argv = Vec::new();
             let mut exe = None;
             // A unit with no `User=` runs as root, which is what the grants
@@ -3242,6 +3366,7 @@ pub(crate) mod registration {
                 temp_root: None,
                 data_folder: None,
                 exe,
+                socket_unit,
             })
         }
 
@@ -3616,6 +3741,7 @@ pub(crate) mod registration {
                     temp_root: None,
                     data_folder: None,
                     exe,
+                    socket_unit: false,
                 })
             }
 
@@ -4533,13 +4659,25 @@ pub(crate) fn print_unit(
             image_path(&plan)
         )
     } else {
-        unit(&plan)
+        // A socket unit follows its service, after a comment naming its file,
+        // so the output says which text an install writes where.
+        let mut text = unit(&plan);
+        if let Some(socket) = socket_unit(&plan) {
+            text.push_str(&format!("\n# {}.socket\n", plan.name));
+            text.push_str(&socket);
+        }
+        text
     };
     // Through the same seam an install will use, rather than around it: the
     // printing delivery is the one that has no destination, and routing this
     // command past `destination` would leave that a comment instead of the
     // thing that decides.
-    let destination = destination(Delivery::Print, &plan.name, Path::new(UNIT_DIRECTORY));
+    let destination = destination(
+        Delivery::Print,
+        &plan.name,
+        Path::new(UNIT_DIRECTORY),
+        UnitFile::Service,
+    );
     if let Err(error) = deliver(&text, destination.as_deref()) {
         eprintln!("error: could not write the unit: {error}");
         return ExitCode::FAILURE;
@@ -4996,13 +5134,13 @@ fn describe_host(
         .filter(|root| !root.is_empty())
         .map(PathBuf::from);
 
-    let (privileged_port, sockets) = listeners(listen, argv);
+    let (tcp, sockets) = listeners(listen, argv);
 
     Ok(Host {
         exe,
         from_a_bundle: crate::bundle::embedded().is_some(),
         memory_max,
-        privileged_port,
+        tcp,
         sockets,
         socket_mode,
         log_file: target
@@ -5030,16 +5168,17 @@ fn data_folder(argv: &[String], exe: &Path) -> Option<nvs_config::data::Folder> 
     }
 }
 
-/// Whether the server a stored `argv` starts binds a privileged port, and the
-/// Unix sockets it binds, given `listen`, the `[server] listen` value of the
-/// configuration it reads.
+/// The TCP addresses and the Unix sockets the server a stored `argv` starts
+/// binds, given `listen`, the `[server] listen` value of the configuration it
+/// reads, which is `127.0.0.1:8000` when that writes none.
 ///
 /// `serve`'s flags have the last word, as `serve::addresses` applies them:
 /// `--listen` replaces the whole set with one TCP address, and `--port` keeps
-/// each entry's host and turns a Unix entry into TCP, so either flag leaves no
-/// socket. The flags are read for `serve` alone, because an argument of `run`
+/// each entry's host and turns a Unix entry into `127.0.0.1` on that port, so
+/// either flag leaves no socket. Two entries the flag makes one address are
+/// one. The flags are read for `serve` alone, because an argument of `run`
 /// spelled `--port` belongs to the program.
-fn listeners(listen: Option<&toml::Value>, argv: &[String]) -> (bool, Vec<String>) {
+fn listeners(listen: Option<&toml::Value>, argv: &[String]) -> (Vec<String>, Vec<String>) {
     let serving = argv.first().is_some_and(|word| word == "serve");
     let flag = |option| {
         serving
@@ -5047,24 +5186,48 @@ fn listeners(listen: Option<&toml::Value>, argv: &[String]) -> (bool, Vec<String
             .flatten()
     };
     if let Some(address) = flag("--listen") {
-        return (port_of(address).is_some_and(privileged_port), Vec::new());
+        return (vec![address.to_owned()], Vec::new());
     }
+    let written = listen.map_or_else(
+        || {
+            nvs_config::defaults::SERVER_LISTEN
+                .iter()
+                .map(|&entry| entry.to_owned())
+                .collect()
+        },
+        entries,
+    );
     if let Some(port) = flag("--port") {
-        return (port.parse().is_ok_and(privileged_port), Vec::new());
+        let mut tcp: Vec<String> = Vec::new();
+        for entry in &written {
+            let host = match entry.rsplit_once(':') {
+                Some((host, _)) if !entry.starts_with('/') => host,
+                _ => "127.0.0.1",
+            };
+            let address = format!("{host}:{port}");
+            if port == "0" || !tcp.contains(&address) {
+                tcp.push(address);
+            }
+        }
+        return (tcp, Vec::new());
     }
-    (
-        listen.is_some_and(privileged),
-        listen.map(sockets).unwrap_or_default(),
-    )
+    // An entry is a socket when it begins with `/`, which no `host:port` can.
+    written
+        .into_iter()
+        .partition(|entry| !entry.starts_with('/'))
 }
 
-/// Whether a `[server] listen` value — one address or a list of them — names a
-/// privileged port.
-fn privileged(listen: &toml::Value) -> bool {
+/// Every entry of a `[server] listen` value, one address or a list of them,
+/// as written.
+fn entries(listen: &toml::Value) -> Vec<String> {
     match listen {
-        toml::Value::String(address) => port_of(address).is_some_and(privileged_port),
-        toml::Value::Array(addresses) => addresses.iter().any(privileged),
-        _ => false,
+        toml::Value::String(entry) => vec![entry.clone()],
+        toml::Value::Array(entries) => entries
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -5084,16 +5247,6 @@ fn privileged_port(port: u16) -> bool {
 /// `[server] socket_mode` when the configuration writes none.
 const DEFAULT_SOCKET_MODE: u32 = 0o660;
 
-/// The Unix-socket entries of a `[server] listen` value — one address or a
-/// list of them. An entry is a socket when it begins with `/`, which no
-/// `host:port` can.
-fn sockets(listen: &toml::Value) -> Vec<String> {
-    match listen {
-        toml::Value::String(entry) if entry.starts_with('/') => vec![entry.clone()],
-        toml::Value::Array(entries) => entries.iter().flat_map(sockets).collect(),
-        _ => Vec::new(),
-    }
-}
 
 /// A refusal, rendered as the diagnostic it is.
 fn refuse(diagnostic: Diagnostic, sources: &mut SourceMap) -> ExitCode {
@@ -5170,7 +5323,7 @@ mod tests {
             exe: PathBuf::from(absolute("bin/nvs")),
             from_a_bundle: false,
             memory_max: Some("512M".to_owned()),
-            privileged_port: false,
+            tcp: Vec::new(),
             sockets: Vec::new(),
             socket_mode: DEFAULT_SOCKET_MODE,
             // Both named, so `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is exercised whole rather than
@@ -5694,7 +5847,7 @@ mod tests {
                 argv: argv.clone(),
                 account: None,
                 memory_max: None,
-                privileged_port: false,
+                tcp: Vec::new(),
                 sockets: Vec::new(),
                 socket_mode: DEFAULT_SOCKET_MODE,
                 data: None,
@@ -5728,7 +5881,7 @@ mod tests {
             argv: argv(),
             account: Some("nvs-web".to_owned()),
             memory_max: Some("512M".to_owned()),
-            privileged_port: false,
+            tcp: Vec::new(),
             sockets: Vec::new(),
             socket_mode: DEFAULT_SOCKET_MODE,
             data: None,
@@ -5764,21 +5917,14 @@ mod tests {
         // No socket, so no folder is created for one.
         assert!(!text.contains("RuntimeDirectory"), "{text}");
 
-        // `rule:packaging/the-generated-unit-is-hardened`'s capability condition: nothing is granted unless a privileged
-        // port is configured, asserted on both sides so a generator that
-        // always emitted it would fail here rather than read plausibly.
-        assert!(!text.contains("AmbientCapabilities"));
-        let mut privileged = plan;
-        privileged.privileged_port = true;
-        assert!(unit(&privileged).contains("AmbientCapabilities=CAP_NET_BIND_SERVICE"));
-
         // Printed, and written only on install: the printing delivery has no
         // destination at all, so a directory it was pointed at is still empty
         // afterwards, while the installing one names the unit file.
         let root = nvs_repo::scratch("service");
-        assert_eq!(destination(Delivery::Print, "web", &root), None);
-        deliver(&text, destination(Delivery::Print, "web", &root).as_deref())
-            .expect("the printing delivery");
+        let print = |file| destination(Delivery::Print, "web", &root, file);
+        assert_eq!(print(UnitFile::Service), None);
+        assert_eq!(print(UnitFile::Socket), None);
+        deliver(&text, print(UnitFile::Service).as_deref()).expect("the printing delivery");
         assert_eq!(
             std::fs::read_dir(&root).expect("readable").count(),
             0,
@@ -5786,11 +5932,171 @@ mod tests {
             root.display()
         );
 
-        let installed = destination(Delivery::Install, "web", &root).expect("a destination");
+        let installed = destination(Delivery::Install, "web", &root, UnitFile::Service)
+            .expect("a destination");
         assert_eq!(installed, root.join("web.service"));
+        assert_eq!(
+            destination(Delivery::Install, "web", &root, UnitFile::Socket),
+            Some(root.join("web.socket"))
+        );
         deliver(&text, Some(&installed)).expect("the installing delivery");
         assert_eq!(std::fs::read_to_string(&installed).expect("written"), text);
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// A plan whose server listens on `tcp`, and on nothing else.
+    fn listening_on(tcp: &[&str]) -> Plan {
+        let argv = argv();
+        let host = Host {
+            tcp: tcp.iter().map(|&address| address.to_owned()).collect(),
+            ..host()
+        };
+        plan(&request(&argv), &host).expect("a plan")
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`: a privileged port in
+    /// the set gives the service a socket unit, and the service requires it
+    /// and starts after it.
+    #[test]
+    fn socket_activation_writes_a_socket_unit_for_a_privileged_port() {
+        let plan = listening_on(&["0.0.0.0:443"]);
+        let socket = socket_unit(&plan).expect("a socket unit");
+        for line in [
+            "[Socket]\n",
+            "ListenStream=0.0.0.0:443\n",
+            "PartOf=web.service\n",
+            "WantedBy=sockets.target\n",
+        ] {
+            assert!(socket.contains(line), "missing `{line}` in\n{socket}");
+        }
+        let service = unit(&plan);
+        assert!(service.contains("Requires=web.socket\n"), "{service}");
+        assert!(
+            service.contains("After=network.target web.socket\n"),
+            "{service}"
+        );
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`'s capability condition,
+    /// asserted on both sides: the service holds no capability with a
+    /// privileged port, and none without one, because systemd binds the port.
+    #[test]
+    fn socket_activation_leaves_the_service_no_capability() {
+        for plan in [listening_on(&["0.0.0.0:80"]), listening_on(&["127.0.0.1:8000"])] {
+            let text = unit(&plan);
+            assert!(!text.contains("AmbientCapabilities"), "{text}");
+            assert!(text.contains("CapabilityBoundingSet=\n"), "{text}");
+        }
+    }
+
+    /// Every TCP address of the set is a `ListenStream=`, privileged or not,
+    /// except port `0`, and no Unix socket is one.
+    #[test]
+    fn socket_activation_lists_every_tcp_address_and_no_unix_path() {
+        let mut plan = listening_on(&["0.0.0.0:80", "[::1]:8000", "127.0.0.1:0"]);
+        plan.sockets = vec!["/run/shop/nvs.sock".to_owned()];
+        let socket = socket_unit(&plan).expect("a socket unit");
+        let listed: Vec<&str> = socket
+            .lines()
+            .filter_map(|line| line.strip_prefix("ListenStream="))
+            .collect();
+        assert_eq!(listed, ["0.0.0.0:80", "[::1]:8000"], "{socket}");
+        // The socket is still `nvs serve`'s, in the folder the service gets.
+        assert!(unit(&plan).contains("RuntimeDirectory=shop\n"));
+    }
+
+    /// Without a privileged port nothing changes: no socket unit, no
+    /// `Requires=`, and an install writes one file.
+    #[test]
+    fn socket_activation_is_not_used_without_a_privileged_port() {
+        let plan = listening_on(&["127.0.0.1:8000", "[::1]:8443"]);
+        assert_eq!(socket_unit(&plan), None);
+        let text = unit(&plan);
+        assert!(!text.contains("Requires="), "{text}");
+        assert!(text.contains("After=network.target\n"), "{text}");
+        let root = unit_root("socket-activation-none");
+        let writes = registration::install_actions(
+            registration::Platform::Linux,
+            &plan,
+            &registration(),
+            &root,
+        )
+        .into_iter()
+        .filter(|action| matches!(action, registration::Action::WriteUnit { .. }))
+        .count();
+        assert_eq!(writes, 1);
+    }
+
+    /// An install writes both files before the reload and enables the socket
+    /// first. An uninstall disables the socket first and removes both files.
+    #[test]
+    fn socket_activation_install_enables_the_socket_and_uninstall_removes_it() {
+        use registration::Action;
+
+        let plan = listening_on(&["0.0.0.0:443"]);
+        let root = unit_root("socket-activation-install");
+        let installed = registration::install_actions(
+            registration::Platform::Linux,
+            &plan,
+            &registration(),
+            &root,
+        );
+        assert_eq!(
+            installed[1],
+            Action::WriteUnit {
+                path: root.join("web.socket"),
+                text: socket_unit(&plan).expect("a socket unit"),
+            }
+        );
+        assert_eq!(
+            installed[2],
+            Action::Systemctl {
+                argv: vec!["daemon-reload".to_owned()]
+            }
+        );
+        assert_eq!(
+            installed.last(),
+            Some(&Action::Systemctl {
+                argv: vec!["enable".to_owned(), "web.socket".to_owned(), "web".to_owned()]
+            })
+        );
+
+        // The reader finds the socket unit beside the service once it exists.
+        assert!(!registration::has_a_socket_unit("web", &root));
+        std::fs::write(root.join("web.socket"), "[Socket]\n").expect("a written socket unit");
+        assert!(registration::has_a_socket_unit("web", &root));
+
+        let stored = registration::Stored {
+            name: "web".to_owned(),
+            argv: argv(),
+            account: "root".to_owned(),
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            data_folder: None,
+            exe: None,
+            socket_unit: true,
+        };
+        let removed =
+            registration::uninstall_actions(registration::Platform::Linux, &stored, &root);
+        assert_eq!(
+            removed[0],
+            Action::Systemctl {
+                argv: vec![
+                    "disable".to_owned(),
+                    "--now".to_owned(),
+                    "web.socket".to_owned()
+                ]
+            }
+        );
+        for file in ["web.service", "web.socket"] {
+            assert!(
+                removed.contains(&Action::RemoveUnit {
+                    path: root.join(file)
+                }),
+                "{file} is not removed: {removed:?}"
+            );
+        }
     }
 
     /// The `WatchdogSec=30` line [`unit`] renders is a promise: the manager
@@ -5964,7 +6270,7 @@ mod tests {
             argv,
             account: None,
             memory_max: None,
-            privileged_port: false,
+            tcp: Vec::new(),
             sockets: Vec::new(),
             socket_mode: DEFAULT_SOCKET_MODE,
             data: None,
@@ -6019,9 +6325,16 @@ mod tests {
         let server: toml::Table =
             toml::from_str(r#"listen = ["127.0.0.1:8000", "/run/shop/nvs.sock", "[::1]:80"]"#)
                 .expect("a listen list");
-        assert_eq!(sockets(&server["listen"]), vec!["/run/shop/nvs.sock"]);
+        let serve = vec!["serve".to_owned()];
+        assert_eq!(
+            listeners(Some(&server["listen"]), &serve).1,
+            vec!["/run/shop/nvs.sock"]
+        );
         let one: toml::Table = toml::from_str(r#"listen = "/run/shop/nvs.sock""#).expect("one");
-        assert_eq!(sockets(&one["listen"]), vec!["/run/shop/nvs.sock"]);
+        assert_eq!(
+            listeners(Some(&one["listen"]), &serve),
+            (Vec::new(), vec!["/run/shop/nvs.sock".to_owned()])
+        );
     }
 
     /// `rule:packaging/the-generated-unit-is-hardened`'s capability and socket
@@ -6040,49 +6353,56 @@ mod tests {
             toml::from_str(r#"listen = ["127.0.0.1:8000", "/run/shop/nvs.sock"]"#).expect("a list");
         let listen = Some(&config["listen"]);
         let socket = vec!["/run/shop/nvs.sock".to_owned()];
+        let tcp = |addresses: &[&str]| words(addresses);
 
         assert_eq!(
             listeners(listen, &words(&["serve", "/srv/app.nvs"])),
-            (false, socket.clone())
+            (tcp(&["127.0.0.1:8000"]), socket.clone())
         );
+        // `--port` turns the socket into loopback on that port, which is the
+        // TCP entry's address too, so the two are one.
         assert_eq!(
             listeners(listen, &words(&["serve", "/srv/app.nvs", "--port", "80"])),
-            (true, Vec::new())
+            (tcp(&["127.0.0.1:80"]), Vec::new())
         );
         assert_eq!(
             listeners(listen, &words(&["serve", "/srv/app.nvs", "--port=8080"])),
-            (false, Vec::new())
+            (tcp(&["127.0.0.1:8080"]), Vec::new())
         );
         assert_eq!(
             listeners(
                 listen,
                 &words(&["serve", "/srv/app.nvs", "--listen", "0.0.0.0:443"])
             ),
-            (true, Vec::new())
+            (tcp(&["0.0.0.0:443"]), Vec::new())
         );
         assert_eq!(
             listeners(
                 listen,
                 &words(&["serve", "/srv/app.nvs", "--listen=[::1]:8443"])
             ),
-            (false, Vec::new())
+            (tcp(&["[::1]:8443"]), Vec::new())
         );
         assert_eq!(
             listeners(listen, &words(&["run", "/srv/job.nvs", "--port", "80"])),
-            (false, socket)
+            (tcp(&["127.0.0.1:8000"]), socket)
         );
 
         let privileged: toml::Table = toml::from_str(r#"listen = "0.0.0.0:80""#).expect("one");
         assert_eq!(
             listeners(Some(&privileged["listen"]), &words(&["serve"])),
-            (true, Vec::new())
+            (tcp(&["0.0.0.0:80"]), Vec::new())
         );
-        let ephemeral: toml::Table = toml::from_str(r#"listen = "127.0.0.1:0""#).expect("one");
+        let two: toml::Table =
+            toml::from_str(r#"listen = ["0.0.0.0:80", "[::1]:8000"]"#).expect("two");
         assert_eq!(
-            listeners(Some(&ephemeral["listen"]), &words(&["serve"])),
-            (false, Vec::new())
+            listeners(Some(&two["listen"]), &words(&["serve", "--port", "443"])),
+            (tcp(&["0.0.0.0:443", "[::1]:443"]), Vec::new())
         );
-        assert_eq!(listeners(None, &words(&["serve"])), (false, Vec::new()));
+        assert_eq!(
+            listeners(None, &words(&["serve"])),
+            (tcp(&["127.0.0.1:8000"]), Vec::new())
+        );
     }
 
     /// The one `ExecStart` line of a unit, without its key.
@@ -6520,6 +6840,7 @@ mod tests {
             temp_root: host.temp_root.clone(),
             data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
             exe: Some(PathBuf::from(absolute("bin/nvs"))),
+            socket_unit: false,
         };
 
         let installed = registration::install_actions(
@@ -6624,6 +6945,7 @@ mod tests {
             temp_root: None,
             data_folder: None,
             exe,
+            socket_unit: false,
         };
         let beside = |exe: &Path| {
             nvs_config::trust::canonical(exe)
@@ -6797,6 +7119,7 @@ mod tests {
             temp_root: owned_host().temp_root,
             data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
             exe: Some(PathBuf::from(absolute("bin/nvs"))),
+            socket_unit: false,
         };
         let removed = registration::uninstall_actions(Platform::Linux, &stored, &root);
         let disowned: Vec<(PathBuf, u32)> = removed
@@ -7375,6 +7698,7 @@ mod tests {
                 temp_root: None,
                 data_folder: None,
                 exe: None,
+                socket_unit: false,
             });
             let site = registration::Site {
                 platform: registration::Platform::host(),
