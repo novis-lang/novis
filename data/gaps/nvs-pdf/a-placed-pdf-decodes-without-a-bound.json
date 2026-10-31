@@ -1,0 +1,6 @@
+{
+  "module": "extensions/pdf/src/layout/image.rs",
+  "title": "A PDF placed with `<img>` is opened under the reader's decompression bound, but `krilla` decodes its page's streams when the document is written, outside `read::under`, so only the component's memory limit stops a bomb in it.",
+  "text": "Closing it runs the write of a placed page under the render's `read::Bound`, so a placed bomb throws `ParseError` naming the bound as `Reader::open` does, adds a hostile step under `tests/hostile/novis/Pdf-Document/fromHtml/` and a test in `extensions/pdf/tests/read.rs`, names the case in `rule:core-classes/decompression-bound`, and deletes this record.",
+  "goal": "release-polish"
+}
