@@ -128,11 +128,19 @@ struct Open {
 }
 
 /// The cell `attrs` describe, with its formula as A1 text and no column yet, or `None` for a
-/// cell with no value type. A formula the translator cannot read is empty text.
+/// cell with no value type and no formula. A formula with no value type has no cached result,
+/// as an xlsx `<c>` with an `<f>` and no `<v>`. A formula the translator cannot read is empty
+/// text.
 fn typed_cell(attrs: &[u8]) -> Result<Option<RawCell>, Error> {
     let formula = xml::attr_text(attrs, b"formula")?
         .map(|text| crate::openformula::to_a1(&text).unwrap_or_default());
-    Ok(value_cell(attrs)?.map(|cell| RawCell { formula, ..cell }))
+    Ok(match value_cell(attrs)? {
+        Some(cell) => Some(RawCell { formula, ..cell }),
+        None => formula.map(|formula| RawCell {
+            formula: Some(formula),
+            ..RawCell::default()
+        }),
+    })
 }
 
 /// The cell `attrs` describe by their value type alone.
