@@ -147,7 +147,11 @@ fn component(dir: &Path) -> Result<Option<nvs_ext::manifest::Manifest>, ExitCode
     };
     // A package with no `.nvsx` compiles as before, so this command never makes the checks that
     // only a pack needs, such as the license file.
-    if !manifest.files.iter().any(|file| super::pack::is_component(file)) {
+    if !manifest
+        .files
+        .iter()
+        .any(|file| super::pack::is_component(file))
+    {
         return Ok(None);
     }
     super::pack::file_set(dir, &manifest)
