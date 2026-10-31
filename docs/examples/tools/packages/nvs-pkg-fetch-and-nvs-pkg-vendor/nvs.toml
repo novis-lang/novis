@@ -1,0 +1,4 @@
+# Loads the extension of the package `Shop\Ledger`. `nvs pkg fetch` printed this entry.
+[[extension]]
+path   = "vendor/shop/ledger/ledger.nvsx"
+sha256 = "3112cf3359166c7a83a052ca0f21537ef8e1f87a6873d0b4c7d96b8b7fd4e1b6"

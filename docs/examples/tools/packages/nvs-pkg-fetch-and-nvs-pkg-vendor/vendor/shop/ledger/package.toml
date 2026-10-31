@@ -1,0 +1,7 @@
+[package]
+name = 'Shop\Ledger'
+version = "1.0.0"
+files = ["ledger.nvsx"]
+
+[capabilities]
+required = []

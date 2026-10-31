@@ -1,0 +1,11 @@
+<?nvs
+namespace Shop\Ledger;
+
+final class Price
+{
+    // Returns a price in cents as text. The extension adds its currency.
+    public static function show(int $cents): string
+    {
+        return Shop\Ledger\Receipt::line('total', $cents);
+    }
+}

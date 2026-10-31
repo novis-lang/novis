@@ -39,3 +39,16 @@ owners = ["acme"]
 [package.capabilities]
 required = []
 optional = []
+
+[[package]]
+name = 'Shop\Ledger'
+version = "1.0.0"
+source = "https://packages.example.com"
+digest = "faad1335d12ccd43051b11a5d9cf3a3bf59bafa0ae84b29a603b1f8d408df5e8"
+repository = "https://git.example.com/shop/ledger"
+commit = "1c4f7a0d3b6e9c2f5a8d1b4e7c0f3a6d9b2e5c8f"
+owners = ["shop"]
+
+[package.capabilities]
+required = []
+optional = []

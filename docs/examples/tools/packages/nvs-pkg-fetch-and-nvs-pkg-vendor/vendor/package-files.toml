@@ -3,3 +3,4 @@
 'Acme\Feed' = ["LICENSE", "package.toml", "src/Feed.nvs"]
 'Acme\Slug' = ["LICENSE", "data/stop-words.txt", "package.toml", "src/Slug.nvs"]
 'Acme\Text' = ["LICENSE", "package.toml", "src/Case.nvs"]
+'Shop\Ledger' = ["LICENSE", "ledger.nvsx", "package.toml", "src/Price.nvs"]

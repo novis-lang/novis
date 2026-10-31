@@ -10,8 +10,9 @@ above it is source (`rule:core-classes/image-pipeline`); `Novis\Spreadsheet\Engi
 Loading the extension makes its source resolvable by `autoload` with no line the program writes. The
 source compiles like any other Novis file and holds the authority of its own namespace, which is no
 grant unless the operator writes one. The one pin covers both payloads, so the source cannot be edited
-under a pinned component, and `nvs ext inspect --source` prints it. A package may carry a `.nvsx` once
-packages exist, and nothing here changes for that.
+under a pinned component, and `nvs ext inspect --source` prints it. A package carries a `.nvsx` as an
+extension package (`rule:packaging/a-package-is-its-digest`), and its carried source must then be
+under the package's namespace too.
 
 The split is the point rather than a packaging convenience. Building a plan is data manipulation and
 costs nothing to do in Novis; the codecs belong inside the sandbox. A builder that lived in the guest

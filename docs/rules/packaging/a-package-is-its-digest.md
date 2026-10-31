@@ -71,5 +71,16 @@ because a root file without it means "no second copy". Under each file host:
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
 (`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
 
-**Not on disk.** An extension package is not packed or fetched as one
-(gap:nvs-cli/extension-package-is-packed-and-fetched).
+**An extension package is a package whose `files` list names exactly one `.nvsx`.** `package.toml`
+has no key for it, and the archive, index and lock formats are the same as a source package's. A
+set with two `.nvsx` files is refused (`pack::file_set`). `nvs pkg pack` and `nvs registry build`
+load the one file with the loader boot uses, which compiles it and runs none of it, and refuse a
+file that does not load, a manifest class that is neither the package's namespace nor under it,
+and a carried source file outside that namespace (`pack::check_component`). The class may equal
+the namespace because an extension's one class is the package's entry point, as `Shop\Ledger` is;
+no other package can claim it. The `Core\` and `Novis\` refusal is the loader's own. `nvs pkg fetch`
+lands it like any package, then prints the `[[extension]]` entry of each extension package that is
+new or has a new digest, with its path relative to the application's folder, through the function
+`nvs ext pin` prints with (`crates/nvs-cli/src/ext.rs`). Fetch never writes `nvs.toml`
+(`rule:packaging/extension-loading-is-root-controlled`). `crates/nvs-cli/tests/package_client.rs`
+and `package_fetch.rs` pack, refuse, fetch and run one.

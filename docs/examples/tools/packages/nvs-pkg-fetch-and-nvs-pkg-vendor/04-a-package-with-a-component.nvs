@@ -1,0 +1,11 @@
+<?nvs
+// Shows a package that contains an extension, loaded by the entry in `nvs.toml`.
+
+require './vendor/packages.nvs';
+
+// `Shop\Ledger\Price` is Novis code in the package. It calls the extension.
+// This prints `total: 1250 EUR`.
+echo Shop\Ledger\Price::show(1250), "\n";
+
+// You can also call the extension class directly. This prints `7`.
+echo Shop\Ledger::echoInt(7), "\n";

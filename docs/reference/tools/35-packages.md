@@ -286,7 +286,26 @@ same work, but it downloads every package again and replaces its folder. Use it 
 `vendor/` was changed. Both commands remove only the folders of packages they wrote before, so code
 you copied into `vendor/` yourself stays.
 
-<!-- src: `rule:packaging/resolution-takes-the-highest-minimum`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted` -->
+A package that contains a file named `nvs.toml`, in any folder, stops the fetch with an error that
+names the file. Only the person who runs the server writes that file. The package is not written to
+`vendor/`, and `package.lock` does not change.
+
+When a package contains an extension, the fetch prints the entry that loads it. The path is relative
+to the folder of your application:
+
+```text
+`Shop\Ledger` contains an extension. To load it, add this entry to your `nvs.toml`:
+
+[[extension]]
+path   = "vendor/shop/ledger/ledger.nvsx"
+sha256 = "3112cf3359166c7a83a052ca0f21537ef8e1f87a6873d0b4c7d96b8b7fd4e1b6"
+```
+
+The fetch never writes `nvs.toml`. It prints the entry again only when the package is new or has a
+new digest. The entry has no `grants`. Read what the extension needs with `nvs ext inspect`, and add
+the grants yourself.
+
+<!-- src: `rule:packaging/resolution-takes-the-highest-minimum`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted`, `rule:packaging/a-package-cannot-reach-its-host`, `rule:packaging/extension-loading-is-root-controlled` -->
 
 # nvs pkg update and nvs pkg outdated
 
@@ -401,9 +420,24 @@ The same files always give the same archive and the same digest, on every system
 not contain the time, the owner or the permissions of a file.
 
 A package must have a license file, such as `LICENSE` or `COPYING`. It has at most 5,000 files, and at most 16 MiB together. Every path must work on Windows, macOS
-and Linux. A symbolic link is not allowed. For a larger file, use `nvs pkg download`.
+and Linux. A symbolic link is not allowed. For a larger file, use `nvs pkg download`. A file named
+`nvs.toml` is not allowed in any folder.
 
-<!-- src: `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` -->
+A package may contain one extension, a `.nvsx` file that `[package] files` lists. This is an
+extension package. Its Novis code under `src` can call the extension:
+
+```toml
+[package]
+name    = 'Shop\Ledger'
+version = "1.0.0"
+files   = ["ledger.nvsx"]
+```
+
+`nvs pkg pack` loads the extension and checks it the way `nvs ext verify` does. The class of the
+extension must be the package's namespace or a class under it. The Novis code inside the extension
+must also be under that namespace. A package with two `.nvsx` files does not pack.
+
+<!-- src: `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`, `rule:packaging/a-package-is-its-digest` -->
 
 # nvs pkg download and nvs pkg provide
 

@@ -3,3 +3,4 @@
 autoload 'Acme\Feed' from './acme/feed/src';
 autoload 'Acme\Slug' from './acme/slug/src';
 autoload 'Acme\Text' from './acme/text/src';
+autoload 'Shop\Ledger' from './shop/ledger/src';
