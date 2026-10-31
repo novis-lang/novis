@@ -14,6 +14,9 @@ pub enum Grammar {
         negative: bool,
         keywords: &'static [&'static str],
     },
+    /// One or two lengths or percentages of zero or more: a corner's radius across, then down.
+    /// One value is both.
+    Radius,
     /// One colour, or `currentcolor`.
     Color,
     /// Exactly one of the keywords.
@@ -269,10 +272,10 @@ pub static PROPERTIES: &[Property] = &[
     prop("border-right-color", false, Grammar::Color),
     prop("border-bottom-color", false, Grammar::Color),
     prop("border-left-color", false, Grammar::Color),
-    prop("border-top-left-radius", false, len(false, &[])),
-    prop("border-top-right-radius", false, len(false, &[])),
-    prop("border-bottom-right-radius", false, len(false, &[])),
-    prop("border-bottom-left-radius", false, len(false, &[])),
+    prop("border-top-left-radius", false, Grammar::Radius),
+    prop("border-top-right-radius", false, Grammar::Radius),
+    prop("border-bottom-right-radius", false, Grammar::Radius),
+    prop("border-bottom-left-radius", false, Grammar::Radius),
     prop("width", false, len(false, SIZE)),
     prop("height", false, len(false, SIZE)),
     prop("min-width", false, len(false, SIZE)),
@@ -594,6 +597,25 @@ pub static SHORTHANDS: &[(&str, &[&str])] = &[
     ),
     ("overflow", &["overflow-x", "overflow-y"]),
     ("gap", &["row-gap", "column-gap"]),
+    (
+        "grid-template",
+        &[
+            "grid-template-rows",
+            "grid-template-columns",
+            "grid-template-areas",
+        ],
+    ),
+    (
+        "grid",
+        &[
+            "grid-template-rows",
+            "grid-template-columns",
+            "grid-template-areas",
+            "grid-auto-rows",
+            "grid-auto-columns",
+            "grid-auto-flow",
+        ],
+    ),
     ("flex", &["flex-grow", "flex-shrink", "flex-basis"]),
     ("flex-flow", &["flex-direction", "flex-wrap"]),
     ("page-break-before", &["break-before"]),

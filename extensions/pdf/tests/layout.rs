@@ -2035,6 +2035,373 @@ fn a_rotated_transform_is_drawn_rotated() {
 }
 
 #[test]
+fn an_absolute_box_with_left_and_right_and_no_width_stretches() {
+    const BOX: &str = "position: relative; width: 300pt; height: 100pt; padding: 5pt; \
+                       border: 10pt solid #000000; background-color: #ff0000";
+    let stretched = |insets: &str| {
+        let laid = lay(&format!(
+            "<body style='margin: 0'><div style='{BOX}'><div style='position: absolute; top: 0; {insets}; height: 10pt; background-color: #0000ff'></div></div>"
+        ));
+        let [red, blue] = boxes_of(&laid, &[RED, BLUE])[..] else {
+            unreachable!()
+        };
+        (red, blue)
+    };
+
+    // The box fills its containing block's padding box, 310pt wide, less `left` and `right`.
+    let (red, blue) = stretched("left: 20pt; right: 30pt");
+    assert!(
+        close(blue.0, red.0 + 10.0 + 20.0) && close(blue.2, 260.0),
+        "{red:?} {blue:?}"
+    );
+
+    // A percentage counts against that width, and the box's own padding is inside it.
+    let (red, blue) = stretched("left: 10%; right: 10%; padding: 0 5pt");
+    assert!(
+        close(blue.0, red.0 + 10.0 + 31.0) && close(blue.2, 248.0),
+        "{red:?} {blue:?}"
+    );
+
+    // A `width` wins over `right`.
+    let (_, blue) = stretched("left: 20pt; right: 30pt; width: 40pt");
+    assert!(close(blue.2, 40.0), "{blue:?}");
+
+    // With no positioned box around it, the page's content box is the room it fills.
+    let laid = lay(
+        "<body style='margin: 0'><div style='height: 1pt; background-color: #ff0000'></div><div style='position: absolute; top: 0; left: 20pt; right: 30pt; height: 10pt; background-color: #0000ff'></div>",
+    );
+    let [red, blue] = boxes_of(&laid, &[RED, BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(blue.0, red.0 + 20.0) && close(blue.2, red.2 - 50.0),
+        "{red:?} {blue:?}"
+    );
+}
+
+#[test]
+fn a_transformed_box_is_a_containing_block() {
+    let boxed = |transform: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='margin: 40pt 0 0 50pt; width: 200pt; height: 100pt; background-color: #ff0000; transform: {transform}'><div style='position: absolute; top: 10pt; left: 20pt; width: 40pt; height: 20pt; background-color: #0000ff'></div></div>"
+        ))
+    };
+
+    // With no transform, the page's content box is the containing block.
+    let laid = boxed("none");
+    let [blue] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(blue.0, MARGIN + 20.0) && close(blue.1, MARGIN + 10.0),
+        "{blue:?}"
+    );
+
+    // A transformed box is the containing block, and the absolute box is drawn inside its
+    // transform.
+    let laid = boxed("rotate(90deg)");
+    let [red, blue] = boxes_of(&laid, &[RED, BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(blue.0, red.0 + 20.0) && close(blue.1, red.1 + 10.0),
+        "{red:?} {blue:?}"
+    );
+    let [(_, inside)] = &transformed(&laid)[..] else {
+        panic!("{:?}", transformed(&laid))
+    };
+    assert!(
+        inside
+            .iter()
+            .any(|i| matches!(i, Item::Path { paint: Paint::Color(c), .. }
+            if (c.r, c.g, c.b) == BLUE)),
+        "{inside:?}"
+    );
+}
+
+#[test]
+fn the_grid_template_and_grid_shorthands_are_read() {
+    let width = 595.275_6 - 2.0 * MARGIN;
+    let all = [RED, GREEN, BLUE];
+    let areas = [
+        ("grid-area: main", "Shop"),
+        ("grid-area: head", "Blog"),
+        ("grid-area: side", "End"),
+    ];
+
+    // `grid-template` with area strings, a size after each, a line name, and `/ <columns>`.
+    let laid = flex(
+        "display: grid; grid-template: [top] \"head head\" 30pt \"side main\" 50pt / 80pt 1fr",
+        areas,
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(green.0, MARGIN) && close(green.2, width) && close(green.3, 30.0),
+        "{green:?}"
+    );
+    assert!(close(blue.0, MARGIN) && close(blue.2, 80.0), "{blue:?}");
+    assert!(
+        close(blue.1, green.1 + 30.0) && close(blue.3, 50.0),
+        "{green:?} {blue:?}"
+    );
+    assert!(
+        close(red.0, MARGIN + 80.0) && close(red.1, blue.1),
+        "{red:?} {blue:?}"
+    );
+
+    // A longhand after the shorthand wins over it.
+    let laid = flex(
+        "display: grid; grid-template: \"head head\" 30pt \"side main\" / 80pt 1fr; \
+         grid-template-rows: 40pt 20pt",
+        areas,
+    );
+    let [_, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(green.3, 40.0), "{green:?}");
+    assert!(close(blue.3, 20.0), "{blue:?}");
+
+    // `grid` with `auto-flow` before the `/`: the items fill rows of two equal columns.
+    let laid = flex(
+        "display: grid; grid: auto-flow / 1fr 1fr",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(close(red.0, MARGIN) && close(red.2, width / 2.0), "{red:?}");
+    assert!(
+        close(green.0, MARGIN + width / 2.0) && close(green.1, red.1),
+        "{red:?} {green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN) && close(blue.1, red.1 + red.3),
+        "{red:?} {blue:?}"
+    );
+
+    // `grid` with `auto-flow` after the `/`: the items fill columns of the size it gives.
+    let laid = flex(
+        "display: grid; grid: 30pt 30pt / auto-flow 60pt",
+        [("", "Shop"), ("", "Blog"), ("", "End")],
+    );
+    let [red, green, blue] = boxes_of(&laid, &all)[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0, MARGIN) && close(red.2, 60.0) && close(red.3, 30.0),
+        "{red:?}"
+    );
+    assert!(
+        close(green.0, MARGIN) && close(green.1, red.1 + 30.0),
+        "{red:?} {green:?}"
+    );
+    assert!(
+        close(blue.0, MARGIN + 60.0) && close(blue.1, red.1) && close(blue.2, 60.0),
+        "{red:?} {blue:?}"
+    );
+}
+
+/// The background path of a box 100pt by 50pt, styled with `style` as well.
+fn box_background_path(style: &str) -> Vec<Seg> {
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='width: 100pt; height: 50pt; background-color: #00ff00; {style}'>Shop</div>"
+    ));
+    match &laid.pages[0].items[0] {
+        Item::Path { path, .. } => path.clone(),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// The paint of the first path drawn for a box 100pt by 50pt, styled with `style`.
+fn box_paint(style: &str) -> Paint {
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='width: 100pt; height: 50pt; {style}'>Shop</div>"
+    ));
+    paths(&laid).remove(0).1
+}
+
+#[test]
+fn elliptical_radii_are_drawn() {
+    const KAPPA: f32 = 0.552_284_8;
+    let curves = |path: &[Seg]| path.iter().filter(|s| matches!(s, Seg::Cubic(..))).count();
+
+    // The radii across come before the slash and the radii down after it, so the top right
+    // corner's curve runs 20pt across and 10pt down.
+    let path = box_background_path("border-radius: 20pt / 10pt");
+    assert_eq!(curves(&path), 4, "{path:?}");
+    assert!(
+        matches!(path[0], Seg::Move(x, y) if close(x, MARGIN + 20.0) && close(y, MARGIN)),
+        "{path:?}"
+    );
+    assert!(
+        matches!(path[1], Seg::Line(x, _) if close(x, MARGIN + 80.0)),
+        "{path:?}"
+    );
+    let Seg::Cubic(c1x, c1y, c2x, c2y, ex, ey) = path[2] else {
+        panic!("{path:?}");
+    };
+    assert!(
+        close(c1x, MARGIN + 100.0 - 20.0 * (1.0 - KAPPA)) && close(c1y, MARGIN),
+        "{path:?}"
+    );
+    assert!(
+        close(c2x, MARGIN + 100.0) && close(c2y, MARGIN + 10.0 * (1.0 - KAPPA)),
+        "{path:?}"
+    );
+    assert!(
+        close(ex, MARGIN + 100.0) && close(ey, MARGIN + 10.0),
+        "{path:?}"
+    );
+
+    // A longhand takes its radius across, then down, and rounds its own corner alone.
+    let path = box_background_path("border-top-left-radius: 20pt 10pt");
+    assert_eq!(curves(&path), 1, "{path:?}");
+    assert!(
+        matches!(path[0], Seg::Move(x, _) if close(x, MARGIN + 20.0)),
+        "{path:?}"
+    );
+    assert!(
+        path.iter()
+            .any(|s| matches!(s, Seg::Line(x, y) if close(*x, MARGIN) && close(*y, MARGIN + 10.0))),
+        "{path:?}"
+    );
+
+    // Each side of the slash takes one to four values, from the top left corner clockwise:
+    // the top right corner is 20pt across and 5pt down.
+    let path = box_background_path("border-radius: 10pt 20pt / 5pt");
+    assert!(
+        matches!(path[0], Seg::Move(x, _) if close(x, MARGIN + 10.0)),
+        "{path:?}"
+    );
+    assert!(
+        matches!(path[1], Seg::Line(x, _) if close(x, MARGIN + 80.0)),
+        "{path:?}"
+    );
+    assert!(
+        matches!(path[2], Seg::Cubic(.., x, y) if close(x, MARGIN + 100.0) && close(y, MARGIN + 5.0)),
+        "{path:?}"
+    );
+
+    // A percentage across is of the width, and one down is of the height: 50pt and 10pt.
+    let path = box_background_path("border-radius: 50% / 20%");
+    assert!(
+        matches!(path[0], Seg::Move(x, _) if close(x, MARGIN + 50.0)),
+        "{path:?}"
+    );
+    assert!(
+        matches!(path[2], Seg::Cubic(.., x, y) if close(x, MARGIN + 100.0) && close(y, MARGIN + 10.0)),
+        "{path:?}"
+    );
+
+    // Two radii of 80pt do not fit a side of 100pt, so every radius is scaled by 0.625, the
+    // ones down as well: 10pt down is drawn 6.25pt down.
+    let path = box_background_path("border-radius: 80pt / 10pt");
+    assert!(
+        matches!(path[0], Seg::Move(x, _) if close(x, MARGIN + 50.0)),
+        "{path:?}"
+    );
+    assert!(
+        matches!(path[2], Seg::Cubic(.., x, y) if close(x, MARGIN + 100.0) && close(y, MARGIN + 6.25)),
+        "{path:?}"
+    );
+
+    // A slash with nothing after it does not read, and the corners stay square.
+    let path = box_background_path("border-radius: 10pt /");
+    assert_eq!(curves(&path), 0, "{path:?}");
+}
+
+#[test]
+fn repeating_gradients_are_drawn() {
+    // Within one step of each channel, since a mean of exactly 127.5 may round either way.
+    let pure = |c: css::Color, rgb: (u8, u8, u8)| {
+        c.r.abs_diff(rgb.0) <= 1 && c.g.abs_diff(rgb.1) <= 1 && c.b.abs_diff(rgb.2) <= 1
+    };
+
+    // The stops repeat every 30pt from the first stop at 10pt, in both directions. The line
+    // starts 20pt into a period, so its first colour is two thirds of the way from red to blue.
+    let paint =
+        box_paint("background-image: repeating-linear-gradient(to right, red 10pt, blue 40pt)");
+    let Paint::Linear { x1, x2, stops, .. } = &paint else {
+        panic!("{paint:?}");
+    };
+    assert!(
+        close(*x1, MARGIN) && close(*x2, MARGIN + 100.0),
+        "{paint:?}"
+    );
+    let start = stops[0];
+    assert_eq!(start.offset, 0.0);
+    assert!(
+        (i32::from(start.color.r) - 85).abs() <= 1 && (i32::from(start.color.b) - 170).abs() <= 1,
+        "{start:?}"
+    );
+    assert!(
+        stops.windows(2).all(|w| w[0].offset <= w[1].offset),
+        "{stops:?}"
+    );
+    assert_eq!(stops.last().map(|s| s.offset), Some(1.0), "{stops:?}");
+    let red: Vec<f32> = stops
+        .iter()
+        .filter(|s| s.offset > 0.0 && s.offset < 0.95 && pure(s.color, (255, 0, 0)))
+        .map(|s| s.offset)
+        .collect();
+    assert!(
+        red.len() == 3 && red.iter().zip([0.1, 0.4, 0.7]).all(|(a, b)| close(*a, b)),
+        "{stops:?}"
+    );
+
+    // A radial gradient repeats its stops out to the farthest corner. A red stop starts each
+    // period, every 10pt from the centre.
+    let paint =
+        box_paint("background: repeating-radial-gradient(circle closest-side, red 0, blue 10pt)");
+    let Paint::Radial {
+        cx,
+        cy,
+        r,
+        scale_y,
+        stops,
+    } = &paint
+    else {
+        panic!("{paint:?}");
+    };
+    assert!(
+        close(*cx, MARGIN + 50.0) && close(*cy, MARGIN + 25.0) && *scale_y == 1.0,
+        "{paint:?}"
+    );
+    assert!(close(*r, 50.0_f32.hypot(25.0)), "{paint:?}");
+    let red: Vec<f32> = stops
+        .iter()
+        .filter(|s| pure(s.color, (255, 0, 0)))
+        .map(|s| s.offset * r)
+        .collect();
+    assert!(
+        red.len() == 6
+            && red
+                .iter()
+                .zip([0.0, 10.0, 20.0, 30.0, 40.0, 50.0])
+                .all(|(a, b)| close(*a, b)),
+        "{red:?} {stops:?}"
+    );
+
+    // A period too short to draw is filled with the average colour of one period.
+    let paint = box_paint("background-image: repeating-linear-gradient(red 0, blue 0.001pt)");
+    assert!(
+        matches!(paint, Paint::Color(c) if pure(c, (128, 0, 128))),
+        "{paint:?}"
+    );
+
+    // A period of zero is filled with the average of the stops spaced evenly: half red, then
+    // half from red to blue.
+    let paint =
+        box_paint("background-image: repeating-linear-gradient(red 10pt, red 10pt, blue 10pt)");
+    assert!(
+        matches!(paint, Paint::Color(c) if pure(c, (191, 0, 64))),
+        "{paint:?}"
+    );
+}
+
+#[test]
 fn each_level_of_nesting_lays_out_and_measures_the_same_number_of_boxes() {
     // A box laid out or measured twice for each box around it doubles the work with each
     // level, and 32 levels take hours. The depths stay small, so that fault fails here and

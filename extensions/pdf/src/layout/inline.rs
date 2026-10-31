@@ -12,7 +12,7 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::{BoxGeometry, Break, Insets, geometry, insets, sides, z_index};
+use super::block::{BoxGeometry, Break, Insets, Position, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
@@ -755,6 +755,9 @@ impl Builder<'_, '_> {
             - geometry.padding[3])
             .max(0.0);
         inner.para = para_of(style, inner.width, inner.span);
+        if geometry.position != Position::Static || geometry.decor.transform.is_some() {
+            inner.containing = (geometry.width - geometry.border[1] - geometry.border[3]).max(0.0);
+        }
         self.blocks.push(Block::Open(geometry));
         self.indented = false;
         Ok(())
@@ -1478,6 +1481,7 @@ pub(super) fn blocks(
         lang: None,
         hyphenate: None,
         page: None,
+        containing: width,
     };
     let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
@@ -1723,6 +1727,27 @@ pub(super) fn blocks(
                     false
                 } else if in_part {
                     // A group's or a row's own box draws nothing.
+                    false
+                } else if let Some((insets, _, fixed)) = absolute
+                    && let (Some(left), Some(right)) = (insets[3], insets[1])
+                    && style.get("width").is_none()
+                {
+                    // An absolute box with `left` and `right` and no `width` fills the room
+                    // between them in its containing block.
+                    let containing = if fixed {
+                        width_of(frame.page.as_deref())
+                    } else {
+                        frame.containing
+                    };
+                    let inset = |(pt, percent): (f32, f32)| pt + percent / 100.0 * containing;
+                    let between = Frame {
+                        width: (containing - inset(left) - inset(right)).max(0.0),
+                        ..frame.clone()
+                    };
+                    builder.open_atom(style, &between, &mut inner)?;
+                    if let Some(Block::Open(g)) = builder.blocks.last_mut() {
+                        g.fill = false;
+                    }
                     false
                 } else if item.is_some() || atom.is_some() || float.is_some() || out {
                     builder.open_atom(style, &frame, &mut inner)?;

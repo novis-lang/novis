@@ -22,7 +22,8 @@ and the same input rendered twice and compared byte for byte, encrypted output a
 
 **On disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
 unless one is passed, and `krilla`'s document id hashes the content. Each link is a URI or an
-internal annotation the source wrote. `crates/nvs-ext/tests/pdf.rs` compares two renders byte for
+internal annotation the source wrote, and a link inside a transformed box covers the bounds of that
+box as drawn (`extensions/pdf/tests/render.rs`). `crates/nvs-ext/tests/pdf.rs` compares two renders byte for
 byte and scans the output for the names above, and `crates/nvs-ext/tests/pdf_standards.rs` holds the
 Factur-X file to its one attachment and two encrypted renders to byte equality.
 

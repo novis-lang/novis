@@ -32,7 +32,10 @@ running element and an `id` inside a table cell, an inline-block, a float or a f
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width
 (`extensions/pdf/tests/paginate.rs`). A float in the middle of a paragraph is placed at the top of
-its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). What the
+its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
+absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
+`transform` is the containing block of the absolute boxes inside it
+(`extensions/pdf/tests/layout.rs`). What the
 layout does not do yet is in
 the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 

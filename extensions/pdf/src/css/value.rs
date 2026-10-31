@@ -37,6 +37,8 @@ pub enum Value {
     Keyword(String),
     Keywords(Vec<String>),
     Length(Length),
+    /// A [`Grammar::Radius`] of two values: the length across, then the length down.
+    Pair(Length, Length),
     Number(f32),
     Integer(i64),
     Color(Color),
@@ -100,6 +102,8 @@ pub enum Comp {
     Url(String),
     /// A function's lower-case name and its argument text.
     Function(String, String),
+    /// The text inside square brackets: a grid line's names.
+    Names(String),
     Slash,
     Comma,
     Delim(char),
@@ -152,6 +156,20 @@ fn parse_components(text: &str, lower: bool) -> Option<Vec<Comp>> {
                 } else {
                     Comp::Function(name, args.trim().to_owned())
                 }
+            }
+            Token::SquareBracketBlock => {
+                let start = parser.position();
+                let inside = parser
+                    .parse_nested_block(|p| {
+                        while p.next_including_whitespace_and_comments().is_ok() {}
+                        Ok::<_, cssparser::ParseError<()>>(p.slice_from(start).trim().to_owned())
+                    })
+                    .ok()?;
+                Comp::Names(if lower {
+                    inside.to_ascii_lowercase()
+                } else {
+                    inside
+                })
             }
             Token::Delim('/') => Comp::Slash,
             Token::Comma => Comp::Comma,
@@ -320,10 +338,25 @@ pub fn expand(property: &str, text: &str) -> Option<Vec<(&'static str, Specified
             })?)
         }
         "border-radius" => {
-            // A corner is one radius, so the elliptical syntax with a slash is dropped.
-            set(four(&comps, |c| {
-                parse(len(false), std::slice::from_ref(c), text)
-            })?)
+            // The radii across, then after a `/` the radii down, each one to four values for the
+            // corners from the top left and clockwise. With no `/`, the radii down are the same.
+            let (across, down) = match comps.iter().position(|c| *c == Comp::Slash) {
+                Some(at) => (&comps[..at], &comps[at + 1..]),
+                None => (&comps[..], &comps[..]),
+            };
+            let one = |c: &Comp| parse(len(false), std::slice::from_ref(c), text);
+            let (across, down) = (four(across, one)?, four(down, one)?);
+            set(across
+                .into_iter()
+                .zip(down)
+                .map(|pair| match pair {
+                    (Specified::Length(a), Specified::Length(d)) if a == d => {
+                        Some(Specified::Length(a))
+                    }
+                    (Specified::Length(a), Specified::Length(d)) => Some(Specified::Pair(a, d)),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?)
         }
         "border" | "border-top" | "border-right" | "border-bottom" | "border-left" | "outline" => {
             let [width, style, color] = border(&comps)?;
@@ -549,6 +582,8 @@ pub fn expand(property: &str, text: &str) -> Option<Vec<(&'static str, Specified
                 wrap.unwrap_or_else(initial),
             ])
         }
+        "grid-template" => set(grid_template(&comps)?.to_vec()),
+        "grid" => set(grid(&comps)?.to_vec()),
         "page-break-before" | "page-break-after" | "page-break-inside" => {
             let allowed: &[&str] = if property == "page-break-inside" {
                 &["auto", "avoid"]
@@ -570,6 +605,147 @@ pub fn expand(property: &str, text: &str) -> Option<Vec<(&'static str, Specified
     }
 }
 
+/// The text of `comps`, each written back and joined by a space.
+fn text_of(comps: &[Comp]) -> String {
+    comps.iter().map(serialize).collect::<Vec<_>>().join(" ")
+}
+
+/// A `grid-template` value read into `grid-template-rows`, `grid-template-columns` and
+/// `grid-template-areas`: `none`, `<rows> / <columns>`, or rows of a line name, an area string,
+/// a size and a line name, then an optional `/ <columns>`. A row with no size is `auto`. A
+/// longhand the value does not give is reset to its initial value.
+fn grid_template(comps: &[Comp]) -> Option<[Specified; 3]> {
+    let initial = || Specified::Wide("initial".to_owned());
+    if let [Comp::Ident(word)] = comps
+        && word == "none"
+    {
+        return Some([initial(), initial(), initial()]);
+    }
+    let parts: Vec<&[Comp]> = comps.split(|c| *c == Comp::Slash).collect();
+    if !comps.iter().any(|c| matches!(c, Comp::Str(_))) {
+        let [rows, columns] = parts[..] else {
+            return None;
+        };
+        if rows.is_empty() || columns.is_empty() {
+            return None;
+        }
+        return Some([
+            Specified::Text(text_of(rows)),
+            Specified::Text(text_of(columns)),
+            initial(),
+        ]);
+    }
+    let (rows, columns) = match parts[..] {
+        [rows] => (rows, None),
+        [rows, columns] if !columns.is_empty() => (rows, Some(columns)),
+        _ => return None,
+    };
+    if columns.is_some_and(|c| c.iter().any(|c| matches!(c, Comp::Str(_)))) {
+        return None;
+    }
+    // Each row is its line names, its string, at most one size, and its line names. The names
+    // before a string and the names after the last row's size go into the rows text as they are.
+    let mut tracks: Vec<String> = Vec::new();
+    let mut strings: Vec<String> = Vec::new();
+    // Whether the current row has a string and no size yet.
+    let mut open = false;
+    for c in rows {
+        match c {
+            Comp::Names(_) => {
+                if open {
+                    tracks.push("auto".to_owned());
+                    open = false;
+                }
+                tracks.push(serialize(c));
+            }
+            Comp::Str(_) => {
+                if open {
+                    tracks.push("auto".to_owned());
+                }
+                strings.push(serialize(c));
+                open = true;
+            }
+            _ if open => {
+                tracks.push(serialize(c));
+                open = false;
+            }
+            _ => return None,
+        }
+    }
+    if open {
+        tracks.push("auto".to_owned());
+    }
+    Some([
+        Specified::Text(tracks.join(" ")),
+        columns.map_or_else(initial, |c| Specified::Text(text_of(c))),
+        Specified::Text(strings.join(" ")),
+    ])
+}
+
+/// A `grid` value read into the three `grid-template` longhands and `grid-auto-rows`,
+/// `grid-auto-columns` and `grid-auto-flow`: a `grid-template` value, `<rows> / auto-flow
+/// dense? <auto-columns>?`, or `auto-flow dense? <auto-rows>? / <columns>`. A longhand the
+/// value does not give is reset to its initial value.
+fn grid(comps: &[Comp]) -> Option<[Specified; 6]> {
+    let initial = || Specified::Wide("initial".to_owned());
+    let auto_flow = |c: &Comp| matches!(c, Comp::Ident(w) if w == "auto-flow");
+    if !comps.iter().any(auto_flow) {
+        let [rows, columns, areas] = grid_template(comps)?;
+        return Some([rows, columns, areas, initial(), initial(), initial()]);
+    }
+    let sides: Vec<&[Comp]> = comps.split(|c| *c == Comp::Slash).collect();
+    let [first, second] = sides[..] else {
+        return None;
+    };
+    // The `auto-flow` side: its flow keywords first in either order, then the auto sizes.
+    let flow = |side: &[Comp]| -> Option<(bool, Option<Specified>)> {
+        let mut dense = false;
+        let mut flows = false;
+        let mut at = 0;
+        for c in side {
+            match c {
+                Comp::Ident(w) if w == "auto-flow" && !flows => flows = true,
+                Comp::Ident(w) if w == "dense" && !dense => dense = true,
+                _ => break,
+            }
+            at += 1;
+        }
+        let sizes = &side[at..];
+        let keyword = |c: &Comp| auto_flow(c) || matches!(c, Comp::Ident(w) if w == "dense");
+        if !flows || sizes.iter().any(keyword) {
+            return None;
+        }
+        let sizes = (!sizes.is_empty()).then(|| Specified::Text(text_of(sizes)));
+        Some((dense, sizes))
+    };
+    let template = |side: &[Comp]| -> Option<Specified> {
+        (!side.is_empty() && !side.iter().any(auto_flow)).then(|| Specified::Text(text_of(side)))
+    };
+    if first.iter().any(auto_flow) {
+        let (dense, rows) = flow(first)?;
+        let word = if dense { "row dense" } else { "row" };
+        Some([
+            initial(),
+            template(second)?,
+            initial(),
+            rows.unwrap_or_else(initial),
+            initial(),
+            Specified::Text(word.to_owned()),
+        ])
+    } else {
+        let (dense, columns) = flow(second)?;
+        let word = if dense { "column dense" } else { "column" };
+        Some([
+            template(first)?,
+            initial(),
+            initial(),
+            initial(),
+            columns.unwrap_or_else(initial),
+            Specified::Text(word.to_owned()),
+        ])
+    }
+}
+
 const fn len(negative: bool) -> Grammar {
     Grammar::Length {
         negative,
@@ -585,6 +761,8 @@ pub enum Specified {
     Keyword(String),
     Keywords(Vec<String>),
     Length(Sum),
+    /// Two lengths, across and down.
+    Pair(Sum, Sum),
     Number(f32),
     Integer(i64),
     Color(Color),
@@ -720,6 +898,7 @@ pub fn parse(grammar: Grammar, comps: &[Comp], text: &str) -> Option<Specified> 
             }
             (!seen.is_empty()).then_some(Specified::Keywords(seen))
         }
+        Grammar::Radius => radius(comps),
         _ => {
             let [c] = comps else { return None };
             one(grammar, c)
@@ -775,7 +954,21 @@ fn one(grammar: Grammar, c: &Comp) -> Option<Specified> {
                 _ => None,
             })
         }
+        Grammar::Radius => radius(std::slice::from_ref(c)),
         Grammar::Free | Grammar::Transform | Grammar::Families | Grammar::Keywords(_) => None,
+    }
+}
+
+/// A corner's radius: one length of zero or more for both directions, or two, across then down.
+fn radius(comps: &[Comp]) -> Option<Specified> {
+    let at = |c: &Comp| {
+        let sum = length(c)?;
+        (is_calc(c) || !sum.is_negative()).then_some(sum)
+    };
+    match comps {
+        [c] => at(c).map(Specified::Length),
+        [a, b] => Some(Specified::Pair(at(a)?, at(b)?)),
+        _ => None,
     }
 }
 
@@ -981,6 +1174,7 @@ fn serialize(c: &Comp) -> String {
         Comp::Str(s) => format!("{s:?}"),
         Comp::Url(u) => format!("url({u:?})"),
         Comp::Function(name, args) => format!("{name}({args})"),
+        Comp::Names(names) => format!("[{names}]"),
         Comp::Slash => "/".to_owned(),
         Comp::Comma => ",".to_owned(),
         Comp::Delim(c) => c.to_string(),

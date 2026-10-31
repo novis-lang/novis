@@ -580,6 +580,9 @@ struct Frame {
     hyphenate: Option<Lang>,
     /// The name of the pages its block boxes are on.
     page: Option<String>,
+    /// The padding box width of the containing block of an absolute box inside it: the
+    /// innermost positioned or transformed box, or the page's content box.
+    containing: f32,
 }
 
 fn keyword<'s>(style: &'s Style, name: &str) -> Option<&'s str> {

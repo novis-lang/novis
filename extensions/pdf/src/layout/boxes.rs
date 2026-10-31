@@ -3,15 +3,20 @@
 //!
 //! Every shape is a path [`Item`], filled with the even-odd rule or stroked. The background
 //! colour and the background image fill the border box, rounded by `border-radius`. A corner is
-//! one radius, and a percentage is of the box's width across and of its height down, so a
-//! corner of a box that is not square is a quarter of an ellipse. Radii that do not fit their side
+//! a quarter of an ellipse, its radius across and its radius down, each a length or a
+//! percentage of the box's width across and of its height down: `20pt / 10pt` in the shorthand,
+//! `20pt 10pt` in a corner's longhand, and one value for both. Radii that do not fit their side
 //! are all scaled down by the same factor, as CSS says.
 //!
 //! **Backgrounds.** `linear-gradient` takes an angle or a `to` side or corner, and `radial-gradient`
 //! takes `circle` or `ellipse` and an extent keyword, centred in the padding box. Both take colour
 //! stops with a length or percentage, and a stop with none is spaced evenly between its
-//! neighbours. A stop past either end of the gradient line is drawn at that end. Any other image
-//! function, and a gradient written another way, draws nothing. An image `url()` is one tile,
+//! neighbours. A stop past either end of the gradient line is drawn at that end.
+//! `repeating-linear-gradient` and `repeating-radial-gradient` repeat the stops from the first's
+//! position to the last's across the padding box, written out as plain stops so the PDF has no
+//! PostScript function and stays PDF/A. A period of zero, or one too short to repeat in
+//! [`MOST_STOPS`], is drawn as the gradient's average colour. Any other image function, and a
+//! gradient written another way, draws nothing. An image `url()` is one tile,
 //! sized by `background-size` and placed in the padding box by `background-position`, and
 //! repeated from there as `background-repeat` says, where `space` and `round` repeat as `repeat`
 //! does. A size of `auto` keeps the image's natural size, or its aspect ratio when the other side
@@ -128,14 +133,18 @@ type Written = (Color, Option<Length>);
 /// The image behind a box's content.
 #[derive(Debug, Clone)]
 pub(super) enum Layer {
+    /// A linear gradient. `repeating` repeats its stops from the first's position to the last's.
     Linear {
         to: Direction,
         stops: Vec<Written>,
+        repeating: bool,
     },
+    /// A radial gradient. `repeating` repeats its stops from the first's position to the last's.
     Radial {
         circle: bool,
         extent: Extent,
         stops: Vec<Written>,
+        repeating: bool,
     },
     /// An image `url()`: its natural `width` and `height`, and how it is sized, placed and
     /// repeated.
@@ -241,7 +250,8 @@ pub(super) struct Decor {
     pub layer: Option<Layer>,
     pub line: [Line; 4],
     pub border_color: [Color; 4],
-    pub radius: [Length; 4],
+    /// Each corner's radius across, then down.
+    pub radius: [(Length, Length); 4],
     pub outline: Option<Outline>,
     pub opacity: f32,
     pub transform: Option<Transform>,
@@ -289,8 +299,9 @@ pub(super) fn decor(style: &Style) -> Decor {
             .map(|s| color(style, &format!("border-{s}-color")).unwrap_or(text_color)),
         radius: ["top-left", "top-right", "bottom-right", "bottom-left"].map(|c| {
             match style.get(&format!("border-{c}-radius")) {
-                Some(Value::Length(l)) => *l,
-                _ => Length::default(),
+                Some(Value::Length(l)) => (*l, *l),
+                Some(Value::Pair(across, down)) => (*across, *down),
+                _ => (Length::default(), Length::default()),
             }
         }),
         outline: outline.filter(|o| o.width > 0.0),
@@ -344,7 +355,11 @@ pub(super) fn gradient(style: &Style, rem: f32) -> Option<Layer> {
         .collect();
     let em = style.font_size();
     let first = groups.first()?;
-    match name.as_str() {
+    let (name, repeating) = match name.strip_prefix("repeating-") {
+        Some(name) => (name, true),
+        None => (name.as_str(), false),
+    };
+    match name {
         "linear-gradient" => {
             let (to, rest) = match first.as_slice() {
                 [Comp::Dimension(v, unit)] => (Direction::Angle(angle(*v, unit)?), &groups[1..]),
@@ -354,6 +369,7 @@ pub(super) fn gradient(style: &Style, rem: f32) -> Option<Layer> {
             Some(Layer::Linear {
                 to,
                 stops: stops(rest, em, rem)?,
+                repeating,
             })
         }
         "radial-gradient" => {
@@ -391,6 +407,7 @@ pub(super) fn gradient(style: &Style, rem: f32) -> Option<Layer> {
                 circle: words.contains(&"circle"),
                 extent,
                 stops: stops(rest, em, rem)?,
+                repeating,
             })
         }
         _ => None,
@@ -457,10 +474,146 @@ fn stops(groups: &[Vec<Comp>], em: f32, rem: f32) -> Option<Vec<Written>> {
     (out.len() >= 2).then_some(out)
 }
 
-/// `stops` placed on a gradient line `line` long: the first at 0 and the last at 1 when they have
-/// no position, each at least as far as the one before, and a run without positions spaced
-/// evenly between its neighbours.
+/// `stops` placed on a gradient line `line` long, each clamped to the line.
 fn offsets(stops: &[Written], line: f32) -> Vec<Stop> {
+    stops
+        .iter()
+        .zip(positions(stops, line))
+        .map(|((color, _), offset)| Stop {
+            offset: offset.clamp(0.0, 1.0),
+            color: *color,
+        })
+        .collect()
+}
+
+/// The most stops a repeating gradient is drawn with. A period too short to repeat across the
+/// box in this many is drawn as its average colour, as CSS says for a period finer than the
+/// output shows. A stop is 20 bytes, so one gradient holds at most 80 KB while its page is laid
+/// out and written.
+const MOST_STOPS: usize = 4096;
+
+/// `stops` on a gradient line `line` long, repeated in both directions from the first stop's
+/// position to the last's, as stops from 0 at the line's start to 1 at `reach` lines along it.
+/// `Err` is the colour drawn instead: the average of one period, or with a period of zero the
+/// average of the stops spaced evenly.
+fn repeated(stops: &[Written], line: f32, reach: f32) -> Result<Vec<Stop>, Color> {
+    let one: Vec<(f32, Color)> = positions(stops, line)
+        .into_iter()
+        .zip(stops.iter().map(|(color, _)| *color))
+        .collect();
+    let (Some(&(first, _)), Some(&(last, _))) = (one.first(), one.last()) else {
+        return Err(BLACK);
+    };
+    let period = last - first;
+    if period <= 0.0 {
+        let n = (one.len() - 1).max(1) as f32;
+        let even: Vec<(f32, Color)> = one
+            .iter()
+            .enumerate()
+            .map(|(i, &(_, color))| (i as f32 / n, color))
+            .collect();
+        return Err(average(&even));
+    }
+    let periods = ((reach / period).ceil() as usize).saturating_add(2);
+    if reach <= 0.0 || periods.saturating_mul(one.len()) > MOST_STOPS {
+        return Err(average(&one));
+    }
+    // The period that starts at or before the line's start, then each after it up to `reach`.
+    // Each period starts where the one before ends, `period` on, so the stops stay in order.
+    let mut base = first + (-first / period).floor() * period;
+    let mut along = Vec::with_capacity(periods * one.len());
+    for _ in 0..periods {
+        if base > reach {
+            break;
+        }
+        along.extend(one.iter().map(|&(p, color)| (base + (p - first), color)));
+        base += period;
+    }
+    let mut out = vec![Stop {
+        offset: 0.0,
+        color: color_at(&along, 0.0, true),
+    }];
+    out.extend(
+        along
+            .iter()
+            .filter(|&&(p, _)| p > 0.0 && p < reach)
+            .map(|&(p, color)| Stop {
+                offset: p / reach,
+                color,
+            }),
+    );
+    out.push(Stop {
+        offset: 1.0,
+        color: color_at(&along, reach, false),
+    });
+    Ok(out)
+}
+
+/// The colour at `p` of `stops`, each a position and a colour in order along a line. Where
+/// stops meet at `p`, the colour is the last of them when `after` and the first otherwise.
+fn color_at(stops: &[(f32, Color)], p: f32, after: bool) -> Color {
+    let next = if after {
+        stops.partition_point(|&(q, _)| q <= p)
+    } else {
+        stops.partition_point(|&(q, _)| q < p)
+    };
+    match (
+        next.checked_sub(1).and_then(|i| stops.get(i)),
+        stops.get(next),
+    ) {
+        (Some(&(pa, a)), Some(&(pb, b))) if pb > pa => mix(a, b, (p - pa) / (pb - pa)),
+        (_, Some(&(_, b))) => b,
+        (Some(&(_, a)), None) => a,
+        (None, None) => BLACK,
+    }
+}
+
+/// The colour `t` of the way from `a` to `b`.
+fn mix(a: Color, b: Color, t: f32) -> Color {
+    let channel = |x: u8, y: u8| (f32::from(x) + (f32::from(y) - f32::from(x)) * t).round() as u8;
+    Color {
+        r: channel(a.r, b.r),
+        g: channel(a.g, b.g),
+        b: channel(a.b, b.b),
+        a: a.a + (b.a - a.a) * t,
+    }
+}
+
+/// The average colour of `stops`, each a position and a colour in order along a line, with the
+/// colour going straight from each stop to the next.
+fn average(stops: &[(f32, Color)]) -> Color {
+    let mut sum = [0.0_f32; 4];
+    let mut total = 0.0;
+    for pair in stops.windows(2) {
+        let ((pa, a), (pb, b)) = (pair[0], pair[1]);
+        let width = pb - pa;
+        let ends = [
+            (f32::from(a.r), f32::from(b.r)),
+            (f32::from(a.g), f32::from(b.g)),
+            (f32::from(a.b), f32::from(b.b)),
+            (a.a, b.a),
+        ];
+        for (s, (x, y)) in sum.iter_mut().zip(ends) {
+            *s += width * (x + y) / 2.0;
+        }
+        total += width;
+    }
+    if total <= 0.0 {
+        return stops.first().map_or(BLACK, |&(_, color)| color);
+    }
+    let channel = |s: f32| (s / total).round().clamp(0.0, 255.0) as u8;
+    Color {
+        r: channel(sum[0]),
+        g: channel(sum[1]),
+        b: channel(sum[2]),
+        a: sum[3] / total,
+    }
+}
+
+/// `stops` placed on a gradient line `line` long, as fractions of it: the first at 0 and the last
+/// at 1 when they have no position, each at least as far as the one before, and a run without
+/// positions spaced evenly between its neighbours.
+fn positions(stops: &[Written], line: f32) -> Vec<f32> {
     let mut at: Vec<Option<f32>> = stops
         .iter()
         .map(|(_, p)| p.map(|l| (l.pt + l.percent / 100.0 * line) / line.max(f32::EPSILON)))
@@ -487,21 +640,18 @@ fn offsets(stops: &[Written], line: f32) -> Vec<Stop> {
         }
         i = end;
     }
-    stops
-        .iter()
-        .zip(at)
-        .map(|((color, _), offset)| Stop {
-            offset: offset.unwrap_or(0.0).clamp(0.0, 1.0),
-            color: *color,
-        })
-        .collect()
+    at.into_iter().map(|p| p.unwrap_or(0.0)).collect()
 }
 
 /// `layer`'s paint over the padding box `x`, `y`, `w`, `h`.
 fn layer_paint(layer: &Layer, x: f32, y: f32, w: f32, h: f32) -> Paint {
     let (cx, cy) = (x + w / 2.0, y + h / 2.0);
     match layer {
-        Layer::Linear { to, stops } => {
+        Layer::Linear {
+            to,
+            stops,
+            repeating,
+        } => {
             let (dx, dy) = match *to {
                 Direction::Angle(a) => (a.sin(), -a.cos()),
                 Direction::Corner(sx, sy) => {
@@ -510,18 +660,29 @@ fn layer_paint(layer: &Layer, x: f32, y: f32, w: f32, h: f32) -> Paint {
                 }
             };
             let line = (w * dx).abs() + (h * dy).abs();
+            // The line runs from corner to corner of the box, so stops that repeat over it
+            // cover the box.
+            let stops = if *repeating {
+                match repeated(stops, line, 1.0) {
+                    Ok(stops) => stops,
+                    Err(color) => return Paint::Color(color),
+                }
+            } else {
+                offsets(stops, line)
+            };
             Paint::Linear {
                 x1: cx - dx * line / 2.0,
                 y1: cy - dy * line / 2.0,
                 x2: cx + dx * line / 2.0,
                 y2: cy + dy * line / 2.0,
-                stops: offsets(stops, line),
+                stops,
             }
         }
         Layer::Radial {
             circle,
             extent,
             stops,
+            repeating,
         } => {
             let (hw, hh) = (w / 2.0, h / 2.0);
             let corner = matches!(extent, Extent::ClosestCorner | Extent::FarthestCorner);
@@ -537,12 +698,27 @@ fn layer_paint(layer: &Layer, x: f32, y: f32, w: f32, h: f32) -> Paint {
             } else {
                 (hw, hh)
             };
-            Paint::Radial {
-                cx,
-                cy,
-                r: rx,
-                scale_y: ry / rx.max(f32::EPSILON),
-                stops: offsets(stops, rx),
+            let scale_y = ry / rx.max(f32::EPSILON);
+            if !*repeating {
+                return Paint::Radial {
+                    cx,
+                    cy,
+                    r: rx,
+                    scale_y,
+                    stops: offsets(stops, rx),
+                };
+            }
+            // Repeated stops reach the farthest corner, in lengths of the ending shape.
+            let reach = (hw.hypot(hh / scale_y.max(f32::EPSILON)) / rx.max(f32::EPSILON)).max(1.0);
+            match repeated(stops, rx, reach) {
+                Ok(stops) => Paint::Radial {
+                    cx,
+                    cy,
+                    r: rx * reach,
+                    scale_y,
+                    stops,
+                },
+                Err(color) => Paint::Color(color),
             }
         }
         Layer::Image {
@@ -570,11 +746,11 @@ type Radius = (f32, f32);
 
 /// `radius` resolved against a box `w` by `h`, scaled down together until each side holds its
 /// two corners.
-fn radii(radius: &[Length; 4], w: f32, h: f32) -> [Radius; 4] {
-    let r = radius.map(|l| {
+fn radii(radius: &[(Length, Length); 4], w: f32, h: f32) -> [Radius; 4] {
+    let r = radius.map(|(across, down)| {
         (
-            (l.pt + l.percent / 100.0 * w).max(0.0),
-            (l.pt + l.percent / 100.0 * h).max(0.0),
+            (across.pt + across.percent / 100.0 * w).max(0.0),
+            (down.pt + down.percent / 100.0 * h).max(0.0),
         )
     });
     let fit = |side: f32, a: f32, b: f32| if a + b > side { side / (a + b) } else { 1.0 };

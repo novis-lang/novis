@@ -52,12 +52,8 @@
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - Writing (`write`): a link inside a transformed box keeps its untransformed box.
-//! - Layout (`layout`, `layout::block`, `layout::grid`, `layout::flex`, `layout::boxes`): an
-//!   absolute box without a `width` is not stretched by `left` with `right`, a transformed box is
-//!   not a containing block, the `grid-template` and `grid` shorthands are not read, `::before`,
-//!   `::after` and `<br>` are not flex items, flex has no baseline alignment and no `margin: auto`
-//!   on an item, and elliptical radii and repeating gradients are not drawn.
+//! - Layout (`layout::flex`): `::before`, `::after` and `<br>` are not flex items, and flex has no
+//!   baseline alignment and no `margin: auto` on an item.
 //! - Text (`fonts`, `layout::inline`): `hyphenate-character` is not in `subset.json`, an inline box
 //!   in a right-to-left line is placed left to right, and an SVG `font-family` of Arial, Helvetica
 //!   or Courier falls back to Liberation Serif, where HTML maps each to its Liberation face.

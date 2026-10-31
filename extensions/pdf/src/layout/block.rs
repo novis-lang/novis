@@ -21,9 +21,12 @@
 //! ([`Flow::lift`]), and [`Flow::finish`] draws the layers back by `z-index`, then in document
 //! order: below 0 under the page's other items, and the rest over them. A box with a
 //! `z-index` draws the layers inside it as part of its own, so it stacks them only among
-//! themselves. An absolute box waits in the innermost positioned box open, its containing
+//! themselves. A box with a `transform` is a containing block too, and stacks as a box with
+//! `z-index: 0` does, so the absolute boxes inside it are drawn inside its transform. An
+//! absolute box waits in the innermost positioned or transformed box open, its containing
 //! block, until that box closes and its padding box is known, or in the flow when there is none,
-//! where the page's content box is its containing block. A `fixed` box always waits in the
+//! where the page's content box is its containing block. One with `left` and `right` and no
+//! `width` is laid out as wide as the room between them in that containing block. A `fixed` box always waits in the
 //! flow, and [`Flow::finish`] places a copy of it on every page against that page's content box.
 
 use std::collections::BTreeMap;
@@ -768,10 +771,13 @@ impl Flow {
             self.pending = 0.0;
         }
         let inset = geometry.border[0] + geometry.padding[0];
-        let stack = (geometry.position != Position::Static).then(|| {
+        // A transformed box is a containing block and stacks as `z-index: 0` does, so the
+        // absolute boxes inside it turn with it.
+        let transformed = geometry.decor.transform.is_some();
+        let stack = (geometry.position != Position::Static || transformed).then(|| {
             self.order += 1;
             Stack {
-                z: geometry.z,
+                z: geometry.z.or(transformed.then_some(0)),
                 order: self.order,
                 layers: self.layers.len(),
                 absolute: Vec::new(),
@@ -906,10 +912,10 @@ impl Flow {
         self.forced = geometry.breaks[1].or(inner);
     }
 
-    /// Takes a positioned box that has just closed out of its pages into layers: places the
-    /// absolute boxes it is the containing block of against its padding box, moves it and them
-    /// by its relative offset, and, when it has a `z-index`, draws the layers inside it as part
-    /// of its own: those below 0 after its background and the rest after its content.
+    /// Takes a positioned or transformed box that has just closed out of its pages into layers:
+    /// places the absolute boxes it is the containing block of against its padding box, moves it
+    /// and them by its relative offset, and, when it has a `z-index`, draws the layers inside it
+    /// as part of its own: those below 0 after its background and the rest after its content.
     fn lift(
         &mut self,
         g: &BoxGeometry,

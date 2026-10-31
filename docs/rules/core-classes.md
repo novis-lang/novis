@@ -4140,7 +4140,10 @@ running element and an `id` inside a table cell, an inline-block, a float or a f
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width
 (`extensions/pdf/tests/paginate.rs`). A float in the middle of a paragraph is placed at the top of
-its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). What the
+its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
+absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
+`transform` is the containing block of the absolute boxes inside it
+(`extensions/pdf/tests/layout.rs`). What the
 layout does not do yet is in
 the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 
@@ -4356,7 +4359,8 @@ and the same input rendered twice and compared byte for byte, encrypted output a
 
 **On disk.** `extensions/pdf/src/write.rs` writes through `krilla` with no creation time
 unless one is passed, and `krilla`'s document id hashes the content. Each link is a URI or an
-internal annotation the source wrote. `crates/nvs-ext/tests/pdf.rs` compares two renders byte for
+internal annotation the source wrote, and a link inside a transformed box covers the bounds of that
+box as drawn (`extensions/pdf/tests/render.rs`). `crates/nvs-ext/tests/pdf.rs` compares two renders byte for
 byte and scans the output for the names above, and `crates/nvs-ext/tests/pdf_standards.rs` holds the
 Factur-X file to its one attachment and two encrypted renders to byte equality.
 

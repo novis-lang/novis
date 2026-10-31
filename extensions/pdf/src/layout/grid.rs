@@ -12,6 +12,11 @@
 //! four placements, and `grid-row` and `grid-column` win over it. Names are read in lower case,
 //! in the template and in a placement alike. A value that does not read leaves the property at
 //! its initial value. A track with both a length and a percentage in one `calc()` is not read.
+//!
+//! The cascade reads the `grid-template` and `grid` shorthands into the longhands this module
+//! reads (`css::value::expand`), and resets each longhand the shorthand covers and does not give.
+//! In `grid-template`'s form with area strings, a row with no size is `auto`. `grid` with
+//! `auto-flow` sets the flow to rows when `auto-flow` is before the `/` and to columns after it.
 
 use std::collections::BTreeMap;
 

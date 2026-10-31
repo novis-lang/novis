@@ -999,6 +999,10 @@ impl<'r> Cascade<'_, 'r> {
                 percent: 0.0,
             })),
             Specified::Length(sum) => Some(Value::Length(sum.compute(size, self.root_font_size))),
+            Specified::Pair(across, down) => Some(Value::Pair(
+                across.compute(size, self.root_font_size),
+                down.compute(size, self.root_font_size),
+            )),
             Specified::CurrentColor if name == "color" => parent.values.get("color").cloned(),
             Specified::CurrentColor => Some(style.values.get("color").cloned().unwrap_or(
                 Value::Color(Color {
