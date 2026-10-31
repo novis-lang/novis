@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/package/fetch.rs",
-  "title": "`nvs pkg fetch` does not refuse an archive that holds an `nvs.toml`.",
-  "text": "`nvs pkg pack` and the registry's build refuse the file, but an archive from a mirror or a private registry is not checked on the way in. Closing it refuses the archive, in any case and at any depth, before anything is written under `vendor/` (`rule:packaging/a-package-cannot-reach-its-host`).",
-  "goal": "registry-service"
-}

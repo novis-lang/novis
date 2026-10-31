@@ -14,8 +14,8 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
 file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
 
-`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
-(`crates/nvs-cli/src/package/pack.rs`).
-
-**Not on disk.** `nvs pkg fetch` does not refuse an archive that holds an `nvs.toml`
-(gap:nvs-cli/fetch-refuses-an-archive-with-nvs-toml).
+`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive, and
+`nvs pkg fetch` refuses an archive that holds one before the package's folder is replaced. Both call
+one check, `pack::check_not_server_config` (`crates/nvs-cli/src/package/pack.rs`), so an archive from
+a mirror or a private registry is held to what the registry's build refuses. The refused fetch
+removes the files it unpacked and writes no lock (`crates/nvs-cli/tests/package_fetch.rs`).

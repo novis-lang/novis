@@ -411,20 +411,30 @@ pub(crate) fn check_path(path: &str) -> Result<(), Refusal> {
     Ok(())
 }
 
+/// Whether `path`'s last part is not `nvs.toml` in any case, in any folder: the one check `pack`
+/// and the fetch's unpack both make (`rule:packaging/a-package-cannot-reach-its-host`).
+///
+/// # Errors
+///
+/// The sentence naming the path, when it is a server configuration file.
+pub(crate) fn check_not_server_config(path: &str) -> Result<(), Refusal> {
+    let file = path.rsplit('/').next().unwrap_or(path);
+    if file.eq_ignore_ascii_case(SERVER_CONFIG) {
+        return Err(refuse(format!(
+            "`{path}` is a server configuration file. A package may not contain one: only the \
+             person who runs the server configures it."
+        )));
+    }
+    Ok(())
+}
+
 /// `entries` sorted by path bytes, each path checked, with no case-only twins, no `nvs.toml`,
 /// and within both limits.
 fn check_set(entries: &mut [Entry]) -> Result<(), Refusal> {
     entries.sort_by(|a, b| a.path.as_bytes().cmp(b.path.as_bytes()));
     for entry in entries.iter() {
         check_path(&entry.path)?;
-        let file = entry.path.rsplit('/').next().unwrap_or(&entry.path);
-        if file.eq_ignore_ascii_case(SERVER_CONFIG) {
-            return Err(refuse(format!(
-                "`{}` is a server configuration file. A package may not contain one: only the \
-                 person who runs the server configures it.",
-                entry.path
-            )));
-        }
+        check_not_server_config(&entry.path)?;
     }
     let mut folded: Vec<(String, &str)> = entries
         .iter()

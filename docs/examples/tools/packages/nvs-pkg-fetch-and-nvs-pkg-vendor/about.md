@@ -13,7 +13,8 @@ a package runs during the fetch.
 `nvs pkg fetch` keeps a package folder whose files still match `package.lock`. Use `nvs pkg vendor`
 when a file in `vendor/` was changed.
 
-**Good to know:** a package may read the files it came with, even when its grant line is empty.
+**Good to know:** a package may read the files it came with, even when its grant line is empty. A
+package that contains an `nvs.toml` file stops the fetch with an error, and nothing is vendored.
 
 **The examples below** show the one `require` line, the version two packages share, and a package
 reading its own file.

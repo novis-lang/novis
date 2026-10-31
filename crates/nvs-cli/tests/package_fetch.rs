@@ -203,10 +203,34 @@ impl Tree {
             String::from_utf8_lossy(&out.stderr)
         );
         let bytes = fs::read(&tar).expect("the archive was written");
-        let digest = blake3::hash(&bytes).to_hex().to_string();
+        self.list(namespace, version, state, required, &bytes);
+    }
+
+    /// `namespace` 1.0.0 as an archive the test writes itself, with `files` at their paths in
+    /// that order, so it may carry what `nvs pkg pack` refuses.
+    fn publish_archive(&self, namespace: &str, files: &[(&str, &str)]) {
+        let mut tar = tar::Builder::new(Vec::new());
+        for (path, text) in files {
+            let mut header = tar::Header::new_ustar();
+            header.set_path(path).expect("the test's path fits a header");
+            header.set_size(text.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar.append(&header, text.as_bytes())
+                .expect("the test writes the entry");
+        }
+        let bytes = tar.into_inner().expect("the archive ends");
+        self.list(namespace, "1.0.0", "released", &["fs.read"], &bytes);
+    }
+
+    /// The archive `bytes` of `namespace` at `version` in `state`, requesting `required`, copied
+    /// to the registry, logged and added to the package's index.
+    fn list(&self, namespace: &str, version: &str, state: &str, required: &[&str], bytes: &[u8]) {
+        let slug = namespace.to_lowercase().replace('\\', "/");
+        let digest = blake3::hash(bytes).to_hex().to_string();
         let archive = self.registry().join("archive");
         fs::create_dir_all(&archive).expect("the test makes the archive folder");
-        fs::write(archive.join(format!("{digest}.tar")), &bytes).expect("the test copies it");
+        fs::write(archive.join(format!("{digest}.tar")), bytes).expect("the test copies it");
         let state: serde_json::Value =
             serde_json::from_str(state).unwrap_or_else(|_| serde_json::json!(state));
         let repository = format!("https://git.example.com/{slug}");
@@ -374,6 +398,56 @@ fn nothing_a_package_holds_runs_during_fetch_or_vendor() {
             "{} has `ran.txt`",
             dir.display()
         );
+    }
+}
+
+/// The files of a package `Acme\Http` that also carries `config` at that path. The server
+/// configuration file is last, so every other file is unpacked before the fetch reaches it.
+fn with_config(config: &str) -> [(&str, &str); 4] {
+    [
+        ("package.toml", "[package]\nname = 'Acme\\Http'\nversion = \"1.0.0\"\n"),
+        ("LICENSE", "MIT\n"),
+        ("src/Main.nvs", MAIN),
+        (config, "[grants]\n'Acme\\*' = [\"fs.write\"]\n"),
+    ]
+}
+
+/// A fetch that refuses an archive with a server configuration file at `config`, and leaves
+/// no folder, no lock and no autoload file behind.
+fn assert_refused(tree: &Tree, config: &str) {
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(!out.status.success(), "{config} was fetched: {}", shown(&out));
+    assert!(
+        shown(&out).contains(&format!("`{config}` is a server configuration file")),
+        "{config}: {}",
+        shown(&out)
+    );
+    for path in ["vendor/acme/http", "vendor/acme/http.partial"] {
+        assert!(!tree.app().join(path).exists(), "{config}: `{path}` exists");
+    }
+    for path in ["package.lock", "vendor/packages.nvs"] {
+        assert!(!tree.app().join(path).exists(), "{config}: `{path}` was written");
+    }
+}
+
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
+#[test]
+fn a_fetched_archive_that_carries_an_nvs_toml_is_refused_and_writes_nothing() {
+    let tree = Tree::new("package-fetch-nvs-toml", HTTP);
+    tree.publish_archive("Acme\\Http", &with_config("nvs.toml"));
+    assert_refused(&tree, "nvs.toml");
+}
+
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
+#[test]
+fn an_nvs_toml_in_any_case_and_any_folder_is_refused_at_fetch() {
+    for (n, config) in ["NVS.TOML", "data/Nvs.Toml", "src/deep/nvs.toml"]
+        .into_iter()
+        .enumerate()
+    {
+        let tree = Tree::new(&format!("package-fetch-nvs-toml-{n}"), HTTP);
+        tree.publish_archive("Acme\\Http", &with_config(config));
+        assert_refused(&tree, config);
     }
 }
 
