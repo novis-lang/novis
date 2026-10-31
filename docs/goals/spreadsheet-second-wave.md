@@ -42,7 +42,7 @@ stages:
     context: [extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/read/mod.rs, docs/rules/core-classes/spreadsheet-value-types.md]
   - id: 10
     title: "the function set, and Reader::evaluate"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/format/mod.rs, extensions/spreadsheet/nvs/Reader.nvs, docs/rules/core-classes/spreadsheet-formula-is-a-value.md]
   - id: 11
     title: "Workbook writes an ods with values, styles, columns and formulas"
@@ -600,8 +600,8 @@ builds.
 - [x] The `reader-evaluate` export and the overlay that `reader-rows` reads computed results from. `wit/spreadsheet.wit:637`, `extensions/spreadsheet/src/lib.rs:1339`, `extensions/spreadsheet/src/read/mod.rs:794`, `extensions/spreadsheet/manifest.json:90`
 - [x] Every format feeds the evaluator: xlsx text, xls and xlsb tokens through `tokens.rs`, and ods through `openformula.rs`. `extensions/spreadsheet/src/read/mod.rs:1004`
 - [x] `Reader::evaluate` in the Novis half, and a CSV returns `[]`. `extensions/spreadsheet/nvs/Reader.nvs:134`
-- [ ] The tests and cases the `evaluator-functions` and `reader-evaluate-runs` checks name. `extensions/spreadsheet/tests/evaluate.rs:1`, `tests/conformance/novis/spreadsheet-evaluate-computes-a-report-it-wrote.nvst:1`, `tests/conformance/novis/spreadsheet-evaluate-lists-what-it-could-not-compute.nvst:1`
-- [ ] Feature proofs for `Novis\Spreadsheet\Reader::evaluate`: `about.md`, three examples, the bench and the attack (a workbook of circular references and deep chains). `docs/examples/novis/Spreadsheet-Reader/evaluate/about.md:1`, `benches/members/novis/Spreadsheet-Reader/evaluate.nvs:1`, `tests/hostile/novis/Spreadsheet-Reader/evaluate/01-a-workbook-that-never-stops-computing.nvs:1`
+- [x] The tests and cases the `evaluator-functions` and `reader-evaluate-runs` checks name. `extensions/spreadsheet/tests/evaluate.rs:1`, `tests/conformance/novis/spreadsheet-evaluate-computes-a-report-it-wrote.nvst:1`, `tests/conformance/novis/spreadsheet-evaluate-lists-what-it-could-not-compute.nvst:1`
+- [x] Feature proofs for `Novis\Spreadsheet\Reader::evaluate`: `about.md`, three examples, the bench and the attack (a workbook of circular references and deep chains). `docs/examples/novis/Spreadsheet-Reader/evaluate/about.md:1`, `benches/members/novis/Spreadsheet-Reader/evaluate.nvs:1`, `tests/hostile/novis/Spreadsheet-Reader/evaluate/01-a-workbook-that-never-stops-computing.nvs:1`
 - [x] The fragment states the call, the set, the bounds and the costs. Its Not-shipped line keeps only writing ods. The roster's `Reader` row names `evaluate`. Delete the record. `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:23`, `docs/rules/core-classes/spreadsheet-roster.md:10`
 
 ### 11. Workbook writes an ods with values, styles, columns and formulas
@@ -654,40 +654,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 10 is built and the workspace builds with no warning; nothing of it has run (context budget).
-Items 1 to 4 and 7 are ticked.
+Stage 10 is done: `evaluator-functions` and `reader-evaluate-runs` pass, `bun nv proofs --id
+'Novis\Spreadsheet\Reader::evaluate' --run` owes nothing, and the rules are rendered. Stage 11 has
+not started.
 
-- **Functions**: 104 sorted rows in `eval/functions.rs:22`, from `eval/math.rs`, `text.rs`,
-  `lookup.rs` and `date.rs` (subagent-written). Inputs a batch cannot match Excel on are listed;
-  each file's module doc names them. New `Ctx` and `Book` helpers are in `eval/mod.rs`.
-- **Feeding**: `read/evaluate.rs` builds the `Book` (names, `table_rows` with header and totals
-  counts) and `Reader::overlay` gives `rows()` the computed results. An undecodable formula is
-  `Some("")` in xls, xlsb and ods. xlsx shared formulas now move to each cell (`eval/moved.rs`).
-- **Export**: `reader-evaluate` in the WIT, guest, manifest, typed table, both export lists, and
-  `Reader::evaluate` in `Reader.nvs`.
-- **Rule**: fragment and roster rewritten. The gap `spreadsheet-evaluate-and-write-ods` is narrowed
-  to writing ods, not deleted: stages 11 to 13 still owe it. `bun nv rules --render` not run.
-- **Written, never run**: `tests/evaluate.rs` and `tests/evaluate/*.rs`, the two conformance
-  cases (their expected output is partly a guess), and the proofs (no `.out` files yet).
-- The sweep's `env-secret-proofs` red is stale: no such check exists.
+- `Reader.nvs:142` trusts `kind` with a reason: the engine returns every string tainted, and the
+  untrusted `kind` had broken every program that loads the spreadsheet classes (36 cases).
+- `tests/evaluate.rs:483` reaches the batch files by `#[path]`, and
+  `a_computed_result_reads_by_the_read_table` is at its end. The Rust-side `covers:` test is
+  `crates/nvs-cli/tests/spreadsheet_reader.rs:228`.
+- A missed formula's `text` has no leading `=`, as the file stores it.
+- The sweep's reds are fixed, each in its own commit: the browser job's relative `NVS_BIN`, the
+  asan job's SQLite ODR false positive (`detect_odr_violation=1`), seven memory-cap tests sized
+  for Miri, and the two debug-viewer shots after the Bun 1.4.4 bump. None of them has run in CI
+  yet. The `env-secret-proofs` red is stale: no such check exists.
 
 ### Next
 
-Finish stage 10, then stage 11.
+Stage 11, as its items say: the ods writer in `extensions/spreadsheet/src/ods/`, behind the
+`writer` resource (`extensions/spreadsheet/src/writer.rs:256`), with `writer-open` taking the
+format (`extensions/spreadsheet/src/lib.rs:1083`, `wit/spreadsheet.wit:190`) and `Workbook.nvs`
+accepting `ods` (`extensions/spreadsheet/nvs/Workbook.nvs:253`, `:291`). Formulas go through
+`extensions/spreadsheet/src/openformula.rs`. Land the `ods/mod.rs` package and cells first, then
+the export and the Novis half, then `tests/ods.rs` and the case.
 
-1. Run `cargo test --test evaluate` in `extensions/spreadsheet` once, and fix each case that
-   fails. A wrong Excel expectation in a case is fixed against Excel's documented behaviour; a
-   function that cannot match is listed for that input, never computed differently.
-   `a_computed_result_reads_by_the_read_table` is still owed: write it in
-   `crates/nvs-ext/tests/spreadsheet_read.rs` or in `tests/evaluate.rs` through `Reader::evaluate`
-   (a date-formatted formula cell reads back as a date, and a cell `rows()` skipped before reads).
-2. `bun nv relink --build`, then run the two `reader-evaluate-runs` cases with `bun nv suite
-   tests/conformance/ --case <path>`, and fix the cases or `Reader.nvs` to what the code gives.
-3. Produce the three examples' `.out` files, then `bun nv proofs --id
-   'Novis\Spreadsheet\Reader::evaluate'` and `bun nv proofs --comments` on the new `.nvs` files.
-   Tick items 5 and 6.
-4. `bun nv rules --render`, and set stage 10 done once `evaluator-functions` and
-   `reader-evaluate-runs` pass.
+`bun nv suite tests/conformance/ --case <path>` judges the whole suite, and `--case` only names
+the cases it credits. To see one case's output, run `target/release/nvs test <path.nvst>` after
+`bun nv relink --build`.
 
 Tests that may go red at the gate: from stage 10, `crates/nvs-cli/tests/meta.rs` and
 `crates/nvs-stdlib/tests/ext_world.rs`, whose export lists now name `readerEvaluate` and
@@ -702,3 +695,4 @@ inside the reader (hidden from `formulas: true`); a test that reads a table's re
 
 - The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.
+- `cargo clippy --all-targets -- -D warnings` in `extensions/spreadsheet` fails with 14 lints from earlier stages (`chunks_exact` with a constant size in `read/cfb.rs`, `xls.rs`, `binary.rs`, `tokens.rs` and `vba.rs`, collapsible `if`s in `openformula.rs`, a complex type in `read/extras.rs:193`). No gate lints that crate, because it is outside the workspace. Fix them with stage 11, which edits the crate.
