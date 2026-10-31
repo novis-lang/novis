@@ -1,0 +1,1 @@
+- **A generator body that names `self::` compiles and then fails in codegen.** `self::f()` inside a method that `yield`s panics `nvs-ir` with "names `static` but has neither a receiver nor a called class". Call the helper by its class name, or through `$this->`. `until: gone crates/nvs-ir/src/lower/mod.rs:has neither a receiver nor a called class`

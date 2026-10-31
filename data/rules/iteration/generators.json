@@ -13,6 +13,8 @@
     "tests/conformance/iter/two-generators-from-one-method-advance-independently.nvst",
     "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst",
     "crates/nvs-types/tests/generators.rs",
+    "crates/nvs-ir/tests/generator_shapes.rs",
+    "tests/conformance/iter/a-generator-builds-and-reads-a-shape.nvst",
     "crates/nvs-ir/src/lower/tests.rs"
   ]
 }

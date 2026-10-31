@@ -910,8 +910,12 @@ pub(crate) fn lower_generator_advance(
     let pending = std::mem::take(&mut low.anon_fns);
     // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
+    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
+    let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
-    let (anon_fns, classes) = drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
+    let (anon_fns, mut classes) =
+        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
+    classes.extend(shapes);
     (
         Lowered {
             function: Function {

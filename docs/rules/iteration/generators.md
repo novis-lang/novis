@@ -7,7 +7,8 @@ The body is compiled by an explicit **state-machine transform** — split at eac
 resumption states reached through an N-way switch, with every local live across a `yield` parked in
 the state object rather than on a stack. A generator is therefore an ordinary object: ten thousand
 live ones cost ten thousand small objects, not ten thousand stacks, and suspension stays a property
-of I/O rather than of ordinary control flow.
+of I/O rather than of ordinary control flow. A generator body builds and reads shapes as any method
+body does, and the unit declares each shape's class.
 
 A `finally` the generator is suspended inside still runs when the consumer abandons it, and
 definite assignment reasons across resumption edges exactly as it does across a linear body.

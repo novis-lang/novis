@@ -1,0 +1,22 @@
+--TEST--
+A generator body builds a shape, reads its fields and yields a value made from them — `rule:iteration/generators`
+--FILE--
+<?nvs
+class Grid {
+    public function cells(int $rows): Iterator<string> {
+        int $row = 0;
+        while ($row < $rows) {
+            var $cell = { row: $row, label: "r{$row}" };
+            yield "{$cell->label}={$cell->row}";
+            $row = $row + 1;
+        }
+    }
+}
+
+foreach ((new Grid())->cells(3) as string $text) {
+    echo $text, "\n";
+}
+--EXPECT--
+r0=0
+r1=1
+r2=2
