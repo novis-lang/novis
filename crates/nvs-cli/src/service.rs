@@ -100,9 +100,11 @@
 //! other choice; it would refuse the common layout of a binary in a user's
 //! home, and `read-only` still leaves the service no write outside its grants.
 //!
-//! **Not on disk.** Socket activation, which gives a privileged port with an empty capability set,
-//! is not written (gap:nvs-cli/socket-activation). It changes how `nvs serve` gets its listener, so
-//! it is a server change, and [`unit()`] follows it with a `.socket` unit.
+//! **A privileged port is systemd's to bind.** When the set [`listeners`]
+//! computes has one, [`socket_unit`] renders `<name>.socket` with every TCP
+//! address of the set, [`unit()`] `Requires=` it, and `nvs serve` adopts the
+//! sockets systemd passes (`serve::bind_adopting`). The service's capability
+//! set stays empty in every case.
 //!
 //! **Every verb is a plan of actions, and [`registration`] builds them.**
 //! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
@@ -1035,7 +1037,11 @@ pub(crate) fn socket_unit(plan: &Plan) -> Option<String> {
         unit_word(&format!("{name}.service"))
     ));
     out.push_str("[Socket]\n");
-    for address in plan.tcp.iter().filter(|address| port_of(address) != Some(0)) {
+    for address in plan
+        .tcp
+        .iter()
+        .filter(|address| port_of(address) != Some(0))
+    {
         out.push_str(&format!(
             "ListenStream={}\n",
             unit_word(&address.replace('%', "%%"))
@@ -2779,8 +2785,13 @@ pub(crate) mod registration {
                 let socket = socket_unit(plan);
                 if let Some(text) = &socket {
                     out.push(Action::WriteUnit {
-                        path: destination(Delivery::Install, &plan.name, unit_root, UnitFile::Socket)
-                            .expect("an installing delivery names a unit file"),
+                        path: destination(
+                            Delivery::Install,
+                            &plan.name,
+                            unit_root,
+                            UnitFile::Socket,
+                        )
+                        .expect("an installing delivery names a unit file"),
                         text: text.clone(),
                     });
                 }
@@ -2908,8 +2919,13 @@ pub(crate) mod registration {
                     }
                 }
                 out.push(Action::RemoveUnit {
-                    path: destination(Delivery::Install, &stored.name, unit_root, UnitFile::Service)
-                        .expect("an installing delivery names a unit file"),
+                    path: destination(
+                        Delivery::Install,
+                        &stored.name,
+                        unit_root,
+                        UnitFile::Service,
+                    )
+                    .expect("an installing delivery names a unit file"),
                 });
                 if stored.socket_unit {
                     out.push(Action::RemoveUnit {
@@ -5247,7 +5263,6 @@ fn privileged_port(port: u16) -> bool {
 /// `[server] socket_mode` when the configuration writes none.
 const DEFAULT_SOCKET_MODE: u32 = 0o660;
 
-
 /// A refusal, rendered as the diagnostic it is.
 fn refuse(diagnostic: Diagnostic, sources: &mut SourceMap) -> ExitCode {
     let mut diags = Diagnostics::new();
@@ -5932,8 +5947,8 @@ mod tests {
             root.display()
         );
 
-        let installed = destination(Delivery::Install, "web", &root, UnitFile::Service)
-            .expect("a destination");
+        let installed =
+            destination(Delivery::Install, "web", &root, UnitFile::Service).expect("a destination");
         assert_eq!(installed, root.join("web.service"));
         assert_eq!(
             destination(Delivery::Install, "web", &root, UnitFile::Socket),
@@ -5982,7 +5997,10 @@ mod tests {
     /// privileged port, and none without one, because systemd binds the port.
     #[test]
     fn socket_activation_leaves_the_service_no_capability() {
-        for plan in [listening_on(&["0.0.0.0:80"]), listening_on(&["127.0.0.1:8000"])] {
+        for plan in [
+            listening_on(&["0.0.0.0:80"]),
+            listening_on(&["127.0.0.1:8000"]),
+        ] {
             let text = unit(&plan);
             assert!(!text.contains("AmbientCapabilities"), "{text}");
             assert!(text.contains("CapabilityBoundingSet=\n"), "{text}");
@@ -6057,7 +6075,11 @@ mod tests {
         assert_eq!(
             installed.last(),
             Some(&Action::Systemctl {
-                argv: vec!["enable".to_owned(), "web.socket".to_owned(), "web".to_owned()]
+                argv: vec![
+                    "enable".to_owned(),
+                    "web.socket".to_owned(),
+                    "web".to_owned()
+                ]
             })
         );
 

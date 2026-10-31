@@ -247,6 +247,9 @@ pub(crate) fn run(
     init: crate::config::Init,
     debugger: Option<&nvs_host::debug::Debugger>,
 ) -> ExitCode {
+    // The sockets a systemd socket unit passed, taken first: reading them
+    // removes their variables, which must happen before any thread exists.
+    let passed = passed_by_systemd();
     if debugger.is_some() {
         crate::config::serve_in_development();
     }
@@ -621,7 +624,7 @@ pub(crate) fn run(
     // taken by the core that reached the entry would report one wrong address
     // once per core, and would leave the process listening on whichever
     // entries it got to first.
-    let bound = match bind_all(&wanted, socket_mode) {
+    let bound = match passed.and_then(|passed| bind_adopting(&wanted, socket_mode, passed)) {
         Ok(bound) => bound,
         Err(refusal) => {
             eprintln!("error: {refusal}");
@@ -2856,7 +2859,169 @@ fn unrecorded(snapshot: &Arc<nvs_config::Snapshot>, unusable: &nvs_config::data:
 /// entry named, because a refusal an operator has to guess the subject of is
 /// one they read the configuration twice for.
 fn bind_all(wanted: &[Listen], mode: u32) -> Result<Vec<Socket>, String> {
-    wanted.iter().map(|entry| bind_one(entry, mode)).collect()
+    bind_adopting(wanted, mode, Vec::new())
+}
+
+/// [`bind_all`], with the sockets systemd passed ([`passed_by_systemd`]) taken
+/// for the TCP entries whose address each one is on, and every other entry
+/// bound as `bind_all` binds it.
+///
+/// This is `rule:packaging/the-generated-unit-is-hardened`'s socket
+/// activation: the socket unit binds a privileged port, so this process needs
+/// no capability to listen on it. A passed socket is matched by its local
+/// address alone, and an entry with port `0` never matches one, because the
+/// platform chooses that port at each bind.
+///
+/// # Errors
+///
+/// A passed socket on an address no entry names, before anything is bound,
+/// because the operator changed `[server] listen` and did not install the
+/// service again. Then [`bind_all`]'s.
+fn bind_adopting(
+    wanted: &[Listen],
+    mode: u32,
+    mut passed: Vec<(SocketAddr, std::net::TcpListener)>,
+) -> Result<Vec<Socket>, String> {
+    if let Some((addr, _)) = passed
+        .iter()
+        .find(|(addr, _)| !wanted.contains(&Listen::Tcp(*addr)))
+    {
+        return Err(format!(
+            "systemd passed a socket for `{addr}`, and `[server] listen` does not list that address"
+        ));
+    }
+    wanted
+        .iter()
+        .map(|entry| {
+            let adopted = match entry {
+                Listen::Tcp(addr) => passed.iter().position(|(on, _)| on == addr),
+                Listen::Unix(_) => None,
+            };
+            match adopted {
+                Some(at) => Ok(Socket::Tcp(passed.swap_remove(at).1)),
+                None => bind_one(entry, mode),
+            }
+        })
+        .collect()
+}
+
+/// The first descriptor systemd passes a socket-activated service.
+#[cfg(target_os = "linux")]
+const FIRST_PASSED_FD: std::os::fd::RawFd = 3;
+
+/// The TCP sockets systemd passed this process, each with its local address.
+///
+/// systemd's protocol is two variables and the descriptors from
+/// [`FIRST_PASSED_FD`]: `LISTEN_FDS` counts them, and `LISTEN_PID` names the
+/// process they are for. Both are removed here, with `LISTEN_FDNAMES`, so a
+/// program this server starts does not read them. Called at the top of
+/// [`run`], before the boot starts any thread, because removing a variable
+/// while another thread reads the environment is undefined behaviour.
+///
+/// # Errors
+///
+/// [`passed`]'s.
+#[cfg(target_os = "linux")]
+fn passed_by_systemd() -> Result<Vec<(SocketAddr, std::net::TcpListener)>, String> {
+    let pid = std::env::var("LISTEN_PID").ok();
+    let fds = std::env::var("LISTEN_FDS").ok();
+    for name in ["LISTEN_PID", "LISTEN_FDS", "LISTEN_FDNAMES"] {
+        #[expect(
+            unsafe_code,
+            reason = "`remove_var` is unsafe while another thread may read the environment. \
+                      No thread does: `run` calls this before the boot starts one."
+        )]
+        // SAFETY: as the reason says, nothing reads the environment during the call.
+        unsafe {
+            std::env::remove_var(name);
+        }
+    }
+    passed(
+        pid.as_deref(),
+        fds.as_deref(),
+        std::process::id(),
+        FIRST_PASSED_FD,
+    )
+}
+
+/// No platform but Linux passes a socket this way, so nothing was passed.
+#[cfg(not(target_os = "linux"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the Linux reader's signature, so `run` has one call for every platform"
+)]
+fn passed_by_systemd() -> Result<Vec<(SocketAddr, std::net::TcpListener)>, String> {
+    Ok(Vec::new())
+}
+
+/// The sockets `listen_fds` counts from `first`, when `listen_pid` is `own`,
+/// this process's id. Any other pid means the variables were inherited from a
+/// process they were meant for, so none of the descriptors is this process's
+/// and nothing is taken.
+///
+/// Each taken descriptor is closed on `exec`, so a program this server starts
+/// does not inherit a listener.
+///
+/// # Errors
+///
+/// A descriptor that is not a bound TCP socket.
+#[cfg(target_os = "linux")]
+fn passed(
+    listen_pid: Option<&str>,
+    listen_fds: Option<&str>,
+    own: u32,
+    first: std::os::fd::RawFd,
+) -> Result<Vec<(SocketAddr, std::net::TcpListener)>, String> {
+    use std::os::fd::FromRawFd as _;
+
+    if listen_pid.and_then(|pid| pid.trim().parse::<u32>().ok()) != Some(own) {
+        return Ok(Vec::new());
+    }
+    let count = listen_fds
+        .and_then(|count| count.trim().parse::<u16>().ok())
+        .unwrap_or(0);
+    let mut out = Vec::with_capacity(usize::from(count));
+    for fd in (first..).take(usize::from(count)) {
+        #[expect(
+            unsafe_code,
+            reason = "systemd passed this descriptor to this process, which `LISTEN_PID` says, \
+                      and nothing else in it owns the descriptor"
+        )]
+        // SAFETY: as the reason says, this is the descriptor's one owner.
+        let listener = unsafe { std::net::TcpListener::from_raw_fd(fd) };
+        let addr = listener.local_addr().map_err(|error| {
+            format!("systemd passed descriptor {fd}, which is not a bound TCP socket: {error}")
+        })?;
+        close_on_exec(fd).map_err(|error| {
+            format!(
+                "systemd passed the socket for `{addr}`, and it could not be kept from the \
+                 programs this server starts: {error}"
+            )
+        })?;
+        out.push((addr, listener));
+    }
+    Ok(out)
+}
+
+/// Sets `FD_CLOEXEC` on `fd`, which systemd passes without it.
+///
+/// # Errors
+///
+/// The platform's.
+#[cfg(target_os = "linux")]
+#[allow(
+    unsafe_code,
+    reason = "`fcntl` is the only call that sets a descriptor's flags, and it reads and writes \
+              the flags of one descriptor this process owns"
+)]
+fn close_on_exec(fd: std::os::fd::RawFd) -> std::io::Result<()> {
+    // SAFETY: as the reason says, `fd` is open and this process's.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    // SAFETY: the same descriptor.
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 /// One entry bound, with `mode` on it if it is a socket path.
@@ -3739,6 +3904,87 @@ mod tests {
         answered.sort();
         answered.dedup();
         assert_eq!(answered.len(), 3, "three entries are three sockets");
+    }
+
+    /// A socket bound by this case and given to [`super::passed`] as systemd
+    /// gives one, with its address. The descriptor is the reader's from here.
+    #[cfg(target_os = "linux")]
+    fn passed_socket() -> (SocketAddr, std::os::fd::RawFd) {
+        use std::os::fd::IntoRawFd as _;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free loopback port");
+        let addr = listener.local_addr().expect("a bound address");
+        (addr, listener.into_raw_fd())
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`'s socket activation: a
+    /// socket systemd passed for a `listen` entry is that entry's socket, and
+    /// nothing binds the address a second time.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn adopting_a_socket_answers_on_its_listen_address() {
+        use std::os::fd::AsRawFd as _;
+
+        let (addr, fd) = passed_socket();
+        let own = std::process::id().to_string();
+        let passed = super::passed(Some(&own), Some("1"), std::process::id(), fd)
+            .expect("one passed TCP socket");
+        assert_eq!(passed.len(), 1);
+        assert_eq!(passed[0].0, addr);
+
+        let bound = super::bind_adopting(&[Listen::Tcp(addr)], 0o660, passed)
+            .expect("the entry takes the passed socket");
+        match &bound[..] {
+            [Socket::Tcp(listener)] => assert_eq!(listener.as_raw_fd(), fd),
+            other => panic!("not the one passed socket: {other:?}"),
+        }
+        std::net::TcpStream::connect(addr)
+            .unwrap_or_else(|error| panic!("nothing is listening on {addr}: {error}"));
+    }
+
+    /// A passed socket on an address `[server] listen` does not list stops
+    /// the start, and names that address.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn adopting_a_socket_no_listen_entry_names_stops_the_start() {
+        let (addr, fd) = passed_socket();
+        let passed = super::passed(
+            Some(&std::process::id().to_string()),
+            Some("1"),
+            std::process::id(),
+            fd,
+        )
+        .expect("one passed TCP socket");
+        let refusal = super::bind_adopting(&[tcp("127.0.0.1:0")], 0o660, passed)
+            .expect_err("an address no entry names");
+        assert_eq!(
+            refusal,
+            format!(
+                "systemd passed a socket for `{addr}`, and `[server] listen` does not list that \
+                 address"
+            )
+        );
+    }
+
+    /// Variables meant for another process take nothing: a `LISTEN_PID` that
+    /// is not this process's, or none, leaves every descriptor where it is.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn adopting_ignores_listen_fds_meant_for_another_process() {
+        use std::os::fd::AsRawFd as _;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free loopback port");
+        let own = std::process::id();
+        let other = own.wrapping_add(1).to_string();
+        for pid in [Some(other.as_str()), None, Some("not a pid")] {
+            let passed =
+                super::passed(pid, Some("1"), own, listener.as_raw_fd()).expect("nothing to read");
+            assert!(passed.is_empty(), "{pid:?} took a socket");
+        }
+        // The descriptor is still open and still this case's.
+        let addr = listener.local_addr().expect("the listener is still open");
+        std::net::TcpStream::connect(addr)
+            .unwrap_or_else(|error| panic!("nothing is listening on {addr}: {error}"));
     }
 
     /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s second
