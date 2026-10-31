@@ -1,8 +1,6 @@
 <?nvs
 // Attack: a request renders HTML that is nested far too deep, broken, or full of tags that load
-// or run something. Each render should finish or throw an error, and the last one should stop at
-// the memory limit. The server keeps running.
-// hostile: ends-early 8 FATAL
+// or run something. Each render should finish or throw an error. The server keeps running.
 use Novis\Pdf\Document;
 
 class Attack
@@ -45,6 +43,6 @@ Attack::attempt(6, '<p>' . Core\Str::repeat('W', 200000) . '</p>');
 // 7. An empty document.
 Attack::attempt(7, '');
 
-// 8. 100000 nested `div` elements. The render runs out of memory, so this is the last step.
-echo "step 8\n";
+// 8. 100000 nested `div` elements. Past 512 levels, HTML reads them as siblings,
+// so this renders one page.
 Attack::attempt(8, Core\Str::repeat('<div>', 100000) . 'deep' . Core\Str::repeat('</div>', 100000));

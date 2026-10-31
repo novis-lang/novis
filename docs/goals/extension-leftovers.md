@@ -46,7 +46,7 @@ stages:
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/grid.rs, extensions/pdf/src/layout/boxes.rs, extensions/pdf/src/write.rs, extensions/pdf/subset.json]
   - id: 11
     title: "flex items, right-to-left and SVG text are laid out as HTML's, clippy is clean, and the PDF lists are gone"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/flex.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/fonts.rs, crates/nvs-ext/tests/builtin.rs, tools/nv/cmd/owners.ts]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
@@ -718,7 +718,7 @@ the component's size is re-recorded.
 - [x] The tests the `pdf-flex-and-text` and `pdf-svg-fonts` checks name. `extensions/pdf/tests/layout.rs:1`, `extensions/pdf/tests/render.rs:1`
 - [x] `rule:packaging/the-first-party-components-are-built-in`: the clippy lints are fixed, and the check runs once. `extensions/pdf/src/layout.rs:459`, `extensions/pdf/src/layout/inline.rs:1242`, `extensions/pdf/src/css/value.rs:1`, `extensions/pdf/src/css/mod.rs:1`
 - [x] The list goes, with its bold lead. Delete `data/gaps/nvs-pdf/pdf-leftovers.json`. The size is re-recorded once. `extensions/pdf/src/lib.rs:45`, `extensions/pdf/src/lib.rs:39`, `crates/nvs-ext/tests/builtin.rs:163`
-- [ ] The attacks the `pdf-attacks` check runs pass, `bun nv rules --render` runs, and `bun nv owners --closes extension-leftovers` passes. `tools/nv/cmd/owners.ts:1`
+- [x] The attacks the `pdf-attacks` check runs pass, `bun nv rules --render` runs, and `bun nv owners --closes extension-leftovers` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 12. the goal is verified once, and every failure is fixed
 

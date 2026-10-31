@@ -4068,14 +4068,14 @@ wholesale and must still meet them.
   spends 1 MiB more linear memory per render. Plain blocks and inline-blocks are laid out without
   recursing and need no bound, and the parser's element cap already flattens anything past 512 open
   elements.
-- **Limits.** Three inputs grow the work with their size and end at the request's memory limit (128
+- **Limits.** Two inputs grow the work with their size and end at the request's memory limit (128
   MiB by default), which throws as every guest that reaches it does ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)):
-  one word of two million characters, 100,000 nested `div`s (flattened into siblings; 50,000 render
-  under the default, and time grows linearly), and a page whose content stream saves its state a
-  million times when its text is read. No bound below the memory limit is fairer, because each costs
-  what it asks for. The attacks under `tests/hostile/novis/Pdf-Document/fromHtml/` and
-  `tests/hostile/novis/Pdf-Reader/text/02-a-page-that-saves-its-state.nvs` pin them with
-  `ends-early`.
+  one word of two million characters, and a page whose content stream saves its state a million
+  times when its text is read. No bound below the memory limit is fairer, because each costs what it
+  asks for. `tests/hostile/novis/Pdf-Document/fromHtml/02-one-word-of-two-million-characters.nvs`
+  and `tests/hostile/novis/Pdf-Reader/text/02-a-page-that-saves-its-state.nvs` pin them with
+  `ends-early`. 100,000 nested `div`s are flattened into siblings and render under the default
+  limit, in time that grows linearly; `01-html-nested-and-broken.nvs` pins that.
 
 **On disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
 computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley`, hyphenates
