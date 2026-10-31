@@ -14,7 +14,8 @@ import { Browser, EXE } from "./chromium.ts";
 // Headless Chromium has no push service: `PushManager.prototype.subscribe` is replaced with a stub
 // whose keys the test made, the test decrypts the message the registry sent to the receiver, and hands
 // it to the service worker with `ServiceWorker.deliverPushMessage`. An operator's `nvs run` gives an
-// account a vendor or a verified channel, as the application's own `BrowserTest` does.
+// account a vendor or a verified channel, as the application's own `BrowserTest` does, and saves a
+// release as a publish with a token does, without the git host a real publish needs.
 //
 // Each test has its own browser context, so its cookies, service worker and authenticator are its own.
 // A step ends on a page condition, polled, with a bound that only names a stuck step.
@@ -145,6 +146,32 @@ if (!new Registry\\Vendors(Registry\\Schema::open())->claim($vendor, $account)) 
     throw new RuntimeError('The vendor is not claimed.');
 }
 `,
+  "release.nvs": `<?nvs
+autoload 'Registry' from '../src';
+
+array<tainted string> $words = Core\\Cli::arguments();
+string $account = Registry\\Accounts::idOf($words[0]) ?? '';
+string $name = Core\\Taint::assertTrusted($words[1], 'the test names the package');
+string $version = Core\\Taint::assertTrusted($words[2], 'the test names the version');
+string $api = Core\\Taint::assertTrusted($words[3], 'the test wrote the API file');
+string $key = Core\\Str::lower($name);
+array<string> $parts = Core\\Str::split($version, '.');
+int $now = Core\\Time::now()->toEpochSeconds();
+var $db = Registry\\Schema::open();
+$db->execute(
+    'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
+    [$key, $name, Core\\Str::before($key, '\\\\') ?? $key, 'https://git.example.com/project.git', '', $now],
+);
+$db->execute(
+    'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+        . 'published_at, pending_until, dependencies, capabilities) values (?, ?, ?, ?, ?, ?, 10, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+        $key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int,
+        'blake3:' . Core\\Encoding::toHex(Core\\Random::bytes(32)), 'https://git.example.com/project.git', '',
+        Core\\Str::repeat('1', 40), $account, 'token', '', $api, $now, $now + 7 * 86400, '{}', '{"required":[],"optional":[]}',
+    ],
+);
+`,
 };
 
 let browser: Browser;
@@ -162,6 +189,20 @@ function operator(script: string, ...args: string[]) {
     stderr: "pipe",
   });
   if (r.exitCode !== 0) throw new Error(`jobs/${script}: ${r.stdout}${r.stderr}`);
+}
+
+/** Gives `account` the vendor of `name`, such as `Store\Lib`, and saves each version of the package,
+ * pending for seven days. Each version's API is `api`. Returns the address of the package page. */
+function publish(account: string, name: string, versions: string[], api: object = { classes: [] }): string {
+  const [vendor] = name.split("\\");
+  operator("vendor.nvs", account, vendor);
+  mkdirSync(join(APP, "builds"), { recursive: true });
+  for (const version of versions) {
+    const file = join(APP, "builds", `${name.replace("\\", "-")}-${version}.json`);
+    writeFileSync(file, JSON.stringify(api));
+    operator("release.nvs", account, name, version, file);
+  }
+  return `/packages/${name.replace("\\", "/").toLowerCase()}`;
 }
 
 /** Serves the copy and resolves with its address once it prints its `listening on` line. */
@@ -328,11 +369,17 @@ class Page {
   if (!f) return false;
   document.getElementById("status").textContent = "";
   ${fill}
+  window.__sent = true;
   f.requestSubmit();
   return true;
 })()`);
     if (!sent) throw new Error(`the page has no ${selector}`);
     await this.until(done);
+  }
+
+  /** Ticks the checkbox `name`, which `act` cannot fill. */
+  async tick(name: string) {
+    await this.eval(`document.querySelector('input[name=${JSON.stringify(name)}]').checked = true`);
   }
 
   text(): Promise<string> {
@@ -345,6 +392,14 @@ class Page {
 }
 
 const loaded = (path: string) => `location.pathname === ${JSON.stringify(path)} && document.readyState === "complete"`;
+/** Whether the page has loaded again since `act` sent its form. */
+const reloaded = (path: string) => `${loaded(path)} && window.__sent !== true`;
+/** Whether the page has the element `selector`. */
+const has = (selector: string) => `!!document.querySelector(${JSON.stringify(selector)})`;
+const shows = (words: string) => `document.body.innerText.includes(${JSON.stringify(words)})`;
+/** The state of `version` in the table of versions on a package page. */
+const stateOf = (version: string) =>
+  `[...document.querySelectorAll("tr")].find((r) => r.cells[0]?.textContent === ${JSON.stringify(version)})?.cells[1].textContent`;
 const status = (words: string) => `(document.getElementById("status")?.textContent ?? "").includes(${JSON.stringify(words)})`;
 /** Whether the table of push devices and webhooks has a row whose kind starts with `kind` and that counts. */
 const counts = (kind: string) =>
@@ -485,6 +540,72 @@ describe.skipIf(!EXE)("the registry's pages in Chromium", () => {
     await page.act('form[data-action="add-owner"]', { account: second }, `${loaded("/account")} && !!document.querySelector(${JSON.stringify(removeSecond)})`);
     await page.act(removeSecond, {}, `${loaded("/account")} && !document.querySelector(${JSON.stringify(removeSecond)})`);
     expect(await page.text()).toContain(`${account} (you)`);
+    await page.close();
+  }, 120_000);
+
+  test("an owner releases a pending version now", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    // A version below 0.1.0 waits seven days. The first version at 0.1.0 or higher waits for its API.
+    const path = `${publish(account, "Store\\Lib", ["0.0.1"])}/0.0.1`;
+    await page.go(path);
+    expect(await page.text()).toContain("pending until");
+    await page.act('form[data-action="release"]', {}, `${reloaded(path)} && !${has('form[data-action="release"]')}`);
+    expect(await page.eval(`document.querySelector("table td").textContent`)).toBe("released");
+    await page.close();
+  }, 120_000);
+
+  test("an owner freezes the first stable API after reading it", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    const path = `${publish(account, "Wiki\\Lib", ["0.1.0"], { classes: [{ name: "Wiki\\Lib\\Page" }] })}/0.1.0`;
+    await page.go(path);
+    expect(await page.text()).toContain("waits for an owner");
+    await page.act('form[data-action="show-api"]', {}, `!document.getElementById("api").hidden`);
+    expect(await page.eval(`document.getElementById("api").textContent`)).toContain("Wiki\\\\Lib\\\\Page");
+    await page.tick("read");
+    await page.act('form[data-action="stable"]', {}, `${reloaded(path)} && !${has('form[data-action="stable"]')}`);
+    expect(await page.eval(`document.querySelector("table td").textContent`)).toBe("released");
+    await page.close();
+  }, 120_000);
+
+  test("an owner unlists a version and lists it again", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    const path = publish(account, "News\\Lib", ["0.0.1", "0.0.2"]);
+    await page.go(path);
+    await page.act('form[data-action="unlist"][data-version="0.0.1"]', {}, `${reloaded(path)} && ${has('form[data-action="relist"][data-version="0.0.1"]')}`);
+    expect(await page.eval(stateOf("0.0.1"))).toBe("unlisted");
+    expect(await page.eval(stateOf("0.0.2"))).toStartWith("pending until");
+    await page.act('form[data-action="relist"][data-version="0.0.1"]', {}, `${reloaded(path)} && ${has('form[data-action="unlist"][data-version="0.0.1"]')}`);
+    expect(await page.eval(stateOf("0.0.1"))).toStartWith("pending until");
+    await page.close();
+  }, 120_000);
+
+  test("an owner retracts a version and sends an advisory", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    const path = publish(account, "Docs\\Lib", ["0.0.1", "0.0.2"]);
+    await page.go(path);
+    const reason = "It deletes the cache.";
+    await page.act('form[data-action="retract"]', { version: "0.0.1", reason, fixedIn: "0.0.2" }, `${reloaded(path)} && ${shows(reason)}`);
+    expect(await page.text()).toContain("Version 0.0.2 fixes it.");
+    expect(await page.eval(stateOf("0.0.1"))).toBe("retracted");
+    const summary = "A crafted header reads other requests.";
+    await page.act('form[data-action="advisory"]', { versions: "0.0.1..0.0.2", summary }, `${reloaded(path)} && ${shows(summary)}`);
+    expect(await page.text()).toContain("docs/lib-1");
+    await page.close();
+  }, 120_000);
+
+  test("an owner moves the package to another repository", async () => {
+    const page = await Page.open();
+    const { account } = await signUp(page);
+    const path = publish(account, "Forum\\Lib", ["0.0.1"]);
+    await page.go(path);
+    const repository = "https://git.example.com/forum/lib.git";
+    await page.act('form[data-action="repository"]', { repository, directory: "packages/lib" }, reloaded(path));
+    expect(await page.eval(`document.querySelector('input[name="repository"]').value`)).toBe(repository);
+    expect(await page.eval(`document.querySelector('input[name="directory"]').value`)).toBe("packages/lib");
     await page.close();
   }, 120_000);
 });
