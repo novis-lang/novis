@@ -5448,11 +5448,14 @@ one. The engine's resource is `reading`, because a manifest's resource is a clas
 `Formula` with its A1 text. xls and xlsb store a formula as parsed tokens, which one decoder turns
 into the text an xlsx cell writes (`extensions/spreadsheet/src/read/tokens.rs`): every operand and
 operator token, Excel's built-in function table, an add-in call such as `_xlfn.XLOOKUP`, an array
-constant, a defined name and a reference to another sheet. A shared formula is decoded for each
+constant, a defined name and a reference to another sheet. A reference into another workbook is
+`[1]Shop!A1` and its name `[1]!Rate`, as an xlsx cell writes them, numbered in the order the file
+lists the other workbooks. Their sheet names are an xls `SUPBOOK`'s, and for an xlsb the
+`BrtSupTabs` of the external link part its `BrtSupBookSrc` names, read for those names alone. A
+shared formula is decoded for each
 cell it covers, with its relative references moved by that cell's distance from its first cell.
 An xls is decoded when the file opens, and an xlsb as its rows are read. A token the decoder does
-not know, a structured reference in an xlsb, a reference into another workbook and a name it
-cannot find give no `Formula`, and the cell reads as its stored result. What it spends: the
+not know, a structured reference in an xlsb and a name it cannot find give no `Formula`, and the cell reads as its stored result. What it spends: the
 text of each formula of an xls, held with its rows, and for an xlsb the sheets, the `XTI` list and
 the names, read with the workbook part when the file opens.
 
@@ -5474,9 +5477,6 @@ globals' `MSODRAWINGGROUP` and its cell its client anchor's. The properties are 
 `\x05SummaryInformation` and `\x05DocumentSummaryInformation` streams. BIFF8 has no table part, so
 `tables` gives an empty list for an xls (`extensions/spreadsheet/src/read/xls_extras.rs`). What it
 spends: every extra and each picture's bytes, held with the rows until the reader is freed.
-
-**Not shipped.** An xlsb name over another workbook is listed with an empty reference
-(gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

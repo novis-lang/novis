@@ -57,6 +57,7 @@ const MERGE_CELL: u16 = 176;
 const SUP_BOOK_SOURCE: u16 = 355;
 const SUP_SELF: u16 = 357;
 const SUP_SAME: u16 = 358;
+const SUP_TABS: u16 = 359;
 const EXTERN_SHEET: u16 = 362;
 const ARRAY_FORMULA: u16 = 426;
 const SHARED_FORMULA: u16 = 427;
@@ -221,6 +222,9 @@ pub struct Workbook {
     pub sheets: Vec<(String, Visibility, String)>,
     /// What the workbook's formulas refer to by number.
     pub book: tokens::Book,
+    /// Each other workbook: its index in `book.linked`, and the relationship id of the external
+    /// link part that lists its sheets.
+    pub externals: Vec<(usize, String)>,
 }
 
 /// Reads `xl/workbook.bin`.
@@ -229,6 +233,7 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
         date1904: false,
         sheets: Vec::new(),
         book: tokens::Book::default(),
+        externals: Vec::new(),
     };
     for item in records(part) {
         let (kind, body) = item?;
@@ -248,7 +253,12 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
             }
             SUP_SELF | SUP_SAME => book.book.linked.push(Linked::Own),
             SUP_ADDIN => book.book.linked.push(Linked::AddIn(Vec::new())),
-            SUP_BOOK_SOURCE => book.book.linked.push(Linked::Other),
+            SUP_BOOK_SOURCE => {
+                if let (Some(id), _) = wide_at(body, 0)? {
+                    book.externals.push((book.book.linked.len(), id));
+                }
+                book.book.linked.push(Linked::other(&book.book.linked));
+            }
             // A count, then each `XTI`: its `SupBook` and its first and last sheet.
             EXTERN_SHEET => {
                 let count = u32_at(body, 0)? as usize;
@@ -276,6 +286,24 @@ pub fn workbook(part: &[u8]) -> Result<Workbook, Error> {
         }
     }
     Ok(book)
+}
+
+/// The sheet names of an external link part, from its `BrtSupTabs`: a count and each name.
+pub fn external_sheets(part: &[u8]) -> Result<Vec<String>, Error> {
+    for item in records(part) {
+        let (kind, body) = item?;
+        if kind == SUP_TABS {
+            let mut sheets = Vec::new();
+            let mut at = 4;
+            for _ in 0..u32_at(body, 0)? {
+                let (name, used) = wide_at(body, at)?;
+                sheets.push(name.unwrap_or_default());
+                at += used;
+            }
+            return Ok(sheets);
+        }
+    }
+    Ok(Vec::new())
 }
 
 /// The number format of each cell style index in `xl/styles.bin`.
@@ -487,7 +515,7 @@ pub type DefinedName = (String, Option<usize>, Option<String>);
 /// The defined names of `xl/workbook.bin`, each its name, the index of the sheet it is local to
 /// and its formula's text. A `BrtName` is its flags, a shortcut key, the sheet's index or
 /// `0xFFFFFFFF` for the workbook, its name and its parsed formula. A formula the decoder cannot
-/// read, such as one over another workbook, has no text.
+/// read has no text.
 pub fn names(part: &[u8], book: &tokens::Book) -> Result<Vec<DefinedName>, Error> {
     let mut names = Vec::new();
     for item in records(part) {

@@ -13,9 +13,11 @@
 //! covers, with its relative references moved by that cell's distance from the formula's first
 //! cell. A relative reference counts rows and columns modulo the grid, as Excel does.
 //!
+//! A reference into another workbook is `[1]Shop!A1`, and a name in it `[1]!Rate`: [`Linked`]
+//! numbers the other workbooks from 1 in the order the file lists them, as an xlsx file does.
+//!
 //! [`decode`] returns `None` for a token it does not know, a structured reference (`Table[x]`) in
-//! an xlsb, a reference into another workbook, a name it cannot find, and a stack that does not
-//! end with one value. The cell then reads as its stored result, as it does without
+//! an xlsb, a name it cannot find, and a stack that does not end with one value. The cell then reads as its stored result, as it does without
 //! `formulas: true`.
 //!
 //! **The cost is linear in the tokens.** Each piece of text is written once into one buffer, and
@@ -61,8 +63,28 @@ pub enum Linked {
     Own,
     /// An add-in, with the names of its functions in order.
     AddIn(Vec<String>),
-    /// Another workbook, which a formula here gives no text for.
-    Other,
+    /// Another workbook: its number among the other workbooks, from 1, as an xlsx formula writes
+    /// it in `[1]Shop!A1`, its sheet names and its defined names, each in order.
+    Other {
+        number: u32,
+        sheets: Vec<String>,
+        names: Vec<String>,
+    },
+}
+
+impl Linked {
+    /// Another workbook, numbered after the ones `linked` already lists.
+    pub fn other(linked: &[Self]) -> Self {
+        let before = linked
+            .iter()
+            .filter(|linked| matches!(linked, Self::Other { .. }))
+            .count();
+        Self::Other {
+            number: u32::try_from(before).unwrap_or(u32::MAX).saturating_add(1),
+            sheets: Vec::new(),
+            names: Vec::new(),
+        }
+    }
 }
 
 /// What a workbook's formulas refer to by number: its sheets, the workbooks and sheet ranges its
@@ -761,8 +783,8 @@ impl Decoder<'_> {
         Some(())
     }
 
-    /// `ptgNameX`: a name in another workbook or an add-in. A function past Excel's built-in
-    /// table is an add-in name such as `_xlfn.XLOOKUP`.
+    /// `ptgNameX`: a name in another workbook, `[1]!Rate`, or an add-in. A function past Excel's
+    /// built-in table is an add-in name such as `_xlfn.XLOOKUP`.
     fn external_name(&mut self) -> Option<()> {
         let xti = usize::from(self.tokens.u16()?);
         let index = match self.biff {
@@ -777,7 +799,11 @@ impl Decoder<'_> {
         let name = match self.book.linked.get(linked as usize)? {
             Linked::AddIn(names) => names.get(index.checked_sub(1)? as usize)?,
             Linked::Own => self.book.names.get(index.checked_sub(1)? as usize)?,
-            Linked::Other => return None,
+            Linked::Other { number, names, .. } => {
+                let name = names.get(index.checked_sub(1)? as usize)?;
+                let text = format!("[{number}]!{name}");
+                return self.out.push(&text);
+            }
         };
         let name = name.clone();
         self.out.push(&name)
@@ -906,34 +932,35 @@ impl Decoder<'_> {
         let _ = write!(text, "{}", row + 1);
     }
 
-    /// The sheet prefix of a 3-D token, `Shop!` or `'Shop 1:Shop 3'!`. `None` for a sheet of
-    /// another workbook.
+    /// The sheet prefix of a 3-D token: `Shop!` or `'Shop 1:Shop 3'!`, and `[1]Shop!` or
+    /// `'[1]My Shop'!` for a sheet of another workbook. `None` for an add-in.
     fn sheet(&mut self) -> Option<String> {
         let xti = usize::from(self.tokens.u16()?);
         let &(linked, first, last) = self.book.xti.get(xti)?;
-        // A workbook that lists no `SupBook` names only its own sheets.
-        let own = self.book.linked.is_empty()
-            || self.book.linked.get(linked as usize) == Some(&Linked::Own);
-        if !own {
-            return None;
-        }
+        let (book, sheets) = match self.book.linked.get(linked as usize) {
+            // A workbook that lists no `SupBook` names only its own sheets.
+            None if self.book.linked.is_empty() => (String::new(), &self.book.sheets),
+            Some(Linked::Own) => (String::new(), &self.book.sheets),
+            Some(Linked::Other { number, sheets, .. }) => (format!("[{number}]"), sheets),
+            _ => return None,
+        };
         let name = |index: i32| {
             usize::try_from(index)
                 .ok()
-                .and_then(|index| self.book.sheets.get(index))
+                .and_then(|index| sheets.get(index))
         };
         let (Some(first), Some(last)) = (name(first), name(last)) else {
             return Some("#REF!".to_owned());
         };
-        let mut out = if first == last {
-            quoted(first)
+        let both = if first == last {
+            format!("{book}{first}")
         } else {
-            let both = format!("{first}:{last}");
-            if quoted(first) == *first && quoted(last) == *last {
-                both
-            } else {
-                format!("'{}'", both.replace('\'', "''"))
-            }
+            format!("{book}{first}:{last}")
+        };
+        let mut out = if quoted(first) == *first && quoted(last) == *last {
+            both
+        } else {
+            format!("'{}'", both.replace('\'', "''"))
         };
         out.push('!');
         Some(out)

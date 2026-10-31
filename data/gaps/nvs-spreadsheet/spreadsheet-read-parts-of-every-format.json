@@ -1,6 +1,0 @@
-{
-  "module": "extensions/spreadsheet/src/read",
-  "title": "An xlsb name over another workbook has an empty reference.",
-  "text": "Closing it gives a reference into another workbook its `[n]Sheet!A1` text in `read/tokens.rs`, from an xls `SUPBOOK`'s sheet names and an xlsb external link part's `BrtSupTabs` (`rule:core-classes/spreadsheet-reads-as-a-stream`).",
-  "goal": "spreadsheet-second-wave"
-}

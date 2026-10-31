@@ -54,8 +54,7 @@
 //! - Number formats (`format`): built-in id 14 renders as `m/d/yyyy` and id 22 as
 //!   `m/d/yyyy h:mm`, as Excel shows them in en-US, where SSF uses `m/d/yy`.
 //! - Merges (`read::merge`): a merged fill copies no `display`.
-//! - Extras (`read::extras`): an xlsb name over another workbook has an empty reference.
-//!   `notes` returns the `_x000D_` and `_x0000_` escapes undecoded.
+//! - Extras (`read::extras`): `notes` returns the `_x000D_` and `_x0000_` escapes undecoded.
 //! - Rows (`read::sheet`): `Reader::rows` skips a row whose cells are all formulas with no cached
 //!   value, so a totals row of formulas this writer wrote does not read back. `rows` accepts an
 //!   unknown locale.

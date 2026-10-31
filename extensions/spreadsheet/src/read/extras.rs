@@ -12,14 +12,15 @@
 //!
 //! **Nothing a file names is followed** (`rule:core-classes/spreadsheet-has-no-io`). An external
 //! hyperlink is its target's text with `external` set, a linked picture is its target's text in
-//! `link` with no bytes, and a defined name over another workbook is its reference's text. A data
-//! connection or an external-workbook part is never read.
+//! `link` with no bytes, and a defined name over another workbook is its reference's text,
+//! `[1]Shop!$A$1`. A data connection is never read, and an xlsb's external link part is read for
+//! the other workbook's sheet names alone.
 //!
 //! **xlsb.** The sheet part and the parts it names are records ([`super::binary`]): a hyperlink is
 //! a `BrtHLink` in the sheet part, a note is in a comments part of records, and a table is the
 //! `BrtBeginList` of its part. A defined name is a `BrtName` of the workbook part, its formula
-//! decoded by [`super::tokens`]. A name the decoder cannot read, such as one over another
-//! workbook, is listed with an empty reference. The relationships and the drawing are XML, as in
+//! decoded by [`super::tokens`]. A name the decoder cannot read is listed with an empty
+//! reference. The relationships and the drawing are XML, as in
 //! an xlsx.
 //!
 //! **Formats.** Every extra is read from an xlsx, xlsm, xlsb, xls or ods, and gives the same

@@ -369,14 +369,38 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
             MSO_DRAWING_GROUP => group.extend_from_slice(body),
             CONTINUE if in_group => group.extend_from_slice(body),
             // The sheet count, then a code that says which workbook this is.
-            SUP_BOOK => book.linked.push(match u16_at(body, 2)? {
-                0x0401 => Linked::Own,
-                0x3A01 => Linked::AddIn(Vec::new()),
-                _ => Linked::Other,
-            }),
-            // An add-in's function names follow its `SUPBOOK`, each after six bytes of flags.
+            // Another workbook's code is the length of its path, and its sheet names follow the
+            // path. A name that does not read ends the list, and a reference past it is `#REF!`.
+            SUP_BOOK => {
+                let linked = match u16_at(body, 2)? {
+                    0x0401 => Linked::Own,
+                    0x3A01 => Linked::AddIn(Vec::new()),
+                    _ => {
+                        let mut other = Linked::other(&book.linked);
+                        if let (Linked::Other { sheets, .. }, Ok((_, used))) =
+                            (&mut other, string_at(body, 2, 2))
+                        {
+                            let mut at = 2 + used;
+                            for _ in 0..u16_at(body, 0)? {
+                                let Ok((name, used)) = string_at(body, at, 2) else {
+                                    break;
+                                };
+                                sheets.push(name);
+                                at += used;
+                            }
+                        }
+                        other
+                    }
+                };
+                book.linked.push(linked);
+            }
+            // The names of an add-in or another workbook follow its `SUPBOOK`, each after six
+            // bytes of flags. A name that does not read is kept empty, so the names after it keep
+            // their numbers.
             EXTERN_NAME => {
-                if let Some(Linked::AddIn(names)) = book.linked.last_mut() {
+                if let Some(Linked::AddIn(names) | Linked::Other { names, .. }) =
+                    book.linked.last_mut()
+                {
                     names.push(
                         string_at(body, 6, 1)
                             .map(|(name, _)| name)

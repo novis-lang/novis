@@ -1375,7 +1375,7 @@ fn xlsb_package(
         ("xl/workbook.bin", book),
         (
             "xl/_rels/workbook.bin.rels",
-            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="{rel}/worksheet" Target="worksheets/sheet2.bin"/><Relationship Id="rIdS" Type="{rel}/styles" Target="styles.bin"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="sharedStrings.bin"/></Relationships>"#).into_bytes(),
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="{rel}/worksheet" Target="worksheets/sheet2.bin"/><Relationship Id="rIdS" Type="{rel}/styles" Target="styles.bin"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="sharedStrings.bin"/><Relationship Id="rId9" Type="{rel}/externalLink" Target="externalLinks/externalLink1.bin"/></Relationships>"#).into_bytes(),
         ),
         ("xl/styles.bin", styles),
         ("xl/sharedStrings.bin", sst),
@@ -3015,7 +3015,8 @@ fn area3d(xti: u16, rows: (u32, u32), columns: (u16, u16)) -> Vec<u8> {
 }
 
 /// The `SupBook` of this workbook, then one of another workbook when `other` is set, and the
-/// `XTI`s `xti`: each a `SupBook` and a first and last sheet.
+/// `XTI`s `xti`: each a `SupBook` and a first and last sheet. The other workbook's sheets are
+/// listed in `xl/externalLinks/externalLink1.bin`, which a test adds as a part.
 fn binary_externals(other: bool, xti: &[(u32, i32, i32)]) -> Vec<u8> {
     let mut out = record(357, &[]);
     if other {
@@ -3203,6 +3204,10 @@ fn an_xlsb_external_link_reads_as_data() {
                 "xl/drawings/_rels/drawing1.xml.rels",
                 rels(&[("rIdP", "image", file, true)]),
             ),
+            (
+                "xl/externalLinks/externalLink1.bin",
+                record(359, &[&1u32.to_le_bytes()[..], &wide("Shop")].concat()),
+            ),
         ],
     ));
 
@@ -3217,15 +3222,45 @@ fn an_xlsb_external_link_reads_as_data() {
     assert_eq!(field(images[0], "image"), &Value::Bytes(Vec::new()));
     assert_eq!(field(images[0], "link"), &string(file));
 
-    // A name over another workbook is listed, and nothing of that workbook is read.
+    // A name over another workbook gives the workbook's number and the sheet name its external
+    // link part lists, and nothing of that workbook is read.
     let names = read.call("readerNames", vec![]);
     let names = entries(&names);
     assert_eq!(names.len(), 1);
     assert_eq!(field(names[0], "name"), &string("Remote"));
-    let Value::String(reference) = field(names[0], "reference") else {
-        panic!("a reference is text");
-    };
-    assert!(!reference.contains("Cargo"), "{reference}");
+    assert_eq!(field(names[0], "reference"), &string("[1]Shop!$A$1"));
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_xls_reference_into_another_workbook_reads_with_its_number() {
+    // The `SUPBOOK`s of this workbook and of another one, whose path is followed by its sheet
+    // `My Shop`, its name `Rate`, and the `XTI`s of this workbook's `Shop` and of `My Shop`.
+    let mut globals = biff(0x01AE, &[2, 0, 0x01, 0x04]);
+    let mut other = 1u16.to_le_bytes().to_vec();
+    other.extend(biff_text("other.xls"));
+    other.extend(biff_text("My Shop"));
+    globals.extend(biff(0x01AE, &other));
+    let mut name = vec![0; 6];
+    name.extend([4, 0]);
+    name.extend(b"Rate");
+    globals.extend(biff(0x0023, &name));
+    let xti = [2u16, 0, 0, 0, 1, 0, 0].map(u16::to_le_bytes).concat();
+    globals.extend(biff(0x0017, &xti));
+    // `G1` is `'[1]My Shop'!$A$1+[1]!Rate`.
+    let tokens = [
+        &[0x3A, 1, 0, 0, 0][..],
+        &column_bits(0, false, false).to_le_bytes(),
+        &[0x39, 1, 0, 1, 0, 0, 0],
+        &[0x03],
+    ]
+    .concat();
+    let read = Read::open(xls_of(&globals, &biff_formula(0, 6, 0.0, &tokens)));
+    let formulas = formulas_of(&read, "Shop");
+    assert_eq!(
+        formulas[0].last(),
+        Some(&string("'[1]My Shop'!$A$1+[1]!Rate"))
+    );
     block_on(read.request.end()).expect("the request ends");
 }
 

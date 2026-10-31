@@ -530,7 +530,20 @@ impl Reader {
         let book = directory.whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
         let (date1904, listed, formulas) = if binary {
-            let book = binary::workbook(&book)?;
+            let mut book = binary::workbook(&book)?;
+            // Another workbook's sheet names are in its external link part, which is read for
+            // them alone.
+            for (index, id) in &book.externals {
+                let part = rels
+                    .iter()
+                    .find(|(rid, _, _, external)| rid == id && !external)
+                    .and_then(|(_, _, target, _)| directory.find(target));
+                if let (Some(entry), Some(tokens::Linked::Other { sheets, .. })) =
+                    (part, book.book.linked.get_mut(*index))
+                {
+                    *sheets = binary::external_sheets(&directory.whole(source, entry)?)?;
+                }
+            }
             (book.date1904, book.sheets, book.book)
         } else {
             let mut listed = Vec::new();
