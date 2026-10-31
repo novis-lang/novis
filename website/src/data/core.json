@@ -29474,7 +29474,7 @@
           "static": false,
           "receiver": "sheet",
           "generics": null,
-          "signature": "constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position): void",
+          "signature": "constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position, callable(uint, uint): string $columnRange): void",
           "params": [
             {
               "kind": "param",
@@ -29520,6 +29520,14 @@
               "kind": "param",
               "name": "position",
               "type": "callable(uint, string): uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "columnRange",
+              "type": "callable(uint, uint): string",
               "default": null,
               "optional": false,
               "variadic": false

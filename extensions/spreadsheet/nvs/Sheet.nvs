@@ -36,6 +36,7 @@ final class Sheet
         private readonly callable(uint, ?uint, bool): void $ready,
         private readonly callable(bytes): void $send,
         private readonly callable(uint, string): uint $position,
+        private readonly callable(uint, uint): string $columnRange,
     )
     {}
 
@@ -83,9 +84,8 @@ final class Sheet
     /// The header row is not in the range. Call it after the last row to get every row. Before the first data row, it throws a `LogicError`.
     public function column(string $key): string
     {
-        uint $at = $this->at($key);
-        $this->ready(null, true);
-        return Engine::writerColumn($this->writer, $at);
+        callable(uint, uint): string $columnRange = $this->columnRange;
+        return $columnRange($this->index, $this->at($key));
     }
 
     /// `merge` joins the cells of `$range`, such as `'A1:C1'`, into one cell.

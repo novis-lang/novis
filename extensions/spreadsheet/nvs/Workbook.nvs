@@ -216,7 +216,7 @@ final class Workbook
         $this->totalsAt = [];
         $this->sheets = $this->sheets + 1;
         $this->names[] = $name;
-        return new Sheet($this->sheets, $this->writer, $this->queue(...), $this->ready(...), $this->send(...), $this->position(...));
+        return new Sheet($this->sheets, $this->writer, $this->queue(...), $this->ready(...), $this->send(...), $this->position(...), $this->columnRange(...));
     }
 
     /// `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
@@ -451,6 +451,20 @@ final class Workbook
         if ($totals != null) {
             $this->totalsAt[] = $totals;
         }
+    }
+
+    // The cells of the column at `$at`, from 0, in the data rows written so far, such as `C2:C1043`.
+    // A CSV file sends no row to the engine, so its range comes from the row numbers `claim` gave.
+    private function columnRange(uint $sheet, uint $at): string
+    {
+        $this->ready($sheet, null, true);
+        if (!$this->csv) {
+            return Engine::writerColumn($this->writer, $at);
+        }
+        uint $first = $this->positions != null && $this->wantHeader ? 2 : 1;
+        string $from = Engine::writerCell($this->writer, $at, $first);
+        string $to = Engine::writerCell($this->writer, $at, $this->row - 1);
+        return "{$from}:{$to}";
     }
 
     // The column of `$key`: a key of the sheet's columns, or a column letter from `A` to `XFD`, such as `C`.

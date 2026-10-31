@@ -203,8 +203,8 @@ echo Core\Str::contains($xml, "sort=\"0\"") ? "sort allowed" : "sort locked", "\
 }
 
 /// A CSV file writes the rows `add` and `addAll` give, and each part a sheet adds after its rows
-/// writes nothing to it.
-// covers: Novis\Spreadsheet\Sheet::add, Novis\Spreadsheet\Sheet::addAll, Novis\Spreadsheet\Sheet::merge, Novis\Spreadsheet\Sheet::link, Novis\Spreadsheet\Sheet::note, Novis\Spreadsheet\Sheet::validate, Novis\Spreadsheet\Sheet::group, Novis\Spreadsheet\Sheet::conditional, Novis\Spreadsheet\Sheet::chart, Novis\Spreadsheet\Sheet::print, Novis\Spreadsheet\Sheet::protect
+/// writes nothing to it. `column` still gives the data rows' range, counted under the header row.
+// covers: Novis\Spreadsheet\Sheet::add, Novis\Spreadsheet\Sheet::addAll, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::merge, Novis\Spreadsheet\Sheet::link, Novis\Spreadsheet\Sheet::note, Novis\Spreadsheet\Sheet::validate, Novis\Spreadsheet\Sheet::group, Novis\Spreadsheet\Sheet::conditional, Novis\Spreadsheet\Sheet::chart, Novis\Spreadsheet\Sheet::print, Novis\Spreadsheet\Sheet::protect
 #[test]
 fn a_csv_file_writes_the_rows_and_none_of_the_parts() {
     let out = run(
@@ -221,8 +221,10 @@ $sheet->merge("A1:B1")
     ->conditional("B2:B9", {kind: "unique", style: Style::of({bold: true})})
     ->chart("D2", Chart::column()->series($sheet->column("qty")))
     ->protect({password: "secret"});
+string $range = $sheet->column("qty");
+echo "{$range}\n";
 echo ($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) as string;
 "##,
     );
-    assert_eq!(out, "item,qty\nPen,3\nInk,5\n");
+    assert_eq!(out, "B2:B3\nitem,qty\nPen,3\nInk,5\n");
 }

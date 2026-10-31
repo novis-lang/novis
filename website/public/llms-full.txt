@@ -54490,7 +54490,7 @@ Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, g
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)` |
+| [`Novis\Spreadsheet\Sheet::constructor`](#core-novis-spreadsheet-sheet-constructor) | `constructor(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position, callable(uint, uint): string $columnRange)` |
 | [`Novis\Spreadsheet\Sheet->add`](#core-novis-spreadsheet-sheet-add) | `add(array<mixed> $row, RowOptions $options = null): Sheet` |
 | [`Novis\Spreadsheet\Sheet->addAll`](#core-novis-spreadsheet-sheet-addall) | `addAll(array<array<mixed>>\|Iterable<array<mixed>>\|Iterator<array<mixed>> $rows): Sheet` |
 | [`Novis\Spreadsheet\Sheet->cell`](#core-novis-spreadsheet-sheet-cell) | `cell(string $key, int $row): string` |
@@ -54511,7 +54511,7 @@ Keywords: constructor, add, addAll, cell, column, merge, link, note, validate, g
 #### `Novis\Spreadsheet\Sheet::constructor`
 
 ```nvs skip
-new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position)
+new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position, callable(uint, uint): string $columnRange)
 ```
 
 `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.

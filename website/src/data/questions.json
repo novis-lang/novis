@@ -10081,7 +10081,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/constructor/": {
     "feature": "Novis\\Spreadsheet\\Sheet::constructor",
-    "hash": "ff1fd03da1babc42",
+    "hash": "c1181f167c5ab5d7",
     "questions": [
       "Can I create a sheet with new Sheet?",
       "How is a sheet connected to its workbook?",
