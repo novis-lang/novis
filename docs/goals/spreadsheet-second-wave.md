@@ -34,7 +34,7 @@ stages:
     context: [extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/read/cfb.rs, extensions/spreadsheet/src/read/extras.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 8
     title: "a template fills lists on several sheets, from an Iterator too, and moves shared formulas and x14 formats"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/template/mod.rs, extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/template/sheet.rs, extensions/spreadsheet/nvs/Template.nvs, docs/rules/core-classes/spreadsheet-template-fill.md]
   - id: 9
     title: "the evaluator parses formula text and computes a workbook in dependency order"
@@ -549,10 +549,10 @@ gives a `Formula` with `formulas: true`.
 - [x] A shared formula's `si` and `ref` per copy. `extensions/spreadsheet/src/template/mod.rs:265`, `extensions/spreadsheet/src/template/sheet.rs:95`
 - [x] `extLst`'s `x14:conditionalFormatting` moves its `xm:sqref` and `xm:f`. `extensions/spreadsheet/src/template/mod.rs:332`, `extensions/spreadsheet/src/template/shift.rs:265`
 - [x] The Novis half sends lists in block order, and an `Iterator` in `$data` is a list drained in batches. `extensions/spreadsheet/nvs/Template.nvs:57`, `extensions/spreadsheet/nvs/Template.nvs:78`, `extensions/spreadsheet/nvs/Template.nvs:141`
-- [ ] Template values: the escape, the key collision, the date format, the missing placeholder at `fill`, and the two export errors. The first-sheet rule goes into the fragment as a fact. `extensions/spreadsheet/src/template/mod.rs:552`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:758`, `extensions/spreadsheet/src/lib.rs:1398`, `extensions/spreadsheet/src/lib.rs:1412`, `extensions/spreadsheet/nvs/Template.nvs:66`
+- [x] Template values: the escape, the key collision, the date format, the missing placeholder at `fill`, and the two export errors. The first-sheet rule goes into the fragment as a fact. `extensions/spreadsheet/src/template/mod.rs:552`, `extensions/spreadsheet/src/template/mod.rs:720`, `extensions/spreadsheet/src/template/mod.rs:758`, `extensions/spreadsheet/src/lib.rs:1398`, `extensions/spreadsheet/src/lib.rs:1412`, `extensions/spreadsheet/nvs/Template.nvs:66`
 - [x] The table formula form: a `rust_xlsxwriter` fixture with a calculated column under `tests/fixtures/excel/`, and the test the `table-formula-form` check names. This item shares no file with the rest of the stage. `extensions/spreadsheet/src/table.rs:411`, `extensions/spreadsheet/tests/excel.rs:1`
-- [ ] The tests and cases the `template-second-wave` checks name. `extensions/spreadsheet/tests/template.rs:1`, `tests/conformance/novis/spreadsheet-a-template-fills-lists-on-two-sheets.nvst:1`, `tests/conformance/novis/spreadsheet-a-template-list-is-an-iterator.nvst:1`
-- [ ] A fourth `Template::fill` example, with lists on two sheets. The fragment's Not-shipped paragraph and the module doc's template bullet go. Delete the record. `docs/examples/novis/Spreadsheet-Template/fill/about.md:1`, `docs/rules/core-classes/spreadsheet-template-fill.md:47`, `extensions/spreadsheet/src/lib.rs:42`, `extensions/spreadsheet/src/lib.rs:44`, `extensions/spreadsheet/src/lib.rs:48`
+- [x] The tests and cases the `template-second-wave` checks name. `extensions/spreadsheet/tests/template.rs:1`, `tests/conformance/novis/spreadsheet-a-template-fills-lists-on-two-sheets.nvst:1`, `tests/conformance/novis/spreadsheet-a-template-list-is-an-iterator.nvst:1`
+- [x] A fourth `Template::fill` example, with lists on two sheets. The fragment's Not-shipped paragraph and the module doc's template bullet go. Delete the record. `docs/examples/novis/Spreadsheet-Template/fill/about.md:1`, `docs/rules/core-classes/spreadsheet-template-fill.md:47`, `extensions/spreadsheet/src/lib.rs:42`, `extensions/spreadsheet/src/lib.rs:44`, `extensions/spreadsheet/src/lib.rs:48`
 
 ### 9. the evaluator parses formula text and computes a workbook in dependency order
 
@@ -633,55 +633,49 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 has five of its eight items done; template values, the Rust tests
-for them, and the last record are left.
+Stages 1 to 8 are done. Stage 9, the evaluator, is next, and nothing of it exists yet.
 
-- **Shared formulas and `x14` formats** landed in `62e4c07e7`. `Sheet::parse` keeps a shared
-  formula's `si` span and number in `Cell::shared`, and `Sheet::next_group` is one past the
-  sheet's highest. `item_rows` gives each copy after the first a new number for every group whose
-  first cell is in the block, from `Filling::next_group` (reset in `enter` and `write_held`), and
-  `write_cell` takes them through the new `Moves` struct. `rewrite_part` moves an `xm:sqref`'s
-  text. The test fixture's `SHEET_TAIL` gained an `extLst`. Both new tests ran once and pass.
-- **An `Iterator` is a list** landed in `c57326ba4`. `Template.nvs`'s `keep` and `add` take an
-  array or an `Iterator`, in batches of 1,000. The fragment's Not-shipped paragraph and the gap
-  record `spreadsheet-template-fill-limits` are gone. Both `template-second-wave-runs` cases
-  pass when run with `target/debug/nvs.exe test`, as do the two older template cases. The fourth
-  `Template::fill` example `04-lists-on-two-sheets` is in, and `bun nv proofs --id` owes nothing.
-- **The NUL escape** landed in `8042d88b8`: it already held, and a test pins it. The fragment
-  states the first-sheet rule and the escape as facts.
+- **Template values** landed in `ffc9cfe20`, which ends stage 8. `Template::fill`
+  (`extensions/spreadsheet/src/template/mod.rs`) checks before any byte: a list named twice, two
+  values for one path, and every placeholder outside a list's rows on every sheet
+  (`check_values`). `items` throws on a list with no block. The new
+  `extensions/spreadsheet/src/template/formats.rs` reads `styles.xml` at `open`, gives a date,
+  time or duration in an undated style a new `cellXfs` entry through `Moves::formats`, and
+  `finish` writes `styles.xml` after every other part. `Template.nvs`'s `walk` keeps `$seen` and
+  throws naming both keys. The module doc's bullet and the gap record
+  `spreadsheet-unchecked-against-excel` are gone, and the fragment states each rule as a fact.
+- **Checks run once:** `cargo test --test template` in `extensions/spreadsheet`, all 22 green, and
+  the six template conformance cases, two of them new
+  (`spreadsheet-a-template-key-given-twice-throws.nvst`,
+  `spreadsheet-a-template-date-gets-a-date-format.nvst`), all green.
+  `bun nv proofs --id 'Novis\Spreadsheet\Template::fill'` owes nothing.
 
 The build is green and `cargo fmt` clean; the extension's clippy has its 14 old errors, none new.
 The sweep's `env-secret-proofs` red is stale: nothing in the tree defines it, and its log is gone.
 
 ### Next
 
-The rest of stage 8, in this order. Every anchor is current.
+Stage 9, in this order. The evaluator is new code under `extensions/spreadsheet/src/eval/`, and
+no other stage edits it.
 
-1. **The key collision.** In `Template.nvs`'s `walk` (`extensions/spreadsheet/nvs/Template.nvs:78`),
-   a flat key `'customer.name'` and a nested `customer` → `name` give the same path. Keep the
-   paths seen in a set, and throw `LogicError` naming both keys. The Rust half needs the same
-   check in `fill` (`extensions/spreadsheet/src/template/mod.rs:749`) for the test
-   `a_flat_key_and_a_nested_path_to_the_same_name_throw`: two placeholders with one path throw.
-2. **The missing placeholder at `fill`.** `fill` (`:749`) checks every placeholder of every sheet,
-   outside list rows, against the values before writing a byte. Today `rows_until`'s
-   `write_cell` throws as it writes, so a sheet after the first block throws late.
-3. **The two export errors.** `fill` throws when `lists` has one name twice, naming it. `items`
-   (`:813`) throws on a list the fill did not return. The exports are `template_fill` and
-   `template_items` (`extensions/spreadsheet/src/lib.rs:1404`, `:1418`).
-4. **The date format**, the largest piece. A date, time or duration into a cell whose style has no
-   date or time format gets the write table's format. `finish` (`:855`) rewrites `xl/styles.xml`
-   with one new `cellXfs` entry per cell style and format pair, and `value_cell` (`:249`) writes
-   that entry's index.
-5. **The tests** the `template-second-wave` check names that are not in yet:
-   `a_flat_key_and_a_nested_path_to_the_same_name_throw`,
-   `a_date_into_a_cell_with_no_date_format_gets_its_types_format`,
-   `a_missing_placeholder_throws_at_fill_whatever_the_sheet_holds`,
-   `the_same_list_named_twice_throws_naming_it` and
-   `items_for_a_list_the_fill_did_not_return_throw_naming_it`.
-6. **The end of the stage.** Delete the module doc's template values bullet
-   (`extensions/spreadsheet/src/lib.rs:43`) and the gap record
-   `data/gaps/nvs-spreadsheet/spreadsheet-unchecked-against-excel.json`. Then tick the tests item
-   and the last item, and set stage 8 to done.
+1. **The parser**, `src/eval/parse.rs`. A1 formula text into a tree: numbers, strings, booleans,
+   error constants, cells, ranges, whole rows and columns, sheet-qualified references
+   (`'Q1 sales'!A1`), 3D references (listed as `reference`), defined names, structured references
+   (`Table[Column]`, `[@x]`, `[#This Row]` and the other `#` items), unary and binary operators
+   with Excel's precedence (`:`, space, `,` union inside parentheses, `-` negation, `%`, `^`,
+   `*` `/`, `+` `-`, `&`, comparisons), and calls. Reuse the shifter's reference lexing
+   (`extensions/spreadsheet/src/template/shift.rs:44` `cell`, `:76` `row_only`, `:91` `sheet`) by
+   making those functions `pub(crate)`.
+2. **Values**, `src/eval/value.rs`: number, text, boolean, blank, error (`crate::read::CellError`,
+   `extensions/spreadsheet/src/read/mod.rs:93`), and a range. Excel's coercion: text to number in
+   arithmetic, blank as 0 or `""`, booleans as 1 and 0, and errors propagating.
+3. **The grid and order**, `src/eval/mod.rs`: a sparse grid per sheet (`BTreeMap<(row, col)>`),
+   the dependency order by a depth-first walk with an explicit stack (no recursion, so a deep chain
+   cannot overflow the guest's stack), the circular check, and the list of what was not computed
+   as `(cell, kind, text)`.
+4. **The table**, `src/eval/functions.rs`: one static array of `(name, fn)`; this stage adds `SUM`,
+   `IF`, `ROW`, `COLUMN`, `ROWS` and `COLUMNS`. Stage 10 adds the rest.
+5. **The tests** the `evaluator-core` check names, in `extensions/spreadsheet/tests/evaluate.rs`.
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
@@ -692,8 +686,9 @@ and `ext_world.rs`'s export list, which now name `sourceBytes` and `source-bytes
 `source_bytes` row in `crates/nvs-ext/src/typed/spreadsheet.rs` also builds. `meta.rs` may also
 list `Reader::open`'s parameters. From stages 4 to 7, no test is expected to go red: every changed
 test ran. From stage 8, every test in `extensions/spreadsheet/tests/template.rs` that reads the
-sheet's tail, because `SHEET_TAIL` gained an `extLst`; only the three new tests ran. A test that
-reads `Template::fill`'s help text, which gained a line about an `Iterator`.
+sheet's tail, because `SHEET_TAIL` gained an `extLst`: the whole file has since run green, so
+none is expected. A test that reads `Template::fill`'s help text, which gained a line about an
+`Iterator` and one about two keys for one placeholder.
 
 ### Backlog
 
