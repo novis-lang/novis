@@ -469,6 +469,21 @@ is drawn as its average colour. Memory: up to 4,096 stops, about 80 KB, per box 
 render. The cascade's component reader keeps a `[names]` block as `Comp::Names`, so a grid line
 name reaches `grid.rs`, which it did not before.
 
+**Flex, text and clippy, as built.** A flex container's `::before` is generated after the container
+opens and its `::after` before it closes, each as an item through `open_atom` and `close_item`,
+whatever its `display`. A `<br>` in a container is an empty item, so a gap goes on each side of it,
+as in Chrome. An item's `auto` margins are the only margins its `taffy` leaf has, and
+`flex::unauto` takes back the free space `geometry` put in them, from the item's style and its
+opened box. A leaf reports its first baseline only when the container or an item aligns on
+`baseline`, and only in `RunMode::PerformLayout`, from the cache of measured heights, so no other
+flex layout measures more. `hyphenate-character` takes `auto` or a string and is a `Span` field;
+a `Mark` may now be several glyphs of its first run's face. An inline box picks the room at the
+start of its text from its own `direction`, as CSS 2.1 §8.6 says, so Latin text with padding
+inside an `rtl` span puts that room by the bidi level of the spacer, not of the text. An SVG
+`<text>` picks its face through `fonts::svg_font_resolver`, and a list where no name maps is
+Sans. `Block::Flex` and `Step::Exit`'s item are boxed. Memory: one allocation per flex container
+and item, per render.
+
 **Each fix that changes what a user sees** gets a conformance case or a hostile case. A hostile
 case whose `ends-early` step no longer ends the program catches the new error and loses that line.
 Each changed member's `about.md` states the new behaviour where it stated the old one.
@@ -696,13 +711,13 @@ with the session, and none builds.
 **Does:** the last layout and text bullets are fixed, clippy has no warning, the PDF list goes, and
 the component's size is re-recorded.
 
-- [ ] `rule:core-classes/pdf-css-subset`: `::before`, `::after` and `<br>` are flex items. `extensions/pdf/src/layout/inline.rs:1127`, `extensions/pdf/src/layout/inline.rs:1487`, `extensions/pdf/src/layout/inline.rs:1524`
-- [ ] Baseline alignment and `margin: auto` on a flex item. `extensions/pdf/src/layout/flex.rs:163`
-- [ ] `hyphenate-character` is in `subset.json`, and an inline box in a right-to-left line is placed right to left. `extensions/pdf/subset.json:1`, `extensions/pdf/src/layout/inline.rs:114`, `extensions/pdf/src/layout/text.rs:795`
-- [ ] `rule:core-classes/pdf-default-fonts`: an SVG `font-family` maps as HTML's does. `extensions/pdf/src/fonts.rs:119`, `extensions/pdf/src/fonts.rs:45`
-- [ ] The tests the `pdf-flex-and-text` and `pdf-svg-fonts` checks name. `extensions/pdf/tests/layout.rs:1`, `extensions/pdf/tests/render.rs:1`
-- [ ] `rule:packaging/the-first-party-components-are-built-in`: the clippy lints are fixed, and the check runs once. `extensions/pdf/src/layout.rs:459`, `extensions/pdf/src/layout/inline.rs:1242`, `extensions/pdf/src/css/value.rs:1`, `extensions/pdf/src/css/mod.rs:1`
-- [ ] The list goes, with its bold lead. Delete `data/gaps/nvs-pdf/pdf-leftovers.json`. The size is re-recorded once. `extensions/pdf/src/lib.rs:45`, `extensions/pdf/src/lib.rs:39`, `crates/nvs-ext/tests/builtin.rs:163`
+- [x] `rule:core-classes/pdf-css-subset`: `::before`, `::after` and `<br>` are flex items. `extensions/pdf/src/layout/inline.rs:1127`, `extensions/pdf/src/layout/inline.rs:1487`, `extensions/pdf/src/layout/inline.rs:1524`
+- [x] Baseline alignment and `margin: auto` on a flex item. `extensions/pdf/src/layout/flex.rs:163`
+- [x] `hyphenate-character` is in `subset.json`, and an inline box in a right-to-left line is placed right to left. `extensions/pdf/subset.json:1`, `extensions/pdf/src/layout/inline.rs:114`, `extensions/pdf/src/layout/text.rs:795`
+- [x] `rule:core-classes/pdf-default-fonts`: an SVG `font-family` maps as HTML's does. `extensions/pdf/src/fonts.rs:119`, `extensions/pdf/src/fonts.rs:45`
+- [x] The tests the `pdf-flex-and-text` and `pdf-svg-fonts` checks name. `extensions/pdf/tests/layout.rs:1`, `extensions/pdf/tests/render.rs:1`
+- [x] `rule:packaging/the-first-party-components-are-built-in`: the clippy lints are fixed, and the check runs once. `extensions/pdf/src/layout.rs:459`, `extensions/pdf/src/layout/inline.rs:1242`, `extensions/pdf/src/css/value.rs:1`, `extensions/pdf/src/css/mod.rs:1`
+- [x] The list goes, with its bold lead. Delete `data/gaps/nvs-pdf/pdf-leftovers.json`. The size is re-recorded once. `extensions/pdf/src/lib.rs:45`, `extensions/pdf/src/lib.rs:39`, `crates/nvs-ext/tests/builtin.rs:163`
 - [ ] The attacks the `pdf-attacks` check runs pass, `bun nv rules --render` runs, and `bun nv owners --closes extension-leftovers` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 12. the goal is verified once, and every failure is fixed
@@ -722,48 +737,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 10 are done, and the spreadsheet lane is finished. `looper check --name pdf-boxes`
-and `--name pdf-transformed-link` are green. No other test ran.
+Stages 1 to 10 are done, and stage 11 has every item but its last. Six commits from `3f014063a`
+to `58acad5f8`: flex items, the text items, SVG fonts, clippy, and the list's removal. Each new
+test ran once by name and is green. `pdf-clippy-clean` is green through `bun tools/looper/main.ts
+check` (the installed `looper` has no `check` subcommand). The size test passes at the recorded
+14.3 MiB, so the figure stays. `bun nv owners --closes extension-leftovers` exits 0, the
+`**Not done yet.**` grep finds nothing, and `bun nv rules --render` ran clean.
 
-- Stage 10 is § *Boxes and paint, as built* under the decisions. The grid and paint items were
-  written by subagents and checked here by build and their tests.
-- A repeating gradient covers the padding box, and its last colour goes on under a border, as a
-  plain gradient's does. An area string with two sizes after it is not read, and an area string
-  that does not read drops only `grid-template-areas`, where CSS drops the whole declaration.
-- A `leader()`'s room is not computed again after a paragraph re-breaks at a page of another
-  width or a float.
-- The component's clippy has the same 8 lints, none on a line stage 10 wrote; stage 11 owns them.
-- `lopdf` and `aes` are dev-only. `cargo deny` and the attribution check have not run on them.
-- `pdf-validate` ran green with Docker. Its no-Docker path and the CI step have not run.
-- A PDF placed with `<img>` still decodes with no bound set; the decision names `read` and `merge`.
-- The sweep's nightly reds (run 41187571578, `857b39cad`) each match a later fix: `39795c9c4`,
-  `bfce9c2d2`, `9fe05ce88`, `8ce92dda5`. None was rerun. `env-secret-proofs` has no check or log:
-  `looper check --name env-secret` matches nothing, so the sweep's line is stale.
+- § *Flex, text and clippy, as built* under the decisions records the choices.
+- `pdf-attacks` ran once and is **red** (`exited 1, want 0`). The local check keeps no log, and the
+  session reached its context budget before reading why. Rerun its command directly to see the
+  failing member.
+- `extensions/pdf/src/layout/flex.rs`'s `fit` was reformatted by rustfmt with the slice.
+  `tests/paginate.rs:218` has a rustfmt diff that predates this stage.
+- Still open from stage 10: `lopdf` and `aes` have not been through `cargo deny` or the attribution
+  check; `pdf-validate`'s no-Docker path and CI step have not run; a PDF placed with `<img>` decodes
+  with no bound.
+- The sweep's nightly reds (run 41187571578) each match a fix made before that run was read, and
+  none was rerun. `env-secret-proofs` has no check or log, so the sweep's line is stale.
 
 ### Next
 
-Stage 11. Its flex items share `inline.rs` and `flex.rs`, and the fonts item is apart.
+Stage 11's last item, then stage 12.
 
-- [ ] `extensions/pdf/src/layout/inline.rs:1127` (`generated`, and the `<br>` and `::before` and
-  `::after` paths near `Builder::open_container`): `::before`, `::after` and `<br>` are flex
-  items. `before_after_and_br_are_flex_items` in `extensions/pdf/tests/layout.rs`.
-- [ ] `extensions/pdf/src/layout/flex.rs:163`: `align-items: baseline` and `margin: auto` on an
-  item. Check what `flex.rs` already parses first. `flex_items_align_on_their_first_baseline`,
-  `an_auto_margin_on_a_flex_item_takes_the_free_space`.
-- [ ] `extensions/pdf/subset.json:1`: `hyphenate-character`; `extensions/pdf/src/layout/text.rs:795`
-  and `extensions/pdf/src/layout/inline.rs:114`: an inline box in a right-to-left line goes right
-  to left.
-  `an_inline_box_in_a_right_to_left_line_is_placed_right_to_left`.
-- [ ] `extensions/pdf/src/fonts.rs:45` and `:119`: an SVG `font-family` maps as HTML's does.
-  `an_svg_font_family_maps_as_html_does` in `extensions/pdf/tests/render.rs`.
-- [ ] Clippy: box the large variants of `layout::Block` (`extensions/pdf/src/layout.rs:477`) and
-  `inline::Step` (`extensions/pdf/src/layout/inline.rs:1390`), and fix the lints at
-  `css/value.rs:127`, `:927`, `:931`, `:1004`, `css/mod.rs:294`, `read.rs:280`,
-  `tests/paginate.rs:841` and `tests/read.rs:345`. `looper check --name pdf-clippy-clean`.
-- [ ] The list at `extensions/pdf/src/lib.rs:52` goes with its bold lead, `data/gaps/nvs-pdf/pdf-leftovers.json`
-  is deleted, and the size is re-recorded once (`crates/nvs-ext/tests/builtin.rs`).
+- [ ] `docs/goals/extension-leftovers.md:49`: run `bun tools/looper/main.ts check --name pdf-attacks`
+  (`bun nv proofs --run --only` over the eight PDF members). A failure is fixed in the member it
+  names. Then set stage 11 to `done` in the front matter.
+- [ ] `docs/goals/extension-leftovers.md:723`: stage 12, `looper verify` in the background, every
+  failure fixed in one pass, and once more.
 
-Expect red at the gate: a PDF test whose paint order or item index assumed a transformed box was
+Expect red at the gate: a PDF test whose flex layout put a container's `::before` or `::after`
+text above or below the items, or that counted a `<br>` in a container as nothing. A test whose
+SVG `<text>` with an unknown family expected Liberation Serif. A test that read `Mark`'s single
+glyph, or an inline box's side in an `rtl` line. a PDF test whose paint order or item index assumed a transformed box was
 drawn in the flow, now that it is a layer at `z-index: 0`. A test that matched a corner's radius
 as one `Length`. Also a PDF test whose margin box or bookmark order assumed a string, mark,
 running element or heading inside a nested box was on the first page. Also a PDF test, case or example whose table has no `width` and depends on the
