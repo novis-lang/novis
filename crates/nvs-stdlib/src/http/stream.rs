@@ -867,6 +867,9 @@ enum Id {
 struct EventScan {
     /// The octets of the block already read, which every line before it took.
     at: usize,
+    /// Where the block still being scanned starts: just past the last blank
+    /// line that ended a block with nothing to dispatch.
+    block: usize,
     /// [`line_from`]'s resume point inside the line that starts at `at`.
     searched: usize,
     data: Vec<u8>,
@@ -878,7 +881,8 @@ struct EventScan {
 }
 
 /// The most octets one block may take before it dispatches, comments and
-/// field names included.
+/// field names included. A blank line that dispatches nothing starts the count
+/// again.
 ///
 /// [`transport::EVENT_CEILING`] bounds the `data` and this bounds the rest: a
 /// comment inside an open block cannot be consumed before the block ends, so an
@@ -892,6 +896,7 @@ impl EventScan {
     fn new(carried: Value) -> Self {
         Self {
             at: 0,
+            block: 0,
             searched: 0,
             data: Vec::new(),
             written: false,
@@ -923,6 +928,7 @@ impl EventScan {
             return Ok((0, None));
         }
         let used = std::mem::take(&mut self.at);
+        self.block = 0;
         let Id::Set(octets) = &self.id else {
             return Ok((used, None));
         };
@@ -953,7 +959,7 @@ impl EventScan {
             "events",
         )? {
             self.at += next;
-            if self.at > BLOCK_CEILING {
+            if self.at - self.block > BLOCK_CEILING {
                 return Err(Fault::thrown(format!(
                     "{STREAM_NAME}::events(): one event of this reply is longer than the {BLOCK_CEILING} \
                      bytes an event may take before its blank line"
@@ -1006,6 +1012,7 @@ impl EventScan {
                     return Ok(Some((event, self.at, set)));
                 }
                 self.name = None;
+                self.block = self.at;
                 continue;
             }
             self.line(line)?;
@@ -1585,6 +1592,19 @@ mod tests {
         assert!(
             format!("{refused:?}").contains("before its blank line"),
             "{refused:?}"
+        );
+    }
+
+    /// The block cap counts from the last blank line, so a reply that arrives
+    /// whole and holds only blank lines past the cap ends with no event.
+    #[test]
+    fn blank_lines_past_the_block_cap_end_with_no_event() {
+        let blank = b"\r".repeat(super::BLOCK_CEILING + 1);
+        assert!(
+            EventScan::new(Value::null())
+                .next(&blank, true)
+                .expect("each blank line ends a block")
+                .is_none()
         );
     }
 
