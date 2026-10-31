@@ -48,18 +48,6 @@
 //!
 //! Layout nesting stops at `layout::text::MAX_DEPTH` on a 2 MiB stack, and the three inputs that
 //! end at the request's memory limit are stated in `rule:core-classes/pdf-one-engine`.
-//!
-//! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
-//! (gap:nvs-pdf/pdf-leftovers):
-//!
-//! - Layout (`layout::flex`): `::before`, `::after` and `<br>` are not flex items, and flex has no
-//!   baseline alignment and no `margin: auto` on an item.
-//! - Text (`fonts`, `layout::inline`): `hyphenate-character` is not in `subset.json`, an inline box
-//!   in a right-to-left line is placed left to right, and an SVG `font-family` of Arial, Helvetica
-//!   or Courier falls back to Liberation Serif, where HTML maps each to its Liberation face.
-//! - `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` warns of
-//!   `large_enum_variant` on `layout::Block` and `inline::Step`, and of five small lints in
-//!   `css/value.rs` and `css/mod.rs`.
 
 pub mod assets;
 pub mod css;
