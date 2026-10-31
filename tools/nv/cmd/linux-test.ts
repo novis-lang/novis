@@ -2,6 +2,7 @@
 //
 //     bun nv linux-test --test env_context a_queued_job      # one integration test binary, filtered
 //     bun nv linux-test --lib io::tests::within               # the unit tests whose names match
+//     bun nv linux-test --release -p nvs-abi-probe --test perf_guards   # a cost guard, in release
 //
 // It is for a change whose code behaves differently on Linux: paths, file permissions, sockets,
 // processes and signals. CI runs every test on Linux and macOS, and a change checked on Windows alone
@@ -11,9 +12,10 @@
 // It brings the WSL leg's copy of the tree up to date (`accept/mirror.ts` `syncMirror`), then runs
 // `cargo test` with the arguments as they are given, in that copy, with `CARGO_TARGET_DIR` at
 // `WSL_TARGET` on the distro's own disk. Its output is cargo's, as it prints it, and its exit status is
-// cargo's. `-p` and `--package` are refused, as every debug cargo command refuses them (AGENTS.md
-// § *The rules only this project has*). An argument list with no filter, `--test` or `--lib` is
-// refused too: the whole suite is CI's.
+// cargo's. `-p` and `--package` are refused without `--release`, as every debug cargo command
+// refuses them (AGENTS.md § *The rules only this project has*). Beside `--release` they are taken,
+// because that is how a cost guard runs. An argument list with no filter, `--test` or `--lib` is
+// refused too: the whole suite is CI's. A package name is not a filter.
 //
 // Windows only, since on Linux `cargo test` is the same run. It exits 2 on a usage error or when the
 // copy cannot be synced. What it spends: the first run builds the test profile into `WSL_TARGET`, which
@@ -25,7 +27,8 @@ import { passthrough } from "../lib/proc.ts";
 
 export const summary = "runs one filtered `cargo test` on a Linux build of the tree, inside WSL: nv linux-test <cargo test args>";
 
-const USAGE = "usage: bun nv linux-test [--test <name> | --lib] [<filter>] [<cargo test args>...]";
+const USAGE =
+  "usage: bun nv linux-test [--release -p <crate>] [--test <name> | --lib] [<filter>] [<cargo test args>...]";
 
 /** The WSL leg's target directory, which `garden` and `scaling` build into too. */
 const WSL_TARGET = "/var/tmp/nvs-target-wsl";
@@ -34,11 +37,14 @@ const TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 /** Why `args` is not a run this command takes, or "" when it is. */
 export function refusal(args: string[]): string {
-  if (args.some((a) => a === "-p" || a === "--package" || a.startsWith("--package=") || /^-p./.test(a))) {
+  const before = args.includes("--") ? args.slice(0, args.indexOf("--")) : args;
+  const isPackage = (a: string) => a === "-p" || a === "--package" || a.startsWith("--package=") || /^-p./.test(a);
+  if (before.some(isPackage) && !before.includes("--release")) {
     return "a debug cargo command never takes -p; narrow the run with --test <name>, --lib or a filter";
   }
-  const before = args.includes("--") ? args.slice(0, args.indexOf("--")) : args;
-  const narrowed = before.some((a) => a === "--test" || a === "--lib" || !a.startsWith("-"));
+  // The word after a bare `-p` or `--package` is the crate, not a filter.
+  const words = before.filter((a, i) => !(i > 0 && (before[i - 1] === "-p" || before[i - 1] === "--package")));
+  const narrowed = words.some((a) => a === "--test" || a === "--lib" || !a.startsWith("-"));
   return narrowed ? "" : "name what runs: --test <name>, --lib or a test name filter; the whole suite is CI's";
 }
 

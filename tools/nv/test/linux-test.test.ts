@@ -16,6 +16,17 @@ describe("bun nv linux-test", () => {
     }
   });
 
+  test("a release run of one package's test binary is accepted", () => {
+    expect(refusal(["--release", "-p", "nvs-abi-probe", "--test", "perf_guards"])).toBe("");
+    expect(refusal(["--release", "--package=nvs-runtime", "--lib", "budget"])).toBe("");
+    expect(refusal(["-pnvs-cli", "--release", "serve::tests::scaling"])).toBe("");
+  });
+
+  test("a package name alone is not a filter, so a release run of a whole package is refused", () => {
+    expect(refusal(["--release", "-p", "nvs-cli"])).toContain("the whole suite is CI's");
+    expect(refusal(["--release", "--package", "nvs-cli"])).toContain("the whole suite is CI's");
+  });
+
   test("a run of the whole suite is refused", () => {
     expect(refusal(["--no-fail-fast"])).toContain("the whole suite is CI's");
     expect(refusal(["--", "--nocapture"])).toContain("the whole suite is CI's");
