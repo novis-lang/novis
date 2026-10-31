@@ -72,9 +72,10 @@ pub fn value<'a>(
     match value {
         // An integer or decimal past 15 significant digits is a text cell.
         Value::Text(value) | Value::Decimal(value) => rendered(code, format::Value::Text(value)),
-        Value::Integer(value) => {
-            rendered(code, format::Value::Text(itoa::Buffer::new().format(*value)))
-        }
+        Value::Integer(value) => rendered(
+            code,
+            format::Value::Text(itoa::Buffer::new().format(*value)),
+        ),
         Value::Boolean(value) => rendered(code, format::Value::Boolean(*value)),
         Value::Formula {
             cached_text,

@@ -102,7 +102,10 @@ impl Digits {
             .iter()
             .map(|&d| char::from(d))
             .collect();
-        out.extend(std::iter::repeat_n('0', point.saturating_sub(self.digits.len())));
+        out.extend(std::iter::repeat_n(
+            '0',
+            point.saturating_sub(self.digits.len()),
+        ));
         out
     }
 
@@ -267,9 +270,7 @@ pub fn render(tokens: &[Token], v: f64, signed: bool, separators: Separators) ->
     {
         return format!("{sign}{}", fraction(tokens, slash, a, separators));
     }
-    let exponent_at = tokens
-        .iter()
-        .position(|t| matches!(t, Token::Exponent(_)));
+    let exponent_at = tokens.iter().position(|t| matches!(t, Token::Exponent(_)));
     let mantissa = &tokens[..exponent_at.unwrap_or(tokens.len())];
     let point_at = mantissa
         .iter()

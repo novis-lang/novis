@@ -351,13 +351,22 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
             // An add-in's function names follow its `SUPBOOK`, each after six bytes of flags.
             EXTERN_NAME => {
                 if let Some(Linked::AddIn(names)) = book.linked.last_mut() {
-                    names.push(string_at(body, 6, 1).map(|(name, _)| name).unwrap_or_default());
+                    names.push(
+                        string_at(body, 6, 1)
+                            .map(|(name, _)| name)
+                            .unwrap_or_default(),
+                    );
                 }
             }
             // A count, then each `XTI`: its `SUPBOOK` and its first and last sheet.
             EXTERN_SHEET => {
                 let count = usize::from(u16_at(body, 0)?);
-                for xti in body.get(2..).unwrap_or_default().chunks_exact(6).take(count) {
+                for xti in body
+                    .get(2..)
+                    .unwrap_or_default()
+                    .chunks_exact(6)
+                    .take(count)
+                {
                     let sheet = |n: usize| i32::from(i16::from_le_bytes([xti[n], xti[n + 1]]));
                     let linked = u32::from(u16::from_le_bytes([xti[0], xti[1]]));
                     book.xti.push((linked, sheet(2), sheet(4)));
@@ -606,9 +615,12 @@ fn sheet(
             shared: !formula.array,
         };
         let text = tokens::decode(Biff::Eight, formula.tokens, formula.extra, place, book);
-        let cell = rows
-            .get_mut(&row)
-            .and_then(|cells| cells.cells.iter_mut().find(|cell| cell.column == u64::from(column) + 1));
+        let cell = rows.get_mut(&row).and_then(|cells| {
+            cells
+                .cells
+                .iter_mut()
+                .find(|cell| cell.column == u64::from(column) + 1)
+        });
         if let Some(cell) = cell {
             cell.formula = text;
         }

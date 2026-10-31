@@ -204,7 +204,13 @@ const MOST_TEXT: usize = 32 * 1024;
 
 /// The A1 text of the parsed formula `tokens`, with its extra data `extra`, read for `place` in
 /// `book`. `None` when the tokens are empty or have a part this decoder does not read.
-pub fn decode(biff: Biff, tokens: &[u8], extra: &[u8], place: Place, book: &Book) -> Option<String> {
+pub fn decode(
+    biff: Biff,
+    tokens: &[u8],
+    extra: &[u8],
+    place: Place,
+    book: &Book,
+) -> Option<String> {
     if tokens.is_empty() {
         return None;
     }
@@ -212,8 +218,14 @@ pub fn decode(biff: Biff, tokens: &[u8], extra: &[u8], place: Place, book: &Book
         biff,
         place,
         book,
-        tokens: Bytes { bytes: tokens, at: 0 },
-        extra: Bytes { bytes: extra, at: 0 },
+        tokens: Bytes {
+            bytes: tokens,
+            at: 0,
+        },
+        extra: Bytes {
+            bytes: extra,
+            at: 0,
+        },
         out: Out::default(),
     };
     decoder.run()?;
@@ -223,7 +235,10 @@ pub fn decode(biff: Biff, tokens: &[u8], extra: &[u8], place: Place, book: &Book
 /// The `row` of a `ptgExp`: the first row of the shared formula a cell uses, and its first
 /// column in an xls. `None` when `tokens` is not one `ptgExp`.
 pub fn shared_at(biff: Biff, tokens: &[u8]) -> Option<(u32, Option<u32>)> {
-    let mut bytes = Bytes { bytes: tokens, at: 0 };
+    let mut bytes = Bytes {
+        bytes: tokens,
+        at: 0,
+    };
     if bytes.u8()? != 0x01 {
         return None;
     }
@@ -256,11 +271,13 @@ impl<'a> Bytes<'a> {
     }
 
     fn u32(&mut self) -> Option<u32> {
-        self.take(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        self.take(4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     }
 
     fn f64(&mut self) -> Option<f64> {
-        self.take(8).map(|b| f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        self.take(8)
+            .map(|b| f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
     }
 
     fn done(&self) -> bool {
@@ -271,9 +288,13 @@ impl<'a> Bytes<'a> {
     fn wide(&mut self, count: usize) -> Option<String> {
         let units = self.take(count.checked_mul(2)?)?;
         Some(
-            char::decode_utf16(units.chunks_exact(2).map(|u| u16::from_le_bytes([u[0], u[1]])))
-                .map(|c| c.unwrap_or('\u{FFFD}'))
-                .collect(),
+            char::decode_utf16(
+                units
+                    .chunks_exact(2)
+                    .map(|u| u16::from_le_bytes([u[0], u[1]])),
+            )
+            .map(|c| c.unwrap_or('\u{FFFD}'))
+            .collect(),
         )
     }
 
@@ -439,7 +460,11 @@ impl Decoder<'_> {
                     self.out.push(text)?;
                 }
                 0x1D => {
-                    let text = if self.tokens.u8()? == 0 { "FALSE" } else { "TRUE" };
+                    let text = if self.tokens.u8()? == 0 {
+                        "FALSE"
+                    } else {
+                        "TRUE"
+                    };
                     self.out.push(text)?;
                 }
                 0x1E => {
@@ -687,7 +712,9 @@ impl Decoder<'_> {
                 if self.biff == Biff::Eight {
                     self.extra.take(7)?;
                 }
-                self.out.text.push_str(if value == 0 { "FALSE" } else { "TRUE" });
+                self.out
+                    .text
+                    .push_str(if value == 0 { "FALSE" } else { "TRUE" });
             }
             (Biff::Eight, 0x10) | (Biff::Twelve, 0x04) => {
                 let code = self.extra.u8()?;
@@ -764,7 +791,11 @@ impl Decoder<'_> {
     }
 
     fn column_of(bits: u16) -> (u32, bool, bool) {
-        (u32::from(bits & 0x3FFF), bits & 0x4000 != 0, bits & 0x8000 != 0)
+        (
+            u32::from(bits & 0x3FFF),
+            bits & 0x4000 != 0,
+            bits & 0x8000 != 0,
+        )
     }
 
     fn loc(&mut self) -> Option<Loc> {
@@ -920,7 +951,10 @@ fn quote_text(out: &mut String, text: &str) {
 /// shortest form that reads back the same, its exponent written `E+20` as Excel writes it.
 fn number(out: &mut String, n: f64) {
     if n.fract() == 0.0 && n.abs() < 1e15 {
-        #[allow(clippy::cast_possible_truncation, reason = "the number is whole and below 10^15")]
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the number is whole and below 10^15"
+        )]
         let _ = write!(out, "{}", n as i64);
         return;
     }

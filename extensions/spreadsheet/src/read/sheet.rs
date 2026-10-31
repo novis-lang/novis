@@ -13,9 +13,9 @@
 //! [`merged`] reads a sheet's merged ranges, which come after its rows, in a pass of its own.
 
 use super::merge::Merge;
-use super::{MOST_COLUMNS, MOST_ROWS, Source, letters};
 use super::xml::{self, Token};
 use super::zip::{Entry, Part};
+use super::{MOST_COLUMNS, MOST_ROWS, Source, letters};
 use crate::Error;
 
 /// A cell as the file writes it.

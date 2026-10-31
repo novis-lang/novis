@@ -20,8 +20,7 @@ fn compile(src: &str, set: &[nvs_ext::manifest::Manifest]) -> Program {
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
 
     let classes = nvs_types::ext_lib::hir_classes(set);
-    let module =
-        nvs_hir::resolve_file_with_extensions(&stmts, map.file(id), &classes, &mut diags);
+    let module = nvs_hir::resolve_file_with_extensions(&stmts, map.file(id), &classes, &mut diags);
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
 
     let files = [nvs_types::ProgramFile {
