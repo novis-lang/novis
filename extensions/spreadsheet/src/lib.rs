@@ -75,6 +75,10 @@
 //! - Engine exports (`guest`): the reader exports do not check that `source` is the file
 //!   `readerOpen` read. `readerRows` with `max` 0 returns `done: false`. Each `readerProperties`
 //!   call counts against the reading's byte bound.
+//! - ods (`ods`): no written ods has been opened in LibreOffice, only read back by our reader and
+//!   calamine. Unchecked there: the chart objects and their `loext:label-string` series names,
+//!   the protection key and its URI, the `calcext` values, the fit-to-page scale, and whether an
+//!   image's `svg:x` and `svg:y` are read as offsets in its cell or as sheet positions.
 //! - Cost: `Template::open` costs about 2.6 ms and 1.1 MB on a tiny template, and one `set` about
 //!   1.3 ms and 600 KB. 20,000 merges take about 15 s in a debug build. A request keeps every
 //!   extension resource until it ends (`crates/nvs-ext/src/call.rs`), so some hundreds of

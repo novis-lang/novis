@@ -58,7 +58,7 @@ stages:
     context: [extensions/spreadsheet/src/chart.rs, crates/nvs-ext/tests/builtin.rs, tools/nv/cmd/owners.ts]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: generator-reads-a-shape-and-enums-are-owned
@@ -657,56 +657,38 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 13 is done (`0bbb196d2`). `every_chart_type_of_the_subset_is_written_to_ods` and
-`a_combination_of_two_types_is_written_to_ods` pass, and clippy is green in
-`extensions/spreadsheet`. The size test ran once and named 1.59 MiB, which is in
-`extensions/spreadsheet/src/lib.rs:33` (was 0.96 MiB). The `git grep` for Not shipped finds nothing,
-`bun nv rules --render` and `bun nv render --website` ran, and `bun nv owners --closes
-spreadsheet-second-wave` passes. The record `spreadsheet-evaluate-and-write-ods` is deleted.
+Every stage is done, and the goal is reached. The gate ran `bun nv affected --run` four times. The
+installed `looper` has no `verify` subcommand, so the gate used the stage's Split command. The last
+run is 23 of 23 green, and every acceptance check it reaches passes. `bun nv verify --doc`, `bun nv
+owners --closes spreadsheet-second-wave` and `bun nv ci --check` are green.
 
-- **Shape.** `ods/chart.rs` writes `Object <n>/content.xml` from the same `chart::Planned` the xlsx
-  writer writes. `drawing::place_chart` is the one chart placement both writers call. The ods
-  `Sheet` keeps `HeldChart`s beside its `HeldImage`s, each with a `z` in the order they were added,
-  and `Spot::lead` writes the frames in that order. A range that ends at the column's last row grows
-  to the sheet's last row at `finish`.
-- **Choices the design left open.** A series name is `loext:label-string`, because ODF 1.3 names a
-  series only by a cell. The categories are the x axis's `chart:categories`, from the first
-  non-scatter series that has them, and a scatter series' x values are its `chart:domain`. The frame
-  carries `draw:notify-on-update-of-ranges` with every range the chart reads.
-- **Sweep.** `env-secret-proofs` is stale again: no goal, floor or `looper.toml` in this tree or its
-  history defines it. The nightly reds are all on `857b39cad`, and each is fixed by a later commit:
-  browser by `39795c9c4`, the debug-viewer shots by `bfce9c2d2`, asan's SQLite ODR by `9fe05ce88`,
-  and every Miri timeout, the `nvs-runtime` budget test included, by `8ce92dda5`.
+- **What the gate fixed** (`b94ed27dd`). The engine tests that open a writer send `ods: false`
+  (`spreadsheet.rs`, `spreadsheet_hostile.rs` and `builtin.rs`). `meta.rs` lists `Reader::evaluate`
+  and `Cell::rich`. `spreadsheet-a-second-csv-sheet-throws.nvst` checks the error for `xls`, because
+  ods is now written. Six corpus files are formatted. Two xlsb relationship targets are in
+  `tools/data/impact-data-literals.txt`. The website's questions follow the moved enum pages, the
+  two new members, and the pages whose text changed.
+- **The LibreOffice check** is a bullet of `extensions/spreadsheet/src/lib.rs:38`'s **Not done
+  yet.** list, under its gap record, so it outlives this file.
+- **Sweep.** `env-secret-proofs` has no log and no definition in this tree. The nightly run
+  `41187571578` is on `857b39cad`, and later commits fix each of its reds, as the previous handoff
+  named.
 
 ### Next
 
-Stage 14, the gate. Start `looper verify` with `run_in_background` and end the turn to wait. Then
-fix every failure in one pass, grouped by cause, and run it once more. Before `DONE`: `bun nv verify
---doc`, `bun nv owners --closes spreadsheet-second-wave`, and `bun nv ci --check`, each red fixed.
-
-Tests that may go red at the gate: `crates/nvs-cli/tests/meta.rs` and
-`crates/nvs-stdlib/tests/ext_world.rs` where they list `writerOpen`'s parameter type or the
-`workbook-options` record, which now has `ods`, and the export lists that now name `readerEvaluate`
-and `reader-evaluate`; a test of `Workbook`'s class help, which now names ods; a test that expects
-the format error to say "Use `xlsx` or `csv`"; `crates/nvs-ext/tests/spreadsheet_read.rs` tests that
-read an ods cell with a formula and no value type, which now gives a cell, or a formula the decoder
-cannot read, which carries empty text inside the reader; a test that reads a table's records
-through `binary::table`, which returns four fields. From earlier stages: `meta.rs`'s enum and
-Engine lists, `spreadsheet_reader.rs`'s `Reader::Visibility`, `ext_world.rs`'s `source-bytes`, and
-a test of `Template::fill`'s help text. From stage 12: a test that expects an ods part to throw
-"cannot be written to an ods file yet", and a test that expects the ods row-level error without
-"counting its groups", which is now the xlsx wording.
+The goal is reached. The driver retires it, and the next goal on the chain is
+`extension-leftovers`. No test is expected to go red.
 
 ### Backlog
 
 - The `self::` panic in a generator body, `crates/nvs-ir/src/lower/mod.rs:2878`: its own gap, owned outside this goal. A generator body calls a static helper as `Reader::f()` until then.
 - The bullets of `extensions/spreadsheet/src/lib.rs:38`'s **Not done yet.** list after `:53`: owned as `release-hygiene`'s records say.
-- Open one ods with every part in LibreOffice: the chart objects and their `loext:label-string` names, the protection key and its URI, the `calcext` values, the fit-to-page scale, and where an image lands (`svg:x`/`svg:y` may be read as sheet positions, not offsets in the cell). This needs a LibreOffice install. Our reader and calamine read every part back.
+- `bun nv nvs-fmt` exits 1, because `tools/data/nvs-fmt-corpus.txt` names no tree for `packages/rest/`. This predates this goal, and the identity test does not read those files.
