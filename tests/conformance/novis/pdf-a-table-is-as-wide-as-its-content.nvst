@@ -1,0 +1,27 @@
+--TEST--
+A table without a `width` is as wide as its content, so a slot's column is as wide as its heading, and a table with `width: 100%` is as wide as the page: rule:core-classes/pdf-tables-across-pages
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::fromHtml
+// covers: Novis\Pdf\Document::slots
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// The slot's column has only the heading `Sum` as content.
+var $html = fn(string $style): string =>
+    "<style>body { font-size: 10pt }</style><table style=\"{$style}\">"
+    . "<thead><tr><th>Item</th><th>Sum</th></tr></thead>"
+    . "<tbody><tr><td>Tea</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
+
+// The amount is wider than `Sum`. In a narrow column it needs more than one line.
+var $slots = fn(Page $page): array<Core\Html\Markup> =>
+    ["total" => html`<style>body { font-size: 10pt }</style>1,234,567.89 EUR`];
+
+foreach (["", "width: 100%"] as string $style) {
+    var $rendered = Document::fromHtml($html($style))->slots($slots)->render();
+    var $name = $style === "" ? "no width" : $style;
+    echo $name, ": ", Core\Arr::count($rendered->overflows), " overflows\n";
+}
+--EXPECT--
+no width: 1 overflows
+width: 100%: 0 overflows

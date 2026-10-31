@@ -304,6 +304,8 @@ pub(super) struct Flow {
     start: f32,
     /// The baseline of the last line placed, from the top of its page's content.
     pub(super) baseline: Option<f32>,
+    /// The baseline of the first line placed, from the top of its page's content.
+    pub(super) first: Option<f32>,
     /// The floats on the last page, in the order they were placed.
     floats: Vec<Floated>,
     /// The positioned boxes placed so far, which [`Flow::finish`] draws in order.
@@ -347,6 +349,7 @@ impl Flow {
             forced: None,
             start: 0.0,
             baseline: None,
+            first: None,
             floats: Vec::new(),
             layers: Vec::new(),
             loose: Vec::new(),
@@ -685,6 +688,19 @@ impl Flow {
 
     pub(super) fn page(&mut self) -> &mut Page {
         self.pages.last_mut().expect("there is always a page")
+    }
+
+    /// Whether the innermost open box's width fills its containing block.
+    pub(super) fn fills(&self) -> bool {
+        self.open.last().is_some_and(|o| o.geometry.fill)
+    }
+
+    /// Narrows the innermost open box by `by` from its right edge. Its edges are drawn with
+    /// the new width when it closes.
+    pub(super) fn narrow(&mut self, by: f32) {
+        if let Some(open) = self.open.last_mut() {
+            open.geometry.width -= by;
+        }
     }
 
     pub(super) fn open(&mut self, geometry: BoxGeometry) {

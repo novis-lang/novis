@@ -252,14 +252,16 @@ fn too_deep() -> Error {
 }
 
 /// An `inline-block` box laid out: its items with its margin box's top-left corner at 0, 0, the
-/// margin box's width and height, its baseline from its top, `None` when it has no line, its
-/// `vertical-align`, and the text no font has, whose page is set when the box is drawn.
+/// margin box's width and height, its last and its first baseline from its top, `None` when it
+/// has no line, its `vertical-align`, and the text no font has, whose page is set when the box
+/// is drawn.
 #[derive(Clone)]
 pub(super) struct Placed {
     pub(super) items: Vec<Item>,
     width: f32,
     pub(super) height: f32,
     baseline: Option<f32>,
+    pub(super) first: Option<f32>,
     align: VerticalAlign,
     pub(super) missing: Vec<Missing>,
 }
@@ -272,6 +274,7 @@ impl Placed {
             width: 0.0,
             height: 0.0,
             baseline: None,
+            first: None,
             align: VerticalAlign::BASELINE,
             missing: Vec::new(),
         }
@@ -316,6 +319,7 @@ impl Cx<'_> {
             width,
             height: flow.cursor + flow.pending,
             baseline: flow.baseline,
+            first: flow.first,
             align,
             missing,
         }
@@ -386,7 +390,9 @@ impl Cx<'_> {
                 }
                 Block::Image { x, width, .. } => need = need.max(x + width - left),
                 Block::Flex(flex) => need = need.max(flex.x + flex.width - left),
-                Block::Table(table) => need = need.max(table.x + table.width - left),
+                Block::Table(table) => {
+                    need = need.max(table.x + self.table_need(table, max) - left);
+                }
                 Block::Open(g) if !g.fill => need = need.max(g.x + g.width + g.margin[1] - left),
                 _ => {}
             }
@@ -808,6 +814,7 @@ impl Cx<'_> {
                         };
                         if !is_marker {
                             flow.baseline = Some(baseline - MARGIN);
+                            flow.first = flow.first.or(flow.baseline);
                         }
                         // Each span's baseline on the page, which its `vertical-align` moves.
                         let shifted: Vec<(usize, f32)> = line

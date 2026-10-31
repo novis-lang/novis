@@ -12,7 +12,7 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::{Break, Insets, geometry, insets, sides, z_index};
+use super::block::{BoxGeometry, Break, Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
@@ -579,7 +579,10 @@ enum TablePart {
     Cell {
         span: usize,
         rows: usize,
+        align: table::Align,
     },
+    /// A table directly in a table, a group or a row, in an anonymous cell of its own.
+    Wrapped,
 }
 
 /// What an `inline-block` box sets aside while its own blocks are collected.
@@ -906,6 +909,7 @@ impl Builder<'_, '_> {
                 widows: lines(style, "widows"),
                 captions: Vec::new(),
                 rows: Vec::new(),
+                groups: Vec::new(),
             },
             depths: vec![(depth, false)],
             part: table::Part::Body,
@@ -945,11 +949,31 @@ impl Builder<'_, '_> {
             "table-footer-group" => Some(TablePart::Group(table::Part::Foot)),
             "table-row" => Some(TablePart::Row(Repeat::of(node.attr("data-repeat")))),
             "table-column" | "table-column-group" => None,
+            "table" | "inline-table" => Some(TablePart::Wrapped),
             _ => Some(TablePart::Cell {
                 span: count("colspan", 1000),
                 rows: count("rowspan", 65534),
+                align: table::Align::of(style),
             }),
         })
+    }
+
+    /// The box a group or a row of the innermost table with `style` draws under its cells:
+    /// its background, and its borders under `border-collapse: collapse`. `None` when it
+    /// draws nothing.
+    fn part_box(&mut self, style: &Style) -> Result<Option<BoxGeometry>, Error> {
+        let collapse = self.tables.last().is_some_and(|t| t.table.collapse);
+        let mut g = geometry(style, 0.0, 0.0);
+        g.decor.layer = self.layer(style, self.rem)?;
+        g.margin = [0.0; 4];
+        g.padding = [0.0; 4];
+        if !collapse {
+            g.border = [0.0; 4];
+        }
+        let drawn = g.decor.background.is_some()
+            || g.decor.layer.is_some()
+            || g.border.iter().any(|w| *w > 0.0);
+        Ok(drawn.then_some(g))
     }
 
     /// Whether an element or text at the stack's `depth` is a child of the innermost table or
@@ -961,8 +985,14 @@ impl Builder<'_, '_> {
     }
 
     /// Opens a group or a row of the innermost table, whose children are at the stack's
-    /// `depth`, a row with its `data-mark` marks.
-    fn open_part(&mut self, part: TablePart, depth: usize, marks: Vec<(String, String)>) {
+    /// `depth`, a row with its `data-mark` marks, and each with the box it draws.
+    fn open_part(
+        &mut self,
+        part: TablePart,
+        depth: usize,
+        marks: Vec<(String, String)>,
+        decor: Option<BoxGeometry>,
+    ) {
         let Some(t) = self.tables.last_mut() else {
             return;
         };
@@ -971,6 +1001,7 @@ impl Builder<'_, '_> {
                 t.part = group;
                 t.groups += 1;
                 t.group = Some(t.groups);
+                t.table.groups.push(decor);
                 t.row = false;
                 t.depths.push((depth, false));
             }
@@ -982,6 +1013,7 @@ impl Builder<'_, '_> {
                     cells: Vec::new(),
                     slots: Vec::new(),
                     marks,
+                    decor,
                 });
                 t.row = true;
                 t.depths.push((depth, true));
@@ -1015,9 +1047,10 @@ impl Builder<'_, '_> {
         }
     }
 
-    /// Closes the innermost open cell, over `span` columns and `rows` rows, into the last row
-    /// of the innermost table, or a row of its own when none is open.
-    fn close_cell(&mut self, span: usize, rows: usize) {
+    /// Closes the innermost open cell, over `span` columns and `rows` rows and with its
+    /// `vertical-align`, into the last row of the innermost table, or a row of its own when
+    /// none is open.
+    fn close_cell(&mut self, span: usize, rows: usize, align: table::Align) {
         let Some(blocks) = self.close_box() else {
             return;
         };
@@ -1036,11 +1069,17 @@ impl Builder<'_, '_> {
                     cells: Vec::new(),
                     slots: Vec::new(),
                     marks: Vec::new(),
+                    decor: None,
                 });
                 t.row = true;
             }
             if let Some(row) = t.table.rows.last_mut() {
-                row.cells.push(Cell { atom, span, rows });
+                row.cells.push(Cell {
+                    atom,
+                    span,
+                    rows,
+                    align,
+                });
             }
         }
         self.after_space = true;
@@ -1360,7 +1399,8 @@ pub(super) fn blocks(
                     builder.push_control(close, &frame);
                 }
                 // A table's tag is around its block, and every other one inside the box.
-                let table_tag = tagged && matches!(table, Some(TablePart::Table));
+                let table_tag =
+                    tagged && matches!(table, Some(TablePart::Table | TablePart::Wrapped));
                 if tagged && !table_tag {
                     builder.flush();
                     builder.blocks.push(Block::Tag(None));
@@ -1379,8 +1419,18 @@ pub(super) fn blocks(
                             builder.blocks.push(Block::Tag(None));
                         }
                     }
-                    Some(TablePart::Cell { span, rows }) => {
-                        builder.close_cell(span, rows);
+                    Some(TablePart::Wrapped) => {
+                        builder.close_table();
+                        if table_tag {
+                            builder.blocks.push(Block::Tag(None));
+                        }
+                        builder.blocks.push(Block::Close);
+                        builder.blocks.push(Block::Tag(None));
+                        builder.close_cell(1, 1, table::Align::Top);
+                        continue;
+                    }
+                    Some(TablePart::Cell { span, rows, align }) => {
+                        builder.close_cell(span, rows, align);
                         continue;
                     }
                     Some(TablePart::Caption { bottom }) => {
@@ -1551,6 +1601,13 @@ pub(super) fn blocks(
                 ) {
                     builder.open_atom(style, &frame, &mut inner)?;
                     false
+                } else if matches!(part, Some(TablePart::Wrapped)) {
+                    // The anonymous cell has no style of its own, and the table's box is in it.
+                    let mut cell = inner.clone();
+                    builder.open_atom(&empty, &frame, &mut cell)?;
+                    builder.blocks.push(Block::Tag(Some(Role::Cell)));
+                    builder.open(style, &cell, &mut inner)?;
+                    false
                 } else if in_part {
                     // A group's or a row's own box draws nothing.
                     false
@@ -1688,12 +1745,13 @@ pub(super) fn blocks(
                     builder.open_container(style, inner, frames.len());
                 }
                 match part {
-                    Some(TablePart::Table) => {
+                    Some(TablePart::Table | TablePart::Wrapped) => {
                         let inner = frames.last().expect("just pushed");
                         builder.open_table(style, inner, frames.len());
                     }
                     Some(p @ (TablePart::Group(_) | TablePart::Row(_))) => {
-                        builder.open_part(p, frames.len(), row_marks);
+                        let decor = builder.part_box(style)?;
+                        builder.open_part(p, frames.len(), row_marks, decor);
                     }
                     _ => {}
                 }

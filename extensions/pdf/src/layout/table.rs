@@ -69,10 +69,10 @@
 //! width and once more when its row is taller or taller than a page. A repeated row's items are
 //! copied on each page.
 
-use super::block::Flow;
+use super::block::{BoxGeometry, Flow};
 use super::flex::fit;
 use super::text::{Cx, Placed, carry, shift};
-use super::{Block, Item, MARGIN, Missing, Role, keyword, margin};
+use super::{Block, Item, MARGIN, Role, keyword, margin};
 use crate::css::{Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
@@ -93,6 +93,8 @@ pub(super) struct Table {
     /// Each caption's index in the list of atoms, and whether it is under the rows.
     pub(super) captions: Vec<(usize, bool)>,
     pub(super) rows: Vec<Row>,
+    /// The box each group element draws under its rows, by the group's number less one.
+    pub(super) groups: Vec<Option<BoxGeometry>>,
 }
 
 /// A row: the group it is in, when it shows, and its cells.
@@ -108,14 +110,40 @@ pub(super) struct Row {
     pub(super) slots: Vec<(usize, String)>,
     /// Its `data-mark` marks, set on the page it is first drawn on.
     pub(super) marks: Vec<(String, String)>,
+    /// The box it draws under its cells: its background, and its borders when they collapse.
+    pub(super) decor: Option<BoxGeometry>,
 }
 
-/// A cell: its index in the list of atoms, its `colspan` and its `rowspan`.
+/// A cell: its index in the list of atoms, its `colspan`, its `rowspan` and its
+/// `vertical-align`.
 #[derive(Clone, Copy)]
 pub(super) struct Cell {
     pub(super) atom: usize,
     pub(super) span: usize,
     pub(super) rows: usize,
+    pub(super) align: Align,
+}
+
+/// Where a cell's content is placed in a cell taller than it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) enum Align {
+    Top,
+    Middle,
+    Bottom,
+    /// The first line level with the first line of the row's other `baseline` cells.
+    Baseline,
+}
+
+impl Align {
+    /// The `vertical-align` of a cell with `style`, `top` when it has none or another value.
+    pub(super) fn of(style: &Style) -> Align {
+        match keyword(style, "vertical-align") {
+            Some("middle") => Align::Middle,
+            Some("bottom") => Align::Bottom,
+            Some("baseline") => Align::Baseline,
+            _ => Align::Top,
+        }
+    }
 }
 
 /// Which group of a table a row is in.
@@ -251,12 +279,42 @@ fn spread(widths: &mut [f32], from: usize, span: usize, gap: f32, need: f32) {
 }
 
 /// A row laid out: each cell's left edge and its items, the row's height, each slot's name
-/// and its cell's content box, its top from the row's top, and the row's marks.
+/// and its cell's content box, its top from the row's top, the row's marks, the box it draws
+/// under its cells and the number of its group.
 struct Laid {
     cells: Vec<(f32, Placed)>,
     height: f32,
     slots: Vec<(String, [f32; 4])>,
     marks: Vec<(String, String)>,
+    under: Option<BoxGeometry>,
+    group: Option<usize>,
+}
+
+/// What a table has drawn so far: whether each row is drawn, the left edge and the width of
+/// its rows, and each run of one group's rows on one page.
+struct Drawing {
+    drawn: Vec<bool>,
+    left: f32,
+    width: f32,
+    runs: Vec<Run>,
+}
+
+/// Rows of one group drawn on one page: the group's number, the page's index, the index of
+/// the page's first item drawn for them, and their top and bottom.
+struct Run {
+    group: usize,
+    page: usize,
+    at: usize,
+    top: f32,
+    bottom: f32,
+}
+
+/// A place in a piece split over pages: the part it is in, and its top from that part's top.
+type At = (usize, f32);
+
+/// The later of two places in a split piece.
+fn latest(a: At, b: At) -> At {
+    if (b.0, b.1) > (a.0, a.1) { b } else { a }
 }
 
 impl Cx<'_> {
@@ -265,7 +323,7 @@ impl Cx<'_> {
     pub(super) fn table(&mut self, table: Table, flow: &mut Flow) {
         let Table {
             x,
-            width,
+            mut width,
             spacing,
             fixed,
             collapse,
@@ -273,6 +331,7 @@ impl Cx<'_> {
             widows,
             captions,
             rows,
+            groups,
         } = table;
         let blocks: Vec<Vec<Vec<Block>>> = rows
             .iter()
@@ -300,11 +359,21 @@ impl Cx<'_> {
             spacing
         };
         let (starts, columns) = grid(&rows);
-        let room = (width - gx * (columns as f32 + 1.0)).max(0.0);
-        let widths = if fixed {
+        let gaps = gx * (columns as f32 + 1.0);
+        // A table with no `width` is as wide as its columns laid out unbroken, up to its
+        // containing block, and its layout is `auto`, as CSS 2.1 says.
+        let auto = flow.fills();
+        let widths = if fixed && !auto {
+            let room = (width - gaps).max(0.0);
             self.fixed_columns(&rows, &blocks, &starts, columns, room, gx)
         } else {
-            self.auto_columns(&rows, &blocks, &starts, columns, room, gx)
+            let (min, max) = self.column_ranges(&rows, &blocks, &starts, columns, gx);
+            let need = max.iter().sum::<f32>() + gaps;
+            if auto && need < width {
+                flow.narrow(width - need);
+                width = need;
+            }
+            distribute(&min, &max, (width - gaps).max(0.0))
         };
         let mut lefts = Vec::with_capacity(columns);
         let mut at = x + gx;
@@ -312,6 +381,12 @@ impl Cx<'_> {
             lefts.push(at);
             at += w + gx;
         }
+        let mut drawing = Drawing {
+            drawn: vec![false; rows.len()],
+            left: lefts[0],
+            width: at - gx - lefts[0],
+            runs: Vec::new(),
+        };
         let cell_width = |from: usize, span: usize| {
             let end = (from + span).min(columns);
             widths[from..end].iter().sum::<f32>() + gx * (end - from).saturating_sub(1) as f32
@@ -324,12 +399,35 @@ impl Cx<'_> {
             let mut here = Vec::with_capacity(row.cells.len());
             for (c, cell) in row.cells.iter().enumerate() {
                 let laid = self.item_at(&blocks[r][c], cell_width(starts[r][c], cell.span), None);
-                if cell.rows == 1 {
-                    heights[r] = heights[r].max(laid.height);
-                }
                 here.push(laid);
             }
             measured.push(here);
+        }
+        // Each row's baseline: the lowest first line of its `baseline` cells. A `baseline`
+        // cell moves down by the difference, and its row grows to hold it.
+        let baselines: Vec<Option<f32>> = rows
+            .iter()
+            .zip(&measured)
+            .map(|(row, here)| {
+                row.cells
+                    .iter()
+                    .zip(here)
+                    .filter(|(cell, _)| cell.align == Align::Baseline)
+                    .filter_map(|(_, placed)| placed.first)
+                    .reduce(f32::max)
+            })
+            .collect();
+        let lowered = |r: usize, cell: &Cell, placed: &Placed| match (cell.align, baselines[r]) {
+            (Align::Baseline, Some(base)) => placed.first.map_or(0.0, |first| base - first),
+            _ => 0.0,
+        };
+        for (r, row) in rows.iter().enumerate() {
+            for (c, cell) in row.cells.iter().enumerate() {
+                if cell.rows == 1 {
+                    let placed = &measured[r][c];
+                    heights[r] = heights[r].max(placed.height + lowered(r, cell, placed));
+                }
+            }
         }
         // A `rowspan` cell taller than its rows makes the last of them taller.
         let span_end = |r: usize, cell: &Cell| (r + cell.rows).min(rows.len());
@@ -353,12 +451,24 @@ impl Cx<'_> {
                 let end = span_end(r, cell);
                 let tall = heights[r..end].iter().sum::<f32>() + gy * (end - r - 1) as f32;
                 let first = std::mem::replace(&mut measured[r][c], Placed::empty());
-                let placed = if tall > first.height + 0.01 {
-                    self.item_at(
-                        &blocks[r][c],
-                        cell_width(starts[r][c], cell.span),
-                        Some(tall),
-                    )
+                let free = (tall - first.height).max(0.0);
+                // The content moves down by more top padding, so the cell keeps its height.
+                let down = match cell.align {
+                    Align::Top => 0.0,
+                    Align::Middle => free / 2.0,
+                    Align::Bottom => free,
+                    Align::Baseline => lowered(r, cell, &first),
+                }
+                .clamp(0.0, free);
+                let width = cell_width(starts[r][c], cell.span);
+                let placed = if down > 0.01 {
+                    let mut moved = blocks[r][c].clone();
+                    if let Some(Block::Open(g)) = moved.first_mut() {
+                        g.padding[0] += down;
+                    }
+                    self.item_at(&moved, width, Some(tall))
+                } else if free > 0.01 {
+                    self.item_at(&blocks[r][c], width, Some(tall))
                 } else {
                     first
                 };
@@ -391,6 +501,8 @@ impl Cx<'_> {
                 height: heights[r],
                 slots,
                 marks: row.marks.clone(),
+                under: row.decor.clone(),
+                group: row.group,
             });
         }
 
@@ -419,7 +531,6 @@ impl Cx<'_> {
                 .collect()
         };
 
-        let mut drawn = vec![false; rows.len()];
         for (atom, bottom) in &captions {
             if !bottom {
                 self.caption(*atom, x, width, flow);
@@ -457,11 +568,11 @@ impl Cx<'_> {
         // Ends the last page with its footer rows and starts the next with its header rows.
         let turn = |cx: &mut Self,
                     flow: &mut Flow,
-                    drawn: &mut [bool],
+                    drawing: &mut Drawing,
                     first: &mut bool,
                     from: usize,
                     extra: f32| {
-            cx.rows(&shown(&foot, *first, false), &laid, gy, flow, drawn);
+            cx.rows(&shown(&foot, *first, false), &laid, gy, flow, drawing);
             // Collapsed borders end on the table's bottom edge, as they do on the last page.
             if gy < 0.0 {
                 flow.place(gy);
@@ -469,7 +580,7 @@ impl Cx<'_> {
             flow.break_page();
             *first = false;
             let last = fits_rest(flow, from, false, extra);
-            cx.rows(&shown(&head, false, last), &laid, gy, flow, drawn);
+            cx.rows(&shown(&head, false, last), &laid, gy, flow, drawing);
         };
         let most = |rows_of: &[usize]| {
             piece_height(&shown(rows_of, false, false))
@@ -510,16 +621,13 @@ impl Cx<'_> {
             target == Some(i) && here >= orphans
         };
         let last = fits_rest(flow, 0, first, 0.0);
-        self.rows(&shown(&head, first, last), &laid, gy, flow, &mut drawn);
+        self.rows(&shown(&head, first, last), &laid, gy, flow, &mut drawing);
         let mut here = 0;
         for (i, piece) in pieces.iter().enumerate() {
             let end = i + 1 == pieces.len();
             let below = piece_height(&shown(&foot, first, end)) + if end { gy } else { 0.0 };
-            // A row taller than a page starts where it is and splits between lines.
-            if let [r] = piece[..]
-                && flow.paginates()
-                && laid[r].height > later
-            {
+            // A piece taller than a page starts where it is and splits between lines.
+            if flow.paginates() && piece_height(piece) - gy > later {
                 let room = |flow: &mut Flow, first: bool| match flow.room() {
                     Some((top, limit, _)) => {
                         limit - top - gy - piece_height(&shown(&foot, first, false)) - 0.01
@@ -527,26 +635,50 @@ impl Cx<'_> {
                     None => f32::INFINITY,
                 };
                 if room(flow, first) <= 0.0 {
-                    turn(self, flow, &mut drawn, &mut first, i, 0.0);
+                    turn(self, flow, &mut drawing, &mut first, i, 0.0);
                 }
                 let now = room(flow, first);
-                let cells: Vec<(f32, Vec<Block>)> = rows[r]
-                    .cells
-                    .iter()
-                    .enumerate()
-                    .map(|(c, cell)| {
+                let part_room = |part: usize| if part == 0 { now } else { later };
+                // Each row starts under the row before it, in the part that row ends in, and
+                // each of its cells is laid out down pages of its own from there.
+                let mut cursor: At = (0, 0.0);
+                let mut end: At = cursor;
+                // Each row's start, the end of its own cells and the end of all its cells.
+                let mut spans: Vec<(At, At, At)> = Vec::with_capacity(piece.len());
+                // Each cell's row in the piece, its start, its left edge and its pages.
+                let mut parts: Vec<(usize, At, f32, Flow)> = Vec::new();
+                let mut lost = Vec::new();
+                for (k, &r) in piece.iter().enumerate() {
+                    if cursor.1 >= part_room(cursor.0) - 0.01 {
+                        cursor = (cursor.0 + 1, 0.0);
+                    }
+                    let start = cursor;
+                    let (mut own, mut reach) = (start, start);
+                    for (c, cell) in rows[r].cells.iter().enumerate() {
                         let width = cell_width(starts[r][c], cell.span);
-                        (laid[r].cells[c].0, fit(&blocks[r][c], width, None))
-                    })
-                    .collect();
-                let mut split = self.split(cells, [now, later]);
-                let count = split.iter().map(|(_, f, _)| f.pages.len()).max().unwrap_or(1);
-                // The last part is as tall as the tallest cell that reaches it.
-                let tail = split
-                    .iter()
-                    .filter(|(_, f, _)| f.pages.len() == count)
-                    .map(|(_, f, _)| f.cursor + f.pending)
-                    .fold(0.0, f32::max);
+                        let rooms = [part_room(start.0) - start.1, later];
+                        let pages = Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]));
+                        let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
+                        let count = pages.pages.len();
+                        let bottom = pages.cursor + pages.pending;
+                        let done = if count == 1 {
+                            (start.0, start.1 + bottom)
+                        } else {
+                            (start.0 + count - 1, bottom)
+                        };
+                        if cell.rows == 1 {
+                            own = latest(own, done);
+                        }
+                        reach = latest(reach, done);
+                        parts.push((k, start, laid[r].cells[c].0, pages));
+                        lost.push(missing);
+                    }
+                    spans.push((start, own, reach));
+                    end = latest(end, reach);
+                    cursor = (own.0, own.1 + gy);
+                }
+                // The last part is as tall as the lowest cell that reaches it.
+                let (count, tail) = (end.0 + 1, end.1);
                 let page = flow.pages.len() as u64;
                 for part in 0..count {
                     let height = match part {
@@ -560,34 +692,52 @@ impl Cx<'_> {
                         } else {
                             f32::INFINITY
                         };
-                        turn(self, flow, &mut drawn, &mut first, i + 1, extra);
+                        turn(self, flow, &mut drawing, &mut first, i + 1, extra);
                     }
                     let y = flow.place(gy + height) + gy;
-                    if part == 0 {
-                        self.mark(&laid[r], flow);
-                    }
-                    // A cell's tags do not close on the page it starts on, so each piece of
-                    // it is a cell of its own.
-                    flow.page().items.push(Item::Tag(Role::Row));
-                    for (left, cell, _) in &mut split {
-                        if let Some(on) = cell.pages.get_mut(part) {
+                    for (k, &r) in piece.iter().enumerate() {
+                        let (start, own, reach) = spans[k];
+                        if part < start.0 || part > reach.0 {
+                            continue;
+                        }
+                        if part == start.0 {
+                            self.mark(&laid[r], flow);
+                        }
+                        if part <= own.0 {
+                            let top = if part == start.0 { start.1 } else { 0.0 };
+                            let bottom = if part == own.0 { own.1 } else { height };
+                            self.under(&laid[r], y + top, y + bottom, flow, &mut drawing);
+                        }
+                        // A cell's tags do not close on the page it starts on, so each piece
+                        // of it is a cell of its own.
+                        flow.page().items.push(Item::Tag(Role::Row));
+                        for (_, start, left, cell) in parts.iter_mut().filter(|p| p.0 == k) {
+                            let Some(on) = part
+                                .checked_sub(start.0)
+                                .and_then(|n| cell.pages.get_mut(n))
+                            else {
+                                continue;
+                            };
+                            let dy = y + if part == start.0 { start.1 } else { 0.0 };
                             let items = std::mem::take(&mut on.items)
                                 .into_iter()
                                 .filter(|item| !matches!(item, Item::Tag(_) | Item::Untag))
-                                .map(|item| shift(item, *left, y));
+                                .map(|item| shift(item, *left, dy));
                             let page = flow.page();
                             page.items.push(Item::Tag(Role::Cell));
                             page.items.extend(items);
                             page.items.push(Item::Untag);
                         }
+                        flow.page().items.push(Item::Untag);
                     }
-                    flow.page().items.push(Item::Untag);
                 }
-                for (_, _, missing) in split {
+                for missing in lost {
                     carry(&mut self.missing, missing, page);
                 }
-                drawn[r] = true;
-                here = 1;
+                for &r in piece {
+                    drawing.drawn[r] = true;
+                }
+                here = piece.len();
                 continue;
             }
             if here > 0
@@ -595,15 +745,28 @@ impl Cx<'_> {
                 && (top + piece_height(piece) + below > limit
                     || keep(i, top, limit, first, here))
             {
-                turn(self, flow, &mut drawn, &mut first, i, 0.0);
+                turn(self, flow, &mut drawing, &mut first, i, 0.0);
                 here = 0;
             }
-            self.rows(piece, &laid, gy, flow, &mut drawn);
+            self.rows(piece, &laid, gy, flow, &mut drawing);
             here += piece.len();
         }
-        self.rows(&shown(&foot, first, true), &laid, gy, flow, &mut drawn);
+        self.rows(&shown(&foot, first, true), &laid, gy, flow, &mut drawing);
         if !rows.is_empty() {
             flow.place(gy);
+        }
+        // Each group's box is drawn under its rows, once for each page they are on. The last
+        // run is put in first, so the place of each earlier one stays where it was.
+        for run in std::mem::take(&mut drawing.runs).into_iter().rev() {
+            let Some(Some(g)) = groups.get(run.group - 1) else {
+                continue;
+            };
+            let items: Vec<Item> = self
+                .decoration(g, drawing.width, run.bottom - run.top)
+                .into_iter()
+                .map(|item| shift(item, drawing.left, MARGIN + run.top))
+                .collect();
+            flow.pages[run.page].items.splice(run.at..run.at, items);
         }
         for (atom, bottom) in &captions {
             if *bottom {
@@ -620,7 +783,7 @@ impl Cx<'_> {
         laid: &[Laid],
         gy: f32,
         flow: &mut Flow,
-        drawn: &mut [bool],
+        drawing: &mut Drawing,
     ) {
         if piece.is_empty() {
             return;
@@ -630,11 +793,13 @@ impl Cx<'_> {
         let page = flow.pages.len() as u64;
         for &r in piece {
             y += gy;
-            if !drawn[r] {
+            let drawn = drawing.drawn[r];
+            if !drawn {
                 self.mark(&laid[r], flow);
             }
+            self.under(&laid[r], y, y + laid[r].height, flow, drawing);
             // A row drawn again is not read again.
-            let role = if drawn[r] { Role::Artifact } else { Role::Row };
+            let role = if drawn { Role::Artifact } else { Role::Row };
             flow.page().items.push(Item::Tag(role));
             for (left, cell) in &laid[r].cells {
                 let left = *left;
@@ -644,7 +809,7 @@ impl Cx<'_> {
                     .cloned()
                     .map(|item| shift(item, left, MARGIN + y));
                 flow.page().items.extend(items);
-                if !drawn[r] {
+                if !drawn {
                     carry(&mut self.missing, cell.missing.clone(), page);
                 }
             }
@@ -653,9 +818,47 @@ impl Cx<'_> {
                 let area = [*x, MARGIN + y + top, *width, *height];
                 flow.page().slots.push((name.clone(), area));
             }
-            drawn[r] = true;
+            drawing.drawn[r] = true;
             y += laid[r].height;
         }
+    }
+
+    /// Draws the box of the row `row` under its cells, from `top` to `bottom` on the last
+    /// page of `flow`, and adds the row to its group's run on that page.
+    fn under(&mut self, row: &Laid, top: f32, bottom: f32, flow: &mut Flow, drawing: &mut Drawing) {
+        let page = flow.pages.len() - 1;
+        let at = flow.page().items.len();
+        if let Some(group) = row.group {
+            match drawing.runs.last_mut() {
+                Some(run) if run.group == group && run.page == page => run.bottom = bottom,
+                _ => drawing.runs.push(Run {
+                    group,
+                    page,
+                    at,
+                    top,
+                    bottom,
+                }),
+            }
+        }
+        if let Some(g) = &row.under {
+            let items: Vec<Item> = self
+                .decoration(g, drawing.width, bottom - top)
+                .into_iter()
+                .map(|item| shift(item, drawing.left, MARGIN + top))
+                .collect();
+            flow.page().items.extend(items);
+        }
+    }
+
+    /// The items of the box `g`, `width` wide and `height` tall, with its top-left corner at
+    /// 0, 0.
+    fn decoration(&mut self, g: &BoxGeometry, width: f32, height: f32) -> Vec<Item> {
+        let mut g = g.clone();
+        g.x = 0.0;
+        g.width = width;
+        g.min_content = (height - g.border[0] - g.border[2]).max(0.0);
+        self.lay(vec![Block::Open(g), Block::Close], parley::VerticalAlign::BASELINE)
+            .items
     }
 
     /// Sets the marks of the row `row` on the last page of `flow`.
@@ -671,24 +874,6 @@ impl Cx<'_> {
         }
     }
 
-    /// Lays each cell of a row taller than a page out down pages of its own: the first is
-    /// `rooms[0]` tall and every later one `rooms[1]`. A cell breaks between lines as a block
-    /// box does, and its items stay on the page they are laid on. Each cell keeps its left edge.
-    fn split(
-        &mut self,
-        cells: Vec<(f32, Vec<Block>)>,
-        rooms: [f32; 2],
-    ) -> Vec<(f32, Flow, Vec<Missing>)> {
-        cells
-            .into_iter()
-            .map(|(left, blocks)| {
-                let [now, later] = rooms;
-                let pages = Flow::paged(Box::new(move |page, _| if page == 0 { now } else { later }));
-                let (flow, missing) = self.down(blocks, pages);
-                (left, flow, missing)
-            })
-            .collect()
-    }
 
     /// Lays the caption at `atom` out at the table's content width and places it.
     fn caption(&mut self, atom: usize, x: f32, width: f32, flow: &mut Flow) {
@@ -704,16 +889,41 @@ impl Cx<'_> {
         carry(&mut self.missing, laid.missing, page);
     }
 
-    /// The columns' widths in `room` under `table-layout: auto`.
-    fn auto_columns(
+    /// The width `table`'s rows need from its content box's left edge: with each cell
+    /// unbroken when `max` is true, and broken at every chance when it is false. A table with
+    /// a `width` of its own needs no more than it has.
+    pub(super) fn table_need(&mut self, table: &Table, max: bool) -> f32 {
+        let blocks: Vec<Vec<Vec<Block>>> = table
+            .rows
+            .iter()
+            .map(|row| {
+                row.cells
+                    .iter()
+                    .map(|c| self.waiting[c.atom].take().unwrap_or_default())
+                    .collect()
+            })
+            .collect();
+        let (starts, columns) = grid(&table.rows);
+        let gx = if table.collapse { 0.0 } else { table.spacing[0] };
+        let (min, most) = self.column_ranges(&table.rows, &blocks, &starts, columns, gx);
+        for (row, cells) in table.rows.iter().zip(blocks) {
+            for (cell, blocks) in row.cells.iter().zip(cells) {
+                self.waiting[cell.atom] = Some(blocks);
+            }
+        }
+        let widths = if max { most } else { min };
+        (widths.iter().sum::<f32>() + gx * (columns as f32 + 1.0)).min(table.width)
+    }
+
+    /// Each column's narrowest and widest width under `table-layout: auto`.
+    fn column_ranges(
         &mut self,
         rows: &[Row],
         blocks: &[Vec<Vec<Block>>],
         starts: &[Vec<usize>],
         columns: usize,
-        room: f32,
         gap: f32,
-    ) -> Vec<f32> {
+    ) -> (Vec<f32>, Vec<f32>) {
         let mut min = vec![0.0f32; columns];
         let mut max = vec![0.0f32; columns];
         let mut spanning = Vec::new();
@@ -734,7 +944,7 @@ impl Cx<'_> {
             spread(&mut min, from, span, gap, lo);
             spread(&mut max, from, span, gap, hi);
         }
-        distribute(&min, &max, room)
+        (min, max)
     }
 
     /// The columns' widths in `room` under `table-layout: fixed`: from the first row's cells
