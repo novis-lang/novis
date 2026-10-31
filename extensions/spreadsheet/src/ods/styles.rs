@@ -20,7 +20,7 @@ use crate::styles::argb;
 use crate::{Align, Error, Line, Style, Underline, Valign, cells, xml};
 
 /// `'#RRGGBB'` as ods writes a colour.
-fn color(color: &str) -> Result<String, Error> {
+pub fn color(color: &str) -> Result<String, Error> {
     Ok(format!("#{}", &argb(color)?[2..]))
 }
 

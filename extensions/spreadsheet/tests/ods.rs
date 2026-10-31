@@ -7,12 +7,19 @@ use std::io::Cursor;
 
 use calamine::{Data, Ods, Reader as _, open_workbook_from_rs};
 use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::conditional::{Conditional, Kind};
+use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::ods::Writer;
+use nvs_spreadsheet::read::merge::Merge;
 use nvs_spreadsheet::read::zip::Bound;
 use nvs_spreadsheet::read::{Read, ReadCell, ReadOptions, ReadRow, Reader, Source};
+use nvs_spreadsheet::table::{Function, Table, Total};
+use nvs_spreadsheet::tail::{
+    Group, Link, Margins, Note, Operator, Orientation, Part, Print, Protect, RuleKind, Validation,
+};
 use nvs_spreadsheet::{
     Cell, Clock, Column, Date, Error, Header, RichRun, Row, SheetOptions, Style, TimeOfDay, Value,
-    WorkbookOptions,
+    Visibility, WorkbookOptions,
 };
 
 const MIME: &str = "application/vnd.oasis.opendocument.spreadsheet";
@@ -580,4 +587,599 @@ fn calamine_reads_back_what_the_ods_writer_wrote() {
     );
     let other = theirs.worksheet_range("My sheet").unwrap();
     assert_eq!(other.get_value((0, 0)), Some(&Data::Float(7.0)));
+}
+
+/// Asserts that `haystack`, the part `name`, has each of `needles`.
+fn has_all(haystack: &str, name: &str, needles: &[&str]) {
+    for needle in needles {
+        assert!(haystack.contains(needle), "{name} has {needle}: {haystack}");
+    }
+}
+
+/// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+    bytes.extend(width.to_be_bytes());
+    bytes.extend(height.to_be_bytes());
+    bytes.extend([8, 6, 0, 0, 0]);
+    bytes
+}
+
+fn link(anchor: &str, target: &str, text: Option<&str>, tooltip: Option<&str>) -> Part {
+    Part::Link(Link {
+        anchor: anchor.to_owned(),
+        target: target.to_owned(),
+        text: text.map(str::to_owned),
+        tooltip: tooltip.map(str::to_owned),
+    })
+}
+
+fn note(noted: &str, text: &str, author: Option<&str>) -> Part {
+    Part::Note(Note {
+        noted: noted.to_owned(),
+        note: text.to_owned(),
+        author: author.map(str::to_owned),
+    })
+}
+
+fn rule(validated: &str, kind: RuleKind, operator: Option<Operator>, values: &[&str]) -> Part {
+    Part::Validation(Validation {
+        validated: validated.to_owned(),
+        kind,
+        operator,
+        values: values.iter().map(|value| (*value).to_owned()).collect(),
+        input_title: None,
+        input_message: None,
+        error_title: None,
+        error_message: None,
+        allow_empty: true,
+    })
+}
+
+fn format_rule(formatted: &str, kind: Kind, style: Option<Style>) -> Conditional {
+    Conditional {
+        formatted: formatted.to_owned(),
+        kind,
+        operator: None,
+        values: Vec::new(),
+        colors: Vec::new(),
+        icons: None,
+        rank: None,
+        percent: false,
+        style,
+    }
+}
+
+#[test]
+fn ods_merges_links_and_notes_are_written_in_their_cells() {
+    let mut book = writer();
+    book.sheet(
+        SheetOptions::named("Data"),
+        &[
+            row(vec![text("Title"), text("covered"), number(3.0)]),
+            row(vec![text("site"), text("jump")]),
+        ],
+    )
+    .unwrap();
+    book.part(Part::Merge("A1:B1".to_owned())).unwrap();
+    book.part(Part::Merge("D5:E6".to_owned())).unwrap();
+    book.part(link(
+        "A2",
+        "https://example.com/docs",
+        None,
+        Some("Open the docs"),
+    ))
+    .unwrap();
+    book.part(link("B2", "'Sheet 2'!A1", None, None)).unwrap();
+    book.part(link("C8", "https://example.com", Some("Home"), None))
+        .unwrap();
+    book.part(note("C1", "Checked\nby hand", Some("Ann")))
+        .unwrap();
+    book.part(note("F9", "Empty cell", None)).unwrap();
+    book.sheet(SheetOptions::named("Sheet 2"), &[row(vec![text("target")])])
+        .unwrap();
+    let archive = book.finish().unwrap().data;
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "table:number-columns-spanned=\"2\" table:number-rows-spanned=\"1\"",
+            "<table:covered-table-cell office:value-type=\"string\"><text:p>covered</text:p></table:covered-table-cell>",
+            "table:number-columns-spanned=\"2\" table:number-rows-spanned=\"2\"",
+            "<text:a xlink:href=\"https://example.com/docs\" xlink:type=\"simple\" office:title=\"Open the docs\">site</text:a>",
+            "<text:a xlink:href=\"#'Sheet 2'.A1\" xlink:type=\"simple\">jump</text:a>",
+            "office:value-type=\"string\"><text:p><text:a xlink:href=\"https://example.com\" xlink:type=\"simple\">Home</text:a></text:p>",
+            "<office:annotation><dc:creator>Ann</dc:creator><text:p>Checked</text:p><text:p>by hand</text:p></office:annotation>",
+            "<table:table-cell><office:annotation><text:p>Empty cell</text:p></office:annotation></table:table-cell>",
+        ],
+    );
+
+    let source = Bytes(&archive);
+    let reader = Reader::open(&source, Bound::default()).unwrap();
+    let merged = reader.merged(&source, "Data").unwrap();
+    assert_eq!(
+        merged,
+        [
+            Merge::parse(b"A1:B1").unwrap(),
+            Merge::parse(b"D5:E6").unwrap()
+        ]
+    );
+    let links = reader.links(&source, "Data").unwrap();
+    let found: Vec<(&str, &str, bool, Option<&str>)> = links
+        .iter()
+        .map(|link| {
+            (
+                link.anchor.as_str(),
+                link.target.as_str(),
+                link.external,
+                link.tooltip.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (
+                "A2",
+                "https://example.com/docs",
+                true,
+                Some("Open the docs")
+            ),
+            ("B2", "'Sheet 2'!A1", false, None),
+            ("C8", "https://example.com", true, None),
+        ]
+    );
+    assert_eq!(links[2].text.as_deref(), Some("Home"));
+    let notes = reader.notes(&source, "Data").unwrap();
+    assert_eq!(notes.len(), 2);
+    assert_eq!(notes[0].noted, "C1");
+    assert_eq!(notes[0].note, "Checked\nby hand");
+    assert_eq!(notes[0].author.as_deref(), Some("Ann"));
+    assert_eq!(notes[1].noted, "F9");
+    assert_eq!(notes[1].author, None);
+    let rows = read(&archive, "Data");
+    assert_eq!(
+        at(&rows, 1, 2).value,
+        Some(Read::Text("covered".to_owned()))
+    );
+    assert_eq!(at(&rows, 2, 1).value, Some(Read::Text("site".to_owned())));
+    assert_eq!(at(&rows, 8, 3).value, Some(Read::Text("Home".to_owned())));
+
+    let mut theirs: Ods<_> = open_workbook_from_rs(Cursor::new(archive)).unwrap();
+    let range = theirs.worksheet_range("Data").unwrap();
+    assert_eq!(
+        range.get_value((0, 0)),
+        Some(&Data::String("Title".to_owned()))
+    );
+    assert_eq!(
+        range.get_value((1, 0)),
+        Some(&Data::String("site".to_owned()))
+    );
+    assert_eq!(range.get_value((0, 2)), Some(&Data::Float(3.0)));
+}
+
+#[test]
+fn ods_validation_is_written_before_the_first_sheet() {
+    let mut book = writer();
+    book.sheet(
+        SheetOptions::named("Data"),
+        &[header(&["Paid", "Qty", "Size"])],
+    )
+    .unwrap();
+    book.part(rule("A2:A1048576", RuleKind::List, None, &["Yes", "No"]))
+        .unwrap();
+    book.part(rule(
+        "B2:B10",
+        RuleKind::Whole,
+        Some(Operator::Between),
+        &["1", "10"],
+    ))
+    .unwrap();
+    book.part(rule("C2:C5", RuleKind::List, None, &["=$F$1:$F$3"]))
+        .unwrap();
+    book.rows(&[row(vec![text("Yes"), number(2.0), text("S")])])
+        .unwrap();
+    let archive = book.finish().unwrap().data;
+    let content = part(&archive, "content.xml");
+    let validations = content
+        .find("<table:content-validations>")
+        .expect("content.xml has the validations");
+    let first_sheet = content
+        .find("<table:table ")
+        .expect("content.xml has a sheet");
+    assert!(
+        validations < first_sheet,
+        "the validations come before the first sheet: {content}"
+    );
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<table:content-validation table:name=\"val1\" table:condition=\"of:cell-content-is-in-list(&quot;Yes&quot;;&quot;No&quot;)\" table:allow-empty-cell=\"true\" table:base-cell-address=\"Data.A2\" table:display-list=\"unsorted\">",
+            "table:condition=\"of:cell-content-is-whole-number() and cell-content-is-between(1;10)\"",
+            "table:condition=\"of:cell-content-is-in-list([.$F$1:.$F$3])\"",
+            "table:content-validation-name=\"val1\"",
+            "table:content-validation-name=\"val2\"",
+            "table:content-validation-name=\"val3\"",
+            "table:number-rows-repeated=",
+        ],
+    );
+    assert!(
+        content.len() < 20_000,
+        "a validation down a whole column is a few elements: {} bytes",
+        content.len()
+    );
+    let rows = read(&archive, "Data");
+    assert_eq!(at(&rows, 2, 1).value, Some(Read::Text("Yes".to_owned())));
+}
+
+#[test]
+fn ods_hidden_rows_columns_sheets_and_groups_are_written() {
+    let mut book = writer();
+    book.sheet(SheetOptions::named("Data"), &[]).unwrap();
+    book.part(Part::Group(Group {
+        grouped: "3:4".to_owned(),
+        collapsed: true,
+    }))
+    .unwrap();
+    book.part(Part::Group(Group {
+        grouped: "B:C".to_owned(),
+        collapsed: false,
+    }))
+    .unwrap();
+    book.rows(&[
+        row(vec![text("one")]),
+        Row {
+            cells: vec![text("two")],
+            hidden: true,
+            ..Row::default()
+        },
+        row(vec![text("three")]),
+        row(vec![text("four")]),
+        row(vec![text("five")]),
+    ])
+    .unwrap();
+    let error = book
+        .part(Part::Group(Group {
+            grouped: "2:3".to_owned(),
+            collapsed: false,
+        }))
+        .unwrap_err();
+    assert!(
+        format!("{error:?}").contains("Group rows before you add them"),
+        "{error:?}"
+    );
+    let error = book
+        .part(Part::Group(Group {
+            grouped: "E:F".to_owned(),
+            collapsed: false,
+        }))
+        .unwrap_err();
+    assert!(
+        format!("{error:?}").contains("Group columns before you add rows"),
+        "{error:?}"
+    );
+    book.sheet(
+        SheetOptions {
+            visibility: Visibility::Hidden,
+            columns: vec![Column {
+                hidden: true,
+                ..Column::default()
+            }],
+            ..SheetOptions::named("Secret")
+        },
+        &[row(vec![text("hidden")])],
+    )
+    .unwrap();
+    let archive = book.finish().unwrap().data;
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<table:table-row-group table:display=\"false\"><table:table-row table:visibility=\"collapse\">",
+            "<table:table-column-group><table:table-column table:number-columns-repeated=\"2\"/></table:table-column-group>",
+            "<table:table-row table:visibility=\"collapse\"><table:table-cell office:value-type=\"string\"><text:p>two</text:p>",
+            "<table:table-column table:style-name=\"co1\" table:visibility=\"collapse\"/>",
+            "<style:table-properties table:display=\"false\"",
+        ],
+    );
+
+    let source = Bytes(&archive);
+    let reader = Reader::open(&source, Bound::default()).unwrap();
+    let sheets = reader.sheets(&source).unwrap();
+    assert_eq!(sheets[0].visibility, Visibility::Visible);
+    assert_eq!(sheets[1].name, "Secret");
+    assert_eq!(sheets[1].visibility, Visibility::Hidden);
+    let mut reader = Reader::open(&source, Bound::default()).unwrap();
+    let options = ReadOptions {
+        sheet: "Data".to_owned(),
+        skip_hidden: true,
+        ..ReadOptions::default()
+    };
+    let shown: Vec<u64> = reader
+        .rows(&source, &options, 100)
+        .unwrap()
+        .rows
+        .iter()
+        .map(|row| row.number)
+        .collect();
+    assert_eq!(shown, [1, 5], "rows 2 to 4 are hidden");
+}
+
+#[test]
+fn ods_tables_are_database_ranges_with_their_filter() {
+    let mut book = writer();
+    book.sheet(SheetOptions::named("Data"), &[]).unwrap();
+    book.part(Part::Table(Table {
+        range: "A1:D4".to_owned(),
+        name: Some("Shop".to_owned()),
+        style: None,
+        banded: true,
+        filter: true,
+        totals: vec![Total {
+            column: "qty".to_owned(),
+            function: Some(Function::Sum),
+            formula: None,
+        }],
+    }))
+    .unwrap();
+    let line = |at: u32| {
+        cell(Value::Formula {
+            formula: "[@qty]*[@price]".to_owned(),
+            cached_text: None,
+            cached_number: Some(f64::from(at)),
+        })
+    };
+    book.rows(&[
+        Row {
+            cells: vec![text("item"), text("qty"), text("price"), text("line")],
+            header: true,
+            ..Row::default()
+        },
+        row(vec![text("pen"), number(1.0), number(2.0), line(2)]),
+        row(vec![text("ink"), number(2.0), number(3.0), line(6)]),
+        row(vec![text("pad"), number(3.0), number(1.0), line(3)]),
+        row(vec![text("after")]),
+    ])
+    .unwrap();
+    let error = book
+        .define("shop", "Data!$A$1")
+        .expect_err("a name a table has is taken");
+    assert!(format!("{error:?}").contains("shop"), "{error:?}");
+    let archive = book.finish().unwrap().data;
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<table:database-range table:name=\"Shop\" table:target-range-address=\"Data.A1:Data.D4\" table:contains-header=\"true\" table:display-filter-buttons=\"true\"/>",
+            "table:formula=\"of:=[.B2]*[.C2]\"",
+            "table:formula=\"of:=SUBTOTAL(109;[.$B$2:.$B$4])\"",
+        ],
+    );
+    assert!(!content.contains("#This Row"), "{content}");
+    assert!(
+        !content.contains("__Anonymous_Sheet_DB__"),
+        "the table drops the sheet's own filter: {content}"
+    );
+
+    let source = Bytes(&archive);
+    let reader = Reader::open(&source, Bound::default()).unwrap();
+    let tables = reader.tables(&source, "Data").unwrap();
+    assert_eq!(tables.len(), 1);
+    assert_eq!(tables[0].name, "Shop");
+    assert_eq!(tables[0].table, "A1:D4");
+    let rows = read(&archive, "Data");
+    assert_eq!(at(&rows, 5, 1).value, Some(Read::Text("Total".to_owned())));
+    assert_eq!(
+        at(&rows, 5, 2).formula.as_deref(),
+        Some("SUBTOTAL(109,$B$2:$B$4)")
+    );
+    assert_eq!(at(&rows, 3, 4).formula.as_deref(), Some("B3*C3"));
+    assert_eq!(at(&rows, 6, 1).value, Some(Read::Text("after".to_owned())));
+}
+
+#[test]
+fn ods_conditional_formats_are_written() {
+    let make = || {
+        let mut book = writer();
+        book.sheet(
+            SheetOptions::named("Data"),
+            &[row(vec![number(4.0), number(1.0)]), row(vec![number(9.0)])],
+        )
+        .unwrap();
+        let fill = Style {
+            fill: Some("#FFC7CE".to_owned()),
+            ..Style::default()
+        };
+        let bold = Style {
+            bold: Some(true),
+            ..Style::default()
+        };
+        book.part(Part::Conditional(Conditional {
+            operator: Some(Operator::Greater),
+            values: vec!["5".to_owned()],
+            ..format_rule("A1:A10", Kind::Cell, Some(fill.clone()))
+        }))
+        .unwrap();
+        book.part(Part::Conditional(Conditional {
+            values: vec!["=$B1>0".to_owned()],
+            ..format_rule("A1:A10 C1:C10", Kind::Formula, Some(bold))
+        }))
+        .unwrap();
+        book.part(Part::Conditional(format_rule(
+            "B1:B10",
+            Kind::ColorScale,
+            None,
+        )))
+        .unwrap();
+        book.part(Part::Conditional(format_rule(
+            "B1:B10",
+            Kind::DataBar,
+            None,
+        )))
+        .unwrap();
+        book.part(Part::Conditional(Conditional {
+            icons: Some("3Arrows".to_owned()),
+            ..format_rule("B1:B10", Kind::IconSet, None)
+        }))
+        .unwrap();
+        book.part(Part::Conditional(format_rule(
+            "A1:A10",
+            Kind::Top,
+            Some(fill),
+        )))
+        .unwrap();
+        book.finish().unwrap().data
+    };
+    let archive = make();
+    assert_eq!(archive, make(), "two writes are byte-equal");
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<calcext:conditional-formats><calcext:conditional-format calcext:target-range-address=\"Data.A1:Data.A10\"><calcext:condition calcext:apply-style-name=\"Cond1\" calcext:value=\"&gt;5\" calcext:base-cell-address=\"Data.A1\"/>",
+            "calcext:target-range-address=\"Data.A1:Data.A10 Data.C1:Data.C10\"><calcext:condition calcext:apply-style-name=\"Cond2\" calcext:value=\"formula-is([.$B1]&gt;0)\"",
+            "<calcext:color-scale><calcext:color-scale-entry calcext:value=\"0\" calcext:type=\"minimum\" calcext:color=\"#F8696B\"/><calcext:color-scale-entry calcext:value=\"50\" calcext:type=\"percentile\" calcext:color=\"#FFEB84\"/><calcext:color-scale-entry calcext:value=\"0\" calcext:type=\"maximum\" calcext:color=\"#63BE7B\"/></calcext:color-scale>",
+            "<calcext:data-bar calcext:positive-color=\"#638EC6\"><calcext:formatting-entry calcext:value=\"0\" calcext:type=\"auto-minimum\"/>",
+            "<calcext:icon-set calcext:icon-set-type=\"3Arrows\"><calcext:formatting-entry calcext:value=\"0\" calcext:type=\"percent\"/><calcext:formatting-entry calcext:value=\"33\" calcext:type=\"percent\"/><calcext:formatting-entry calcext:value=\"67\" calcext:type=\"percent\"/></calcext:icon-set>",
+            "calcext:apply-style-name=\"Cond1\" calcext:value=\"top-elements(10)\"",
+        ],
+    );
+    let styles = part(&archive, "styles.xml");
+    has_all(
+        &styles,
+        "styles.xml",
+        &[
+            "<style:style style:name=\"Cond1\" style:family=\"table-cell\" style:parent-style-name=\"Default\"><style:table-cell-properties fo:background-color=\"#FFC7CE\"/>",
+            "<style:style style:name=\"Cond2\" style:family=\"table-cell\" style:parent-style-name=\"Default\"><style:text-properties fo:font-weight=\"bold\"/>",
+        ],
+    );
+    let mut theirs: Ods<_> = open_workbook_from_rs(Cursor::new(archive)).unwrap();
+    let range = theirs.worksheet_range("Data").unwrap();
+    assert_eq!(range.get_value((1, 0)), Some(&Data::Float(9.0)));
+}
+
+#[test]
+fn ods_images_print_setup_and_protection_are_written() {
+    let mut book = writer();
+    book.sheet(SheetOptions::named("Data"), &[]).unwrap();
+    book.part(Part::Print(Print {
+        orientation: Some(Orientation::Landscape),
+        fit_width: Some(1),
+        fit_height: None,
+        margins: Some(Margins {
+            top: 1.0,
+            right: 0.5,
+            bottom: 1.0,
+            left: 0.5,
+        }),
+        header: Some("Monthly report".to_owned()),
+        footer: None,
+        repeat_rows: Some("1:1".to_owned()),
+        area: Some("A1:C20".to_owned()),
+    }))
+    .unwrap();
+    book.rows(&[header(&["Name", "Qty"]), row(vec![text("a"), number(1.0)])])
+        .unwrap();
+    let image = png(20, 10);
+    book.part(Part::Image(Image {
+        at: "B3".to_owned(),
+        image: image.clone(),
+        width: Some(40.0),
+        height: None,
+        offset_x: Some(4.0),
+        offset_y: None,
+    }))
+    .unwrap();
+    book.part(Part::Protect(Protect {
+        password: Some("password".to_owned()),
+        allow: vec!["sort".to_owned()],
+    }))
+    .unwrap();
+    let error = book
+        .part(Part::Print(Print {
+            fit_height: Some(2),
+            ..Print::default()
+        }))
+        .unwrap_err();
+    assert!(
+        format!("{error:?}").contains("after its first row"),
+        "{error:?}"
+    );
+    let archive = book.finish().unwrap().data;
+    let names: Vec<String> = entries(&archive)
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert!(names.contains(&"Pictures/1.png".to_owned()), "{names:?}");
+    let manifest = part(&archive, "META-INF/manifest.xml");
+    assert!(manifest.contains(
+        "<manifest:file-entry manifest:full-path=\"Pictures/1.png\" manifest:media-type=\"image/png\"/>"
+    ));
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "<table:table-cell><draw:frame draw:z-index=\"0\" draw:name=\"Image 1\" svg:width=\"0.4167in\" svg:height=\"0.2083in\" svg:x=\"0.0417in\" svg:y=\"0.0000in\"><draw:image xlink:href=\"Pictures/1.png\" xlink:type=\"simple\" xlink:show=\"embed\" xlink:actuate=\"onLoad\"/></draw:frame></table:table-cell>",
+            "style:master-page-name=\"mp1\"",
+            "table:protected=\"true\" table:protection-key=\"g68=\" table:protection-key-digest-algorithm=\"http://docs.oasis-open.org/office/ns/table/legacy-hash-excel\"",
+            "table:print-ranges=\"Data.A1:Data.C20\"",
+            "<table:table-header-rows><table:table-row table:default-cell-style-name=\"ce1\"><table:table-cell table:style-name=\"ce1\" office:value-type=\"string\"><text:p>Name</text:p>",
+            "</table:table-row></table:table-header-rows><table:table-row>",
+        ],
+    );
+    let styles = part(&archive, "styles.xml");
+    has_all(
+        &styles,
+        "styles.xml",
+        &[
+            "<style:page-layout style:name=\"pm1\"><style:page-layout-properties fo:page-width=\"11in\" fo:page-height=\"8.5in\" style:print-orientation=\"landscape\" fo:margin-top=\"1in\" fo:margin-bottom=\"1in\" fo:margin-left=\"0.5in\" fo:margin-right=\"0.5in\" style:scale-to-X=\"1\" style:scale-to-Y=\"0\"/>",
+            "<style:master-page style:name=\"mp1\" style:page-layout-name=\"pm1\"><style:header><text:p>Monthly report</text:p></style:header></style:master-page>",
+        ],
+    );
+
+    let source = Bytes(&archive);
+    let reader = Reader::open(&source, Bound::default()).unwrap();
+    let images = reader.images(&source, "Data").unwrap();
+    assert_eq!(images.len(), 1);
+    assert_eq!(images[0].at, "B3");
+    assert_eq!(images[0].image, image);
+    assert_eq!(images[0].link, None);
+}
+
+#[test]
+fn ods_number_formats_with_sections_conditions_and_fractions_are_written() {
+    let mut book = writer();
+    let mut cells = Vec::new();
+    for (format, value) in [
+        ("#,##0.00;(#,##0.00)", -3.5),
+        ("[>=100]0;0.0", 250.0),
+        ("# ?/?", 1.5),
+    ] {
+        let id = book
+            .style(Style {
+                format: Some(format.to_owned()),
+                ..Style::default()
+            })
+            .unwrap();
+        cells.push(styled(Value::Number(value), id));
+    }
+    let archive = written(book, "Data", &[row(cells)]);
+    let content = part(&archive, "content.xml");
+    has_all(
+        &content,
+        "content.xml",
+        &[
+            "style:condition=\"value()&gt;=0\" style:apply-style-name=\"N1P0\"",
+            "style:condition=\"value()&gt;=100\" style:apply-style-name=\"N2P0\"",
+            "<number:fraction ",
+        ],
+    );
+    let rows = read(&archive, "Data");
+    assert_eq!(at(&rows, 1, 3).value, Some(Read::Number(1.5)));
 }

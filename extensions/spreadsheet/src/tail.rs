@@ -227,6 +227,14 @@ pub struct Margins {
     pub left: f64,
 }
 
+/// The margins a page setup has when it gives none: Excel's.
+pub const DEFAULT_MARGINS: Margins = Margins {
+    top: 0.75,
+    right: 0.7,
+    bottom: 0.75,
+    left: 0.7,
+};
+
 /// Page setup. `fit_width` and `fit_height` are the pages to fit the sheet on, and an absent one
 /// of the two is as many as it needs. `repeat_rows` is rows such as `1:2`.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -308,6 +316,14 @@ pub fn password_hash(password: &str) -> u16 {
 enum Span {
     Rows(u32, u32),
     Columns(u32, u32),
+}
+
+/// The first and last row of rows such as `1:2`, or `None` when `text` is not rows.
+pub(crate) fn row_span(text: &str) -> Option<(u32, u32)> {
+    match span(text)? {
+        Span::Rows(from, to) => Some((from, to)),
+        Span::Columns(..) => None,
+    }
 }
 
 fn span(text: &str) -> Option<Span> {
@@ -459,7 +475,7 @@ fn optional_attr(out: &mut String, name: &str, value: &Option<String>) {
 
 /// A validation bound as formula text: a `yyyy-mm-dd` date for a date rule is its serial, and a
 /// leading `=` is dropped.
-fn bound(kind: RuleKind, value: &str) -> String {
+pub(crate) fn bound(kind: RuleKind, value: &str) -> String {
     if kind == RuleKind::Date
         && let [year, month, day] = value.split('-').collect::<Vec<_>>()[..]
         && let (Ok(year), Ok(month), Ok(day)) = (year.parse(), month.parse(), day.parse())
@@ -502,6 +518,21 @@ impl Tail {
     /// The priority the next conditional format takes: the sheet's rules counted from 1.
     pub fn next_priority(&self) -> usize {
         self.conditionals.len() + 1
+    }
+
+    /// The merged ranges, in the order they were added.
+    pub fn merges(&self) -> &[Area] {
+        &self.merges
+    }
+
+    /// The tables, in the order they were added.
+    pub fn placed(&self) -> &[Placed] {
+        &self.tables
+    }
+
+    /// The page setup, if the sheet has one.
+    pub fn print(&self) -> Option<&Print> {
+        self.print.as_ref()
     }
 
     /// Keeps a conditional format written by `conditional::write`.
@@ -969,12 +1000,7 @@ impl Tail {
             out.push_str("</hyperlinks>");
         }
         if let Some(print) = &self.print {
-            let margins = print.margins.unwrap_or(Margins {
-                top: 0.75,
-                right: 0.7,
-                bottom: 0.75,
-                left: 0.7,
-            });
+            let margins = print.margins.unwrap_or(DEFAULT_MARGINS);
             out.push_str("<pageMargins");
             let mut side = |name: &str, value: f64| {
                 let _ = write!(out, " {name}=\"");

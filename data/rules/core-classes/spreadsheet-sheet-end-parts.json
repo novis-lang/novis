@@ -9,6 +9,7 @@
     "extensions/spreadsheet/tests/sheet_end.rs",
     "extensions/spreadsheet/tests/chart.rs",
     "extensions/spreadsheet/tests/excel.rs",
+    "extensions/spreadsheet/tests/ods.rs",
     "tests/conformance/novis/spreadsheet-a-sheet-part-writes-its-kind-and-operator.nvst",
     "tests/conformance/novis/spreadsheet-a-report-carries-a-chart.nvst",
     "tests/conformance/novis/spreadsheet-an-image-of-another-format-throws.nvst"

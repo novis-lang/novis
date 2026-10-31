@@ -5,11 +5,13 @@
 //! inside the cells they cover, so no part of `content.xml` can leave before the last row is
 //! known. [`Writer::sheet`] and [`Writer::rows`] check each row as xlsx does and keep it, with
 //! each cell's value and its cell format. [`Writer::finish`] writes the whole package and returns
-//! every byte. Memory: every cell of the workbook, per writing request, freed at `finish`.
+//! every byte. Memory: every cell and every sheet-end part of the workbook, the image bytes
+//! included, per writing request, freed at `finish`.
 //!
 //! **The package** is a zip with `mimetype` first and stored, as ODF requires, then
-//! `content.xml`, `styles.xml`, `meta.xml`, `settings.xml` and `META-INF/manifest.xml`. The
-//! sheets are written in tab order. Every style is an automatic style in `content.xml`:
+//! `content.xml`, `styles.xml`, `meta.xml`, `settings.xml`, each image as `Pictures/<n>.<ext>`
+//! and `META-INF/manifest.xml`. The sheets are written in tab order. The styles of the cells are
+//! automatic styles in `content.xml`:
 //!
 //! - **Cell styles** are `ce<n>`, one for each `cellXfs` entry [`crate::styles::Styles`] makes,
 //!   so equal combinations of layers share one. `styles` writes them, and `numbers` writes each
@@ -18,32 +20,69 @@
 //!   into inches. A column's own style is its `table:default-cell-style-name`.
 //! - **Rows** are `ro<n>` for each distinct height. A row's style is its default cell style.
 //!   A row's outline level nests it in `table:table-row-group`s.
-//! - **Sheets** are `ta<n>` for each distinct display, direction and tab colour. A very hidden
-//!   sheet is hidden, because ods has no very hidden sheet.
+//! - **Sheets** are `ta<n>` for each distinct display, direction, tab colour and master page. A
+//!   very hidden sheet is hidden, because ods has no very hidden sheet.
 //!
 //! **The header row** gets what it gets in xlsx: its style, the rows above the second frozen,
 //! and a filter over the header and every row below it. The filter is the database range
 //! `__Anonymous_Sheet_DB__<tab>`, the name LibreOffice gives a sheet's own filter, so a reader
-//! does not take it for a table. Auto width measures the first batch, as in xlsx.
+//! does not take it for a table. A table over the filter's range drops the filter, as in xlsx.
+//! Auto width measures the first batch, as in xlsx.
 //!
-//! **`settings.xml`** has each sheet's frozen rows and columns, zoom and gridlines, in the view
+//! **`settings.xml`** has each sheet's frozen panes, zoom and gridlines, in the view
 //! settings LibreOffice reads. A defined name over a range is a `table:named-range`, and any
 //! other is a `table:named-expression`. A formula is OpenFormula, with its cached result.
 //!
+//! **The sheet-end parts** are checked by the code xlsx checks them with, the sheet's
+//! `crate::tail::Tail` and `crate::tail::Groups`, so each error is the one xlsx gives. A chart has
+//! no ods form yet, and [`Writer::part`] throws for it. `parts` writes the parts that are not
+//! cells:
+//!
+//! - **A merged range** spans from its top-left cell, and every other cell of it is a
+//!   `table:covered-table-cell`, which keeps its value if it has one.
+//! - **A link** wraps the cell's text in `text:a`. A cell with no value shows the link's text, or
+//!   its target. A cell link is `#Sheet.A1`.
+//! - **A note** is an `office:annotation` with its author, first in its cell. **An image** is a
+//!   `draw:frame` in its cell, after the note, in inches at 96 pixels an inch.
+//! - **A validation** is a `table:content-validation` before the first sheet, named `val<n>`
+//!   across the workbook, and each cell it covers names it.
+//! - **A group** adds to each row's and column's outline level as in xlsx, and nests it in a
+//!   `table:table-row-group` or a `table:table-column-group`. A collapsed group's rows and
+//!   columns are hidden.
+//! - **The page setup** is a page layout and a master page per sheet in `styles.xml`, with its
+//!   header and footer. The print area is `table:print-ranges`, and the rows to repeat are
+//!   `table:table-header-rows`.
+//! - **Protection** is `table:protected`, with the password as Excel's 16-bit hash. ods has no
+//!   form for what a protected sheet allows, so `allow` is not written.
+//! - **A table** is a `table:database-range`. Its totals row is a row of the sheet, written
+//!   where xlsx writes it. Its style and banding have no ods form. A structured reference in any
+//!   formula becomes the A1 range it covers when the workbook is finished.
+//! - **A conditional format** is a `calcext:conditional-format` after the sheet's rows, whose
+//!   style is the named cell style `Cond<n>` in `styles.xml`.
+//!
+//! A part may name a cell no row reached, so the rows go on to the last row a part needs. A run
+//! of equal rows is one row with `table:number-rows-repeated`, and a run of equal cells one cell
+//! with `table:number-columns-repeated`, so a validation down a whole column costs a few
+//! elements.
+//!
 //! **Two writes are byte-equal**: every part is written in the order of the calls, and the
 //! document dates are `writer`'s fixed ones.
-//!
-//! The sheet-end parts are not written yet. [`Writer::part`] throws naming ods.
 
 mod cells;
 mod numbers;
+mod parts;
 mod styles;
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
+use crate::conditional::{self, Conditional};
+use crate::drawing::{self, Placement};
 use crate::styles::{Implicit, Styles};
-use crate::tail::Part;
+use crate::table::{Placed, Table, expand};
+use crate::tail::{
+    Area, Groups, Link, Note, Part, Protect, Tail, Validation, area, cell_at, row_span,
+};
 use crate::writer::{
     MAX_COLUMNS, MAX_ROWS, check_name, check_options, check_sheet_name, clock_text, continued,
     fold_column_formats, header_layer,
@@ -63,6 +102,11 @@ const NAMESPACES: &str = "xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:o
      xmlns:number=\"urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0\" \
      xmlns:fo=\"urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0\" \
      xmlns:of=\"urn:oasis:names:tc:opendocument:xmlns:of:1.2\" \
+     xmlns:xlink=\"http://www.w3.org/1999/xlink\" \
+     xmlns:dc=\"http://purl.org/dc/elements/1.1/\" \
+     xmlns:draw=\"urn:oasis:names:tc:opendocument:xmlns:drawing:1.0\" \
+     xmlns:svg=\"urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0\" \
+     xmlns:calcext=\"urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0\" \
      xmlns:tableooo=\"http://openoffice.org/2009/table\"";
 
 /// One kept cell: its value, and its `cellXfs` entry, 0 for none.
@@ -71,7 +115,14 @@ struct Held {
     xf: u32,
 }
 
-/// One kept row.
+impl Held {
+    /// Whether the cell is written: it has a value or a format.
+    fn written(&self) -> bool {
+        self.value.is_some() || self.xf != 0
+    }
+}
+
+/// One kept row. Its level and its hidden flag count its groups.
 struct HeldRow {
     cells: Vec<Held>,
     xf: u32,
@@ -80,12 +131,39 @@ struct HeldRow {
     level: u64,
 }
 
-/// One column of a sheet, as its first batch set it.
+/// One column of a sheet, as its first batch and its groups set it.
 #[derive(Clone, Copy, PartialEq)]
 struct HeldColumn {
     width: Option<f64>,
     xf: u32,
     hidden: bool,
+    level: u64,
+}
+
+/// A column with nothing of its own.
+const PLAIN_COLUMN: HeldColumn = HeldColumn {
+    width: None,
+    xf: 0,
+    hidden: false,
+    level: 0,
+};
+
+/// One image: where it goes, its number in the workbook and its bytes.
+struct HeldImage {
+    placed: Placement,
+    number: usize,
+    bytes: Vec<u8>,
+}
+
+impl HeldImage {
+    /// Its entry in the package, such as `Pictures/1.png`.
+    fn entry(&self) -> String {
+        format!(
+            "Pictures/{}.{}",
+            self.number,
+            self.placed.format.extension()
+        )
+    }
 }
 
 /// One sheet, open or ended.
@@ -105,6 +183,18 @@ struct Sheet {
     next: u32,
     /// Its data rows, the header row not counted.
     counted: u64,
+    /// The checked parts, as xlsx keeps them: the merges, the tables and the page setup.
+    tail: Tail,
+    groups: Groups,
+    /// Each link and note with its cell's column and row.
+    links: Vec<(u32, u32, Link)>,
+    notes: Vec<(u32, u32, Note)>,
+    /// Each validation with its range and its number in the workbook.
+    checks: Vec<(Area, usize, Validation)>,
+    protect: Option<Protect>,
+    images: Vec<HeldImage>,
+    /// Each conditional format with its `dxfs` index, in priority order.
+    conditionals: Vec<(Conditional, Option<u32>)>,
 }
 
 impl Sheet {
@@ -121,7 +211,20 @@ impl Sheet {
             part,
             next: 1,
             counted: 0,
+            tail: Tail::default(),
+            groups: Groups::default(),
+            links: Vec::new(),
+            notes: Vec::new(),
+            checks: Vec::new(),
+            protect: None,
+            images: Vec::new(),
+            conditionals: Vec::new(),
         }
+    }
+
+    /// Whether its first rows are kept, which fixes its columns.
+    fn started(&self) -> bool {
+        self.columns.is_some()
     }
 
     /// The rows frozen at the top: at least the header row when the header freezes.
@@ -144,10 +247,11 @@ impl Sheet {
         }
         let columns = header.cells.len().max(self.options.columns.len()).max(1);
         let last = self.next.saturating_sub(1).max(1);
-        Some(format!(
-            "A1:{}",
-            crate::cells::reference(columns as u32 - 1, last)
-        ))
+        let range = format!("A1:{}", crate::cells::reference(columns as u32 - 1, last));
+        // A table has its own filter, and xlsx writes no other over it.
+        area(&range)
+            .is_some_and(|at| !self.tail.overlaps_table(&at))
+            .then_some(range)
     }
 }
 
@@ -166,6 +270,11 @@ pub struct Writer {
     /// Whether the last sheet is still open.
     open: bool,
     names: Vec<(String, String)>,
+    /// The tables' names, in the order they were added.
+    tables: Vec<String>,
+    /// The images and the validations added so far.
+    media: usize,
+    checks: usize,
     state: State,
 }
 
@@ -184,6 +293,11 @@ fn sheet_ref(name: &str) -> String {
 /// padding, at 96 pixels an inch.
 fn inches(chars: f64) -> String {
     format!("{:.4}in", (chars * 7.0 + 5.0) / 96.0)
+}
+
+/// `pixels` at 96 an inch, in inches.
+fn pixel_inches(pixels: f64) -> String {
+    format!("{:.4}in", pixels / 96.0)
 }
 
 /// The width Excel gives a column of its default 8.43 characters.
@@ -209,6 +323,24 @@ impl Named {
     }
 }
 
+/// The page layouts in `styles.xml`, and each sheet with a page setup by its index, with its
+/// layout's number. The sheet's master page is `mp<n>`, `n` counting this list from 1.
+#[derive(Default)]
+struct Pages {
+    layouts: Named,
+    masters: Vec<(usize, usize)>,
+}
+
+impl Pages {
+    /// The master page of the sheet at `at`, if it has a page setup.
+    fn master(&self, at: usize) -> Option<String> {
+        self.masters
+            .iter()
+            .position(|&(sheet, _)| sheet == at)
+            .map(|place| format!("mp{}", place + 1))
+    }
+}
+
 impl Writer {
     /// A workbook with nothing written yet.
     pub fn open(options: WorkbookOptions) -> Result<Self, Error> {
@@ -221,6 +353,9 @@ impl Writer {
             sheets: Vec::new(),
             open: false,
             names: Vec::new(),
+            tables: Vec::new(),
+            media: 0,
+            checks: 0,
             state: State::Writing,
         })
     }
@@ -256,7 +391,7 @@ impl Writer {
     /// A defined name over a reference.
     pub fn define(&mut self, name: &str, reference: &str) -> Result<(), Error> {
         self.writing()?;
-        check_name(name, reference, &self.names, &[])?;
+        check_name(name, reference, &self.names, &self.tables)?;
         self.names.push((name.to_owned(), reference.to_owned()));
         Ok(())
     }
@@ -268,19 +403,189 @@ impl Writer {
         check_options(&options, taken, &self.styles)?;
         fold_column_formats(&mut self.styles, &mut options)?;
         let header_style = header_layer(&mut self.styles, &options)?;
+        self.ready_to_end()?;
         let base = options.name.clone();
         self.sheets.push(Sheet::new(options, header_style, base, 1));
         self.open = true;
         self.rows(first)
     }
 
-    /// Adds a sheet-end part to the open sheet. ods does not have them yet.
-    pub fn part(&mut self, _part: Part) -> Result<(), Error> {
+    /// Adds a sheet-end part to the open sheet, checked as xlsx checks it.
+    pub fn part(&mut self, part: Part) -> Result<(), Error> {
         self.writing()?;
-        Err(Error::Invalid(
-            "This part cannot be written to an ods file yet. Write the workbook as xlsx to use it."
-                .to_owned(),
-        ))
+        if !self.open {
+            return Err(Error::Invalid(
+                "No sheet is open. Call `sheet()` before you add to it.".to_owned(),
+            ));
+        }
+        let dxf = match &part {
+            Part::Table(_) => {
+                let Part::Table(table) = part else {
+                    unreachable!("the part is a table");
+                };
+                return self.table(table);
+            }
+            Part::Chart(_) => {
+                return Err(Error::Invalid(
+                    "A chart cannot be written to an ods file yet. Write the workbook as xlsx to use it."
+                        .to_owned(),
+                ));
+            }
+            Part::Conditional(rule) => {
+                conditional::check(rule)?;
+                rule.style
+                    .clone()
+                    .map(|style| self.styles.dxf(style))
+                    .transpose()?
+            }
+            _ => None,
+        };
+        let (media, check) = (self.media + 1, self.checks + 1);
+        let Some(sheet) = self.sheets.last_mut() else {
+            unreachable!("an open sheet is the last one");
+        };
+        let name = sheet.options.name.clone();
+        match part {
+            Part::Group(group) => {
+                sheet
+                    .groups
+                    .add(&group, &name, sheet.next, sheet.columns.is_some())?;
+            }
+            Part::Print(print) => {
+                if print.fits() && sheet.started() {
+                    return Err(Error::Invalid(format!(
+                        "The sheet `{name}` cannot be fitted to pages after its first row. Set the fit before you add rows."
+                    )));
+                }
+                sheet.tail.add(Part::Print(print), &name)?;
+            }
+            Part::Image(image) => {
+                let placed = drawing::place(&image)?;
+                sheet.images.push(HeldImage {
+                    placed,
+                    number: media,
+                    bytes: image.image,
+                });
+                self.media = media;
+            }
+            Part::Conditional(rule) => sheet.conditionals.push((rule, dxf)),
+            Part::Link(link) => {
+                sheet.tail.add(Part::Link(link.clone()), &name)?;
+                if let Some(at) = area(&link.anchor) {
+                    sheet.links.push((at.left, at.top, link));
+                }
+            }
+            Part::Note(note) => {
+                sheet.tail.add(Part::Note(note.clone()), &name)?;
+                if let Some((column, row)) = cell_at(&note.noted) {
+                    sheet.notes.push((column, row, note));
+                }
+            }
+            Part::Validation(rule) => {
+                sheet.tail.add(Part::Validation(rule.clone()), &name)?;
+                if let Some(at) = area(&rule.validated) {
+                    sheet.checks.push((at, check, rule));
+                    self.checks = check;
+                }
+            }
+            Part::Protect(protect) => {
+                sheet.tail.add(Part::Protect(protect.clone()), &name)?;
+                sheet.protect = Some(protect);
+            }
+            part => sheet.tail.add(part, &name)?,
+        }
+        Ok(())
+    }
+
+    /// Adds `table` to the open sheet, and keeps its totals row when it has totals, as xlsx
+    /// does (`table`'s module doc).
+    fn table(&mut self, table: Table) -> Result<(), Error> {
+        let id = self.tables.len() + 1;
+        let Some(sheet) = self.sheets.last() else {
+            unreachable!("an open sheet is the last one");
+        };
+        let name = sheet.options.name.as_str();
+        let mut placed = Placed::new(table, id, name)?;
+        let lower = placed.name.to_lowercase();
+        if self.tables.iter().any(|n| n.to_lowercase() == lower)
+            || self.names.iter().any(|(n, _)| n.to_lowercase() == lower)
+        {
+            return Err(Error::Invalid(format!(
+                "The name `{}` is used twice. A table's name is different from every other table and name of the workbook.",
+                placed.name
+            )));
+        }
+        if let Some(range) = &sheet.options.autofilter
+            && area(range).is_some_and(|filter| filter.overlaps(&placed.area))
+        {
+            return Err(Error::Invalid(format!(
+                "The table `{}` overlaps the autofilter `{range}` of the sheet `{name}`. A table has its own filter.",
+                placed.name
+            )));
+        }
+        sheet.tail.check_table(&placed, name)?;
+        if placed.area.top < sheet.next {
+            match &sheet.header {
+                Some(header) if placed.area.top == 1 => placed.header(header)?,
+                _ => {
+                    return Err(Error::Invalid(format!(
+                        "The header row {} of the table `{}` is written already. Add a table before its header row, or start it at the sheet's header row.",
+                        placed.area.top, placed.name
+                    )));
+                }
+            }
+        }
+        if placed.has_totals() {
+            if placed.area.bottom + 1 < sheet.next {
+                return Err(Error::Invalid(format!(
+                    "The table `{}` has a totals row after its last row {}, and row {} is written already. Add the table before that row.",
+                    placed.name,
+                    placed.area.bottom,
+                    placed.area.bottom + 1
+                )));
+            }
+            if placed.area.bottom >= MAX_ROWS {
+                return Err(Error::Invalid(format!(
+                    "The table `{}` ends at the sheet's last row, so it has no room for its totals row.",
+                    placed.name
+                )));
+            }
+            if placed.area.bottom + 1 == sheet.next {
+                // The header is named, so this checks each total names a column.
+                placed.totals_row()?;
+            }
+        }
+        let table_name = placed.name.clone();
+        let name = name.to_owned();
+        let Some(sheet) = self.sheets.last_mut() else {
+            unreachable!("an open sheet is the last one");
+        };
+        sheet.tail.table(placed, &name)?;
+        if let Err(error) = self.append(&[]) {
+            if let Some(sheet) = self.sheets.last_mut() {
+                sheet.tail.forget_table(id);
+            }
+            return Err(error);
+        }
+        self.tables.push(table_name);
+        Ok(())
+    }
+
+    /// Checks that the open sheet can end: every table's header row and totals row is kept.
+    fn ready_to_end(&self) -> Result<(), Error> {
+        if let Some(sheet) = self.open_sheet()
+            && let Some(table) = sheet.tail.unfinished_table()
+        {
+            return Err(Error::Invalid(format!(
+                "The table `{}` covers rows {} to {}, and the sheet `{}` ends at row {}. Write the table's rows before the sheet ends.",
+                table.name,
+                table.area.top,
+                table.area.bottom,
+                sheet.options.name,
+                sheet.next - 1
+            )));
+        }
+        Ok(())
     }
 
     /// The open sheet's data range in the column at `column`, from 0, over the rows kept so
@@ -315,21 +620,45 @@ impl Writer {
             )));
         }
         self.writing()?;
-        if !self.open {
+        self.append(rows)
+    }
+
+    /// Keeps `rows` in the open sheet, with a table's totals row after the table's last row, and
+    /// goes on to the next sheet at the end of the grid when the sheet's options say so.
+    fn append(&mut self, rows: &[Row]) -> Result<(), Error> {
+        let Some(sheet) = self.open_sheet() else {
             return Err(Error::Invalid(
                 "No sheet is open. Call `sheet()` before you add rows.".to_owned(),
             ));
-        }
-        let Some(sheet) = self.sheets.last() else {
-            unreachable!("an open sheet is the last one");
         };
+        // A table's totals row goes right after its last row.
+        if let Some((id, totals)) = sheet.tail.totals(sheet.next) {
+            self.keep(&[totals?])?;
+            if let Some(sheet) = self.sheets.last_mut() {
+                sheet.tail.totaled(id);
+            }
+            return self.append(rows);
+        }
+        if let Some(cut) = sheet.tail.totals_due(sheet.next, rows.len())
+            && cut < rows.len()
+        {
+            self.append(&rows[..cut])?;
+            return self.append(&rows[cut..]);
+        }
         let room = (MAX_ROWS + 1).saturating_sub(sheet.next) as usize;
         if rows.len() > room && sheet.options.new_sheet_on_overflow {
-            self.rows(&rows[..room])?;
+            self.append(&rows[..room])?;
             self.overflow()?;
-            return self.rows(&rows[room..]);
+            return self.append(&rows[room..]);
         }
-        self.keep(rows)
+        self.keep(rows)?;
+        let due = self
+            .open_sheet()
+            .is_some_and(|sheet| sheet.tail.totals(sheet.next).is_some());
+        if due && !rows.is_empty() {
+            return self.append(&[]);
+        }
+        Ok(())
     }
 
     /// Ends the open sheet, which is full, and opens the next sheet of its overflow with the same
@@ -354,7 +683,7 @@ impl Writer {
         self.sheets
             .push(Sheet::new(options, header_style, base, part));
         match header {
-            Some(header) => self.keep(&[header]),
+            Some(header) => self.append(&[header]),
             None => Ok(()),
         }
     }
@@ -374,7 +703,8 @@ impl Writer {
         };
         let styles = &mut self.styles;
         let name = sheet.options.name.as_str();
-        let mut number = sheet.next;
+        let start = sheet.next;
+        let mut number = start;
         let mut kept = Vec::with_capacity(rows.len());
         for row in rows {
             if number > MAX_ROWS {
@@ -400,10 +730,11 @@ impl Writer {
                     "Row {number} of the sheet `{name}` has the height {height}. A row height is from 0 to 409 points."
                 )));
             }
-            if row.level > 7 {
+            let outline = sheet.groups.row(number);
+            let level = row.level + outline.level;
+            if level > 7 {
                 return Err(Error::Invalid(format!(
-                    "Row {number} of the sheet `{name}` has the outline level {}. The level is from 0 to 7.",
-                    row.level
+                    "Row {number} of the sheet `{name}` has the outline level {level}, counting its groups. The level is from 0 to 7."
                 )));
             }
             let style = if row.header {
@@ -434,23 +765,39 @@ impl Writer {
                 } else {
                     styles.xf(layer, style, cell.style, implicit)?
                 };
-                cells.push(Held {
-                    value: cell.value.clone(),
-                    xf,
-                });
+                // A formula in a table's rows has its structured references qualified, as
+                // xlsx writes it.
+                let value = match &cell.value {
+                    Some(Value::Formula {
+                        formula,
+                        cached_text,
+                        cached_number,
+                    }) if formula.contains('[') => match sheet.tail.table_at(column as u32, number)
+                    {
+                        Some(table) => Some(Value::Formula {
+                            formula: expand(formula, table),
+                            cached_text: cached_text.clone(),
+                            cached_number: *cached_number,
+                        }),
+                        None => cell.value.clone(),
+                    },
+                    value => value.clone(),
+                };
+                cells.push(Held { value, xf });
             }
             kept.push(HeldRow {
                 cells,
                 xf: row_xf,
                 height: row.height,
-                hidden: row.hidden,
-                level: row.level,
+                hidden: row.hidden || outline.hidden,
+                level,
             });
             number += 1;
         }
         let Some(sheet) = self.sheets.last_mut() else {
             unreachable!("an open sheet is the last one");
         };
+        sheet.tail.headers(rows, start)?;
         if let Some(columns) = columns {
             sheet.columns = Some(columns);
         }
@@ -515,9 +862,84 @@ fn columns(
             width,
             xf,
             hidden: column.is_some_and(|column| column.hidden),
+            level: 0,
         });
     }
     Ok(out)
+}
+
+/// What the parts put in one cell: a link, a note and images, each image with its place in the
+/// sheet's drawing order.
+struct Spot<'a> {
+    row: u32,
+    column: u32,
+    link: Option<&'a Link>,
+    note: Option<&'a Note>,
+    images: Vec<(usize, &'a HeldImage)>,
+}
+
+impl Spot<'_> {
+    /// What the cell has before its text: the note, then each image's frame.
+    fn lead(&self) -> String {
+        let mut out = String::new();
+        if let Some(note) = self.note {
+            out.push_str("<office:annotation>");
+            if let Some(author) = &note.author {
+                out.push_str("<dc:creator>");
+                xml::odf(&mut out, author, false);
+                out.push_str("</dc:creator>");
+            }
+            cells::paragraphs(&mut out, &note.note);
+            out.push_str("</office:annotation>");
+        }
+        for &(z, image) in &self.images {
+            let placed = &image.placed;
+            let _ = write!(
+                out,
+                "<draw:frame draw:z-index=\"{z}\" draw:name=\"Image {}\" svg:width=\"{}\" svg:height=\"{}\" svg:x=\"{}\" svg:y=\"{}\">\
+                 <draw:image xlink:href=\"{}\" xlink:type=\"simple\" xlink:show=\"embed\" xlink:actuate=\"onLoad\"/></draw:frame>",
+                image.number,
+                pixel_inches(placed.width),
+                pixel_inches(placed.height),
+                pixel_inches(placed.offset_x),
+                pixel_inches(placed.offset_y),
+                image.entry()
+            );
+        }
+        out
+    }
+}
+
+/// The opening `text:a` of `link`: a URL as it is, and a cell such as `'Sheet 2'!A1` as
+/// `#'Sheet 2'.A1`.
+fn link_open(link: &Link) -> String {
+    let target = link.target.as_str();
+    let lower = target.to_ascii_lowercase();
+    let external = ["http://", "https://", "mailto:"]
+        .iter()
+        .any(|scheme| lower.starts_with(scheme));
+    let href = match target.rsplit_once('!') {
+        Some((sheet, cell)) if !external => format!("#{sheet}.{cell}"),
+        _ => target.to_owned(),
+    };
+    let mut out = String::from("<text:a xlink:href=\"");
+    xml::odf(&mut out, &href, true);
+    out.push_str("\" xlink:type=\"simple\"");
+    if let Some(tooltip) = &link.tooltip {
+        out.push_str(" office:title=\"");
+        xml::odf(&mut out, tooltip, true);
+        out.push('"');
+    }
+    out.push('>');
+    out
+}
+
+/// What one sheet's rows are written with: the workbook's tables, the cell styles of rich runs,
+/// and the automatic styles the rows name.
+struct Rows<'a, 'b> {
+    tables: &'a [(&'a str, &'a Placed)],
+    row_styles: &'b mut Named,
+    run: &'b mut dyn FnMut(u64) -> String,
 }
 
 impl Writer {
@@ -548,14 +970,21 @@ impl Writer {
                     .to_owned(),
             ));
         };
-        let content = self.content(&order)?;
+        self.ready_to_end()?;
+        let pages = self.pages(&order);
+        let content = self.content(&order, &pages)?;
         let parts = [
             ("content.xml", content),
-            ("styles.xml", self.styles_part()),
+            ("styles.xml", self.styles_part(&pages)?),
             ("meta.xml", self.meta()?),
             ("settings.xml", self.settings(&order, active)),
-            ("META-INF/manifest.xml", manifest()),
         ];
+        let images: Vec<&HeldImage> = self
+            .sheets
+            .iter()
+            .flat_map(|sheet| sheet.images.iter())
+            .collect();
+        let manifest = manifest(&images);
         let mut archive = Archive::new();
         let written = (|| {
             archive.stored("mimetype", MIME.as_bytes())?;
@@ -563,6 +992,12 @@ impl Writer {
                 archive.begin(name)?;
                 archive.write(text.as_bytes())?;
             }
+            for image in &images {
+                archive.begin(&image.entry())?;
+                archive.write(&image.bytes)?;
+            }
+            archive.begin("META-INF/manifest.xml")?;
+            archive.write(manifest.as_bytes())?;
             archive.close()
         })();
         if let Err(error) = written {
@@ -580,10 +1015,11 @@ impl Writer {
                 rows: sheet.counted,
             })
             .collect();
-        // The workbook is written, so its cells go now, not when the request ends.
-        self.sheets
-            .iter_mut()
-            .for_each(|sheet| sheet.rows = Vec::new());
+        // The workbook is written, so its cells and images go now, not when the request ends.
+        self.sheets.iter_mut().for_each(|sheet| {
+            sheet.rows = Vec::new();
+            sheet.images = Vec::new();
+        });
         Ok(Finished {
             size: data.len() as u64,
             data,
@@ -591,8 +1027,21 @@ impl Writer {
         })
     }
 
-    /// `content.xml`: the automatic styles, the sheets in tab order, the names and the filters.
-    fn content(&self, order: &[usize]) -> Result<String, Error> {
+    /// The page layouts and master pages of the sheets with a page setup, in tab order.
+    fn pages(&self, order: &[usize]) -> Pages {
+        let mut pages = Pages::default();
+        for &at in order {
+            if let Some(print) = self.sheets[at].tail.print() {
+                let layout = pages.layouts.id(parts::page_layout(print));
+                pages.masters.push((at, layout));
+            }
+        }
+        pages
+    }
+
+    /// `content.xml`: the automatic styles, the validations, the sheets in tab order, the names,
+    /// the filters and the tables.
+    fn content(&self, order: &[usize], pages: &Pages) -> Result<String, Error> {
         let mut numbers = Named::default();
         let mut cell_styles = String::new();
         for xf in 1..=self.styles.xf_count() {
@@ -608,28 +1057,45 @@ impl Writer {
                 data.as_deref(),
             )?;
         }
+        let tables: Vec<(&str, &Placed)> = self
+            .sheets
+            .iter()
+            .flat_map(|sheet| {
+                sheet
+                    .tail
+                    .placed()
+                    .iter()
+                    .map(move |table| (sheet.options.name.as_str(), table))
+            })
+            .collect();
         let mut column_styles = Named::default();
         let mut row_styles = Named::default();
         let mut table_styles = Named::default();
         let mut runs: HashMap<u64, String> = HashMap::new();
         let mut run_order: Vec<u64> = Vec::new();
         let mut body = String::new();
+        let mut run = |id| {
+            let next = runs.len() + 1;
+            runs.entry(id)
+                .or_insert_with(|| {
+                    run_order.push(id);
+                    format!("T{next}")
+                })
+                .clone()
+        };
         for &at in order {
-            self.table(
+            let mut rows = Rows {
+                tables: &tables,
+                row_styles: &mut row_styles,
+                run: &mut run,
+            };
+            self.table_xml(
                 &mut body,
                 &self.sheets[at],
                 &mut column_styles,
-                &mut row_styles,
                 &mut table_styles,
-                &mut |id| {
-                    let next = runs.len() + 1;
-                    runs.entry(id)
-                        .or_insert_with(|| {
-                            run_order.push(id);
-                            format!("T{next}")
-                        })
-                        .clone()
-                },
+                pages.master(at),
+                &mut rows,
             );
         }
         let mut out = String::from(HEAD);
@@ -654,10 +1120,11 @@ impl Writer {
                 at + 1
             );
         }
-        for (at, props) in table_styles.order.iter().enumerate() {
+        for (at, key) in table_styles.order.iter().enumerate() {
+            let (master, props) = key.split_once('|').unwrap_or(("", key));
             let _ = write!(
                 out,
-                "<style:style style:name=\"ta{}\" style:family=\"table\"><style:table-properties{props}/></style:style>",
+                "<style:style style:name=\"ta{}\" style:family=\"table\"{master}><style:table-properties{props}/></style:style>",
                 at + 1
             );
         }
@@ -666,6 +1133,25 @@ impl Writer {
             styles::run(&mut out, &runs[id], self.styles.get(*id)?)?;
         }
         out.push_str("</office:automatic-styles><office:body><office:spreadsheet>");
+        let mut checks = String::new();
+        for &at in order {
+            let sheet = &self.sheets[at];
+            for (range, id, rule) in &sheet.checks {
+                parts::validation(
+                    &mut checks,
+                    &format!("val{id}"),
+                    &sheet.options.name,
+                    range,
+                    rule,
+                );
+            }
+        }
+        if !checks.is_empty() {
+            let _ = write!(
+                out,
+                "<table:content-validations>{checks}</table:content-validations>"
+            );
+        }
         out.push_str(&body);
         self.named(&mut out, order);
         let mut ranges = String::new();
@@ -680,6 +1166,21 @@ impl Writer {
                 );
                 xml::odf(&mut ranges, &format!("{name}.{from}:{name}.{to}"), true);
                 ranges.push_str("\" table:display-filter-buttons=\"true\"/>");
+            }
+            for table in sheet.tail.placed() {
+                ranges.push_str("<table:database-range table:name=\"");
+                xml::odf(&mut ranges, &table.name, true);
+                ranges.push_str("\" table:target-range-address=\"");
+                xml::odf(
+                    &mut ranges,
+                    &parts::range(&sheet.options.name, &table.area),
+                    true,
+                );
+                let _ = write!(
+                    ranges,
+                    "\" table:contains-header=\"true\" table:display-filter-buttons=\"{}\"/>",
+                    table.filter()
+                );
             }
         }
         if !ranges.is_empty() {
@@ -729,15 +1230,15 @@ impl Writer {
         out.push_str("</table:named-expressions>");
     }
 
-    /// Appends one sheet as `table:table`.
-    fn table(
+    /// Appends one sheet as `table:table`, its page setup on the master page `master`.
+    fn table_xml(
         &self,
         out: &mut String,
         sheet: &Sheet,
         column_styles: &mut Named,
-        row_styles: &mut Named,
         table_styles: &mut Named,
-        run: &mut dyn FnMut(u64) -> String,
+        master: Option<String>,
+        rows: &mut Rows<'_, '_>,
     ) {
         let options = &sheet.options;
         let mut props = String::new();
@@ -756,132 +1257,119 @@ impl Writer {
                 color.to_ascii_lowercase()
             );
         }
-        let table_style = table_styles.id(props);
+        let master = master
+            .map(|name| format!(" style:master-page-name=\"{name}\""))
+            .unwrap_or_default();
+        let table_style = table_styles.id(format!("{master}|{props}"));
         out.push_str("<table:table table:name=\"");
         xml::odf(out, &options.name, true);
-        let _ = write!(out, "\" table:style-name=\"ta{table_style}\">");
-        let columns = sheet.columns.clone().unwrap_or_default();
+        let _ = write!(out, "\" table:style-name=\"ta{table_style}\"");
+        if let Some(protect) = &sheet.protect {
+            out.push_str(" table:protected=\"true\"");
+            if let Some(password) = protect.password.as_deref().filter(|p| !p.is_empty()) {
+                let _ = write!(
+                    out,
+                    " table:protection-key=\"{}\" table:protection-key-digest-algorithm=\"{}\"",
+                    parts::protection_key(password),
+                    parts::LEGACY_HASH
+                );
+            }
+        }
+        if let Some(range) = sheet
+            .tail
+            .print()
+            .and_then(|print| print.area.as_deref())
+            .and_then(area)
+        {
+            out.push_str(" table:print-ranges=\"");
+            xml::odf(out, &parts::range(&options.name, &range), true);
+            out.push('"');
+        }
+        out.push('>');
+        let spots = spots(sheet);
+        let reach = sheet
+            .tail
+            .merges()
+            .iter()
+            .map(|at| at.right as usize + 1)
+            .chain(sheet.checks.iter().map(|(at, ..)| at.right as usize + 1))
+            .chain(spots.iter().map(|spot| spot.column as usize + 1))
+            .max()
+            .unwrap_or(0);
         let widest = sheet
             .rows
             .iter()
             .map(|row| row.cells.len())
             .max()
             .unwrap_or(0)
-            .max(columns.len())
-            .max(1);
-        let mut at = 0;
-        while at < widest {
-            let column = columns.get(at).copied().unwrap_or(HeldColumn {
-                width: None,
-                xf: 0,
-                hidden: false,
-            });
-            let mut repeat = 1;
-            while at + repeat < widest
-                && columns.get(at + repeat).copied().unwrap_or(HeldColumn {
-                    width: None,
-                    xf: 0,
-                    hidden: false,
-                }) == column
-            {
-                repeat += 1;
+            .max(sheet.columns.as_ref().map_or(0, Vec::len))
+            .max(sheet.groups.columns_reached())
+            .max(reach)
+            .clamp(1, MAX_COLUMNS);
+        write_columns(out, sheet, widest, column_styles);
+        write_rows(out, sheet, &spots, rows);
+        if !sheet.conditionals.is_empty() {
+            out.push_str("<calcext:conditional-formats>");
+            for (rule, dxf) in &sheet.conditionals {
+                let style = dxf.map(|dxf| format!("Cond{}", dxf + 1));
+                parts::conditional(out, &options.name, rule, style.as_deref());
             }
-            out.push_str("<table:table-column");
-            let width = match (column.width, column.hidden) {
-                (Some(width), _) => Some(width),
-                (None, true) => Some(DEFAULT_WIDTH),
-                (None, false) => None,
-            };
-            if let Some(width) = width {
-                let id = column_styles.id(inches(width));
-                let _ = write!(out, " table:style-name=\"co{id}\"");
-            }
-            if repeat > 1 {
-                let _ = write!(out, " table:number-columns-repeated=\"{repeat}\"");
-            }
-            if column.hidden {
-                out.push_str(" table:visibility=\"collapse\"");
-            }
-            if column.xf != 0 {
-                let _ = write!(out, " table:default-cell-style-name=\"ce{}\"", column.xf);
-            }
-            out.push_str("/>");
-            at += repeat;
-        }
-        let mut depth = 0;
-        for row in &sheet.rows {
-            while depth < row.level {
-                out.push_str("<table:table-row-group>");
-                depth += 1;
-            }
-            while depth > row.level {
-                out.push_str("</table:table-row-group>");
-                depth -= 1;
-            }
-            out.push_str("<table:table-row");
-            if let Some(height) = row.height {
-                let mut text = String::new();
-                crate::cells::number(&mut text, height);
-                let id = row_styles.id(text);
-                let _ = write!(out, " table:style-name=\"ro{id}\"");
-            }
-            if row.hidden {
-                out.push_str(" table:visibility=\"collapse\"");
-            }
-            if row.xf != 0 {
-                let _ = write!(out, " table:default-cell-style-name=\"ce{}\"", row.xf);
-            }
-            out.push('>');
-            let last = row
-                .cells
-                .iter()
-                .rposition(|cell| cell.value.is_some() || cell.xf != 0);
-            let cells = last.map_or(&row.cells[..0], |last| &row.cells[..=last]);
-            let mut empty = 0;
-            for cell in cells {
-                if cell.value.is_none() && cell.xf == 0 {
-                    empty += 1;
-                    continue;
-                }
-                empty_cells(out, &mut empty);
-                out.push_str("<table:table-cell");
-                if cell.xf != 0 {
-                    let _ = write!(out, " table:style-name=\"ce{}\"", cell.xf);
-                }
-                match &cell.value {
-                    Some(value) => {
-                        cells::value(out, value, run);
-                        out.push_str("</table:table-cell>");
-                    }
-                    None => out.push_str("/>"),
-                }
-            }
-            if cells.is_empty() {
-                out.push_str("<table:table-cell/>");
-            }
-            out.push_str("</table:table-row>");
-        }
-        while depth > 0 {
-            out.push_str("</table:table-row-group>");
-            depth -= 1;
-        }
-        if sheet.rows.is_empty() {
-            out.push_str("<table:table-row><table:table-cell/></table:table-row>");
+            out.push_str("</calcext:conditional-formats>");
         }
         out.push_str("</table:table>");
     }
 
-    /// `styles.xml`: the default cell style, Excel's default font, and nothing else.
-    fn styles_part(&self) -> String {
+    /// `styles.xml`: the default cell style, Excel's default font, the conditional formats'
+    /// named styles, and the page layouts and master pages of `pages`.
+    fn styles_part(&self, pages: &Pages) -> Result<String, Error> {
+        let mut numbers = Named::default();
+        let mut named = String::new();
+        for dxf in 0..self.styles.dxf_count() {
+            let Some(style) = self.styles.dxf_style(dxf) else {
+                continue;
+            };
+            let data = style
+                .format
+                .as_deref()
+                .map(|code| format!("CN{}", numbers.id(code.to_owned())));
+            styles::cell(
+                &mut named,
+                &format!("Cond{}", dxf + 1),
+                style,
+                data.as_deref(),
+            )?;
+        }
         let mut out = String::from(HEAD);
         let _ = write!(
             out,
             "<office:document-styles {NAMESPACES} office:version=\"1.3\"><office:styles>\
              <style:default-style style:family=\"table-cell\"><style:text-properties fo:font-family=\"Calibri\" fo:font-size=\"11pt\"/></style:default-style>\
-             <style:style style:name=\"Default\" style:family=\"table-cell\"/>\
-             </office:styles></office:document-styles>"
+             <style:style style:name=\"Default\" style:family=\"table-cell\"/>"
         );
-        out
+        for (at, code) in numbers.order.iter().enumerate() {
+            numbers::write(&mut out, &format!("CN{}", at + 1), code);
+        }
+        out.push_str(&named);
+        out.push_str("</office:styles>");
+        if !pages.masters.is_empty() {
+            out.push_str("<office:automatic-styles>");
+            for (at, props) in pages.layouts.order.iter().enumerate() {
+                let _ = write!(
+                    out,
+                    "<style:page-layout style:name=\"pm{}\"><style:page-layout-properties{props}/></style:page-layout>",
+                    at + 1
+                );
+            }
+            out.push_str("</office:automatic-styles><office:master-styles>");
+            for (place, &(at, layout)) in pages.masters.iter().enumerate() {
+                if let Some(print) = self.sheets[at].tail.print() {
+                    parts::master_page(&mut out, &format!("mp{}", place + 1), layout, print);
+                }
+            }
+            out.push_str("</office:master-styles>");
+        }
+        out.push_str("</office:document-styles>");
+        Ok(out)
     }
 
     /// `meta.xml`: the document properties, with `writer`'s fixed date when none is set.
@@ -987,6 +1475,365 @@ impl Writer {
     }
 }
 
+/// The cells of `sheet` that a link, a note or an image is in, by row and then by column.
+fn spots(sheet: &Sheet) -> Vec<Spot<'_>> {
+    let mut spots: Vec<Spot<'_>> = Vec::new();
+    let mut index: HashMap<(u32, u32), usize> = HashMap::new();
+    let mut spot = |row: u32, column: u32| -> usize {
+        *index.entry((row, column)).or_insert_with(|| {
+            spots.push(Spot {
+                row,
+                column,
+                link: None,
+                note: None,
+                images: Vec::new(),
+            });
+            spots.len() - 1
+        })
+    };
+    let mut places = Vec::new();
+    for (column, row, link) in &sheet.links {
+        places.push((spot(*row, *column), Some(link), None, None));
+    }
+    for (column, row, note) in &sheet.notes {
+        places.push((spot(*row, *column), None, Some(note), None));
+    }
+    for (z, image) in sheet.images.iter().enumerate() {
+        let at = spot(image.placed.row + 1, image.placed.column);
+        places.push((at, None, None, Some((z, image))));
+    }
+    for (at, link, note, image) in places {
+        let spot = &mut spots[at];
+        spot.link = spot.link.or(link);
+        spot.note = spot.note.or(note);
+        spot.images.extend(image);
+    }
+    spots.sort_by_key(|spot| (spot.row, spot.column));
+    spots
+}
+
+/// Appends the `table:table-column`s of `sheet`, `widest` of them, each run of equal columns as
+/// one, nested in a `table:table-column-group` per outline level.
+fn write_columns(out: &mut String, sheet: &Sheet, widest: usize, styles: &mut Named) {
+    let kept = sheet.columns.as_deref().unwrap_or_default();
+    let column_at = |at: usize| {
+        let column = kept.get(at).copied().unwrap_or(PLAIN_COLUMN);
+        let outline = sheet.groups.column(at as u32);
+        HeldColumn {
+            hidden: column.hidden || outline.hidden,
+            level: outline.level.min(7),
+            ..column
+        }
+    };
+    let mut depth = 0;
+    let mut at = 0;
+    while at < widest {
+        let column = column_at(at);
+        let mut repeat = 1;
+        while at + repeat < widest && column_at(at + repeat) == column {
+            repeat += 1;
+        }
+        while depth > column.level {
+            out.push_str("</table:table-column-group>");
+            depth -= 1;
+        }
+        while depth < column.level {
+            depth += 1;
+            out.push_str("<table:table-column-group");
+            if column.hidden && depth == column.level {
+                out.push_str(" table:display=\"false\"");
+            }
+            out.push('>');
+        }
+        out.push_str("<table:table-column");
+        let width = match (column.width, column.hidden) {
+            (Some(width), _) => Some(width),
+            (None, true) => Some(DEFAULT_WIDTH),
+            (None, false) => None,
+        };
+        if let Some(width) = width {
+            let id = styles.id(inches(width));
+            let _ = write!(out, " table:style-name=\"co{id}\"");
+        }
+        if repeat > 1 {
+            let _ = write!(out, " table:number-columns-repeated=\"{repeat}\"");
+        }
+        if column.hidden {
+            out.push_str(" table:visibility=\"collapse\"");
+        }
+        if column.xf != 0 {
+            let _ = write!(out, " table:default-cell-style-name=\"ce{}\"", column.xf);
+        }
+        out.push_str("/>");
+        at += repeat;
+    }
+    while depth > 0 {
+        out.push_str("</table:table-column-group>");
+        depth -= 1;
+    }
+}
+
+/// Appends the rows of `sheet`: each kept row, then the empty rows up to the last row a part
+/// needs, a run of equal empty rows as one.
+fn write_rows(out: &mut String, sheet: &Sheet, spots: &[Spot<'_>], rows: &mut Rows<'_, '_>) {
+    let mut merges: Vec<Area> = sheet.tail.merges().to_vec();
+    merges.sort_by_key(|at| (at.top, at.left));
+    let mut checks: Vec<(Area, usize)> =
+        sheet.checks.iter().map(|(at, id, _)| (*at, *id)).collect();
+    checks.sort_by_key(|(at, id)| (at.top, *id));
+    let header_rows = sheet
+        .tail
+        .print()
+        .and_then(|print| print.repeat_rows.as_deref())
+        .and_then(row_span);
+    let held = sheet.rows.len() as u32;
+    // The rows where an empty row may differ from the one above it.
+    let mut breaks: Vec<u32> = Vec::new();
+    let mut last = held;
+    for at in &merges {
+        breaks.extend([at.top, at.top + 1, at.bottom + 1]);
+        last = last.max(at.bottom);
+    }
+    for (at, _) in &checks {
+        breaks.extend([at.top, at.bottom + 1]);
+        last = last.max(at.bottom);
+    }
+    for spot in spots {
+        breaks.extend([spot.row, spot.row + 1]);
+        last = last.max(spot.row);
+    }
+    if let Some((from, to)) = header_rows {
+        breaks.extend([from, to + 1]);
+        last = last.max(to);
+    }
+    breaks.push(last + 1);
+    breaks.sort_unstable();
+    breaks.dedup();
+    let (mut merge_next, mut check_next, mut spot_next) = (0, 0, 0);
+    let mut active_merges: Vec<Area> = Vec::new();
+    let mut active_checks: Vec<(Area, usize)> = Vec::new();
+    let mut depth = 0;
+    let mut in_header = false;
+    let mut row = 1;
+    while row <= last {
+        let data = sheet.rows.get(row as usize - 1);
+        let span = match data {
+            Some(_) => 1,
+            None => breaks[breaks.partition_point(|&at| at <= row)] - row,
+        };
+        while merge_next < merges.len() && merges[merge_next].top <= row {
+            active_merges.push(merges[merge_next]);
+            merge_next += 1;
+        }
+        active_merges.retain(|at| at.bottom >= row);
+        while check_next < checks.len() && checks[check_next].0.top <= row {
+            active_checks.push(checks[check_next]);
+            check_next += 1;
+        }
+        active_checks.retain(|(at, _)| at.bottom >= row);
+        let first_spot = spot_next;
+        while spot_next < spots.len() && spots[spot_next].row == row {
+            spot_next += 1;
+        }
+        let level = data.map_or(0, |data| data.level);
+        let hidden = data.is_some_and(|data| data.hidden);
+        if in_header && depth != level {
+            // Header rows stay inside one group.
+            out.push_str("</table:table-header-rows>");
+            in_header = false;
+        }
+        while depth > level {
+            out.push_str("</table:table-row-group>");
+            depth -= 1;
+        }
+        while depth < level {
+            depth += 1;
+            out.push_str("<table:table-row-group");
+            if hidden && depth == level {
+                out.push_str(" table:display=\"false\"");
+            }
+            out.push('>');
+        }
+        if header_rows.is_some_and(|(from, _)| from == row) {
+            out.push_str("<table:table-header-rows>");
+            in_header = true;
+        }
+        out.push_str("<table:table-row");
+        if let Some(height) = data.and_then(|data| data.height) {
+            let mut text = String::new();
+            crate::cells::number(&mut text, height);
+            let id = rows.row_styles.id(text);
+            let _ = write!(out, " table:style-name=\"ro{id}\"");
+        }
+        if span > 1 {
+            let _ = write!(out, " table:number-rows-repeated=\"{span}\"");
+        }
+        if hidden {
+            out.push_str(" table:visibility=\"collapse\"");
+        }
+        if let Some(data) = data
+            && data.xf != 0
+        {
+            let _ = write!(out, " table:default-cell-style-name=\"ce{}\"", data.xf);
+        }
+        out.push('>');
+        write_cells(
+            out,
+            &sheet.options.name,
+            row,
+            data,
+            &active_merges,
+            &active_checks,
+            &spots[first_spot..spot_next],
+            rows,
+        );
+        out.push_str("</table:table-row>");
+        row += span;
+        if in_header && header_rows.is_some_and(|(_, to)| row > to) {
+            out.push_str("</table:table-header-rows>");
+            in_header = false;
+        }
+    }
+    if in_header {
+        out.push_str("</table:table-header-rows>");
+    }
+    while depth > 0 {
+        out.push_str("</table:table-row-group>");
+        depth -= 1;
+    }
+    if last == 0 {
+        out.push_str("<table:table-row><table:table-cell/></table:table-row>");
+    }
+}
+
+/// Appends the cells of the row `row` of the sheet `sheet`: its kept cells `data`, and what the
+/// merges, the validations and the spots active on it put in each cell. A run of equal cells is
+/// one cell, and the empty cells after the last one are not written.
+#[allow(clippy::too_many_arguments)]
+fn write_cells(
+    out: &mut String,
+    sheet: &str,
+    row: u32,
+    data: Option<&HeldRow>,
+    merges: &[Area],
+    checks: &[(Area, usize)],
+    spots: &[Spot<'_>],
+    rows: &mut Rows<'_, '_>,
+) {
+    let mut cuts: Vec<u32> = vec![0];
+    if let Some(data) = data {
+        for (column, cell) in data.cells.iter().enumerate() {
+            if cell.written() {
+                cuts.extend([column as u32, column as u32 + 1]);
+            }
+        }
+    }
+    for at in merges {
+        cuts.extend([at.left, at.right + 1]);
+        if at.top == row {
+            cuts.push(at.left + 1);
+        }
+    }
+    for (at, _) in checks {
+        cuts.extend([at.left, at.right + 1]);
+    }
+    for spot in spots {
+        cuts.extend([spot.column, spot.column + 1]);
+    }
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut empty = 0;
+    let mut wrote = false;
+    for pair in cuts.windows(2) {
+        let (from, to) = (pair[0], pair[1]);
+        let held = data
+            .and_then(|data| data.cells.get(from as usize))
+            .filter(|cell| cell.written());
+        let merge = merges.iter().find(|at| at.left <= from && from <= at.right);
+        let start = merge.filter(|at| at.top == row && at.left == from);
+        let check = checks
+            .iter()
+            .filter(|(at, _)| at.left <= from && from <= at.right)
+            .map(|&(_, id)| id)
+            .min();
+        let spot = spots.iter().find(|spot| spot.column == from);
+        if held.is_none() && merge.is_none() && check.is_none() && spot.is_none() {
+            empty += (to - from) as usize;
+            continue;
+        }
+        empty_cells(out, &mut empty);
+        wrote = true;
+        let tag = if merge.is_some() && start.is_none() {
+            "table:covered-table-cell"
+        } else {
+            "table:table-cell"
+        };
+        let _ = write!(out, "<{tag}");
+        if let Some(cell) = held
+            && cell.xf != 0
+        {
+            let _ = write!(out, " table:style-name=\"ce{}\"", cell.xf);
+        }
+        if let Some(id) = check {
+            let _ = write!(out, " table:content-validation-name=\"val{id}\"");
+        }
+        if let Some(at) = start {
+            let _ = write!(
+                out,
+                " table:number-columns-spanned=\"{}\" table:number-rows-spanned=\"{}\"",
+                at.right - at.left + 1,
+                at.bottom - at.top + 1
+            );
+        }
+        if to - from > 1 {
+            let _ = write!(out, " table:number-columns-repeated=\"{}\"", to - from);
+        }
+        let lead = spot.map(Spot::lead).unwrap_or_default();
+        let link = spot.and_then(|spot| spot.link);
+        let opened = link.map(link_open);
+        let inside = cells::Inside {
+            lead: &lead,
+            link: opened.as_deref(),
+        };
+        let value = held.and_then(|cell| cell.value.as_ref());
+        // A structured reference becomes the A1 range it covers.
+        let resolved = match value {
+            Some(Value::Formula {
+                formula,
+                cached_text,
+                cached_number,
+            }) if formula.contains('[') => Some(Value::Formula {
+                formula: parts::resolve(formula, row, sheet, rows.tables),
+                cached_text: cached_text.clone(),
+                cached_number: *cached_number,
+            }),
+            _ => None,
+        };
+        // A link in a cell with no value shows its text, or its target.
+        let shown = match (value, link) {
+            (None, Some(link)) => Some(Value::Text(
+                link.text.clone().unwrap_or_else(|| link.target.clone()),
+            )),
+            _ => None,
+        };
+        match resolved.as_ref().or(value).or(shown.as_ref()) {
+            Some(value) => {
+                cells::value(out, value, rows.run, inside);
+                let _ = write!(out, "</{tag}>");
+            }
+            None if !lead.is_empty() => {
+                out.push('>');
+                out.push_str(&lead);
+                let _ = write!(out, "</{tag}>");
+            }
+            None => out.push_str("/>"),
+        }
+    }
+    if !wrote {
+        out.push_str("<table:table-cell/>");
+    }
+}
+
 /// Appends `count` empty cells as one repeated cell, and sets `count` to 0.
 fn empty_cells(out: &mut String, count: &mut usize) {
     match *count {
@@ -1002,8 +1849,8 @@ fn empty_cells(out: &mut String, count: &mut usize) {
     *count = 0;
 }
 
-/// `META-INF/manifest.xml`: the package and each of its parts.
-fn manifest() -> String {
+/// `META-INF/manifest.xml`: the package, each of its parts and each image.
+fn manifest(images: &[&HeldImage]) -> String {
     let mut out = String::from(HEAD);
     let _ = write!(
         out,
@@ -1014,6 +1861,14 @@ fn manifest() -> String {
         let _ = write!(
             out,
             "<manifest:file-entry manifest:full-path=\"{part}\" manifest:media-type=\"text/xml\"/>"
+        );
+    }
+    for image in images {
+        let _ = write!(
+            out,
+            "<manifest:file-entry manifest:full-path=\"{}\" manifest:media-type=\"{}\"/>",
+            image.entry(),
+            image.placed.format.content_type()
         );
     }
     out.push_str("</manifest:manifest>");

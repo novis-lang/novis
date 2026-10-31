@@ -323,39 +323,68 @@ fn pixels(
     }
 }
 
+/// Where an image goes and how big it is: its column and row from 0, and every figure in
+/// pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placement {
+    pub format: Format,
+    pub column: u32,
+    pub row: u32,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Checks `image` and gives its format, its cell and its size. A size left out is the image's
+/// own, and one side given alone scales the other by the image's aspect ratio. The xlsx and the
+/// ods writer both place an image with this.
+pub fn place(image: &Image) -> Result<Placement, Error> {
+    let cell = image.at.as_str();
+    let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("image", cell))?;
+    let Some((format, own_width, own_height)) = read(&image.image) else {
+        return Err(Error::Invalid(format!(
+            "The image at `{cell}` is not a PNG, JPEG or GIF file. Convert it to one of these formats first."
+        )));
+    };
+    let part = format!("image at `{cell}`");
+    let width = pixels("width", &part, image.width, true)?;
+    let height = pixels("height", &part, image.height, true)?;
+    let ratio = f64::from(own_height) / f64::from(own_width);
+    let (width, height) = match (width, height) {
+        (Some(width), Some(height)) => (width, height),
+        (Some(width), None) => (width, width * ratio),
+        (None, Some(height)) => (height / ratio, height),
+        (None, None) => (f64::from(own_width), f64::from(own_height)),
+    };
+    let offset_x = pixels("horizontal offset", &part, image.offset_x, false)?.unwrap_or(0.0);
+    let offset_y = pixels("vertical offset", &part, image.offset_y, false)?.unwrap_or(0.0);
+    Ok(Placement {
+        format,
+        column,
+        row: row - 1,
+        offset_x,
+        offset_y,
+        width,
+        height,
+    })
+}
+
 impl Drawing {
     /// Checks `image` and keeps its anchor. Returns its format, `media` being the number its
     /// entry takes in the workbook. The image's bytes are the caller's to write.
     pub fn add(&mut self, image: &Image, media: usize) -> Result<Format, Error> {
-        let cell = image.at.as_str();
-        let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("image", cell))?;
-        let Some((format, own_width, own_height)) = read(&image.image) else {
-            return Err(Error::Invalid(format!(
-                "The image at `{cell}` is not a PNG, JPEG or GIF file. Convert it to one of these formats first."
-            )));
-        };
-        let part = format!("image at `{cell}`");
-        let width = pixels("width", &part, image.width, true)?;
-        let height = pixels("height", &part, image.height, true)?;
-        let ratio = f64::from(own_height) / f64::from(own_width);
-        let (width, height) = match (width, height) {
-            (Some(width), Some(height)) => (width, height),
-            (Some(width), None) => (width, width * ratio),
-            (None, Some(height)) => (height / ratio, height),
-            (None, None) => (f64::from(own_width), f64::from(own_height)),
-        };
-        let offset_x = pixels("horizontal offset", &part, image.offset_x, false)?.unwrap_or(0.0);
-        let offset_y = pixels("vertical offset", &part, image.offset_y, false)?.unwrap_or(0.0);
+        let placed = place(image)?;
         self.anchors.push(Anchor {
-            column,
-            row: row - 1,
-            offset_x,
-            offset_y,
-            width,
-            height,
-            placed: Placed::Picture(format!("image{media}.{}", format.extension())),
+            column: placed.column,
+            row: placed.row,
+            offset_x: placed.offset_x,
+            offset_y: placed.offset_y,
+            width: placed.width,
+            height: placed.height,
+            placed: Placed::Picture(format!("image{media}.{}", placed.format.extension())),
         });
-        Ok(format)
+        Ok(placed.format)
     }
 
     /// Checks `chart`, added to the sheet `sheet` when `Writer::column` gives `reach` as a

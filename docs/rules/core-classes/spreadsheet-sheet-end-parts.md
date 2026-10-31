@@ -66,6 +66,17 @@ row the anchor spans, and an anchor may be added after its rows have left. So th
 open sheet's custom row heights, one entry per run of rows with the same height. A sheet with no
 custom height keeps nothing, and an anchor added before its rows finds its end cell as they pass.
 
+**An ods carries the same parts, with the same checks and errors**, written where ODF 1.3 puts them
+(`extensions/spreadsheet/src/ods/`). A merge spans its first cell and covers the rest, a link is a
+`text:a` in the cell's text, a note an `office:annotation` in the cell, and an image a `draw:frame`
+in its cell with the picture under `Pictures/`. Data validation is `table:content-validations` before
+the first sheet. Outline groups are `table:table-row-group` and `table:table-column-group`, page
+setup a page layout and master page in `styles.xml`, and protection `table:protected` with Excel's
+hash as its key. A table is a `table:database-range`, and a conditional format LibreOffice's
+`calcext:conditional-formats`. A table's style and banding have no ods form and are left out, and a
+structured reference is written as the cells it names. A protected sheet's `allow` names have no ods
+form either. Charts throw for an ods (`rule:core-classes/spreadsheet-evaluation-and-roster`).
+
 The tradeoffs. **Usability:** a report's merges, totals and chart are written after the rows they
 summarise, in the order a program computes them. **Memory:** the parts are held until the sheet ends,
 and they are small beside the rows.

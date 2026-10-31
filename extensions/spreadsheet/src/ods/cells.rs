@@ -17,7 +17,8 @@
 //! does not allow is not allowed here either. A cell's `text:p` is the value's plain text, such
 //! as `2024-01-15` for a date. An application shows the value under the cell's number style.
 //! Spaces past the first, a space at the start and a tab are `text:s` and `text:tab`, because
-//! ODF collapses whitespace.
+//! ODF collapses whitespace. A note and an image go first inside the cell, and a link wraps the
+//! cell's text in one `text:a`, its lines split by `text:line-break` ([`Inside`]).
 
 use std::fmt::Write as _;
 
@@ -161,19 +162,78 @@ fn fits(digits: &str) -> bool {
     digits.trim_start_matches('0').trim_end_matches('0').len() <= 15
 }
 
+/// Appends `text` with a `text:line-break` between its lines, for one paragraph.
+pub fn lines(out: &mut String, text: &str) {
+    for (at, line) in text.split('\n').enumerate() {
+        if at > 0 {
+            out.push_str("<text:line-break/>");
+        }
+        spaced(out, line.strip_suffix('\r').unwrap_or(line));
+    }
+}
+
+/// What a cell has besides its value: `lead`, written first inside the cell, such as a note or
+/// an image, and `link`, the opening `text:a` tag that wraps the cell's text.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Inside<'a> {
+    pub lead: &'a str,
+    pub link: Option<&'a str>,
+}
+
+impl Inside<'_> {
+    /// Ends the cell's start tag and writes the lead.
+    fn open(&self, out: &mut String) {
+        out.push('>');
+        out.push_str(self.lead);
+    }
+
+    /// Appends one `text:p`, its content wrapped in the link when there is one.
+    fn paragraph(&self, out: &mut String, body: impl FnOnce(&mut String)) {
+        out.push_str("<text:p>");
+        if let Some(link) = self.link {
+            out.push_str(link);
+        }
+        body(out);
+        if self.link.is_some() {
+            out.push_str("</text:a>");
+        }
+        out.push_str("</text:p>");
+    }
+
+    /// Appends `text`: one `text:p` per line, or one with line breaks inside a link.
+    fn text(&self, out: &mut String, text: &str) {
+        if self.link.is_some() {
+            self.paragraph(out, |out| lines(out, text));
+        } else {
+            paragraphs(out, text);
+        }
+    }
+}
+
 /// Appends the attributes and content of a cell holding `value`, after `<table:table-cell` and
-/// its style. `run` gives the text style name of a rich run's layer.
-pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String) {
+/// its style. `run` gives the text style name of a rich run's layer, and `inside` what the cell
+/// has besides its value.
+pub fn value(
+    out: &mut String,
+    value: &Value,
+    run: &mut dyn FnMut(u64) -> String,
+    inside: Inside<'_>,
+) {
     let float = |out: &mut String, shown: &str| {
-        let _ = write!(
-            out,
-            " office:value-type=\"float\" office:value=\"{shown}\"><text:p>{shown}</text:p>"
-        );
+        let _ = write!(out, " office:value-type=\"float\" office:value=\"{shown}\"");
+        inside.open(out);
+        inside.paragraph(out, |out| out.push_str(shown));
+    };
+    let plain = |out: &mut String, attrs: &str, shown: &str| {
+        out.push_str(attrs);
+        inside.open(out);
+        inside.paragraph(out, |out| out.push_str(shown));
     };
     match value {
         Value::Text(text) => {
-            out.push_str(" office:value-type=\"string\">");
-            paragraphs(out, text);
+            out.push_str(" office:value-type=\"string\"");
+            inside.open(out);
+            inside.text(out, text);
         }
         Value::Number(number) => {
             let mut shown = String::new();
@@ -185,17 +245,14 @@ pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String
             if fits(&shown) {
                 float(out, &shown);
             } else {
-                let _ = write!(
-                    out,
-                    " office:value-type=\"string\"><text:p>{shown}</text:p>"
-                );
+                plain(out, " office:value-type=\"string\"", &shown);
             }
         }
         Value::Decimal(text) => {
             if fits(text) {
                 float(out, text);
             } else {
-                let _ = write!(out, " office:value-type=\"string\"><text:p>{text}</text:p>");
+                plain(out, " office:value-type=\"string\"", text);
             }
         }
         Value::Boolean(flag) => {
@@ -204,31 +261,23 @@ pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String
             } else {
                 ("false", "FALSE")
             };
-            let _ = write!(
-                out,
-                " office:value-type=\"boolean\" office:boolean-value=\"{attr}\"><text:p>{shown}</text:p>"
-            );
+            let attrs = format!(" office:value-type=\"boolean\" office:boolean-value=\"{attr}\"");
+            plain(out, &attrs, shown);
         }
         Value::Date(date) => {
             let text = date_text(date);
-            let _ = write!(
-                out,
-                " office:value-type=\"date\" office:date-value=\"{text}\"><text:p>{text}</text:p>"
-            );
+            let attrs = format!(" office:value-type=\"date\" office:date-value=\"{text}\"");
+            plain(out, &attrs, &text);
         }
         Value::Clock(clock) => {
             let text = moment_text(clock);
-            let _ = write!(
-                out,
-                " office:value-type=\"date\" office:date-value=\"{text}\"><text:p>{}</text:p>",
-                text.replace('T', " ")
-            );
+            let attrs = format!(" office:value-type=\"date\" office:date-value=\"{text}\"");
+            plain(out, &attrs, &text.replace('T', " "));
         }
         Value::Time(time) => {
             let text = time_text(time);
-            let _ = write!(
-                out,
-                " office:value-type=\"time\" office:time-value=\"PT{}\"><text:p>{text}</text:p>",
+            let attrs = format!(
+                " office:value-type=\"time\" office:time-value=\"PT{}\"",
                 clock_text(
                     time.hour,
                     time.minute,
@@ -237,14 +286,14 @@ pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String
                     ["H", "M", "S"]
                 )
             );
+            plain(out, &attrs, &text);
         }
         Value::Duration(nanos) => {
-            let _ = write!(
-                out,
-                " office:value-type=\"time\" office:time-value=\"{}\"><text:p>{}</text:p>",
-                duration_value(*nanos),
-                duration_text(*nanos)
+            let attrs = format!(
+                " office:value-type=\"time\" office:time-value=\"{}\"",
+                duration_value(*nanos)
             );
+            plain(out, &attrs, &duration_text(*nanos));
         }
         Value::Formula {
             formula,
@@ -257,18 +306,27 @@ pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String
             if let Some(text) = cached_text {
                 out.push_str(" office:value-type=\"string\" office:string-value=\"");
                 xml::odf(out, text, true);
-                out.push_str("\">");
-                paragraphs(out, text);
+                out.push('"');
+                inside.open(out);
+                inside.text(out, text);
             } else if let Some(number) = cached_number {
                 let mut shown = String::new();
                 cells::number(&mut shown, *number);
                 float(out, &shown);
             } else {
-                out.push('>');
+                inside.open(out);
+                if inside.link.is_some() {
+                    inside.paragraph(out, |_| {});
+                }
             }
         }
         Value::Rich(runs) => {
-            out.push_str(" office:value-type=\"string\"><text:p>");
+            out.push_str(" office:value-type=\"string\"");
+            inside.open(out);
+            out.push_str("<text:p>");
+            if let Some(link) = inside.link {
+                out.push_str(link);
+            }
             for piece in runs {
                 let mut lines = piece.text.split('\n');
                 let mut first = true;
@@ -290,6 +348,9 @@ pub fn value(out: &mut String, value: &Value, run: &mut dyn FnMut(u64) -> String
                         None => spaced(out, line),
                     }
                 }
+            }
+            if inside.link.is_some() {
+                out.push_str("</text:a>");
             }
             out.push_str("</text:p>");
         }

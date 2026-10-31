@@ -270,6 +270,21 @@ impl Placed {
         Ok(())
     }
 
+    /// Its column names, empty until its header row is written.
+    pub fn columns(&self) -> &[String] {
+        &self.columns
+    }
+
+    /// Whether it shows filter buttons in its header row.
+    pub fn filter(&self) -> bool {
+        self.filter
+    }
+
+    /// Whether its totals row is written.
+    pub fn is_totaled(&self) -> bool {
+        self.totaled
+    }
+
     /// Whether its totals row is still to write after its last row.
     pub fn owes_totals(&self) -> bool {
         self.has_totals() && !self.totaled

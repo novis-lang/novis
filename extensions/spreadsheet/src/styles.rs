@@ -306,6 +306,16 @@ impl Styles {
         Ok(id)
     }
 
+    /// The style of the `dxfs` index `id`.
+    pub fn dxf_style(&self, id: u32) -> Option<&Style> {
+        self.dxfs.get(id as usize)
+    }
+
+    /// How many `dxfs` entries there are.
+    pub fn dxf_count(&self) -> u32 {
+        self.dxfs.len() as u32
+    }
+
     /// Writes `xl/styles.xml`.
     pub fn write(&self, out: &mut String) -> Result<(), Error> {
         let mut formats = Shared::default();
