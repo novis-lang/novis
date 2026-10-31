@@ -18,7 +18,7 @@ stages:
     context: [extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Workbook.nvs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/encoding.rs, docs/rules/core-classes/spreadsheet-has-no-io.md]
   - id: 4
     title: "an ods reads every extra, its own number styles and its formula text, and names are in the read's locale"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/src/format/date.rs, extensions/spreadsheet/src/format/locale.rs, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md]
   - id: 5
     title: "one decoder turns xls and xlsb formula tokens into formula text"
@@ -499,13 +499,13 @@ reached from Novis.
 **Does:** every extra and `properties` read from an ods, an ods cell's `text` uses the file's
 number style, and month and day names follow `locale`.
 
-- [ ] `rule:core-classes/spreadsheet-reads-as-a-stream`: `ods::read` keeps each cell's links, annotation and image frames, and each sheet's named expressions and database ranges. `extensions/spreadsheet/src/read/ods.rs:116`, `extensions/spreadsheet/src/read/ods.rs:183`
-- [ ] The extras answer an ods from what `ods::read` kept, and `properties` reads `meta.xml`. The format check stops naming ods. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:475`
-- [ ] `number:*-style` to a format code, and each cell's `text` rendered under it. `extensions/spreadsheet/src/read/ods.rs:116`, `extensions/spreadsheet/src/format/mod.rs:401`
+- [x] `rule:core-classes/spreadsheet-reads-as-a-stream`: `ods::read` keeps each cell's links, annotation and image frames, and each sheet's named expressions and database ranges. `extensions/spreadsheet/src/read/ods.rs:116`, `extensions/spreadsheet/src/read/ods.rs:183`
+- [x] The extras answer an ods from what `ods::read` kept, and `properties` reads `meta.xml`. The format check stops naming ods. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:475`
+- [x] `number:*-style` to a format code, and each cell's `text` rendered under it. `extensions/spreadsheet/src/read/ods.rs:116`, `extensions/spreadsheet/src/format/mod.rs:401`
 - [x] `openformula.rs`: OpenFormula to A1 text and back. An ods formula reads as a `Formula` with `formulas: true`. `extensions/spreadsheet/src/openformula.rs:1`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:30`
 - [x] `names.rs` and the date renderer reading it by locale and by `[$-…]` prefix. `extensions/spreadsheet/src/format/names.rs:1`, `extensions/spreadsheet/src/format/date.rs:18`, `extensions/spreadsheet/src/format/locale.rs:82`
-- [ ] The tests the `ods-reads-every-extra` and `names-follow-the-locale` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1797`, `extensions/spreadsheet/tests/format.rs:1`
-- [ ] The `about.md` of each extra and of `properties` names ods. The fragment's Not-shipped paragraph loses ods, the number style and the locale sentence. The module doc's ods bullets go. Delete the records. `docs/examples/novis/Spreadsheet-Reader/properties/about.md:8`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`, `extensions/spreadsheet/src/lib.rs:55`
+- [x] The tests the `ods-reads-every-extra` and `names-follow-the-locale` checks name. `crates/nvs-ext/tests/spreadsheet_read.rs:1797`, `extensions/spreadsheet/tests/format.rs:1`
+- [x] The `about.md` of each extra and of `properties` names ods. The fragment's Not-shipped paragraph loses ods, the number style and the locale sentence. The module doc's ods bullets go. Delete the records. `docs/examples/novis/Spreadsheet-Reader/properties/about.md:8`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:113`, `extensions/spreadsheet/src/lib.rs:55`
 
 ### 5. one decoder turns xls and xlsb formula tokens into formula text
 
@@ -630,21 +630,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 has two of its seven items done.
+Stages 1 to 4 are done.
 
-**Month and day names.** `extensions/spreadsheet/src/format/names.rs` has CLDR 49's format-context
-names for English and the 25 languages of the separators table. `format::Locale` is
-`{separators, names}`, and `Options` has `locale: Locale` in place of `separators`. Both
-`names-follow-the-locale` locale tests pass.
+**ods extras.** `ods::read` returns a `Book`: the sheets, the styles, and `ods::Extras` (links,
+notes, images as package paths, names and database ranges, each with its sheet). `Reader` keeps
+the extras in its `ods` field, and every extra in `read/extras.rs` answers an ods from it first.
+A note's and a frame's text go to an `Aside`, so they never join the cell's text. `properties`
+reads `meta.xml` (`meta_properties`). `format_name` now names only xlsb and xls.
 
-**OpenFormula.** `extensions/spreadsheet/src/openformula.rs` has `to_a1` (returns `None` for text
-with no end) and `from_a1` (writes `of:=`, `[$Sheet.A1]` for a sheet-qualified reference, and
-`COM.MICROSOFT.` for the functions `MICROSOFT` lists). `ods::typed_cell` keeps `table:formula`
-through `to_a1`, so an ods cell gives a `Formula`. `openformula_and_a1_text_translate_both_ways`
-and `an_ods_formula_reads_as_a1_formula_text` pass. The fragment's ods formula sentence and its
-`locale` row are rewritten, its locale sentence is gone, and the rules are rendered. The record
-`spreadsheet-read-parts-of-every-format` no longer names the locale, and it still owes the extras
-and the number style.
+**ods number styles.** The new `read/ods_styles.rs` reads `styles.xml` and `content.xml` up to the
+body and turns each `number:*-style` into a format code, maps included. A cell's style index is
+`KINDS`' kind, or a style appended after `KINDS` for each kind and code pair (`ods::style_index`).
+The style is found through the cell, the row's default, then the column's default.
+
+All four `ods-reads-every-extra` tests and `the_extras_read_on_request` pass, and so do the two
+unit tests in `ods_styles.rs`. The fragment, the module doc and six `about.md` files say so, and
+the rules are rendered. The record `spreadsheet-read-parts-of-every-format` now owes xlsb and xls
+alone.
 
 `cargo clippy --all-targets` run inside `extensions/spreadsheet/` fails on eight lints in files
 this goal has not touched, and verify does not run it. rustfmt also reformats
@@ -655,19 +657,16 @@ exist.
 
 ### Next
 
-Stage 4, ods extras, number styles, OpenFormula and month and day names. Its files are
-`extensions/spreadsheet/src/read/ods.rs`, `read/extras.rs`, `format/` and the new
-`openformula.rs` and `format/names.rs`. The stage's `**Split:**` line and the standing decisions
-**Reading extras from every format**, **Month and day names** and **One token decoder** settle it.
+Stage 5, one token decoder for xls and xlsb. Its files are the new
+`extensions/spreadsheet/src/read/tokens.rs`, `read/binary.rs` and `read/xls.rs`. The standing
+decision **One token decoder for xls and xlsb** settles it. Stage 9 (the evaluator) and stage 8
+(templates) may run beside it as side goals.
 
-The rest of stage 4: the ods extras and the ods number styles. Both edit `read/ods.rs`'s `read`,
-so take them in one session.
-
-- [ ] `ods::read` keeps each cell's `text:a` links, `office:annotation` and `draw:frame` images, and each sheet's `table:named-expressions` and `table:database-ranges`. An annotation's and a frame's `text:p` must not join the cell's text: `read` appends every `text:p` inside a cell today. `extensions/spreadsheet/src/read/ods.rs:192`, `extensions/spreadsheet/src/read/ods.rs:118`
-- [ ] The extras answer an ods from what `ods::read` kept, and `properties` reads `meta.xml`. The format check stops naming ods. `extensions/spreadsheet/src/read/extras.rs:149`, `extensions/spreadsheet/src/read/extras.rs:475`
-- [ ] `number:*-style` (from `content.xml`'s and `styles.xml`'s styles, through a cell's `table:style-name` or its column's `default-cell-style-name`) to a format code. An ods cell's `style` is an index into `KINDS` today, so the reader's style list for an ods needs a code beside each kind. `extensions/spreadsheet/src/read/ods.rs:29`, `extensions/spreadsheet/src/read/mod.rs:1064`
-- [ ] The tests `ods_links_notes_names_tables_and_images_are_read`, `ods_properties_are_read_from_its_meta_part` and `an_ods_cell_text_uses_the_files_own_number_style`, beside `crates/nvs-ext/tests/spreadsheet_read.rs:2463`.
-- [ ] The `about.md` of each extra and of `properties` names ods. The fragment's Not-shipped paragraph loses ods and the number style. The module doc's ods bullet goes (`extensions/spreadsheet/src/lib.rs:56`, and the ods part of the extras bullet). The record loses ods. `docs/examples/novis/Spreadsheet-Reader/properties/about.md:8`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:115`
+- [ ] `tokens.rs`: every operand and operator token, `ptgFunc` and `ptgFuncVar` by the `Ftab` list of [MS-XLS] 2.5.198.17 as one static array, and a shared formula relative to its own cell. An unknown token gives `None`. `extensions/spreadsheet/src/read/tokens.rs:1`
+- [ ] The xlsb cell reader keeps a formula record's token bytes and decodes them with `formulas: true`. The formula records are `FORMULA_TEXT` to `FORMULA_ERROR`. `extensions/spreadsheet/src/read/binary.rs:33`, `extensions/spreadsheet/src/read/binary.rs:349`
+- [ ] The xls reader keeps each `FORMULA`'s tokens and each `SHRFMLA`, and decodes them. `extensions/spreadsheet/src/read/xls.rs:26`, `extensions/spreadsheet/src/read/xls.rs:417`
+- [ ] The tests the `formula-tokens-decode` check names, beside `crates/nvs-ext/tests/spreadsheet_read.rs:1314`. The token bytes are built in the test.
+- [ ] The sentences at `:31` and `:114` of the fragment say a formula reads as text from every format, and `binary.rs:13` and `xls.rs:8` say so too. `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:31`, `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:114`
 
 Tests that may go red at the gate: from stage 1, `crates/nvs-cli/tests/meta.rs`, whose spreadsheet
 enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::Kind` and
@@ -676,7 +675,8 @@ enum list now names each enum by its owner and adds `Sheet::RuleKind`, `Chart::K
 lists `Cell`'s members or its constructor's parameters. From stage 3, `meta.rs`'s Engine method list
 and `ext_world.rs`'s export list, which now name `sourceBytes` and `source-bytes`. The new
 `source_bytes` row in `crates/nvs-ext/src/typed/spreadsheet.rs` also builds. `meta.rs` may also
-list `Reader::open`'s parameters. None of these tests ran this session.
+list `Reader::open`'s parameters. From stage 4, no test is expected to go red: every changed test
+ran.
 
 ### Backlog
 

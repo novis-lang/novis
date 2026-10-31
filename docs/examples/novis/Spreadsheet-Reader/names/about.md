@@ -8,6 +8,7 @@ itself, such as `_xlnm._FilterDatabase` for the range of a filter.
 
 **Good to know:** every value comes from the file, so it is `tainted`. `names` does not read the
 cells of a reference. Pass the sheet to `rows` and choose the rows and columns there. A CSV file has
-no names, so the list is empty.
+no names, so the list is empty. `names` reads xlsx, xlsm and ods files. For an xlsb or xls file, it
+throws an error.
 
 **The examples below** list the names, find one name, and read a name that belongs to one sheet.

@@ -7,16 +7,17 @@
 //! tables and images are parts of their own that the sheet's relationships name: a comments part,
 //! one part per table, and a drawing whose relationships name each picture. The defined names are
 //! in the workbook part, and the properties in `docProps/core.xml` and `docProps/app.xml`. Each of
-//! those is a small part and is read whole.
+//! those is a small part and is read whole. An ods's extras are read with its cells
+//! (`super::ods`), and its properties are `meta.xml`'s.
 //!
 //! **Nothing a file names is followed** (`rule:core-classes/spreadsheet-has-no-io`). An external
 //! hyperlink is its target's text with `external` set, a linked picture is its target's text in
 //! `link` with no bytes, and a defined name over another workbook is its reference's text. A data
 //! connection or an external-workbook part is never read.
 //!
-//! **Formats.** The sheet extras and the names are read from an xlsx or xlsm, and the properties
-//! from any zip package. Asking an xlsb, xls or ods file for one throws naming the format, so an
-//! empty list always means the file has none.
+//! **Formats.** The sheet extras and the names are read from an xlsx, xlsm or ods, and the
+//! properties from any zip package. Asking an xlsb or xls file for one throws naming the format,
+//! so an empty list always means the file has none.
 //!
 //! What it spends, per call: the part it reads whole, or one block of a sheet's part and the
 //! inflater's window, and the list it returns. An image's bytes are held once, in the list.
@@ -150,7 +151,7 @@ impl Reader {
         match &self.workbook {
             Some(part) if !self.binary => Ok(part),
             _ => Err(Error::Runtime(format!(
-                "`{what}` reads xlsx and xlsm files. This version of Novis does not read it from {}.",
+                "`{what}` reads xlsx, xlsm and ods files. This version of Novis does not read it from {}.",
                 self.format_name()
             ))),
         }
@@ -160,10 +161,19 @@ impl Reader {
     fn format_name(&self) -> &'static str {
         if self.binary {
             "an xlsb file"
-        } else if self.compound {
-            "an xls file"
         } else {
-            "an ods file"
+            "an xls file"
+        }
+    }
+
+    /// The extras of an ods, after a check that the sheet `name` exists, when the file is one.
+    fn ods_of(&self, name: &str) -> Result<Option<&super::ods::Extras>, Error> {
+        match self.ods.as_deref() {
+            Some(extras) => {
+                self.listed(name)?;
+                Ok(Some(extras))
+            }
+            None => Ok(None),
         }
     }
 
@@ -192,6 +202,9 @@ impl Reader {
 
     /// The hyperlinks of the sheet `name`, in the order the file lists them.
     pub fn links(&self, source: &dyn Source, name: &str) -> Result<Vec<Link>, Error> {
+        if let Some(extras) = self.ods_of(name)? {
+            return Ok(of_sheet(&extras.links, name));
+        }
         let Some(rels) = self.sheet_rels(source, name, "links")? else {
             return Ok(Vec::new());
         };
@@ -227,6 +240,9 @@ impl Reader {
 
     /// The notes of the sheet `name`, in the order its comments part lists them.
     pub fn notes(&self, source: &dyn Source, name: &str) -> Result<Vec<Note>, Error> {
+        if let Some(extras) = self.ods_of(name)? {
+            return Ok(of_sheet(&extras.notes, name));
+        }
         let Some(rels) = self.sheet_rels(source, name, "notes")? else {
             return Ok(Vec::new());
         };
@@ -297,6 +313,9 @@ impl Reader {
     /// The workbook's defined names, in the order the file lists them. A name local to a sheet
     /// names that sheet.
     pub fn names(&self, source: &dyn Source) -> Result<Vec<Name>, Error> {
+        if let Some(extras) = &self.ods {
+            return Ok(extras.names.clone());
+        }
         let part = self.xml_workbook("names")?;
         let Some(bytes) = self.whole_part(source, part)? else {
             return Ok(Vec::new());
@@ -339,6 +358,14 @@ impl Reader {
 
     /// The Excel tables of the sheet `name`, in the order its relationships list them.
     pub fn tables(&self, source: &dyn Source, name: &str) -> Result<Vec<Table>, Error> {
+        if let Some(extras) = self.ods_of(name)? {
+            return Ok(extras
+                .tables
+                .iter()
+                .filter(|table| table.sheet == name)
+                .cloned()
+                .collect());
+        }
         let Some(rels) = self.sheet_rels(source, name, "tables")? else {
             return Ok(Vec::new());
         };
@@ -377,6 +404,33 @@ impl Reader {
     /// The pictures of the sheet `name`, each at the top-left cell of its anchor, in the order
     /// its drawing lists them. A picture anchored to no cell is not listed.
     pub fn images(&self, source: &dyn Source, name: &str) -> Result<Vec<Image>, Error> {
+        if let Some(extras) = self.ods_of(name)? {
+            let mut images = Vec::new();
+            for (sheet, at, href) in &extras.images {
+                if sheet != name {
+                    continue;
+                }
+                // A picture outside the package is its target's text, and is never read.
+                if href.contains(':') || href.starts_with('/') || href.starts_with("../") {
+                    images.push(Image {
+                        at: at.clone(),
+                        format: format(&[], href),
+                        image: Vec::new(),
+                        link: Some(href.clone()),
+                    });
+                    continue;
+                }
+                let part = href.strip_prefix("./").unwrap_or(href);
+                let image = self.whole_part(source, part)?.unwrap_or_default();
+                images.push(Image {
+                    at: at.clone(),
+                    format: format(&image, part),
+                    image,
+                    link: None,
+                });
+            }
+            return Ok(images);
+        }
         let Some(rels) = self.sheet_rels(source, name, "images")? else {
             return Ok(Vec::new());
         };
@@ -471,11 +525,14 @@ impl Reader {
     }
 
     /// The document properties of a zip package: the core part's title, subject, author,
-    /// keywords and creation time, and the app part's company.
+    /// keywords and creation time, and the app part's company. An ods's are `meta.xml`'s.
     pub fn properties(&self, source: &dyn Source) -> Result<Properties, Error> {
+        if self.ods.is_some() {
+            return self.meta_properties(source);
+        }
         if self.workbook.is_none() {
             return Err(Error::Runtime(format!(
-                "`properties` reads xlsx, xlsm and xlsb files. This version of Novis does not read it from {}.",
+                "`properties` reads xlsx, xlsm, xlsb and ods files. This version of Novis does not read it from {}.",
                 self.format_name()
             )));
         }
@@ -536,6 +593,75 @@ impl Reader {
         }
         Ok(properties)
     }
+
+    /// The document properties of an ods's `meta.xml`. The author is the initial creator, or
+    /// the last one when the file names no initial creator. The keywords are joined with `, `,
+    /// and the company is a user-defined field named `Company`.
+    fn meta_properties(&self, source: &dyn Source) -> Result<Properties, Error> {
+        let mut properties = Properties::default();
+        let Some(bytes) = self.whole_part(source, "meta.xml")? else {
+            return Ok(properties);
+        };
+        let (mut first, mut last) = (None, None);
+        let mut keywords: Vec<String> = Vec::new();
+        let mut open: Option<(&'static str, String)> = None;
+        let mut at = 0;
+        while let Some((token, size)) = xml::next(&bytes[at..])? {
+            at += size;
+            match token {
+                Token::Open {
+                    name,
+                    attrs,
+                    empty: false,
+                } => {
+                    let field = match xml::local(name) {
+                        b"title" => "title",
+                        b"subject" => "subject",
+                        b"initial-creator" => "first",
+                        b"creator" => "last",
+                        b"keyword" => "keyword",
+                        b"creation-date" => "created",
+                        b"user-defined" if xml::attr(attrs, b"name") == Some(b"Company") => {
+                            "company"
+                        }
+                        _ => continue,
+                    };
+                    open = Some((field, String::new()));
+                }
+                Token::Text(raw) => {
+                    if let Some((_, out)) = open.as_mut() {
+                        text(raw, out)?;
+                    }
+                }
+                Token::Close(_) => {
+                    let Some((field, value)) = open.take() else {
+                        continue;
+                    };
+                    match field {
+                        "title" => properties.title = Some(value),
+                        "subject" => properties.subject = Some(value),
+                        "first" => first = Some(value),
+                        "last" => last = Some(value),
+                        "keyword" => keywords.push(value),
+                        "company" => properties.company = Some(value),
+                        _ => properties.created = instant(&value),
+                    }
+                }
+                _ => {}
+            }
+        }
+        properties.author = first.or(last);
+        properties.keywords = (!keywords.is_empty()).then(|| keywords.join(", "));
+        Ok(properties)
+    }
+}
+
+/// The entries of `list` on the sheet `name`, in the file's order.
+fn of_sheet<T: Clone>(list: &[(String, T)], name: &str) -> Vec<T> {
+    list.iter()
+        .filter(|(sheet, _)| sheet == name)
+        .map(|(_, entry)| entry.clone())
+        .collect()
 }
 
 #[cfg(test)]

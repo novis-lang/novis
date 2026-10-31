@@ -50,6 +50,7 @@ pub mod extras;
 pub mod format;
 pub mod merge;
 mod ods;
+mod ods_styles;
 pub mod sheet;
 mod vba;
 mod xls;
@@ -320,6 +321,8 @@ pub struct Reader {
     compound: bool,
     /// The VBA project's part, when the package has one.
     vba_part: Option<String>,
+    /// The links, notes, pictures, names and tables of an ods, read with its cells.
+    ods: Option<Box<ods::Extras>>,
     open: Option<Open>,
 }
 
@@ -509,13 +512,11 @@ impl Reader {
             if directory.find("content.xml").is_none() {
                 return Err(broken("it has no workbook part"));
             }
-            let sheets = ods::read(source, &directory)?;
-            return Ok(Self::whole(
-                directory,
-                sheets,
-                ods::KINDS.map(Style::of_kind).to_vec(),
-                false,
-            ));
+            let book = ods::read(source, &directory)?;
+            return Ok(Self {
+                ods: Some(Box::new(book.extras)),
+                ..Self::whole(directory, book.sheets, book.styles, false)
+            });
         };
         let book = directory.whole(source, entry)?;
         let rels = relationships(source, &directory, &workbook)?;
@@ -594,6 +595,7 @@ impl Reader {
             date1904,
             binary,
             compound: false,
+            ods: None,
             open: None,
         })
     }
@@ -616,6 +618,7 @@ impl Reader {
             binary: false,
             compound: false,
             vba_part: None,
+            ods: None,
             open: None,
         }
     }

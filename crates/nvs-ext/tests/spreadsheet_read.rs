@@ -2352,10 +2352,10 @@ fn the_extras_read_on_request() {
     assert_eq!(read.call("readerNames", vec![]), strings(&[]));
     block_on(read.request.end()).expect("the request ends");
 
-    // An ods file throws naming its format, so an empty list always means the file has none.
-    let read = Read::open(ods());
+    // An xls file throws naming its format, so an empty list always means the file has none.
+    let read = Read::open(xls());
     let refused = read.failure("readerNotes", vec![string("Shop")]);
-    assert!(refused.contains("an ods file"), "{refused}");
+    assert!(refused.contains("an xls file"), "{refused}");
     block_on(read.request.end()).expect("the request ends");
 }
 
@@ -2489,5 +2489,204 @@ fn an_ods_formula_reads_as_a1_formula_text() {
         read.all(&options("Shop"), 10),
         vec![(1, vec![(1, integer(2)), (2, integer(5)), (3, integer(7))])]
     );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An ods package of `content.xml` and the other parts `parts` names.
+fn ods_of(content: &str, parts: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    let mut all = vec![
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".to_vec(),
+        ),
+        ("content.xml", content.as_bytes().to_vec()),
+    ];
+    all.extend(parts.iter().cloned());
+    zip(&all)
+}
+
+const ODS_NAMESPACES: &str = r#"xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0""#;
+
+#[test]
+fn ods_links_notes_names_tables_and_images_are_read() {
+    let content = format!(
+        r##"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:body><office:spreadsheet>
+<table:table table:name="Shop">
+<table:table-row><table:table-cell office:value-type="string"><text:p><text:a xlink:href="https://example.com/shop" office:title="Open the shop">Shop site</text:a></text:p></table:table-cell><table:table-cell office:value-type="float" office:value="5"><office:annotation><dc:creator>Bo &amp; Co</dc:creator><dc:date>2024-03-05T00:00:00</dc:date><text:p>check</text:p><text:p>the price</text:p></office:annotation><text:p>5</text:p></table:table-cell><table:table-cell office:value-type="string"><draw:frame draw:name="Logo"><draw:image xlink:href="Pictures/logo.png"><text:p>caption</text:p></draw:image></draw:frame><text:p>Logo</text:p></table:table-cell><table:table-cell><text:p><text:a xlink:href="#'My Lists'.A1">go</text:a></text:p></table:table-cell></table:table-row>
+<table:table-row><table:table-cell table:number-columns-repeated="2"/><table:table-cell><draw:frame><draw:image xlink:href="https://example.com/logo.png"/></draw:frame></table:table-cell></table:table-row>
+<table:named-expressions><table:named-range table:name="Local" table:base-cell-address="$Shop.$A$1" table:cell-range-address="$Shop.$B$1"/></table:named-expressions>
+</table:table>
+<table:table table:name="My Lists"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell></table:table-row></table:table>
+<table:named-expressions><table:named-range table:name="Prices" table:base-cell-address="$Shop.$A$1" table:cell-range-address="$Shop.$A$1:.$B$3"/><table:named-expression table:name="Rate" table:base-cell-address="$Shop.$A$1" table:expression="of:=[$'My Lists'.$A$1]*2"/></table:named-expressions>
+<table:database-ranges><table:database-range table:name="__Anonymous_Sheet_DB__0" table:target-range-address="Shop.A1:Shop.D2"/><table:database-range table:name="Orders" table:target-range-address="Shop.A1:Shop.D2"/></table:database-ranges>
+</office:spreadsheet></office:body></office:document-content>"##
+    );
+    let read = Read::open(ods_of(&content, &[("Pictures/logo.png", PNG.to_vec())]));
+
+    // The text of a note and of a picture's frame is not the cell's text.
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![(1, text("Shop site")), (2, integer(5)), (3, text("Logo"))]
+        )]
+    );
+
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    let links = entries(&links);
+    assert_eq!(links.len(), 2);
+    assert_eq!(field(links[0], "anchor"), &string("A1"));
+    assert_eq!(
+        field(links[0], "target"),
+        &string("https://example.com/shop")
+    );
+    assert_eq!(field(links[0], "text"), &string("Shop site"));
+    assert_eq!(field(links[0], "tooltip"), &string("Open the shop"));
+    assert_eq!(field(links[0], "external"), &Value::Bool(true));
+    // A link to a place in the workbook is that place as A1 text, and is not external.
+    assert_eq!(field(links[1], "anchor"), &string("D1"));
+    assert_eq!(field(links[1], "target"), &string("'My Lists'!A1"));
+    assert_eq!(field(links[1], "text"), &string("go"));
+    assert_eq!(field(links[1], "external"), &Value::Bool(false));
+
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    let notes = entries(&notes);
+    assert_eq!(notes.len(), 1);
+    assert_eq!(field(notes[0], "noted"), &string("B1"));
+    assert_eq!(field(notes[0], "note"), &string("check\nthe price"));
+    assert_eq!(field(notes[0], "author"), &string("Bo & Co"));
+
+    // A picture in the package is its bytes, and one outside it is its target's text.
+    let images = read.call("readerImages", vec![string("Shop")]);
+    let images = entries(&images);
+    assert_eq!(images.len(), 2);
+    assert_eq!(field(images[0], "at"), &string("C1"));
+    assert_eq!(field(images[0], "image"), &Value::Bytes(PNG.to_vec()));
+    assert_eq!(field(images[0], "format"), &string("png"));
+    assert_eq!(field(images[0], "link"), &Value::Null);
+    assert_eq!(field(images[1], "at"), &string("C2"));
+    assert_eq!(field(images[1], "image"), &Value::Bytes(Vec::new()));
+    assert_eq!(
+        field(images[1], "link"),
+        &string("https://example.com/logo.png")
+    );
+
+    // A name inside a sheet's table is local to it, and an expression is A1 formula text.
+    let names = read.call("readerNames", vec![]);
+    let names = entries(&names);
+    assert_eq!(names.len(), 3);
+    assert_eq!(field(names[0], "name"), &string("Local"));
+    assert_eq!(field(names[0], "reference"), &string("Shop!$B$1"));
+    assert_eq!(field(names[0], "sheet"), &string("Shop"));
+    assert_eq!(field(names[1], "name"), &string("Prices"));
+    assert_eq!(field(names[1], "reference"), &string("Shop!$A$1:$B$3"));
+    assert_eq!(field(names[1], "sheet"), &Value::Null);
+    assert_eq!(field(names[2], "reference"), &string("'My Lists'!$A$1*2"));
+
+    // The range a sheet's own filter keeps is not a table.
+    let tables = read.call("readerTables", vec![string("Shop")]);
+    let tables = entries(&tables);
+    assert_eq!(tables.len(), 1);
+    assert_eq!(field(tables[0], "table"), &string("A1:D2"));
+    assert_eq!(field(tables[0], "name"), &string("Orders"));
+    assert_eq!(field(tables[0], "sheet"), &string("Shop"));
+
+    for method in ["readerLinks", "readerNotes", "readerTables", "readerImages"] {
+        assert_eq!(
+            read.call(method, vec![string("My Lists")]),
+            strings(&[]),
+            "{method}"
+        );
+    }
+    let missing = read.failure("readerNotes", vec![string("Prices")]);
+    assert!(missing.contains("no sheet named `Prices`"), "{missing}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn ods_properties_are_read_from_its_meta_part() {
+    let meta = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta {ODS_NAMESPACES}><office:meta><meta:generator>LibreOffice</meta:generator><dc:title>Prices</dc:title><dc:subject>Coffee &amp; tea</dc:subject><meta:keyword>prices</meta:keyword><meta:keyword>shop</meta:keyword><meta:initial-creator>Shop</meta:initial-creator><dc:creator>Ann</dc:creator><meta:creation-date>2024-03-05T14:30:09</meta:creation-date><dc:date>2024-04-01T08:00:00</dc:date><meta:user-defined meta:name="Company">Example</meta:user-defined></office:meta></office:document-meta>"#
+    );
+    let content = format!(
+        r#"<office:document-content {ODS_NAMESPACES}><office:body><office:spreadsheet><table:table table:name="Shop"/></office:spreadsheet></office:body></office:document-content>"#
+    );
+    let read = Read::open(ods_of(&content, &[("meta.xml", meta.into_bytes())]));
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &string("Prices"));
+    assert_eq!(field(&properties, "subject"), &string("Coffee & tea"));
+    // The author is the person who created the file, not the last one who saved it.
+    assert_eq!(field(&properties, "author"), &string("Shop"));
+    assert_eq!(field(&properties, "company"), &string("Example"));
+    assert_eq!(field(&properties, "keywords"), &string("prices, shop"));
+    let created = field(&properties, "created");
+    assert_eq!(field(created, "day"), &date(2024, 3, 5));
+    assert_eq!(field(created, "clock"), &time(14, 30, 9));
+    block_on(read.request.end()).expect("the request ends");
+
+    // An ods with no meta part gives `null` for each.
+    let read = Read::open(ods());
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &Value::Null);
+    assert_eq!(field(&properties, "created"), &Value::Null);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_ods_cell_text_uses_the_files_own_number_style() {
+    let styles = format!(
+        r#"<office:document-styles {ODS_NAMESPACES}><office:styles><number:currency-style style:name="N9"><number:number number:decimal-places="2" number:min-integer-digits="1"/><number:text> </number:text><number:currency-symbol>€</number:currency-symbol></number:currency-style><style:style style:name="Money" style:family="table-cell" style:data-style-name="N9"/></office:styles></office:document-styles>"#
+    );
+    let content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:automatic-styles>
+<number:number-style style:name="N2"><number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/></number:number-style>
+<number:date-style style:name="N37"><number:day number:style="long"/><number:text>.</number:text><number:month number:style="long"/><number:text>.</number:text><number:year number:style="long"/></number:date-style>
+<number:percentage-style style:name="N11"><number:number number:decimal-places="1" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>
+<number:number-style style:name="N5P0"><number:number number:decimal-places="1" number:min-integer-digits="1"/></number:number-style>
+<number:number-style style:name="N5"><number:text>-</number:text><number:number number:decimal-places="1" number:min-integer-digits="1"/><style:map style:condition="value()&gt;=0" style:apply-style-name="N5P0"/></number:number-style>
+<number:time-style style:name="N46" number:truncate-on-overflow="false"><number:hours/><number:text>:</number:text><number:minutes number:style="long"/></number:time-style>
+<style:style style:name="ce1" style:family="table-cell" style:data-style-name="N2"/>
+<style:style style:name="ce2" style:family="table-cell" style:data-style-name="N37"/>
+<style:style style:name="ce3" style:family="table-cell" style:data-style-name="N11"/>
+<style:style style:name="ce4" style:family="table-cell" style:data-style-name="N5"/>
+<style:style style:name="ce5" style:family="table-cell" style:parent-style-name="Money"/>
+<style:style style:name="ce6" style:family="table-cell" style:data-style-name="N46"/>
+</office:automatic-styles><office:body><office:spreadsheet>
+<table:table table:name="Shop"><table:table-column table:number-columns-repeated="2"/><table:table-column table:default-cell-style-name="ce3"/><table:table-column table:number-columns-repeated="6"/>
+<table:table-row><table:table-cell table:style-name="ce1" office:value-type="float" office:value="1234.5"/><table:table-cell table:style-name="ce2" office:value-type="date" office:date-value="2024-01-15"/><table:table-cell office:value-type="percentage" office:value="0.25"/><table:table-cell table:style-name="ce4" office:value-type="float" office:value="-3"/><table:table-cell table:style-name="ce4" office:value-type="float" office:value="3"/><table:table-cell table:style-name="ce5" office:value-type="currency" office:value="7"/><table:table-cell office:value-type="float" office:value="2.5"/><table:table-cell table:style-name="ce6" office:value-type="time" office:time-value="PT36H00M00S"/></table:table-row>
+</table:table>
+</office:spreadsheet></office:body></office:document-content>"#
+    );
+    let read = Read::open(ods_of(&content, &[("styles.xml", styles.into_bytes())]));
+    let Value::Array(mut shown) = options("Shop").value() else {
+        panic!("the options are a shape");
+    };
+    for (key, value) in &mut shown {
+        if *key == Key::String("textAll".to_owned()) {
+            *value = Value::Bool(true);
+        }
+    }
+    let batch = read.batch(Value::Array(shown), 10);
+    let texts: Vec<&Value> = entries(field(entries(field(&batch, "rows"))[0], "cells"))
+        .into_iter()
+        .map(|cell| field(cell, "display"))
+        .collect();
+    let want = [
+        "1,234.50",
+        "15.01.2024",
+        "25.0%",
+        "-3.0",
+        "3.0",
+        "7.00 €",
+        "2.5",
+        "36:00",
+    ];
+    let want: Vec<Value> = want.iter().map(|text| string(text)).collect();
+    assert_eq!(texts, want.iter().collect::<Vec<_>>());
+    // The read type still comes from the cell's own value type.
+    assert_eq!(read.all(&options("Shop"), 10)[0].1[0], (1, number(1234.5)));
     block_on(read.request.end()).expect("the request ends");
 }

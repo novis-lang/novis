@@ -33,7 +33,10 @@ reader translates to A1 text (`extensions/spreadsheet/src/openformula.rs`), so i
 `Formula` as an xlsx cell does; a formula the translator cannot read gives none. An ods cell carries its
 type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
 `Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
-nothing, and a repeat past the grid throws.
+nothing, and a repeat past the grid throws. An ods cell's `text` is rendered under the file's own
+`number:*-style`, which the reader translates to a format code
+(`extensions/spreadsheet/src/read/ods_styles.rs`), found through the cell's style, its row's or
+its column's default style, and each style's parents.
 
 **`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
 its `number` is the **row number in the file**, and its `values` the row's array. The row number is
@@ -80,7 +83,11 @@ hyperlink is its target's text with `external` set, a linked picture has no byte
 text in `link`, and a defined name over another workbook is its reference's text. A picture is listed
 at the top-left cell of its anchor, and one anchored to no cell is not listed. `properties()` gives
 `created` as an `Instant`. Hyperlinks are read from the sheet's part to its end, as `merged` is, and
-the other extras from parts small enough to read whole.
+the other extras from parts small enough to read whole. An ods's extras are read with its cells: a
+link is a `text:a` in a cell, a note an `office:annotation`, a picture a `draw:frame` in a cell, a
+name a `table:named-range` or `table:named-expression` (local to the sheet whose table holds it),
+and a table a `table:database-range`, the range LibreOffice keeps for a sheet's own filter
+excepted. Its properties are `meta.xml`'s, with the initial creator as the author.
 
 **Shared strings are kept in one arena** with `u32` offsets, never one allocation per entry, and the
 reader reads `styles.xml`'s number formats and each cell's style index, which the read table's date
@@ -112,9 +119,8 @@ and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Rea
 `extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
 (`rule:core-classes/spreadsheet-has-no-io`).
 
-**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
-`properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
-rendered under the default format of its type, and not under the file's own number style
+**Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb or xls file, and
+`properties` from an xls file: each throws naming the format
 (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
