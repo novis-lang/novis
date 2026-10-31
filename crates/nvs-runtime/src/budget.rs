@@ -275,6 +275,12 @@ use std::alloc::System as Backing;
 /// [`HOT_SPAN`] asserts, and the two a [`Detached`] bracket alone moves
 /// follow. `gauge`'s marks live here too, because the allocation path
 /// compares against them on every call.
+///
+/// Not `#[repr(align(64))]`, so the hot cells may cross a cache line. A
+/// thread-local's alignment is held to the platform loader's TLS alignment,
+/// which no Windows, Miri or ASAN run here has tested, and Linux's guards show
+/// no cost to buy back. [`HOT_SPAN`] keeps the cells within 64 bytes, so the
+/// attribute is all a later change adds.
 #[repr(C)]
 #[derive(Debug)]
 struct Counters {

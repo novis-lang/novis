@@ -62,10 +62,10 @@
 //! tree's park pays two relaxed loads, a swap and a compare. Each tree carries three words for it.
 //! [`SHARES`] is one more thread-local cell, and admitting or ending a request one more publish.
 
+use super::{COUNTERS, POLLED, REFUSED, Refusal};
 use std::cell::Cell;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
-use super::{COUNTERS, POLLED, REFUSED, Refusal};
 
 /// How far a thread's balance moves before its core publishes again: one mebibyte.
 pub const STEP: isize = 1 << 20;
