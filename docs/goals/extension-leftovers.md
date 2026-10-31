@@ -720,10 +720,10 @@ Stage 9, by the break decision under § *Standing decisions* (`break-after: avoi
   container and an inline-block whole.
 - [ ] `extensions/pdf/src/layout/block.rs:481`: `break-after: avoid` and `break-before: avoid`
   keep two boxes on one page when they fit.
-- [ ] `extensions/pdf/src/layout/block.rs`'s float placement (`Flow::band`): a float in a
-  paragraph is placed at its line and goes on to the next page.
-- [ ] `extensions/pdf/tests/paginate.rs`, `extensions/pdf/subset.json`,
-  `extensions/pdf/src/lib.rs:55`: the four tests the `pdf-breaks` check names, and the pagination
+- [ ] `extensions/pdf/src/layout/block.rs:591` (`Flow::band`) and the float placement beside it:
+  a float in a paragraph is placed at its line and goes on to the next page.
+- [ ] `extensions/pdf/src/lib.rs:55`, `extensions/pdf/tests/paginate.rs:1` and
+  `extensions/pdf/subset.json:1`: the four tests the `pdf-breaks` check names, and the pagination
   bullet goes.
 
 Expect red at the gate: a PDF test whose margin box or bookmark order assumed a string, mark,
