@@ -1604,7 +1604,8 @@ jobs:
       # leaves poison a later task trips over: a stack-buffer-overflow report that depends on
       # which task ran on which stack, and so on scheduling. `crates/nvs-host/Cargo.toml` is
       # its home.
-      # `detect_odr_violation=1` reports only two globals of one name whose sizes differ. The
+      # Both ASAN steps set `detect_odr_violation=1`, which reports only two globals of one name
+      # whose sizes differ. The
       # default, 2, also reports two of the same size, and the bundled SQLite amalgamation has
       # two function-local `aiOff` arrays with equal contents that the compiler folds into one
       # address, which ASAN then registers twice. Rust has no ODR, so SQLite is the only C here.
@@ -1631,7 +1632,7 @@ jobs:
       - name: ASAN test (backend)
         env:
           RUSTFLAGS: -Zsanitizer=address
-          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=0
+          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=0:detect_odr_violation=1
         run: |
           cargo +nightly test --target x86_64-unknown-linux-gnu \
             --features nvs-runtime/sanitizer \
