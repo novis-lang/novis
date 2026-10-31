@@ -33,9 +33,9 @@ pub struct RowRef<'a> {
 }
 
 /// The most rows a sheet has.
-const ROWS: u32 = 1_048_576;
+pub(crate) const ROWS: u32 = 1_048_576;
 
-fn ident(b: u8) -> bool {
+pub(crate) fn ident(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'.' || b == b'\\' || b >= 0x80
 }
 
@@ -60,7 +60,7 @@ fn cell(text: &[u8], at: usize) -> Option<(u32, bool, usize)> {
     row_digits(text, i).map(|(row, end)| (row, absolute, end))
 }
 
-fn row_digits(text: &[u8], at: usize) -> Option<(u32, usize)> {
+pub(crate) fn row_digits(text: &[u8], at: usize) -> Option<(u32, usize)> {
     let mut i = at;
     while text.get(i).is_some_and(u8::is_ascii_digit) {
         i += 1;
@@ -73,7 +73,7 @@ fn row_digits(text: &[u8], at: usize) -> Option<(u32, usize)> {
 }
 
 /// A whole-row part at `at`: `$`, digits.
-fn row_only(text: &[u8], at: usize) -> Option<(u32, bool, usize)> {
+pub(crate) fn row_only(text: &[u8], at: usize) -> Option<(u32, bool, usize)> {
     let absolute = text.get(at) == Some(&b'$');
     let from = at + usize::from(absolute);
     row_digits(text, from).map(|(row, end)| (row, absolute, end))
@@ -81,14 +81,14 @@ fn row_only(text: &[u8], at: usize) -> Option<(u32, bool, usize)> {
 
 /// Whether a reference ending at `end` really ends there: not inside a longer name, and not a
 /// function's name.
-fn ends(text: &[u8], end: usize) -> bool {
+pub(crate) fn ends(text: &[u8], end: usize) -> bool {
     !text
         .get(end)
         .is_some_and(|&b| ident(b) || b == b'(' || b == b'!')
 }
 
 /// A sheet prefix at `at`: its name and where the reference after `!` begins.
-fn sheet(text: &str, at: usize) -> Option<(String, usize)> {
+pub(crate) fn sheet(text: &str, at: usize) -> Option<(String, usize)> {
     let bytes = text.as_bytes();
     if bytes[at] == b'\'' {
         let mut name = String::new();

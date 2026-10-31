@@ -104,7 +104,7 @@ pub enum CellError {
 }
 
 impl CellError {
-    fn of(text: &str) -> Option<Self> {
+    pub(crate) fn of(text: &str) -> Option<Self> {
         Some(match text {
             "#NULL!" => Self::Null,
             "#DIV/0!" => Self::DivZero,

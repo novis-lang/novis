@@ -5585,7 +5585,8 @@ functions and references it could not compute, so a test asserts that list is em
 rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)).
 
 **On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
-(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`).
+(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`). The evaluator the
+evaluate call will run is `extensions/spreadsheet/src/eval/`, and no export reaches it yet.
 
 **Not shipped.** An evaluate call and writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
