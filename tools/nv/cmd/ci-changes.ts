@@ -113,10 +113,12 @@ export const LANES: Record<string, string[]> = {
   ],
   // The slotted response's polyfill and trigger, a website replay's modules and component, the debug
   // viewer and the command that builds and checks it, the Chromium tests that run them and their
-  // shared driver, and the lockfile that pins the Playwright release and so the browser it downloads.
-  // Gates `browser`.
+  // shared driver, the registry's app and its Rust commands that its pages are tested over, and the
+  // lockfile that pins the Playwright release and so the browser it downloads. Gates `browser`.
   browser: [
     "crates/nvs-server/src/slotted/", "tools/nv/test/html-later-polyfill.test.ts",
+    "apps/registry/", "crates/nvs-cli/src/registry.rs", "crates/nvs-cli/src/package/",
+    "tools/nv/test/registry-browser.test.ts",
     "website/config/replay-frames.mjs", "website/config/replay-narrow.mjs", "website/config/replay-player.mjs",
     "website/src/components/Replay.astro", "viewer/", "tools/nv/cmd/viewer.ts",
     "tools/nv/test/replay-browser.test.ts", "tools/nv/test/chromium.ts",
