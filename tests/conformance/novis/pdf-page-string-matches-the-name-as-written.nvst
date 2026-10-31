@@ -1,0 +1,28 @@
+--TEST--
+A named string keeps the case of its name, in `Page::string` and in a margin box's `string()`: rule:core-classes/pdf-header-is-a-page-function
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Page::string
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+use Novis\Pdf\Reader;
+
+// `Chapter` and `chapter` are two names. Each `h2` saves its text under both, with other words.
+var $html = "<style>h2 { string-set: Chapter content(), chapter 'Part ' content() }"
+    . " @page { @top-center { content: string(Chapter) ' / ' string(chapter) ' / ' string(CHAPTER) } }</style>"
+    . "<h2>Books</h2><p>A book</p>";
+
+// The header prints the value of each name. `CHAPTER` is not set, so the result is `null`.
+var $header = fn(Page $page): Core\Html\Markup => {
+    echo $page->string("Chapter") ?? "null", " | ", $page->string("chapter") ?? "null", " | ",
+        $page->string("CHAPTER") ?? "null", "\n";
+    return html`<p>Shop</p>`;
+};
+Document::fromHtml($html)->header($header)->render();
+
+// Without a header function, the margin box reads the same names.
+var $page = Reader::open(Document::fromHtml($html)->render()->bytes)->text(1);
+echo Core\Str::contains($page, "Books / Part Books / ") ? "the margin box matches the case" : $page, "\n";
+--EXPECT--
+Books | Part Books | null
+the margin box matches the case

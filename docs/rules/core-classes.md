@@ -4285,7 +4285,9 @@ a function both fill one margin, the function's markup is drawn.
 `string-set` values and its **marks**. A mark is `data-mark="name:value"` on any element, several
 separated by `;`. `marks(name)` returns the values on that page and `marksUpTo(name)` those on every
 page up to it, as strings, so a carried-forward total is `Core\Decimal` arithmetic in Novis and never
-rounds through a float.
+rounds through a float. **A named string's name keeps its case**, as a CSS custom identifier does:
+`string-set`, a margin box's `string()` and `Page::string` all compare it as written, so `Chapter`
+and `chapter` are two strings (`tests/conformance/novis/pdf-page-string-matches-the-name-as-written.nvst`).
 
 - **Memory:** between the two calls, the request keeps one laid-out body per unfinished render, inside
   the request's cap. `render-second` frees it, and the request's end frees one left behind. Novis holds one `Page` per page and the markup the

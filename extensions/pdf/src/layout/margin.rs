@@ -60,9 +60,9 @@ pub(super) struct Running {
     pub(super) missing: Vec<Missing>,
 }
 
-/// A named string an element's `string-set` sets: its lower-cased name, its value, the index of
+/// A named string an element's `string-set` sets: its name as written, its value, the index of
 /// the page it is set on, and whether it is set at that page's top. With `mark` set, it is a
-/// `data-mark` mark instead, its name as written.
+/// `data-mark` mark instead.
 pub(super) struct Set {
     pub(super) name: String,
     pub(super) value: String,

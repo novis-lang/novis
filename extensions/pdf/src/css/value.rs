@@ -106,8 +106,18 @@ pub enum Comp {
 }
 
 /// The value's top-level components, or `None` when it holds a token no grammar takes: a bare
-/// block or a bad string or URL.
+/// block or a bad string or URL. Each identifier is lower-cased.
 pub fn components(text: &str) -> Option<Vec<Comp>> {
+    parse_components(text, true)
+}
+
+/// [`components`] with each identifier as written, for a custom identifier such as a named
+/// string's name, which CSS compares with its case.
+pub fn components_as_written(text: &str) -> Option<Vec<Comp>> {
+    parse_components(text, false)
+}
+
+fn parse_components(text: &str, lower: bool) -> Option<Vec<Comp>> {
     let mut parser = Parser::new(text);
     let mut out = Vec::new();
     loop {
@@ -116,7 +126,8 @@ pub fn components(text: &str) -> Option<Vec<Comp>> {
             Err(_) => break,
         };
         let comp = match token {
-            Token::Ident(s) => Comp::Ident(s.to_ascii_lowercase()),
+            Token::Ident(s) if lower => Comp::Ident(s.to_ascii_lowercase()),
+            Token::Ident(s) => Comp::Ident(s.to_string()),
             Token::Dimension { value, unit, .. } => {
                 Comp::Dimension(value, unit.to_ascii_lowercase())
             }

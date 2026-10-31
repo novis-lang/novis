@@ -1,5 +1,5 @@
 --TEST--
-A header function's `Page` carries its number, the count, whether it is first or last and its `string-set` values compared without case, and a page made by hand keeps its values: rule:core-classes/pdf-header-is-a-page-function
+A header function's `Page` carries its number, the count, whether it is first or last and its `string-set` values, and a page made by hand keeps its values: rule:core-classes/pdf-header-is-a-page-function
 --FILE--
 <?nvs
 // covers: Novis\Pdf\Document::header
@@ -11,7 +11,7 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
 // A title page, then two chapters. Each `h2` starts a page and saves its text as `chapter`.
-var $html = "<style>h2 { break-before: page; string-set: Chapter content() }</style>"
+var $html = "<style>h2 { break-before: page; string-set: chapter content() }</style>"
     . "<h1>Shop handbook</h1><h2>Books</h2><p>A book</p><h2>Toys</h2><p>A ball</p>";
 
 // The header prints what its page says about itself. Before the first `h2` the chapter is `null`.
@@ -22,10 +22,10 @@ var $header = fn(Page $page): Core\Html\Markup => {
 };
 echo Document::fromHtml($html)->header($header)->render()->pageCount, " pages\n";
 
-// A page made by hand keeps its values. `string` compares the name without case and returns the first match.
+// A page made by hand keeps its values. `string` returns the first value with the name.
 var $made = new Page(1, 1, "cover", [{name: "chapter", value: "Books"}, {name: "chapter", value: "Toys"}], []);
 echo $made->number, " ", $made->count, " ", $made->name ?? "null", " ", $made->isFirst() && $made->isLast() ? "first and last" : "not both", "\n";
-echo $made->string("CHAPTER") ?? "null", " ", $made->string("section") ?? "null", "\n";
+echo $made->string("chapter") ?? "null", " ", $made->string("section") ?? "null", "\n";
 
 // A page past the count and page 0 are neither first nor last of a longer document.
 var $past = new Page(5, 3, null, [], []);

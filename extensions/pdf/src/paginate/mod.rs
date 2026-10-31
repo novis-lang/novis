@@ -40,7 +40,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::css::value::{Comp, components, length};
+use crate::css::value::{Comp, components, components_as_written, length};
 use crate::css::{DEFAULT_FONT_SIZE, PageRule, Value};
 use crate::layout::{MARGIN, PAGE_HEIGHT, PAGE_WIDTH};
 
@@ -283,7 +283,8 @@ pub enum Which {
     FirstExcept,
 }
 
-/// The named strings an element's `string-set` sets, each name lower-cased with its value.
+/// The named strings an element's `string-set` sets, each name as written with its value. A
+/// name is a CSS custom identifier, so it keeps its case.
 /// `content()` and `content(text)` are `text`, the element's text with its spaces collapsed,
 /// and `attr(name)` is the attribute `attr` gives, or nothing. Any other part adds nothing.
 pub fn string_set(
@@ -296,11 +297,11 @@ pub fn string_set(
     };
     let mut out: Vec<(String, String)> = Vec::new();
     let mut open = false;
-    for comp in components(value).unwrap_or_default() {
+    for comp in components_as_written(value).unwrap_or_default() {
         match comp {
             Comp::Comma => open = false,
             Comp::Ident(word) if !open => {
-                if word == "none" {
+                if word.eq_ignore_ascii_case("none") {
                     return Vec::new();
                 }
                 out.push((word, String::new()));
@@ -327,7 +328,7 @@ pub fn string_set(
 /// The text of a margin box's `content` on page `page` of `pages`, both from 1, or `None` when
 /// it makes no box. `counter(page)` and `counter(pages)` are the two numbers, in the counter
 /// style `style` writes; any other counter is 0. `string(name)` is the value `strings` gives
-/// for the lower-cased name, or nothing.
+/// for the name as written, or nothing.
 pub fn content(
     value: Option<&Value>,
     page: i64,
@@ -355,14 +356,14 @@ pub fn content(
             }
             Comp::Function(name, args) if name == "string" => {
                 let mut args = args.split(',').map(str::trim);
-                let name = args.next().unwrap_or("").to_ascii_lowercase();
+                let name = args.next().unwrap_or("");
                 let which = match args.next().map(str::to_ascii_lowercase).as_deref() {
                     Some("start") => Which::Start,
                     Some("last") => Which::Last,
                     Some("first-except") => Which::FirstExcept,
                     _ => Which::First,
                 };
-                out.push_str(&strings(&name, which).unwrap_or_default());
+                out.push_str(&strings(name, which).unwrap_or_default());
             }
             _ => {}
         }

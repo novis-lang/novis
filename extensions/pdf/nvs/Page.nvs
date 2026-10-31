@@ -30,12 +30,11 @@ final class Page
     }
 
     /// `string` returns the value that CSS `string-set` gives `$name` on this page.
-    /// The name is compared without case. If no value is set yet, the result is `null`.
+    /// The name must have the same case as in the CSS. If no value is set yet, the result is `null`.
     public function string(string $name): ?string
     {
-        var $wanted = Core\Str::lower($name);
         foreach ($this->strings as var $one) {
-            if ($one->name == $wanted) {
+            if ($one->name == $name) {
                 return $one->value;
             }
         }
