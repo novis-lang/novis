@@ -737,17 +737,15 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 10 are done, and stage 11 has every item but its last. Six commits from `3f014063a`
-to `58acad5f8`: flex items, the text items, SVG fonts, clippy, and the list's removal. Each new
-test ran once by name and is green. `pdf-clippy-clean` is green through `bun tools/looper/main.ts
-check` (the installed `looper` has no `check` subcommand). The size test passes at the recorded
-14.3 MiB, so the figure stays. `bun nv owners --closes extension-leftovers` exits 0, the
-`**Not done yet.**` grep finds nothing, and `bun nv rules --render` ran clean.
+Stages 1 to 11 are done. `pdf-attacks` is green through `bun tools/looper/main.ts check`
+(`e633ea609`): with `Block::Flex` boxed, 100,000 nested `div`s render under 128 MiB, so
+`tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs` lost its `ends-early`
+line and `rule:core-classes/pdf-one-engine` names two inputs that reach the limit, as the
+standing decision on nested `div`s allows. `bun nv rules --render` and `bun nv owners --closes
+extension-leftovers` ran clean.
 
-- § *Flex, text and clippy, as built* under the decisions records the choices.
-- `pdf-attacks` ran once and is **red** (`exited 1, want 0`). The local check keeps no log, and the
-  session reached its context budget before reading why. Rerun its command directly to see the
-  failing member.
+- Stage 12 started: the installed `looper` has neither `verify` nor `check`, so the gate is
+  `bun nv affected --run`, written to `.agent-tmp/verify.log`. Read its tail first.
 - `extensions/pdf/src/layout/flex.rs`'s `fit` was reformatted by rustfmt with the slice.
   `tests/paginate.rs:218` has a rustfmt diff that predates this stage.
 - Still open from stage 10: `lopdf` and `aes` have not been through `cargo deny` or the attribution
@@ -758,13 +756,12 @@ check` (the installed `looper` has no `check` subcommand). The size test passes 
 
 ### Next
 
-Stage 11's last item, then stage 12.
+Stage 12.
 
-- [ ] `docs/goals/extension-leftovers.md:49`: run `bun tools/looper/main.ts check --name pdf-attacks`
-  (`bun nv proofs --run --only` over the eight PDF members). A failure is fixed in the member it
-  names. Then set stage 11 to `done` in the front matter.
-- [ ] `docs/goals/extension-leftovers.md:723`: stage 12, `looper verify` in the background, every
-  failure fixed in one pass, and once more.
+- [ ] `docs/goals/extension-leftovers.md:723`: `bun nv affected --run` in the background, every
+  failure fixed in one pass, and once more. Then the goal-end gates: `bun nv verify --doc`,
+  `bun nv owners --closes extension-leftovers`, `bun nv ci --check`. A stale release binary hits
+  the limit at the nested-`div` step, so run `bun nv relink --build` before a proofs run on it.
 
 Expect red at the gate: a PDF test whose flex layout put a container's `::before` or `::after`
 text above or below the items, or that counted a `<br>` in a container as nothing. A test whose
