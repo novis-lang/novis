@@ -18,7 +18,7 @@ bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 var $reader = Reader::open($file);
 foreach ($reader->evaluate() as var $missed) {
-    echo $missed['cell'], " ", $missed['kind'], " ", $missed['text'], "\n";
+    echo $missed->cell, " ", $missed->kind, " ", $missed->text, "\n";
 }
 foreach ($reader->rows("Data", { header: true }) as var $row) {
     echo $row->number, ": ", $row->values['a'], " ", $row->values['b'], "\n";
@@ -26,11 +26,11 @@ foreach ($reader->rows("Data", { header: true }) as var $row) {
 
 echo Core\Arr::count(Reader::open("a,b\n1,=1+1\n" as bytes)->evaluate()), " for a CSV\n";
 --EXPECT--
-Data!A4 circular =B4+1
 Data!B2 function TODAY
 Data!B3 function INDIRECT
-Data!B4 circular =A4+1
-Data!B5 token =SUM(A2:A3
+Data!A4 circular B4+1
+Data!B4 circular A4+1
+Data!B5 token SUM(A2:A3
 2: 1 45000
 3: 2 7
 4: 3 4

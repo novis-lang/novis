@@ -22,7 +22,7 @@ bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $reader = Reader::open($file);
 echo "missed: ", Core\Arr::count($reader->evaluate()), "\n";
 foreach ($reader->rows("Orders") as var $row) {
-    echo $row->number, ": ", Core\Str::join(" | ", Core\Arr::map($row->values, fn(mixed $v): string => (string) $v)), "\n";
+    echo $row->number, ": ", Core\Str::join(Core\Arr::map($row->values, fn(mixed $v): tainted string => $v as tainted string), " | "), "\n";
 }
 foreach ($reader->rows("Summary", { header: true }) as var $row) {
     echo $row->values['label'], " ", $row->values['value'], "\n";

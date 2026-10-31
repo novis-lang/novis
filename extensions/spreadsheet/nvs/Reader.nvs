@@ -144,7 +144,12 @@ final class Reader
         if ($this->reader == null) {
             return [];
         }
-        return Engine::readerEvaluate($this->engine(), $this->source);
+        array<Missed> $missed = [];
+        foreach (Engine::readerEvaluate($this->engine(), $this->source) as var $entry) {
+            string $kind = Core\Taint::assertTrusted($entry->kind, 'the engine sets kind to one of four fixed words, never to text from the file');
+            $missed[] = { cell: $entry->cell, kind: $kind, text: $entry->text };
+        }
+        return $missed;
     }
 
     /// `images` returns the pictures of the sheet `$sheet`. `at` is the top-left cell, and `image` is the bytes of the picture.

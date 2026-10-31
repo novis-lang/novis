@@ -7,11 +7,11 @@ use Novis\Spreadsheet\Workbook;
 class Import
 {
     // This method returns one line for each cell that has no computed result.
-    public static function check(tainted bytes $upload): array<string>
+    public static function check(tainted bytes $upload): array<tainted string>
     {
-        array<string> $lines = [];
+        array<tainted string> $lines = [];
         foreach (Reader::open($upload)->evaluate() as var $missed) {
-            $lines[] = "{$missed['cell']} is {$missed['kind']}: {$missed['text']}";
+            $lines[] = "{$missed->cell} is {$missed->kind}: {$missed->text}";
         }
         return $lines;
     }
@@ -20,6 +20,6 @@ class Import
 // This makes the upload. In a real program the bytes come from the request.
 var $book = Workbook::createInMemory();
 $book->sheet('Plan')->add(['day' => Formula::of('=TODAY()', {cached: 45306}), 'next' => Formula::of('=A2+1')]);
-foreach (Import::check($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) as string $line) {
+foreach (Import::check($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) as tainted string $line) {
     echo $line, "\n";
 }

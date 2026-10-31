@@ -4765,7 +4765,7 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
-| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
+| `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>`, `rows(string\|int $sheet, {…}): Iterator<Row>`, `evaluate(): array<{…}>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
 | `Row` | One row `rows` read | `number: uint`, the row number in the file, and `values: array` by header text or column letter |
 | `Template` | A designed workbook to fill | `open(Core\IO\File\|bytes $source): Template`, `set(string $address, mixed $value): Template`, `fill(array $data): Export` |
 | `Style` | A set of style fields | `of({…}): Style` |
@@ -5549,7 +5549,7 @@ reader's under `extensions/spreadsheet/src/read/`.
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
-## The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates
+## The roster reads xlsx, xlsm, xlsb, xls, ods and CSV and writes xlsx and CSV, a macro is never written, and nothing evaluates until the program calls evaluate
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
@@ -5579,20 +5579,77 @@ dependency; `umya-spreadsheet` and `ironcalc` are not dependencies.
 its cached result when the program gave one and the workbook is flagged to recalculate when opened. A
 read formula cell is its stored result, and `{formulas: true}` gives the `Formula` with that result as
 its `cached`, so the program can tell the author's claim from the cell's text
-([`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)). An explicit evaluate call is second-wave work, and so is
-writing ods; neither is in the first wave's acceptance. An evaluate call would return the list of
-functions and references it could not compute, so a test asserts that list is empty — the visibility
-rule the PDF component applies to dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)).
+([`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)).
+
+**`Reader::evaluate(): array<{cell: tainted string, kind: string, text: tainted string}>`** computes on
+request. It computes every formula cell of every sheet once, in the guest, in dependency order, and
+returns what it could not compute: `cell` as `Sheet!A1`, `kind` as `'function'` (a function outside
+the set, with its name), `'reference'` (another workbook, a missing sheet, a 3D reference, a union, an
+intersection, an array constant, or a result of more than one cell, with the reference), `'circular'`
+(with the formula) or `'token'` (formula text the evaluator cannot read, or a formula the reader could
+not decode). A test asserts that list is empty, the visibility rule the PDF component applies to
+dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)). After it, each `rows()` reads a formula cell as its
+computed result, through the read table and the cell's number format, and `formulas: true` gives that
+result as the `cached`. A cell it did not compute keeps its stored result, and a cell that reads it
+reads that result. Every format feeds it: xlsx formula text (a shared formula moved to each cell),
+xls and xlsb tokens through the token decoder, and ods OpenFormula through the translator. A CSV has
+no formulas and returns `[]`.
+
+- **Security.** It does no I/O and follows nothing. An external reference, `INDIRECT` and `OFFSET`
+  are listed. It runs under the request's CPU and memory caps. A chain of 20,000 cells computes, and
+  a cycle of any length is listed, because the order is walked with an explicit stack.
+- **Memory.** One value per non-empty cell of every worksheet, in a sparse grid, so `A:A` walks only
+  stored cells; the parsed formulas and the order. Per request, freed with the reader.
+- **Latency.** One guest call, growing with the cells and the references. No existing read path
+  pays anything until a program calls it.
+- **Excel's behaviour.** Numbers are `f64`, and coercion and error values follow Excel. Text
+  converts to a number when it is a number, a percentage, an ISO date or a clock time, and is
+  `#VALUE!` otherwise, so a date in a locale's own order (`1/15/2024`) is `#VALUE!` here, because
+  the result would depend on the machine. An unknown name is `#NAME?`. Defined names and structured
+  references (`Table[Column]`, `[#This Row]`, `[#Data]`, `[#All]`, `[#Headers]`, `[#Totals]`)
+  resolve, and a sheet-qualified name reads only that sheet's names.
+- **Bounds.** Parentheses and calls more than 64 deep, a tree more than 512 nodes deep, or more
+  than 4,096 operators and calls in one formula are `token`. A name chain more than 64 deep is
+  `circular`. `ROW`, `COLUMN`, `ROWS` and `COLUMNS` read no cells, so `=ROWS(A1:A9)` in `A1` is not
+  circular. `IF`, `IFERROR`, `IFNA`, `IFS` and `SWITCH` evaluate only what they take, so a function
+  outside the set in a branch not taken is not listed. `SUBTOTAL` with a code from 1 to 11 over a
+  range with a hidden row is listed, because the file does not say whether a filter hid it.
+
+**The function set** is one table, `extensions/spreadsheet/src/eval/functions.rs`, and a test gives
+each function a case:
+- Math and statistics: `ABS`, `AVERAGE`, `AVERAGEIF`, `AVERAGEIFS`, `CEILING`, `CEILING.MATH`,
+  `COUNT`, `COUNTA`, `COUNTBLANK`, `COUNTIF`, `COUNTIFS`, `EXP`, `FLOOR`, `FLOOR.MATH`, `INT`, `LN`,
+  `LOG`, `LOG10`, `MAX`, `MAXIFS`, `MEDIAN`, `MIN`, `MINIFS`, `MOD`, `PI`, `POWER`, `PRODUCT`,
+  `ROUND`, `ROUNDDOWN`, `ROUNDUP`, `SIGN`, `SQRT`, `SUBTOTAL` (codes 1 to 11 and 101 to 111), `SUM`,
+  `SUMIF`, `SUMIFS`, `SUMPRODUCT`, `TRUNC`.
+- Logic: `AND`, `FALSE`, `IF`, `IFERROR`, `IFNA`, `IFS`, `NOT`, `OR`, `SWITCH`, `TRUE`, `XOR`.
+- Information: `ISBLANK`, `ISERR`, `ISERROR`, `ISEVEN`, `ISLOGICAL`, `ISNA`, `ISNUMBER`, `ISODD`,
+  `ISTEXT`, `NA`.
+- Text: `CHAR`, `CLEAN`, `CODE`, `CONCAT`, `CONCATENATE`, `EXACT`, `FIND`, `LEFT`, `LEN`, `LOWER`,
+  `MID`, `PROPER`, `REPLACE`, `REPT`, `RIGHT`, `SEARCH`, `SUBSTITUTE`, `TEXT` (through the
+  number-format renderer), `TEXTJOIN`, `TRIM`, `UPPER`, `VALUE`. Lengths and positions count UTF-16
+  units, as Excel's do.
+- Lookup: `CHOOSE`, `COLUMN`, `COLUMNS`, `HLOOKUP`, `INDEX`, `MATCH`, `ROW`, `ROWS`, `VLOOKUP`,
+  `XLOOKUP`.
+- Date and time: `DATE`, `DATEDIF`, `DAY`, `DAYS`, `EDATE`, `EOMONTH`, `HOUR`, `MINUTE`, `MONTH`,
+  `SECOND`, `TIME`, `WEEKDAY`, `YEAR`.
+
+`TODAY`, `NOW`, `RAND` and `RANDBETWEEN` are out, because the result would depend on when or how often
+the program reads. `INDIRECT` and `OFFSET` are out, because they make a reference from data. These and
+every function outside the table are listed. A function of the set given an input on which it cannot
+match Excel is listed for that cell, and never computed differently.
 
 **On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
-(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`). The evaluator the
-evaluate call will run is `extensions/spreadsheet/src/eval/`, and no export reaches it yet.
+(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`). The evaluator is
+`extensions/spreadsheet/src/eval/`, fed by `extensions/spreadsheet/src/read/evaluate.rs`.
 
-**Not shipped.** An evaluate call and writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
+**Not shipped.** Writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+- **An option to compute `TODAY` and `NOW` from a given instant.** A program that needs one fills a
+  cell with the instant.
 - **Writing xls, xlsb or xlsm.** Legacy and binary formats nothing should produce, and a macro-enabled
   format whose only purpose over xlsx is the macros.
 - **`umya-spreadsheet` for template fill.** It loads the whole workbook into an editable model

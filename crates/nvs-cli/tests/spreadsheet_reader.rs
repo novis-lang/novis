@@ -224,3 +224,29 @@ echo $thrown, " thrown\n";
         "the same rows\n5 thrown\n"
     );
 }
+
+/// `evaluate` computes the formulas a workbook saved with no result, so a later `rows` reads
+/// each one, and it lists a function outside its set, whose cell keeps its saved result.
+// covers: Novis\Spreadsheet\Reader::evaluate
+#[test]
+fn evaluate_computes_saved_formulas_and_lists_what_it_cannot() {
+    let body = r#"
+use Novis\Spreadsheet\Formula;
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet("Shop");
+$sheet->add(["qty" => 3, "price" => 2.5, "total" => Formula::of("=A2*B2")]);
+$sheet->add(["qty" => Formula::of("=TODAY()", {cached: 7}), "price" => 4, "total" => Formula::of("=SUM(C2,B3)")]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $reader = Reader::open($file);
+foreach ($reader->evaluate() as var $missed) {
+    echo $missed->cell, " ", $missed->kind, " ", $missed->text, "\n";
+}
+foreach ($reader->rows("Shop", {header: true}) as Row $row) {
+    echo $row->number, " ", Core\Json::encode($row->values), "\n";
+}
+"#;
+    assert_eq!(
+        run("evaluate", None, body),
+        "Shop!A3 function TODAY\n2 {\"qty\":3,\"price\":2.5,\"total\":7.5}\n3 {\"qty\":7,\"price\":4,\"total\":11.5}\n"
+    );
+}

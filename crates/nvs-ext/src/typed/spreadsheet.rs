@@ -10,11 +10,11 @@ use self::bindings::exports::nvs::spreadsheet::engine::{
     ChartSeries, ClockCell, Column, ConditionalKind, ConditionalPart, DateCell, DecimalCell,
     DecompressionBound, DurationCell, ErrorCell, Filled, Finished, FormulaCell, GroupPart,
     HeaderOptions, ImageInfo, ImagePart, IntegerCell, ItemBatch, Legend, Line, LinkInfo, LinkPart,
-    Margins, MergePart, MissedInfo, NameInfo, NoteInfo, NotePart, NumberCell, Operator, Orientation,
-    Placeholder, PrintPart, Properties, ProtectPart, ReadBatch, ReadCell, ReadOptions, ReadRow,
-    ReadValue, RichCell, RichRun, Row, RuleKind, SheetInfo, SheetKind, SheetOptions, SheetPart,
-    SheetRows, Style, TableInfo, TablePart, TableTotal, TextCell, TimeCell, TotalFunction,
-    Underline, ValidationPart, Valign, Visibility, WorkbookOptions,
+    Margins, MergePart, MissedInfo, NameInfo, NoteInfo, NotePart, NumberCell, Operator,
+    Orientation, Placeholder, PrintPart, Properties, ProtectPart, ReadBatch, ReadCell, ReadOptions,
+    ReadRow, ReadValue, RichCell, RichRun, Row, RuleKind, SheetInfo, SheetKind, SheetOptions,
+    SheetPart, SheetRows, Style, TableInfo, TablePart, TableTotal, TextCell, TimeCell,
+    TotalFunction, Underline, ValidationPart, Valign, Visibility, WorkbookOptions,
 };
 use self::bindings::nvs::ext::types::{Date, Duration, Error as WitError, TimeOfDay};
 use crate::call::Error;
