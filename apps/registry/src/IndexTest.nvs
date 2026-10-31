@@ -52,10 +52,12 @@ final class IndexTest
         Test::assertCalled($log, Log::append, { times: 1 });
         Test::assertCalled($log, Log::sign, { times: 1 });
 
-        // A second run adds nothing to the log, and it signs the files again.
-        Test::assertTrue($index->catchUp($key));
+        // A second run does not add the release again, and it signs the files again. Other tests can add
+        // entries to the shared database in the meantime, so this double takes every other line.
+        var $again = IndexTest::logWithout(41, $key);
+        Test::assertTrue(new Index(Schema::open(), $again, Site::load())->catchUp($key));
         Test::assertCalled($log, Log::append, { times: 1 });
-        Test::assertCalled($log, Log::sign, { times: 2 });
+        Test::assertCalled($again, Log::sign, { times: 1 });
     }
 
     #[Test]
@@ -167,6 +169,18 @@ final class IndexTest
         return Test::double<Log>({
             size: fn(): int => $size,
             append: fn(string $lines): ?array<string> => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package) ? [] : null,
+            advisories: fn(): ?array<string> => [],
+            sign: fn(int $at): bool => true,
+        });
+    }
+
+    // A log double with `$size` entries. It adds every line, unless one of them publishes the package `$key`.
+    private static function logWithout(int $size, string $key): Log
+    {
+        string $package = '"package":"' . Index::slug($key) . '"';
+        return Test::double<Log>({
+            size: fn(): int => $size,
+            append: fn(string $lines): ?array<string> => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package) ? null : [],
             advisories: fn(): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
