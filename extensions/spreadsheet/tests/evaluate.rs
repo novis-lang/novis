@@ -3,7 +3,11 @@
 
 use nvs_spreadsheet::eval::parse::{self, Area, Binary, Expr, Item, Rect, Structured, Unary};
 use nvs_spreadsheet::eval::{Book, Kind, Missed, Name, Table, Value};
-use nvs_spreadsheet::read::CellError;
+use nvs_spreadsheet::read::zip::Bound;
+use nvs_spreadsheet::read::{CellError, Read, ReadOptions, ReadRow, Reader, Source};
+use nvs_spreadsheet::{
+    Cell, Column, Date, Error, Row, SheetOptions, WorkbookOptions, Writer, Value as Written,
+};
 
 fn n(v: f64) -> Value {
     Value::Number(v)
@@ -477,8 +481,11 @@ fn a_function_outside_the_set_is_listed_and_its_cell_keeps_its_stored_result() {
 }
 
 /// The cases of each batch of the function set, in `tests/evaluate/`.
+#[path = "evaluate/lookup.rs"]
 mod lookup;
+#[path = "evaluate/math.rs"]
 mod math;
+#[path = "evaluate/text.rs"]
 mod text;
 
 /// One function case: the cells of `Sheet1` it reads, a formula, and the value it gives. The
@@ -574,4 +581,105 @@ fn a_volatile_or_dynamic_function_is_listed() {
     for row in 1..=6 {
         assert_eq!(get(&book, &format!("A{row}")), n(5.0));
     }
+}
+
+/// A whole file as a [`Source`].
+struct Bytes(Vec<u8>);
+
+impl Source for Bytes {
+    fn size(&self) -> Result<u64, Error> {
+        self.0.as_slice().size()
+    }
+
+    fn range(&self, offset: u64, length: u64) -> Result<Vec<u8>, Error> {
+        self.0.as_slice().range(offset, length)
+    }
+}
+
+fn formula(text: &str) -> Cell {
+    Cell {
+        value: Some(Written::Formula {
+            formula: text.to_owned(),
+            cached_text: None,
+            cached_number: None,
+        }),
+        style: None,
+    }
+}
+
+#[test]
+fn a_computed_result_reads_by_the_read_table() {
+    // `B1` is a formula under a date format, and row 2 is formulas alone, none with a cached
+    // value: the writer wrote them, and only `evaluate` gives them a value.
+    let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+    let mut options = SheetOptions::named("Sheet1");
+    options.columns = vec![
+        Column::default(),
+        Column {
+            format: Some("yyyy-mm-dd".to_owned()),
+            ..Column::default()
+        },
+    ];
+    let year = Cell {
+        value: Some(Written::Number(2024.0)),
+        style: None,
+    };
+    let rows = [
+        Row {
+            cells: vec![year, formula("DATE(A1,1,15)")],
+            ..Row::default()
+        },
+        Row {
+            cells: vec![formula("A1+1"), formula("B1+1")],
+            ..Row::default()
+        },
+    ];
+    let mut bytes = writer.sheet(options, &rows).unwrap();
+    bytes.extend(writer.finish().unwrap().data);
+    let source = Bytes(bytes);
+    let mut reader = Reader::open(&source, Bound::default()).unwrap();
+    assert_eq!(reader.evaluate(&source).unwrap(), []);
+    let read = ReadOptions {
+        sheet: "Sheet1".to_owned(),
+        formulas: true,
+        ..ReadOptions::default()
+    };
+    let batch = reader.rows(&source, &read, 100).unwrap();
+    let values = |rows: &[ReadRow], number: u64| -> Vec<Option<Read>> {
+        rows.iter()
+            .find(|row| row.number == number)
+            .unwrap_or_else(|| panic!("row {number} reads"))
+            .cells
+            .iter()
+            .map(|cell| cell.value.clone())
+            .collect()
+    };
+    assert_eq!(
+        values(&batch.rows, 1),
+        [
+            Some(Read::Integer(2024)),
+            Some(Read::Date(Date {
+                year: 2024,
+                month: 1,
+                day: 15,
+            })),
+        ]
+    );
+    assert_eq!(
+        values(&batch.rows, 2),
+        [
+            Some(Read::Integer(2025)),
+            Some(Read::Date(Date {
+                year: 2024,
+                month: 1,
+                day: 16,
+            })),
+        ]
+    );
+    let cached: Vec<Option<String>> = batch.rows[1]
+        .cells
+        .iter()
+        .map(|cell| cell.formula.clone())
+        .collect();
+    assert_eq!(cached, [Some("A1+1".to_owned()), Some("B1+1".to_owned())]);
 }

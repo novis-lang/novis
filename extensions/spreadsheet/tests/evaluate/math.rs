@@ -80,7 +80,7 @@ pub fn cases() -> Vec<Case> {
         case(mixed(), "=AVERAGE(A3)", e(DivZero)),
         case(mixed(), "=COUNT(A1:A6)", n(3.0)),
         case(vec![], "=COUNT(1,\"2\",\"x\",TRUE)", n(3.0)),
-        case(mixed(), "=COUNTA(A1:A6)", n(4.0)),
+        case(mixed(), "=COUNTA(A1:A6)", n(5.0)),
         case(mixed(), "=COUNTBLANK(A1:A6)", n(1.0)),
         case(
             vec![("A1", t("")), ("A2", n(1.0))],
