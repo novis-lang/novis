@@ -274,6 +274,7 @@ fn a_spreadsheet_call_charges_its_bytes_once_with_a_resource_beside_them() {
             ]),
         ),
         ("target", Value::String("memory".to_owned())),
+        ("ods", Value::Bool(false)),
     ]);
     let data = vec![0_u8; 4 << 20];
     let part = |data: Vec<u8>| {

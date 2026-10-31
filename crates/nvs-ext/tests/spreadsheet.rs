@@ -166,6 +166,7 @@ fn options(target: &str) -> Value {
             ]),
         ),
         ("target", Value::String(target.to_owned())),
+        ("ods", Value::Bool(false)),
     ])
 }
 

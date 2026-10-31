@@ -1,8 +1,8 @@
 <?nvs
 // Shows a rich cell in a row with a fill. The parts set the font, and the row sets the fill.
 use Novis\Spreadsheet\Cell;
-use Novis\Spreadsheet\Workbook;
 use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
 
 var $red = Style::of({ color: '#C00000', bold: true });
 var $book = Workbook::createInMemory();

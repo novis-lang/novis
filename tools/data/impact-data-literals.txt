@@ -79,6 +79,8 @@ crates/nvs-ext/tests/manifest.rs  "../Units.nvs"  --  a source path in an extens
 crates/nvs-ext/tests/pack.rs  "../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
 crates/nvs-ext/tests/pack.rs  "Geo/../../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../comments1.xml"  --  a relationship target inside a workbook built in memory, never opened
+crates/nvs-ext/tests/spreadsheet_read.rs  "../comments1.bin"  --  a relationship target inside an xlsb built in memory, never opened
+crates/nvs-ext/tests/spreadsheet_read.rs  "../tables/table1.bin"  --  a relationship target inside an xlsb built in memory, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../tables/table1.xml"  --  a relationship target inside a workbook built in memory, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../drawings/drawing1.xml"  --  a relationship target inside a workbook built in memory, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../media/image1.png"  --  a relationship target inside a workbook built in memory, never opened

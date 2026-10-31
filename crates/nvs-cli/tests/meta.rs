@@ -366,6 +366,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "notes",
             "names",
             "tables",
+            "evaluate",
             "images",
             "properties",
             "rows"
@@ -421,7 +422,10 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         ]
     );
     assert_eq!(names(r"Novis\Spreadsheet\Formula"), ["constructor", "of"]);
-    assert_eq!(names(r"Novis\Spreadsheet\Cell"), ["constructor", "of"]);
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Cell"),
+        ["constructor", "of", "rich"]
+    );
     assert_eq!(
         names(r"Novis\Spreadsheet\Export"),
         ["constructor", "download", "save", "to", "bytes"]

@@ -14,7 +14,7 @@ $book->sheet('Prices')->addAll([
 echo $book->finish()->size, " bytes\n";
 
 // Each of `ü`, `ä` and `€` is one byte in Windows-1252. Read the file back with the same options.
-Core\IO\File $file = Core\IO::open($path,Core\IO::FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 foreach (Reader::open($file, { csv: { separator: ';', encoding: Core\Charset::Windows1252 } })->rows(0, { header: true }) as var $row) {
     echo $row->values['Item'], ' costs ', $row->values['Price'], "\n";
 }

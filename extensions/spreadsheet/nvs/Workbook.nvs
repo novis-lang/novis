@@ -373,7 +373,7 @@ final class Workbook
             if ($value is Cell && $value->runs != null) {
                 $cells[] = { value: $this->richValue($value), style: null };
             } elseif ($value is Cell) {
-                $cells[] ={ value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style) };
+                $cells[] = { value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style) };
             } else {
                 $cells[] = { value: self::cell($value, $at, $this->zone), style: null };
             }

@@ -6,7 +6,7 @@ use Novis\Spreadsheet\Workbook;
 
 // The saved result of this formula is 999. The correct result is 120.
 var $book = Workbook::createInMemory();
-$book->sheet('Bill')->add(['net' => 100, 'gross' => Formula::of('=A2*1.2', {cached: 999})]);
+$book->sheet('Bill')->add(['net' => 100, 'gross' => Formula::of('=A2*1.2', { cached: 999 })]);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // Without `evaluate`, the cell has the saved result.

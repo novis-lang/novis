@@ -336,14 +336,14 @@
     "Novis\\Intl\\RelativeTime::Unit": "3a9316cb02bcf449",
     "Novis\\Intl\\Width": "f8d009dc33403506",
     "Novis\\Pdf\\Document::Standard": "526f204bbc956e6f",
-    "Novis\\Spreadsheet\\Align": "7ef24741990e6e7c",
-    "Novis\\Spreadsheet\\ChartKind": "7caffdc2d96ef394",
-    "Novis\\Spreadsheet\\Legend": "84ff8e85bcf3e579",
-    "Novis\\Spreadsheet\\Line": "2af935f0b138dd17",
-    "Novis\\Spreadsheet\\SheetKind": "e646f056915c3a60",
-    "Novis\\Spreadsheet\\Underline": "43dda6f238cae247",
-    "Novis\\Spreadsheet\\Valign": "ce8c6f12b9d4fcdf",
-    "Novis\\Spreadsheet\\Visibility": "04d70e58d6edec0e"
+    "Novis\\Spreadsheet\\Chart::Kind": "3347976da16c2066",
+    "Novis\\Spreadsheet\\Chart::Legend": "a847f9757df76a0f",
+    "Novis\\Spreadsheet\\Reader::SheetKind": "e0852c5bf2bbb95e",
+    "Novis\\Spreadsheet\\Reader::Visibility": "73abc7d7e7678c4a",
+    "Novis\\Spreadsheet\\Style::Align": "2873b335b53f6b01",
+    "Novis\\Spreadsheet\\Style::Line": "a0eee60b98e1cada",
+    "Novis\\Spreadsheet\\Style::Underline": "0a8db33420445749",
+    "Novis\\Spreadsheet\\Style::Valign": "03b61404a995aaf9"
   },
   "syntax/values/is.mdx": {
     "lang:types/narrowing": "85f7fe38bbf946e5"

@@ -9578,22 +9578,24 @@
   },
   "/reference/core/novis-spreadsheet-cell/": {
     "feature": "Novis\\Spreadsheet\\Cell",
-    "hash": "c14a557032065aea",
+    "hash": "4781d0349e6ce31a",
     "questions": [
       "Style a single cell in an Excel export",
       "Spreadsheet value with its own style",
       "Put a styled cell in a row instead of a plain value",
-      "What is a Cell in a spreadsheet export?"
+      "What is a Cell in a spreadsheet export?",
+      "Write rich text with a bold word in one cell"
     ]
   },
   "/reference/core/novis-spreadsheet-cell/constructor/": {
     "feature": "Novis\\Spreadsheet\\Cell::constructor",
-    "hash": "3cabe5d574685aa1",
+    "hash": "751bab433aac7e2b",
     "questions": [
       "Create a cell with a value and style by hand",
       "Read the value and style of a cell object",
       "Cell constructor arguments",
-      "Which values can a styled cell contain?"
+      "Which values can a styled cell contain?",
+      "Read the parts of a rich text cell"
     ]
   },
   "/reference/core/novis-spreadsheet-cell/of/": {
@@ -9604,6 +9606,17 @@
       "Highlight a name in a spreadsheet row",
       "Change the fill of one cell and keep the row style",
       "Does a cell style work in CSV?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-cell/rich/": {
+    "feature": "Novis\\Spreadsheet\\Cell::rich",
+    "hash": "2e3a86ecf219f2c2",
+    "questions": [
+      "Make one word bold inside an Excel cell",
+      "Use two colors of text in one cell",
+      "Which style fields can a rich text part set?",
+      "How is a rich text cell read back?",
+      "Rich text in a CSV export"
     ]
   },
   "/reference/core/novis-spreadsheet-chart/": {
@@ -9660,7 +9673,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/constructor/": {
     "feature": "Novis\\Spreadsheet\\Chart::constructor",
-    "hash": "279aa6ccea2aab48",
+    "hash": "b35042f96e05d6e9",
     "questions": [
       "Make a chart with new Chart",
       "Read the kind and series of a chart object",
@@ -9812,32 +9825,46 @@
   },
   "/reference/core/novis-spreadsheet-reader/": {
     "feature": "Novis\\Spreadsheet\\Reader",
-    "hash": "0c43f499b06d8735",
+    "hash": "77a4a5a9d28b0fd7",
     "questions": [
       "Read an Excel upload in Novis",
       "Import xlsx, xls, ods or CSV files",
       "Which spreadsheet formats can I read?",
-      "Spreadsheet reader for uploads"
+      "Spreadsheet reader for uploads",
+      "Compute the formulas of a workbook I read"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-reader/evaluate/": {
+    "feature": "Novis\\Spreadsheet\\Reader::evaluate",
+    "hash": "00b929f0259cf093",
+    "questions": [
+      "Compute the formulas of an uploaded Excel file",
+      "Check that the saved totals of a report are right",
+      "Which formula cells could not be computed?",
+      "Does reading a spreadsheet run its formulas?",
+      "Why is TODAY not computed?"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/images/": {
     "feature": "Novis\\Spreadsheet\\Reader::images",
-    "hash": "f6102fc8735ea951",
+    "hash": "95b43a525a741824",
     "questions": [
       "Get pictures from an Excel sheet",
       "Extract product images from a spreadsheet",
       "Which cell is a picture placed at?",
-      "Linked pictures in an Excel file"
+      "Linked pictures in an Excel file",
+      "Read pictures from an xls, xlsb or ods file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/links/": {
     "feature": "Novis\\Spreadsheet\\Reader::links",
-    "hash": "d39fac6e389a1ef1",
+    "hash": "3f32eac74f06b1e4",
     "questions": [
       "Read hyperlinks from an Excel sheet",
       "Tell a website link from a link to a cell",
       "Is a link from an uploaded file safe?",
-      "Get the tooltip of a cell link"
+      "Get the tooltip of a cell link",
+      "Read links from an xls, xlsb or ods file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/macros/": {
@@ -9862,7 +9889,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/names/": {
     "feature": "Novis\\Spreadsheet\\Reader::names",
-    "hash": "f90982c9992f3891",
+    "hash": "0bc23a6f4e629d41",
     "questions": [
       "Read defined names of a workbook",
       "Find a named range such as TaxRate",
@@ -9872,32 +9899,36 @@
   },
   "/reference/core/novis-spreadsheet-reader/notes/": {
     "feature": "Novis\\Spreadsheet\\Reader::notes",
-    "hash": "b5f4bb7cc19d4a05",
+    "hash": "24890d3a893a1f27",
     "questions": [
       "Read cell comments from an Excel file",
       "Get the author of a cell note",
       "Show each imported row with its notes",
-      "Read the red-corner notes of a sheet"
+      "Read the red-corner notes of a sheet",
+      "Read the comments of an ods file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "fd29e9d8e15a536d",
+    "hash": "b638423be753c369",
     "questions": [
       "Open an uploaded spreadsheet",
       "Read a CSV file as a spreadsheet",
       "Catch the error of a damaged Excel file",
-      "Is the file type found from the name or the bytes?"
+      "Is the file type found from the name or the bytes?",
+      "Read a CSV file with semicolons in Windows-1252",
+      "Read a UTF-16 CSV file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/properties/": {
     "feature": "Novis\\Spreadsheet\\Reader::properties",
-    "hash": "da325f152145f7d0",
+    "hash": "c9d4c4640a28d6a9",
     "questions": [
       "Read the title and author of an Excel file",
       "When was this spreadsheet created?",
       "Read the company and keywords of a workbook",
-      "Document properties of a CSV file"
+      "Document properties of a CSV file",
+      "Read the properties of an old xls file or an ods file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/rows/": {
@@ -9914,7 +9945,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/sheets/": {
     "feature": "Novis\\Spreadsheet\\Reader::sheets",
-    "hash": "b0ddc9c16c37ec55",
+    "hash": "6ad31961f795b6b5",
     "questions": [
       "List the sheets of a workbook",
       "Find hidden sheets in an Excel file",
@@ -9925,12 +9956,14 @@
   },
   "/reference/core/novis-spreadsheet-reader/tables/": {
     "feature": "Novis\\Spreadsheet\\Reader::tables",
-    "hash": "d43805dfcb640dc0",
+    "hash": "ca97ac399967c33c",
     "questions": [
       "Find the Excel tables in a sheet",
       "Read the rows of a named table",
       "Get the range of a table such as Prices",
-      "Tables of every sheet in a workbook"
+      "Tables of every sheet in a workbook",
+      "Why does an xls file have no tables?",
+      "Read database ranges of an ods file"
     ]
   },
   "/reference/core/novis-spreadsheet-row/": {
@@ -10169,13 +10202,14 @@
   },
   "/reference/core/novis-spreadsheet-template/fill/": {
     "feature": "Novis\\Spreadsheet\\Template::fill",
-    "hash": "bc3470f826f9c255",
+    "hash": "3638b22dd3ef5e5b",
     "questions": [
       "Fill placeholders with my data",
       "Repeat a row for each item in a list",
       "Does SUM grow when rows are added?",
       "Error for a missing placeholder",
-      "Fill values from nested arrays"
+      "Fill values from nested arrays",
+      "Fill a list on each of two sheets"
     ]
   },
   "/reference/core/novis-spreadsheet-template/open/": {
@@ -10201,12 +10235,13 @@
   },
   "/reference/core/novis-spreadsheet-workbook/": {
     "feature": "Novis\\Spreadsheet\\Workbook",
-    "hash": "548afd4db327a985",
+    "hash": "b2e85196abb7706a",
     "questions": [
       "Create an Excel file row by row",
-      "Write a CSV or xlsx file",
+      "Write a CSV, xlsx or ods file",
       "Start a spreadsheet export",
-      "Choose where a new workbook is written"
+      "Choose where a new workbook is written",
+      "Write an OpenDocument spreadsheet for LibreOffice"
     ]
   },
   "/reference/core/novis-spreadsheet-workbook/createfordownload/": {
@@ -10221,12 +10256,14 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "3d6e065a24ef63b9",
+    "hash": "0ba11c7b123bcc5b",
     "questions": [
       "Write an Excel file to a path row by row",
       "Replace an existing spreadsheet file",
       "Save two sheets with the summary first",
-      "Permission needed to write a spreadsheet file"
+      "Permission needed to write a spreadsheet file",
+      "Save a CSV file with semicolons for Excel in Europe",
+      "Save an ods file to a path"
     ]
   },
   "/reference/core/novis-spreadsheet-workbook/createforstream/": {
@@ -10271,12 +10308,14 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "1fd55b890dd88ddd",
+    "hash": "cc4cfb172fc757ab",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
       "Name the only sheet of an export",
-      "Spreadsheet from a generator of rows"
+      "Spreadsheet from a generator of rows",
+      "Export rows to an ods file in one call",
+      "Set the CSV separator and charset of an export"
     ]
   },
   "/reference/core/novis-spreadsheet-workbook/sheet/": {
@@ -16975,19 +17014,9 @@
       "Can a PDF/A file have a password?"
     ]
   },
-  "/reference/types/novis-spreadsheet-align/": {
-    "feature": "Novis\\Spreadsheet\\Align",
-    "hash": "a81830b2f1571bc7",
-    "questions": [
-      "How do I center text in a spreadsheet cell?",
-      "Right align a column in an Excel file",
-      "Justify wrapped text in a spreadsheet cell",
-      "Which values does the align style accept?"
-    ]
-  },
-  "/reference/types/novis-spreadsheet-chartkind/": {
-    "feature": "Novis\\Spreadsheet\\ChartKind",
-    "hash": "dd0a5935c0a17aaa",
+  "/reference/types/novis-spreadsheet-chart-kind/": {
+    "feature": "Novis\\Spreadsheet\\Chart::Kind",
+    "hash": "7484304f0b37c223",
     "questions": [
       "Which chart types can I add to a spreadsheet?",
       "Make a pie or doughnut chart in Excel",
@@ -16996,9 +17025,9 @@
       "Create a scatter chart with x and y values"
     ]
   },
-  "/reference/types/novis-spreadsheet-legend/": {
-    "feature": "Novis\\Spreadsheet\\Legend",
-    "hash": "fb0152f69aa7be52",
+  "/reference/types/novis-spreadsheet-chart-legend/": {
+    "feature": "Novis\\Spreadsheet\\Chart::Legend",
+    "hash": "a49b49459196d8eb",
     "questions": [
       "How do I hide the legend of a chart?",
       "Put the chart legend at the bottom",
@@ -17006,9 +17035,39 @@
       "Move the series names list of an Excel chart"
     ]
   },
-  "/reference/types/novis-spreadsheet-line/": {
-    "feature": "Novis\\Spreadsheet\\Line",
-    "hash": "b2b55308eecc098f",
+  "/reference/types/novis-spreadsheet-reader-sheetkind/": {
+    "feature": "Novis\\Spreadsheet\\Reader::SheetKind",
+    "hash": "79005bd1bb04b544",
+    "questions": [
+      "How do I tell a chart sheet from a normal worksheet?",
+      "Why does reading rows of a sheet throw an error?",
+      "Read every sheet of an uploaded Excel file safely",
+      "Can I write a chart sheet to a workbook?"
+    ]
+  },
+  "/reference/types/novis-spreadsheet-reader-visibility/": {
+    "feature": "Novis\\Spreadsheet\\Reader::Visibility",
+    "hash": "7a8fa80b28e249a5",
+    "questions": [
+      "How do I hide a sheet in an Excel workbook?",
+      "Make a sheet that a user cannot unhide in Excel",
+      "Is a hidden sheet secret?",
+      "Check if a sheet in an uploaded file is hidden"
+    ]
+  },
+  "/reference/types/novis-spreadsheet-style-align/": {
+    "feature": "Novis\\Spreadsheet\\Style::Align",
+    "hash": "9ae932b52a76753d",
+    "questions": [
+      "How do I center text in a spreadsheet cell?",
+      "Right align a column in an Excel file",
+      "Justify wrapped text in a spreadsheet cell",
+      "Which values does the align style accept?"
+    ]
+  },
+  "/reference/types/novis-spreadsheet-style-line/": {
+    "feature": "Novis\\Spreadsheet\\Style::Line",
+    "hash": "6a57d06b4e0e3870",
     "questions": [
       "How do I add a border to a spreadsheet cell?",
       "Double line border above a total row",
@@ -17017,19 +17076,9 @@
       "Change the border color of a cell"
     ]
   },
-  "/reference/types/novis-spreadsheet-sheetkind/": {
-    "feature": "Novis\\Spreadsheet\\SheetKind",
-    "hash": "b14d847095e3fc6e",
-    "questions": [
-      "How do I tell a chart sheet from a normal worksheet?",
-      "Why does reading rows of a sheet throw an error?",
-      "Read every sheet of an uploaded Excel file safely",
-      "Can I write a chart sheet to a workbook?"
-    ]
-  },
-  "/reference/types/novis-spreadsheet-underline/": {
-    "feature": "Novis\\Spreadsheet\\Underline",
-    "hash": "13b496c17b12aca1",
+  "/reference/types/novis-spreadsheet-style-underline/": {
+    "feature": "Novis\\Spreadsheet\\Style::Underline",
+    "hash": "1a57596ccdb426e9",
     "questions": [
       "How do I underline text in a spreadsheet cell?",
       "Double underline text in Excel",
@@ -17037,24 +17086,14 @@
       "Remove the underline from a cell style"
     ]
   },
-  "/reference/types/novis-spreadsheet-valign/": {
-    "feature": "Novis\\Spreadsheet\\Valign",
-    "hash": "78e36c85154cde0e",
+  "/reference/types/novis-spreadsheet-style-valign/": {
+    "feature": "Novis\\Spreadsheet\\Style::Valign",
+    "hash": "bbec2f28ca52ff5d",
     "questions": [
       "How do I align cell text to the top?",
       "Vertically center text in a spreadsheet cell",
       "Where is text placed vertically in a tall row by default?",
       "Vertical alignment with wrapped text in a row"
-    ]
-  },
-  "/reference/types/novis-spreadsheet-visibility/": {
-    "feature": "Novis\\Spreadsheet\\Visibility",
-    "hash": "011bddd260185d5c",
-    "questions": [
-      "How do I hide a sheet in an Excel workbook?",
-      "Make a sheet that a user cannot unhide in Excel",
-      "Is a hidden sheet secret?",
-      "Check if a sheet in an uploaded file is hidden"
     ]
   },
   "/reference/types/parseerror/": {
@@ -17977,7 +18016,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "815bb869b74c1e43",
+    "hash": "141062ad5d3e5cd6",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",

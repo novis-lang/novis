@@ -946,6 +946,7 @@ fn an_export_string_beginning_with_equals_is_a_text_cell() {
         vec![shape(vec![
             ("properties", shape(properties)),
             ("target", Value::String("orders.xlsx".to_owned())),
+            ("ods", Value::Bool(false)),
         ])],
     );
     let hostile = [

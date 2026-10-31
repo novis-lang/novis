@@ -1,5 +1,5 @@
 --TEST--
-A CSV file has one sheet, so a second `sheet` throws naming both sheets, the first sheet stays open, and a format other than `xlsx` or `csv` throws naming it: rule:core-classes/spreadsheet-has-no-io
+A CSV file has one sheet, so a second `sheet` throws naming both sheets, the first sheet stays open, and a format other than `xlsx`, `ods` or `csv` throws naming it: rule:core-classes/spreadsheet-has-no-io
 --FILE--
 <?nvs
 // covers: Novis\Spreadsheet\Workbook::sheet
@@ -24,7 +24,7 @@ bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
 echo $file as string;
 
 try {
-    Workbook::createInMemory({format: "ods"});
+    Workbook::createInMemory({format: "xls"});
     echo "not reached\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -34,4 +34,4 @@ A CSV file has one sheet, so the sheet `Totals` cannot be added. The file alread
 2 rows
 Widget,3
 Gadget,4
-The format `ods` is not supported. Use `xlsx` or `csv`.
+The format `xls` is not supported. Use `xlsx`, `ods` or `csv`.

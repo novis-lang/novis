@@ -284,7 +284,6 @@ final class Reader
         return Engine::readerHeader($this->engine(), $this->source, self::with($asked, $headerRow, $from, null, $asked->keepEmptyRows, false));
     }
 
-
     // Reads a CSV file one record at a time. Only the header row and the empty rows are kept out, and each row is numbered by its record.
     private function csvWalk(bool $findHeader, ?uint $headerRow, ?uint $from, ?uint $limit, array<string> $columns, bool $keepEmptyRows): Iterator<Row>
     {
