@@ -639,7 +639,7 @@ fn slotted(fills: &[(&str, &str)]) -> Value {
 #[test]
 fn a_slot_fill_is_drawn_in_its_cell_and_a_tall_one_is_reported() {
     run(|request, extension| {
-        let html = "<table><tbody><tr><td>Total</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
+        let html = "<table style=\"width: 100%\"><tbody><tr><td>Total</td><td><slot name=\"total\"></slot></td></tr></tbody></table>";
         let (whole, count) = render(request, extension, html, &[]).expect("it renders");
         assert_eq!(count, 1);
         let (body, _) = lay_out(request, extension, first(html, None)).expect("it lays out");

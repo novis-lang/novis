@@ -17,11 +17,11 @@ var $html = fn(string $style): string =>
 var $slots = fn(Page $page): array<Core\Html\Markup> =>
     ["total" => html`<style>body { font-size: 10pt }</style>1,234,567.89 EUR`];
 
-foreach (["", "width: 100%"] as string $style) {
-    var $rendered = Document::fromHtml($html($style))->slots($slots)->render();
-    var $name = $style === "" ? "no width" : $style;
-    echo $name, ": ", Core\Arr::count($rendered->overflows), " overflows\n";
-}
+var $overflows = fn(string $style): uint =>
+    Core\Arr::count(Document::fromHtml($html($style))->slots($slots)->render()->overflows);
+
+echo "no width: ", $overflows(""), " overflows\n";
+echo "width: 100%: ", $overflows("width: 100%"), " overflows\n";
 --EXPECT--
 no width: 1 overflows
 width: 100%: 0 overflows

@@ -10,7 +10,7 @@ for (int $day = 1; $day <= 60; $day++) {
     $rows .= "<tr data-mark=\"hours:{$hours}\"><td>Day {$day}</td><td>{$hours}</td></tr>";
 }
 var $html = '<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>'
-    . "<table><thead><tr><th>Day</th><th>Hours</th></tr></thead><tbody>{$rows}</tbody>"
+    . "<table style=\"width: 100%\"><thead><tr><th>Day</th><th>Hours</th></tr></thead><tbody>{$rows}</tbody>"
     . "<tfoot><tr><td>This page</td><td><slot name=\"page\"></slot></td></tr></tfoot></table>";
 
 // `marks` returns the values on this page only.

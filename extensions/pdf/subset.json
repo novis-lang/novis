@@ -23,7 +23,7 @@
     { "name": "word-break", "inherited": true, "example": "break-all", "description": "Where a line may break inside a word." },
     { "name": "overflow-wrap", "inherited": true, "example": "break-word", "description": "Breaks a word that is too long for its line." },
     { "name": "text-overflow", "inherited": false, "example": "ellipsis", "description": "Ends text that does not fit with `…`." },
-    { "name": "vertical-align", "inherited": false, "example": "middle", "description": "How an inline box or a table cell is placed vertically." },
+    { "name": "vertical-align", "inherited": false, "example": "middle", "description": "How an inline box or a table cell is placed vertically. A cell takes `top`, `middle`, `bottom` or `baseline`." },
     { "name": "direction", "inherited": true, "example": "rtl", "description": "Whether text runs from left to right or from right to left." },
     { "name": "unicode-bidi", "inherited": false, "example": "isolate", "description": "How a box mixes left-to-right and right-to-left text." },
     { "name": "hyphens", "inherited": true, "example": "auto", "description": "With `auto`, long words break with a hyphen, by the rules of the `lang` language." },
@@ -147,7 +147,7 @@
     { "name": "border-spacing", "inherited": true, "example": "2pt 4pt", "description": "The space between the borders of table cells that do not share one." },
     { "name": "caption-side", "inherited": true, "example": "bottom", "description": "Whether a table's caption is above or below it." },
     { "name": "empty-cells", "inherited": true, "example": "hide", "description": "Whether the borders and background of an empty cell are drawn." },
-    { "name": "table-layout", "inherited": false, "example": "fixed", "description": "With `fixed`, column widths come from the first row and the set widths only." },
+    { "name": "table-layout", "inherited": false, "example": "fixed", "description": "With `fixed`, column widths come from the first row and the set widths only. A table with no `width` ignores `fixed`." },
     { "name": "box-decoration-break", "inherited": false, "example": "slice", "description": "A box split across pages is cut, and its border is open where it continues." }
   ],
   "functions": [

@@ -1,6 +1,6 @@
 {
   "module": "extensions/pdf/src/layout/table.rs",
-  "title": "A PDF table places a page-tall `rowspan` piece whole, aligns every cell to the top, and draws no row or group background or border.",
-  "text": "Closing it splits a `rowspan` piece across pages, sizes a table without a `width` to its content, honours `vertical-align`, draws a row's and a group's own background and borders, puts a cell's `data-mark` and `string-set` on its own page, and lays out a `display: table` element in a row as a table (`rule:core-classes/pdf-tables-across-pages`).",
+  "title": "A PDF table sets a cell's `data-mark` and `string-set` on the table's first page.",
+  "text": "Closing it puts a cell's `data-mark` and `string-set` on the page its row is drawn on (`rule:core-classes/pdf-tables-across-pages`).",
   "goal": "extension-leftovers"
 }

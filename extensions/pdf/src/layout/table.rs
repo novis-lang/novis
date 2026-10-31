@@ -6,10 +6,12 @@
 //! way a flex item is. A cell directly in a table or a group is in a row of its own, and text
 //! directly in a table, a group or a row is left out. A `table-caption` is laid out at the
 //! table's content width, above the rows or under them by its `caption-side`, and only once.
-//! The table's box is as wide as a block box is, and a group's or a row's own box draws
-//! nothing.
+//! A `table` or `inline-table` directly in a table, a group or a row is in an anonymous cell of
+//! its own, with no style, as CSS 2.1 says.
 //!
-//! **Columns** are computed once for the whole table, so every page has the same ones. Each
+//! **Columns** are computed once for the whole table, so every page has the same ones. A table
+//! with a `width` is that wide. A table without one is as wide as its columns laid out
+//! unbroken, up to its containing block, and is laid out as `table-layout: auto`. Each
 //! column is as wide as the widest of its cells laid out unbroken, when the room allows, and
 //! the room left over is shared out by those widths. With less room, each column narrows from
 //! that width towards its narrowest cell broken at every chance. A cell over several columns
@@ -19,13 +21,22 @@
 //! content edge.
 //!
 //! **Rows.** A row is as tall as its tallest cell, and a `rowspan` cell taller than its rows
-//! makes the last of them taller. Each cell is drawn as tall as its rows. The rows are drawn in
+//! makes the last of them taller. Each cell is drawn as tall as its rows, and its
+//! `vertical-align` places its content in it: `top` (the default, and any other value),
+//! `middle`, `bottom`, or `baseline`, which puts the first line of each `baseline` cell of a
+//! row level with the lowest of them. The content moves down by more top padding, so the
+//! cell's box keeps its place. A row's background is drawn under its cells, and a group's
+//! under its rows, once on each page they are on. Their borders are drawn only under
+//! `border-collapse: collapse`, as CSS 2.1 says, and are not resolved against the cells'.
+//! The rows are drawn in
 //! this order: the header rows, the body rows in source order, then the footer rows. A body row
 //! is placed as one piece, so a row that fits on a page is never split, and rows a `rowspan`
 //! joins are one piece. A piece that does not fit under the last one, above the footer rows,
 //! goes on the next page.
 //!
-//! **A row taller than a page** starts where it is and splits between lines. Each of its cells
+//! **A piece taller than a page**, one row or the rows a `rowspan` joins, starts where it is and
+//! splits between lines. Each row starts under the one before it, on the page that row's own
+//! cells end on. Each of its cells
 //! is laid out again down pages of its own, the first as tall as the room left above the footer
 //! rows and each later one as tall as a page holds under the tallest header rows and above the
 //! tallest footer rows, so a cell breaks the way a block box does: between lines, keeping its
@@ -59,15 +70,14 @@
 //! together when they fit on a page and not under the last row, and split between rows when
 //! they do not fit on a page.
 //!
-//! **Not done yet.** A `rowspan` piece taller than a page is placed whole. A table without a
-//! `width` fills its containing block. A cell's `vertical-align` is always `top`. A row's and a
-//! group's own background and borders are not drawn. A `data-mark` or `string-set` inside a cell
-//! counts as on the first page. A `display: table` element directly in a row is a cell whose
-//! rows are block boxes (gap:nvs-pdf/pdf-table-leftovers).
+//! **Not done yet.** A `data-mark` or `string-set` inside a cell counts as on the first page
+//! (gap:nvs-pdf/pdf-table-leftovers).
 //!
 //! Cost: each cell is laid out once at each of its two content widths, once at its column
-//! width and once more when its row is taller or taller than a page. A repeated row's items are
-//! copied on each page.
+//! width and once more when its row is taller, taller than a page, or its `vertical-align` is
+//! not `top`. A table inside a box sized by its content, such as an `inline-block`, lays its
+//! cells out at their two content widths once more for each time that box is measured. A
+//! repeated row's items are copied on each page.
 
 use super::block::{BoxGeometry, Flow};
 use super::flex::fit;

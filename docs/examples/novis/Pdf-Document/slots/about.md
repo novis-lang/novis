@@ -15,5 +15,8 @@ The HTML uses its own styles, not the document's, and starts at the top-left cor
 The slot keeps the height of its row, so filling it never moves anything on the page. HTML too tall
 for its cell is cut off, and `Rendered::overflows` lists it with the slot name.
 
+A slot's cell is as wide as its column, and a table without a `width` is as wide as its content.
+Give the table a `width`, such as `width: 100%`, so the column has room for the HTML.
+
 **The examples below** carry a total forward in a table, add up the hours of each page, and find a
 fill that does not fit.

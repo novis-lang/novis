@@ -11,7 +11,7 @@ for (int $n = 1; $n <= 50; $n++) {
 // The `tfoot` rows repeat at the bottom of each page that the table is on.
 // `data-repeat="continued"` shows a row where the table goes on. `data-repeat="last"` shows it on the last page.
 var $html = '<style>@page { size: 105mm 148mm; margin: 10mm } body { font-size: 10pt }</style>'
-    . "<table><thead><tr><th>Item</th><th>EUR</th></tr></thead><tbody>{$rows}</tbody><tfoot>"
+    . "<table style=\"width: 100%\"><thead><tr><th>Item</th><th>EUR</th></tr></thead><tbody>{$rows}</tbody><tfoot>"
     . "<tr data-repeat=\"continued\"><td>Carried forward</td><td><slot name=\"carried\"></slot></td></tr>"
     . "<tr data-repeat=\"last\"><td>Total</td><td><slot name=\"total\"></slot></td></tr></tfoot></table>";
 

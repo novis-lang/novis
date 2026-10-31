@@ -7,6 +7,7 @@
   ],
   "guardedBy": [
     "extensions/pdf/tests/tables.rs",
-    "tests/conformance/novis/pdf-an-invoice-table-carries-forward.nvst"
+    "tests/conformance/novis/pdf-an-invoice-table-carries-forward.nvst",
+    "tests/conformance/novis/pdf-a-table-is-as-wide-as-its-content.nvst"
   ]
 }
