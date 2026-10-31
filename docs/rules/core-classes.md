@@ -4464,16 +4464,18 @@ component's ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-c
 ([`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals)), and so does a source that does not parse. A page number
 outside its document throws `LogicError` naming the page count. **A stream that decompresses past
 [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound) throws `ParseError`** in all three, naming the half of the
-bound that stopped it and the `[limits]` key that raises it. Each job is one call: `Reader::open`
-reads the count, the metadata and the attachments together, and `text` takes the bytes again with only
-the pages it asks for.
+bound that stopped it and the `[limits]` key that raises it. `Reader::open` reads the count, the
+metadata and the attachments in one call, and keeps the parsed file in the component as the WIT
+`reading` resource, which the request holds. Each `text` call reads that resource with only the
+pages it asks for, so the file crosses into the component once and is parsed once.
 
 These are the jobs a program does with the PDFs it receives and sends — attach the terms, put a
 letterhead under a letter, read back an uploaded invoice — and each was a reason to install a second
 tool. They live beside the writer because they return text and bytes, never pixels.
 
 - **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
-  holds its sources and the merged file at once.
+  holds its sources and the merged file at once. An open `Reader` holds its file and its
+  cross-reference table in the component until the request ends.
 
 **On disk.** The component places, merges and reads (`extensions/pdf/src/read.rs`,
 `extensions/pdf/src/merge.rs`, `extensions/pdf/src/layout/image.rs`), pinned by

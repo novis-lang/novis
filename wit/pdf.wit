@@ -146,7 +146,13 @@ interface engine {
         data: list<u8>,
     }
 
+    /// A PDF file `read` opened, kept by the request until it ends. Each
+    /// `read-text` call reads it, so the file crosses once and is parsed once.
+    resource reading;
+
+    /// The file `read` opened, and its page count, metadata and attachments.
     record pdf-info {
+        file: reading,
         page-count: u64,
         metadata: metadata,
         attachments: list<attachment>,
@@ -182,11 +188,13 @@ interface engine {
     /// `parse`.
     merge: func(parts: list<part>, bound: decompression-bound) -> result<list<u8>, error>;
 
-    /// The page count, metadata and attachments of a PDF.
+    /// Opens a PDF, and returns it with its page count, metadata and
+    /// attachments.
     read: func(data: list<u8>, bound: decompression-bound) -> result<pdf-info, error>;
 
-    /// The text of each page in `pages`, in the order the file stores it.
-    read-text: func(data: list<u8>, bound: decompression-bound, pages: list<u64>) -> result<list<string>, error>;
+    /// The text of each page in `pages` of the file `read` opened, in the
+    /// order the file stores it.
+    read-text: func(file: borrow<reading>, bound: decompression-bound, pages: list<u64>) -> result<list<string>, error>;
 }
 
 /// The PDF component: everything an extension may import, and `engine`.

@@ -36,7 +36,9 @@
 //! of it, and the request's end drops one left behind.
 //!
 //! `merge` is [`merge::merge`], and `read` and `read-text` are [`read::read`] and [`read::text`].
-//! Each opens existing PDFs and renders nothing (`merge`'s and `read`'s module docs).
+//! Each opens existing PDFs and renders nothing (`merge`'s and `read`'s module docs). `read`
+//! returns the parsed file as the WIT `reading` resource, which the request holds, and
+//! `read-text` borrows it.
 //!
 //! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 14.3 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for PDF,
@@ -50,9 +52,8 @@
 //! **Not done yet.** The table gaps are in `layout::table`'s module doc, and these are the rest
 //! (gap:nvs-pdf/pdf-leftovers):
 //!
-//! - `merge` costs about 64 ms and 4.4 MB for three small pages, `Reader::text` sends the whole
-//!   file across on every call, and `Page::string` lowercases the name it is given and not the
-//!   stored ones (`nvs/Page.nvs`).
+//! - `merge` costs about 64 ms and 4.4 MB for three small pages, and `Page::string` lowercases
+//!   the name it is given and not the stored ones (`nvs/Page.nvs`).
 //! - Pagination (`layout::margin`, `layout::inline`, `layout::text`): a `:left` or `:right` page
 //!   of another width than the first page of its name keeps that page's line widths, a margin
 //!   box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an
@@ -421,8 +422,8 @@ mod guest {
 
     use exports::nvs::pdf::engine::{
         Attachment, DecompressionBound, Document, DroppedItem, Error, FirstPass, FirstRender,
-        Guest, GuestKept, Kept, KeptBorrow, Margins, Metadata, MissingGlyph, NamedValue, Overflow,
-        PageFacts, Part, PdfInfo, Rendered, Standard,
+        Guest, GuestKept, GuestReading, Kept, KeptBorrow, Margins, Metadata, MissingGlyph,
+        NamedValue, Overflow, PageFacts, Part, PdfInfo, Reading, ReadingBorrow, Rendered, Standard,
     };
 
     struct Component;
@@ -432,6 +433,11 @@ mod guest {
     pub struct Body(RefCell<Option<crate::Kept>>);
 
     impl GuestKept for Body {}
+
+    /// The WIT `reading`: the file a `read` call opened, which each `read-text` call reads.
+    pub struct Opened(crate::read::Reading);
+
+    impl GuestReading for Opened {}
 
     fn named(pairs: Vec<(String, String)>) -> Vec<NamedValue> {
         pairs
@@ -524,6 +530,7 @@ mod guest {
 
     impl Guest for Component {
         type Kept = Body;
+        type Reading = Opened;
 
         fn render(document: Document) -> Result<Rendered, Error> {
             crate::render(&self::document(document))
@@ -578,9 +585,10 @@ mod guest {
         }
 
         fn read(data: Vec<u8>, bound: DecompressionBound) -> Result<PdfInfo, Error> {
-            let info = crate::read::read(data, decompression(bound)).map_err(error)?;
+            let (file, info) = crate::read::read(data, decompression(bound)).map_err(error)?;
             let meta = info.metadata;
             Ok(PdfInfo {
+                file: Reading::new(Opened(file)),
                 page_count: info.page_count,
                 metadata: Metadata {
                     title: meta.title,
@@ -600,11 +608,12 @@ mod guest {
         }
 
         fn read_text(
-            data: Vec<u8>,
+            file: ReadingBorrow<'_>,
             bound: DecompressionBound,
             pages: Vec<u64>,
         ) -> Result<Vec<String>, Error> {
-            crate::read::text(data, &pages, decompression(bound)).map_err(error)
+            let file = &file.get::<Opened>().0;
+            crate::read::text(file, &pages, decompression(bound)).map_err(error)
         }
     }
 

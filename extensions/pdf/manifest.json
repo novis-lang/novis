@@ -45,22 +45,22 @@
         {"name": "data", "type": "bytes"},
         {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"}
       ],
-      "returns": "{ pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }",
-      "help": "Reads the page count, the metadata and the attached files of a PDF file. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
+      "returns": "{ file: Reading, pageCount: uint, metadata: { title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string }, attachments: array<{ name: string, data: bytes }>, invoiceXml: ?string }",
+      "help": "Opens a PDF file. Returns the file for `readText`, and its page count, its metadata and its attached files. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
     },
     {
       "name": "readText",
       "params": [
-        {"name": "data", "type": "bytes"},
+        {"name": "file", "type": "Reading"},
         {"name": "bound", "type": "{ maxBytes: ?uint, maxRatio: ?uint }"},
         {"name": "pages", "type": "array<uint>"}
       ],
       "returns": "array<string>",
-      "help": "Returns the text of each page in `pages` of a PDF file. Pages count from 1. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
+      "help": "Returns the text of each page in `pages` of a file from `read`. Pages count from 1. Every stream in the file decompresses to at most `maxBytes` bytes, and to at most `maxRatio` times its compressed size. The server sets both from `[limits]`."
     }
   ],
   "enums": [
     {"name": "Standard", "owner": "Document", "cases": ["PdfA2b", "PdfA3b", "PdfUa1"], "help": "A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers."}
   ],
-  "resources": [{"name": "Kept"}]
+  "resources": [{"name": "Kept"}, {"name": "Reading"}]
 }

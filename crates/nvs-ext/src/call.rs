@@ -1399,7 +1399,7 @@ impl Live {
             Sent::Dynamic(args) => args,
             Sent::Typed(args) => {
                 return match (*args).call(&mut self.store, func).await {
-                    Ok(Ok(out)) => Ok(Got::Typed(out)),
+                    Ok(Ok(out)) => Ok(Got::Typed(Box::new(out))),
                     Ok(Err(err)) => Err(Failure::Error(err)),
                     Err(err) => Err(failure(&self.store, &err, at)),
                 };
@@ -1450,10 +1450,11 @@ impl Sent {
     }
 }
 
-/// What one call returned, in the form its [`Sent`] crossed in.
+/// What one call returned, in the form its [`Sent`] crossed in. A typed result is boxed, as a
+/// typed [`Sent`] is, because the largest is many times the size of a `Vec`.
 enum Got {
     Dynamic(Vec<Val>),
-    Typed(typed::Out),
+    Typed(Box<typed::Out>),
 }
 
 impl Got {

@@ -1,7 +1,8 @@
 //! Existing PDFs as `nvs-ext` sees the PDF component (`rule:core-classes/pdf-reader-and-merge`): a
 //! page of one is placed in an `<img>` and under every page as vector content, `merge` combines,
 //! selects, repeats and reorders pages, `read` returns the page count, the metadata and the
-//! attachments with the Factur-X XML, `read-text` returns a page's text, and an encrypted source
+//! attachments with the Factur-X XML and the file it opened, `read-text` returns a page's text of
+//! that file in the same request, and an encrypted source
 //! throws a parse error in each of them. Every PDF here is one the component rendered, and each
 //! result is checked by reading it back through the component.
 
@@ -12,9 +13,9 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_ext::builtin::PDF_CLASS;
-use nvs_ext::call::{Error, Failure, Host, Meter};
+use nvs_ext::call::{Error, Failure, Host, Meter, Request};
 use nvs_ext::convert::{Key, Value};
-use nvs_ext::load::Loader;
+use nvs_ext::load::{Extension, Loader};
 
 /// `future` polled on this thread until it finishes.
 fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -61,6 +62,16 @@ fn field(value: &Value, name: &str) -> Value {
 
 /// What the PDF component's `method` returns for `args`, in a request of its own.
 fn call(method: &str, args: Vec<Value>) -> Result<Value, Failure> {
+    in_request(|request, extension| {
+        block_on(request.call_values(extension, method, args))
+            .map(|value| value.expect("the export returns a value"))
+    })
+}
+
+/// What `calls` returns, given a request of its own and the PDF component.
+fn in_request<T>(
+    calls: impl FnOnce(&Request, &Extension) -> Result<T, Failure>,
+) -> Result<T, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -72,9 +83,9 @@ fn call(method: &str, args: Vec<Value>) -> Result<Value, Failure> {
         .extension()
         .expect("the PDF component compiles and checks");
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
-    let result = block_on(request.call_values(extension, method, args));
+    let result = calls(&request, extension);
     block_on(request.end()).expect("the request ends");
-    result.map(|value| value.expect("the export returns a value"))
+    result
 }
 
 /// The file `Engine::render` returns for `html` with `assets`, and `options` over no option.
@@ -155,10 +166,22 @@ fn read(data: Vec<u8>) -> Result<Value, Failure> {
     call("read", vec![Value::Bytes(data), unbounded()])
 }
 
+/// The text of `pages` of `data`: `read` opens the file, and `readText` reads the file `read`
+/// returned, in the same request.
 fn text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Failure> {
     let pages = list(pages.iter().copied().map(Value::Uint).collect());
-    let Value::Array(texts) = call("readText", vec![Value::Bytes(data), unbounded(), pages])?
-    else {
+    let texts = in_request(|request, extension| {
+        let info = block_on(request.call_values(
+            extension,
+            "read",
+            vec![Value::Bytes(data), unbounded()],
+        ))?
+        .expect("`read` returns a value");
+        let args = vec![field(&info, "file"), unbounded(), pages];
+        Ok(block_on(request.call_values(extension, "readText", args))?
+            .expect("`readText` returns a value"))
+    })?;
+    let Value::Array(texts) = texts else {
         panic!("`readText` returned no list");
     };
     Ok(texts

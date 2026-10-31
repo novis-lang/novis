@@ -52,7 +52,7 @@ world! {
     render_second(ResourceAny, Margins) -> Rendered;
     merge(Vec<Part>, DecompressionBound) -> Vec<u8>;
     read(Vec<u8>, DecompressionBound) -> PdfInfo;
-    read_text(Vec<u8>, DecompressionBound, Vec<u64>) -> Vec<String>;
+    read_text(ResourceAny, DecompressionBound, Vec<u64>) -> Vec<String>;
 }
 
 records! {
@@ -73,7 +73,7 @@ records! {
     DecompressionBound { max_bytes, max_ratio }
     Metadata { title, author, subject, keywords, creator, producer }
     Attachment { name, data }
-    PdfInfo { page_count, metadata, attachments, invoice_xml }
+    PdfInfo { file, page_count, metadata, attachments, invoice_xml }
 }
 
 enums! {

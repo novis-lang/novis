@@ -4,15 +4,20 @@
 //! (`rule:core-classes/decompression-bound`).
 
 use nvs_pdf::merge::Part;
-use nvs_pdf::read::{Bound, Info};
+use nvs_pdf::read::{Bound, Info, Reading};
 use nvs_pdf::{Asset, Document, Error, Instant, Options, Standard, render};
 
 fn read(data: Vec<u8>) -> Result<Info, Error> {
-    nvs_pdf::read::read(data, Bound::default())
+    nvs_pdf::read::read(data, Bound::default()).map(|(_, info)| info)
 }
 
+fn open(data: Vec<u8>) -> Result<Reading, Error> {
+    nvs_pdf::read::read(data, Bound::default()).map(|(file, _)| file)
+}
+
+/// The text of `pages` of `data`, through a reading opened for this call alone.
 fn text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Error> {
-    nvs_pdf::read::text(data, pages, Bound::default())
+    nvs_pdf::read::text(&open(data)?, pages, Bound::default())
 }
 
 fn merge(parts: Vec<Part>) -> Result<Vec<u8>, Error> {
@@ -55,6 +60,26 @@ fn the_text_of_a_render_reads_back_in_its_lines() {
     );
     let pages = text(data, &[1]).unwrap();
     assert_eq!(pages, ["Invoice from Shop\nTotal: 42.00 EUR"]);
+}
+
+#[test]
+fn text_reads_the_file_its_reading_holds() {
+    // The source bytes move into the reading, so every later call reads the reading's copy.
+    let shop = open(numbered(3)).unwrap();
+    let blog = open(rendered("<p>Blog post</p>", Options::default())).unwrap();
+    let page =
+        |file: &Reading, page: u64| nvs_pdf::read::text(file, &[page], Bound::default()).unwrap();
+    assert_eq!(page(&shop, 3), ["Shop page 3"]);
+    assert_eq!(page(&blog, 1), ["Blog post"]);
+    assert_eq!(page(&shop, 1), ["Shop page 1"]);
+    assert_eq!(
+        nvs_pdf::read::text(&shop, &[2, 2], Bound::default()).unwrap(),
+        ["Shop page 2", "Shop page 2"]
+    );
+    let Err(Error::Invalid(message)) = nvs_pdf::read::text(&blog, &[2], Bound::default()) else {
+        panic!("a page past the blog's one page was read");
+    };
+    assert!(message.contains("1 page"), "{message}");
 }
 
 #[test]
@@ -253,7 +278,9 @@ fn a_stream_past_the_decompression_bound_throws() {
         (ratio, "`[limits] max_decompression_ratio`"),
     ] {
         let jobs = [
-            nvs_pdf::read::text(data.clone(), &[1], bound).map(drop),
+            nvs_pdf::read::read(data.clone(), bound)
+                .and_then(|(file, _)| nvs_pdf::read::text(&file, &[1], bound))
+                .map(drop),
             nvs_pdf::merge::merge(
                 vec![Part {
                     data: data.clone(),

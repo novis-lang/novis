@@ -8,7 +8,7 @@ final class Reader
     type Attachment = { name: string, data: bytes };
 
     private function constructor(
-        private readonly bytes $pdf,
+        private readonly Reading $file,
         public readonly uint $pageCount,
         public readonly Metadata $metadata,
         private readonly array<Attachment> $files,
@@ -21,7 +21,7 @@ final class Reader
     public static function open(bytes $pdf): Reader
     {
         var $info = Engine::read($pdf, { maxBytes: null, maxRatio: null });
-        return new Reader($pdf, $info->pageCount, $info->metadata, $info->attachments, $info->invoiceXml);
+        return new Reader($info->file, $info->pageCount, $info->metadata, $info->attachments, $info->invoiceXml);
     }
 
     /// `attachments` returns the files attached to the PDF file, each with its name and its bytes.
@@ -39,8 +39,9 @@ final class Reader
 
     /// `text` returns the text of one page, in the order the file stores it. Pages count from 1.
     /// Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
+    /// The file is read from the reader, so a call does not copy it again.
     public function text(uint $page): string
     {
-        return Engine::readText($this->pdf, { maxBytes: null, maxRatio: null }, [$page])[0];
+        return Engine::readText($this->file, { maxBytes: null, maxRatio: null }, [$page])[0];
     }
 }

@@ -15,6 +15,10 @@
 //! parses and nests deeper than `factur_x`'s bound (`factur_x`'s module doc). The name tree is walked
 //! at most [`MAX_DEPTH`] levels deep, so a cycle in it ends.
 //!
+//! [`read`] also returns the parsed document as a [`Reading`], which the guest returns as the WIT
+//! `reading` resource. [`text`] reads that, so a reader's file crosses into the component once,
+//! and is parsed once, however many pages it reads.
+//!
 //! **Every job decodes under a [`Bound`]** (`rule:core-classes/decompression-bound`). [`under`]
 //! sets it on the thread for the job, and the repository's patched `hayro-syntax` stops each
 //! stream's decode once its output passes `min(compressed size × ratio, ceiling)`. That covers
@@ -150,13 +154,29 @@ pub fn index(page: u64, count: usize) -> Result<usize, Error> {
         })
 }
 
-/// The page count, metadata and attachments of the document `data`, decoded under `bound`.
-pub fn read(data: Vec<u8>, bound: Bound) -> Result<Info, Error> {
-    under(bound, || read_info(data, bound))
+/// The WIT `reading`: a document [`read`] opened, parsed once and kept for each [`text`] call.
+/// Memory: the file and its cross-reference table, per open reader.
+pub struct Reading(Pdf);
+
+impl std::fmt::Debug for Reading {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Reading")
+            .field("pages", &self.0.pages().len())
+            .finish_non_exhaustive()
+    }
 }
 
-fn read_info(data: Vec<u8>, bound: Bound) -> Result<Info, Error> {
-    let pdf = open(data)?;
+/// The document `data` opened for [`text`], with its page count, metadata and attachments,
+/// decoded under `bound`.
+pub fn read(data: Vec<u8>, bound: Bound) -> Result<(Reading, Info), Error> {
+    under(bound, || {
+        let pdf = open(data)?;
+        let info = read_info(&pdf, bound)?;
+        Ok((Reading(pdf), info))
+    })
+}
+
+fn read_info(pdf: &Pdf, bound: Bound) -> Result<Info, Error> {
     let meta = pdf.metadata();
     let decode = |field: &Option<Vec<u8>>| field.as_deref().map(text_string);
     let metadata = Metadata {
@@ -272,15 +292,14 @@ fn text_string(bytes: &[u8]) -> String {
     }
 }
 
-/// The text of each page in `pages`, counted from 1, of the document `data`, decoded under
+/// The text of each page in `pages`, counted from 1, of the document `file` holds, decoded under
 /// `bound`. A page outside the document returns `Invalid` naming the count, before any page is
 /// read.
-pub fn text(data: Vec<u8>, pages: &[u64], bound: Bound) -> Result<Vec<String>, Error> {
-    under(bound, || page_text(data, pages))
+pub fn text(file: &Reading, pages: &[u64], bound: Bound) -> Result<Vec<String>, Error> {
+    under(bound, || page_text(&file.0, pages))
 }
 
-fn page_text(data: Vec<u8>, pages: &[u64]) -> Result<Vec<String>, Error> {
-    let pdf = open(data)?;
+fn page_text(pdf: &Pdf, pages: &[u64]) -> Result<Vec<String>, Error> {
     let all = pdf.pages();
     let indices = pages
         .iter()
