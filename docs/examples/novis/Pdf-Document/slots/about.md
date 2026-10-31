@@ -1,22 +1,17 @@
 Sets a function that fills each `<slot name="...">` in a table, once for each page.
 
-A table that runs over several pages repeats its `thead` and `tfoot` rows on each page. A cell in
-one of those rows can hold `<slot name="carried"></slot>`. `render` calls the function once for each
-page, with that page as a `Page`. The function returns an array from slot name to an `html` template,
-and `render` draws each one in the cell of its slot on that page.
+A table over several pages repeats its `thead` and `tfoot` rows on each page. A cell in those rows
+can contain a `<slot>`. `render` calls your function once for each `Page`. The function returns an
+array that maps each slot name to an `html` template.
 
-Use it for a total carried forward, or a subtotal for each page. `$page->marksUpTo("amount")`
-returns the `data-mark="amount:..."` values up to this page, and `$page->marks("amount")` those on
-this page only.
+`$page->marksUpTo("amount")` returns the `data-mark="amount:..."` values up to this page.
+`$page->marks("amount")` returns those on this page only.
 
-The HTML uses its own styles, not the document's, and starts at the top-left corner of the cell. A
-`<style>` in the HTML can set its font size.
+A fill does not use the document's styles, so set its font size with a `<style>`. A slot never
+changes the height of its row. HTML that is too tall is cut off and listed in `Rendered::overflows`.
 
-The slot keeps the height of its row, so filling it never moves anything on the page. HTML too tall
-for its cell is cut off, and `Rendered::overflows` lists it with the slot name.
+A table without a `width` is as wide as its content. Give it one, such as `width: 100%`, so the
+slot's column has room.
 
-A slot's cell is as wide as its column, and a table without a `width` is as wide as its content.
-Give the table a `width`, such as `width: 100%`, so the column has room for the HTML.
-
-**The examples below** carry a total forward in a table, add up the hours of each page, and find a
-fill that does not fit.
+**The examples below** carry a total forward, add up the hours of each page, and find a fill that
+does not fit.

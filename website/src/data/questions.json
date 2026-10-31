@@ -9388,7 +9388,7 @@
   },
   "/reference/core/novis-pdf-document/slots/": {
     "feature": "Novis\\Pdf\\Document::slots",
-    "hash": "ea536a5b0a6d7aca",
+    "hash": "738edb776045fda2",
     "questions": [
       "Carry a total forward in a table that spans pages",
       "Fill a cell in the repeated table header on each page",
