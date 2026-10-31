@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { newestNvs } from "../lib/nvs-binary.ts";
 import { ROOT } from "../lib/paths.ts";
 import { Browser, EXE } from "./chromium.ts";
@@ -20,7 +20,9 @@ import { Browser, EXE } from "./chromium.ts";
 // Each test has its own browser context, so its cookies, service worker and authenticator are its own.
 // A step ends on a page condition, polled, with a bound that only names a stuck step.
 
-const NVS = process.env.NVS_BIN || newestNvs();
+// A relative `NVS_BIN`, as CI gives, is resolved from the repository root, because `serve` runs the
+// binary from inside the registry's copy.
+const NVS = process.env.NVS_BIN ? resolve(ROOT, process.env.NVS_BIN) : newestNvs();
 const DIR = join(ROOT, ".agent-tmp", `registry-copy-${process.pid}`);
 const APP = join(DIR, "registry");
 const enc = new TextEncoder();
