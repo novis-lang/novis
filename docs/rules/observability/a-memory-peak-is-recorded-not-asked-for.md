@@ -29,8 +29,9 @@ surface. Bounding one section of a program is what `Core\Debug`'s probes are for
 
 **Memory:** one `isize` per thread and one per `Ctx`, the saved enclosing mark. Nothing per process,
 nothing that grows with requests served, and nothing that outlives a request. On the request path the
-update is one thread-local read and a well-predicted branch inside a branch that already exists; the
-ABI probe's perf guards measure that cost rather than assert it.
+update is one load from the counter struct the allocation has already looked up, and a well-predicted
+branch inside a branch that already exists; the ABI probe's perf guards measure that cost rather than
+assert it.
 
 **Declined:**
 - **Leaving the peak to `Core\Debug`'s profiler.** A profiler answers "where did this go" for a

@@ -63,8 +63,8 @@
 //! charged their own bytes, and only the one past its own limit stops
 //! (`rule:security/isolate-shares-nothing`, `rule:errors/on-limit`). The
 //! ceiling, the mark and the refusal's figure are read in the same units, and
-//! the allocation path is unchanged: [`CEILING`] is stored against the
-//! thread's [`LIVE`], and moves with the offset at each resume.
+//! the allocation path is unchanged: the ceiling is stored against the
+//! thread's live balance, and moves with the offset at each resume.
 //!
 //! A task is in its tree's units from its first turn to its end, whatever
 //! context it makes inline. A context running off its tree's root core has no
@@ -194,11 +194,14 @@
 //! you spend*: the counter cells below, one set per thread — never per request,
 //! and never growing with requests served — plus one `isize` on each
 //! [`Ctx`](crate::Ctx) for the mark it displaced, which
-//! `rule:observability/a-memory-peak-is-recorded-not-asked-for` states. On the
-//! allocation path it is a thread-local read-modify-write of the live balance
-//! per `dealloc`, and of each memory counter per `alloc` — the high-water mark
-//! a compare that stores only when it moves. Each is a register-relative load, an add
-//! and a store against a `const`-initialized cell. Together they are a part of
+//! `rule:observability/a-memory-peak-is-recorded-not-asked-for` states. The
+//! cells an allocation touches are one `const`-initialized struct,
+//! [`Counters`], so an allocation and a free each look the thread's storage up
+//! once, and every cell they read sits in its first 64 bytes. On the
+//! allocation path it is a read-modify-write of the live balance per
+//! `dealloc`, and of each memory counter per `alloc` — the high-water mark a
+//! compare that stores only when it moves. Each is a load, an add and a store
+//! at a fixed offset from that one lookup. Together they are a part of
 //! a pooled round trip and a small fraction of a platform heap one, and
 //! `the_memory_mark_stays_small_beside_the_allocation_it_fronts` in
 //! `benches/abi-probe/tests/perf_guards.rs` holds the second against a bound. It
@@ -207,17 +210,18 @@
 //!
 //! The ceiling above it is three more cells of the same set — the threshold,
 //! the address a crossing publishes into, and the bit a refusal is remembered
-//! in — and on the allocation path one thread-local load and one compare per
-//! *growing* allocation. A request under no ceiling arms `0` and stops at that
+//! in — and on the allocation path one load from [`Counters`] and one compare
+//! per *growing* allocation. A request under no ceiling arms `0` and stops at that
 //! compare, which is why the sentinel is zero rather than a maximum: the
 //! uncapped case is the one that must stay shortest. [`affords`] is one more
 //! load and an add, paid only by an allocator that asks it, and each
 //! [`Ctx`](crate::Ctx) carries the bit it displaced beside the threshold it
 //! displaced.
 //!
-//! The accounting boundary is two more cells of that set and one predictable
-//! branch per allocation, taken by the store that opened a bracket and by
-//! nothing else.
+//! The accounting boundary is three more fields of [`Counters`] and one
+//! predictable branch per allocation, taken by the store that opened a bracket
+//! and by nothing else. The flag sits among the fields every allocation
+//! reads, and the detached balance and its mark after them.
 //!
 //! [`OffCore`] is two words per request *tree*, inside an allocation the tree
 //! already makes, plus one relaxed load per reading taken on its root core and
@@ -230,7 +234,7 @@
 //!
 //! A memory `FATAL` reports the peak, through
 //! [`Ctx::memory_held`](crate::Ctx), and it adds no cell and no work on the
-//! allocation path: the mark it reads is the one [`PEAK`] already keeps.
+//! allocation path: the mark it reads is the one [`Counters`] already keeps.
 //! Before a breach the request was under its ceiling, so the mark since its
 //! context began is also the mark since the breach. The read happens only
 //! once a poll has found the breach. A debug build also checks each member
@@ -262,21 +266,89 @@ use crate::alloc::Pooled as Backing;
 #[cfg(all(not(test), any(debug_assertions, feature = "sanitizer")))]
 use std::alloc::System as Backing;
 
+/// The cells every allocation and every free on this thread reads or writes,
+/// in one thread-local so the allocation path looks the thread's storage up
+/// once.
+///
+/// `#[repr(C)]` so the order below is the layout: the cells an ordinary
+/// allocation touches come first and sit inside the first 64 bytes, which
+/// [`HOT_SPAN`] asserts, and the two a [`Detached`] bracket alone moves
+/// follow. `gauge`'s marks live here too, because the allocation path
+/// compares against them on every call.
+#[repr(C)]
+#[derive(Debug)]
+struct Counters {
+    /// How many bytes this thread has allocated and not yet freed.
+    live: Cell<isize>,
+    /// [`live`](Counters::live) at this thread's last publish into its gauge.
+    live_mark: Cell<isize>,
+    /// The highest [`live`](Counters::live) has reached since the innermost
+    /// live [`Ctx`](crate::Ctx) rebased this mark —
+    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for`'s recorded
+    /// high-water mark. It moves in [`carry`], inside the branch that already
+    /// tests for a positive delta, rather than being sampled by whoever asks:
+    /// deterministic release means a spike is gone by the time a reader
+    /// arrives, and the spike is what the mark exists for.
+    peak: Cell<isize>,
+    /// The [`live`](Counters::live) balance the running request may not pass,
+    /// or `0` for one under no ceiling.
+    ///
+    /// `rule:errors/on-limit`'s memory limit as an **absolute** balance rather
+    /// than as the request's own reading, so that the compare in [`carry`]
+    /// subtracts nothing first. [`Ctx::refresh_limits`](crate::Ctx) is the one
+    /// pass that computes the ceiling and [`arm`] the one writer of this, but
+    /// for [`credit_turn`], which moves it with [`FOREIGN`] so the ceiling in
+    /// the tree's own units stays where it is.
+    ceiling: Cell<isize>,
+    /// Monotonic: how many allocation requests this thread has made.
+    requests: Cell<usize>,
+    /// Monotonic: how many bytes those requests asked for.
+    total: Cell<usize>,
+    /// Whether this thread is inside a [`Detached`] bracket, where an
+    /// allocation is the process's rather than the running request's.
+    detaching: Cell<bool>,
+    /// The balance a [`Detached`] bracket moves in place of
+    /// [`live`](Counters::live): how many bytes this thread has allocated on
+    /// the process's behalf and not yet given back.
+    ///
+    /// Signed for the live balance's reason, and more plainly so — a store
+    /// filled by a request on one core and emptied by a request on another is
+    /// the ordinary case for cross-request state rather than the exception it
+    /// is for a request's own values.
+    detached: Cell<isize>,
+    /// [`detached`](Counters::detached) at this thread's last publish.
+    detached_mark: Cell<isize>,
+}
+
+impl Counters {
+    const fn new() -> Self {
+        Self {
+            live: Cell::new(0),
+            live_mark: Cell::new(0),
+            peak: Cell::new(0),
+            ceiling: Cell::new(0),
+            requests: Cell::new(0),
+            total: Cell::new(0),
+            detaching: Cell::new(false),
+            detached: Cell::new(0),
+            detached_mark: Cell::new(0),
+        }
+    }
+}
+
+/// How far into [`Counters`] the cells an ordinary allocation touches reach.
+/// Held to one 64-byte line.
+const HOT_SPAN: usize =
+    std::mem::offset_of!(Counters, detaching) + std::mem::size_of::<Cell<bool>>();
+const _: () = assert!(HOT_SPAN <= 64);
+
 thread_local! {
     /// Const-initialized and holding no `Drop` type, for `crate::alloc`'s
     /// *one trap*: a lazily-initialized thread local allocates its own state
     /// from inside the allocator.
-    static LIVE: Cell<isize> = const { Cell::new(0) };
-    /// The highest [`LIVE`] has reached since the innermost live
-    /// [`Ctx`](crate::Ctx) rebased this mark —
-    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for`'s recorded
-    /// high-water mark. It moves in [`add`], inside the branch that already
-    /// tests for a positive delta, rather than being sampled by whoever asks:
-    /// deterministic release means a spike is gone by the time a reader
-    /// arrives, and the spike is what the mark exists for.
-    static PEAK: Cell<isize> = const { Cell::new(0) };
-    /// How far [`LIVE`] stands from the running tree's own balance: the
-    /// module doc's *per request tree across switches*. [`live_bytes`]
+    static COUNTERS: Counters = const { Counters::new() };
+    /// How far the thread's live balance stands from the running tree's own
+    /// balance: the module doc's *per request tree across switches*. [`live_bytes`]
     /// subtracts it, and [`ArmedStack`] carries it with the stack.
     static FOREIGN: Cell<isize> = const { Cell::new(0) };
     /// The request tree whose turn the running stack is, or `None` on a stack
@@ -289,29 +361,15 @@ thread_local! {
     /// drop after its last. Never read by the allocator, which is what lets it
     /// hold a type with `Drop`.
     static TURN: Cell<Option<std::sync::Arc<crate::TreeState>>> = const { Cell::new(None) };
-    /// Monotonic: how many allocation requests this thread has made.
-    static REQUESTS: Cell<usize> = const { Cell::new(0) };
-    /// Monotonic: how many bytes those requests asked for.
-    static TOTAL: Cell<usize> = const { Cell::new(0) };
     /// Monotonic: how many bytes this thread has written to a request's output
     /// sink — the module doc's second counter.
     static WRITTEN: Cell<usize> = const { Cell::new(0) };
-    /// The [`LIVE`] balance the running request may not pass, or `0` for one
-    /// under no ceiling.
-    ///
-    /// `rule:errors/on-limit`'s memory limit as an **absolute** balance rather
-    /// than as the request's own reading, so that the compare in [`add`]
-    /// subtracts nothing first. [`Ctx::refresh_limits`](crate::Ctx) is the one
-    /// pass that computes the ceiling and [`arm`] the one writer of this, but
-    /// for [`credit_turn`], which moves it with [`FOREIGN`] so the ceiling in
-    /// the tree's own units stays where it is.
-    static CEILING: Cell<isize> = const { Cell::new(0) };
-    /// The safepoint word the request that armed [`CEILING`] polls, or null
+    /// The safepoint word the request that armed the ceiling polls, or null
     /// where nothing is armed.
     ///
     /// Read by an allocation that has already crossed the ceiling and by
     /// nothing else, which is why it is a second cell rather than a field
-    /// beside the threshold: the ordinary path loads [`CEILING`] alone.
+    /// beside the threshold: the ordinary path loads the ceiling alone.
     static POLLED: Cell<*const std::sync::atomic::AtomicU64> =
         const { Cell::new(std::ptr::null()) };
     /// The first allocation this thread's running request was refused, or
@@ -320,23 +378,11 @@ thread_local! {
     /// Per thread because the allocators that hit a refusal hold no
     /// [`Ctx`](crate::Ctx) to record it on, and confined to one request because
     /// the context that is refused displaces this cell exactly as it displaces
-    /// [`CEILING`].
+    /// the ceiling.
     static REFUSED: Cell<Option<Refusal>> = const { Cell::new(None) };
     /// Whether this thread is inside `rule:errors/on-limit`'s reserve, where
     /// [`affords`] answers without asking the balance — see [`Reporting`].
     static REPORTING: Cell<bool> = const { Cell::new(false) };
-    /// Whether this thread is inside a [`Detached`] bracket, where an
-    /// allocation is the process's rather than the running request's.
-    static DETACHING: Cell<bool> = const { Cell::new(false) };
-    /// The balance a [`Detached`] bracket moves in place of [`LIVE`]: how many
-    /// bytes this thread has allocated on the process's behalf and not yet
-    /// given back.
-    ///
-    /// Signed for [`LIVE`]'s reason, and more plainly so — a store filled by a
-    /// request on one core and emptied by a request on another is the ordinary
-    /// case for cross-request state rather than the exception it is for a
-    /// request's own values.
-    static DETACHED: Cell<isize> = const { Cell::new(0) };
 }
 
 /// `rule:errors/on-limit`'s reserve, open for as long as this value lives: the
@@ -395,13 +441,13 @@ impl Detached {
     /// Opens the bracket, and answers the guard that closes it again.
     #[must_use]
     pub fn begin() -> Self {
-        Self(DETACHING.with(|open| open.replace(true)))
+        Self(COUNTERS.with(|c| c.detaching.replace(true)))
     }
 }
 
 impl Drop for Detached {
     fn drop(&mut self) {
-        DETACHING.with(|open| open.set(self.0));
+        COUNTERS.with(|c| c.detaching.set(self.0));
     }
 }
 
@@ -519,8 +565,8 @@ impl Armed {
 /// to a context that is still running, on the stack the thread is running.
 ///
 /// `next.ceiling` is in the running stack's own units, as [`live_bytes`] is,
-/// and [`CEILING`] is stored against the thread's [`LIVE`] so the compare in
-/// [`carry`] subtracts nothing. A threshold that lands on the `0` sentinel is
+/// and the ceiling is stored against the thread's live balance so the compare
+/// in [`carry`] subtracts nothing. A threshold that lands on the `0` sentinel is
 /// moved one byte up, so a capped request never reads as uncapped.
 pub(crate) fn arm(next: Armed) {
     let ceiling = if next.ceiling == 0 {
@@ -531,7 +577,7 @@ pub(crate) fn arm(next: Armed) {
             raw => raw,
         }
     };
-    CEILING.with(|cell| cell.set(ceiling));
+    COUNTERS.with(|c| c.ceiling.set(ceiling));
     POLLED.with(|polled| polled.set(next.word));
 }
 
@@ -569,9 +615,9 @@ pub(crate) fn displace(next: Armed) -> Armed {
 /// displaced on that stack, which is nothing.
 ///
 /// It also carries the stack's share of the balance: the tree whose turn it
-/// is ([`TURN`]), its [`FOREIGN`] offset and its [`PEAK`] mark. The module
-/// doc's *per request tree across switches* is what they are for. [`LIVE`]
-/// itself stays the thread's, because the core's gauge publishes it.
+/// is ([`TURN`]), its [`FOREIGN`] offset and its high-water mark. The module
+/// doc's *per request tree across switches* is what they are for. The live
+/// balance itself stays the thread's, because the core's gauge publishes it.
 /// [`WRITTEN`] stays on the thread too: output is the tree's budget, and a
 /// tree's tasks share one core.
 ///
@@ -610,7 +656,7 @@ impl ArmedStack {
                 .store(balance, std::sync::atomic::Ordering::Relaxed);
             settle_idle(tree, balance);
         }
-        let live = LIVE.with(Cell::get);
+        let live = thread_live_bytes();
         let taken = Self {
             armed: displace(Armed::NONE),
             refused: take_refusal(),
@@ -619,7 +665,7 @@ impl ArmedStack {
             foreign: FOREIGN.with(|cell| cell.replace(0)),
             peak: 0,
         };
-        let peak = PEAK.with(|cell| cell.replace(live));
+        let peak = COUNTERS.with(|c| c.peak.replace(live));
         Self {
             peak: peak.wrapping_sub(taken.foreign),
             ..taken
@@ -634,7 +680,7 @@ impl ArmedStack {
     /// the task left.
     pub fn restore(self) {
         self.resume();
-        PEAK.with(|cell| cell.set(cell.get().max(LIVE.with(Cell::get))));
+        COUNTERS.with(|c| c.peak.set(c.peak.get().max(c.live.get())));
     }
 
     /// Puts back what [`take`](ArmedStack::take) answered, in the units of
@@ -654,7 +700,7 @@ impl ArmedStack {
         arm(self.armed);
         restore_refusal(self.refused);
         REPORTING.with(|open| open.set(self.reporting));
-        PEAK.with(|cell| cell.set(self.peak.wrapping_add(foreign)));
+        COUNTERS.with(|c| c.peak.set(self.peak.wrapping_add(foreign)));
     }
 
     /// Whether the stack this came off had a safepoint word armed.
@@ -671,8 +717,7 @@ impl ArmedStack {
 /// The [`FOREIGN`] offset that puts this thread in `tree`'s units: its
 /// balance as the last turn left it is what [`live_bytes`] reads next.
 fn enter(tree: &crate::TreeState) -> isize {
-    LIVE.with(Cell::get)
-        .wrapping_sub(tree.balance.load(std::sync::atomic::Ordering::Relaxed))
+    thread_live_bytes().wrapping_sub(tree.balance.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 /// Starts a turn of `tree` on a stack that runs no tree yet: a task's first
@@ -725,8 +770,8 @@ pub(crate) fn running_turn() -> *const crate::TreeState {
     })
 }
 
-/// Takes `bytes` off the running tree's balance and leaves the thread's
-/// [`LIVE`] where it is.
+/// Takes `bytes` off the running tree's balance and leaves the thread's live
+/// balance where it is.
 ///
 /// For bytes this turn allocated that another tree's last turn frees: a
 /// context a spawn hands to a task of its own tree
@@ -736,11 +781,11 @@ pub(crate) fn running_turn() -> *const crate::TreeState {
 /// balance moves.
 pub(crate) fn credit_turn(bytes: isize) {
     FOREIGN.with(|cell| cell.set(cell.get().wrapping_add(bytes)));
-    PEAK.with(|cell| cell.set(cell.get().wrapping_add(bytes)));
-    CEILING.with(|cell| {
-        let raw = cell.get();
+    COUNTERS.with(|c| {
+        c.peak.set(c.peak.get().wrapping_add(bytes));
+        let raw = c.ceiling.get();
         if raw != 0 {
-            cell.set(match raw.saturating_add(bytes) {
+            c.ceiling.set(match raw.saturating_add(bytes) {
                 0 => 1,
                 moved => moved,
             });
@@ -749,7 +794,7 @@ pub(crate) fn credit_turn(bytes: isize) {
 }
 
 /// Moves `bytes` the running turn just allocated onto `tree`, a tree parked on
-/// this core, and leaves the thread's [`LIVE`] where it is.
+/// this core, and leaves the thread's live balance where it is.
 ///
 /// For a copy one tree makes and another frees: a topic delivery, queued on a
 /// subscriber's [`Inbox`](crate::Inbox) by the publisher's turn. The running
@@ -1018,7 +1063,7 @@ pub(crate) fn restore_refusal(refused: Option<Refusal>) {
 #[must_use]
 #[inline]
 pub fn live_bytes() -> isize {
-    LIVE.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
+    thread_live_bytes().wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// How many bytes this thread has allocated and not yet freed, whatever task
@@ -1029,7 +1074,7 @@ pub fn live_bytes() -> isize {
 /// on one core hold together.
 #[must_use]
 pub fn thread_live_bytes() -> isize {
-    LIVE.with(Cell::get)
+    COUNTERS.with(|c| c.live.get())
 }
 
 /// How many bytes this thread has allocated inside a [`Detached`] bracket and
@@ -1042,7 +1087,7 @@ pub fn thread_live_bytes() -> isize {
 /// `Core\Cache::memory()`.
 #[must_use]
 pub fn detached_bytes() -> isize {
-    DETACHED.with(Cell::get)
+    COUNTERS.with(|c| c.detached.get())
 }
 
 /// The highest [`live_bytes`] has reached since the innermost live
@@ -1057,7 +1102,9 @@ pub fn detached_bytes() -> isize {
 /// balance.
 #[must_use]
 pub fn peak_bytes() -> isize {
-    PEAK.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
+    COUNTERS
+        .with(|c| c.peak.get())
+        .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// Starts a fresh mark at the current balance, and hands back the one it
@@ -1068,8 +1115,8 @@ pub fn peak_bytes() -> isize {
 /// carries the enclosing value, so it measures its own allocation and no
 /// caller's.
 pub(crate) fn rebase_peak() -> isize {
-    let base = LIVE.with(Cell::get);
-    PEAK.with(|peak| peak.replace(base))
+    COUNTERS
+        .with(|c| c.peak.replace(c.live.get()))
         .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
@@ -1079,8 +1126,7 @@ pub(crate) fn rebase_peak() -> isize {
 /// [`Ctx::rebase_memory`](crate::Ctx::rebase_memory)'s half: the context's
 /// baseline moves, so the mark it measures from moves with it.
 pub(crate) fn restart_peak() {
-    let base = LIVE.with(Cell::get);
-    PEAK.with(|peak| peak.set(base));
+    COUNTERS.with(|c| c.peak.set(c.live.get()));
 }
 
 /// Restores `enclosing` as the mark, keeping whichever of the two is higher.
@@ -1090,7 +1136,7 @@ pub(crate) fn restart_peak() {
 /// request that spawned it.
 pub(crate) fn publish_peak(enclosing: isize) {
     let enclosing = enclosing.saturating_add(FOREIGN.with(Cell::get));
-    PEAK.with(|peak| peak.set(peak.get().max(enclosing)));
+    COUNTERS.with(|c| c.peak.set(c.peak.get().max(enclosing)));
 }
 /// How many allocation requests this thread has made, never decreasing.
 ///
@@ -1100,7 +1146,7 @@ pub(crate) fn publish_peak(enclosing: isize) {
 /// before it returns balances to zero and still made the allocation.
 #[must_use]
 pub fn allocations() -> usize {
-    REQUESTS.with(Cell::get)
+    COUNTERS.with(|c| c.requests.get())
 }
 
 /// How many bytes this thread has ever allocated, never decreasing.
@@ -1110,7 +1156,7 @@ pub fn allocations() -> usize {
 /// everything" from "never ran".
 #[must_use]
 pub fn allocated_bytes() -> usize {
-    TOTAL.with(Cell::get)
+    COUNTERS.with(|c| c.total.get())
 }
 
 /// Takes `bytes` off [`allocated_bytes`]'s total: what a debug build allocates
@@ -1119,7 +1165,7 @@ pub fn allocated_bytes() -> usize {
 /// balance keeps them, because they are held, so a ceiling still sees them.
 #[cfg(debug_assertions)]
 pub(crate) fn uncount_debug_bytes(bytes: usize) {
-    TOTAL.with(|total| total.set(total.get().saturating_sub(bytes)));
+    COUNTERS.with(|c| c.total.set(c.total.get().saturating_sub(bytes)));
 }
 
 /// How many freed blocks this thread's allocator cache holds for a request of
@@ -1181,7 +1227,7 @@ pub(crate) fn wrote(bytes: usize) {
 /// parks reads the same threshold when it resumes.
 #[must_use]
 pub fn armed_ceiling() -> isize {
-    match CEILING.with(Cell::get) {
+    match COUNTERS.with(|c| c.ceiling.get()) {
         0 => 0,
         raw => raw.wrapping_sub(FOREIGN.with(Cell::get)),
     }
@@ -1208,18 +1254,22 @@ pub fn armed_ceiling() -> isize {
 /// [`Detached`] bracket, whose bytes are not the request's to be refused.
 #[must_use]
 pub fn affords(bytes: usize) -> bool {
-    let ceiling = CEILING.with(Cell::get);
-    if ceiling == 0 {
+    let Some((ceiling, live)) = COUNTERS.with(|c| {
+        let ceiling = c.ceiling.get();
+        if ceiling == 0 || c.detaching.get() {
+            return None;
+        }
+        Some((ceiling, c.live.get()))
+    }) else {
         return true;
-    }
-    if REPORTING.with(Cell::get) || DETACHING.with(Cell::get) {
+    };
+    if REPORTING.with(Cell::get) {
         return true;
     }
     // Saturating in the direction that refuses: an ask too large to count in
     // the balance's own type is one no request can afford, so it must not wrap
     // into a number that fits.
     let ask = isize::try_from(bytes).unwrap_or(isize::MAX);
-    let live = LIVE.with(Cell::get);
     if live.saturating_add(ask) <= ceiling {
         return true;
     }
@@ -1240,11 +1290,12 @@ pub fn affords(bytes: usize) -> bool {
 /// [`Detached`].
 #[must_use]
 pub fn headroom() -> Option<usize> {
-    let ceiling = CEILING.with(Cell::get);
-    if ceiling == 0 || REPORTING.with(Cell::get) || DETACHING.with(Cell::get) {
+    let (ceiling, detaching, live) =
+        COUNTERS.with(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
+    if ceiling == 0 || REPORTING.with(Cell::get) || detaching {
         return None;
     }
-    Some(usize::try_from(ceiling.saturating_sub(LIVE.with(Cell::get))).unwrap_or(0))
+    Some(usize::try_from(ceiling.saturating_sub(live)).unwrap_or(0))
 }
 
 /// Whether the running request now holds more than its ceiling.
@@ -1256,11 +1307,9 @@ pub fn headroom() -> Option<usize> {
 /// [`Ctx::memory_breach`](crate::Ctx::memory_breach)'s to write.
 #[must_use]
 pub fn over_ceiling() -> bool {
-    let ceiling = CEILING.with(Cell::get);
-    ceiling != 0
-        && !REPORTING.with(Cell::get)
-        && !DETACHING.with(Cell::get)
-        && LIVE.with(Cell::get) > ceiling
+    let (ceiling, detaching, live) =
+        COUNTERS.with(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
+    ceiling != 0 && !REPORTING.with(Cell::get) && !detaching && live > ceiling
 }
 
 /// The bytes [`ByteWriter::read_from`] takes from its reader in one read.
@@ -1434,10 +1483,13 @@ impl std::io::Write for ByteWriter {
 /// Out of line from [`add`] because both of its balances move them: which
 /// balance a delta lands on is a question of attribution, and whether the
 /// thread allocated is not.
-fn record(bytes: isize) {
-    REQUESTS.with(|count| count.set(count.get().wrapping_add(1)));
+#[inline]
+fn record(counters: &Counters, bytes: isize) {
+    counters
+        .requests
+        .set(counters.requests.get().wrapping_add(1));
     let grew = usize::try_from(bytes).unwrap_or(0);
-    TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
+    counters.total.set(counters.total.get().wrapping_add(grew));
 }
 
 /// Charges `bytes` to this thread's counters — negative for a release.
@@ -1445,20 +1497,24 @@ fn record(bytes: isize) {
 /// `pub(crate)`, and called from [`Accounting`] below and from
 /// `counting_alloc`'s own arithmetic in a test build. A positive delta is one
 /// allocation *request*, which is why the memory counters move together here
-/// rather than at each allocating call site — [`PEAK`] among them, so the
-/// mark is exact for every allocation rather than approximate between two
-/// reads. A release moves the balance and nothing else: bytes given back
+/// rather than at each allocating call site — the high-water mark among them,
+/// so the mark is exact for every allocation rather than approximate between
+/// two reads. A release moves the balance and nothing else: bytes given back
 /// cannot raise a high-water mark, and the branch is the one the monotonic
 /// counters already needed.
 ///
 /// Inside a [`Detached`] bracket the delta lands on the process's balance
 /// instead, and every question this asks of the request — its mark, its
 /// ceiling — is one the bytes are not the request's to answer.
+///
+/// It looks the thread's [`Counters`] up once and hands them to both halves.
 pub(crate) fn add(bytes: isize) {
-    if bytes > 0 {
-        record(bytes);
-    }
-    carry(bytes);
+    COUNTERS.with(|counters| {
+        if bytes > 0 {
+            record(counters, bytes);
+        }
+        shift(counters, bytes);
+    });
 }
 
 /// Moves `bytes` onto this thread's balance without counting an allocation —
@@ -1475,41 +1531,40 @@ pub(crate) fn add(bytes: isize) {
 /// because the bytes are this thread's to hold from here on;
 /// `nvs_host::blocking::run` is the caller.
 pub fn carry(bytes: isize) {
-    if DETACHING.with(Cell::get) {
-        let held = DETACHED.with(|held| {
-            let now = held.get().wrapping_add(bytes);
-            held.set(now);
-            now
-        });
-        if gauge::far_from(held, &gauge::DETACHED_MARK) {
+    COUNTERS.with(|counters| shift(counters, bytes));
+}
+
+/// [`carry`] on counters the caller has already looked up: [`add`] and
+/// [`carry`] each take [`COUNTERS`] once and pass them here.
+#[inline]
+fn shift(counters: &Counters, bytes: isize) {
+    if counters.detaching.get() {
+        let held = counters.detached.get().wrapping_add(bytes);
+        counters.detached.set(held);
+        if gauge::far_from(held, counters.detached_mark.get()) {
             gauge::report(bytes > 0);
         }
         return;
     }
-    let live = LIVE.with(|live| {
-        let now = live.get().wrapping_add(bytes);
-        live.set(now);
-        now
-    });
+    let live = counters.live.get().wrapping_add(bytes);
+    counters.live.set(live);
     // The core's published balance, which admission sums across cores
     // (`gauge`'s module doc). One compare here, and a publish only once the
     // balance has moved a whole step.
-    if gauge::far_from(live, &gauge::LIVE_MARK) {
+    if gauge::far_from(live, counters.live_mark.get()) {
         gauge::report(bytes > 0);
     }
     if bytes > 0 {
-        PEAK.with(|peak| {
-            if live > peak.get() {
-                peak.set(live);
-            }
-        });
+        if live > counters.peak.get() {
+            counters.peak.set(live);
+        }
         // `rule:errors/on-limit`'s memory ceiling, asked here because this is
         // the one place a growing allocation passes: a loop growing a string
         // through the ctx-less primitives reaches no other question until it
         // calls something. A release is deliberately outside this branch —
         // bytes given back cannot cross a ceiling, exactly as they cannot raise
         // the mark above.
-        let ceiling = CEILING.with(Cell::get);
+        let ceiling = counters.ceiling.get();
         if ceiling != 0 && live > ceiling {
             publish();
         }

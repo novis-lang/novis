@@ -6,9 +6,9 @@
 //! atomic on the allocation path. The per-thread balances in the parent module are exact and
 //! private to their threads; a sum of per-*request* readings is not, because one core runs several
 //! requests interleaved and each reading includes the others' bytes. So each core owns one
-//! [`Gauge`] and publishes its thread's [`LIVE`](super::LIVE) plus
-//! [`DETACHED`](super::DETACHED), less what its connections hold between requests ([`IDLE`]), into
-//! it, and [`held_by_cores`] is the sum of every gauge.
+//! [`Gauge`] and publishes its thread's live balance plus its detached one, less what its
+//! connections hold between requests ([`IDLE`]), into it, and [`held_by_cores`] is the sum of
+//! every gauge.
 //!
 //! **A connection between requests is not a request.** `hyper`'s buffers and the head of the next
 //! request are allocated on the connection's turns, and an idle keep-alive connection keeps them.
@@ -24,8 +24,10 @@
 //!
 //! **A core publishes when its balance has moved by [`STEP`] since its last publish**, and at a
 //! request's start and end ([`publish_held`]). The allocation path compares the balance against the
-//! last published value, one thread-local load and one compare, and writes nothing shared until
-//! the step is crossed. So the sum is stale by at most one step per core, and the store a publish
+//! last published value, and writes nothing shared until the step is crossed. The two marks it
+//! compares against, the live one and the detached one, live in the parent module's counter
+//! struct beside the balances, so the compare is one more load from the lookup the allocation has
+//! already made. So the sum is stale by at most one step per core, and the store a publish
 //! makes goes to a cache line only that core writes.
 //!
 //! **A thread that is not a core publishes nothing.** A core claims its gauge as it starts
@@ -53,9 +55,9 @@
 //! # What it spends
 //!
 //! Per `rule:programs/memory-priority`: one padded atomic per core, in blocks of [`CHUNK`] that are
-//! never freed and are reused as cores come and go, and three thread-local cells per thread. That
-//! is O(cores) and nothing per request. On the allocation path it is one thread-local load and one
-//! compare per balance change; a publish is one relaxed store, plus one relaxed load per core when
+//! never freed and are reused as cores come and go, one thread-local cell per thread, and two
+//! fields of the parent module's counter struct. That is O(cores) and nothing per request. On the
+//! allocation path it is one load from that struct and one compare per balance change; a publish is one relaxed store, plus one relaxed load per core when
 //! a request is armed and the balance grew. [`IDLE`] is two more thread-local cells, and an idle
 //! tree's park pays two relaxed loads, a swap and a compare. Each tree carries three words for it.
 //! [`SHARES`] is one more thread-local cell, and admitting or ending a request one more publish.
@@ -63,9 +65,7 @@
 use std::cell::Cell;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
-use std::thread::LocalKey;
-
-use super::{DETACHED, LIVE, POLLED, REFUSED, Refusal};
+use super::{COUNTERS, POLLED, REFUSED, Refusal};
 
 /// How far a thread's balance moves before its core publishes again: one mebibyte.
 pub const STEP: isize = 1 << 20;
@@ -125,10 +125,6 @@ static LIMIT: AtomicIsize = AtomicIsize::new(NO_LIMIT);
 thread_local! {
     /// The gauge this thread publishes into, or `None` for a thread that is not a core.
     static GAUGE: Cell<Option<&'static Gauge>> = const { Cell::new(None) };
-    /// [`LIVE`] at this thread's last publish.
-    pub(super) static LIVE_MARK: Cell<isize> = const { Cell::new(0) };
-    /// [`DETACHED`] at this thread's last publish.
-    pub(super) static DETACHED_MARK: Cell<isize> = const { Cell::new(0) };
     /// What the trees of this thread's connections between requests hold, as each last parked:
     /// the module doc's *a connection between requests is not a request*. A publish subtracts it.
     static IDLE: Cell<isize> = const { Cell::new(0) };
@@ -145,17 +141,21 @@ pub(super) fn move_idle(by: isize) {
     if by == 0 {
         return;
     }
-    IDLE.with(|idle| idle.set(idle.get().wrapping_add(by)));
-    if far_from(IDLE.with(Cell::get), &IDLE_MARK) {
+    let idle = IDLE.with(|idle| {
+        let now = idle.get().wrapping_add(by);
+        idle.set(now);
+        now
+    });
+    if far_from(idle, IDLE_MARK.with(Cell::get)) {
         report(false);
     }
 }
 
-/// Whether `now` has moved a whole [`STEP`] away from the value `mark` holds. The allocation
-/// path's one compare.
+/// Whether `now` has moved a whole [`STEP`] away from `mark`, the value at the last publish. The
+/// allocation path's one compare, against a mark it has already loaded from the parent's counters.
 #[inline]
-pub(super) fn far_from(now: isize, mark: &'static LocalKey<Cell<isize>>) -> bool {
-    now.wrapping_sub(mark.with(Cell::get)).unsigned_abs() >= STEP.unsigned_abs()
+pub(super) fn far_from(now: isize, mark: isize) -> bool {
+    now.wrapping_sub(mark).unsigned_abs() >= STEP.unsigned_abs()
 }
 
 /// Publishes this thread's balance into its gauge, and stops the armed request where the publish
@@ -167,11 +167,14 @@ pub(super) fn far_from(now: isize, mark: &'static LocalKey<Cell<isize>>) -> bool
 #[cold]
 #[inline(never)]
 pub(super) fn report(grew: bool) {
-    let live = LIVE.with(Cell::get);
-    let detached = DETACHED.with(Cell::get);
+    let (live, detached) = COUNTERS.with(|c| {
+        let live = c.live.get();
+        let detached = c.detached.get();
+        c.live_mark.set(live);
+        c.detached_mark.set(detached);
+        (live, detached)
+    });
     let idle = IDLE.with(Cell::get);
-    LIVE_MARK.with(|mark| mark.set(live));
-    DETACHED_MARK.with(|mark| mark.set(detached));
     IDLE_MARK.with(|mark| mark.set(idle));
     // A request that grew a step has published what it holds, so a share goes back.
     if grew && !POLLED.with(Cell::get).is_null() {
