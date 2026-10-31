@@ -17,7 +17,7 @@ aes = "0.9"
 base64 = "0.22"
 cssparser = "0.38"
 # HOLD (revisit 2026-11-30): 0.8 is out, and `krilla` 0.8.2, the latest, embeds a `hayro-syntax` 0.7 `Pdf` through `hayro-write` 0.7, which `merge.rs` hands it.
-hayro-interpret = { version = "0.7", default-features = false }
+hayro-interpret = { version = "0.7", default-features = false, features = ["embed-cmaps"] }
 html5ever = "0.40"
 hypher = "0.1.8"
 krilla = { version = "0.8", default-features = false, features = ["pdf", "raster-images"] }

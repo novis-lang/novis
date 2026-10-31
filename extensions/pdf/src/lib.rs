@@ -72,8 +72,8 @@
 //!   in a right-to-left line is placed left to right, and an SVG `font-family` of Arial, Helvetica
 //!   or Courier falls back to Liberation Serif, where HTML maps each to its Liberation face.
 //! - Passwords (`encrypt`): only `hayro-syntax` reads the encrypted file back, so the user password
-//!   path and `/Perms` are not checked by a second reader. `hayro`'s `embed-cmaps` is off, and no
-//!   veraPDF run checks the standards in CI.
+//!   path and `/Perms` are not checked by a second reader, and no veraPDF run checks the standards
+//!   in CI.
 //! - `cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets` warns of
 //!   `large_enum_variant` on `layout::Block` and `inline::Step`, and of five small lints in
 //!   `css/value.rs` and `css/mod.rs`.

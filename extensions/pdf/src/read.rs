@@ -35,8 +35,12 @@
 //! A glyph with no Unicode value is skipped. Nothing rebuilds a table or a column.
 //!
 //! Each of the 14 standard fonts a document names without embedding is read through one of the
-//! Liberation faces, so its glyphs reach the device. No predefined CMap is carried, so text in a
-//! CJK encoding that names one has no Unicode value. The interpreter reads no clock and no file.
+//! Liberation faces, so its glyphs reach the device. A predefined CMap a font names, such as
+//! `UniGB-UCS2-H` or `90ms-RKSJ-H`, and the `-UCS2` CMap of its character collection that gives a
+//! CID without a `ToUnicode` map its Unicode value, are `hayro-cmap`'s embedded copies of Adobe's.
+//! They are 250 KB of brotli in the component. The first page that names one decompresses them
+//! all, once per instance, so only a request that reads such a file spends that time and memory.
+//! The interpreter reads no clock and no file.
 
 use std::sync::Arc;
 
@@ -320,7 +324,8 @@ fn page_text(pdf: &Pdf, pages: &[u64]) -> Result<Vec<String>, Error> {
         .collect())
 }
 
-/// The interpreter's settings: the Liberation faces for the standard fonts, and no CMap.
+/// The interpreter's settings: the Liberation faces for the standard fonts, and the embedded
+/// predefined CMaps.
 pub fn settings() -> InterpreterSettings {
     InterpreterSettings {
         font_resolver: Arc::new(|query| {
@@ -331,7 +336,7 @@ pub fn settings() -> InterpreterSettings {
             let data: FontData = Arc::new(substitute(font));
             Some((data, 0))
         }),
-        cmap_resolver: Arc::new(|_| None),
+        cmap_resolver: Arc::new(hayro_interpret::hayro_cmap::load_embedded),
         ..InterpreterSettings::default()
     }
 }

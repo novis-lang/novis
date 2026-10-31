@@ -234,6 +234,67 @@ fn a_pdf_letterhead_is_under_every_page() {
     assert_eq!(forms, 1, "the letterhead is one form XObject");
 }
 
+/// A one-page PDF built by hand whose only font is a CID font with no `ToUnicode` map, encoded
+/// with the predefined CMap `encoding` over the collection `ordering`, and whose page shows the
+/// hexadecimal codes `codes`.
+fn cid_pdf(encoding: &str, ordering: &str, codes: &str) -> Vec<u8> {
+    let content = format!("BT /F1 24 Tf 72 700 Td <{codes}> Tj ET");
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+         /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"
+            .to_owned(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+        format!(
+            "<< /Type /Font /Subtype /Type0 /BaseFont /ShopSans /Encoding /{encoding} \
+             /DescendantFonts [6 0 R] >>"
+        ),
+        format!(
+            "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /ShopSans \
+             /CIDSystemInfo << /Registry (Adobe) /Ordering ({ordering}) /Supplement 0 >> \
+             /FontDescriptor 7 0 R >>"
+        ),
+        "<< /Type /FontDescriptor /FontName /ShopSans /Flags 4 /FontBBox [0 0 1000 1000] \
+         /ItalicAngle 0 /Ascent 880 /Descent -120 /CapHeight 700 /StemV 80 >>"
+            .to_owned(),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (at, object) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{object}\nendobj\n", at + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+    );
+    for offset in offsets {
+        out.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+#[test]
+fn a_predefined_cmap_gives_unicode_text() {
+    // `UniGB-UCS2-H` maps UCS-2 codes to Adobe-GB1 CIDs, and `Adobe-GB1-UCS2` maps them back.
+    let chinese = cid_pdf("UniGB-UCS2-H", "GB1", "4E2D6587");
+    assert_eq!(text(chinese, &[1]).unwrap(), ["\u{4e2d}\u{6587}"]);
+    // `90ms-RKSJ-H` is Shift JIS: 0x82A0 is あ and 0x82A2 is い.
+    let japanese = cid_pdf("90ms-RKSJ-H", "Japan1", "82A082A2");
+    assert_eq!(text(japanese, &[1]).unwrap(), ["\u{3042}\u{3044}"]);
+}
+
 #[test]
 fn an_encrypted_source_throws_in_merge_read_and_text() {
     let locked = rendered(

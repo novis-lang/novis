@@ -4460,7 +4460,10 @@ component's ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-c
 - **Reading.** `Reader::open` returns the page count, the metadata (title, author, subject, keywords,
   creator, producer), the attachments by name, and `invoiceXml()`, the Factur-X XML of a received
   invoice or `null`. `text($page)` returns a page's text in the order the file stores it, through
-  `hayro`'s interpreter and each font's Unicode map. It does not rebuild tables or columns.
+  `hayro`'s interpreter and each font's Unicode map. It does not rebuild tables or columns. A CJK
+  font with a predefined CMap, such as `UniGB-UCS2-H` or `90ms-RKSJ-H`, and no Unicode map of its
+  own reads through `hayro-cmap`'s embedded copies of Adobe's CMaps, 250 KB of brotli in the
+  component, decompressed once per instance on the first page that names one.
 
 **An encrypted source throws `ParseError`** in all three, as the image side does
 ([`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals)), and so does a source that does not parse. A page number
