@@ -20,6 +20,10 @@
 //! the groups for the rows and columns still to come, and a group over a row already written, a
 //! column group or a `fit` once the first row is written is an error that says so.
 //!
+//! **A part that is set once is an error the second time.** A sheet has one page setup, so a
+//! second `print` part is an error, as a second note on a cell is. A `whole` rule's bounds are
+//! whole numbers or formulas, and anything else is an error.
+//!
 //! **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook** (`'Sheet 2'!A1`).
 //! Any other scheme, such as `file:` or `javascript:`, is an error, so a link built from user data
 //! opens no local file and runs nothing.
@@ -486,6 +490,15 @@ pub(crate) fn bound(kind: RuleKind, value: &str) -> String {
     value.strip_prefix('=').unwrap_or(value).to_owned()
 }
 
+/// Whether `value` is a bound a `whole` rule takes: a whole number, such as `10` or `-3`, or a
+/// formula, which starts with `=`.
+fn whole_bound(value: &str) -> bool {
+    value.starts_with('=')
+        || value
+            .parse::<f64>()
+            .is_ok_and(|number| number.is_finite() && number.fract() == 0.0)
+}
+
 impl Tail {
     /// Checks `part` and keeps it for the sheet `sheet`. A group goes to [`Groups::add`].
     pub fn add(&mut self, part: Part, sheet: &str) -> Result<(), Error> {
@@ -494,7 +507,7 @@ impl Tail {
             Part::Link(link) => self.link(link),
             Part::Note(note) => self.note(note),
             Part::Validation(validation) => self.validation(&validation),
-            Part::Print(print) => self.page(print),
+            Part::Print(print) => self.page(print, sheet),
             Part::Protect(protect) => self.protection(&protect),
             Part::Group(_) => Err(Error::Runtime(
                 "An outline group is kept with the rows, not the sheet's tail.".to_owned(),
@@ -691,6 +704,13 @@ impl Tail {
             },
             kind => rule.values.iter().map(|value| bound(kind, value)).collect(),
         };
+        if rule.kind == RuleKind::Whole
+            && let Some(value) = rule.values.iter().find(|value| !whole_bound(value))
+        {
+            return Err(Error::Invalid(format!(
+                "The whole-number validation of `{range}` has the bound `{value}`. A bound is a whole number, such as `10`, or a formula, such as `=$F$1`."
+            )));
+        }
         for formula in &formulas {
             cells::check_formula(formula, || format!("the validation of `{range}`"))?;
         }
@@ -719,7 +739,7 @@ impl Tail {
         Ok(())
     }
 
-    fn page(&mut self, print: Print) -> Result<(), Error> {
+    fn page(&mut self, print: Print, sheet: &str) -> Result<(), Error> {
         limited("print header", &print.header, MAX_HEADER)?;
         limited("print footer", &print.footer, MAX_HEADER)?;
         for fit in [print.fit_width, print.fit_height].into_iter().flatten() {
@@ -747,6 +767,11 @@ impl Tail {
         }
         if let Some(range) = &print.area {
             area(range).ok_or_else(|| bad_range("print", range))?;
+        }
+        if self.print.is_some() {
+            return Err(Error::Invalid(format!(
+                "The sheet `{sheet}` has its page setup already. Set every `print` option in one call."
+            )));
         }
         self.print = Some(print);
         Ok(())
@@ -802,6 +827,12 @@ impl Tail {
         reach: u32,
     ) -> Result<(), Error> {
         self.drawing.chart(chart, number, sheet, reach)
+    }
+
+    /// Checks that every image and chart ends inside the sheet, over its `grid`
+    /// (`Drawing::fits`).
+    pub fn drawing_fits(&self, grid: &Grid) -> Result<(), Error> {
+        self.drawing.fits(grid)
     }
 
     /// Whether the sheet has notes.

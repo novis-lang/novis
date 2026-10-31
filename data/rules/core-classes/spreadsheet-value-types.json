@@ -12,6 +12,7 @@
     "extensions/spreadsheet/tests/format.rs",
     "tests/conformance/novis/spreadsheet-an-instant-with-no-zone-throws.nvst",
     "tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst",
-    "tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst"
+    "tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst",
+    "tests/conformance/novis/spreadsheet-nan-throws-for-csv-as-for-xlsx.nvst"
   ]
 }

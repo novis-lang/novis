@@ -1,0 +1,40 @@
+--TEST--
+A column letter is upper case, `A` to `XFD`, and any other text is a key: a key before the first row with keys throws naming the key, a letter works before any row, a lower-case letter is a key, and a key of the `columns` option works before any row: rule:core-classes/spreadsheet-roster
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::cell
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders");
+try {
+    echo $orders->cell("qty", 2), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A column letter needs no row.
+echo $orders->cell("C", 2), "\n";
+
+// The first row with keys gives the keys their columns.
+$orders->add(["order" => 1042, "qty" => 3]);
+echo $orders->cell("qty", 2), "\n";
+
+// A lower-case letter is a key, and this sheet has no key `c`.
+try {
+    echo $orders->cell("c", 2), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The keys of the `columns` option are known before the first row.
+var $returns = $book->sheet("Returns", {columns: ["order" => {header: "Order"}, "qty" => {header: "Qty"}]});
+echo $returns->cell("qty", 2), "\n";
+$returns->add(["order" => 1042, "qty" => 1]);
+$book->finish();
+--EXPECT--
+The sheet `Orders` has no column keys yet, so `qty` is not a column. The keys come from the `columns` option or from the first row with keys.
+C2
+B2
+The sheet `Orders` has no column `c`. Give a key of its columns or an upper-case column letter, such as `C`.
+B2

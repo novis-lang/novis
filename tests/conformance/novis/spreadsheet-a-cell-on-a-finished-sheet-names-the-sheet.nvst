@@ -1,0 +1,41 @@
+--TEST--
+`Sheet::cell` and `Sheet::column` on a finished sheet throw a message that names the sheet and says it is finished, after the next sheet starts and after the workbook is finished: rule:core-classes/spreadsheet-roster
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::cell
+// covers: Novis\Spreadsheet\Sheet::column
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders");
+$orders->add(["order" => 1042, "qty" => 3]);
+echo $orders->cell("qty", 2), "\n";
+
+// Starting the next sheet finishes this one.
+var $returns = $book->sheet("Returns");
+try {
+    $orders->cell("qty", 2);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    $orders->column("qty");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+$returns->add(["order" => 1042]);
+$book->finish();
+try {
+    $returns->cell("order", 2);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+B2
+The sheet `Orders` is finished, so `cell` and `column` cannot return its addresses. A sheet is finished when the workbook starts the next sheet.
+The sheet `Orders` is finished, so `cell` and `column` cannot return its addresses. A sheet is finished when the workbook starts the next sheet.
+The sheet `Returns` is finished, because the workbook is finished. `finish` is the last call on a workbook.

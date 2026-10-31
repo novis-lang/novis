@@ -40,5 +40,8 @@ for (int $call = 0; $call < 10000; $call++) {
     $last = $sheet->column('total');
 }
 echo 'step 3 returned ', $last, "\n";
-$book->sheet('Blog');
+var $blog = $book->sheet('Blog');
 Attack::attempt(3, $sheet, 'total');
+
+// 4. A column of a sheet that has no row yet.
+Attack::attempt(4, $blog, 'A');

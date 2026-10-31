@@ -18,6 +18,18 @@ class Attack
             echo 'step ', $step, ' stopped ', $e::class, "\n";
         }
     }
+
+    // This method makes a formula from `$text` and writes it. If `Formula::of` throws, it prints the error.
+    public static function formula(int $step, string $text): void
+    {
+        try {
+            Formula $made = Formula::of($text);
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+            return;
+        }
+        self::attempt($step, ['total' => $made]);
+    }
 }
 
 // 1. Strings that start a formula in a spreadsheet program. Each one should be text only.
@@ -31,9 +43,9 @@ Attack::attempt(2, ['total' => Formula::of("A1&\"</f><v>1</v></c><c><f>cmd\"")])
 Attack::attempt(2, ['total' => Formula::of('SUM(A1:A2)', { cached: '</v><script>' })]);
 
 // 3. A formula of 1,000,000 characters, an empty formula, and one that is only `=`.
-Attack::attempt(3, ['total' => Formula::of(Core\Str::repeat('1+', 500000) . '1')]);
-Attack::attempt(3, ['total' => Formula::of('')]);
-Attack::attempt(3, ['total' => Formula::of('=')]);
+Attack::formula(3, Core\Str::repeat('1+', 500000) . '1');
+Attack::formula(3, '');
+Attack::formula(3, '=');
 
 // 4. Cached values that are not numbers, or are as large as a number can be.
 Attack::attempt(4, ['total' => Formula::of('1/0', { cached: Core\Math::NAN })]);

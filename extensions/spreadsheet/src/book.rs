@@ -83,12 +83,12 @@ impl Book {
     }
 
     /// The A1 address of the column at `column`, from 0, in the row `row`.
-    pub fn cell(&self, column: u32, row: u32) -> Result<String, Error> {
-        crate::writer::address(column, row)
+    pub fn cell(&self, column: u64, row: u64) -> Result<String, Error> {
+        crate::writer::wide_address(column, row)
     }
 
     /// The open sheet's data range in the column at `column`, from 0.
-    pub fn column(&self, column: u32) -> Result<String, Error> {
+    pub fn column(&self, column: u64) -> Result<String, Error> {
         match self {
             Book::Xlsx(writer) => writer.column(column),
             Book::Ods(writer) => writer.column(column),

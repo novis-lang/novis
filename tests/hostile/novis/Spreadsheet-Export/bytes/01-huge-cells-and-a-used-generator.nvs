@@ -35,7 +35,7 @@ Attack::attempt(1, Workbook::fromRows([['note' => $huge]], { format: 'csv' }));
 Attack::attempt(2, Workbook::fromRows([[Core\Str::repeat('k', 100000) => 1]]));
 Attack::attempt(2, Workbook::fromRows([['note' => Core\Str::repeat("\"\r\n,", 50000)]], { format: 'csv' }));
 
-// 3. `bytes` is called twice on the same export. Its generator is used up after the first call.
+// 3. `bytes` is called twice on the same export. Its generator is used up, so the second call should throw an error.
 var $once = Workbook::fromRows(Attack::rows());
 Attack::attempt(3, $once);
 Attack::attempt(3, $once);

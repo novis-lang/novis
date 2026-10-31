@@ -1,0 +1,61 @@
+--TEST--
+An `Export` whose rows are an `Iterator` writes its file once, and a second write throws through every method, while an export of an array or an `Iterable` writes the same file every time: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::fromRows
+// covers: Novis\Spreadsheet\Export::bytes
+// covers: Novis\Spreadsheet\Export::to
+use Novis\Spreadsheet\Workbook;
+
+final class Orders implements Iterable<array<mixed>>
+{
+    public function iterate(): Iterator<array<mixed>>
+    {
+        return Rows::orders();
+    }
+}
+
+final class Rows
+{
+    // This generator gives two rows.
+    public static function orders(): Iterator<array<mixed>>
+    {
+        for (int $order = 1042; $order < 1044; $order++) {
+            yield ["order" => $order];
+        }
+    }
+}
+
+var $once = Workbook::fromRows(Rows::orders(), {format: "csv"});
+echo $once->bytes() as string;
+try {
+    $once->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+Core\IO\File $file = Core\IO::open("orders.csv", Core\IO::FileMode::Write);
+try {
+    $once->to($file);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "to throws too\n";
+}
+$file->close();
+
+// An array and an `Iterable` give their rows again for each write.
+var $array = Workbook::fromRows([["order" => 1042], ["order" => 1043]], {format: "csv"});
+echo $array->bytes() == $array->bytes() ? "the array writes twice\n" : "the array differs\n";
+var $iterable = Workbook::fromRows(new Orders(), {format: "csv"});
+echo $iterable->bytes() == $iterable->bytes() ? "the iterable writes twice\n" : "the iterable differs\n";
+--FILE nvs.toml--
+[capabilities.fs]
+write = ["."]
+--EXPECT--
+order
+1042
+1043
+The rows of this export are an `Iterator`, and an iterator can be read only once. Call `Workbook::fromRows` again with new rows, or pass an array.
+to throws too
+the array writes twice
+the iterable writes twice

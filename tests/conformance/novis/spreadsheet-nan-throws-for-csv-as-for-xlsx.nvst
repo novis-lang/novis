@@ -1,0 +1,34 @@
+--TEST--
+NaN and the infinities throw for a CSV file as for an xlsx file, naming the cell and the number, and a finite number is written: rule:core-classes/spreadsheet-value-types
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::fromRows
+// covers: Novis\Spreadsheet\Sheet::add
+use Novis\Spreadsheet\Workbook;
+
+array<float> $numbers = [Core\Math::NAN, Core\Math::INFINITY, -Core\Math::INFINITY];
+foreach ($numbers as float $number) {
+    try {
+        Workbook::fromRows([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => $number]], {format: "csv"})->bytes();
+        echo "not reached\n";
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// The same number in an xlsx file throws for the same cell.
+try {
+    Workbook::fromRows([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => Core\Math::NAN]])->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "xlsx: ", $e->message, "\n";
+}
+
+echo Workbook::fromRows([["order" => 1042, "total" => 19.5]], {format: "csv"})->bytes() as string;
+--EXPECT--
+The cell `B3` has the number NaN. A cell can contain only a finite number.
+The cell `B3` has the number inf. A cell can contain only a finite number.
+The cell `B3` has the number -inf. A cell can contain only a finite number.
+xlsx: The cell `B3` has the number NaN. A cell can contain only a finite number.
+order,total
+1042,19.5

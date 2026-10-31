@@ -35,29 +35,16 @@
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.
 //!
-//! **Not done yet.** None of these is checked against Excel, and they are
-//! gap:nvs-spreadsheet/spreadsheet-reader-and-writer-leftovers:
+//! A written ods is checked by reading it back with this crate's reader and with calamine. No test
+//! opens it in LibreOffice, so its chart objects and `loext:label-string` series names, the
+//! protection key and its URI, the `calcext` values, the fit-to-page scale, and an image's `svg:x`
+//! and `svg:y` follow the OpenDocument schema as written, and are not compared with LibreOffice.
 //!
-//! - Sheet-end parts (`drawing`, `tail`, `nvs/Sheet.nvs`): `Sheet::image` accepts a PNG cut to 30
-//!   bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits for a `whole`
-//!   rule. A second `Sheet::print` replaces the first one's settings.
-//! - Addresses (`nvs/Sheet.nvs`): `Sheet::cell` after the sheet is finished throws "cannot add
-//!   parts to it". `Sheet::column($key)` before any data row returns the header cell, and the
-//!   `writerColumn` export on a sheet with no data row returns a one-cell range. `cell('qty', 2)`
-//!   before the first keyed row reads the key as column letters. The `writerCell` export names a
-//!   column cut to 32 bits in its message.
-//! - Values (`writer`, `nvs/Workbook.nvs`): a sheet with `{header: true, autofilter: true}` gets
-//!   no filter name, where `fromRows` writes one. A NaN throws for xlsx and is written for CSV.
-//! - `Export` (`nvs/Export.nvs`): an `Export` over a generator gives no rows the second time.
-//! - ods (`ods`): no written ods has been opened in LibreOffice, only read back by our reader and
-//!   calamine. Unchecked there: the chart objects and their `loext:label-string` series names,
-//!   the protection key and its URI, the `calcext` values, the fit-to-page scale, and whether an
-//!   image's `svg:x` and `svg:y` are read as offsets in its cell or as sheet positions.
-//! - Cost: `Template::open` costs about 2.6 ms and 1.1 MB on a tiny template, and one `set` about
-//!   1.3 ms and 600 KB. 20,000 merges take about 15 s in a debug build. A request keeps every
-//!   extension resource until it ends (`crates/nvs-ext/src/call.rs`), so some hundreds of
-//!   unfinished writers in one request reach the extension's memory limit. That is O(in-flight)
-//!   and under the request's cap.
+//! Cost: `Template::open` costs about 2.6 ms and 1.1 MB on a tiny template, and one `set` about
+//! 1.3 ms and 600 KB. 20,000 merges take about 15 s in a debug build. A request keeps every
+//! extension resource until it ends (`crates/nvs-ext/src/call.rs`), so some hundreds of
+//! unfinished writers in one request reach the extension's memory limit. That is O(in-flight)
+//! and under the request's cap.
 
 pub mod book;
 pub mod cells;
@@ -1129,13 +1116,10 @@ mod guest {
             column: u64,
             row: u64,
         ) -> Result<String, wit::Error> {
-            let column = u32::try_from(column).unwrap_or(u32::MAX);
-            let row = u32::try_from(row).unwrap_or(u32::MAX);
             with(writer, |writer| writer.cell(column, row))
         }
 
         fn writer_column(writer: wit::WriterBorrow<'_>, column: u64) -> Result<String, wit::Error> {
-            let column = u32::try_from(column).unwrap_or(u32::MAX);
             with(writer, |writer| writer.column(column))
         }
 

@@ -363,7 +363,55 @@ pub(crate) fn check_name_sheets<'a>(
 }
 
 /// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`, when it is
-/// inside the grid.
+/// inside the grid. Both are checked before they are cut to 32 bits, so an error names the
+/// number the program gave.
+pub fn wide_address(column: u64, row: u64) -> Result<String, Error> {
+    let column = grid_column(column)?;
+    match u32::try_from(row) {
+        Ok(row) => address(column, row),
+        Err(_) => Err(Error::Invalid(format!(
+            "Row {row} is outside the sheet. A sheet has 1,048,576 rows."
+        ))),
+    }
+}
+
+/// The column at `column`, from 0, when it is one of the sheet's 16,384 columns.
+fn grid_column(column: u64) -> Result<u32, Error> {
+    match u32::try_from(column) {
+        Ok(narrow) if (narrow as usize) < MAX_COLUMNS => Ok(narrow),
+        _ => Err(Error::Invalid(format!(
+            "Column {} is outside the sheet. A sheet has 16,384 columns, up to `XFD`.",
+            u128::from(column) + 1
+        ))),
+    }
+}
+
+/// The data range in the column at `column`, from 0, of the sheet `sheet`, whose next row is
+/// `next` and whose first data row is 2 under a header row and 1 without one, such as
+/// `C2:C1043`. A sheet with no data row yet has no range, and that is an error. The xlsx and the
+/// ods writer both give a column with this.
+pub(crate) fn data_range(
+    sheet: &str,
+    header: bool,
+    next: u32,
+    column: u64,
+) -> Result<String, Error> {
+    let column = grid_column(column)?;
+    let first = if header { 2 } else { 1 };
+    if next <= first {
+        return Err(Error::Invalid(format!(
+            "The sheet `{sheet}` has no data row yet. Call `column` after you add the first row."
+        )));
+    }
+    Ok(format!(
+        "{}:{}",
+        address(column, first)?,
+        address(column, next - 1)?
+    ))
+}
+
+/// The A1 address of the column at `column`, from 0, in the row `row`, when it is inside the
+/// grid.
 pub(crate) fn address(column: u32, row: u32) -> Result<String, Error> {
     if column as usize >= MAX_COLUMNS || !(1..=MAX_ROWS).contains(&row) {
         return Err(Error::Invalid(format!(
@@ -576,8 +624,9 @@ impl Writer {
                         "The sheet `{sheet}` cannot be fitted to pages after its first row. Set the fit before you add rows."
                     )));
                 }
-                open.fit |= print.fits();
+                let fits = print.fits();
                 open.tail.add(Part::Print(print), sheet)?;
+                open.fit |= fits;
             }
             Part::Image(image) => {
                 let format = open.tail.image(&image, self.media + 1)?;
@@ -709,26 +758,20 @@ impl Writer {
 
     /// The A1 address of the column at `column`, from 0, in the row `row`, such as `C7`
     /// (`rule:core-classes/spreadsheet-formula-is-a-value`).
-    pub fn cell(&self, column: u32, row: u32) -> Result<String, Error> {
-        address(column, row)
+    pub fn cell(&self, column: u64, row: u64) -> Result<String, Error> {
+        wide_address(column, row)
     }
 
     /// The open sheet's data range in the column at `column`, from 0, over the rows written so
-    /// far, such as `C2:C1043`. The header row is not in it. Before the first data row, the range
-    /// is that row alone.
-    pub fn column(&self, column: u32) -> Result<String, Error> {
+    /// far, such as `C2:C1043`. The header row is not in it, and a sheet with no data row yet is
+    /// an error (`data_range`).
+    pub fn column(&self, column: u64) -> Result<String, Error> {
         let Some(open) = &self.open else {
             return Err(Error::Invalid(
                 "No sheet is open. Call `sheet()` before you ask for a column.".to_owned(),
             ));
         };
-        let first = if open.header.is_some() { 2 } else { 1 };
-        let last = open.next.saturating_sub(1).max(first);
-        Ok(format!(
-            "{}:{}",
-            self.cell(column, first)?,
-            self.cell(column, last)?
-        ))
+        data_range(&open.options.name, open.header.is_some(), open.next, column)
     }
 
     /// Checks a sheet's options against Excel's rules and the sheets already started.
@@ -1136,6 +1179,7 @@ impl Writer {
                 .begin(&format!("xl/worksheets/sheet{}.xml", open.index + 1))?;
             self.archive.write(head.as_bytes())?;
         }
+        open.tail.drawing_fits(&open.grid)?;
         let mut tail = String::from("</sheetData>");
         let filter = match (&open.options.autofilter, &open.header) {
             (Some(range), _) => Some(range.clone()),

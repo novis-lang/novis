@@ -1,17 +1,23 @@
 <?nvs
 namespace Novis\Spreadsheet;
 
+use LogicError;
+
 /// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
 {
     type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, encoding?: Core\Charset } };
 
+    // Whether an export with `$once` has written its file.
+    private bool $used = false;
+
     /// `new Export` makes an export that adds its rows with `$write`. `Workbook::fromRows` and `Template::fill` make one for you.
-    /// `$fill` writes a filled template instead. It sends each part of the file to its first argument, and keeps the whole file in `Written::bytes` when its second argument is `true`.
+    /// `$fill` writes a filled template, and keeps the whole file in `Written::bytes` when its second argument is `true`. With `$once`, a second write throws a `LogicError`.
     public function constructor(
         private readonly callable(Workbook): void $write,
         private readonly Options $options,
         private readonly ?callable(callable(bytes): void, bool): Written $fill = null,
+        private readonly bool $once = false,
     )
     {}
 
@@ -66,6 +72,10 @@ final class Export
 
     private function run(Workbook $book): Written
     {
+        if ($this->once && $this->used) {
+            throw new LogicError('The rows of this export are an `Iterator`, and an iterator can be read only once. Call `Workbook::fromRows` again with new rows, or pass an array.');
+        }
+        $this->used = true;
         callable(Workbook): void $write = $this->write;
         $write($book);
         return $book->finish();

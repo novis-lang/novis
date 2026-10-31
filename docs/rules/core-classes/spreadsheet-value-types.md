@@ -6,7 +6,7 @@ so neither a write nor a read guesses from the value's content.
 | Novis value | Cell |
 |---|---|
 | `string` | a text cell, always, whatever it begins with (`rule:core-classes/spreadsheet-formula-is-a-value`) |
-| `int`, `float` | a number |
+| `int`, `float` | a number; NaN and the infinities throw `LogicError` naming the column, for xlsx, ods and CSV alike |
 | `decimal` | a number |
 | `int` or `decimal` with more than 15 significant digits | a text cell, so no digit is lost |
 | `bool` | `TRUE` or `FALSE` |

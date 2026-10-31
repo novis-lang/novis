@@ -16,7 +16,9 @@ column, `rule:core-classes/spreadsheet-value-types`), `format` (`'xlsx'`, `'ods'
 to the name's extension and then to `'xlsx'`), and `properties` (`title`, `subject`, `author`, `company`,
 `keywords`, `created`). `Workbook::fromRows(iterable $rows, {…})` is the one-call form: it takes the
 workbook and sheet options in one bag, writes one sheet named `sheet` (default `'Sheet1'`), and
-returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last.
+returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last. An array or
+an `Iterable` of rows writes every time. An `Iterator`, a generator included, is read once, so a second
+write of its `Export` throws `LogicError` saying so.
 
 **Rows go in batches, and compressed bytes come back.** `$sheet->add($row)` queues a row in the Novis
 half, and a full batch crosses in one guest call, which returns the deflated bytes ready to leave; the

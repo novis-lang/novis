@@ -14,6 +14,7 @@
     "tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst",
     "tests/conformance/novis/spreadsheet-sheets-are-written-one-after-another.nvst",
     "tests/conformance/novis/spreadsheet-an-export-writes-the-same-file-to-each-target.nvst",
-    "tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst"
+    "tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst",
+    "tests/conformance/novis/spreadsheet-an-export-of-an-iterator-writes-once.nvst"
   ]
 }

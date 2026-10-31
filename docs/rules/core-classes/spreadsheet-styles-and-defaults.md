@@ -40,7 +40,7 @@ of plain lists have no keys, so they have no header and no defaults.
 
 **The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
-header (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
+header and its `_xlnm._FilterDatabase` name, as Excel writes one (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
 `{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is
 `false` and not `null`, the way `freeze` and `autofilter` are, because an options field set to `null`
 reads the same as one left out. `headerStyle: Style::of({...})` replaces the default style. `header:

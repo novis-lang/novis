@@ -4806,6 +4806,13 @@ Each options shape is the home fragment's: the workbook's and the sheet's in
 [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value). Every options bag is a shape
 ([`core-api/options-bag`](core-api.md#core-api-options-bag)).
 
+**A cell address comes from a column key or a column letter.** `Sheet::cell($key, $row)` and
+`Sheet::column($key)` take a key of the sheet's columns, or an upper-case letter from `A` to `XFD`.
+Any other string is a key, so `'qty'` and `'a'` are keys. A key before the first keyed row throws
+`LogicError` naming it, `column` before the first data row throws, and either call on a finished
+sheet throws naming the sheet. The column a call reaches is checked against 16,384 before it is
+narrowed, so the message names the number the program gave.
+
 **An error throws the world's three classes.** A call the program got wrong — a bad sheet name, an
 `Instant` with no zone, a row past the grid, a placeholder the data lacks — throws `LogicError`
 naming the rule it broke and the cell, column or sheet. A file that does not read — a broken archive,
@@ -4859,7 +4866,9 @@ column, [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-sp
 to the name's extension and then to `'xlsx'`), and `properties` (`title`, `subject`, `author`, `company`,
 `keywords`, `created`). `Workbook::fromRows(iterable $rows, {…})` is the one-call form: it takes the
 workbook and sheet options in one bag, writes one sheet named `sheet` (default `'Sheet1'`), and
-returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last.
+returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last. An array or
+an `Iterable` of rows writes every time. An `Iterator`, a generator included, is read once, so a second
+write of its `Export` throws `LogicError` saying so.
 
 **Rows go in batches, and compressed bytes come back.** `$sheet->add($row)` queues a row in the Novis
 half, and a full batch crosses in one guest call, which returns the deflated bytes ready to leave; the
@@ -4970,7 +4979,7 @@ so neither a write nor a read guesses from the value's content.
 | Novis value | Cell |
 |---|---|
 | `string` | a text cell, always, whatever it begins with ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)) |
-| `int`, `float` | a number |
+| `int`, `float` | a number; NaN and the infinities throw `LogicError` naming the column, for xlsx, ods and CSV alike |
 | `decimal` | a number |
 | `int` or `decimal` with more than 15 significant digits | a text cell, so no digit is lost |
 | `bool` | `TRUE` or `FALSE` |
@@ -5136,7 +5145,7 @@ of plain lists have no keys, so they have no header and no defaults.
 
 **The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
-header (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
+header and its `_xlnm._FilterDatabase` name, as Excel writes one (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
 `{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is
 `false` and not `null`, the way `freeze` and `autofilter` are, because an options field set to `null`
 reads the same as one left out. `headerStyle: Style::of({...})` replaces the default style. `header:
@@ -5194,9 +5203,9 @@ protection.
 | `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
 | `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
 | `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
-| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format throws `LogicError` |
-| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below |
-| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area` |
+| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
+| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
+| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `print` on the sheet throws `LogicError` |
 | `protect({password?, allow?})` | sheet protection |
 
 Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's

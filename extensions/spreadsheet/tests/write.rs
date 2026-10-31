@@ -900,3 +900,65 @@ fn a_formula_that_is_empty_or_past_8192_characters_throws() {
     assert_eq!(write(format!("{}1", "1+".repeat(4_095))), None);
     assert_eq!(write(format!("={}1", "1+".repeat(4_095))), None);
 }
+
+#[test]
+fn a_header_with_autofilter_writes_the_filter_name() {
+    let mut writer = writer();
+    // The sheet starts with no rows, and its header row comes in the first batch, as
+    // `Workbook::sheet` sends them.
+    let mut out = writer.sheet(SheetOptions::named("Orders"), &[]).unwrap();
+    out.extend(
+        writer
+            .rows(&[
+                header(&["Name", "Price"]),
+                row(vec![text("Tea"), number(3.5)]),
+            ])
+            .unwrap(),
+    );
+    out.extend(
+        writer
+            .rows(&[row(vec![text("Cake"), number(2.0)])])
+            .unwrap(),
+    );
+    out.extend(writer.sheet(SheetOptions::named("Empty"), &[]).unwrap());
+    out.extend(writer.rows(&[header(&["Name"])]).unwrap());
+    let book = finish(writer, out);
+    assert!(
+        book.sheet(1).contains("<autoFilter ref=\"A1:B3\"/>"),
+        "{}",
+        book.sheet(1)
+    );
+    let workbook = book.part("xl/workbook.xml");
+    for name in [
+        "<definedName name=\"_xlnm._FilterDatabase\" localSheetId=\"0\" hidden=\"1\">'Orders'!$A$1:$B$3</definedName>",
+        "<definedName name=\"_xlnm._FilterDatabase\" localSheetId=\"1\" hidden=\"1\">'Empty'!$A$1:$A$1</definedName>",
+    ] {
+        assert!(workbook.contains(name), "{name}\nin {workbook}");
+    }
+}
+
+#[test]
+fn a_column_past_32_bits_is_named_in_full() {
+    let mut writer = writer();
+    let out = writer
+        .sheet(
+            SheetOptions::named("Orders"),
+            &[header(&["Name"]), row(vec![text("Tea")])],
+        )
+        .unwrap();
+    let past = 1u64 << 32;
+    for message in [
+        invalid(writer.cell(past, 1).unwrap_err()),
+        invalid(writer.column(past).unwrap_err()),
+    ] {
+        assert!(
+            message.contains("Column 4294967297 is outside the sheet"),
+            "{message}"
+        );
+    }
+    let message = invalid(writer.cell(0, 1u64 << 32).unwrap_err());
+    assert!(message.contains("Row 4294967296"), "{message}");
+    assert_eq!(writer.cell(16_383, 1_048_576).unwrap(), "XFD1048576");
+    assert_eq!(writer.column(0).unwrap(), "A2:A2");
+    finish(writer, out);
+}

@@ -2,8 +2,10 @@
 //! (`rule:core-classes/spreadsheet-sheet-end-parts`).
 //!
 //! [`read`] checks an image's bytes and finds its format and its size in pixels from the file's
-//! own header: PNG's `IHDR`, GIF's logical screen and JPEG's first start-of-frame segment. Any
-//! other bytes are an error, and nothing is converted. The image is the zip entry
+//! own header: PNG's `IHDR`, GIF's logical screen and JPEG's first start-of-frame segment. A PNG
+//! is walked chunk by chunk to `IEND`, so a file cut short is an error; the CRCs are not
+//! computed, and bytes after `IEND` stay as they are. Any other bytes are an error, and nothing
+//! is converted. The image is the zip entry
 //! `xl/media/image<n>.<ext>`, numbered across the workbook, and [`Drawing`] keeps only where each
 //! one is placed: its cell, an offset from the cell's top-left corner and a size, in pixels. A
 //! size the program leaves out is the image's own, and one side given alone scales the other by
@@ -15,8 +17,10 @@
 //! the cell its size ends at and the offset in that cell, in EMU (9,525 to a pixel). An image's
 //! anchor is `editAs="oneCell"` and carries its position on the sheet, and a chart's carries
 //! none. The end cell comes from the sheet's [`Grid`]: each column's width and each row's height
-//! in pixels, as Excel turns them into pixels at its default font. [`Drawing::rels`] is the
-//! part's relationships to the media and the charts.
+//! in pixels, as Excel turns them into pixels at its default font. [`Drawing::fits`] checks over
+//! the same grid, before the sheet's tail is written, that every anchor ends inside column `XFD`
+//! and row 1,048,576, and an error names the cell past the grid's edge it would end at.
+//! [`Drawing::rels`] is the part's relationships to the media and the charts.
 //!
 //! Memory: per image, its anchor and its entry's name, and per chart its anchor and what
 //! `chart`'s module doc keeps. The image bytes go to the archive at once, or, when the sheet's own
@@ -91,12 +95,9 @@ pub fn read(bytes: &[u8]) -> Option<(Format, u32, u32)> {
             *bytes.get(at + 1)?,
         ])))
     };
-    let u32_be = |at: usize| Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?));
     let (format, width, height) = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        if bytes.get(12..16)? != b"IHDR" {
-            return None;
-        }
-        (Format::Png, u32_be(16)?, u32_be(20)?)
+        let (width, height) = png_size(bytes)?;
+        (Format::Png, width, height)
     } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
         (Format::Gif, u16_le(6)?, u16_le(8)?)
     } else if bytes.starts_with(&[0xFF, 0xD8]) {
@@ -120,6 +121,37 @@ pub fn read(bytes: &[u8]) -> Option<(Format, u32, u32)> {
         return None;
     };
     (width > 0 && height > 0).then_some((format, width, height))
+}
+
+/// The width and height in a PNG's `IHDR` chunk, when the file's chunks, from the one after the
+/// signature to `IEND`, each fit in `bytes`: a 4-byte length, a 4-byte type, the data and a
+/// 4-byte CRC. `IHDR` comes first and is 13 bytes, and at least one `IDAT` comes before `IEND`.
+/// The CRCs are not computed, and bytes after `IEND` are kept as they are.
+fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    let be = |at: &[u8]| Some(u32::from_be_bytes(at.get(..4)?.try_into().ok()?));
+    let mut at = 8usize;
+    let mut size = None;
+    let mut data = false;
+    loop {
+        let length = usize::try_from(be(bytes.get(at..)?)?).ok()?;
+        let kind = bytes.get(at + 4..at + 8)?;
+        let start = at + 8;
+        let end = start.checked_add(length)?;
+        if bytes.len() < end.checked_add(4)? {
+            return None;
+        }
+        match (size, kind) {
+            (None, b"IHDR") if length == 13 => {
+                let header = &bytes[start..end];
+                size = Some((be(header)?, be(&header[4..])?));
+            }
+            (None, _) | (Some(_), b"IHDR") => return None,
+            (Some(size), b"IEND") => return data.then_some(size),
+            (Some(_), b"IDAT") => data = true,
+            _ => {}
+        }
+        at = end + 4;
+    }
 }
 
 /// What an anchor places: an image by its media entry's name under `xl/media/`, or a chart by
@@ -376,6 +408,11 @@ pub fn place(image: &Image) -> Result<Placement, Error> {
     let cell = image.at.as_str();
     let (column, row) = cell_at(cell).ok_or_else(|| bad_cell("image", cell))?;
     let Some((format, own_width, own_height)) = read(&image.image) else {
+        if image.image.starts_with(b"\x89PNG\r\n\x1a\n") {
+            return Err(Error::Invalid(format!(
+                "The image at `{cell}` starts as a PNG file, but the file is cut short or damaged."
+            )));
+        }
         return Err(Error::Invalid(format!(
             "The image at `{cell}` is not a PNG, JPEG or GIF file. Convert it to one of these formats first."
         )));
@@ -440,6 +477,43 @@ impl Drawing {
             height: at.height,
             placed: Placed::Chart(number, planned),
         });
+        Ok(())
+    }
+
+    /// Checks that every image and chart ends inside the sheet's 16,384 columns and 1,048,576
+    /// rows, over the sheet's `grid`. An error names the cell it would end at, counted past the
+    /// grid's edge with the default column width and row height.
+    pub fn fits(&self, grid: &Grid) -> Result<(), Error> {
+        for anchor in &self.anchors {
+            let (column, x) = grid.across(anchor.column, anchor.offset_x);
+            let (row, y) = grid.down(anchor.row, anchor.offset_y);
+            let (end_column, end_x) = grid.across(column, x + anchor.width);
+            let (end_row, end_y) = grid.down(row, y + anchor.height);
+            let past_x = end_x - grid.column(end_column);
+            let past_y = end_y - f64::from(grid.row_height(end_row));
+            if past_x <= 0.0 && past_y <= 0.0 {
+                continue;
+            }
+            let beyond = |past: f64, last: u32, step: f64| {
+                if past > 0.0 {
+                    last.saturating_add(1).saturating_add((past / step) as u32)
+                } else {
+                    last
+                }
+            };
+            let end = cells::reference(
+                beyond(past_x, end_column, DEFAULT_COLUMN),
+                beyond(past_y, end_row, f64::from(DEFAULT_ROW)).saturating_add(1),
+            );
+            let (what, also) = match anchor.placed {
+                Placed::Picture(_) => ("image", "Make the image smaller, or move it."),
+                Placed::Chart(..) => ("chart", "Make the chart smaller, or move it."),
+            };
+            let cell = cells::reference(anchor.column, anchor.row + 1);
+            return Err(Error::Invalid(format!(
+                "The {what} at `{cell}` ends at the cell `{end}`. That cell is outside the sheet, which ends at column `XFD` and row 1,048,576. {also}"
+            )));
+        }
         Ok(())
     }
 

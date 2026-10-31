@@ -597,12 +597,18 @@ fn has_all(haystack: &str, name: &str, needles: &[&str]) {
     }
 }
 
-/// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.
+/// The chunks of a PNG `width` by `height` pixels: its signature, `IHDR`, one `IDAT` and `IEND`.
+/// The CRCs are zero, because the writer does not compute them.
 fn png(width: u32, height: u32) -> Vec<u8> {
     let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
     bytes.extend(width.to_be_bytes());
     bytes.extend(height.to_be_bytes());
     bytes.extend([8, 6, 0, 0, 0]);
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x02IDAT\x78\x9c");
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x00IEND");
+    bytes.extend([0; 4]);
     bytes
 }
 

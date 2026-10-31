@@ -18,6 +18,9 @@
     "crates/nvs-cli/tests/spreadsheet_values.rs",
     "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst",
     "tests/conformance/novis/spreadsheet-a-rich-cell-writes-its-runs.nvst",
-    "tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst"
+    "tests/conformance/novis/spreadsheet-a-rich-run-takes-font-fields-only.nvst",
+    "tests/conformance/novis/spreadsheet-a-key-before-the-first-keyed-row-throws.nvst",
+    "tests/conformance/novis/spreadsheet-a-column-before-its-first-data-row-throws.nvst",
+    "tests/conformance/novis/spreadsheet-a-cell-on-a-finished-sheet-names-the-sheet.nvst"
   ]
 }

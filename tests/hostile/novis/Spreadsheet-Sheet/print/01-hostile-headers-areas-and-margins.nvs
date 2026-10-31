@@ -45,3 +45,13 @@ try {
 } catch (LogicError $e) {
     echo "step 4 stopped LogicError\n";
 }
+
+// 5. A second page setup on the same sheet, which tries to change the first one.
+var $twice = Workbook::createInMemory()->sheet('Shop');
+$twice->print({ orientation: 'portrait' });
+try {
+    $twice->print({ orientation: 'landscape' });
+    echo "step 5 changed the page setup\n";
+} catch (LogicError $e) {
+    echo "step 5 stopped LogicError\n";
+}

@@ -672,8 +672,11 @@ fn cell_and_column_give_a1_text_over_the_rows_written_so_far() {
     assert_eq!(writer.cell(16_383, 1_048_576).unwrap(), "XFD1048576");
     assert!(writer.cell(16_384, 1).is_err());
     assert!(writer.cell(0, 0).is_err());
-    // Before the first data row, the range is that row alone.
-    assert_eq!(writer.column(1).unwrap(), "B2:B2");
+    // Before the first data row, a column has no cells.
+    let Err(Error::Invalid(early)) = writer.column(1) else {
+        panic!("a column before the first data row is an error");
+    };
+    assert!(early.contains("`Shop` has no data row yet"), "{early}");
     out.extend(writer.rows(&orders(1042)).unwrap());
     assert_eq!(writer.column(1).unwrap(), "B2:B1043");
     // A totals row written after the data covers every row of the stream.
@@ -1035,12 +1038,18 @@ fn every_conditional_format_kind_is_written_with_its_style() {
     ), "{styles}");
 }
 
-/// The header of a PNG `width` by `height` pixels: its signature and `IHDR` chunk.
+/// The chunks of a PNG `width` by `height` pixels: its signature, `IHDR`, one `IDAT` and `IEND`.
+/// The CRCs are zero, because the writer does not compute them.
 fn png(width: u32, height: u32) -> Vec<u8> {
     let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
     bytes.extend(width.to_be_bytes());
     bytes.extend(height.to_be_bytes());
     bytes.extend([8, 6, 0, 0, 0]);
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x02IDAT\x78\x9c");
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x00IEND");
+    bytes.extend([0; 4]);
     bytes
 }
 
@@ -1125,8 +1134,6 @@ fn an_image_that_is_not_png_jpeg_or_gif_throws() {
     for bytes in [
         b"BM\x36\x00\x00\x00".to_vec(),
         b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>".to_vec(),
-        png(2, 1)[..18].to_vec(),
-        png(0, 1),
         Vec::new(),
     ] {
         let message = invalid(writer.part(Part::Image(image("C3", bytes))));
@@ -1147,4 +1154,154 @@ fn an_image_that_is_not_png_jpeg_or_gif_throws() {
         book.has("xl/media/image1.png"),
         "an image that throws takes no number"
     );
+}
+
+#[test]
+fn an_image_cut_short_throws() {
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    let whole = png(2, 1);
+    let mut no_end = whole.clone();
+    no_end.truncate(whole.len() - 12);
+    let mut no_data = whole[..33].to_vec();
+    no_data.extend(&whole[whole.len() - 12..]);
+    let mut too_long = whole.clone();
+    too_long[33..37].copy_from_slice(&u32::MAX.to_be_bytes());
+    for bytes in [
+        whole[..8].to_vec(),
+        whole[..30].to_vec(),
+        no_end,
+        no_data,
+        too_long,
+        png(0, 1),
+    ] {
+        let message = invalid(writer.part(Part::Image(image("C3", bytes))));
+        assert!(
+            message.contains("`C3`") && message.contains("cut short or damaged"),
+            "{message}"
+        );
+    }
+    let mut trailing = whole.clone();
+    trailing.extend(b"more bytes after the end");
+    out.extend(
+        writer
+            .part(Part::Image(image("C3", trailing.clone())))
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+    assert_eq!(
+        book.bytes("xl/media/image1.png"),
+        trailing.as_slice(),
+        "bytes after `IEND` are kept"
+    );
+}
+
+#[test]
+fn an_image_that_ends_past_the_grid_throws() {
+    for (cell, width, height) in [
+        ("A1", Some(10_000_000.0), None),
+        ("XFC1", Some(1_000.0), Some(10.0)),
+        ("A1048570", Some(10.0), Some(1_000.0)),
+    ] {
+        let mut writer = writer();
+        writer
+            .sheet(SheetOptions::named("Shop"), &orders(2))
+            .unwrap();
+        let mut wide = image(cell, png(2, 1));
+        wide.width = width;
+        wide.height = height;
+        writer.part(Part::Image(wide)).unwrap();
+        let message = match writer.finish() {
+            Err(Error::Invalid(message)) => message,
+            other => panic!("an image past the grid, not {other:?}"),
+        };
+        assert!(
+            message.contains(&format!("The image at `{cell}` ends at the cell `"))
+                && message.contains("outside the sheet"),
+            "{message}"
+        );
+    }
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(2))
+        .unwrap();
+    let mut edge = image("XFD1", png(2, 1));
+    edge.width = Some(64.0);
+    writer.part(Part::Image(edge)).unwrap();
+    let book = finish(writer, out);
+    assert!(
+        book.part("xl/drawings/drawing1.xml")
+            .contains("<xdr:to><xdr:col>16383</xdr:col>"),
+        "an image that fills the last column is inside the grid"
+    );
+}
+
+#[test]
+fn a_whole_number_rule_writes_no_text_limits() {
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(9))
+        .unwrap();
+    writer
+        .part(Part::Validation(validation(
+            "B2:B9",
+            RuleKind::Whole,
+            &["1", "100"],
+        )))
+        .unwrap();
+    let mut at_least = validation("C2:C9", RuleKind::Whole, &["=$F$1"]);
+    at_least.operator = Some(Operator::GreaterOrEqual);
+    writer.part(Part::Validation(at_least)).unwrap();
+    for bound in ["1.5", "ten", "inf"] {
+        let mut rule = validation("D2:D9", RuleKind::Whole, &[bound]);
+        rule.operator = Some(Operator::LessOrEqual);
+        let message = invalid(writer.part(Part::Validation(rule)));
+        assert!(
+            message.contains(&format!("has the bound `{bound}`"))
+                && message.contains("whole number"),
+            "{message}"
+        );
+    }
+    let book = finish(writer, out);
+    let rules = between(book.sheet(1), "<dataValidations", "</dataValidations>");
+    assert!(
+        rules.starts_with("<dataValidations count=\"2\">"),
+        "{rules}"
+    );
+    assert!(!rules.contains("textLength"), "{rules}");
+    assert!(rules.contains(
+        "<dataValidation type=\"whole\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"B2:B9\"><formula1>1</formula1><formula2>100</formula2></dataValidation>"
+    ), "{rules}");
+    assert!(rules.contains(
+        "<dataValidation type=\"whole\" operator=\"greaterThanOrEqual\" showInputMessage=\"1\" showErrorMessage=\"1\" sqref=\"C2:C9\"><formula1>$F$1</formula1></dataValidation>"
+    ), "{rules}");
+}
+
+#[test]
+fn a_second_print_on_a_sheet_throws() {
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    writer
+        .part(Part::Print(Print {
+            orientation: Some(Orientation::Landscape),
+            fit_width: Some(1),
+            ..Print::default()
+        }))
+        .unwrap();
+    let message = invalid(writer.part(Part::Print(Print {
+        header: Some("&CShop".to_owned()),
+        ..Print::default()
+    })));
+    assert!(
+        message.contains("The sheet `Shop` has its page setup already"),
+        "{message}"
+    );
+    out.extend(writer.rows(&orders(2)).unwrap());
+    let book = finish(writer, out);
+    let sheet = book.sheet(1);
+    assert!(
+        sheet.contains("<pageSetup orientation=\"landscape\" fitToWidth=\"1\" fitToHeight=\"0\"/>"),
+        "the first page setup is kept: {sheet}"
+    );
+    assert!(!sheet.contains("<headerFooter>"), "{sheet}");
 }

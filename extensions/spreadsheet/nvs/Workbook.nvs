@@ -27,6 +27,8 @@ final class Workbook
     private array<bytes> $kept = [];
     private bool $open = false;
     private bool $started = false;
+    // Whether the open sheet has a data row. The header row is not a data row.
+    private bool $hasData = false;
     private bool $wantHeader = true;
     private ?array<uint> $positions = null;
     private array<string> $headers = [];
@@ -58,8 +60,7 @@ final class Workbook
     )
     {}
 
-    /// `Workbook::createForDownload` sends the file to the browser as a download named `$name`.
-    /// The response headers are sent at once, and each part of the file is sent when it is ready.
+    /// `Workbook::createForDownload` sends the file to the browser as a download named `$name`. The headers are sent at once, and each part of the file when it is ready.
     /// If the program stops before `finish`, the download is cut off and the error log names `$name`.
     public static function createForDownload(string $name, Options $options = null): Workbook
     {
@@ -99,9 +100,10 @@ final class Workbook
     }
 
     /// `Workbook::fromRows` makes a workbook with one sheet that has every row of `$rows`. Call `download`, `save`, `to` or `bytes` on the result to write it.
-    /// `$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
+    /// `$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`. An `Iterator` of rows, such as a generator, is written once.
     public static function fromRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export
     {
+        bool $once = !($rows is array<array<mixed>>) && !($rows is Iterable<array<mixed>>);
         return new Export(fn(Workbook $book): void => {
             var $sheet = $book->sheet($options?->sheet ?? 'Sheet1', $options);
             // All rows of an array go to the engine in one call, so the width of each column fits every row.
@@ -109,7 +111,7 @@ final class Workbook
                 $book->whole = true;
             }
             $sheet->addAll($rows);
-        }, $options);
+        }, $options, null, $once);
     }
 
     /// `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
@@ -203,6 +205,7 @@ final class Workbook
         $this->send(Engine::writerSheet($this->writer, $layout, []));
         $this->open = true;
         $this->started = false;
+        $this->hasData = false;
         $this->whole = false;
         $this->wantHeader = $wantHeader;
         $this->positions = $known;
@@ -339,21 +342,22 @@ final class Workbook
         }
     }
 
-    private function openSheet(uint $sheet, string $what): string
+    // The name of the sheet `$sheet`, when it is still open. `$then` says what a finished sheet does not allow, such as `you cannot add rows to it`.
+    private function openSheet(uint $sheet, string $then): string
     {
         string $name = $this->names[($sheet as int) - 1];
         if ($this->finished) {
             throw new LogicError("The sheet `{$name}` is finished, because the workbook is finished. `finish` is the last call on a workbook.");
         }
         if ($sheet != $this->sheets) {
-            throw new LogicError("The sheet `{$name}` is finished, so you cannot add {$what} to it. A sheet is finished when the workbook starts the next sheet.");
+            throw new LogicError("The sheet `{$name}` is finished, so {$then}. A sheet is finished when the workbook starts the next sheet.");
         }
         return $name;
     }
 
     private function queue(uint $sheet, array<mixed> $row, RowOptions $options): void
     {
-        string $name = $this->openSheet($sheet, 'rows');
+        string $name = $this->openSheet($sheet, 'you cannot add rows to it');
         if (!$this->started) {
             $this->begin($row);
         }
@@ -388,6 +392,7 @@ final class Workbook
             level: $options?->level ?? 0,
             header: false,
         };
+        $this->hasData = true;
         // A batch of 1,000 rows goes to the engine in one call.
         if (!$this->whole && Core\Arr::count($this->pending) >= 1000) {
             $this->flush();
@@ -435,34 +440,45 @@ final class Workbook
     }
 
     // Sends the rows that wait, so a part of the open sheet can use them. `$totals` is the row a table's totals row takes.
-    private function ready(uint $sheet, ?uint $totals): void
+    // When `$rows` is `true`, a sheet with no data row throws, because `column` returns the cells of the data rows.
+    private function ready(uint $sheet, ?uint $totals, bool $rows): void
     {
-        $this->openSheet($sheet, 'parts');
+        string $name = $this->openSheet($sheet, 'you cannot add parts to it');
+        if ($rows && !$this->hasData) {
+            throw new LogicError("The sheet `{$name}` has no data row yet. Call `column` after you add the first row.");
+        }
         $this->flush();
         if ($totals != null) {
             $this->totalsAt[] = $totals;
         }
     }
 
-    // The column of `$key`: a key of the sheet's columns, or a column letter such as `C`.
+    // The column of `$key`: a key of the sheet's columns, or a column letter from `A` to `XFD`, such as `C`.
+    // A letter is upper case. Any other text is a key, and the keys come from the `columns` option or from the first row with keys.
     private function position(uint $sheet, string $key): uint
     {
-        string $name = $this->openSheet($sheet, 'parts');
+        string $name = $this->openSheet($sheet, '`cell` and `column` cannot return its addresses');
         array<uint> $positions = $this->positions ?? [];
         if (Core\Arr::hasKey($positions, $key)) {
             return $positions[$key];
         }
         uint $at = 0;
-        foreach (Core\Str::codePoints(Core\Str::upper($key)) as uint $code) {
-            if ($code < 65 || $code > 90 || $at > 16384) {
-                throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+        uint $letters = 0;
+        foreach (Core\Str::codePoints($key) as uint $code) {
+            if ($code < 65 || $code > 90 || $letters == 3) {
+                $at = 0;
+                break;
             }
             $at = $at * 26 + ($code - 64);
+            $letters = $letters + 1;
         }
-        if ($at == 0) {
-            throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+        if ($at > 0 && $at <= 16384) {
+            return $at - 1;
         }
-        return $at - 1;
+        if ($this->positions == null && !$this->started) {
+            throw new LogicError("The sheet `{$name}` has no column keys yet, so `{$key}` is not a column. The keys come from the `columns` option or from the first row with keys.");
+        }
+        throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or an upper-case column letter, such as `C`.");
     }
 
     // Puts the values of a row with keys in the order of the columns. A list is written by position.
@@ -628,10 +644,22 @@ final class Workbook
     private function csvBytes(array<Row> $rows): bytes
     {
         array<array<string>> $records = [];
+        uint $record = $this->csvRecords;
         foreach ($rows as Row $row) {
+            $record = $record + 1;
             array<string> $fields = [];
+            uint $place = 0;
             foreach ($row->cells as Entry $entry) {
-                $fields[] = Core\Taint::assertTrusted(self::csvField($entry->value), 'the program passed this value, and a CSV file is text');
+                ?Value $value = $entry->value;
+                // An xlsx or ods cell cannot contain NaN or an infinity, so a CSV field cannot either.
+                if ($value is { number: float } && !Core\Math::isFinite($value->number)) {
+                    float $bad = $value->number;
+                    string $shown = Core\Math::isNan($bad) ? 'NaN' : ($bad > 0.0 ? 'inf' : '-inf');
+                    string $where = self::column($place) . ($record as string);
+                    throw new LogicError("The cell `{$where}` has the number {$shown}. A cell can contain only a finite number.");
+                }
+                $fields[] = Core\Taint::assertTrusted(self::csvField($value), 'the program passed this value, and a CSV file is text');
+                $place = $place + 1;
             }
             $records[] = $fields;
         }

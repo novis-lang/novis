@@ -12,3 +12,5 @@ sheet, and the default is `Sheet1`. `format` is `xlsx`, `ods` or `csv`. Without 
 `csv` sets the `separator`, the `quote` and the `encoding`.
 
 **Good to know:** for more than one sheet, start with a `create` method and call `sheet` for each one.
+A generator can be read only once. So an `Export` of a generator writes one file, and a second write
+throws a `LogicError`. An array writes the same file each time.

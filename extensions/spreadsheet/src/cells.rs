@@ -153,7 +153,7 @@ fn finite(at: &str, value: f64) -> Result<f64, Error> {
         Ok(value)
     } else {
         Err(Error::Invalid(format!(
-            "The cell `{at}` has the number {value}. A cell can hold only a finite number."
+            "The cell `{at}` has the number {value}. A cell can contain only a finite number."
         )))
     }
 }

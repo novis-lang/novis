@@ -28,12 +28,12 @@ final class Sheet
     type PrintOptions = { orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
 
     /// `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
-    /// `$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.
+    /// `$add` adds a row. `$ready` sends the rows that wait, checks that the sheet is open, and with `true` last checks for a data row. `$position` returns the column of a key.
     public function constructor(
         private readonly uint $index,
         private readonly Writer $writer,
         private readonly callable(uint, array<mixed>, RowOptions): void $add,
-        private readonly callable(uint, ?uint): void $ready,
+        private readonly callable(uint, ?uint, bool): void $ready,
         private readonly callable(bytes): void $send,
         private readonly callable(uint, string): uint $position,
     )
@@ -70,7 +70,7 @@ final class Sheet
     }
 
     /// `cell` returns the address of the column `$key` in row `$row`, such as `'C7'`.
-    /// `$key` is a column key or a column letter, such as `'qty'` or `'C'`.
+    /// `$key` is a column key or an upper-case column letter, such as `'qty'` or `'C'`. A key needs the `columns` option or a row with keys first.
     public function cell(string $key, int $row): string
     {
         if ($row < 1) {
@@ -80,11 +80,11 @@ final class Sheet
     }
 
     /// `column` returns the cells of the column `$key` in the rows added so far, such as `'C2:C1043'`.
-    /// The header row is not in the range. Call it after the last row to get every row.
+    /// The header row is not in the range. Call it after the last row to get every row. Before the first data row, it throws a `LogicError`.
     public function column(string $key): string
     {
         uint $at = $this->at($key);
-        $this->ready(null);
+        $this->ready(null, true);
         return Engine::writerColumn($this->writer, $at);
     }
 
@@ -208,7 +208,7 @@ final class Sheet
         if (Core\Arr::count($totals) > 0) {
             $after = self::lastRow($range) + 1;
         }
-        $this->ready($after);
+        $this->ready($after, false);
         return $this->send({
             table: $range,
             name: $options?->name ?? null,
@@ -238,8 +238,8 @@ final class Sheet
         });
     }
 
-    /// `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format throws a `LogicError`.
-    /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell.
+    /// `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
+    /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell. An image that ends after column `XFD` or row 1,048,576 throws.
     public function image(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
     {
         return $this->part({
@@ -274,7 +274,7 @@ final class Sheet
     }
 
     /// `print` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
-    /// `repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row.
+    /// `repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row. A second `print` throws a `LogicError`.
     public function print(PrintOptions $options): Sheet
     {
         ?Orientation $orientation = null;
@@ -308,7 +308,7 @@ final class Sheet
 
     private function part(Part $part): Sheet
     {
-        $this->ready(null);
+        $this->ready(null, false);
         return $this->send($part);
     }
 
@@ -319,10 +319,10 @@ final class Sheet
         return $this;
     }
 
-    private function ready(?uint $totals): void
+    private function ready(?uint $totals, bool $rows): void
     {
-        callable(uint, ?uint): void $ready = $this->ready;
-        $ready($this->index, $totals);
+        callable(uint, ?uint, bool): void $ready = $this->ready;
+        $ready($this->index, $totals, $rows);
     }
 
     private function at(string $key): uint

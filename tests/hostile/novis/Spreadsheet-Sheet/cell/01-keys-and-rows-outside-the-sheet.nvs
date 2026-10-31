@@ -37,3 +37,8 @@ Attack::attempt(3, $sheet, 'A1:B2', 1);
 Attack::attempt(3, $sheet, '=SUM(A1)', 1);
 Attack::attempt(3, $sheet, "Blog'!A1", 1);
 Attack::attempt(3, $sheet, '', 1);
+
+// 4. A key on a new sheet before its first row, and a column letter in lower case.
+var $empty = $book->sheet('Blog');
+Attack::attempt(4, $empty, 'total', 2);
+Attack::attempt(4, $empty, 'xfd', 2);

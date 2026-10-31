@@ -624,20 +624,20 @@ impl Writer {
     }
 
     /// The open sheet's data range in the column at `column`, from 0, over the rows kept so
-    /// far, such as `C2:C1043`. The header row is not in it.
-    pub fn column(&self, column: u32) -> Result<String, Error> {
+    /// far, such as `C2:C1043`. The header row is not in it, and a sheet with no data row yet is
+    /// an error (`writer::data_range`).
+    pub fn column(&self, column: u64) -> Result<String, Error> {
         let Some(sheet) = self.open_sheet() else {
             return Err(Error::Invalid(
                 "No sheet is open. Call `sheet()` before you ask for a column.".to_owned(),
             ));
         };
-        let first = if sheet.header.is_some() { 2 } else { 1 };
-        let last = sheet.next.saturating_sub(1).max(first);
-        Ok(format!(
-            "{}:{}",
-            crate::writer::address(column, first)?,
-            crate::writer::address(column, last)?
-        ))
+        crate::writer::data_range(
+            &sheet.options.name,
+            sheet.header.is_some(),
+            sheet.next,
+            column,
+        )
     }
 
     fn open_sheet(&self) -> Option<&Sheet> {

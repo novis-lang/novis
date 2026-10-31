@@ -12,9 +12,9 @@ protection.
 | `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
 | `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
 | `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
-| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format throws `LogicError` |
-| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below |
-| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area` |
+| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
+| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
+| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `print` on the sheet throws `LogicError` |
 | `protect({password?, allow?})` | sheet protection |
 
 Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's

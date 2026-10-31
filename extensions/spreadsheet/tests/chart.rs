@@ -319,15 +319,11 @@ fn a_series_over_a_stream_covers_every_row_the_sheet_ends_with() {
     let mut out = writer
         .sheet(SheetOptions::named("Sales"), &[header()])
         .unwrap();
-    let before = writer.column(1).unwrap();
-    assert_eq!(
-        before, "B2:B2",
-        "before the first data row, a column is that row alone"
+    assert!(
+        writer.column(1).is_err(),
+        "before the first data row, a column has no cells"
     );
-    let mut early = chart(
-        Kind::Line,
-        vec![series(&before, Some(&writer.column(0).unwrap()))],
-    );
+    let mut early = chart(Kind::Line, vec![series("B2:B2", Some("A2:A2"))]);
     early.placed = "E2".to_owned();
     out.extend(writer.part(Part::Chart(early)).unwrap());
     out.extend(writer.rows(&months(1, 10)).unwrap());

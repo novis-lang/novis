@@ -190,8 +190,9 @@ pub struct SheetInfo {
     pub kind: SheetKind,
 }
 
-/// The selection and the defaults of a read (`wit/spreadsheet.wit`'s `read-options`).
-#[derive(Debug, Clone, Default)]
+/// The selection and the defaults of a read (`wit/spreadsheet.wit`'s `read-options`). The default
+/// `locale` is `en`, as `Reader.nvs` sends when the program sets none.
+#[derive(Debug, Clone)]
 pub struct ReadOptions {
     pub sheet: String,
     pub header_row: Option<u64>,
@@ -205,6 +206,25 @@ pub struct ReadOptions {
     pub fill_merged: bool,
     pub skip_hidden: bool,
     pub locale: String,
+}
+
+impl Default for ReadOptions {
+    fn default() -> Self {
+        Self {
+            sheet: String::new(),
+            header_row: None,
+            from: None,
+            limit: None,
+            columns: Vec::new(),
+            text: Vec::new(),
+            text_all: false,
+            formulas: false,
+            keep_empty_rows: false,
+            fill_merged: false,
+            skip_hidden: false,
+            locale: "en".to_owned(),
+        }
+    }
 }
 
 /// The shared strings, in one arena: string `i` is `text[ends[i - 1]..ends[i]]`.
@@ -1053,12 +1073,10 @@ impl Reader {
         let mut values = Vec::with_capacity(starting.len());
         for (at, column) in starting {
             let value = match raw.cells.iter().find(|cell| cell.column == column) {
-                Some(cell) => self
-                    .value(cell)?
-                    .map(|value| {
-                        let text = self.display(cell, &value, locale);
-                        (value, text)
-                    }),
+                Some(cell) => self.value(cell)?.map(|value| {
+                    let text = self.display(cell, &value, locale);
+                    (value, text)
+                }),
                 None => None,
             };
             values.push((at, value));

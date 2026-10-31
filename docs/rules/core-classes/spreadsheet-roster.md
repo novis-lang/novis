@@ -46,6 +46,13 @@ Each options shape is the home fragment's: the workbook's and the sheet's in
 `rule:core-classes/spreadsheet-formula-is-a-value`. Every options bag is a shape
 (`rule:core-api/options-bag`).
 
+**A cell address comes from a column key or a column letter.** `Sheet::cell($key, $row)` and
+`Sheet::column($key)` take a key of the sheet's columns, or an upper-case letter from `A` to `XFD`.
+Any other string is a key, so `'qty'` and `'a'` are keys. A key before the first keyed row throws
+`LogicError` naming it, `column` before the first data row throws, and either call on a finished
+sheet throws naming the sheet. The column a call reaches is checked against 16,384 before it is
+narrowed, so the message names the number the program gave.
+
 **An error throws the world's three classes.** A call the program got wrong — a bad sheet name, an
 `Instant` with no zone, a row past the grid, a placeholder the data lacks — throws `LogicError`
 naming the rule it broke and the cell, column or sheet. A file that does not read — a broken archive,

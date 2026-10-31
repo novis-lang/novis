@@ -6,7 +6,8 @@ file, read from its bytes.
 pixels.
 
 **Good to know:** any other format throws a `LogicError`, so check an image from an upload before you
-add it. An image added before the first row of the sheet is written at once. An image added later is
+add it. A file that is cut short also throws a `LogicError`. So does an image that ends after the
+last column (`XFD`) or the last row (1,048,576) of the sheet. An image added before the first row of the sheet is written at once. An image added later is
 kept in memory until the sheet is finished, so a report with many images adds them before its rows.
 A CSV file has no images, so `image` does nothing there.
 

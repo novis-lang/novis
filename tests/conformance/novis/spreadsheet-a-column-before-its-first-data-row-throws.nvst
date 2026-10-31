@@ -1,0 +1,32 @@
+--TEST--
+`Sheet::column` before the first data row throws naming the sheet, also when the `columns` option gives the key, and after the first row it returns the data rows without the header row: rule:core-classes/spreadsheet-roster
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::column
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders", {columns: ["order" => {header: "Order"}, "total" => {header: "Total"}]});
+try {
+    echo $orders->column("total"), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A column letter has no data row either.
+try {
+    echo $orders->column("B"), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+$orders->add(["order" => 1042, "total" => 19.5]);
+echo $orders->column("total"), "\n";
+$orders->add(["order" => 1043, "total" => 5.0]);
+echo $orders->column("B"), "\n";
+$book->finish();
+--EXPECT--
+The sheet `Orders` has no data row yet. Call `column` after you add the first row.
+The sheet `Orders` has no data row yet. Call `column` after you add the first row.
+B2:B2
+B2:B3

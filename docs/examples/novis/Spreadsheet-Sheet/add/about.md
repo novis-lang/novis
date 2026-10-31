@@ -9,6 +9,7 @@ row. `level` puts the row in an outline group. `style` is a `Style` for every ce
 
 **Good to know:** the rows are written in order, and a row cannot be changed after you add it. When
 the workbook starts the next sheet, this sheet is finished, and `add` throws a `LogicError`. A CSV file
-has no heights, styles or hidden rows, so these options do nothing there.
+has no heights, styles or hidden rows, so these options do nothing there. A number that is NaN or an
+infinity throws a `LogicError` that names its cell, in every format.
 
 **The examples below** add rows with keys, add rows without keys, and hide a row.
