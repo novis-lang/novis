@@ -4,6 +4,7 @@
 use nvs_spreadsheet::format::{
     self, Condition, Locale, Op, Options, Separators, Token, Value, locale,
 };
+use nvs_spreadsheet::openformula;
 use nvs_spreadsheet::read::format::{builtin as builtin_kind, classify};
 
 fn render(code: &str, value: f64) -> String {
@@ -217,4 +218,48 @@ fn a_locale_with_no_names_row_renders_english_names() {
     assert_eq!(render("[$-411]dddd mmmm", MONDAY), "Monday January");
     assert_eq!(render("[$-FFFF]dddd", MONDAY), "Monday");
     assert_eq!(Locale::of_tag("ja"), Locale::EN);
+}
+
+#[test]
+fn openformula_and_a1_text_translate_both_ways() {
+    // Each pair reads both ways: OpenFormula as LibreOffice writes it, and the A1 text.
+    let pairs = [
+        ("of:=SUM([.A1:.B2])", "SUM(A1:B2)"),
+        ("of:=[.$A$1]*2", "$A$1*2"),
+        (
+            "of:=[$'My sheet'.A1:.B2]+[$Shop.C3]",
+            "'My sheet'!A1:B2+Shop!C3",
+        ),
+        ("of:=SUM([$Shop.A1:$Lists.B2])", "SUM(Shop:Lists!A1:B2)"),
+        ("of:=[$'O''Brien'.A1]", "'O''Brien'!A1"),
+        ("of:=['file:///a.ods'#$Shop.A1]", "'[file:///a.ods]Shop'!A1"),
+        ("of:=SUM([.A:.A])+SUM([.1:.3])", "SUM(A:A)+SUM(1:3)"),
+        ("of:=IF([.A1]>0;\"a;b\";TRUE())", "IF(A1>0,\"a;b\",TRUE)"),
+        ("of:=SUM({1;2|3;4})", "SUM({1,2;3,4})"),
+        ("of:=COM.MICROSOFT.IFS([.A1]=1;\"x\")", "IFS(A1=1,\"x\")"),
+        ("of:=IFERROR(1/0;#DIV/0!)", "IFERROR(1/0,#DIV/0!)"),
+        ("of:=SUM(([.A1]~[.B1]))", "SUM((A1,B1))"),
+        ("of:=SUM([.A1:.B2]![.B1:.B3])", "SUM(A1:B2 B1:B3)"),
+        ("of:=Total*1.5E+3+50%", "Total*1.5E+3+50%"),
+        ("of:=\"a [.A1] b\"&[.A1]", "\"a [.A1] b\"&A1"),
+    ];
+    for (open, a1) in pairs {
+        assert_eq!(openformula::to_a1(open).as_deref(), Some(a1), "{open}");
+        assert_eq!(openformula::from_a1(a1), open, "{a1}");
+        assert_eq!(openformula::from_a1(&format!("={a1}")), open, "={a1}");
+    }
+    // A reference to a deleted sheet or cell is `#REF!`, and a sheet's `$` is dropped.
+    assert_eq!(
+        openformula::to_a1("of:=[$#REF!.A1]+1").as_deref(),
+        Some("#REF!+1")
+    );
+    assert_eq!(openformula::to_a1("of:=[.#REF!]").as_deref(), Some("#REF!"));
+    assert_eq!(openformula::to_a1("=[Shop.A1]").as_deref(), Some("Shop!A1"));
+    assert_eq!(
+        openformula::to_a1("of:=[Sheet 1.A1]").as_deref(),
+        Some("'Sheet 1'!A1")
+    );
+    // Text with no end cannot be read.
+    assert_eq!(openformula::to_a1("of:=[.A1"), None);
+    assert_eq!(openformula::to_a1("of:=\"open"), None);
 }

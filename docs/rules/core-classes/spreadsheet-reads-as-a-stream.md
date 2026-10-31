@@ -27,8 +27,10 @@ module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and a
 the workbook's relationships name, or `xl/vbaProject.bin` when none does, so a file never hides one.
 
 **xls and ods are read whole** when the reader opens: the file is held in the guest, and every
-sheet's rows with it. An xls or an ods stores a formula as tokens or as OpenFormula text, so with
-`formulas: true` its cell reads as its stored result and gives no `Formula`. An ods cell carries its
+sheet's rows with it. An xls stores a formula as tokens, so with `formulas: true` its cell reads as
+its stored result and gives no `Formula`. An ods stores a formula as OpenFormula text, which the
+reader translates to A1 text (`extensions/spreadsheet/src/openformula.rs`), so its cell gives a
+`Formula` as an xlsx cell does; a formula the translator cannot read gives none. An ods cell carries its
 type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
 `Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
 nothing, and a repeat past the grid throws.
@@ -51,7 +53,7 @@ yields its rows, so a read holds one batch at a time.
 | `emptyRows` | `'skip'` | `'keep'` yields an empty row |
 | `merged` | `'first'` | `'fill'` gives every cell of a merged range its value |
 | `hidden` | `'read'` | `'skip'` leaves hidden rows out |
-| `locale` | `'en'` | the separators `text` renders with |
+| `locale` | `'en'` | the separators and the month and day names `text` renders with |
 
 **Merged ranges.** `merged($sheet)` gives a sheet's ranges as A1 text, `'A1:C2'`, in the file's
 order. An xlsx or xlsb sheet lists them after its rows, so the call reads the sheet's part to its
@@ -112,8 +114,8 @@ and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Rea
 
 **Not shipped.** `links`, `notes`, `names`, `tables` and `images` from an xlsb, xls or ods file, and
 `properties` from an xls or ods file: each throws naming the format. An ods cell's `text` is
-rendered under the default format of its type, and not under the file's own number style.
-Month and day names are English in every `locale` (gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
+rendered under the default format of its type, and not under the file's own number style
+(gap:nvs-spreadsheet/spreadsheet-read-parts-of-every-format).
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request

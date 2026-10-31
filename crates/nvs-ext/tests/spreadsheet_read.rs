@@ -2458,3 +2458,36 @@ fn an_external_link_or_connection_reads_as_data_and_is_never_followed() {
     );
     block_on(read.request.end()).expect("the request ends");
 }
+
+#[test]
+fn an_ods_formula_reads_as_a1_formula_text() {
+    let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+<office:body><office:spreadsheet>
+<table:table table:name="Shop"><table:table-row><table:table-cell office:value-type="float" office:value="2"/><table:table-cell table:formula="of:=SUM([.A1];[$Lists.A1])" office:value-type="float" office:value="5"><text:p>5</text:p></table:table-cell><table:table-cell table:formula="of:=[.A1" office:value-type="float" office:value="7"/></table:table-row></table:table>
+<table:table table:name="Lists"><table:table-row><table:table-cell office:value-type="float" office:value="3"/></table:table-row></table:table>
+</office:spreadsheet></office:body></office:document-content>"#;
+    let read = Read::open(zip(&[
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".to_vec(),
+        ),
+        ("content.xml", content.as_bytes().to_vec()),
+    ]));
+    let formulas = || Options {
+        formulas: true,
+        ..options("Shop")
+    };
+    let batch = read.batch(formulas().value(), 10);
+    let cells = entries(field(entries(field(&batch, "rows"))[0], "cells"));
+    assert_eq!(field(cells[1], "formula"), &string("SUM(A1,Lists!A1)"));
+    // A formula the translator cannot read gives no formula, and the cell its stored result.
+    assert_eq!(field(cells[2], "formula"), &Value::Null);
+    assert_eq!(field(cells[2], "value"), &integer(7));
+    // Without `formulas`, a formula cell reads as its stored result.
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, integer(2)), (2, integer(5)), (3, integer(7))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}

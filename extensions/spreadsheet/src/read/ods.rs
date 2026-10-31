@@ -12,7 +12,8 @@
 //! moves the count on, so the million empty rows a file ends with cost nothing. A repeated cell
 //! with a value is held once per column it covers, up to the grid's 1,048,576 rows and 16,384
 //! columns, and a repeat past the grid is [`Error::Parse`]. A formula is OpenFormula text, which
-//! is not Excel's, so a cell read with `formulas: true` gives its stored result and no formula.
+//! `crate::openformula` translates to A1 text, so a cell read with `formulas: true` gives a
+//! formula as an xlsx cell does. A formula the translator cannot read gives none.
 //! A cell that spans columns or rows is a merged range, and the cells it covers follow it as
 //! `covered-table-cell`s.
 
@@ -22,7 +23,7 @@ use super::format::Kind;
 use super::merge::Merge;
 use super::sheet::{RawCell, RawRow};
 use super::xml::{self, Token};
-use super::{MOST_COLUMNS, MOST_ROWS, Listed, SheetKind, Source, days_from_civil, zip};
+use super::{Listed, MOST_COLUMNS, MOST_ROWS, SheetKind, Source, days_from_civil, zip};
 use crate::{Error, Visibility};
 
 /// The read types the styles of an ods cell stand for, by index.
@@ -112,8 +113,16 @@ struct Open {
     repeat: u64,
 }
 
-/// The cell `attrs` describe, with no column yet, or `None` for a cell with no value type.
+/// The cell `attrs` describe, with its formula as A1 text and no column yet, or `None` for a
+/// cell with no value type.
 fn typed_cell(attrs: &[u8]) -> Result<Option<RawCell>, Error> {
+    let formula =
+        xml::attr_text(attrs, b"formula")?.and_then(|text| crate::openformula::to_a1(&text));
+    Ok(value_cell(attrs)?.map(|cell| RawCell { formula, ..cell }))
+}
+
+/// The cell `attrs` describe by their value type alone.
+fn value_cell(attrs: &[u8]) -> Result<Option<RawCell>, Error> {
     let value = |name: &[u8]| xml::attr_text(attrs, name);
     let number = |text: String, style: u32| RawCell {
         style,
@@ -343,6 +352,7 @@ fn close_cell(row: &mut Option<(RawRow, u64, u64)>, open: Open) -> Result<(), Er
             kind: cell.kind.clone(),
             style: cell.style,
             value: cell.value.clone(),
+            formula: cell.formula.clone(),
             ..RawCell::default()
         });
     }
