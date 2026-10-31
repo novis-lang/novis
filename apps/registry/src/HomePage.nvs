@@ -1,0 +1,27 @@
+<?nvs
+namespace Registry;
+
+use Core\Html\Markup;
+
+// The first page of the website: a search form and the packages that match it.
+// The packages are in the order of `Ranking`, as `/api/search` returns them with `sort=default`.
+final class HomePage
+{
+    // The page for the search text `$query` and the packages `$found` that match it.
+    // An empty `$query` matches every package.
+    public static function page(tainted string $query, array<Facts> $found): Markup
+    {
+        var $rows = html``;
+        foreach ($found as Facts $facts) {
+            string $link = PackagePage::address($facts->name);
+            $rows = $rows + html`<li><a href="{$link}">{$facts->name}</a> {$facts->summary}</li>`;
+        }
+        Markup $list = Core\Arr::count($found) == 0
+            ? html`<p>No package matches this search.</p>`
+            : html`<ol>{$rows}</ol>`;
+        return PackagePage::layout('Packages', html`<h1>Novis packages</h1>
+<form method="get" action="/"><input type="search" name="q" value="{$query}" aria-label="Search the packages"> <button>Search</button></form>
+{$list}
+<p><a href="/policy">What the operator of this registry may do</a></p>`);
+    }
+}

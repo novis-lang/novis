@@ -57,6 +57,15 @@ final class App
         });
     }
 
+    // The first page of the website: a search form, and the packages that match the text `q`.
+    #[Route(path: '/', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function homePage(): void
+    {
+        tainted string $query = Request::query('q') ?? '';
+        Response::html(HomePage::page($query, new Search(Schema::open())->find($query, Sort::Default, Core\Time::now()->toEpochSeconds())));
+    }
+
     // The page of a package: its versions, owners, advisories, the facts of its order in a search, and its readme.
     #[Route(path: '/packages/{vendor}/{name}', method: Method::Get)]
     #[Access(allow: Visitor::Anyone)]

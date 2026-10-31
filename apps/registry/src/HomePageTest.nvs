@@ -1,0 +1,37 @@
+<?nvs
+namespace Registry;
+
+use Core\Html;
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+// Tests for the first page of the website.
+final class HomePageTest
+{
+    // The page links each package that was found, with its summary, and has the search text in its form.
+    #[Test]
+    public function thePageListsThePackagesThatMatch(): void
+    {
+        string $page = Html::toSource(HomePage::page('http', [
+            new Facts('acme\\http', 'Acme\\Http', 'An HTTP client.', 10, 2, 0, 1, 0, 0, 0, 0),
+        ]), 'the test reads the page');
+        Test::assertTrue(Str::contains($page, '<a href="/packages/acme/http">Acme\\Http</a> An HTTP client.'));
+        Test::assertTrue(Str::contains($page, 'value="http"'));
+    }
+
+    // With no package that matches, the page says so.
+    #[Test]
+    public function aSearchWithNoMatchSaysSo(): void
+    {
+        string $page = Html::toSource(HomePage::page('nothing', []), 'the test reads the page');
+        Test::assertTrue(Str::contains($page, 'No package matches this search.'));
+    }
+
+    // Anybody can read the page.
+    #[Test]
+    public function thePageIsPublic(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/')->status(), 200);
+    }
+}

@@ -33,7 +33,8 @@ of each package's name, readme summary and doc comments. A query keeps its first
 and digits, so no full-text operator reaches the index. A pending, withheld or unlisted version counts
 for nothing, and a package with no other version is not returned. `Ranking::facts` reads every fact in
 one query per request, and the package page (`apps/registry/src/PackagePage.nvs`) shows each fact, the
-score and a link to the formula. `Downloads` counts both kinds of download through `Downloads::add`.
+score and a link to the formula. The website's first page, `GET /?q=` (`apps/registry/src/HomePage.nvs`),
+is the same search in the default order, with a link to each package page. `Downloads` counts both kinds of download through `Downloads::add`.
 
 A package's summary is the first paragraph of its readme, which `nvs registry build` prints beside
 `doc_coverage`, `docs`, `readme`, `downloads` and `supersedes` (`crates/nvs-cli/src/package/build.rs`).
