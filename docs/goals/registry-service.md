@@ -22,7 +22,7 @@ stages:
     context: [apps/registry/src/AccountPage.nvs, apps/registry/src/BrowserTest.nvs, tools/nv/test/chromium.ts, docs/rules/packaging/a-registry-account-is-a-passkey.md, docs/rules/packaging/an-owner-is-notified-without-email.md]
   - id: 5
     title: "an owner confirms and changes a package in a browser, and no packaging rule has a Not-on-disk section"
-    status: open
+    status: done
     context: [apps/registry/src/PackagePage.nvs, docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md, docs/rules/packaging/an-owner-may-unlist.md, docs/reference/tools/35-packages.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -391,11 +391,11 @@ built, and no gap names this goal.
 - [x] The package page: unlist and relist, retract with a reason and a fixed-in version, the advisory form, and the repository move. `rule:packaging/an-owner-may-unlist`, `rule:packaging/the-registry-builds-the-archive-from-git`. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/App.nvs:763`, `apps/registry/src/App.nvs:789`, `apps/registry/src/App.nvs:826`
 - [x] Registry tests for which buttons an owner, a non-owner and a visitor see. `apps/registry/src/PackagePageTest.nvs:1`
 - [x] The last five tests of the `registry-browser-tests` check, then the whole check once. `tools/nv/test/registry-browser.test.ts:1`
-- [ ] `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44` loses its Not-on-disk section. Delete its gap record.
-- [ ] The website feature: its reference section and `about.md` describe sign-up, sign-in and the owner pages. `bun nv proofs --id 'tools:packages/the-registry-website'` prints `complete.`, and `bun nv site --stale` names no page this changed. `docs/reference/tools/35-packages.md:756`, `docs/examples/tools/packages/the-registry-website/about.md:1`
-- [ ] `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`: the `DEFAULT_KEY` sentence becomes a present-tense fact in the body: the default registry is read once its verifier key is in the binary. Nothing else changes for it. `rule:packaging/the-registry-keeps-an-append-only-log`. `crates/nvs-cli/src/package/manifest.rs:93`
-- [ ] Every other packaging fragment `git grep -lF '**Not on disk.**' -- docs/rules/packaging` still lists is built or rewritten here, then `bun nv rules --render`. The `no-not-on-disk` check passes. `docs/rules/packaging.md:1`
-- [ ] `bun nv owners --closes registry-service` passes. `tools/nv/cmd/owners.ts:1`
+- [x] `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:44` loses its Not-on-disk section. Delete its gap record.
+- [x] The website feature: its reference section and `about.md` describe sign-up, sign-in and the owner pages. `bun nv proofs --id 'tools:packages/the-registry-website'` prints `complete.`, and `bun nv site --stale` names no page this changed. `docs/reference/tools/35-packages.md:756`, `docs/examples/tools/packages/the-registry-website/about.md:1`
+- [x] `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:96`: the `DEFAULT_KEY` sentence becomes a present-tense fact in the body: the default registry is read once its verifier key is in the binary. Nothing else changes for it. `rule:packaging/the-registry-keeps-an-append-only-log`. `crates/nvs-cli/src/package/manifest.rs:93`
+- [x] Every other packaging fragment `git grep -lF '**Not on disk.**' -- docs/rules/packaging` still lists is built or rewritten here, then `bun nv rules --render`. The `no-not-on-disk` check passes. `docs/rules/packaging.md:1`
+- [x] `bun nv owners --closes registry-service` passes. `tools/nv/cmd/owners.ts:1`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -414,35 +414,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 4 is done. `tools/nv/test/registry-browser.test.ts` has the first seven tests of
-`registry-browser-tests`, and all seven pass in Chromium with `NV_BROWSER=1` (about 80 seconds cold,
-10 warm). `registry.js` and `push.js` needed no change. The `Page` class
-(`tools/nv/test/registry-browser.test.ts:246`) opens a browser context with a virtual passkey and the
-push stub, and `act` sends a form and waits on a page condition. `operator` runs a `jobs/` script
-the suite writes (`SCRIPTS`, line 126). `Browser.on` (`tools/nv/test/chromium.ts:49`) is new. The
-rules `a-registry-account-is-a-passkey`, `an-owner-is-notified-without-email` and
-`the-registry-is-a-novis-program` name the pages. The gap records of the sign-up, sign-in and push
-pages were already gone. Only `data/gaps/nvs-cli/release-confirmation-pages.json` is left, which is
-stage 5's. See the standing decision *The browser suite as built*.
+Stage 5 is done. `PackagePage` takes the viewing account (`$viewer`, from `Session::account()` in
+`App::packagePage` and `App::versionPage`). An owner sees an Unlist or List again button on each
+version, the forms for every version, retract, advisory and repository move (`PackagePage::manage`),
+and on a waiting version Release now or the stable-API form (`PackagePage::confirmation`).
+`registry.js` has a step for each. `PackagePageTest` has two new tests, and all 8 of its tests pass.
+All 12 tests of `registry-browser-tests` pass with `NV_BROWSER=1`. The suite's `jobs/release.nvs`
+inserts a pending release with an API file the test writes. It uses no log key: `hosting.json`'s
+`logKey` stays `""`, so each owner action's flush answers `sent: false`, and the page state comes
+from the database alone.
 
-The sweep's `env-secret-proofs` red is stale: `bun tools/looper/main.ts check --name
-env-secret-proofs` says no check matches, and it has no log.
+No packaging fragment has a Not-on-disk section. `gap:nvs-cli/socket-activation` (owned by
+`runtime-leftovers`) is now cited from `crates/nvs-cli/src/service.rs`'s module doc, the module its
+record names, and `the-generated-unit-is-hardened` states the present instead.
+`release-confirmation-pages.json` is deleted. The `DEFAULT_KEY` sentence was already a present-tense
+fact (`the-registry-keeps-an-append-only-log.md:98`). The website reference section has *Your account
+and your packages*, and `bun nv proofs --id 'tools:packages/the-registry-website'` prints
+`complete.`. `bun nv owners --closes registry-service` passes.
+
+The sweep's `env-secret-proofs` red is stale: no check of that name exists. It came from a retired
+goal.
 
 ### Next
 
-Stage 5's page items, the first three. Files: `apps/registry/src/PackagePage.nvs` (`package` at
-line 40, `version` at line 71), `apps/registry/public/registry.js` (`steps`), and
-`apps/registry/src/PackagePageTest.nvs` (`release` at line 210 seeds a version).
+Stage 6: start `bun nv affected --run` (or `looper verify`) with `run_in_background`, and end the
+turn to wait. Then fix every failure in one pass and run it once more. Then the goal-end gates
+from AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes registry-service`,
+`bun nv ci --check`. CI's `browser` job has no `nvs` build yet: add a build step and the suite to it
+(standing decision *The browser suite as built*), `.github/workflows/`.
 
-- [ ] The version page: "Release now" for a pending version, and the stable-API page that shows the API from `.../api` before the freeze. `apps/registry/src/PackagePage.nvs:71`, `apps/registry/src/App.nvs:766`, `apps/registry/src/App.nvs:776`, `apps/registry/src/App.nvs:785`
-- [ ] The package page: unlist and relist, retract with a reason and a fixed-in version, the advisory form, and the repository move. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/App.nvs:807`, `apps/registry/src/App.nvs:820`, `apps/registry/src/App.nvs:831`, `apps/registry/src/App.nvs:868`
-- [ ] `PackagePageTest` for which buttons an owner, a non-owner and a visitor see. `apps/registry/src/PackagePageTest.nvs:210`
-
-Then the last five browser tests. Their copy needs a version to act on. The suggested way is a
-`jobs/release.nvs` operator script that inserts a release row as `PackagePageTest::release` does,
-plus a log key made with `nvs registry key`, as `crates/nvs-cli/tests/registry_build.rs:1066` does,
-because a release appends to the log. A real publish needs a git host, and that is heavier.
-
-No test is expected to go red.
+No test is expected to go red. `crates/nvs-cli/tests/registry_build.rs` reads the website pages
+and may see the new `$viewer` argument only through `App`, which passes it.
 
 ### Backlog
