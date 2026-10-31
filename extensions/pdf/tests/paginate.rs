@@ -34,6 +34,33 @@ fn texts(laid: &Laid, page: usize) -> Vec<(String, f32, f32)> {
         .collect()
 }
 
+/// The left and right edge of each text run on `page`, without the spaces at its end.
+fn edges(laid: &Laid, page: usize) -> Vec<(f32, f32)> {
+    laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                x, glyphs, text, ..
+            } => {
+                let blank = |g: &&layout::Glyph| {
+                    text.get(g.text.clone())
+                        .is_some_and(|t| t.trim().is_empty())
+                };
+                let trailing: f32 = glyphs
+                    .iter()
+                    .rev()
+                    .take_while(blank)
+                    .map(|g| g.advance)
+                    .sum();
+                let all: f32 = glyphs.iter().map(|g| g.advance).sum();
+                Some((*x, *x + all - trailing))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
     haystack.windows(needle.len()).any(|w| w == needle)
 }
@@ -110,6 +137,38 @@ fn page_size_margins_and_first_left_right_blank() {
     })
     .unwrap();
     assert!(contains(&rendered.data, b"/MediaBox[0 0 300 200]"));
+}
+
+#[test]
+fn a_left_or_right_page_of_another_width_sets_its_own_line_widths() {
+    // The right pages are 85mm wide inside their margins, and the left ones 45mm.
+    let words = "Shop Blog News ".repeat(250);
+    let laid = lay(&format!(
+        "<style>
+        @page {{ size: 105mm 148mm; margin: 10mm }}
+        @page :left {{ margin-right: 50mm }}
+        body, p {{ margin: 0 }}
+        </style>
+        <div style='background: #eee'><p>{words}</p></div>"
+    ));
+    assert!(laid.pages.len() >= 3, "{} pages", laid.pages.len());
+    for page in 0..3 {
+        let right = if page % 2 == 0 { 95.0 } else { 55.0 };
+        let lines = edges(&laid, page);
+        assert!(lines.len() > 10, "page {page}: {lines:?}");
+        // Every line starts at the left margin and ends inside its own page's content box.
+        for &(x, end) in &lines {
+            assert!(close(x, mm(10.0)), "page {page}: {x}");
+            assert!(
+                end <= mm(right) + 0.5,
+                "page {page}: {end} past {}",
+                mm(right)
+            );
+        }
+        // And the lines fill that box: the widest is within a word of its right edge.
+        let widest = lines.iter().map(|l| l.1).fold(0.0, f32::max);
+        assert!(widest > mm(right) - 40.0, "page {page}: {widest}");
+    }
 }
 
 /// The text runs on `page` whose baseline is between `top` and `bottom`, joined in order, and

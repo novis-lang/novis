@@ -30,13 +30,17 @@
 //! empty. A string is set on the page its block box starts on, or for an inline element on the
 //! page its paragraph starts on. Names are compared without case.
 //!
-//! The content is laid out at the first page's content width, and a block box that changes the
+//! The content is built at the first page's content width, and a block box that changes the
 //! page name at the content width the first page would have under the new name. Every page then
-//! has its own content height, and its content is moved to its own content box's top-left corner,
-//! so a `:left` or `:right` page whose content box is wider or narrower than the first page's
-//! keeps the line widths of its name.
+//! has its own content height, and its content is moved to its own content box's top-left corner.
+//! A `:left` or `:right` page whose content box is wider or narrower than that width lays out
+//! its lines at its own width, and draws the boxes around them as wide, while those boxes and
+//! every box around them fill their containing block. A paragraph cut by a break onto such a
+//! page breaks its lines again from the first line on it. A box with a `width`, a table, an
+//! image and a flex container keep the width they were built at.
 //!
-//! Cost: each page's rules are matched when the page is made, a few comparisons a rule. Memory: a
+//! Cost: each page's rules are matched when the page is made, a few comparisons a rule, and the
+//! rest of a paragraph cut onto a page of another width is broken into lines once more. Memory: a
 //! copy of the `@page` rules for the render.
 
 use std::collections::BTreeMap;

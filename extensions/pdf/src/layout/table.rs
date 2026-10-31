@@ -663,7 +663,8 @@ impl Cx<'_> {
                     for (c, cell) in rows[r].cells.iter().enumerate() {
                         let width = cell_width(starts[r][c], cell.span);
                         let rooms = [part_room(start.0) - start.1, later];
-                        let pages = Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]));
+                        let pages =
+                            Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]), None);
                         let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
                         let count = pages.pages.len();
                         let bottom = pages.cursor + pages.pending;

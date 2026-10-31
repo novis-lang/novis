@@ -303,6 +303,9 @@ pub(super) struct Flow {
     /// The content height of the page at an index with a page name, for a flow of the
     /// document's pages. A flow without it has one page, and reads no forced break.
     heights: Option<Heights>,
+    /// How much wider the content of the page at an index with a page name is than the width
+    /// the blocks of that name were built at, for a flow of the document's pages.
+    widen: Option<Heights>,
     /// A `break-after` that has not been taken, because nothing has been placed after it yet.
     forced: Option<Break>,
     /// Where the last page's content starts: under the top edges the closed boxes open across
@@ -352,6 +355,7 @@ impl Flow {
             open: Vec::new(),
             limits: vec![limit],
             heights: None,
+            widen: None,
             forced: None,
             start: 0.0,
             baseline: None,
@@ -411,11 +415,31 @@ impl Flow {
         }
     }
 
-    /// The flow of the document's pages, the page at each index and name `heights` tall.
-    pub(super) fn paged(heights: Heights) -> Flow {
+    /// The flow of the document's pages, the page at each index and name `heights` tall and
+    /// `widen` wider than its blocks were built, or as wide when there is no `widen`.
+    pub(super) fn paged(heights: Heights, widen: Option<Heights>) -> Flow {
         let mut flow = Flow::new(heights(0, None));
         flow.heights = Some(heights);
+        flow.widen = widen;
         flow
+    }
+
+    /// How much wider the page at index `page` lays out a box that fills its containing block,
+    /// and every box around it does too, than the width the box was built at.
+    fn stretch_at(&self, page: usize, fill: bool) -> f32 {
+        match &self.widen {
+            Some(widen) if fill && self.open.iter().all(|o| o.geometry.fill) => {
+                widen(page, self.pages[page].name.as_deref())
+            }
+            _ => 0.0,
+        }
+    }
+
+    /// How much wider the last page lays out the lines of the innermost open box than the
+    /// width they were built at: 0 unless that box and every box around it fill their
+    /// containing block.
+    pub(super) fn stretch(&self) -> f32 {
+        self.stretch_at(self.pages.len() - 1, true)
     }
 
     /// How tall the last page's content is, less the bottom edges of the closed boxes open.
@@ -823,6 +847,18 @@ impl Flow {
                     _ if page == last => self.cursor,
                     Some(&(bottom, _)) => bottom,
                     None => self.limits[page],
+                };
+                // A box that fills its containing block is as wide as its lines on each page.
+                let stretch = self.stretch_at(page, g.fill);
+                let widened;
+                let g = if stretch == 0.0 {
+                    g
+                } else {
+                    widened = BoxGeometry {
+                        width: g.width + stretch,
+                        ..g.clone()
+                    };
+                    &widened
                 };
                 let mut items = boxes::paint(
                     g,

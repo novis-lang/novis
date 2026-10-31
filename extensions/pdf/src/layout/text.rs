@@ -126,10 +126,16 @@ fn pass(
             cx.waiting.push(None);
         }
     }
-    let heights = sheet.clone();
-    let mut flow = Flow::paged(Box::new(move |page, name| {
-        heights.page(page, false, name).content_height()
-    }));
+    let (heights, widths) = (sheet.clone(), sheet.clone());
+    // A page's lines are as wide as its own content box, and its blocks were built at the
+    // width of the first page of its name.
+    let mut flow = Flow::paged(
+        Box::new(move |page, name| heights.page(page, false, name).content_height()),
+        Some(Box::new(move |page, name| {
+            widths.page(page, false, name).content_width()
+                - widths.page(0, false, name).content_width()
+        })),
+    );
     cx.run(blocks, &mut flow);
     if cx.deep {
         return Err(too_deep());
@@ -851,6 +857,13 @@ impl Cx<'_> {
                         leaders.iter().map(|(at, ..)| (*at, 0.0)).collect();
                     let mut shaped = self.shape(&text, &runs, &para, &inline, &atoms, &room);
                     let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
+                    // The lines are as wide as the page they start on lays them out.
+                    let built = width;
+                    let mut width = if is_marker {
+                        width
+                    } else {
+                        width + flow.stretch()
+                    };
                     // The left edge and width of each line beside a float. A line's room
                     // depends on its height and the lines above it, so the text is broken
                     // again until the lines keep the room they were broken in.
@@ -910,21 +923,28 @@ impl Cx<'_> {
                     } = &mut *self;
                     shaped.align(para.align, AlignmentOptions::default());
                     let rtl = shaped.is_rtl();
-                    let heights: Vec<f32> = shaped
-                        .lines()
-                        .map(|line| {
-                            let m = line.metrics();
-                            m.block_max_coord - m.block_min_coord
-                        })
-                        .collect();
+                    let mut heights = line_heights(&shaped);
                     // The line the next page starts with, chosen at the paragraph's first line
                     // and again at each break.
                     let mut next_break = None;
                     let mut plan = !is_marker;
-                    for (i, line) in shaped.lines().enumerate() {
+                    let mut i = 0;
+                    while i < shaped.len() {
                         while plan || next_break == Some(i) {
                             if next_break == Some(i) {
                                 flow.break_page();
+                                // A page of another width breaks the lines again from this one,
+                                // and keeps the lines before it as they were placed.
+                                let now = built + flow.stretch();
+                                if (now - width).abs() > 0.01 {
+                                    bands = (0..i)
+                                        .map(|k| bands.get(k).copied().unwrap_or((left, width)))
+                                        .collect();
+                                    width = now;
+                                    break_lines(&mut shaped, &text, width, &bands, widest);
+                                    shaped.align(para.align, AlignmentOptions::default());
+                                    heights = line_heights(&shaped);
+                                }
                             }
                             next_break = flow
                                 .room()
@@ -932,6 +952,7 @@ impl Cx<'_> {
                                 .map(|at| i + at);
                             plan = false;
                         }
+                        let line = shaped.get(i).expect("a line at each index below the count");
                         let (left, width) = bands.get(i).copied().unwrap_or((left, width));
                         let metrics = line.metrics();
                         let height = heights[i];
@@ -1274,11 +1295,23 @@ impl Cx<'_> {
                             items.extend(drawn.into_iter().map(|item| shift(item, 0.0, baseline)));
                         }
                         flow.page().items.extend(items);
+                        i += 1;
                     }
                 }
             }
         }
     }
+}
+
+/// How tall each line of `shaped` is.
+fn line_heights(shaped: &Layout<usize>) -> Vec<f32> {
+    shaped
+        .lines()
+        .map(|line| {
+            let m = line.metrics();
+            m.block_max_coord - m.block_min_coord
+        })
+        .collect()
 }
 
 /// How many of the lines `heights` tall go on the last page before a break, or `None` when
@@ -1558,7 +1591,10 @@ fn break_lines(
     let mut narrow: Vec<usize> = Vec::new();
     loop {
         let mut breaker = shaped.break_lines();
-        breaker.state_mut().set_layout_max_advance(width);
+        // Lines kept from a wider page may be wider than `width`, and no line may be wider
+        // than the layout. Each line is aligned in its own width.
+        let widest = bands.iter().map(|b| b.1).fold(width, f32::max);
+        breaker.state_mut().set_layout_max_advance(widest);
         let mut line = 0;
         loop {
             let room = bands.get(line).map_or(width, |b| b.1);

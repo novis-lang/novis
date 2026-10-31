@@ -656,12 +656,12 @@ is drawn on, and counters and `element()` read as CSS says.
 **Does:** the break properties do what the subset says, and a float in a paragraph is placed at its
 line.
 
-- [ ] `rule:core-classes/pdf-css-subset`: a `:left` or `:right` page of another width sets its own line widths. `extensions/pdf/src/paginate/mod.rs:30`, `extensions/pdf/src/layout/text.rs:85`, `extensions/pdf/src/layout/inline.rs:1288`
+- [x] `rule:core-classes/pdf-css-subset`: a `:left` or `:right` page of another width sets its own line widths. `extensions/pdf/src/paginate/mod.rs:30`, `extensions/pdf/src/layout/text.rs:85`, `extensions/pdf/src/layout/inline.rs:1288`
 - [x] `break-inside: avoid` keeps a row, a flex container and an inline-block whole. `extensions/pdf/src/layout/block.rs:218`, `extensions/pdf/src/layout/text.rs:509`
 - [x] `break-after: avoid` and `break-before: avoid`. `extensions/pdf/src/layout/block.rs:88`, `extensions/pdf/src/layout/block.rs:473`, `extensions/pdf/src/layout/block.rs:487`
 - [ ] A float in a paragraph is placed at its line, and goes on to the next page. `extensions/pdf/src/layout/block.rs:604`
 - [ ] Each new value is in `subset.json`, and the tests the `pdf-breaks` check names. `extensions/pdf/subset.json:1`, `extensions/pdf/tests/paginate.rs:1`
-- [ ] The module doc's pagination bullet goes. `extensions/pdf/src/lib.rs:57`
+- [x] The module doc's pagination bullet goes. `extensions/pdf/src/lib.rs:57`
 
 ### 10. absolute and transformed boxes, the grid shorthands, elliptical radii and repeating gradients
 
