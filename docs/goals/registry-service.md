@@ -14,7 +14,7 @@ stages:
     context: [apps/registry/src/App.nvs, apps/registry/src/Releases.nvs, crates/nvs-cli/src/package/entry.rs, docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md, docs/rules/packaging/the-operator-only-withholds.md]
   - id: 3
     title: "nvs pkg advise sends an advisory, and nvs pkg audit reports it"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/audit.rs, crates/nvs-cli/src/package/retract.rs, crates/nvs-cli/tests/registry_build.rs, docs/reference/tools/35-packages.md]
   - id: 4
     title: "a person signs up, signs in and runs the account in a browser"
@@ -205,6 +205,10 @@ the `.partial` folder is removed as on every other refusal. Home: `rule:packagin
 - The client is `nvs pkg advise <package> <versions> <summary>`, shaped like `nvs pkg retract`
   (`crates/nvs-cli/src/package/retract.rs:1`). It is a new feature, `tools:packages/nvs-pkg-advise`,
   with its own section in `docs/reference/tools/35-packages.md`.
+- `<package>` is a positional argument, `Acme\Http` or `acme/http`, unlike `retract`'s nearest
+  `package.toml`, because an advisory is often sent from outside the package's folder. The
+  `--json` report of audit gains `id` for kind `advisory` alone, so a retraction's object is
+  unchanged.
 
 **A withhold purges the CDN.** Home: `rule:packaging/the-operator-only-withholds`, and the settings
 table in `apps/registry/README.md:16`.
@@ -322,13 +326,13 @@ locked version it covers.
 **Split:** the three examples and the attack of `tools:packages/nvs-pkg-advise` go to one writing
 subagent once the command lands. It builds nothing.
 
-- [ ] Audit reports each locked version inside an advisory's range, with its id, summary and fixed version, and exits non-zero. `rule:packaging/a-known-bad-version-is-retracted-not-deleted`. `crates/nvs-cli/src/package/audit.rs:194`, `crates/nvs-cli/src/package/audit.rs:218`
-- [ ] The two audit tests the `advise-and-audit-tests` check names, run once by name. `crates/nvs-cli/tests/package_audit.rs:125`
-- [ ] `nvs pkg advise <package> <versions> <summary>`: the command, its help text, and its token request, shaped like `retract`. `crates/nvs-cli/src/package/advise.rs:1`, `crates/nvs-cli/src/package/mod.rs:310`, `crates/nvs-cli/src/package/mod.rs:375`, `crates/nvs-cli/src/package/retract.rs:1`
-- [ ] The two service tests the check names: a token's advisory against the served registry is pending, and a passkey's is in the feed at once. They run once by name. `crates/nvs-cli/tests/registry_build.rs:1418`
-- [ ] The reference section `# nvs pkg advise`, after `nvs pkg retract and nvs pkg unlist`, and `nvs pkg audit`'s section names advisories. `docs/reference/tools/35-packages.md:665`, `docs/reference/tools/35-packages.md:707`
-- [ ] The feature proofs of `tools:packages/nvs-pkg-advise`: `about.md`, three examples and one attack. `bun nv proofs --comments` passes on each, and the `advise-proofs` check prints `complete.`. `docs/examples/tools/packages/nvs-pkg-advise/about.md:1`, `tests/hostile/tools/packages/nvs-pkg-advise/01-a-stolen-token-sends-a-false-advisory.nvs:1`
-- [ ] `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` prints `complete.`, with its `about.md` naming advisories. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
+- [x] Audit reports each locked version inside an advisory's range, with its id, summary and fixed version, and exits non-zero. `rule:packaging/a-known-bad-version-is-retracted-not-deleted`. `crates/nvs-cli/src/package/audit.rs:194`, `crates/nvs-cli/src/package/audit.rs:218`
+- [x] The two audit tests the `advise-and-audit-tests` check names, run once by name. `crates/nvs-cli/tests/package_audit.rs:125`
+- [x] `nvs pkg advise <package> <versions> <summary>`: the command, its help text, and its token request, shaped like `retract`. `crates/nvs-cli/src/package/advise.rs:1`, `crates/nvs-cli/src/package/mod.rs:310`, `crates/nvs-cli/src/package/mod.rs:375`, `crates/nvs-cli/src/package/retract.rs:1`
+- [x] The two service tests the check names: a token's advisory against the served registry is pending, and a passkey's is in the feed at once. They run once by name. `crates/nvs-cli/tests/registry_build.rs:1418`
+- [x] The reference section `# nvs pkg advise`, after `nvs pkg retract and nvs pkg unlist`, and `nvs pkg audit`'s section names advisories. `docs/reference/tools/35-packages.md:665`, `docs/reference/tools/35-packages.md:707`
+- [x] The feature proofs of `tools:packages/nvs-pkg-advise`: `about.md`, three examples and one attack. `bun nv proofs --comments` passes on each, and the `advise-proofs` check prints `complete.`. `docs/examples/tools/packages/nvs-pkg-advise/about.md:1`, `tests/hostile/tools/packages/nvs-pkg-advise/01-a-stolen-token-sends-a-false-advisory.nvs:1`
+- [x] `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` prints `complete.`, with its `about.md` naming advisories. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
 
 ### 4. a person signs up, signs in and runs the account in a browser
 
@@ -377,30 +381,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2 is done. The withhold purge is `apps/registry/src/Purge.nvs` (`Purge::of` reads the
-optional `purge` of `hosting.json`, `send` posts through `Core\Http::allowUrl`), `Site::$purge`
-(last constructor parameter, default `null`), and `Stores::purge`, which the withhold job calls after
-`remove`. The three new `StoresTest` purge tests pass, run once by name. The README and
-`rule:packaging/the-operator-only-withholds` state it, and its gap record is deleted.
+Stage 3 is done. `Range::contains` (`crates/nvs-cli/src/package/manifest.rs`) decides a range,
+and audit (`crates/nvs-cli/src/package/audit.rs`, `names` and `found`) reports a locked version
+inside an advisory's range with kind `advisory`, its `id`, the summary and the range's end as
+`fixed_in`. `nvs pkg advise` is `crates/nvs-cli/src/package/advise.rs`, wired in
+`crates/nvs-cli/src/package/mod.rs`. The four tests of `advise-and-audit-tests` pass, run once by
+name, and so does the unit test `a_package_name_is_sent_as_its_slug`. The reference section,
+the rule (no Not-on-disk part now), audit's `about.md` and the proofs of
+`tools:packages/nvs-pkg-advise` are in, and `bun nv proofs --id` prints `complete.` for both
+features. The gap record `audit-reports-an-advisory` is deleted.
 
-`bun nv site --check apps` was red because the registry had no `GET /`. `/` is now
-`HomePage::page`, a search form and the matches (standing decision *The first page*), with
-`HomePageTest` (3, run once by name). The check is green.
-
-The sweep's `env-secret-proofs` red is stale: no goal or floor in the tree defines that check
-(`bun tools/looper/main.ts check --name env-secret-proofs` finds none; it came from the retired
-`memory-ceiling-holes`), and its command `bun nv proofs --gate --only 'Core\Env::secret'` exits 0.
+The sweep's `env-secret-proofs` red is still stale: no check by that name exists in the tree
+(`bun tools/looper/main.ts check --name env-secret-proofs` finds none).
 
 ### Next
 
-Stage 3, the audit group: `crates/nvs-cli/src/package/audit.rs`, `crates/nvs-cli/tests/package_audit.rs`,
-`crates/nvs-cli/src/package/manifest.rs`. Then `nvs pkg advise`.
+Stage 4, the sign-up, sign-in and account pages. Files: `apps/registry/src/App.nvs`,
+`apps/registry/src/PackagePage.nvs`, `apps/registry/src/AccountPage.nvs`, new
+`apps/registry/public/registry.js` and `push.js`, new `tools/nv/test/registry-browser.test.ts`.
 
-- [ ] `Range::contains(Version)` in `crates/nvs-cli/src/package/manifest.rs:159`, the rules of `apps/registry/src/VersionRange.nvs`'s `contains`.
-- [ ] `names` (`crates/nvs-cli/src/package/audit.rs:192`) takes `Entry::Advisory` whose `versions` parse to a range that contains the version, and `found` (`audit.rs:210`) gives kind `advisory`, the summary as the reason, and `until` as `fixed_in`.
-- [ ] The two audit tests of `advise-and-audit-tests` (`crates/nvs-cli/tests/package_audit.rs:125`), run once by name.
-- [ ] `nvs pkg advise` shaped like `crates/nvs-cli/src/package/retract.rs:35`, wired at `crates/nvs-cli/src/package/mod.rs:310` and `:375`, posting to the route `App::advise` (`apps/registry/src/App.nvs`, after `retract`).
+- [ ] One page helper that sends the CSP and the HTML, for every page. Today each route calls `Response::html` itself, as at `apps/registry/src/App.nvs:66`, `apps/registry/src/App.nvs:97` and `apps/registry/src/App.nvs:252`. The layout `apps/registry/src/PackagePage.nvs:517` loads `/registry.js`.
+- [ ] `apps/registry/public/index.nvs:1` is the only file under `public/`. Check the static policy serves `registry.js` from there, else take the standing decision's fallback route.
+- [ ] Then `/signup` and `/signin` (`apps/registry/src/App.nvs:100`), the account page's forms (`apps/registry/src/AccountPage.nvs:30`), push, and the browser suite, in the stage's order.
 
-No test is expected to go red. `FeedsTest`'s kind list is unchanged: no advisory is sent there.
+No test is expected to go red.
 
 ### Backlog
