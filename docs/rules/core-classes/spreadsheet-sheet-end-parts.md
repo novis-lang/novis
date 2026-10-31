@@ -54,7 +54,10 @@ axis titles, the legend, series colours and data labels. Any other combination t
 A series names its ranges with `$sheet->column($key)`, so a chart over a stream covers every row the
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
-written as given, and the chart holds no values. **A series' categories are a number reference**
+written as given, and the chart holds no values. A series range is read by the reference parser
+`Workbook::define` uses, without whole columns or rows (`rule:core-classes/spreadsheet-output-is-inert`),
+so a range into another workbook, a URL, an unclosed quote or a second sheet name throws
+`LogicError` naming the range. A title or an axis title past 255 characters throws. **A series' categories are a number reference**
 when they are a column of the chart's own sheet whose every value below its header is a number or a date, which the
 writer knows from one flag per column kept as rows pass, and a text reference otherwise. Its XML
 follows `rust_xlsxwriter`'s output for the same chart, ported for the subset and attributed in the

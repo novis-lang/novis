@@ -5,7 +5,7 @@ use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
 $book->sheet('Shop')->addAll([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
-$book->define('Prices', 'Shop!$B$2:$B$3')->define('TaxRate', '0.2');
+$book->define('Prices', 'Shop!$B$2:$B$3')->define('Items', 'Shop!$A$2:$A$3');
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // `reference` is the text of the name, as Excel shows it in the Name Manager.

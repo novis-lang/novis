@@ -189,6 +189,17 @@ pub fn check(rule: &Conditional) -> Result<(), Error> {
         }
         Kind::Duplicates | Kind::Unique => {}
     }
+    if matches!(rule.kind, Kind::Cell | Kind::Formula) {
+        for value in &rule.values {
+            crate::cells::check_formula(value, || {
+                format!(
+                    "the {} conditional format over `{}`",
+                    rule.kind.name(),
+                    rule.formatted
+                )
+            })?;
+        }
+    }
     Ok(())
 }
 

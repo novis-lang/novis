@@ -8,6 +8,7 @@
   "guardedBy": [
     "crates/nvs-ext/tests/spreadsheet_hostile.rs",
     "extensions/spreadsheet/tests/sheet_end.rs",
+    "extensions/spreadsheet/tests/write.rs",
     "extensions/spreadsheet/tests/template.rs",
     "tests/conformance/novis/spreadsheet-a-totals-row-sums-its-column.nvst",
     "tests/conformance/novis/spreadsheet-a-column-formula-is-called-once-per-row.nvst"

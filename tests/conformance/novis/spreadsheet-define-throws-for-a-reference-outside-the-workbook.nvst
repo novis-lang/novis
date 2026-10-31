@@ -1,0 +1,66 @@
+--TEST--
+`Workbook::define` throws `LogicError` for a reference that is not a range of this workbook: a DDE call, another workbook, a URL, a function, an R1C1 reference, two sheet names and an unclosed quote. A name of 256 characters, a name in R1C1 form and a sheet name with a control character or `History` throw too, and a name whose sheet the workbook never adds throws at `finish`: rule:core-classes/spreadsheet-output-is-inert
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::define
+// covers: Novis\Spreadsheet\Workbook::sheet
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet("Shop")->addAll([["qty" => 1], ["qty" => 2]]);
+$book->define("Whole", "Shop!\$A:\$A")->define("Rows", "'Shop'!\$1:\$2");
+echo "whole columns and rows are defined\n";
+
+array<array<string>> $refused = [
+    ["Dde", "cmd|'/c calc'!A0"],
+    ["Other", "[other.xlsx]Shop!B2:B3"],
+    ["Web", "https://example.com/book.xlsx!A1"],
+    ["Call", "SUM(Shop!A1:A2)"],
+    ["Style", "Shop!R1C1"],
+    ["Twice", "Shop!Shop!A1"],
+    ["Open", "'Shop!A1"],
+    ["R2C3", "Shop!A1"],
+    [Core\Str::repeat("n", 256), "Shop!A1"],
+    ["Control", "'Sh" . Core\Str::fromCodePoint(0) . "op'!A1"],
+    ["Kept", "History!A1"],
+];
+foreach ($refused as array<string> $pair) {
+    try {
+        $book->define($pair[0], $pair[1]);
+        echo Core\Str::slice($pair[0], 0, 8), ": defined\n";
+    } catch (LogicError $e) {
+        echo Core\Str::slice($pair[0], 0, 8), ": LogicError\n";
+    }
+}
+
+try {
+    $book->sheet("History");
+    echo "History: added\n";
+} catch (LogicError $e) {
+    echo "History: LogicError\n";
+}
+
+var $later = Workbook::createInMemory();
+$later->sheet("Shop")->addAll([["qty" => 1]]);
+$later->define("Missing", "Shops!\$A\$1");
+try {
+    $later->finish();
+    echo "finish: written\n";
+} catch (LogicError $e) {
+    echo "finish: ", $e->message, "\n";
+}
+--EXPECT--
+whole columns and rows are defined
+Dde: LogicError
+Other: LogicError
+Web: LogicError
+Call: LogicError
+Style: LogicError
+Twice: LogicError
+Open: LogicError
+R2C3: LogicError
+nnnnnnnn: LogicError
+Control: LogicError
+Kept: LogicError
+History: LogicError
+finish: The name `Missing` refers to the sheet `Shops`, which the workbook does not have. Add the sheet, or change the reference.

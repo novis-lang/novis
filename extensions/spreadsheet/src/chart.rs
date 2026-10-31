@@ -9,7 +9,8 @@
 //! is not a dependency.
 //!
 //! **A series points at its rows by reference, and the chart keeps no value.** [`check`] reads
-//! each range when the chart is added. A range with no sheet name is on the sheet the chart is
+//! each range when the chart is added, through the reference parser `Workbook::define` uses
+//! (`reference`'s module doc), so a range stays in the workbook. A range with no sheet name is on the sheet the chart is
 //! added to. **A range that ends at the row `Writer::column` gives at that moment grows with the
 //! sheet**: the chart is written when the sheet ends, and such a range ends at the sheet's last row
 //! then. So a chart added after the first rows of a stream covers every row the sheet ends with.
@@ -26,8 +27,9 @@
 use std::fmt::Write as _;
 
 use crate::drawing::Grid;
+use crate::reference::{self, Cells};
 use crate::styles::argb;
-use crate::tail::{Area, area, cell_at};
+use crate::tail::{Area, cell_at};
 use crate::{Error, cells, xml};
 
 /// The chart's size in pixels when the program sets none.
@@ -168,6 +170,9 @@ fn absolute(column: u32, row: u32) -> String {
     out
 }
 
+/// The most characters Excel allows in a chart title or an axis title.
+const MAX_TITLE: usize = 255;
+
 /// A series checked: its ranges read and its colour as `RRGGBB`.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Checked {
@@ -207,7 +212,7 @@ pub(crate) fn quoted(name: &str) -> String {
 
 /// Whether `name` reads as a cell in the R1C1 style: `R`, `C`, `RC`, `R2`, `C3` or `R2C3`, in
 /// either case.
-fn is_r1c1(name: &str) -> bool {
+pub(crate) fn is_r1c1(name: &str) -> bool {
     let upper = name.to_ascii_uppercase();
     let digits = |text: &str| text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
     let rest = match upper.strip_prefix('R') {
@@ -221,28 +226,19 @@ fn is_r1c1(name: &str) -> bool {
     !name.is_empty() && rest.is_empty()
 }
 
-/// Reads the series range `text` of the sheet `sheet`. `reach` is the row `Writer::column` gives
-/// as a column's last row now.
+/// Reads the series range `text` of the sheet `sheet` through [`reference::parse`]. `reach` is
+/// the row `Writer::column` gives as a column's last row now.
 fn range(text: &str, sheet: &str, reach: u32) -> Result<Range, Error> {
     let bad = || {
         Error::Invalid(format!(
-            "The chart range `{text}` is not a range of cells, such as `B2:B10` or `'Shop'!B2:B10`."
+            "The chart range `{text}` is not a range of cells in this workbook, such as `B2:B10` or `'Shop'!B2:B10`."
         ))
     };
-    let (named, cells) = match text.rsplit_once('!') {
-        Some((named, cells)) => {
-            let name = match named.strip_prefix('\'').and_then(|n| n.strip_suffix('\'')) {
-                Some(inner) => inner.replace("''", "'"),
-                None => named.to_owned(),
-            };
-            if name.is_empty() {
-                return Err(bad());
-            }
-            (Some(name), cells)
-        }
-        None => (None, text),
+    let read = reference::parse(text, false, bad)?;
+    let Cells::Area(at) = read.cells else {
+        return Err(bad());
     };
-    let at = area(cells).ok_or_else(bad)?;
+    let named = read.sheet;
     let own = named.as_deref().is_none_or(|name| name == sheet);
     Ok(Range {
         sheet: quoted(named.as_deref().unwrap_or(sheet)),
@@ -274,6 +270,20 @@ pub fn check(chart: &Chart, sheet: &str, reach: u32) -> Result<Planned, Error> {
             return Err(Error::Invalid(format!(
                 "The chart at `{cell}` combines {}. A chart combines two different types of column, line and area.",
                 names.join(" and ")
+            )));
+        }
+    }
+    for (what, text) in [
+        ("title", &chart.title),
+        ("x-axis title", &chart.x_title),
+        ("y-axis title", &chart.y_title),
+    ] {
+        if let Some(text) = text
+            && text.chars().count() > MAX_TITLE
+        {
+            return Err(Error::Invalid(format!(
+                "The {what} of the chart at `{cell}` has {} characters. A chart title has at most 255.",
+                text.chars().count()
             )));
         }
     }

@@ -9,6 +9,8 @@
     "crates/nvs-ext/tests/spreadsheet.rs",
     "extensions/spreadsheet/tests/template.rs",
     "extensions/spreadsheet/tests/chart.rs",
-    "extensions/spreadsheet/tests/excel.rs"
+    "extensions/spreadsheet/tests/excel.rs",
+    "extensions/spreadsheet/tests/write.rs",
+    "tests/conformance/novis/spreadsheet-define-throws-for-a-reference-outside-the-workbook.nvst"
   ]
 }

@@ -12,6 +12,7 @@
     "extensions/spreadsheet/tests/ods.rs",
     "tests/conformance/novis/spreadsheet-a-sheet-part-writes-its-kind-and-operator.nvst",
     "tests/conformance/novis/spreadsheet-a-report-carries-a-chart.nvst",
-    "tests/conformance/novis/spreadsheet-an-image-of-another-format-throws.nvst"
+    "tests/conformance/novis/spreadsheet-an-image-of-another-format-throws.nvst",
+    "tests/conformance/novis/spreadsheet-a-chart-range-outside-the-workbook-throws.nvst"
   ]
 }

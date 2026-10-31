@@ -10,6 +10,7 @@
     "crates/nvs-ext/tests/spreadsheet.rs",
     "crates/nvs-ext/tests/spreadsheet_hostile.rs",
     "extensions/spreadsheet/tests/write.rs",
+    "extensions/spreadsheet/tests/chart.rs",
     "crates/nvs-stdlib/src/zip.rs"
   ]
 }

@@ -1,0 +1,48 @@
+--TEST--
+`Sheet::chart` throws `LogicError` for a series range in another workbook, a URL, a sheet name Excel does not allow, an unclosed quote and two sheet names, and for a title longer than 255 characters. A range of a quoted sheet of this workbook is written: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::chart
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sales = $book->sheet("Sales")->addAll([["month" => "Jan", "sales" => 3], ["month" => "Feb", "sales" => 5]]);
+
+array<string> $ranges = [
+    "[other.xlsx]Sales!B2:B3",
+    "https://example.com/book.xlsx!B2:B3",
+    "'Sa" . Core\Str::fromCodePoint(1) . "les'!B2:B3",
+    "History!B2:B3",
+    "'Sales!B2:B3",
+    "Sales!Sales!B2:B3",
+];
+foreach ($ranges as string $range) {
+    try {
+        $sales->chart("D2", Chart::column()->series($range));
+        echo "added\n";
+    } catch (LogicError $e) {
+        echo "LogicError\n";
+    }
+}
+
+try {
+    $sales->chart("D2", Chart::column({title: Core\Str::repeat("t", 256)})->series("B2:B3"));
+    echo "long title: added\n";
+} catch (LogicError $e) {
+    echo "long title: LogicError\n";
+}
+
+$sales->chart("D2", Chart::column({title: "Sales"})->series("'Sales'!B2:B3"));
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $xml = Core\Zip::read($file, "xl/charts/chart1.xml") as string;
+echo Core\Str::contains($xml, "<c:f>Sales!\$B\$2:\$B\$3</c:f>") ? "the range is written" : "the range is missing", "\n";
+--EXPECT--
+LogicError
+LogicError
+LogicError
+LogicError
+LogicError
+LogicError
+long title: LogicError
+the range is written

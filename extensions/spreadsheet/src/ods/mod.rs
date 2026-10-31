@@ -88,8 +88,8 @@ use crate::tail::{
     Area, Groups, Link, Note, Part, Protect, Tail, Validation, area, cell_at, row_span,
 };
 use crate::writer::{
-    MAX_COLUMNS, MAX_ROWS, check_name, check_options, check_sheet_name, clock_text, continued,
-    fold_column_formats, header_layer,
+    MAX_COLUMNS, MAX_ROWS, check_name, check_name_sheets, check_options, check_sheet_name,
+    clock_text, continued, fold_column_formats, header_layer,
 };
 use crate::zip::Archive;
 use crate::{
@@ -1039,6 +1039,10 @@ impl Writer {
                     .to_owned(),
             ));
         };
+        check_name_sheets(
+            &self.names,
+            self.sheets.iter().map(|sheet| sheet.options.name.as_str()),
+        )?;
         self.ready_to_end()?;
         let pages = self.pages(&order);
         let content = self.content(&order, &pages)?;

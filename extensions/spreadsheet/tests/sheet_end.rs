@@ -131,6 +131,41 @@ fn invalid(result: Result<Vec<u8>, Error>) -> String {
     }
 }
 
+#[test]
+fn a_conditional_formula_past_8192_characters_throws() {
+    let red = Style {
+        fill: Some("#FFC7CE".to_owned()),
+        ..Style::default()
+    };
+    let rule = |kind: Kind, values: Vec<String>| {
+        let mut rule = conditional("B1:B9", kind);
+        rule.style = Some(red.clone());
+        rule.operator = (kind == Kind::Cell).then_some(Operator::Greater);
+        rule.values = values;
+        rule
+    };
+    let mut writer = writer();
+    writer
+        .sheet(SheetOptions::named("Shop"), &orders(9))
+        .unwrap();
+    let long = format!("={}1", "1+".repeat(4_096));
+    for kind in [Kind::Formula, Kind::Cell] {
+        let message = invalid(writer.part(Part::Conditional(rule(kind, vec![long.clone()]))));
+        assert!(
+            message.contains("`B1:B9`") && message.contains("at most 8,192"),
+            "{message}"
+        );
+        let message = invalid(writer.part(Part::Conditional(rule(kind, vec!["=".to_owned()]))));
+        assert!(message.contains("empty"), "{message}");
+    }
+    let fits = format!("={}1", "1+".repeat(4_095));
+    assert!(
+        writer
+            .part(Part::Conditional(rule(Kind::Formula, vec![fits])))
+            .is_ok()
+    );
+}
+
 fn validation(range: &str, kind: RuleKind, values: &[&str]) -> Validation {
     Validation {
         validated: range.to_owned(),

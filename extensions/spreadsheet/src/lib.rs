@@ -51,26 +51,16 @@
 //!   `string|int`. Bytes that are not a spreadsheet open as a one-sheet CSV.
 //! - The decompression-bound errors (`read::zip`) name a rule id, which a message a user reads
 //!   should not.
-//! - Charts (`chart`): a series range may point into another workbook or a URL
-//!   (`[other.xlsx]Shop!B2:B3`), a sheet name in it may have 10,000 characters or control
-//!   characters, an unclosed quote is read as part of the name, and `Shops!Shops!B2:B3` reads as
-//!   the sheet `Shops!Shops`. The sheet name is escaped as XML text. `Sheet::chart` accepts a
-//!   title of 100,000 characters.
-//! - Sheet-end parts (`drawing`, `tail`, `conditional`, `nvs/Sheet.nvs`): `Sheet::image` accepts a
-//!   PNG cut to 30 bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits
-//!   for a `whole` rule. `Sheet::conditional` takes a 10,000-character formula, where Excel allows
-//!   8,192. A second `Sheet::print` replaces the first one's settings.
+//! - Sheet-end parts (`drawing`, `tail`, `nvs/Sheet.nvs`): `Sheet::image` accepts a PNG cut to 30
+//!   bytes and a width of 10,000,000 pixels. `Sheet::validate` writes text limits for a `whole`
+//!   rule. A second `Sheet::print` replaces the first one's settings.
 //! - Addresses (`nvs/Sheet.nvs`): `Sheet::cell` after the sheet is finished throws "cannot add
 //!   parts to it". `Sheet::column($key)` before any data row returns the header cell, and the
 //!   `writerColumn` export on a sheet with no data row returns a one-cell range. `cell('qty', 2)`
 //!   before the first keyed row reads the key as column letters. The `writerCell` export names a
 //!   column cut to 32 bits in its message.
-//! - Names and values (`writer`, `cells`, `nvs/Workbook.nvs`): `Workbook::define` writes a
-//!   DDE-like reference such as `cmd|'/c calc'!A0`, and takes `R1C1` and a 100,000-character
-//!   name. `Workbook::sheet` takes `History` and a name with NUL. `Formula::of` takes an empty text
-//!   or 1,000,000 characters, where Excel allows 8,192. A sheet with
-//!   `{header: true, autofilter: true}` gets no filter name, where `fromRows` writes one. A NaN
-//!   throws for xlsx and is written for CSV.
+//! - Values (`writer`, `nvs/Workbook.nvs`): a sheet with `{header: true, autofilter: true}` gets
+//!   no filter name, where `fromRows` writes one. A NaN throws for xlsx and is written for CSV.
 //! - `Export` (`nvs/Export.nvs`): an `Export` over a generator gives no rows the second time.
 //! - Engine exports (`guest`): the reader exports do not check that `source` is the file
 //!   `readerOpen` read. `readerRows` with `max` 0 returns `done: false`. Each `readerProperties`
@@ -95,6 +85,7 @@ pub mod format;
 pub mod ods;
 pub mod openformula;
 pub mod read;
+pub mod reference;
 pub mod styles;
 pub mod table;
 pub mod tail;

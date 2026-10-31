@@ -691,6 +691,9 @@ impl Tail {
             },
             kind => rule.values.iter().map(|value| bound(kind, value)).collect(),
         };
+        for formula in &formulas {
+            cells::check_formula(formula, || format!("the validation of `{range}`"))?;
+        }
         let mut out = format!("<dataValidation type=\"{kind}\"");
         if let Some(operator) = operator
             && operator != Operator::Between

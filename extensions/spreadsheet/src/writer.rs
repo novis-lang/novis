@@ -63,8 +63,10 @@
 use std::fmt::Write as _;
 
 use crate::cells::{self, Layers};
+use crate::chart::is_r1c1;
 use crate::conditional;
 use crate::drawing::{Format, Grid};
+use crate::reference::{self, Reference};
 use crate::styles::{Implicit, Styles, argb};
 use crate::table::{Placed, Table, expand};
 use crate::tail::{Groups, Part, Tail, area};
@@ -179,10 +181,16 @@ pub(crate) fn check_sheet_name<'a>(
             "has the character `{c}`. A sheet name cannot have `: \\ / ? * [ ]`"
         ));
     }
+    if name.chars().any(char::is_control) {
+        return bad("has a control character. A sheet name cannot have one");
+    }
     if name.starts_with('\'') || name.ends_with('\'') {
         return bad("starts or ends with `'`. That is not allowed");
     }
     let lower = name.to_lowercase();
+    if lower == "history" {
+        return bad("is not allowed. Excel keeps the name `History` for itself");
+    }
     if taken.any(|sheet| sheet.to_lowercase() == lower) {
         return bad("is used twice. Each sheet needs its own name");
     }
@@ -302,16 +310,21 @@ pub(crate) fn check_name(
             "`{name}` is not a name Excel allows. A name starts with a letter or `_`, and has only letters, digits, `_` and `.`."
         )));
     }
-    if is_range(&name.to_ascii_uppercase()) {
+    if name.chars().count() > 255 {
+        return Err(Error::Invalid(format!(
+            "The name `{name}` is too long. A name has at most 255 characters."
+        )));
+    }
+    if is_range(&name.to_ascii_uppercase()) || is_r1c1(name) {
         return Err(Error::Invalid(format!(
             "`{name}` is a cell reference, so it cannot be a name."
         )));
     }
-    if reference.is_empty() {
-        return Err(Error::Invalid(format!(
-            "The name `{name}` needs a reference, such as `Sheet1!$A$1:$B$10`."
-        )));
-    }
+    reference::parse(reference, true, || {
+        Error::Invalid(format!(
+            "The reference `{reference}` of the name `{name}` is not a range of this workbook. Write a sheet and a range, such as `'Sheet 1'!$A$1:$B$10`."
+        ))
+    })?;
     let lower = name.to_lowercase();
     if defined.iter().any(|(n, _)| n.to_lowercase() == lower) {
         return Err(Error::Invalid(format!(
@@ -322,6 +335,29 @@ pub(crate) fn check_name(
         return Err(Error::Invalid(format!(
             "The name `{name}` is a table's name already."
         )));
+    }
+    Ok(())
+}
+
+/// Checks that the sheet of each defined name in `names` is one of `sheets`, once the workbook
+/// has every sheet.
+pub(crate) fn check_name_sheets<'a>(
+    names: &[(String, String)],
+    sheets: impl Iterator<Item = &'a str> + Clone,
+) -> Result<(), Error> {
+    for (name, text) in names {
+        let Ok(Reference {
+            sheet: Some(sheet), ..
+        }) = reference::parse(text, true, || Error::Invalid(String::new()))
+        else {
+            continue;
+        };
+        let lower = sheet.to_lowercase();
+        if !sheets.clone().any(|known| known.to_lowercase() == lower) {
+            return Err(Error::Invalid(format!(
+                "The name `{name}` refers to the sheet `{sheet}`, which the workbook does not have. Add the sheet, or change the reference."
+            )));
+        }
     }
     Ok(())
 }
@@ -1175,6 +1211,10 @@ impl Writer {
                     .to_owned(),
             ));
         };
+        check_name_sheets(
+            &self.names,
+            self.sheets.iter().map(|sheet| sheet.name.as_str()),
+        )?;
         // The last sheet ends first, because its autofilter is a defined name in `workbook.xml`.
         self.ready_to_end()?;
         self.archived(|this| this.end_sheet())?;

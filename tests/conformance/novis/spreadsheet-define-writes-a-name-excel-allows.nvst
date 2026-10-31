@@ -11,7 +11,7 @@ var $book = Workbook::createInMemory();
 $book->sheet("Shop")->addAll([["qty" => 1], ["qty" => 2]]);
 var $same = $book->define("Quantities", "Shop!\$A\$2:\$A\$3")->define("_first.qty", "Shop!\$A\$2");
 echo $same == $book ? "define returns the workbook" : "define returns another workbook", "\n";
-$book->define("Odd", "Shop!\$A\$1<x>&");
+$book->define("Odd", "'<x>&'!\$A\$1");
 
 array<array<string>> $refused = [
     ["C3", "Shop!\$A\$1"],
@@ -30,9 +30,10 @@ foreach ($refused as array<string> $pair) {
     }
 }
 
-bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+$book->sheet("<x>&")->addAll([["note" => "a"]]);
+bytes $file =$book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $xml = Core\Zip::read($file, "xl/workbook.xml") as string;
-echo Core\Str::contains($xml, "<definedName name=\"Odd\">Shop!\$A\$1&lt;x&gt;&amp;</definedName>") ? "the reference is escaped" : "the reference is not escaped", "\n";
+echo Core\Str::contains($xml, "<definedName name=\"Odd\">'&lt;x&gt;&amp;'!\$A\$1</definedName>") ? "the reference is escaped" : "the reference is not escaped", "\n";
 foreach (Reader::open($file)->names() as var $name) {
     if ($name->sheet == null) {
         echo $name->name, " = ", $name->reference, "\n";
@@ -49,4 +50,4 @@ QUANTITIES: LogicError
 the reference is escaped
 Quantities = Shop!$A$2:$A$3
 _first.qty = Shop!$A$2
-Odd = Shop!$A$1<x>&
+Odd = '<x>&'!$A$1

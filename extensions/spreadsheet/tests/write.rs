@@ -751,3 +751,152 @@ fn a_border_layer_replaces_only_the_sides_it_sets() {
     assert_eq!(border.top, Some(Line::Thick));
     assert_eq!(border.bottom, Some(Line::Thin));
 }
+
+/// The message `define` throws for `reference`, or `None` when the name is defined.
+fn define(name: &str, reference: &str) -> Option<String> {
+    let mut writer = writer();
+    writer.define(name, reference).err().map(invalid)
+}
+
+#[test]
+fn define_takes_only_a_range_of_this_workbook() {
+    for reference in [
+        "Shop!$A$1",
+        "Shop!$A$1:$B$10",
+        "Shop!A1:B10",
+        "'Shop orders'!$C$2:$C$9",
+        "'It''s'!A1",
+        "Shop!$A:$C",
+        "Shop!$1:$3",
+        "$A$1:$B$2",
+    ] {
+        assert_eq!(define("Picked", reference), None, "{reference}");
+    }
+    let mut writer = writer();
+    writer.define("Picked", "'Shop orders'!$A$1:$B$2").unwrap();
+    let out = writer
+        .sheet(
+            SheetOptions::named("Shop orders"),
+            &[row(vec![number(1.0)])],
+        )
+        .unwrap();
+    let book = finish(writer, out);
+    assert!(
+        book.part("xl/workbook.xml")
+            .contains("<definedName name=\"Picked\">'Shop orders'!$A$1:$B$2</definedName>")
+    );
+}
+
+#[test]
+fn define_throws_for_a_dde_or_external_reference() {
+    for reference in [
+        "",
+        "cmd|'/c calc'!A0",
+        "[other.xlsx]Shop!B2:B3",
+        "'[other.xlsx]Shop'!B2:B3",
+        "https://example.com/book.xlsx!A1",
+        "SUM(Shop!A1:A3)",
+        "Shop!R1C1",
+        "Shop!Shop!A1",
+        "'Shop!A1",
+        "Shop!A0",
+        "1+1",
+    ] {
+        let message =
+            define("Picked", reference).unwrap_or_else(|| panic!("`{reference}` is defined"));
+        assert!(
+            message.contains("not a range of this workbook") || message.contains("The sheet name"),
+            "`{reference}`: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_defined_name_past_255_characters_or_in_r1c1_form_throws() {
+    let long = "a".repeat(256);
+    assert!(
+        define(&long, "Shop!A1")
+            .unwrap()
+            .contains("at most 255 characters")
+    );
+    assert_eq!(define(&"a".repeat(255), "Shop!A1"), None);
+    for name in ["R1C1", "r2c3", "R", "C", "RC", "rc2", "R7"] {
+        let message = define(name, "Shop!A1").unwrap_or_else(|| panic!("`{name}` is defined"));
+        assert!(message.contains("cell reference"), "`{name}`: {message}");
+    }
+    assert_eq!(define("Rate", "Shop!A1"), None);
+}
+
+#[test]
+fn a_defined_names_sheet_that_never_comes_throws_at_finish() {
+    let mut writer = writer();
+    writer.define("Picked", "Shops!$A$1").unwrap();
+    writer
+        .sheet(SheetOptions::named("Shop"), &[row(vec![number(1.0)])])
+        .unwrap();
+    let message = invalid(writer.finish().unwrap_err());
+    assert!(
+        message.contains("`Picked`") && message.contains("`Shops`"),
+        "{message}"
+    );
+
+    let mut writer = self::writer();
+    writer.define("Picked", "shop!$A$1").unwrap();
+    writer
+        .sheet(SheetOptions::named("Shop"), &[row(vec![number(1.0)])])
+        .unwrap();
+    assert!(writer.finish().is_ok());
+}
+
+#[test]
+fn a_sheet_name_with_a_control_character_or_named_history_throws() {
+    let cases = [
+        ("Shop\0", "control character"),
+        ("Shop\u{1}", "control character"),
+        ("Line\nbreak", "control character"),
+        ("History", "`History`"),
+        ("history", "`History`"),
+    ];
+    for (name, rule) in cases {
+        let mut writer = writer();
+        let message = invalid(writer.sheet(SheetOptions::named(name), &[]).unwrap_err());
+        assert!(message.contains(rule), "`{name:?}`: {message}");
+    }
+    let mut writer = writer();
+    assert!(writer.sheet(SheetOptions::named("History 2"), &[]).is_ok());
+    let message = define("Picked", "'Shop\u{7}'!A1").unwrap();
+    assert!(message.contains("control character"), "{message}");
+}
+
+#[test]
+fn a_formula_that_is_empty_or_past_8192_characters_throws() {
+    let formula = |text: String| Cell {
+        value: Some(Value::Formula {
+            formula: text,
+            cached_text: None,
+            cached_number: None,
+        }),
+        style: None,
+    };
+    let write = |text: String| {
+        let mut writer = writer();
+        writer
+            .sheet(SheetOptions::named("Shop"), &[row(vec![formula(text)])])
+            .err()
+            .map(invalid)
+    };
+    let message = write(String::new()).unwrap();
+    assert!(
+        message.contains("`A1`") && message.contains("empty"),
+        "{message}"
+    );
+    assert!(write("=".to_owned()).unwrap().contains("empty"));
+    let long = format!("{}1", "1+".repeat(4_096));
+    let message = write(long).unwrap();
+    assert!(
+        message.contains("8193 characters") && message.contains("8,192"),
+        "{message}"
+    );
+    assert_eq!(write(format!("{}1", "1+".repeat(4_095))), None);
+    assert_eq!(write(format!("={}1", "1+".repeat(4_095))), None);
+}

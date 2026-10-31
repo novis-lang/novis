@@ -222,6 +222,14 @@ impl Placed {
                     total.column
                 )));
             }
+            if let Some(formula) = &total.formula {
+                cells::check_formula(formula, || {
+                    format!(
+                        "the total of the column `{}` in the table `{name}`",
+                        total.column
+                    )
+                })?;
+            }
         }
         Ok(Placed {
             id,

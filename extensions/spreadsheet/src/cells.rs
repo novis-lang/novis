@@ -168,6 +168,32 @@ fn length<'a>(at: &str, text: &'a str, count: usize) -> Result<&'a str, Error> {
     Ok(text)
 }
 
+/// The most characters Excel allows in a formula, without its leading `=`.
+pub const MAX_FORMULA: usize = 8_192;
+
+/// Checks a formula the writer writes, in a cell, a total, a conditional format or a validation:
+/// from 1 to 8,192 characters once a leading `=` is dropped. `place` names where it is, such as
+/// ``the cell `B2` ``, and is built only for the error.
+pub fn check_formula(text: &str, place: impl FnOnce() -> String) -> Result<(), Error> {
+    let text = text.strip_prefix('=').unwrap_or(text);
+    if text.is_empty() {
+        return Err(Error::Invalid(format!(
+            "The formula in {} is empty.",
+            place()
+        )));
+    }
+    if text.len() > MAX_FORMULA {
+        let count = text.chars().count();
+        if count > MAX_FORMULA {
+            return Err(Error::Invalid(format!(
+                "The formula in {} has {count} characters. A formula has at most 8,192.",
+                place()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The number a cell holding `value` stores, and the format the write table gives it, or `None`
 /// for a value stored as text, a boolean, a formula or nothing. A value [`cell`] refuses is `None`.
 pub fn stored_number(value: &Value) -> Option<(f64, Implicit)> {
@@ -260,6 +286,7 @@ fn written<'a>(
             cached_text,
             cached_number,
         } => {
+            check_formula(formula, || format!("the cell `{at}`"))?;
             let number = cached_number.map(|n| finite(at, n)).transpose()?;
             Written::Formula(formula, cached_text.as_deref(), number)
         }

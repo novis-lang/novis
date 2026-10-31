@@ -217,6 +217,7 @@ final class Workbook
     }
 
     /// `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+    /// `$reference` must be a cell or a range of this workbook. Another file, a web address or a formula throws a `LogicError`.
     public function define(string $name, string $reference): Workbook
     {
         $this->checkOpen();

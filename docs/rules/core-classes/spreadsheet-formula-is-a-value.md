@@ -19,6 +19,11 @@ inside it. Three helpers write the references, so a program never computes a col
 - A column's `formula: fn(int $row) => Formula` is called once per row with that row's number, and its
   `Formula` is the column's cell in that row.
 
+**A formula has 1 to 8,192 characters** once its leading `=` is dropped, Excel's limit. One check
+(`cells::check_formula`) holds every formula the writer writes: a `Formula` cell, a column's formula,
+a table total, a conditional format and a validation. `Formula::of('')` throws `LogicError` in the
+Novis half, before any row is written.
+
 `cached` is the result the file carries beside the formula, for a reader that does not recalculate;
 with none, the cell has no cached value. Every written workbook is flagged to recalculate when it is
 opened, so Excel shows computed values whatever was cached.

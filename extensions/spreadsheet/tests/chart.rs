@@ -368,19 +368,16 @@ fn a_series_over_a_stream_covers_every_row_the_sheet_ends_with() {
 fn a_sheet_name_in_a_range_is_escaped_as_element_text() {
     let book = book(vec![chart(
         Kind::Pie,
-        vec![series(
-            "'</c:f><x a=\"1\"/>&amp;'!B2:B3",
-            Some("'Sh\u{1}ops'!A2:A3"),
-        )],
+        vec![series("'<x a=\"1\">&amp;'!B2:B3", Some("'Sh''ops'!A2:A3"))],
     )]);
     let part = book.part("xl/charts/chart1.xml");
     assert!(
-        part.contains("<c:f>'&lt;/c:f&gt;&lt;x a=\"1\"/&gt;&amp;amp;'!$B$2:$B$3</c:f>"),
+        part.contains("<c:f>'&lt;x a=\"1\"&gt;&amp;amp;'!$B$2:$B$3</c:f>"),
         "markup in a sheet name is text: {part}"
     );
     assert!(
-        part.contains("<c:f>'Sh_x0001_ops'!$A$2:$A$3</c:f>"),
-        "a control character is Excel's escape: {part}"
+        part.contains("<c:f>'Sh''ops'!$A$2:$A$3</c:f>"),
+        "a quote in a sheet name is doubled: {part}"
     );
     assert!(
         !part.contains("<x a="),
@@ -404,4 +401,78 @@ fn two_writes_of_equal_charts_are_byte_equal() {
         ]
     };
     assert_eq!(written(charts()), written(charts()));
+}
+
+/// The message a pie chart over `values` throws on the sheet `Sales`.
+fn refused(values: &str) -> String {
+    let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+    writer
+        .sheet(SheetOptions::named("Sales"), &[header()])
+        .unwrap();
+    invalid(writer.part(Part::Chart(chart(Kind::Pie, vec![series(values, None)]))))
+}
+
+#[test]
+fn a_series_range_into_another_workbook_or_a_url_throws() {
+    for range in [
+        "[other.xlsx]Shop!B2:B3",
+        "'[other.xlsx]Shop'!B2:B3",
+        "https://example.com/book.xlsx!B2:B3",
+        "cmd|'/c calc'!A1",
+        "SUM(B2:B3)",
+        "Sales!$B:$B",
+    ] {
+        let message = refused(range);
+        assert!(
+            message.contains(&format!("`{range}`")) || message.contains("The sheet name"),
+            "`{range}`: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_series_range_sheet_name_follows_the_sheet_name_rule() {
+    let long = format!("'{}'!B2:B3", "S".repeat(10_000));
+    assert!(refused(&long).contains("at most 31 characters"));
+    assert!(refused("'Sh\u{1}ops'!B2:B3").contains("control character"));
+    assert!(refused("'Sh\0ops'!B2:B3").contains("control character"));
+    assert!(refused("History!B2:B3").contains("`History`"));
+    assert!(refused("'Q1/Q2'!B2:B3").contains("`/`"));
+}
+
+#[test]
+fn a_series_range_with_an_unclosed_quote_or_two_sheets_throws() {
+    for range in [
+        "'Shops!B2:B3",
+        "'Shops'B2:B3",
+        "Shops!Shops!B2:B3",
+        "'Shops'!'Shops'!B2:B3",
+    ] {
+        let message = refused(range);
+        assert!(
+            message.contains(&format!("`{range}`")),
+            "`{range}`: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_chart_title_past_255_characters_throws() {
+    let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+    writer
+        .sheet(SheetOptions::named("Sales"), &[header()])
+        .unwrap();
+    let mut titled = chart(Kind::Column, vec![series("B2:B3", None)]);
+    titled.title = Some("t".repeat(255));
+    titled.y_title = Some("y".repeat(255));
+    assert!(writer.part(Part::Chart(titled.clone())).is_ok());
+    titled.title = Some("t".repeat(256));
+    assert!(invalid(writer.part(Part::Chart(titled.clone()))).contains("The title"));
+    titled.title = None;
+    titled.x_title = Some("x".repeat(100_000));
+    let message = invalid(writer.part(Part::Chart(titled)));
+    assert!(
+        message.contains("x-axis title") && message.contains("at most 255"),
+        "{message}"
+    );
 }
