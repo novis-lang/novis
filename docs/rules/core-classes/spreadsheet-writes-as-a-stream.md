@@ -1,5 +1,6 @@
 A workbook is written as a stream to the target it was created for, and **streaming is the only way to
-write**: a row's values and styles are final once written, and there is no in-memory editable mode.
+write xlsx**: a row's values and styles are final once written, and there is no in-memory editable mode.
+An ods is written from the same calls, and held until `finish()` (below).
 
 **The four targets**, each a `Workbook` static method that takes the workbook options last:
 
@@ -11,8 +12,8 @@ write**: a row's values and styles are final once written, and there is no in-me
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
 
 The workbook options are `zone` (an IANA name; an `Instant` written with no `zone` throws naming its
-column, `rule:core-classes/spreadsheet-value-types`), `format` (`'xlsx'` or `'csv'`, defaulting to the
-name's extension and then to `'xlsx'`), and `properties` (`title`, `subject`, `author`, `company`,
+column, `rule:core-classes/spreadsheet-value-types`), `format` (`'xlsx'`, `'ods'` or `'csv'`, defaulting
+to the name's extension and then to `'xlsx'`), and `properties` (`title`, `subject`, `author`, `company`,
 `keywords`, `created`). `Workbook::fromRows(iterable $rows, {…})` is the one-call form: it takes the
 workbook and sheet options in one bag, writes one sheet named `sheet` (default `'Sheet1'`), and
 returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target last.
@@ -58,6 +59,16 @@ bytes for a request that streams a download. A workbook written to a file or to 
 finished is not reported. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
 widths and every sheet-end part, and throws naming the format when a second sheet is opened.
 
+**An ods is held, not streamed.** ods puts data validation before the first sheet, and a merge, a
+note, a link and an image inside the cells they cover, so a stream that had sent a sheet's rows could
+not add them. The ods writer (`extensions/spreadsheet/src/ods/`) checks each row as xlsx does and keeps
+it in the guest, compact, and `finish()` writes the whole package: `mimetype` first and stored, then
+`content.xml`, `styles.xml`, `meta.xml`, `settings.xml` and the manifest. Every call before
+`finish()` returns no bytes, so no byte of an ods leaves before it. A download's headers still leave
+at create. Every style is an automatic style, one for each distinct combination, and a formula is
+OpenFormula (`of:=`) with its cached value. Two writes of equal input are equal bytes, with `writer`'s
+fixed dates.
+
 The tradeoffs. **Performance:** one guest call per batch, not per cell, and a download starts before
 the first row is written. **Usability:** an export is one line, and a stream from a query is a
 `foreach`. **Simplicity:** one way to write, no editable mode, and the forward-only rules are these
@@ -67,12 +78,16 @@ paragraphs, written down once.
   the compressor's window, the style combinations seen so far, and the sheet-end parts, all inside
   the request's cap and freed when the request ends. A million rows cost one batch, never the sheet,
   so a large export runs in the request and not in a queue.
+- **Memory of an ods:** per writing request, every cell of the workbook, compact, under the request's
+  cap and freed at `finish()`. **Latency of an ods:** the whole file leaves at `finish()`. A program
+  that exports more rows than the cap holds writes xlsx or CSV.
 
 **On disk.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
 `Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
-`define` and CSV, and the cut-off and logged download that was never finished
+`define`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
+the cut-off and logged download that was never finished
 (`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
 
@@ -89,6 +104,9 @@ option above, the sheet-name rules, the row options `height`, `hidden`, `level` 
   all its text; inline strings cost a few bytes per cell on disk and nothing in memory.
 - **Several sheets open at once.** Each would hold its own pending XML and compressor, and xlsx puts
   sheets in separate entries of one stream, so interleaving would buffer all but one.
-- **Writing xls, encrypted or password-protected files, and ods.** xls is a 1997 format nothing should
-  produce, encryption is not a sandboxed writer's job, and ods writing is the second wave
+- **Writing xls, and encrypted or password-protected files.** xls is a 1997 format nothing should
+  produce, and encryption is not a sandboxed writer's job
   (`rule:core-classes/spreadsheet-evaluation-and-roster`).
+- **Streaming ods, with the parts that cannot follow their rows refused.** A part that works in one
+  format and throws in the other is two APIs. The held workbook costs memory, which is spent to keep
+  one API.

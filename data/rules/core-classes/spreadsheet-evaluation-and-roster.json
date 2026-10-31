@@ -11,8 +11,10 @@
     "extensions/spreadsheet/tests/template.rs",
     "extensions/spreadsheet/tests/sheet_end.rs",
     "extensions/spreadsheet/tests/evaluate.rs",
+    "extensions/spreadsheet/tests/ods.rs",
     "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst",
     "tests/conformance/novis/spreadsheet-writes-csv-from-the-same-calls.nvst",
+    "tests/conformance/novis/spreadsheet-writes-ods-from-the-same-calls.nvst",
     "tests/conformance/novis/spreadsheet-evaluate-computes-a-report-it-wrote.nvst",
     "tests/conformance/novis/spreadsheet-evaluate-lists-what-it-could-not-compute.nvst"
   ]

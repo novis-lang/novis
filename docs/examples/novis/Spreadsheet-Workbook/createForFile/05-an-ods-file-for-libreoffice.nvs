@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to save an OpenDocument file (ods), which LibreOffice opens.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.ods');
+
+// A path that ends in `.ods` makes an ods file. The calls are the same as for an xlsx file.
+var $book = Workbook::createForFile($path);
+$book->sheet('Stock')->addAll([
+    ['Item' => 'Widget', 'Count' => 12],
+    ['Item' => 'Gadget', 'Count' => 5],
+    ['Item' => 'Total', 'Count' => Formula::of('SUM(B2:B3)', { cached: 17 })],
+]);
+echo $book->finish()->rows['Stock'], " rows\n";
+
+// The reader reads the file back. The total is the cached value of the formula.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+foreach (Reader::open($file)->rows(0, { header: true }) as var $row) {
+    echo $row->values['Item'], ': ', $row->values['Count'], "\n";
+}
+$file->close();

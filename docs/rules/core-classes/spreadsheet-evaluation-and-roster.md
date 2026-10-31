@@ -2,8 +2,10 @@ The format roster is **read-wide and write-narrow**. xlsx reads and writes. CSV 
 the same classes, parsed and formatted by `Core\Csv`. xlsm reads its data, with its macros listed and
 inert, and **is never written**: a filled xlsm template gives xlsx with no VBA part. xlsb and xls
 (BIFF8) read and do not write, because a writer for a 1997 binary format is legacy nothing should
-produce. ods reads, and writing it is the second wave. Template fill is in the first wave
-(`rule:core-classes/spreadsheet-template-fill`), because it is the workflow behind most real exports.
+produce. ods reads and writes, from the same `Workbook` calls as xlsx, by our own writer, which holds
+the workbook until `finish()` (`rule:core-classes/spreadsheet-writes-as-a-stream`). Template fill is in
+the first wave (`rule:core-classes/spreadsheet-template-fill`), because it is the workflow behind most
+real exports.
 
 **The crates**, each pinned and pure Rust, built for `wasm32-wasip2`, on `deny.toml`'s allowlist and
 with no C in the build. Every format is read by our own reader. For xlsx and xlsb, `calamine` keeps
@@ -85,10 +87,12 @@ every function outside the table are listed. A function of the set given an inpu
 match Excel is listed for that cell, and never computed differently.
 
 **On disk.** Every format the roster reads (`extensions/spreadsheet/src/read/`) and writes
-(`extensions/spreadsheet/src/writer.rs`, and CSV in `extensions/spreadsheet/nvs/`). The evaluator is
-`extensions/spreadsheet/src/eval/`, fed by `extensions/spreadsheet/src/read/evaluate.rs`.
+(`extensions/spreadsheet/src/writer.rs`, `extensions/spreadsheet/src/ods/`, and CSV in
+`extensions/spreadsheet/nvs/`). The evaluator is `extensions/spreadsheet/src/eval/`, fed by
+`extensions/spreadsheet/src/read/evaluate.rs`.
 
-**Not shipped.** Writing ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
+**Not shipped.** An ods's sheet-end parts and charts: `Sheet`'s `merge`, `link`, `note` and the other
+parts throw for an ods (gap:nvs-spreadsheet/spreadsheet-evaluate-and-write-ods).
 
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into

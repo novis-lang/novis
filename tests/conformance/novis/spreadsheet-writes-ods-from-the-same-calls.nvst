@@ -1,0 +1,96 @@
+--TEST--
+A `Workbook` writes an ods when its name ends in `.ods` or `format: 'ods'` is given, from the same calls as an xlsx: `mimetype` first, each value as its ods type, a formula as OpenFormula with its cached value, and `finish` counting the rows; the reader reads each value back by the read table: rule:core-classes/spreadsheet-evaluation-and-roster
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::createInMemory
+// covers: Novis\Spreadsheet\Workbook::createForFile
+// covers: Novis\Spreadsheet\Workbook::fromRows
+// covers: Novis\Spreadsheet\Workbook::finish
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+final class Show
+{
+    public static function value(mixed $value): string
+    {
+        if ($value == null) {
+            return "null";
+        }
+        if ($value is tainted string) {
+            return "string " . Core\Taint::assertTrusted($value, "the test prints what it wrote");
+        }
+        if ($value is int) {
+            return "int " . ($value as string);
+        }
+        if ($value is float) {
+            return "float " . ($value as string);
+        }
+        if ($value is bool) {
+            return $value ? "bool true" : "bool false";
+        }
+        if ($value is Core\Time\Date) {
+            return "Date " . $value->format("yyyy-MM-dd");
+        }
+        if ($value is Formula) {
+            return "Formula " . Core\Taint::assertTrusted($value->text, "the test prints what it wrote") . " = " . ($value->cached as string);
+        }
+        return "another value";
+    }
+
+    public static function rows(Reader $reader, bool $formulas = false): void
+    {
+        foreach ($reader->rows(0, {header: true, formulas: $formulas}) as Row $row) {
+            string $line = ($row->number as string) . ":";
+            foreach ($row->values as var $key => var $value) {
+                $line = $line . " " . Core\Taint::assertTrusted($key as string, "the test wrote the keys") . "=" . Show::value($value);
+            }
+            echo $line, "\n";
+        }
+    }
+}
+
+// `format: 'ods'` writes an ods. The calls are the same as for xlsx.
+var $book = Workbook::createInMemory({format: "ods"});
+var $sheet = $book->sheet("Orders", {columns: ["item" => {header: "Item", width: 30}]});
+$sheet->add(["item" => "Widget", "count" => 3, "price" => 2.5, "paid" => true, "day" => Core\Time\Date::at(2024, 1, 15)]);
+$sheet->add(["item" => "Gadget", "count" => 1, "price" => 10.0, "paid" => false, "day" => null], {style: Style::of({bold: true})});
+$sheet->add(["item" => "Total", "count" => Formula::of("SUM(B2:B3)", {cached: 4}), "price" => null, "paid" => null, "day" => null]);
+var $written = $book->finish();
+echo $written->rows["Orders"], " rows\n";
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+echo $written->size == Core\Bytes::length($file) ? "the size is the length of the file" : "the size is wrong", "\n";
+echo Core\Zip::read($file, "mimetype") as string, "\n";
+var $content = Core\Zip::read($file, "content.xml") as string;
+echo Core\Str::contains($content, "table:formula=\"of:=SUM([.B2:.B3])\"") ? "the formula is OpenFormula" : $content, "\n";
+
+// The reader reads the ods back. A formula cell gives its cached value, or its `Formula` with `formulas: true`.
+Show::rows(Reader::open($file));
+Show::rows(Reader::open($file), true);
+
+// A name that ends in `.ods` writes an ods, and `fromRows` writes it the same way.
+var $named = Workbook::createForFile("orders.ods");
+$named->sheet("Orders")->add(["name" => "Ada", "city" => "London"]);
+$named->finish();
+Show::rows(Reader::open(Core\IO::open("orders.ods", Core\IO::FileMode::Read)));
+Workbook::fromRows([["name" => "Ada", "city" => "London"]])->save("people.ods");
+Show::rows(Reader::open(Core\IO::open("people.ods", Core\IO::FileMode::Read)));
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+3 rows
+the size is the length of the file
+application/vnd.oasis.opendocument.spreadsheet
+the formula is OpenFormula
+2: Item=string Widget count=int 3 price=float 2.5 paid=bool true day=Date 2024-01-15
+3: Item=string Gadget count=int 1 price=int 10 paid=bool false day=null
+4: Item=string Total count=int 4 price=null paid=null day=null
+2: Item=string Widget count=int 3 price=float 2.5 paid=bool true day=Date 2024-01-15
+3: Item=string Gadget count=int 1 price=int 10 paid=bool false day=null
+4: Item=string Total count=Formula SUM(B2:B3) = 4 price=null paid=null day=null
+2: name=string Ada city=string London
+2: name=string Ada city=string London

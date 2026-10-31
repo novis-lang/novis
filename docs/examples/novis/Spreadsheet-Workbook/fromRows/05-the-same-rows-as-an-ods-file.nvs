@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write rows as an OpenDocument file (ods).
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+array<array<string|float>> $rows = [
+    ['Item' => 'Widget', 'Price' => 2.5],
+    ['Item' => 'Gadget', 'Price' => 10.0],
+];
+
+// `format: 'ods'` makes an ods file. `bytes` returns the whole file.
+bytes $file = Workbook::fromRows($rows, { format: 'ods', sheet: 'Prices' })->bytes();
+
+// The reader reads it back. The first sheet is `Prices`.
+foreach (Reader::open($file)->rows('Prices', { header: true }) as var $row) {
+    echo $row->values['Item'], ' costs ', $row->values['Price'], "\n";
+}
