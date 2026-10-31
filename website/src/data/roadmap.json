@@ -9,7 +9,6 @@
       "title": "Spreadsheets and PDF",
       "text": "`Novis\\Spreadsheet` computes formulas, writes `.ods` files and reads every part of every format it opens. The spreadsheet and PDF extensions check more of their input, and PDF tables lay out like a browser draws them.",
       "goals": [
-        "spreadsheet-second-wave",
         "extension-leftovers"
       ]
     }
