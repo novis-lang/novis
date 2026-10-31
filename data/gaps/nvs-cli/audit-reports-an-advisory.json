@@ -1,6 +1,6 @@
 {
-  "module": "apps/registry/src/App.nvs",
-  "title": "No route writes an `advisory` log entry, and `nvs pkg audit` does not report one.",
-  "text": "The log takes an `advisory` entry with its `versions` range, and the feed lists it, but an owner cannot send one and audit does not report a locked version inside its range. Closing it writes a route that takes an advisory from a token and waits seven days or from a passkey and takes effect at once, and `nvs pkg audit` reporting it (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).",
+  "module": "crates/nvs-cli/src/package/audit.rs",
+  "title": "`nvs pkg audit` does not report an `advisory`, and no client command sends one.",
+  "text": "The registry takes an advisory at `POST /api/packages/{vendor}/{name}/advisory`, logs it and lists it in the feed, but audit matches only retractions and withholds, so a locked version inside an advisory's range is not reported. Closing it makes audit report each locked version inside the range with the id, the summary and the version that clears it, and adds `nvs pkg advise` (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).",
   "goal": "registry-service"
 }

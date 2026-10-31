@@ -37,7 +37,8 @@ index writes it as `{"pending": {}}`. An owner signed in with a passkey in the l
 releases a version with `POST /api/packages/<vendor>/<name>/<version>/release` and freezes the first
 stable API with `.../stable`, whose page reads the API from `.../api`. Each confirmation is a
 `release-confirmed` or `stable-api-confirmed` log entry saved with the change (`Events.nvs`). A
-retraction sent with a token shows seven days later (`App::retract`). The client reads both pending
+retraction sent with a token shows seven days later (`App::retract`), and an advisory sent with a
+token enters the log and the feed seven days later (`App::advise`). The client reads both pending
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 
@@ -47,5 +48,4 @@ publish` and `nvs pkg whoami` print the account's pending releases
 (`crates/nvs-cli/src/package/login.rs`).
 
 **Not on disk.** The website has no page where an owner confirms a release or a stable API with a
-passkey (gap:nvs-cli/release-confirmation-pages). An advisory sent with a token has no route
-(gap:nvs-cli/advisory-route-and-range).
+passkey (gap:nvs-cli/release-confirmation-pages).

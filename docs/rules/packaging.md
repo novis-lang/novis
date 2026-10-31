@@ -1046,8 +1046,19 @@ because a root file without it means "no second copy". Under each file host:
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
 (`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
 
-**Not on disk.** An extension package is not packed or fetched as one
-(gap:nvs-cli/extension-package-is-packed-and-fetched).
+**An extension package is a package whose `files` list names exactly one `.nvsx`.** `package.toml`
+has no key for it, and the archive, index and lock formats are the same as a source package's. A
+set with two `.nvsx` files is refused (`pack::file_set`). `nvs pkg pack` and `nvs registry build`
+load the one file with the loader boot uses, which compiles it and runs none of it, and refuse a
+file that does not load, a manifest class that is neither the package's namespace nor under it,
+and a carried source file outside that namespace (`pack::check_component`). The class may equal
+the namespace because an extension's one class is the package's entry point, as `Shop\Ledger` is;
+no other package can claim it. The `Core\` and `Novis\` refusal is the loader's own. `nvs pkg fetch`
+lands it like any package, then prints the `[[extension]]` entry of each extension package that is
+new or has a new digest, with its path relative to the application's folder, through the function
+`nvs ext pin` prints with (`crates/nvs-cli/src/ext.rs`). Fetch never writes `nvs.toml`
+([`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled)). `crates/nvs-cli/tests/package_client.rs`
+and `package_fetch.rs` pack, refuse, fetch and run one.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
@@ -1247,11 +1258,11 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
 file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
 
-`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
-(`crates/nvs-cli/src/package/pack.rs`).
-
-**Not on disk.** `nvs pkg fetch` does not refuse an archive that holds an `nvs.toml`
-(gap:nvs-cli/fetch-refuses-an-archive-with-nvs-toml).
+`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive, and
+`nvs pkg fetch` refuses an archive that holds one before the package's folder is replaced. Both call
+one check, `pack::check_not_server_config` (`crates/nvs-cli/src/package/pack.rs`), so an archive from
+a mirror or a private registry is held to what the registry's build refuses. The refused fetch
+removes the files it unpacked and writes no lock (`crates/nvs-cli/tests/package_fetch.rs`).
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
@@ -2174,7 +2185,8 @@ index writes it as `{"pending": {}}`. An owner signed in with a passkey in the l
 releases a version with `POST /api/packages/<vendor>/<name>/<version>/release` and freezes the first
 stable API with `.../stable`, whose page reads the API from `.../api`. Each confirmation is a
 `release-confirmed` or `stable-api-confirmed` log entry saved with the change (`Events.nvs`). A
-retraction sent with a token shows seven days later (`App::retract`). The client reads both pending
+retraction sent with a token shows seven days later (`App::retract`), and an advisory sent with a
+token enters the log and the feed seven days later (`App::advise`). The client reads both pending
 forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
 exact version (`crates/nvs-cli/src/package/minimum.rs`).
 
@@ -2184,8 +2196,7 @@ publish` and `nvs pkg whoami` print the account's pending releases
 (`crates/nvs-cli/src/package/login.rs`).
 
 **Not on disk.** The website has no page where an owner confirms a release or a stable API with a
-passkey (gap:nvs-cli/release-confirmation-pages). An advisory sent with a token has no route
-(gap:nvs-cli/advisory-route-and-range).
+passkey (gap:nvs-cli/release-confirmation-pages).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -2352,7 +2363,7 @@ retract a good release, or announce a false advisory, before every owner has bee
 ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)) and has had time to answer.
 
 **`nvs pkg audit`** reads the lock, never the network's idea of the graph, and checks it against
-the registry's signed advisory feed. The feed has one entry per retraction and per withhold, signed
+the registry's signed advisory feed. The feed has one entry per retraction, withhold and advisory, signed
 with the log's key, and every entry is also a log entry
 ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)), so a feed that hides an advisory disagrees
 with the log. For each locked version under an advisory, audit prints the advisory, its reason and the
@@ -2365,7 +2376,8 @@ signed note under the log's key whose text is its JSON on one line, signed as an
 ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)): `"schema": 1`, `advisories`, `signed_at` and
 `checkpoint`, the `size` and base64 `root` of the log it lists. Each advisory is `log`, the number of
 its record, and `entry`, that record's entry: a `retract` with `package`, `version`, `reason` and,
-once a version fixes it, `fixed_in`, or a `withhold` with `package`, `version` and `reason`. The
+once a version fixes it, `fixed_in`, a `withhold` with `package`, `version` and `reason`, or an
+`advisory` with `id`, `package`, `versions` and `summary`. The
 advisories are in the log's order, and a client refuses a key it does not know. `nvs registry log
 advisories` writes the feed from the log alone, so its every byte is derived from records the log
 already signed.
@@ -2377,13 +2389,30 @@ already signed.
 ```
 
 **A client checks the feed against the log before it uses it.** A signature that does not check
-with the pinned key is an error. So is a retraction or a withhold among the log's first `size`
+with the pinned key is an error. So is a retraction, a withhold or an advisory among the log's first `size`
 records that the feed does not list, a listed record the log has with other bytes, and a `root` that
 is not the log's at `size` (`crates/nvs-cli/src/package/advisory.rs`). The feed covers a log that
 the client's checkpoint continues, so a record past the feed's `size` is read from the log itself.
 
-**Not on disk.** An `advisory` entry is not in the feed: no route writes one, and its `versions` has
-no syntax (gap:nvs-cli/advisory-route-and-range).
+**An advisory's `versions` is one range.** `A..B` covers the versions from `A` up to `B` and not
+including it, and `A..` covers every version from `A`, while no version fixes it yet. `A` and `B` are
+full versions and `A` is below `B`. A second range is a second advisory: there is no list and no other
+operator, so this is not the range system dependencies decline. One parser reads it
+(`crates/nvs-cli/src/package/manifest.rs`'s `Range`), and the log refuses an `advisory` entry whose
+range it does not read (`crates/nvs-cli/src/package/entry.rs`).
+
+An owner sends an advisory with `POST /api/packages/<vendor>/<name>/advisory` and
+`{"versions", "summary"}` (`App::advise`). The registry checks the range with the same rules
+(`apps/registry/src/VersionRange.nvs`) and answers `422` for one it does not read. It gives the
+advisory its `id`, `<vendor>/<name>-<n>`, where `n` counts that package's advisories from 1, and
+saves the row, the waiting log entry and the owners' notice in one transaction (`Releases::advise`).
+A waiting entry has a `due` time, and the log takes it only from then (`Index.nvs`), so a token's
+advisory is in neither the log nor the feed for seven days. The same advisory sent again with a
+passkey moves that time to now. The package page lists each advisory, and a version's page lists the
+ones whose range has that version (`PackagePage.nvs`).
+
+**Not on disk.** Audit does not report an advisory, and no client command sends one
+(gap:nvs-cli/audit-reports-an-advisory).
 
 Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
 nobody asked for does not arrive on its own ([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)),
@@ -3067,8 +3096,9 @@ above it is source ([`core-classes/image-pipeline`](core-classes.md#core-classes
 Loading the extension makes its source resolvable by `autoload` with no line the program writes. The
 source compiles like any other Novis file and holds the authority of its own namespace, which is no
 grant unless the operator writes one. The one pin covers both payloads, so the source cannot be edited
-under a pinned component, and `nvs ext inspect --source` prints it. A package may carry a `.nvsx` once
-packages exist, and nothing here changes for that.
+under a pinned component, and `nvs ext inspect --source` prints it. A package carries a `.nvsx` as an
+extension package ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)), and its carried source must then be
+under the package's namespace too.
 
 The split is the point rather than a packaging convenience. Building a plan is data manipulation and
 costs nothing to do in Novis; the codecs belong inside the sandbox. A builder that lived in the guest

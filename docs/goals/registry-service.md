@@ -191,6 +191,12 @@ the `.partial` folder is removed as on every other refusal. Home: `rule:packagin
 - The route is `POST /api/packages/{vendor}/{name}/advisory` with `{versions, summary}`. It has the
   access of the retract route (`apps/registry/src/App.nvs:826`): a token for the package waits seven
   days, and an owner's passkey from the last 15 minutes takes effect at once.
+- A token's advisory waits by holding its log entry, not by a state the feed reads. `events` has a
+  `due` time, and `Index::append` takes only the entries that are due, so the advisory is in neither
+  the log nor the feed until then, and the daily run adds it. The feed is derived from the log alone,
+  so this is the one place the wait can live. The same advisory (package, range, summary) sent again
+  with a passkey moves the row's `shows_at` and the entry's `due` to now and keeps its id; the owners
+  get one notice, when it is first sent. Retractions keep writing their entry at once, as before.
 - The feed lists it: `is_advisory` (`crates/nvs-cli/src/package/advisory.rs:83`) takes
   `Entry::Advisory`. Audit reports each locked version inside the range, with the id, the summary
   and `B` as the version that clears it.
@@ -293,10 +299,10 @@ feed and the package page list it. A withhold also asks the CDN to drop the arch
 - [x] The `versions` parser: `A..B` and `A..`, on the client's version type. `Entry::parse` refuses a malformed range. `rule:packaging/a-known-bad-version-is-retracted-not-deleted`. `crates/nvs-cli/src/package/entry.rs:91`, `crates/nvs-cli/src/package/manifest.rs:111`
 - [x] `is_advisory` takes `Entry::Advisory`, and `nvs registry log advisories` and `log verify` list it. `crates/nvs-cli/src/package/advisory.rs:83`, `crates/nvs-cli/src/registry.rs:169`, `crates/nvs-cli/src/registry.rs:394`
 - [x] The three tests the `advisory-entry-tests` check names, run once by name. `crates/nvs-cli/tests/registry_log.rs:1`, `crates/nvs-cli/tests/package_audit.rs:125`
-- [ ] The route `POST /api/packages/{vendor}/{name}/advisory`, its `AdvisoryRequest`, `Releases::advise` with the seven days for a token, and `Events::advisory` with its log entry and notice in one transaction. `apps/registry/src/App.nvs:826`, `apps/registry/src/RetractRequest.nvs:1`, `apps/registry/src/Releases.nvs:177`, `apps/registry/src/Events.nvs:35`
-- [ ] The package page and the version page show each advisory with its id, range and summary. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/PackagePage.nvs:71`
-- [ ] Registry tests: a token's advisory is pending, a passkey's is at once, a malformed range is `422`, and the owners get one notice. `apps/registry/src/AdvisoriesTest.nvs:1`
-- [ ] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:45` and `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:46` state the advisory, its range and its route. The Not-on-disk sections' advisory parts go. Delete their gap records.
+- [x] The route `POST /api/packages/{vendor}/{name}/advisory`, its `AdvisoryRequest`, `Releases::advise` with the seven days for a token, and `Events::advisory` with its log entry and notice in one transaction. `apps/registry/src/App.nvs:826`, `apps/registry/src/RetractRequest.nvs:1`, `apps/registry/src/Releases.nvs:177`, `apps/registry/src/Events.nvs:35`
+- [x] The package page and the version page show each advisory with its id, range and summary. `apps/registry/src/PackagePage.nvs:40`, `apps/registry/src/PackagePage.nvs:71`
+- [x] Registry tests: a token's advisory is pending, a passkey's is at once, a malformed range is `422`, and the owners get one notice. `apps/registry/src/AdvisoriesTest.nvs:1`
+- [x] `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:45` and `docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md:46` state the advisory, its range and its route. The Not-on-disk sections' advisory parts go. Delete their gap records.
 - [ ] `purge` in `Site`, and the withhold job's `POST` per archive URL after `Stores::remove`. `rule:packaging/the-operator-only-withholds`, `rule:packaging/registry-hosting-is-configuration`. `apps/registry/src/Site.nvs:64`, `apps/registry/jobs/withhold.nvs:1`, `apps/registry/src/Stores.nvs:39`
 - [ ] Registry tests for the purge through `Test::answerHttp`: one `POST` per host, none without `purge`, and a failure fails the job. `apps/registry/src/StoresTest.nvs:1`
 - [ ] The README's settings table names `purge`, and `docs/rules/packaging/the-operator-only-withholds.md:36` loses its Not-on-disk section. Delete its gap record. `apps/registry/README.md:16`
@@ -365,28 +371,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 2's Rust side is done. `manifest::Range` (`A..B`, `A..`, with `A` below `B`) parses an
-advisory's `versions`, `Entry::parse` refuses an `advisory` entry whose range it does not read, and
-`is_advisory` takes `Entry::Advisory`, so `nvs registry log advisories` writes it and `log verify`
-checks it. The three `advisory-entry-tests` tests and the entry and advisory unit tests pass, run
-once by name. `Range` has no `contains` yet: stage 3's audit adds it with its first caller, since
-clippy refuses dead code. Audit's `names` still matches retractions and withholds only, so an
-advisory in the feed is ignored by audit until stage 3. The rule's feed paragraph names the advisory
-and its range, and its Not-on-disk part and gap record `nvs-cli/advisory-route-and-range` now name
-only the route and audit.
+Stage 2's advisory half is done. The route `App::advise` (`apps/registry/src/App.nvs`, after
+`retract`) takes `AdvisoryRequest` `{versions, summary}`, checks the range with
+`apps/registry/src/VersionRange.nvs` (the Rust `Range`'s rules; `422` otherwise), and calls
+`Releases::advise`, which saves the `advisories` row, `Events::advisory`'s waiting entry and the
+notice in one transaction. A token's entry has `due` seven days later and `Index::append` skips it
+until then (standing decision *An advisory*). The package page lists every advisory and a version's
+page the ones whose range has it. `AdvisoriesTest` (4 new) and
+`PackagePageTest::anAdvisoryIsOnThePagesOfTheVersionsItCovers` pass, run once by name, and
+`nvs check` is clean. The rules state the route and the wait; the gap record is now
+`nvs-cli/audit-reports-an-advisory` (audit and `nvs pkg advise`, stage 3).
 
+`VersionRange::contains` exists in Novis; the Rust `Range` still has none until stage 3's audit.
 The sweep's `env-secret-proofs` red is stale: its log does not exist and nothing in the tree names it.
 
 ### Next
 
-Stage 2's registry app, files `apps/registry/src/{App,Releases,Events,PackagePage}.nvs`, a new
-`AdvisoryRequest.nvs`, and `AdvisoriesTest.nvs`. The purge items (`Site`, `jobs/withhold.nvs`,
-`StoresTest.nvs`, README) are a second group with disjoint files.
+Stage 2's purge group, files `apps/registry/src/Site.nvs`, `apps/registry/jobs/withhold.nvs`,
+`apps/registry/src/Stores.nvs`, `apps/registry/src/StoresTest.nvs` and the README. Then the
+stage's last item, `bun nv site --check apps`.
 
-- [ ] The route, shaped like `retract` (`apps/registry/src/App.nvs:826`), with `AdvisoryRequest` `{versions, summary}` (`apps/registry/src/RetractRequest.nvs:1`). The range check in Novis must agree with `crates/nvs-cli/src/package/manifest.rs:155` `Range`: a malformed one is `422`.
-- [ ] `Releases::advise` beside `Releases::retract` (`apps/registry/src/Releases.nvs:177`): one row, the id `<vendor>/<name>-<n>`, the seven days for a token, and `Events` writing the `advisory` log entry and the owners' notice in the transaction (`apps/registry/src/Events.nvs:35`).
-- [ ] The package and version pages list each advisory (`apps/registry/src/PackagePage.nvs:40`, `:71`), then `AdvisoriesTest.nvs` as the stage's item says.
+- [ ] `purge` in `Site` (`apps/registry/src/Site.nvs:64`), optional, shaped like an `http` store: `{url with {url}, header, secret file}`.
+- [ ] The withhold job's one `POST` per archive URL under every `hosts` entry after `Stores::remove` (`apps/registry/jobs/withhold.nvs:1`, `apps/registry/src/Stores.nvs:39`), through the outbound address table like a webhook.
+- [ ] `StoresTest.nvs` through `Test::answerHttp` (`apps/registry/src/WebhooksTest.nvs:19`), the README row (`apps/registry/README.md:16`), and the Not-on-disk section of `docs/rules/packaging/the-operator-only-withholds.md` with `data/gaps/nvs-cli/withhold-purges-the-cdn.json`.
 
-No test is expected to go red.
+No test is expected to go red. `FeedsTest`'s kind list is unchanged: no advisory is sent there.
 
 ### Backlog

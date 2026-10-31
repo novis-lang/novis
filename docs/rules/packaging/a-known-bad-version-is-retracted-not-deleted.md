@@ -47,8 +47,18 @@ operator, so this is not the range system dependencies decline. One parser reads
 (`crates/nvs-cli/src/package/manifest.rs`'s `Range`), and the log refuses an `advisory` entry whose
 range it does not read (`crates/nvs-cli/src/package/entry.rs`).
 
-**Not on disk.** No route writes an `advisory` entry, and audit does not report one
-(gap:nvs-cli/advisory-route-and-range).
+An owner sends an advisory with `POST /api/packages/<vendor>/<name>/advisory` and
+`{"versions", "summary"}` (`App::advise`). The registry checks the range with the same rules
+(`apps/registry/src/VersionRange.nvs`) and answers `422` for one it does not read. It gives the
+advisory its `id`, `<vendor>/<name>-<n>`, where `n` counts that package's advisories from 1, and
+saves the row, the waiting log entry and the owners' notice in one transaction (`Releases::advise`).
+A waiting entry has a `due` time, and the log takes it only from then (`Index.nvs`), so a token's
+advisory is in neither the log nor the feed for seven days. The same advisory sent again with a
+passkey moves that time to now. The package page lists each advisory, and a version's page lists the
+ones whose range has that version (`PackagePage.nvs`).
+
+**Not on disk.** Audit does not report an advisory, and no client command sends one
+(gap:nvs-cli/audit-reports-an-advisory).
 
 Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
 nobody asked for does not arrive on its own (`rule:packaging/resolution-takes-the-highest-minimum`),
