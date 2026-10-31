@@ -359,6 +359,11 @@ patterns are matched against the editor's path.
   no `catch` handles. *All Exceptions* stops at every `throw`. Each exception stops the program once.
 - **Threads.** Each task of the program is a thread in the Call Stack view. When one task stops,
   every task of the same request stops.
+- **The task tree.** While the program is stopped, the *Novis Tasks* view in Run and Debug shows
+  each task under the task that started it. A task that waits for its child tasks is shown as
+  `waiting`. Select a stopped task to open its file at the line where it stopped. The view gets
+  its data from the custom request `nvsTaskTree`. `nvs dap` reports `supportsNvsTaskTree` when it
+  starts.
 
 A `secret` value is shown redacted in the Variables view.
 
@@ -605,6 +610,6 @@ rather than a reviewer.
 
 No UI of its own where the editor already has one. Server health is the language-status item.
 Coverage uses VS Code's own Testing API. A profile opens in a viewer that reads the open format.
-The debugger is VS Code's own debug view over `nvs dap`. None of them is a panel Novis builds and
-maintains.
+The debugger is VS Code's own debug view over `nvs dap`. The *Novis Tasks* view is a VS Code tree
+view that shows what `nvs dap` returns. None of them is a panel Novis builds and maintains.
 

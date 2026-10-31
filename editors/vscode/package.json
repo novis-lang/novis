@@ -318,6 +318,13 @@
           "when": "config.nvs.ast.enable",
           "visibility": "collapsed"
         }
+      ],
+      "debug": [
+        {
+          "id": "nvs.tasks",
+          "name": "Novis Tasks",
+          "when": "debugType == nvs"
+        }
       ]
     },
     "viewsWelcome": [

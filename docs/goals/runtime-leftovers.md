@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/packaging/the-generated-unit-is-hardened.md, crates/nvs-cli/src/service.rs, crates/nvs-cli/src/serve.rs, docs/reference/tools/25-server.md]
   - id: 4
     title: "nvs dap answers the task tree, and the VS Code extension shows it"
-    status: open
+    status: done
     context: [docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md, crates/nvs-cli/src/dap/stopped.rs, crates/nvs-cli/src/dap/mod.rs, crates/nvs-host/src/debug.rs, editors/vscode/src/debug.ts]
   - id: 5
     title: "a type alias a class declares is renamed by the editor and by nvs code rename"
@@ -247,9 +247,12 @@ for it (`rule:config/every-block-is-argued-where-it-is-added`).
   `supportsNvsTaskTree: true` (`crates/nvs-cli/src/dap/mod.rs:302`). The standard `threads`
   answer does not change.
 - **The parent comes from the scheduler.** `Stop` (`crates/nvs-host/src/debug.rs:284`) gains
-  `parent: Option<TaskId>`, filled from `Scheduler::parent_of` (`crates/nvs-host/src/scheduler.rs:1344`)
-  when the task stops. A `spawn`ed isolate's root names the task that spawned it when the debugger
-  has it, and is a root otherwise.
+  `ancestors: Vec<TaskId>`, the parent first and the root last, read by
+  `scheduler::current_ancestors` when the task stops. The whole chain, not one parent: a task
+  parked on its children (`Core\Task::all`) never polls, so it sends no stop, and a child's one
+  parent id would name nothing in the round. A waiting ancestor is listed with an id after every
+  thread's, `"stopped": false` and no source, and every entry carries `stopped`. A `spawn`ed
+  isolate's root is a root, because its parent is in another core's tree.
 - **The VS Code view.** A tree view `nvs.tasks`, named "Novis Tasks", in the `debug` view
   container, shown when `debugType == nvs`. A debug adapter tracker refreshes it on each `stopped` and
   `continued` message. Selecting a task opens its top frame's file at its line. The view id is added
@@ -362,14 +365,14 @@ after the build is green.
 **Split:** the adapter (Rust) lands first. One writing subagent then writes the VS Code view and its
 test, which touch only `editors/vscode/`. It builds nothing.
 
-- [ ] `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`: `Stop` gains `parent`, filled from the scheduler. `crates/nvs-host/src/debug.rs:284`, `crates/nvs-host/src/scheduler.rs:1344`
-- [ ] `initialize` reports `supportsNvsTaskTree`, and `nvsTaskTree` is answered from the round. `crates/nvs-cli/src/dap/mod.rs:302`, `crates/nvs-cli/src/dap/mod.rs:356`, `crates/nvs-cli/src/dap/stopped.rs:128`
-- [ ] The tests the `dap-task-tree` check names. `crates/nvs-cli/tests/dap.rs:609`
-- [ ] The `nvs.tasks` view, its tracker and its contribution. `editors/vscode/src/debug.ts:34`, `editors/vscode/src/tasktree.ts:1`, `editors/vscode/package.json:313`
-- [ ] The tests the `vscode-task-tree` check names. `editors/vscode/test/client/tasktree.test.ts:1`
-- [ ] `rule:ide/the-extension-builds-no-ui-the-editor-already-has` names the view in its Built list. `docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md:16`
-- [ ] The editor reference and the `nvs dap` feature name the request and the view. `bun nv proofs --id 'tools:editor/nvs-dap'` owes nothing. `docs/reference/tools/40-editor.md:296`, `docs/examples/tools/editor/nvs-dap/about.md:1`
-- [ ] The fragment's task bullet says what is built, the tests join `guardedBy`, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:26`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:1`
+- [x] `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`: `Stop` gains `ancestors`, filled from the scheduler. `crates/nvs-host/src/debug.rs:284`, `crates/nvs-host/src/scheduler.rs:1344`
+- [x] `initialize` reports `supportsNvsTaskTree`, and `nvsTaskTree` is answered from the round. `crates/nvs-cli/src/dap/mod.rs:302`, `crates/nvs-cli/src/dap/mod.rs:356`, `crates/nvs-cli/src/dap/stopped.rs:128`
+- [x] The tests the `dap-task-tree` check names. `crates/nvs-cli/tests/dap.rs:609`
+- [x] The `nvs.tasks` view, its tracker and its contribution. `editors/vscode/src/debug.ts:34`, `editors/vscode/src/tasktree.ts:1`, `editors/vscode/package.json:313`
+- [x] The tests the `vscode-task-tree` check names. `editors/vscode/test/client/tasktree.test.ts:1`
+- [x] `rule:ide/the-extension-builds-no-ui-the-editor-already-has` names the view in its Built list. `docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md:16`
+- [x] The editor reference and the `nvs dap` feature name the request and the view. `bun nv proofs --id 'tools:editor/nvs-dap'` owes nothing. `docs/reference/tools/40-editor.md:296`, `docs/examples/tools/editor/nvs-dap/about.md:1`
+- [x] The fragment's task bullet says what is built, the tests join `guardedBy`, then `bun nv rules --render`. Delete the gap record `--closes` lists for it. `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md:26`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:1`
 
 ### 5. a type alias a class declares is renamed by the editor and by nvs code rename
 
@@ -417,30 +420,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. The `socket-unit` tests pass on Windows and the `socket-adoption-linux`
-tests pass in WSL. `Host` and `Plan` carry `tcp` (the TCP addresses, `--listen` and `--port`
-applied, `127.0.0.1:8000` by default) in place of `privileged_port`. `socket_unit` renders
-`<name>.socket` when one address is privileged; `destination` takes a `UnitFile`; `Stored` has
-`socket_unit`, read by `registration::has_a_socket_unit`. `nvs serve` reads the passed sockets
-first thing in `serve::run` (`passed_by_systemd`, Linux only, it sets `FD_CLOEXEC`) and binds
-through `bind_adopting`. A port-`0` address is never in the socket unit. The reference, the
-feature (second example `02-a-service-on-port-443.nvs`) and the fragment say so, the rule's title
-changed in `data/rules/`, and gap `nvs-cli/socket-activation` is deleted. Clippy never ran over
-the Linux-only adoption code: `bun nv linux-test` builds the tests only. A rustfmt diff stage 2
-left in `crates/nvs-stdlib/src/regex.rs` is fixed in its own commit.
+Stages 1 to 4 are done. Stage 4: `Stop` carries `ancestors` (`scheduler::current_ancestors`),
+not one `parent`, because a task parked in `Core\Task::all` sends no stop; the standing decision
+says why. `nvsTaskTree` lists each stopped task, then each waiting ancestor with `"stopped":
+false`, an id after every thread's and no source (`crates/nvs-cli/src/dap/stopped.rs`
+`task_tree`). The three `dap-task-tree` tests pass, and so does `vscode-task-tree` (headless: 366
+passing, lint clean). The view is `editors/vscode/src/taskview.ts` over the pure model
+`src/tasktree.ts`, installed from `src/debug.ts`. The reference, `about.md`, both rules and
+`guardedBy` say so, and gap `nvs-cli/debugger-task-tree` is deleted. The acceptance sweep's
+`env-secret-proofs` red is stale: no check of that name exists in the tree, and
+`looper check --name env-secret-proofs` says "no check matches". It comes from looper's
+service, which this session cannot edit.
 
 ### Next
 
-Stage 4, the adapter half first: `crates/nvs-host` and `crates/nvs-cli/src/dap`. Stage 5 touches
-disjoint files and may run beside it.
+Stage 5: `crates/nvs-lsp` and `crates/nvs-cli/src/code.rs`. The rename lands first, then one
+writing subagent writes the three `.lspt` cases, as the stage's Split says.
 
-- [ ] `Stop` gains `parent`, filled from `Scheduler::parent_of` when the task stops. `crates/nvs-host/src/debug.rs:284`, `crates/nvs-host/src/scheduler.rs:1344`
-- [ ] `initialize` reports `supportsNvsTaskTree`, and `nvsTaskTree` is answered from the round. `crates/nvs-cli/src/dap/mod.rs:302`, `crates/nvs-cli/src/dap/mod.rs:356`, `crates/nvs-cli/src/dap/stopped.rs:128`
-- [ ] The `dap-task-tree` tests. `crates/nvs-cli/tests/dap.rs:609`
-- [ ] Then the VS Code view through one writing subagent, as the stage's Split says. `editors/vscode/src/debug.ts:34`, `editors/vscode/package.json:313`
+- [ ] The owned-alias subject, its sites and its refusals, and `AN_OWNED_ALIAS` deleted. `crates/nvs-lsp/src/rename.rs:108`, `crates/nvs-lsp/src/rename.rs:387`
+- [ ] The index gives every bare site inside the owner's body. `crates/nvs-lsp/src/index.rs:1712`
+- [ ] `nvs code rename` reaches it, its help names the alias, and the `alias-rename-code` tests. `crates/nvs-lsp/src/query.rs:326`, `crates/nvs-cli/src/code.rs:131`, `crates/nvs-cli/tests/code.rs:477`
+- [ ] The three `alias-rename-lsp` cases, through the subagent. `tests/lsp/rename/a-class-scoped-type-alias-is-renamed-at-every-site.lspt:1`
+- [ ] The CLI reference, the rule's Built list, `guardedBy`, `bun nv rules --render`, and gap `rename-a-class-scoped-alias` deleted. `docs/reference/tools/10-cli.md:1045`, `docs/rules/ide/no-refactoring-introduces-an-alias.md:18`
 
-No test is expected to go red. The `the_listen_flags_of_serve_decide_the_port_and_the_sockets`
-test in `crates/nvs-cli/src/service.rs` now asserts addresses where it asserted a flag.
+No test is expected to go red. The contributions suite now pins the view ids `nvs.ast` and
+`nvs.tasks` (`editors/vscode/test/contributions/contributions.test.ts`).
 
 ### Backlog
 

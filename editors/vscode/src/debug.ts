@@ -1,5 +1,8 @@
-// The debugger: VS Code's own debug UI over `nvs dap`, which this file starts and nothing more
-// (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
+// The debugger: VS Code's own debug UI over `nvs dap`, which this file starts, and the Novis Tasks
+// view, which `src/taskview.ts` draws from the adapter's `nvsTaskTree` answer
+// (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). The view is the one thing the
+// editor's debug UI cannot show: which task started which. It is installed from here because it
+// reads only what this file's adapter sends.
 //
 // `package.json`'s `debuggers` contribution is the `launch.json` schema, and every field it names
 // except `nvsCommand` goes to the adapter as it is written: `nvs dap` reads the launch request
@@ -22,6 +25,7 @@ import {
 } from "vscode";
 
 import { runnable, runnableNamed } from "./binary";
+import * as taskView from "./taskview";
 
 /** The `type` a `launch.json` configuration names, and the manifest's `debuggers` entry. */
 export const TYPE = "nvs";
@@ -29,9 +33,13 @@ export const TYPE = "nvs";
 /** The subcommand that is the adapter. It takes no arguments: the launch request carries them. */
 const SUBCOMMAND = ["dap"];
 
-/** Register the factory that starts `nvs dap` for every `"type": "nvs"` session. */
+/**
+ * Register the factory that starts `nvs dap` for every `"type": "nvs"` session, and the Novis Tasks
+ * view that reads what each session's adapter sends.
+ */
 export function install(context: ExtensionContext): void {
   context.subscriptions.push(debug.registerDebugAdapterDescriptorFactory(TYPE, factory));
+  taskView.install(context, TYPE);
 }
 
 const factory: DebugAdapterDescriptorFactory = {

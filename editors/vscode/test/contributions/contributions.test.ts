@@ -69,6 +69,7 @@ interface Manifest {
     html?: { customData: string[] };
     css?: { customData: string[] };
     breakpoints?: { language: string }[];
+    views?: Record<string, { id: string; name: string; when?: string }[]>;
     debuggers?: {
       type: string;
       languages: string[];
@@ -125,6 +126,13 @@ const COMMANDS = [
   "nvs.downloadBinary",
   "nvs.openReleases",
   "nvs.useNovisTheme",
+];
+
+// A view id is where somebody's layout keeps the view's place and size, and `<id>.focus` is a
+// command a keybinding names.
+const VIEWS = [
+  "nvs.ast",
+  "nvs.tasks",
 ];
 
 // `rule:ide/dependencies-are-allowlisted` is over runtime dependencies: a test library ships to
@@ -396,6 +404,16 @@ describe("the frozen identifiers", () => {
                      [...COMMANDS].sort());
   });
 
+  it("contributes exactly the views the roster names, and creates each one", () => {
+    const views = Object.values(manifest.contributes.views ?? {}).flat().map((view) => view.id);
+    assert.deepEqual(views.sort(), [...VIEWS].sort());
+    for (const id of VIEWS) {
+      const constant = new RegExp(`export const VIEW = "${escaped(id)}"`).test(CLIENT);
+      assert.ok(constant, `${id}: contributed, and no module names it as its VIEW`);
+    }
+    assert.match(CLIENT, /createTreeView\(\s*VIEW/);
+  });
+
   it("registers every command it contributes", () => {
     // The roster test above passes whether or not a single command does anything, and this is the
     // one that does not: an id nothing registers is *command not found* from the palette. The list
@@ -480,6 +498,14 @@ describe("the debugger", () => {
   it("registers a descriptor factory that starts nvs dap", () => {
     assert.match(CLIENT, /registerDebugAdapterDescriptorFactory\(\s*TYPE/);
     assert.match(CLIENT, /const SUBCOMMAND = \["dap"\]/);
+  });
+
+  it("shows the Novis Tasks view in the debug sidebar, during an nvs session alone", () => {
+    const views = manifest.contributes.views?.["debug"] ?? [];
+    assert.deepEqual(views, [{ id: "nvs.tasks", name: "Novis Tasks", when: "debugType == nvs" }]);
+    // The tracker that feeds it reads the adapter of every `"type": "nvs"` session.
+    assert.match(CLIENT, /registerDebugAdapterTrackerFactory\(\s*type/);
+    assert.match(CLIENT, /taskView\.install\(context, TYPE\)/);
   });
 
   it("offers a snippet per mode, each a launch of its own type", () => {

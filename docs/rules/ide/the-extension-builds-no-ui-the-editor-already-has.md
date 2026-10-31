@@ -25,7 +25,10 @@ CLI uses. The profile's folder is therefore never served. Spends: the file and i
 open panel. The debugger is a `debuggers` contribution in `editors/vscode/package.json`, whose
 `launch.json` schema names every field `nvs dap`'s `launch` reads, and the
 `DebugAdapterDescriptorFactory` in `editors/vscode/src/debug.ts`, which starts `nvs dap` and draws
-nothing.
+nothing. The task tree is the `nvs.tasks` tree view in the `debug` container: VS Code's own
+`TreeView`, fed with `nvs dap`'s `nvsTaskTree` answer by a debug adapter tracker, the nesting
+computed in `editors/vscode/src/tasktree.ts`
+(`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the

@@ -26,9 +26,15 @@ adapter's capability list is therefore the debugger's scope, and it is this:
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
   pauses all of them (`rule:testing/a-stop-pauses-the-whole-task-tree`). That is the standard
   presentation, needing no protocol extension. The *tree* of tasks needs one.
-
-**Not on disk.** The tree of tasks: the threads pane lists every task flat
-(gap:nvs-cli/debugger-task-tree).
+- **The tree of tasks**, through the custom request `nvsTaskTree`, which `initialize` reports as
+  `supportsNvsTaskTree`. Each stopped task is named with the thread of the task that spawned it,
+  and its top frame's file and line, mapped through `pathMappings`. A task waiting on its children
+  never polls, so it sends no stop: each stop carries its task's ancestors, and a waiting ancestor
+  is listed with `"stopped": false` and no source. A `spawn`ed isolate's root is a root, because
+  its parent is in another core's tree. The `threads` answer stays flat. The VS Code extension's
+  *Novis Tasks* view (`nvs.tasks`, in the `debug` container) is VS Code's own tree view fed with
+  that answer, refreshed by a debug adapter tracker on each `stopped` and `continued` message.
+  Spends: one task id per ancestor of each stopped task, freed at the resume.
 
 **A condition and a logpoint's `{…}` hole are expressions over the stopped frame's variables.** They
 are type-checked against the frame's slot table

@@ -2951,7 +2951,10 @@ CLI uses. The profile's folder is therefore never served. Spends: the file and i
 open panel. The debugger is a `debuggers` contribution in `editors/vscode/package.json`, whose
 `launch.json` schema names every field `nvs dap`'s `launch` reads, and the
 `DebugAdapterDescriptorFactory` in `editors/vscode/src/debug.ts`, which starts `nvs dap` and draws
-nothing.
+nothing. The task tree is the `nvs.tasks` tree view in the `debug` container: VS Code's own
+`TreeView`, fed with `nvs dap`'s `nvsTaskTree` answer by a debug adapter tracker, the nesting
+computed in `editors/vscode/src/tasktree.ts`
+([`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter)).
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
@@ -3200,9 +3203,15 @@ adapter's capability list is therefore the debugger's scope, and it is this:
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
   pauses all of them ([`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree)). That is the standard
   presentation, needing no protocol extension. The *tree* of tasks needs one.
-
-**Not on disk.** The tree of tasks: the threads pane lists every task flat
-(gap:nvs-cli/debugger-task-tree).
+- **The tree of tasks**, through the custom request `nvsTaskTree`, which `initialize` reports as
+  `supportsNvsTaskTree`. Each stopped task is named with the thread of the task that spawned it,
+  and its top frame's file and line, mapped through `pathMappings`. A task waiting on its children
+  never polls, so it sends no stop: each stop carries its task's ancestors, and a waiting ancestor
+  is listed with `"stopped": false` and no source. A `spawn`ed isolate's root is a root, because
+  its parent is in another core's tree. The `threads` answer stays flat. The VS Code extension's
+  *Novis Tasks* view (`nvs.tasks`, in the `debug` container) is VS Code's own tree view fed with
+  that answer, refreshed by a debug adapter tracker on each `stopped` and `continued` message.
+  Spends: one task id per ancestor of each stopped task, freed at the resume.
 
 **A condition and a logpoint's `{…}` hole are expressions over the stopped frame's variables.** They
 are type-checked against the frame's slot table

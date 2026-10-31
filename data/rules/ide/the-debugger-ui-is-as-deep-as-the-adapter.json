@@ -11,6 +11,7 @@
   "guardedBy": [
     "crates/nvs-cli/tests/dap.rs",
     "crates/nvs-cli/src/dap/paths.rs",
-    "crates/nvs-host/src/debug.rs"
+    "crates/nvs-host/src/debug.rs",
+    "editors/vscode/test/client/tasktree.test.ts"
   ]
 }
