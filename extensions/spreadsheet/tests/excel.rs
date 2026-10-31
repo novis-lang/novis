@@ -1253,6 +1253,57 @@ fn tables_match_the_excel_made_fixtures() {
     }
 }
 
+/// The formula text of the cell `at` in the sheet XML `sheet`.
+fn formula_at<'a>(sheet: &'a str, at: &str) -> &'a str {
+    let cell = &sheet[sheet
+        .find(&format!("<c r=\"{at}\""))
+        .unwrap_or_else(|| panic!("the sheet has {at}"))..];
+    let from = cell.find("<f>").expect("the cell has a formula") + 3;
+    &cell[from..from + cell[from..].find("</f>").unwrap()]
+}
+
+#[test]
+fn a_calculated_column_is_written_in_the_form_excel_stores() {
+    // table10 has a table at B3:K6 whose last column is `SUM([@[Column1]:[Column3]])`. Excel
+    // stores `[@x]` as `Table1[[#This Row],[x]]` in each data cell.
+    let excel = entry(&excel_file("table10"), "xl/worksheets/sheet1.xml");
+    let header: Vec<(String, Cell)> = (1..=10)
+        .map(|at| (reference(at, 3), text(&format!("Column{at}"))))
+        .collect();
+    for given in [
+        "SUM([@[Column1]:[Column3]])",
+        "SUM(Table1[@[Column1]:[Column3]])",
+    ] {
+        let mut cells = header.clone();
+        for row in [4, 5] {
+            cells.push((
+                reference(10, row),
+                cell(Some(formula(given, None, Some(0.0)))),
+            ));
+        }
+        // The table is added before its header row, row 3.
+        let mut rows = grid(cells, 5);
+        let data = rows.split_off(2);
+        let mut writer = Writer::open(WorkbookOptions::default()).unwrap();
+        let mut ours = writer.sheet(SheetOptions::named("Sheet1"), &rows).unwrap();
+        ours.extend(
+            writer
+                .part(Part::Table(excel_table("B3:K5", Vec::new())))
+                .unwrap(),
+        );
+        ours.extend(writer.rows(&data).unwrap());
+        ours.extend(writer.finish().unwrap().data);
+        let sheet = entry(&ours, "xl/worksheets/sheet1.xml");
+        for at in ["K4", "K5"] {
+            assert_eq!(
+                formula_at(&sheet, at),
+                formula_at(&excel, at),
+                "{given} at {at}"
+            );
+        }
+    }
+}
+
 /// A `cellIs` rule over `formatted` that compares with `value` and formats with `style`.
 fn excel_rule(formatted: &str, operator: Operator, value: &str, style: Style) -> Conditional {
     Conditional {

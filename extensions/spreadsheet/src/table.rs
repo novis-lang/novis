@@ -16,10 +16,12 @@
 //! written as given. The first column with no total is labelled `Total`.
 //!
 //! **Structured references** ([`expand`]): a formula in a table's own cells may write `[@qty]`
-//! for the row's own `qty` and `[qty]` for the whole column. xlsx stores them qualified by the
-//! table's name, as `Shop[[#This Row],[qty]]` and `Shop[qty]`, and the writer rewrites them so in
-//! the totals row and in every row written after the table is added. A row written before its
-//! table is added keeps its formula text as it was given.
+//! for the row's own `qty` and `[qty]` for the whole column. Excel stores them qualified by the
+//! table's name and with `@` in its long form, as `Shop[[#This Row],[qty]]` and `Shop[qty]`
+//! (`tests/excel.rs` checks it against a calculated column Excel wrote). The writer rewrites them
+//! so in the totals row and in every row written after the table is added, and `Shop[@qty]`
+//! becomes `Shop[[#This Row],[qty]]`. A row written before its table is added keeps its formula
+//! text as it was given.
 //!
 //! [`Placed::write`] is the table's part. Its id and its default name `Table<id>` count across
 //! the workbook. Memory: per table, its range, its name and its column names until the sheet
@@ -408,8 +410,8 @@ impl Placed {
                     ..
                 }) => {
                     // Inside the table's own part, Excel writes a reference to the table's
-                    // columns with no table name: `SUM([qty])`. `[@qty]` is still written in
-                    // its long form, `[[#This Row],[qty]]`.
+                    // columns with no table name: `SUM([qty])`. `[@qty]` is written in its
+                    // long form, `[[#This Row],[qty]]`, as Excel stores it.
                     out.push_str(" totalsRowFunction=\"custom\"><totalsRowFormula>");
                     xml::text(
                         &mut out,
@@ -433,7 +435,8 @@ impl Placed {
 
 /// `formula` with each structured reference that names no table qualified by `table`: `[@qty]`
 /// and `[@[unit price]]` become `table[[#This Row],[qty]]`, and `[qty]` becomes `table[qty]`.
-/// Text inside quotes and a reference that already names a table stay as they are. An empty
+/// A reference that already names a table keeps its name, and its `@` is expanded too:
+/// `Blog[@qty]` becomes `Blog[[#This Row],[qty]]`. Text inside quotes stays as it is. An empty
 /// `table` names none, so only `[@qty]` changes, to `[[#This Row],[qty]]`.
 pub fn expand(formula: &str, table: &str) -> String {
     let mut out = String::with_capacity(formula.len());
@@ -453,7 +456,9 @@ pub fn expand(formula: &str, table: &str) -> String {
         }
         let named =
             previous.is_some_and(|p| p.is_alphanumeric() || matches!(p, '_' | '.' | ']' | '\''));
-        if c != '[' || named {
+        // A reference that names its table keeps the name, and only its `@` is expanded.
+        let this_row = formula[at + c.len_utf8()..].starts_with('@');
+        if c != '[' || (named && !this_row) {
             out.push(c);
             previous = Some(c);
             continue;
@@ -486,7 +491,9 @@ pub fn expand(formula: &str, table: &str) -> String {
             return out;
         };
         let inside = &formula[at + 1..end];
-        out.push_str(table);
+        if !named {
+            out.push_str(table);
+        }
         match inside.strip_prefix('@') {
             Some(column) if column.starts_with('[') => {
                 let _ = write!(out, "[[#This Row],{column}]");
@@ -517,6 +524,10 @@ mod tests {
         assert_eq!(expand("SUM([qty])/2", "Shop"), "SUM(Shop[qty])/2");
         assert_eq!(expand("Blog[qty]+\"[qty]\"", "Shop"), "Blog[qty]+\"[qty]\"");
         assert_eq!(expand("[#Totals]", "Shop"), "Shop[#Totals]");
+        assert_eq!(
+            expand("SUM(Blog[@[a]:[c]])", "Shop"),
+            "SUM(Blog[[#This Row],[a]:[c]])"
+        );
     }
 
     #[test]

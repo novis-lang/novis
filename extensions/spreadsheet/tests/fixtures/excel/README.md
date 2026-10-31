@@ -21,6 +21,7 @@ the workbook it holds.
 | `format15.xlsx` | `format15` | `xl/styles.xml` |
 | `format19.xlsx` | `format19` | `xl/styles.xml` |
 | `table01.xlsx` | `table01` | `xl/tables/table1.xml` |
+| `table10.xlsx` | `table10` | the calculated column's formula in each data cell |
 | `table08.xlsx` | `table08` | `xl/tables/table1.xml` |
 | `table23.xlsx` | `table23` | `xl/tables/table1.xml` |
 | `table24.xlsx` | `table24` | `xl/tables/table1.xml` |
