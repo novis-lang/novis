@@ -42,6 +42,7 @@ fn check(body: &str, set: &[Manifest]) -> Diagnostics {
         }],
         &module,
         None,
+        nvs_types::Backtracking::Allow,
         &nvs_types::Grants::default(),
         None,
         set,

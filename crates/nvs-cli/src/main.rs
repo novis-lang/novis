@@ -938,18 +938,21 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     front_end_granted(path, None, false, Sink::Text, config::Init::Never, None)
 }
 
-/// [`front_end`] with the extension set `extensions` loaded, which `nvs run`
-/// and `nvs build --compile` read from their configuration before the program
+/// [`front_end`] with the extension set `extensions` loaded and the
+/// `[regex] backtracking` policy `backtracking` in force, which `nvs run` and
+/// `nvs build --compile` read from their configuration before the program
 /// compiles.
 fn front_end_extended(
     path: &std::path::Path,
     extensions: Vec<nvs_ext::manifest::Manifest>,
+    backtracking: nvs_types::Backtracking,
 ) -> Result<Checked, ExitCode> {
     front_end_in(
         SourceMap::new(),
         path,
         None,
         extensions,
+        backtracking,
         false,
         Sink::Text,
         config::Init::Never,
@@ -1006,6 +1009,7 @@ fn front_end_granted(
         path,
         config,
         Vec::new(),
+        nvs_types::Backtracking::Allow,
         strict_docs,
         sink,
         init,
@@ -1020,10 +1024,12 @@ fn front_end_granted(
 /// `crate::script::Compiler` is the caller. It keeps a compiled program and has
 /// to notice when any file behind it changes, and after a failed compile the
 /// only list of those files is the one this run leaves behind. `extensions` is
-/// the live set's manifests, which the program is typed against.
+/// the live set's manifests, which the program is typed against, and
+/// `backtracking` the live `[regex] backtracking`.
 fn front_end_looking(
     path: &std::path::Path,
     extensions: Vec<nvs_ext::manifest::Manifest>,
+    backtracking: nvs_types::Backtracking,
     looked: &mut Looked,
 ) -> Result<Checked, ExitCode> {
     front_end_in(
@@ -1031,6 +1037,7 @@ fn front_end_looking(
         path,
         None,
         extensions,
+        backtracking,
         false,
         Sink::Text,
         config::Init::Never,
@@ -1111,6 +1118,7 @@ fn front_end_in(
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
     extensions: Vec<nvs_ext::manifest::Manifest>,
+    backtracking: nvs_types::Backtracking,
     strict_docs: bool,
     sink: Sink,
     init: config::Init,
@@ -1138,9 +1146,11 @@ fn front_end_in(
         Some(dir) if !path.exists() => dir,
         _ => path,
     };
-    let (grants, extensions) = match config {
+    // A `config` list reads `[regex] backtracking` from the same tree as the grants. Without
+    // one, the caller read the tree and passed the policy in.
+    let (grants, extensions, backtracking) = match config {
         Some(config) => config::grants(config, configured, init)?,
-        None => (None, extensions),
+        None => (None, extensions, backtracking),
     };
     let extensions = extensions::with_built_in(extensions);
     let classes = nvs_types::ext_lib::hir_classes(&extensions);
@@ -1226,6 +1236,7 @@ fn front_end_in(
             &files,
             &module,
             grants.as_ref(),
+            backtracking,
             &namespace_grants,
             Some(&packages),
             &extensions,
@@ -1447,6 +1458,7 @@ fn run_check(
                 entry,
                 Some(config),
                 Vec::new(),
+                nvs_types::Backtracking::Allow,
                 flags.strict_docs,
                 sink,
                 init,
@@ -1860,7 +1872,11 @@ fn run_run(
         }
         Err(_) => Vec::new(),
     };
-    let checked = match front_end_extended(path, extensions) {
+    let backtracking = booted.as_ref().map_or_else(
+        |_| nvs_types::Backtracking::Allow,
+        |(snapshot, _)| nvs_types::Backtracking::of_config(&snapshot.config),
+    );
+    let checked = match front_end_extended(path, extensions, backtracking) {
         Ok(checked) => checked,
         Err(code) => return code,
     };
@@ -2993,6 +3009,8 @@ fn run_program_tests(
 /// TLS client, installed, and its extension set, loaded.
 struct TestSetup {
     manifests: Vec<nvs_ext::manifest::Manifest>,
+    /// The tree's `[regex] backtracking`, which the suite compiles under.
+    backtracking: nvs_types::Backtracking,
     set: std::sync::Arc<nvs_ext::load::Set>,
 }
 
@@ -3018,6 +3036,7 @@ impl TestSetup {
         let set = extensions::loaded(config, &tree.origins, &tree.sources).map_err(refuse)?;
         Ok(Self {
             manifests,
+            backtracking: nvs_types::Backtracking::of_config(config),
             set: std::sync::Arc::new(set),
         })
     }
@@ -3041,7 +3060,7 @@ fn run_program_pass(
     coverage: &coverage::Requested,
     looked: Option<&mut Looked>,
 ) -> ExitCode {
-    let checked = match program.front_end(setup.manifests.clone(), looked) {
+    let checked = match program.front_end(setup.manifests.clone(), setup.backtracking, looked) {
         Ok(checked) => checked,
         Err(code) => return code,
     };
@@ -3148,9 +3167,9 @@ impl Program {
         }
     }
 
-    /// The checked program, typed against the extension set `extensions`.
-    /// `looked`, where there is one, is filled with every path the compile
-    /// looked at.
+    /// The checked program, typed against the extension set `extensions` and
+    /// compiled under `backtracking`. `looked`, where there is one, is filled
+    /// with every path the compile looked at.
     ///
     /// A directory's entry exists only in memory, and sits where
     /// [`Self::entry_path`] puts it, so every `require` in it resolves against
@@ -3159,6 +3178,7 @@ impl Program {
     fn front_end(
         &self,
         extensions: Vec<nvs_ext::manifest::Manifest>,
+        backtracking: nvs_types::Backtracking,
         looked: Option<&mut Looked>,
     ) -> Result<Checked, ExitCode> {
         let (map, entry) = match self {
@@ -3175,6 +3195,7 @@ impl Program {
             &entry,
             None,
             extensions,
+            backtracking,
             false,
             Sink::Text,
             config::Init::Never,

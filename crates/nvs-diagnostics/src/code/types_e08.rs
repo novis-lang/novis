@@ -1174,4 +1174,13 @@ codes! {
          class with `#[Core\\Json\\Derive]` has JSON keys. Add `#[Core\\Json\\Derive]` to the \
          class, or remove `#[Core\\Json\\KeepKeyOrder]`.",
     );
+
+    /// A pattern literal that only the backtracking regex engine accepts, under
+    /// `[regex] backtracking = "deny"` (`rule:core-classes/regex-compile-time-tiering`).
+    pub const E_REGEX_BACKTRACKING_DENIED: Code = Code::new("E0893").card(
+        "This pattern needs the backtracking regex engine. Lookaround and backreferences need \
+         it. `[regex] backtracking` is `deny` in `nvs.toml`, so the pattern does not compile. \
+         Write the pattern without lookaround and without backreferences. Or set \
+         `backtracking` to `warn` or `allow`.",
+    );
 }

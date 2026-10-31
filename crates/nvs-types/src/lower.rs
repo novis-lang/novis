@@ -1208,6 +1208,7 @@ mod tests {
             deprecations: &deprecations,
             test_code: &test_code,
             grants: None,
+            backtracking: nvs_config::regex::Backtracking::Allow,
             namespace_grants: &nvs_config::grants::EMPTY,
             packages: None,
             src: map.file(file),

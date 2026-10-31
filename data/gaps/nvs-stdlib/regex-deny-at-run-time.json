@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/regex.rs",
+  "title": "Under `[regex] backtracking = \"deny\"`, a pattern built at run time that needs the backtracking engine still compiles and runs.",
+  "text": "Closing it makes `Core\\Regex::compile` throw the `RuntimeError` a malformed pattern throws for such a pattern under `deny`, so no request can backtrack at all (`rule:core-classes/regex-compile-time-tiering`).",
+  "goal": "runtime-leftovers"
+}

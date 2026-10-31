@@ -262,6 +262,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "regex.backtracking",
+        LIVE,
+        "a_changed_regex_backtracking_takes_the_next_compile",
+    ),
+    (
         "log.handler_reserve_memory",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",

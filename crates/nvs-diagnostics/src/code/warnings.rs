@@ -301,4 +301,13 @@ codes! {
          `--program`. Check the name for a typo. If another program reads it, give that program \
          with `--program`.",
     );
+    /// A pattern literal that only the backtracking regex engine accepts, under
+    /// `[regex] backtracking = "warn"` (`rule:core-classes/regex-compile-time-tiering`). The
+    /// pattern compiles and runs under `[limits] max_regex_steps`.
+    pub const W_REGEX_BACKTRACKING: Code = Code::new("W1029").card(
+        "This pattern needs the backtracking regex engine. Lookaround and backreferences need \
+         it. `[regex] backtracking` is `warn` in `nvs.toml`. The pattern compiles, and \
+         `[limits] max_regex_steps` limits the work of each match. Write the pattern without \
+         lookaround and without backreferences to remove the warning.",
+    );
 }

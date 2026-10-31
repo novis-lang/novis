@@ -533,6 +533,11 @@ pub(crate) struct Compiler {
     /// two of them, and the write happens once per reload that changes the set.
     ///
     env: RwLock<EnvHash>,
+    /// `[regex] backtracking`, which every compile here reads
+    /// (`rule:core-classes/regex-compile-time-tiering`). It is an input of [`Self::env`], so
+    /// [`Self::rekey_to`] moves both, this one first: a compile that reads the old policy and
+    /// the new digest is the one order that could keep a unit the policy no longer allows.
+    backtracking: RwLock<nvs_types::Backtracking>,
     /// `[opcache] validate`, `revalidate_freq` and `settle`. All three are
     /// `System`-class, so no request can move them, and all three reload, so a
     /// reload can ([`Self::reconfigure`]). Behind a lock for [`Self::env`]'s
@@ -625,6 +630,7 @@ impl Compiler {
             units: RwLock::new(HashMap::new()),
             traces: RwLock::new(HashMap::new()),
             env: RwLock::new(env_hash(config, &nvs_config::grants::Grants::default())),
+            backtracking: RwLock::new(nvs_types::Backtracking::of_config(config)),
             revalidation: RwLock::new(Revalidation::from_config(config)),
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),
@@ -738,14 +744,16 @@ impl Compiler {
         shared(&self.units).len()
     }
 
-    /// Moves this cache and the disk cache behind it onto the environment `env`
-    /// names, dropping every unit keyed under the one it leaves — and answering
-    /// how many that was. The disk cache keeps its artifacts: the next compile
-    /// looks for one under the new digest, and misses.
+    /// Moves this cache and the disk cache behind it onto the environment
+    /// `config` names, dropping every unit keyed under the one it leaves — and
+    /// answering how many that was. The disk cache keeps its artifacts: the next
+    /// compile looks for one under the new digest, and misses. `[regex]
+    /// backtracking` moves first, so a compile under the new digest reads the
+    /// new policy.
     ///
     /// `0` for a digest that has not moved, which is every reload that did not
-    /// touch `[[extension]]`: the units stay, and the cheapest reload stays the
-    /// common one.
+    /// touch `[[extension]]` or `[regex] backtracking`: the units stay, and the
+    /// cheapest reload stays the common one.
     ///
     /// The units are **dropped** rather than left to age out, because a key is
     /// half environment (`rule:config/the-extension-set-is-in-every-unit-key`)
@@ -754,6 +762,13 @@ impl Compiler {
     /// nothing. The path map goes with them: its entries point at content
     /// hashes whose units are gone, so a resolve that hit one would take step 1
     /// down to a compile anyway.
+    pub(crate) fn rekey_to(&self, config: &Config) -> usize {
+        *exclusive(&self.backtracking) = nvs_types::Backtracking::of_config(config);
+        self.rekey(env_hash(config, &nvs_config::grants::Grants::default()))
+    }
+
+    /// [`Self::rekey_to`] with the digest named rather than computed, which is
+    /// the seam a test drives.
     pub(crate) fn rekey(&self, env: EnvHash) -> usize {
         let mut keyed = exclusive(&self.env);
         if *keyed == env {
@@ -1426,8 +1441,12 @@ impl Compiler {
         // Typed against the live extension set. A reload installs a new set
         // before it moves [`Self::env`], so a unit compiled from then on reads
         // the set its key will name.
-        let checked =
-            crate::front_end_looking(&real, crate::extensions::live_manifests(), &mut looked);
+        let checked = crate::front_end_looking(
+            &real,
+            crate::extensions::live_manifests(),
+            *shared(&self.backtracking),
+            &mut looked,
+        );
         let Looks {
             answers,
             reads,

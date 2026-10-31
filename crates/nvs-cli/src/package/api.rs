@@ -188,6 +188,8 @@ pub(crate) fn extract_counted(
         &entry,
         None,
         component.into_iter().collect(),
+        // A package's API is the same under every deployment's `[regex]` policy.
+        nvs_types::Backtracking::Allow,
         false,
         crate::Sink::Text,
         crate::config::Init::Never,

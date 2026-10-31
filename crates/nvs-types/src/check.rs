@@ -120,6 +120,7 @@ pub fn check_program_granted(
         files,
         module,
         grants,
+        nvs_config::regex::Backtracking::Allow,
         &nvs_config::grants::EMPTY,
         None,
         &[],
@@ -144,6 +145,11 @@ pub fn check_program_granted(
 /// names the table it read, or the empty one. `packages` places each file in
 /// its package, so a capability its package lists as `optional` compiles to a
 /// guard; `None` places no file.
+///
+/// `backtracking` is `[regex] backtracking` from the configuration `grants` came from, and
+/// [`Allow`](nvs_config::regex::Backtracking::Allow) where none was read. It decides whether a
+/// pattern literal that needs the backtracking engine is silent, a warning or an error
+/// (`rule:core-classes/regex-compile-time-tiering`).
 #[expect(
     clippy::too_many_arguments,
     reason = "each input is a separate table the caller read, and a struct of them \
@@ -153,6 +159,7 @@ pub fn check_program_loaded(
     files: &[crate::ProgramFile<'_>],
     module: &Module,
     grants: Option<&nvs_config::tree::Capabilities>,
+    backtracking: nvs_config::regex::Backtracking,
     namespace_grants: &nvs_config::grants::Grants,
     packages: Option<&crate::package::Packages>,
     extensions: &[nvs_ext::manifest::Manifest],
@@ -226,6 +233,7 @@ pub fn check_program_loaded(
             deprecations: &deprecations,
             test_code: &test_code,
             grants,
+            backtracking,
             namespace_grants,
             packages,
             src: file.src,

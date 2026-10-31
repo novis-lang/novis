@@ -344,8 +344,8 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
 /// The program is typed against the extension set `config` resolves to, and each of its files is
 /// embedded after the source (*The extensions it carries* above).
 pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> ExitCode {
-    let manifests = match crate::config::extension_set(config, entry) {
-        Ok(manifests) => manifests,
+    let (manifests, backtracking) = match crate::config::extension_set(config, entry) {
+        Ok(read) => read,
         Err(code) => return code,
     };
     // A file an extension's source section carries travels inside its `.nvsx`, under the name
@@ -362,7 +362,7 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> Exi
                 .map(|file| format!("{}:{}", manifest.class.trim_start_matches('\\'), file.path))
         })
         .collect();
-    let checked = match super::front_end_extended(entry, manifests) {
+    let checked = match super::front_end_extended(entry, manifests, backtracking) {
         Ok(checked) => checked,
         Err(code) => return code,
     };

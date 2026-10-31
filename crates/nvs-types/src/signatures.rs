@@ -999,6 +999,7 @@ pub fn build_signatures(
             // capability question — the placeholder tables beside it are here
             // for the same reason.
             grants: None,
+            backtracking: nvs_config::regex::Backtracking::Allow,
             namespace_grants: &nvs_config::grants::EMPTY,
             packages: None,
             src: file.src,

@@ -299,6 +299,37 @@ pub(crate) fn check_src_granted(
     diags
 }
 
+/// [`check_src`] under the `[regex] backtracking` policy `backtracking`
+/// (`rule:core-classes/regex-compile-time-tiering`), with no grants read.
+pub(crate) fn check_src_backtracking(
+    src: &str,
+    backtracking: nvs_types::Backtracking,
+) -> Diagnostics {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+    let module = resolve_file(&stmts, map.file(file), &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+    nvs_types::check::check_program_loaded(
+        &[nvs_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
+        &module,
+        None,
+        backtracking,
+        &nvs_types::Grants::default(),
+        None,
+        &[],
+        &mut TypeInterner::new(),
+        &mut ExprTypeTable::new(),
+        &mut diags,
+    );
+    diags
+}
+
 /// A whole *program* checked, rather than one source: the files are written to
 /// a temporary directory and walked by [`nvs_hir::resolve_program`], so the
 /// table every whole-program pass builds is filled from the same

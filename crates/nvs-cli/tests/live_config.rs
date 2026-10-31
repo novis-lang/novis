@@ -1927,6 +1927,38 @@ fn a_changed_extension_set_compiles_every_program_again() {
     });
 }
 
+/// A program that compiles a lookbehind, which only the backtracking regex
+/// engine runs, and answers whether it matched.
+const LOOKBEHIND: &str = "<?nvs\necho Core\\Regex::matches(\"USD 42\", \
+     Core\\Regex::compile('(?<=USD )\\d+')) ? \"yes\" : \"no\";\n";
+
+/// `[regex] backtracking` reloads into the compiler
+/// (`rule:core-classes/regex-compile-time-tiering`). The value is in the
+/// environment digest, so the reload drops the compiled program, and the next
+/// request compiles it under the new value: `deny` refuses it, and `allow`
+/// serves it again.
+#[test]
+fn a_changed_regex_backtracking_takes_the_next_compile() {
+    let server = Server::start("regex-backtracking", "", &[("app.nvs", LOOKBEHIND)]);
+    server.awaits("/", "the answer under `allow`", |answer| {
+        answer.status == 200 && answer.body == "yes"
+    });
+
+    let report = server.reload("[regex]\nbacktracking = \"deny\"\n");
+    assert!(
+        report.contains("applied: regex.backtracking\n"),
+        "the reload did not name `regex.backtracking` as applied: {report}"
+    );
+    server.awaits("/", "the refused compile under `deny`", |answer| {
+        answer.status == 500
+    });
+
+    server.reload("[regex]\nbacktracking = \"allow\"\n");
+    server.awaits("/", "the answer under `allow` again", |answer| {
+        answer.status == 200 && answer.body == "yes"
+    });
+}
+
 /// The ledger fixture the conformance cases load, which declares `Shop\Ledger`.
 fn ledger() -> Vec<u8> {
     std::fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))

@@ -301,6 +301,8 @@ pub use ty::{CoreShape, CoreShapeField, Ty, TypeId, TypeInterner};
 
 /// The application's `[grants]` table, which [`check::check_program_loaded`] takes.
 pub use nvs_config::grants::Grants;
+/// `[regex] backtracking`, which [`check::check_program_loaded`] takes.
+pub use nvs_config::regex::Backtracking;
 
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_hir::{AliasTable, ClassGraph, QName, SymbolTable};
@@ -471,6 +473,11 @@ pub(crate) struct Env<'a> {
     /// door does, and a scope this pass cannot resolve statically is left to
     /// the door.
     pub grants: Option<&'a nvs_config::tree::Capabilities>,
+    /// `[regex] backtracking` from the configuration that filled [`Self::grants`], and
+    /// [`Allow`](nvs_config::regex::Backtracking::Allow) for a caller that read none. A pattern
+    /// literal that needs the backtracking engine is silent, a warning or an error by it
+    /// (`rule:core-classes/regex-compile-time-tiering`).
+    pub backtracking: nvs_config::regex::Backtracking,
     /// The `[grants]` table of the application's `package.toml`, keyed on
     /// namespaces (`rule:security/grants-are-keyed-on-a-namespace`). Every
     /// `Core` call site is held to the line of the namespace that encloses it

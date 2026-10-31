@@ -13,7 +13,10 @@
 
 mod common;
 
-use common::{check_src, check_src_granted, check_src_table, check_src_table_allowing_errors};
+use common::{
+    check_src, check_src_backtracking, check_src_granted, check_src_table,
+    check_src_table_allowing_errors,
+};
 use nvs_config::tree::{CapDb, CapQueue, Capabilities, Setting};
 use nvs_diagnostics::{Code, Diagnostics, Severity, code};
 use nvs_stdlib::regex::Tier;
@@ -340,6 +343,69 @@ fn a_written_regex_pattern_is_prepared_while_checking() {
     assert!(
         !fine.has_errors(),
         "a pattern one of the two engines compiles was refused: {fine:?}"
+    );
+}
+
+/// A lookbehind, which only the backtracking engine compiles, and a linear
+/// pattern beside it, in a program's `Main::main`.
+const BACKTRACKING_LITERAL: &str = "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+     Core\\Regex\\Pattern $fancy = Core\\Regex::compile('(?<=USD )\\d+');\n  }\n}\n";
+
+/// The same program with a pattern the linear engine compiles.
+const LINEAR_LITERAL: &str = "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+     Core\\Regex\\Pattern $linear = Core\\Regex::compile('[a-z]+\\d{2,3}');\n  }\n}\n";
+
+/// `rule:core-classes/regex-compile-time-tiering`: `allow`, the default, says
+/// nothing about a backtracking literal.
+#[test]
+fn regex_backtracking_allow_compiles_a_backtracking_literal_silently() {
+    let diags = check_src_backtracking(BACKTRACKING_LITERAL, nvs_types::Backtracking::Allow);
+    assert!(
+        diags.iter().next().is_none(),
+        "`allow` reported a backtracking literal: {diags:?}"
+    );
+}
+
+/// `warn` reports the literal as `W1029` and still compiles it.
+#[test]
+fn regex_backtracking_warn_reports_a_backtracking_literal_as_a_warning() {
+    let diags = check_src_backtracking(BACKTRACKING_LITERAL, nvs_types::Backtracking::Warn);
+    assert!(!diags.has_errors(), "`warn` refused the literal: {diags:?}");
+    let warning = diags
+        .iter()
+        .find(|d| d.code == Some(code::W_REGEX_BACKTRACKING))
+        .unwrap_or_else(|| panic!("`warn` did not report the literal: {diags:?}"));
+    assert_eq!(warning.severity, Severity::Warning);
+    assert!(
+        warning.message.contains("`warn`"),
+        "the warning does not name the setting's value: {}",
+        warning.message
+    );
+}
+
+/// `deny` refuses the literal with `E0893`, which names the setting.
+#[test]
+fn regex_backtracking_deny_refuses_a_backtracking_literal() {
+    let diags = check_src_backtracking(BACKTRACKING_LITERAL, nvs_types::Backtracking::Deny);
+    let error = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_REGEX_BACKTRACKING_DENIED))
+        .unwrap_or_else(|| panic!("`deny` did not refuse the literal: {diags:?}"));
+    assert_eq!(error.severity, Severity::Error);
+    assert!(
+        error.message.contains("`[regex] backtracking` is `deny`"),
+        "the error does not name the setting: {}",
+        error.message
+    );
+}
+
+/// `deny` judges the tier and nothing else: a linear literal compiles silently.
+#[test]
+fn regex_backtracking_deny_compiles_a_linear_literal() {
+    let diags = check_src_backtracking(LINEAR_LITERAL, nvs_types::Backtracking::Deny);
+    assert!(
+        diags.iter().next().is_none(),
+        "`deny` reported a linear literal: {diags:?}"
     );
 }
 

@@ -6,7 +6,7 @@ context: [docs/agent/prose.md]
 stages:
   - id: 1
     title: "the [regex] block exists, and a backtracking pattern literal is silent, a warning or a compile error as it says"
-    status: open
+    status: done
     context: [docs/rules/core-classes/regex-compile-time-tiering.md, crates/nvs-config/src/tree.rs, crates/nvs-config/src/directive.rs, crates/nvs-config/src/errors.rs, crates/nvs-types/src/intrinsics.rs]
   - id: 2
     title: "under deny a run-time pattern that needs backtracking throws, and the directive has its docs and feature proofs"
@@ -311,16 +311,16 @@ disjoint files and may run as side goals. Stage 6 re-renders `docs/rules/core-cl
 **Does:** `nvs.toml` takes `[regex] backtracking`, and the checker reports a backtracking literal
 by it.
 
-- [ ] `rule:core-classes/regex-compile-time-tiering`: the `Regex` struct and the `regex` field on `Config`, beside `[errors]`. `crates/nvs-config/src/tree.rs:100`, `crates/nvs-config/src/tree.rs:605`
-- [ ] `rule:core-classes/regex-compile-time-tiering`: `crates/nvs-config/src/regex.rs` with `KEY`, `Backtracking` and `in_force`, in `errors.rs`'s shape. `crates/nvs-config/src/regex.rs:1`, `crates/nvs-config/src/errors.rs:26`
-- [ ] `rule:config/three-changeability-classes`: the `regex.backtracking` row, `System` and `Reload`, and its default row. `crates/nvs-config/src/directive.rs:168`, `crates/nvs-config/src/defaults.rs:504`
-- [ ] `rule:config/the-extension-set-is-in-every-unit-key`: the value is fed into the environment hash, and the fragment names it. `crates/nvs-config/src/cache.rs:186`, `docs/rules/config/the-extension-set-is-in-every-unit-key.md:1`
-- [ ] The `nvs.toml` template gets the commented `[regex]` block, and `bun nv directives --check` and `--check-template` pass. `crates/nvs-config/src/default.toml:321`, `tools/nv/cmd/directives.ts:1`
-- [ ] The tests the `regex-backtracking-config` check names, beside the `errors.deprecated` tests. `crates/nvs-config/tests/request.rs:607`
-- [ ] `rule:core-classes/regex-compile-time-tiering`: the new `Options` field, filled where `grants` is. `crates/nvs-types/src/lib.rs:473`, `crates/nvs-cli/src/main.rs:1154`
-- [ ] The warning code and the error code, with their cards. `crates/nvs-diagnostics/src/code/warnings.rs:298`, `crates/nvs-diagnostics/src/code/types_e08.rs:1172`
-- [ ] The literal site reports `Tier::Backtracking` under `Warn` and `Deny`. `crates/nvs-types/src/intrinsics.rs:652`
-- [ ] The tests the `regex-backtracking-compile` check names, each run once by name. `crates/nvs-types/tests/intrinsics.rs:659`
+- [x] `rule:core-classes/regex-compile-time-tiering`: the `Regex` struct and the `regex` field on `Config`, beside `[errors]`. `crates/nvs-config/src/tree.rs:100`, `crates/nvs-config/src/tree.rs:605`
+- [x] `rule:core-classes/regex-compile-time-tiering`: `crates/nvs-config/src/regex.rs` with `KEY`, `Backtracking` and `in_force`, in `errors.rs`'s shape. `crates/nvs-config/src/regex.rs:1`, `crates/nvs-config/src/errors.rs:26`
+- [x] `rule:config/three-changeability-classes`: the `regex.backtracking` row, `System` and `Reload`, and its default row. `crates/nvs-config/src/directive.rs:168`, `crates/nvs-config/src/defaults.rs:504`
+- [x] `rule:config/the-extension-set-is-in-every-unit-key`: the value is fed into the environment hash, and the fragment names it. `crates/nvs-config/src/cache.rs:186`, `docs/rules/config/the-extension-set-is-in-every-unit-key.md:1`
+- [x] The `nvs.toml` template gets the commented `[regex]` block, and `bun nv directives --check` and `--check-template` pass. `crates/nvs-config/src/default.toml:321`, `tools/nv/cmd/directives.ts:1`
+- [x] The tests the `regex-backtracking-config` check names, beside the `errors.deprecated` tests. `crates/nvs-config/tests/request.rs:607`
+- [x] `rule:core-classes/regex-compile-time-tiering`: the new `Options` field, filled where `grants` is. `crates/nvs-types/src/lib.rs:473`, `crates/nvs-cli/src/main.rs:1154`
+- [x] The warning code and the error code, with their cards. `crates/nvs-diagnostics/src/code/warnings.rs:298`, `crates/nvs-diagnostics/src/code/types_e08.rs:1172`
+- [x] The literal site reports `Tier::Backtracking` under `Warn` and `Deny`. `crates/nvs-types/src/intrinsics.rs:652`
+- [x] The tests the `regex-backtracking-compile` check names, each run once by name. `crates/nvs-types/tests/intrinsics.rs:659`
 
 ### 2. under deny a run-time pattern that needs backtracking throws, and the directive has its docs and feature proofs
 
@@ -332,7 +332,7 @@ the run-time throw is landed. It builds nothing.
 
 - [ ] `rule:core-classes/regex-compile-time-tiering`: the compile path reads the policy and throws under `Deny` before the backtracking engine is built. `crates/nvs-stdlib/src/regex.rs:1189`
 - [ ] The three conformance cases the `regex-backtracking-cases` check names, each run once by name. `tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst:1`, `tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst:1`, `tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst:1`
-- [ ] `rule:config/every-block-is-argued-where-it-is-added`: a `[regex]` row in the roster table. `docs/rules/config/every-block-is-argued-where-it-is-added.md:30`
+- [x] `rule:config/every-block-is-argued-where-it-is-added`: a `[regex]` row in the roster table. Landed with stage 1. `docs/rules/config/every-block-is-argued-where-it-is-added.md:30`
 - [ ] The config reference's block table names `[regex]`, and `Core\Regex::compile`'s `about.md` says what `deny` does. `docs/reference/tools/20-config.md:56`, `docs/examples/core/Regex/compile/about.md:1`
 - [ ] The example and the attack the standing decision names, with `bun nv proofs --comments` passing on both. `docs/examples/config/regex-backtracking/about.md:1`, `docs/examples/config/regex-backtracking/01-a-server-that-allows-no-backtracking.nvs:1`, `tests/hostile/config/regex-backtracking/01-a-request-tries-to-backtrack-anyway.nvs:1`
 - [ ] `bun nv proofs --id 'directive:regex.backtracking'` owes nothing. `crates/nvs-config/src/directive.rs:168`
@@ -417,25 +417,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built yet. Stage 1 waits on its gate: `docs/goals/release-hygiene.md` gone,
-`bun nv owners --check` green, and this goal's gap records listed by
-`bun nv owners --closes runtime-leftovers`.
+Stage 1 is done, and both its checks are green. `nvs.toml` takes `[regex] backtracking`
+(`crates/nvs-config/src/regex.rs`), `System` and `Reload`, in `env_hash`. The checker reads it
+through `check_program_loaded`'s new `backtracking` parameter and `Env::backtracking`: `W1029` under
+`warn`, `E0893` under `deny`. Every compile path fills it from the tree it read: `nvs run`, `nvs
+check`, `nvs test`, `nvs build --compile`, and `nvs serve` through `Compiler::rekey_to`
+(`crates/nvs-cli/src/script.rs`). The editor and a package API pass `Allow`. The census row names
+`a_changed_regex_backtracking_takes_the_next_compile` in `crates/nvs-cli/tests/live_config.rs`, green.
+The roster row landed too. Gap `regex-deny-block` is deleted, and `nvs-stdlib/regex-deny-at-run-time`
+now owns the run-time half. The sweep's `env-secret-proofs` red is stale: no such check exists.
 
 ### Next
 
-Stage 1, on `crates/nvs-config` and the regex literal site in `crates/nvs-types`. Gate: the one
-above.
+Stage 2, on the run-time compile in `crates/nvs-stdlib` and the docs and proofs.
 
-- [ ] `rule:core-classes/regex-compile-time-tiering`: the `Regex` struct and the `regex` field on `Config`. `crates/nvs-config/src/tree.rs:100`, `crates/nvs-config/src/tree.rs:605`
-- [ ] `rule:core-classes/regex-compile-time-tiering`: `crates/nvs-config/src/regex.rs` in `errors.rs`'s shape. `crates/nvs-config/src/regex.rs:1`, `crates/nvs-config/src/errors.rs:26`
-- [ ] `rule:config/three-changeability-classes`: the directive row and its default row. `crates/nvs-config/src/directive.rs:168`, `crates/nvs-config/src/defaults.rs:504`
-- [ ] `rule:config/the-extension-set-is-in-every-unit-key`: the value in the environment hash. `crates/nvs-config/src/cache.rs:186`
-- [ ] The template's `[regex]` block, and `bun nv directives --check` and `--check-template`. `crates/nvs-config/src/default.toml:321`
-- [ ] The `regex-backtracking-config` tests. `crates/nvs-config/tests/request.rs:607`
-- [ ] `rule:core-classes/regex-compile-time-tiering`: the `Options` field, filled where `grants` is. `crates/nvs-types/src/lib.rs:473`, `crates/nvs-cli/src/main.rs:1154`
-- [ ] The warning and error codes. `crates/nvs-diagnostics/src/code/warnings.rs:298`, `crates/nvs-diagnostics/src/code/types_e08.rs:1172`
-- [ ] The literal site reports by the policy. `crates/nvs-types/src/intrinsics.rs:652`
-- [ ] The `regex-backtracking-compile` tests. `crates/nvs-types/tests/intrinsics.rs:659`
+- [ ] The run-time throw under `Deny`. Read the policy with `nvs_config::regex::Backtracking::in_force` over `ctx.config()`, as `crates/nvs-runtime/src/ctx/deprecated.rs:64` reads `[errors]`. `crates/nvs-stdlib/src/regex.rs:1189`
+- [ ] The three conformance cases the `regex-backtracking-cases` check names, each under a tree that writes `deny`. `tests/conformance/reject/regex-a-backtracking-literal-under-deny-does-not-compile.nvst:1`, `tests/conformance/core/regex-a-backtracking-pattern-built-at-run-time-under-deny-throws.nvst:1`, `tests/conformance/core/regex-a-linear-pattern-runs-under-deny.nvst:1`
+- [ ] The config reference, `Core\Regex::compile`'s `about.md`, and the template's `[regex]` comment says a run-time pattern throws. `docs/reference/tools/20-config.md:56`, `crates/nvs-config/src/default.toml:321`
+- [ ] The example and the attack, by one writing subagent. `docs/examples/config/regex-backtracking/about.md:1`, `tests/hostile/config/regex-backtracking/01-a-request-tries-to-backtrack-anyway.nvs:1`
+- [ ] `bun nv proofs --id 'directive:regex.backtracking'`, the fragment's run-time paragraph and Not-on-disk, `guardedBy`, then delete gap `nvs-stdlib/regex-deny-at-run-time`. `docs/rules/core-classes/regex-compile-time-tiering.md:14`
 
 No test is expected to go red.
 

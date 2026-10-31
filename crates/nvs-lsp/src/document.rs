@@ -773,6 +773,9 @@ fn analyse_over(
             &files,
             &module,
             None,
+            // The editor reads no `nvs.toml`, so a backtracking pattern is
+            // silent here. `nvs check` and every run judge it.
+            nvs_types::Backtracking::Allow,
             // The editor does not read the `[grants]` table yet, so it shows
             // no `E0658`. `nvs check` and every run still refuse the call.
             &nvs_types::Grants::default(),

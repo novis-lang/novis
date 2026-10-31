@@ -648,14 +648,22 @@ pub(crate) fn check_call(
         // `nvs_stdlib::regex::Tier` states — it is a property of the pattern
         // text, decided by which engine's parser refused a construct, so a
         // checking run and a request cannot disagree about it.
+        // The tier is also what `[regex] backtracking` judges: under `warn` a
+        // backtracking literal is reported and still prepared, and under `deny`
+        // it does not compile.
         Grammar::Regex => match nvs_stdlib::regex::validate(&text) {
-            Ok(tier) => env.exprs.record_prepared(
-                call_span,
-                Prepared {
-                    literal: span,
-                    fact: PreparedFact::RegexTier(tier),
-                },
-            ),
+            Ok(tier) => {
+                if tier == nvs_stdlib::regex::Tier::Backtracking {
+                    report_backtracking(span, env);
+                }
+                env.exprs.record_prepared(
+                    call_span,
+                    Prepared {
+                        literal: span,
+                        fact: PreparedFact::RegexTier(tier),
+                    },
+                );
+            }
             Err(message) => report_malformed(span, &message, env),
         },
         // Both of `Core\Uri::parse`'s throwing steps, which is the rule its
@@ -1097,6 +1105,35 @@ fn report_malformed(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_
              computed string is checked when the program runs",
         ),
     );
+}
+
+/// A pattern literal only the backtracking engine accepts, reported as
+/// `[regex] backtracking` says (`rule:core-classes/regex-compile-time-tiering`):
+/// nothing under `allow`, `W1029` under `warn` and `E0893` under `deny`. The
+/// whole literal is underlined, because the engine's parser names no offset for
+/// the construct that needs it.
+fn report_backtracking(span: nvs_diagnostics::Span, env: &mut Env<'_>) {
+    use nvs_config::regex::Backtracking;
+
+    const NEEDS: &str = "This pattern needs the backtracking regex engine.";
+    let diagnostic = match env.backtracking {
+        Backtracking::Allow => return,
+        Backtracking::Warn => Diagnostic::warning(
+            code::W_REGEX_BACKTRACKING,
+            format!("{NEEDS} `[regex] backtracking` is `warn` in `nvs.toml`."),
+        )
+        .with_primary(span, "this pattern has lookaround or a backreference"),
+        Backtracking::Deny => Diagnostic::error(
+            code::E_REGEX_BACKTRACKING_DENIED,
+            format!("{NEEDS} `[regex] backtracking` is `deny` in `nvs.toml`."),
+        )
+        .with_primary(span, "this pattern has lookaround or a backreference")
+        .with_help(
+            "Write the pattern without lookaround and without backreferences, or set \
+             `backtracking` to `warn` or `allow`.",
+        ),
+    };
+    env.diags.report(diagnostic);
 }
 
 /// A series name outside `rule:observability/metrics-three-members`'s grammar,

@@ -512,8 +512,15 @@ A pattern assembled at run time is compiled at run time and gets the same tierin
 budget, with none of the three benefits. That is a reason to write patterns as string literals, stated here
 rather than discovered.
 
-**Not on disk.** The third consequence: there is no `[regex]` block, so an operator cannot set
-`warn` or `deny` (gap:nvs-config/regex-deny-block).
+`[regex] backtracking` is a top-level block of one key, `allow` in every mode with nothing written,
+because that is how every program ran before it and the step budget already bounds a backtracking
+match. It is `System` and `Reload`: it decides what compiles, so no request may set it, and it is an
+input of the environment digest ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)), so a reload
+that changes it recompiles every unit. `[[app]]` takes no `[regex]` block. Under `warn` a
+backtracking literal is `W1029`, and under `deny` it is `E0893`.
+
+**Not on disk.** Under `deny`, a pattern built at run time that needs the backtracking engine still
+compiles and runs (gap:nvs-stdlib/regex-deny-at-run-time).
 
 <sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed).</sub>
 

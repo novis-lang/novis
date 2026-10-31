@@ -837,6 +837,7 @@ pub(crate) fn grants(
     (
         Option<nvs_config::tree::Capabilities>,
         Vec<nvs_ext::manifest::Manifest>,
+        nvs_config::regex::Backtracking,
     ),
     ExitCode,
 > {
@@ -861,6 +862,7 @@ pub(crate) fn grants(
     Ok((
         found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()),
         manifests,
+        nvs_config::regex::Backtracking::of_config(&snapshot.config),
     ))
 }
 
@@ -928,11 +930,12 @@ pub(crate) fn package_network(
     Ok(found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()))
 }
 
-/// The manifests of the extension set the tree resolves to for `entry`, for a
-/// compile that asks the tree nothing else, as `nvs build --compile` does.
+/// The manifests of the extension set the tree resolves to for `entry`, and its
+/// `[regex] backtracking`, for a compile that asks the tree nothing else, as
+/// `nvs build --compile` does.
 ///
-/// A tree that does not resolve is no set here, and the run's own read of the
-/// tree reports it.
+/// A tree that does not resolve is no set and `allow` here, and the run's own
+/// read of the tree reports it.
 ///
 /// # Errors
 ///
@@ -941,18 +944,30 @@ pub(crate) fn package_network(
 pub(crate) fn extension_set(
     config: &[PathBuf],
     entry: &Path,
-) -> Result<Vec<nvs_ext::manifest::Manifest>, ExitCode> {
+) -> Result<
+    (
+        Vec<nvs_ext::manifest::Manifest>,
+        nvs_config::regex::Backtracking,
+    ),
+    ExitCode,
+> {
     let mut sources = SourceMap::new();
     let Ok((snapshot, origins)) = boot_origins(config, Some(entry), &mut sources, Init::Never)
     else {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), nvs_config::regex::Backtracking::Allow));
     };
-    crate::extensions::manifests(&snapshot.config, &origins, &sources).map_err(|diagnostic| {
-        let mut diags = Diagnostics::new();
-        diags.report(diagnostic);
-        render_diagnostics(&mut diags, &sources);
-        ExitCode::FAILURE
-    })
+    let manifests = crate::extensions::manifests(&snapshot.config, &origins, &sources).map_err(
+        |diagnostic| {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &sources);
+            ExitCode::FAILURE
+        },
+    )?;
+    Ok((
+        manifests,
+        nvs_config::regex::Backtracking::of_config(&snapshot.config),
+    ))
 }
 
 /// A resolved tree folded for one entry: the snapshot, where each key was written, and the files
