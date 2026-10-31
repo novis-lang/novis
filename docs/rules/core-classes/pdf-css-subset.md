@@ -35,9 +35,12 @@ another width than the first page of its name lays out its lines at its own widt
 its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
 absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
 `transform` is the containing block of the absolute boxes inside it
-(`extensions/pdf/tests/layout.rs`). What the
-layout does not do yet is in
-the module docs of `extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
+(`extensions/pdf/tests/layout.rs`). A flex container's `::before` and `::after` and a `<br>` in it
+are flex items, `align-items: baseline` aligns the items' first lines, and an `auto` margin on an
+item takes the free space. An inline box in a right-to-left line has its start side at its right,
+and `hyphenate-character` sets the text drawn at a break inside a word
+(`extensions/pdf/tests/layout.rs`). What the layout does not do is stated in the module docs of
+`extensions/pdf/src/layout.rs` and the files under `extensions/pdf/src/layout/`.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty

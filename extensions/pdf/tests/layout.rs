@@ -201,6 +201,39 @@ fn hyphens_auto_breaks_by_the_language() {
 }
 
 #[test]
+fn hyphenate_character_sets_the_text_drawn_at_a_break() {
+    // Each line broken inside a word ends in the string `hyphenate-character` gives, here `=~`,
+    // and the line with it still fits its box. `auto` draws `-`.
+    let words = "Shop\u{ad}keeper\u{ad}assistant\u{ad}ship";
+    let laid = lay(&format!(
+        "<body style='margin: 0'><p style='width: 80pt; hyphenate-character: \"=~\"'>{words}</p>"
+    ));
+    let marks: Vec<(String, f32)> = laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                x, glyphs, text, ..
+            } if text == "=~" => Some((
+                text.clone(),
+                x + glyphs.iter().map(|g| g.advance).sum::<f32>(),
+            )),
+            _ => None,
+        })
+        .collect();
+    assert!(!marks.is_empty(), "{:?}", drawn(&laid));
+    for (text, right) in &marks {
+        assert_eq!(text, "=~");
+        assert!(*right <= MARGIN + 80.0 + 0.01, "{marks:?}");
+    }
+    assert!(hyphenated_lines(&laid).is_empty());
+    let laid = lay(&format!(
+        "<body style='margin: 0'><p style='width: 60pt; hyphenate-character: auto'>{words}</p>"
+    ));
+    assert!(!hyphenated_lines(&laid).is_empty());
+}
+
+#[test]
 fn centred_and_right_aligned_lines_end_where_their_box_says() {
     let laid = lay("<body style='margin: 0'><p style='width: 300pt; text-align: right'>Total</p>");
     let (_, right) = lines(&laid)[0];
@@ -291,6 +324,31 @@ fn arabic_and_hebrew_lay_out_right_to_left() {
     for (_, right) in lines(&laid) {
         assert!((right - (MARGIN + 300.0)).abs() < 0.5, "{right}");
     }
+}
+
+#[test]
+fn an_inline_box_in_a_right_to_left_line_is_placed_right_to_left() {
+    // The span's text starts at its right side, so the room for its `padding-right` is there,
+    // between its text and the word before it.
+    let arabic = [Asset {
+        name: "arabic.ttf".to_owned(),
+        data: ARABIC.to_vec(),
+    }];
+    let html = "<style>@font-face { font-family: Kufi; src: url(arabic.ttf) }\
+                p { font-family: Kufi; direction: rtl; margin: 0 }</style>\
+                <body style='margin: 0'><p>بحب <span style='background-color: #ff0000; \
+                padding-right: 20pt'>ح</span> بحب</p>";
+    let laid = lay_with(html, &arabic);
+    let red = boxes_of(&laid, &[RED])[0];
+    // The span's letter is drawn with the last word, in the run left of the first word.
+    let mut drawn = runs(&laid);
+    drawn.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let [last, first] = drawn[..] else {
+        panic!("{drawn:?}")
+    };
+    assert!(close(first.1, red.0 + red.2), "{red:?} {drawn:?}");
+    assert!(close(last.3 + 20.0, red.0 + red.2), "{red:?} {drawn:?}");
+    assert!(red.0 > last.1 && red.0 < last.3, "{red:?} {drawn:?}");
 }
 
 #[test]

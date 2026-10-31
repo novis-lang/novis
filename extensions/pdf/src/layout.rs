@@ -423,6 +423,8 @@ struct Span {
     align: VerticalAlign,
     /// The link of the `<a href>` the text is in.
     link: Option<Href>,
+    /// The text drawn after a line broken at a soft hyphen: its `hyphenate-character`.
+    hyphen: String,
 }
 
 /// What a block's lines are broken and aligned with.
@@ -462,6 +464,8 @@ struct Inline {
     range: Range<usize>,
     /// Its margin, border, padding and paint. Each line sets `x` and `width` to its own slice.
     geometry: BoxGeometry,
+    /// Whether its `direction` is `rtl`, so its text starts at its right side.
+    rtl: bool,
 }
 
 /// What a [`Block::String`] sets on its page: a named string, a `data-mark` mark, or the value

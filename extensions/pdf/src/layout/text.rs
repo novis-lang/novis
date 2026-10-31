@@ -491,10 +491,11 @@ impl Cx<'_> {
         }
         for (i, b) in inline.iter().enumerate() {
             let (m, g) = (&b.geometry.margin, &b.geometry);
-            let sides = [
-                (b.range.start, m[3] + g.border[3] + g.padding[3]),
-                (b.range.end, g.padding[1] + g.border[1] + m[1]),
-            ];
+            let left = m[3] + g.border[3] + g.padding[3];
+            let right = g.padding[1] + g.border[1] + m[1];
+            // The space at the start of the text is on the side the text starts at.
+            let (start, end) = if b.rtl { (right, left) } else { (left, right) };
+            let sides = [(b.range.start, start), (b.range.end, end)];
             for (side, (index, width)) in sides.into_iter().enumerate() {
                 if width > 0.0 {
                     builder.push_inline_box(InlineBox {
@@ -824,8 +825,13 @@ impl Cx<'_> {
                     for (range, index) in &runs {
                         if text[range.clone()].contains(SOFT_HYPHEN)
                             && !hyphens.iter().any(|(at, _)| at == index)
-                            && let Some(hyphen) =
-                                mark(&mut self.lcx, &mut self.fonts, &spans[*index], *index, "-")
+                            && let Some(hyphen) = mark(
+                                &mut self.lcx,
+                                &mut self.fonts,
+                                &spans[*index],
+                                *index,
+                                &spans[*index].hyphen,
+                            )
                         {
                             hyphens.push((*index, hyphen));
                         }
@@ -1209,16 +1215,21 @@ impl Cx<'_> {
                             .map(|(_, room)| room)
                             .sum::<f32>();
                         // Each inline box is drawn under the line's text, around the part of its
-                        // text on this line. Its left side is on the line its text starts on, and
-                        // its right side on the line its text ends on.
+                        // text on this line. The side its text starts at is on the line its text
+                        // starts on, and the other side on the line its text ends on.
                         let mut under = Vec::new();
                         for (edges, b) in around.iter().zip(&inline) {
                             let Some([l, t, r, bottom]) = *edges else {
                                 continue;
                             };
                             let g = &b.geometry;
-                            let first = line_range.contains(&b.range.start);
-                            let last = b.range.end <= line_range.end;
+                            let starts = line_range.contains(&b.range.start);
+                            let ends = b.range.end <= line_range.end;
+                            let (first, last) = if b.rtl {
+                                (ends, starts)
+                            } else {
+                                (starts, ends)
+                            };
                             let left = if first {
                                 l - g.padding[3] - g.border[3]
                             } else {
@@ -1569,15 +1580,15 @@ fn push_span(
 
 const ELLIPSIS: &str = "\u{2026}";
 
-/// One character drawn beside a line's text: the hyphen of a line broken at a soft hyphen, the
+/// The text drawn beside a line's text: the hyphen of a line broken at a soft hyphen, the
 /// ellipsis of a line cut at its box, or the character a `leader()` repeats. Its text, face,
-/// size, descent, glyph and advance.
+/// size, descent, glyphs and their whole advance.
 struct Mark {
     text: String,
     face: usize,
     size: f32,
     descent: f32,
-    id: u32,
+    glyphs: Vec<Glyph>,
     advance: f32,
 }
 
@@ -1599,12 +1610,11 @@ impl Mark {
             y,
             color,
             glyphs: (0..count)
-                .map(|i| Glyph {
-                    id: self.id,
-                    text: i * len..(i + 1) * len,
-                    advance: self.advance,
-                    x: 0.0,
-                    y: 0.0,
+                .flat_map(|i| {
+                    self.glyphs.iter().map(move |g| Glyph {
+                        text: g.text.start + i * len..g.text.end + i * len,
+                        ..g.clone()
+                    })
                 })
                 .collect(),
             text: self.text.repeat(count),
@@ -1612,7 +1622,7 @@ impl Mark {
     }
 }
 
-/// `text`, one character, in `span` shaped through its font chain.
+/// `text` in `span`, shaped through its font chain with the face of its first character.
 fn mark(
     lcx: &mut LayoutContext<usize>,
     fonts: &mut Fonts,
@@ -1627,14 +1637,30 @@ fn mark(
     let line = shaped.lines().next()?;
     let run = line.runs().next()?;
     let face = fonts.face_index(run.font().data.data())?;
-    let glyph = run.visual_clusters().next()?.glyphs().next()?;
+    let glyphs: Vec<Glyph> = run
+        .visual_clusters()
+        .flat_map(|cluster| {
+            let text = cluster.text_range();
+            cluster.glyphs().map(move |g| Glyph {
+                id: g.id,
+                text: text.clone(),
+                advance: g.advance,
+                x: g.x,
+                y: g.y,
+            })
+        })
+        .collect();
+    if glyphs.is_empty() {
+        return None;
+    }
+    let text = text[..glyphs.iter().map(|g| g.text.end).max().unwrap_or(0)].to_owned();
     Some(Mark {
-        text: text.to_owned(),
+        advance: glyphs.iter().map(|g| g.advance).sum(),
+        text,
         face,
         size: run.font_size(),
         descent: run.font_metrics().descent,
-        id: glyph.id,
-        advance: glyph.advance,
+        glyphs,
     })
 }
 

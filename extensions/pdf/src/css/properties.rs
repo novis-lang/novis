@@ -251,6 +251,8 @@ pub static PROPERTIES: &[Property] = &[
         true,
         Grammar::Keyword(&["none", "manual", "auto"]),
     ),
+    // `auto` or a string, which the layout reads.
+    prop("hyphenate-character", true, Grammar::Free),
     // Boxes.
     prop("margin-top", false, len(true, &["auto"])),
     prop("margin-right", false, len(true, &["auto"])),

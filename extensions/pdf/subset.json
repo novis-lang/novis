@@ -27,6 +27,7 @@
     { "name": "direction", "inherited": true, "example": "rtl", "description": "Whether text runs from left to right or from right to left." },
     { "name": "unicode-bidi", "inherited": false, "example": "isolate", "description": "How a box mixes left-to-right and right-to-left text." },
     { "name": "hyphens", "inherited": true, "example": "auto", "description": "With `auto`, long words break with a hyphen, by the rules of the `lang` language." },
+    { "name": "hyphenate-character", "inherited": true, "example": "\"=\"", "description": "The text drawn at the end of a line that breaks inside a word. `auto` draws `-`." },
     { "name": "margin-top", "inherited": false, "example": "1em", "description": "The space above the box." },
     { "name": "margin-right", "inherited": false, "example": "auto", "description": "The space to the right of the box." },
     { "name": "margin-bottom", "inherited": false, "example": "1em", "description": "The space below the box." },

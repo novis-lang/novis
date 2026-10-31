@@ -21,6 +21,7 @@ use super::{
 };
 use crate::Error;
 use crate::assets::Assets;
+use crate::css::value::{Comp, components};
 use crate::css::{Style, Styles, Value};
 use crate::fonts::Fonts;
 use crate::paginate;
@@ -59,6 +60,13 @@ pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Sp
         strike: has("line-through").or(parent.and_then(|p| p.strike)),
         align: vertical_align(style, parent),
         link: parent.and_then(|p| p.link.clone()),
+        hyphen: match style.get("hyphenate-character") {
+            Some(Value::Text(t)) => match components(t).as_deref() {
+                Some([Comp::Str(s)]) if !s.is_empty() => s.clone(),
+                _ => "-".to_owned(),
+            },
+            _ => "-".to_owned(),
+        },
     }
 }
 
@@ -823,6 +831,7 @@ impl Builder<'_, '_> {
             self.inline.push(Inline {
                 range: self.text.len()..usize::MAX,
                 geometry,
+                rtl: keyword(style, "direction") == Some("rtl"),
             });
         }
         Ok(drawn)
