@@ -397,11 +397,17 @@ describe("bun nv ci: the release", () => {
     const w = releaseSeams("full", (p) => ({ ci: p === 0 ? [] : [runOf(8, "CI", "queued", null)] }));
     expect(await ci(["--dispatch", "full"], w.s)).toBe(0);
     expect(w.started()).toEqual([["workflow", "run", "ci.yml", "--ref", "main"]]);
-    const ahead = releaseSeams("ahead", () => ({}), (args) => (args[0] === "rev-list" ? ok("2\n") : undefined));
+    const aheadBy = (changed: string) => (args: string[]) =>
+      args[0] === "rev-list" ? ok("2\n") : args[0] === "diff" ? ok(changed) : undefined;
+    const ahead = releaseSeams("ahead", () => ({}), aheadBy("docs/goals/x.md\ntools/nv/cmd/ci.ts\n"));
     expect(await ci(["--dispatch", "full"], ahead.s)).toBe(1);
     expect(await ci(["--dispatch", "dry-run"], ahead.s)).toBe(1);
     expect(ahead.started()).toEqual([]);
-    expect(ahead.said.some((l) => l.includes("2 commit(s) origin/main lacks"))).toBe(true);
+    expect(ahead.said.some((l) => l.includes("2 commit(s) origin/main lacks, which change tools/nv/cmd/ci.ts:"))).toBe(true);
+    // Commits to the goals and the playbook alone change nothing the run builds, so the dispatch goes out.
+    const notes = releaseSeams("notes", (p) => ({ release: p === 0 ? [] : [dryRun(9, "queued", null)] }), aheadBy("docs/goals/x.md\ndocs/agent/playbook.md\n"));
+    expect(await ci(["--dispatch", "dry-run"], notes.s)).toBe(0);
+    expect(notes.started().length).toBe(1);
   });
 
   test("dispatch waits until GitHub lists the new run, and prints its address", async () => {

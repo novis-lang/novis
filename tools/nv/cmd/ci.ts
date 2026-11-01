@@ -58,8 +58,11 @@
 // **`--dispatch dry-run`** starts `release.yml` on `main` as a dry run, which writes nothing, tags
 // nothing and pushes no image. Each argv is one constant in `DISPATCH`, and the release's carries
 // `dry_run=true`, so no argument can start a real release: that is a person's (`docs/release.md`).
-// Both refuse with 1 while local `main` has commits `origin/main` lacks, since the run would test
-// `origin`'s tip and not the tree. Both then wait until GitHub lists a run newer than every one before
+// Both refuse with 1 while local `main` has commits `origin/main` lacks that change a file outside
+// `NOTES_ONLY`, since the run would test `origin`'s tip and not the tree. Commits to the loop's notes
+// alone change nothing a run builds, and `--release-status` passes over them in the same way, so a
+// dry run dispatched beside a handoff commit still lands on the commit a full run proved, and skips
+// its `verify` job. Both then wait until GitHub lists a run newer than every one before
 // the dispatch, and print its address, so a `--watch` started after reads the new run. Five minutes
 // with no new run exits 2.
 //
@@ -616,15 +619,21 @@ function dispatched(kind: DispatchKind, r: Run): boolean {
 /**
  * Starts the run `DISPATCH[kind]` names on `main`, then waits until GitHub lists a run of it newer than
  * every one before, and prints its address. It refuses while local `main` has commits `origin/main`
- * lacks, since the run would test `origin`'s tip and not the tree. Five minutes with no new run exits 2.
+ * lacks that change a file outside `NOTES_ONLY`, since the run would test `origin`'s tip and not the
+ * tree. Five minutes with no new run exits 2.
  */
 export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> {
   const d = DISPATCH[kind];
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
   const ahead = Number(await gitOut(s, ["rev-list", "--count", `origin/${BRANCH}..${BRANCH}`]));
   if (ahead > 0) {
-    s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks: run \`bun nv ci --push\` first, so the run tests the tree`);
-    return 1;
+    const changed = (await gitOut(s, ["diff", "--name-only", `origin/${BRANCH}`, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
+    const code = changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
+    if (code.length > 0) {
+      s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks, which change ${code.slice(0, 5).join(", ")}: run \`bun nv ci --push\` first, so the run tests the tree`);
+      return 1;
+    }
+    s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks, which change only the loop's notes: the run tests origin/${BRANCH}'s tip`);
   }
   const before = Math.max(0, ...(await workflowRuns(s, d.file)).map((r) => r.id));
   const started = await s.gh([...d.argv]);
