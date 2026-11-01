@@ -10,10 +10,6 @@
 #
 #   * No version bump and no notes. The binary prints `X.Y.Z+dev (commit …)`, the archives are
 #     `nvs-dev-<name>.*` and the extension is `nvs-dev.vsix`.
-#   * No Rust cache. The repository's cache is 15 GB, shared by every workflow, and `ci.yml`'s
-#     entries already fill most of it. Six release targets would save about 1 GB each per push, and every
-#     one would push out an entry a test leg needs. A dev build pays for cold release builds
-#     instead, after its CI run, so they cost CI nothing.
 #   * No provenance attestation. The dev build grants this file `contents: read` alone, and a
 #     push's binaries are for testing, not for distribution.
 #   * The artifacts stay 30 days rather than 7, so the last push's binaries are still there when
@@ -132,9 +128,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends musl-tools
 
-      # A release only. The header says why a push builds cold.
-      - if: inputs.version != ''
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      # A dev build saves the entry, and the next dev build and a release read it.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-${{ matrix.name }}
 

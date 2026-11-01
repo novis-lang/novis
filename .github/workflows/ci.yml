@@ -56,30 +56,25 @@ concurrency:
 # bill; they are not a performance budget. A job that starts timing out is a regression to
 # investigate, never a number to raise here without one.
 #
-# The repository's Actions cache holds 15 GB, and GitHub evicts the least recently used entry past
-# that, so every Rust cache a job saves can push a slower job's cache out. GitHub's first 10 GB are
-# free, and the organization pays $0.07 per GiB a month for the rest. The limit is set on the
-# organization and on the repository with `gh api -X PUT <owner>/actions/cache/storage-limit -F
-# max_cache_size_gb=<n>`, where `<owner>` is `orgs/novis-lang` or `repos/novis-lang/novis`. The
-# entries below are the ones that fit, about 11.8 GB together, and each is one a cold build would
-# make the run longer without. A job that builds what one of them holds reads it through the same `shared-key` and
-# saves nothing (`save-if: false`). The readers restore the entry the last run on `main` saved,
-# so no job waits for another inside a run.
+# The repository's Actions cache holds 30 GB, and GitHub evicts the least recently used entry past
+# that. GitHub's first 10 GB are free, and the organization pays $0.07 per GiB a month for the
+# rest, under the `actions` budget that `organizations/novis-lang/settings/billing/budgets` sets.
+# A budget that runs out makes the cache read-only. The limit is set on the organization and on
+# the repository with `gh api -X PUT <owner>/actions/cache/storage-limit -F max_cache_size_gb=<n>`,
+# where `<owner>` is `orgs/novis-lang` or `repos/novis-lang/novis`.
+#
+# Every job that builds Rust under a key of its own saves it, and `build.yml`'s release targets do
+# too: about 23 GB together, which leaves room for a dependency bump's new entries beside the old
+# ones until those are evicted. A job that builds what another job's entry holds reads it through
+# the same `shared-key` and saves nothing (`save-if: false`). The readers restore the entry the
+# last run on `main` saved, so no job waits for another inside a run.
 #
 # - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `ext-templates` and
 #   `extension` read it on every OS, and `database`, `extension-host`, `reference`, `lint` and
 #   `valgrind` read the Linux one. `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there.
 #   `lint` finds a third of its own, because clippy builds dependencies as metadata only.
-# - `cost-guards-<os>-cost-guards`, saved by the Windows and macOS `cost-guards` legs: release
-#   builds, which took 25 to 50 minutes there.
-# - `proofs-<os>`, saved by the Windows and macOS `proofs` legs, in the profile only they use.
-# - `miri-suites`, `miri-samples`, `miri-units-<crate>` and `fuzz`, whose nightly builds no other
-#   job makes.
-#
-# Every other job builds cold, because it finishes cold inside the slowest `test` leg's time:
-# the Linux `cost-guards` and `proofs` legs, `extension-sandbox` and `unsafe-audit` in 19 to 35
-# minutes, and `docker`, `asan` and `tsan` in under six. `docker` runs on Ubuntu 22.04, so it must
-# not read an entry built on a newer image, whose build scripts need a newer glibc than 22.04 has.
+# - `docker` saves an entry of its own and reads no other. It runs on Ubuntu 22.04, and an entry
+#   built on a newer image has build scripts that need a newer glibc than 22.04 has.
 #
 # The organization's Team plan gives 60 concurrent jobs, and a full run has about 55, so every job
 # but the macOS ones starts at once. macOS has 5 concurrent jobs on any plan below Enterprise, and
@@ -357,7 +352,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: cost-guards-${{ matrix.name }}-cost-guards
-          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       # The warm-start budget runs through `bun nv`, so this job needs Bun and the tools' dependencies.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -455,7 +449,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: proofs-${{ matrix.name }}
-          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -671,7 +664,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: wasm-probe
-          save-if: false
       - name: Sandbox containment and boundary costs
         run: cargo test --release -p nvs-abi-probe --features wasm-probe
       - name: Lint with the feature enabled
@@ -941,7 +933,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: docker
-          save-if: false
       - name: Build nvs
         run: cargo build -p nvs-cli
 
@@ -1263,8 +1254,6 @@ jobs:
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          save-if: false
       - name: Install cargo-geiger
         run: cargo install cargo-geiger --version 0.14.0 --locked
       # One `cargo geiger` per workspace member, because geiger will not run against the root
@@ -1622,7 +1611,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: asan
-          save-if: false
       # `--tests`, and not the default target set, because a doctest cannot be one of them here:
       # `RUSTFLAGS` instruments the crate, but rustdoc links a doctest binary under `RUSTDOCFLAGS`,
       # so that binary pulls in an instrumented rlib and resolves no `__asan_*` symbol against it —
@@ -1710,6 +1698,5 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: tsan
-          save-if: false
       - name: TSAN test (host and runtime)
         run: bash tools/tsan.sh
