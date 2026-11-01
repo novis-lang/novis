@@ -89,6 +89,14 @@ pub(super) fn bound_connection<'a>(
     // time is charged only once it returns, so it is handed what is left and
     // stops itself there. A request with no ceiling, or on a thread the
     // watchdog does not charge, files none.
+    // Every statement ends at the request's wall deadline at the latest, the
+    // one it named or not. The reply's wait on a wire driver is bounded by it;
+    // a wait that ended there leaves the request's safepoint flag raised, and
+    // the request stops at its next poll.
+    let deadline = match (deadline, ctx.wall_bound()) {
+        (Some(own), Some(wall)) => Some(own.min(wall)),
+        (own, wall) => own.or(wall),
+    };
     let cpu_left = (ctx.cpu_limit() > 0)
         .then(nvs_host::watchdog::running_spent)
         .flatten()
