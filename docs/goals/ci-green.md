@@ -122,9 +122,8 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `811f2aceb`, `allocation-counters`' goal end, and CI 41250387116 and Website
-41250387115 are green on it. The local `main` is 6 commits ahead, the main loop's open
-`memory-overshoot-net` work. Its goal end's push is the next push.
+`origin/main` is at `401abc9b4`, and CI 41263805416 and Website 41263805426 are green on it. The
+next push is the main loop's next goal end.
 
 A background `Bash` or `Monitor` watch can report its first events many minutes late, or only once
 the next one starts. A `--max-min 9` watch in the foreground is the reliable fallback.
@@ -134,8 +133,8 @@ the next one starts. A `--max-min 9` watch in the foreground is the reliable fal
 **Stage 1, the cycle.**
 
 - [ ] Watch with `bun nv ci --watch --next`, for the next push. `tools/nv/cmd/ci.ts:1`
-  It is `memory-overshoot-net`'s goal end. Its reds that the main loop's next goal does not own are
-  this goal's: fix them, push, and watch until green.
+  Its reds that the main loop's open goal does not own are this goal's: fix them, push, and watch
+  until green.
 
 ### Backlog
 
