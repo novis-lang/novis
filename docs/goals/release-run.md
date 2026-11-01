@@ -212,7 +212,7 @@ list --workflow ci.yml --event workflow_dispatch --limit 3` and `--event schedul
 commit; `bun nv ci --push`; `bun nv ci --dispatch full`; start `bun nv ci --watch` with
 `run_in_background`; write the handoff with the reds still open; end the turn.
 
-- [ ] The first round pushes stage 1's work and dispatches a full run, so every later round reads reds from a run on this goal's own commits. `tools/nv/cmd/ci.ts:472`
+- [x] The first round pushes stage 1's work and dispatches a full run, so every later round reads reds from a run on this goal's own commits. `tools/nv/cmd/ci.ts:472`
 - [ ] The handoff lists every red job of the newest full run, grouped by cause, each with the `file:line` its `reader` named. `.github/workflows/ci.yml:1`
 - [ ] Every cause is fixed and pushed, one commit per cause. `.github/workflows/ci.yml:1`
 - [ ] `bun nv release --tested <origin/main's sha>` prints `tested=true`: a green full run of `main`'s tip exists. `tools/nv/cmd/release.ts:1030`
@@ -253,23 +253,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built. The goal file is written, and stage 1 is next. The newest dry-run detection,
-`--release-status`, and the `run-name` do not exist yet. Release runs so far: five, the newest
-`40098517153` (cancelled, 2026-10-24) and `40085277618` (failed in `verify`, 2026-10-24).
+Stage 1 is done (`cb9fb5560`, `6443fe285`), and `ci-release-tests` is green. `release.yml` titles a
+dry run `Release (dry run)` with `run-name`. `bun nv ci` has `--dispatch full|dry-run`
+(`tools/nv/cmd/ci.ts:621`), `--watch --release`, and `--release-status` (`judgeDryRun` at
+`tools/nv/cmd/ci.ts:683`, the wrapper at `tools/nv/cmd/ci.ts:730`). `--release-status` exits 1 today:
+no run on GitHub carries the new title yet. GitHub keeps no Release run any more (the five old ones,
+`40085277618` among them, are gone), so the test fixtures take their job names from `release.yml`,
+`build.yml` and `image.yml`: `plan`, `verify / <job>`, a skipped `verify`, `build / build <leg>`,
+`build / build the VS Code extension`, `tag, changelog and draft release` and
+`docker / container images (<variant>)`. Stage 3's first dry run checks them.
+
+Stage 2's first round is out. `main` was pushed at `c3f94ed9f`, and the full run
+`41298422730` (`workflow_dispatch`) is going on it. A `bun nv ci --watch` was started in the
+background. This handoff's commit is local only: pushing it would cancel that full run.
+
+The sweep's two reds before this session: `env-secret-proofs` has no definition in the tree and no
+log, a stale check the driver carries (earlier goals recorded the same). The nightly `41295327777`'s
+`lint` red was the `rustdoc links` step on `Shared::sweep` in `crates/nvs-host/src/watchdog.rs`,
+fixed by `181d4045e` before this session; its other jobs were cancelled by later pushes.
 
 ### Next
 
-Stage 1, one group: `tools/nv/cmd/ci.ts`, `tools/nv/test/ci.test.ts`, `.github/workflows/release.yml`
-and `docs/release.md`. No gate: the goals before this one on the chain are reached by the time it is
-live.
+Stage 2, round 2. Do not push until run `41298422730` has ended.
 
-- [ ] `release.yml`'s `run-name` and header. `.github/workflows/release.yml:66`, `.github/workflows/release.yml:3`
-- [ ] `docs/release.md` allows an agent's dry run and lists the user's whole first run, the registry verifier key and the GHCR visibility switch included. `docs/release.md:8`, `docs/release.md:149`, `crates/nvs-cli/src/package/manifest.rs:93`
-- [ ] The watched workflows as a parameter, `display_title`, and no `Release` run in `superseded`. `tools/nv/cmd/ci.ts:69`, `tools/nv/cmd/ci.ts:196`, `tools/nv/cmd/ci.ts:250`, `tools/nv/cmd/ci.ts:349`
-- [ ] `--dispatch full|dry-run`. `tools/nv/cmd/ci.ts:537`
-- [ ] `--release-status` with `greenFullRun`. `tools/nv/cmd/release.ts:689`, `tools/nv/cmd/ci.ts:507`
-- [ ] Module doc, `USAGE`, `commands.md`. `tools/nv/cmd/ci.ts:1`, `docs/agent/commands.md:631`
-- [ ] The nine tests, run once by name. `tools/nv/test/ci.test.ts:314`
+- [ ] Read the watch's verdict, or `bun nv ci --status`, for run `41298422730`. `tools/nv/cmd/ci.ts:356`
+- [ ] Each red job's log to a `reader` subagent; list the reds here by cause, with `file:line`. `.github/workflows/ci.yml:1`
+- [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; `bun nv ci --watch` in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
 
