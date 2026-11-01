@@ -147,6 +147,38 @@ use crate::sql::{Prepared, StatementCache, statement_cache_for, time_zone_for};
 /// The one mechanism this driver authenticates with.
 const SCRAM_SHA_256: &str = "SCRAM-SHA-256";
 
+/// The most PBKDF2 iterations a server may ask a SCRAM login for, the same
+/// ceiling `Core\Crypto::deriveKey` has: about 120 ms of one core. The server
+/// picks the count (PostgreSQL's default is 4096), and a login runs it on the
+/// request's thread with no context to check the time against, so the count
+/// is capped before the first HMAC.
+const MAX_SCRAM_ITERATIONS: u32 = 2_000_000;
+
+/// The `i=` attribute of a SCRAM server-first message, RFC 5802 § 5.1: the
+/// iteration count the server asks for, or `None` when it has none that reads
+/// as a number. `ScramSha256::update` reports a message without one.
+fn scram_iterations(server_first: &[u8]) -> Option<u64> {
+    server_first
+        .split(|&byte| byte == b',')
+        .find_map(|attribute| attribute.strip_prefix(b"i="))
+        .and_then(|digits| std::str::from_utf8(digits).ok()?.parse().ok())
+}
+
+/// Refuses a server-first message that asks for more than
+/// [`MAX_SCRAM_ITERATIONS`], before `ScramSha256::update` runs them.
+fn check_scram_iterations(server_first: &[u8]) -> io::Result<()> {
+    match scram_iterations(server_first) {
+        Some(count) if count > u64::from(MAX_SCRAM_ITERATIONS) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "the server asks for {count} SCRAM iterations, and this driver runs at most \
+                 {MAX_SCRAM_ITERATIONS}"
+            ),
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// How much room a read is given when the inbox holds no whole message.
 ///
 /// A TLS record caps at 16 KiB, so a larger chunk buys no fewer syscalls; a
@@ -1337,6 +1369,7 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
                         "the server continued a SASL exchange it never started",
                     )
                 })?;
+                check_scram_iterations(body.data())?;
                 client.update(body.data())?;
                 frontend::sasl_response(client.message(), &mut out)?;
                 wire.send(&mut out)?;
@@ -4615,6 +4648,23 @@ mod tests {
             .expect_err("a startup that reported no version opened a connection");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
         assert!(refused.to_string().contains("server_version"), "{refused}");
+    }
+
+    /// A server-first message's iteration count is read before any HMAC runs:
+    /// PostgreSQL's 4096 and the ceiling pass, one past it is refused, and a
+    /// message with no count is left to `ScramSha256::update` to report.
+    #[test]
+    fn a_scram_iteration_count_past_the_ceiling_is_refused_before_the_work() {
+        let first = |count: &str| format!("r=clientserver,s=c2FsdA==,i={count}").into_bytes();
+        assert_eq!(super::scram_iterations(&first("4096")), Some(4096));
+        assert!(super::check_scram_iterations(&first("4096")).is_ok());
+        assert!(super::check_scram_iterations(&first("2000000")).is_ok());
+        let refused = super::check_scram_iterations(&first("2000001"))
+            .expect_err("a count past the ceiling was accepted");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        assert!(refused.to_string().contains("2000001"), "{refused}");
+        assert!(super::check_scram_iterations(&first("4294967295")).is_err());
+        assert!(super::check_scram_iterations(b"r=clientserver,s=c2FsdA==").is_ok());
     }
 
     /// The whole exchange, against a server that checks what it is sent: the
