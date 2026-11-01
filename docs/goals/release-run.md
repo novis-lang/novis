@@ -254,34 +254,32 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
-(`tools/nv/cmd/ci.ts:621`). Stage 2, round 1: the full run `41298422730` on `c3f94ed9f` is still going,
-and a watch with `--past` for the three reds below waits on it in the background. Commits after
-`c3f94ed9f` are local only: a push would cancel the full run. Fixed locally: `miri units (nvs-stdlib
-2/12)` in `4e02da7ec`, where Miri skips the router stack-floor test (`crates/nvs-stdlib/src/router.rs:4174`),
-and `miri units (nvs-runtime 2/2)` in `8c0a5fa5c`, where the array-growth test is sized for Miri
-(`crates/nvs-runtime/src/budget.rs:1904`), which passes under Miri for Linux in 33 s.
+(`tools/nv/cmd/ci.ts:621`). Stage 2, round 1's full run `41298422730` on `c3f94ed9f` ended with 52
+of 55 jobs green, `ext templates` on all three OSes among them. Its three reds:
 
-Red so far: `proofs / macos-aarch64`. Two attacks stop 117 and 131 ms past their CPU limits:
-`tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and `tests/hostile/core/Arr/sort/02-*.nvs`.
-The run contains `07de303b8`, the suspended macOS read, and the overshoot has not changed. The sweep
-reads with `thread_suspend` plus `thread_info` (`crates/nvs-host/src/cpuclock.rs:323`). A `Charge`'s base
-and the `FATAL`'s "used" figure both come from the thread's own `clock_gettime`
-(`cpuclock.rs:358`, `crates/nvs-runtime/src/ctx/safepoint.rs:1290`). If the two sources disagree, the
-stop is late and the report shows the gap. The sweep interval is 50 ms (`watchdog.rs:234`).
-The data that decides it is the `cpuclock: ... worst lag` line that `cpuclock.rs:540` writes in
-`test / macos-aarch64 (tests)`'s log. It had not run yet. A lag near 100 ms puts the fix in `cpuclock.rs`;
-a lag near 0 puts it in `next_wait` or the `Charge` base (`watchdog.rs:1420`, `watchdog.rs:311`).
+- `miri units (nvs-stdlib 2/12)`: fixed in `4e02da7ec`. Miri skips the router stack-floor test, because
+  Miri's stack pointer is no machine address (`crates/nvs-stdlib/src/router.rs:4174`).
+- `miri units (nvs-runtime 2/2)`: fixed in `8c0a5fa5c`. The array-growth test is sized for Miri
+  (`crates/nvs-runtime/src/budget.rs:1904`), and it passes under Miri for Linux in 33 s.
+- `proofs / macos-aarch64`: open. Two attacks stop 117 and 131 ms past a CPU limit that the program
+  lowered at runtime: `tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and
+  `tests/hostile/core/Arr/sort/02-*.nvs`. The clock is not the cause. The lag test
+  (`crates/nvs-host/src/cpuclock.rs:540`) read macOS's running thread with 0 ns of lag over 291 reads.
+  So the late stop is in the sweep: `next_wait` (`crates/nvs-host/src/watchdog.rs:1420`), the
+  `Charge` base (`watchdog.rs:311`), or how a lowered ceiling reaches the walk (`watchdog.rs:1325`).
 
+Round 2 is out: `main` pushed at `32349c25b`, and the full run `41304025616` is going on it. A
+`bun nv ci --watch --past "proofs / macos-aarch64"` waits on it in the background.
 `env-secret-proofs`, which the sweep names, has no definition in the tree: a stale driver check.
 
 ### Next
 
-Stage 2, round 2. Do not push until run `41298422730` has ended.
+Stage 2, round 2. Do not push while run `41304025616` is going.
 
-- [ ] Read the watch's report. If it exited on a new red while the run is still going, start the watch again with one more `--past "<that job>"` in the background, and end the turn. `tools/nv/cmd/ci.ts:356`
-- [ ] Once run `41298422730` has ended, `bun nv ci --status` for its every red, the macOS proofs one above included, and grep `cpuclock:` in `test / macos-aarch64 (tests)`'s log. `crates/nvs-host/src/cpuclock.rs:540`
-- [ ] Each red job's log to a `reader` subagent; list the reds here by cause, with `file:line`. `.github/workflows/ci.yml:1`
-- [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; `bun nv ci --watch` in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Read the watch's report. On a new red while the run goes on, start the watch again with one more `--past "<that job>"`. `tools/nv/cmd/ci.ts:356`
+- [ ] Find why macOS stops a lowered CPU limit late, though its clock reads with no lag. Compare a macOS run's sweep timing with Linux's. `crates/nvs-host/src/watchdog.rs:1420`
+- [ ] Once run `41304025616` ends, `bun nv ci --status`; each red job's log to a `reader` subagent; list the reds here by cause. `.github/workflows/ci.yml:1`
+- [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
@@ -293,4 +291,3 @@ No test is expected to go red.
 - `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
 - The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
 - `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component. That CI step and its no-Docker path have not run yet: read its first CI run, which stage 2's full run is.
-- The first `ext templates` CI run is the first to check the wasi-sdk digests; stage 2's full run reads it.
