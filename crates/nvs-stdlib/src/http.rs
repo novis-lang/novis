@@ -5936,7 +5936,10 @@ mod tests {
     /// The interval is what the case is named for and not what it asserts — the
     /// order below holds for any of it, and a longer one would only make a
     /// passing run slower.
-    fn unhurried(_host: &str) -> std::io::Result<Vec<IpAddr>> {
+    fn unhurried(
+        _host: &str,
+        _deadline: Option<std::time::Instant>,
+    ) -> std::io::Result<Vec<IpAddr>> {
         nvs_host::blocking::run(|| {
             std::thread::sleep(std::time::Duration::from_millis(100));
             Ok(vec![UNHURRIED])

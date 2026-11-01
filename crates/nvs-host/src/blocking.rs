@@ -74,7 +74,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::affinity::cpus;
 use crate::cpuclock::ThreadClock;
@@ -444,15 +444,68 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
+    match handed_off(None, f) {
+        Some(value) => value,
+        // `handed_off` gives `None` only at a deadline, and this call has none.
+        None => unreachable!("a wait with no deadline ended without an answer"),
+    }
+}
+
+/// [`run`], waiting no later than `deadline`: `Some` with what `f` returned,
+/// or `None` once the deadline has passed with the job still running.
+///
+/// At the deadline the task stops waiting and the job finishes on its pool
+/// thread. Its answer is freed there, and nothing reaches the task. That
+/// thread's memory balance is left as it was before the job, so the task
+/// keeps the charge for anything it moved into `f`. This is the safe
+/// direction, and the request that set the deadline is usually ending at it.
+/// The CPU time of an abandoned job is not charged to the request. Until the
+/// job ends, its thread is busy and counts against the pool's bound.
+///
+/// Off a core `f` runs on this thread, and the deadline is not read.
+///
+/// What the bound costs: one timer armed and disarmed per call.
+///
+/// # Panics
+///
+/// As [`run`], when the answer lands before the deadline. A job that panics
+/// after the task stopped waiting is dropped with its answer.
+pub fn run_until<T, F>(deadline: Instant, f: F) -> Option<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    handed_off(Some(deadline), f)
+}
+
+/// The answer a pool thread hands back: what `f` returned or the panic it
+/// raised, the bytes it kept and the CPU time it spent.
+type Answer<T> = (std::thread::Result<T>, isize, Duration);
+
+/// Where a job's answer is passed from the pool thread to its task.
+enum Slot<T> {
+    /// The job is running and the task is waiting for it.
+    Waiting,
+    /// The task stopped waiting at its deadline, so the answer is not wanted.
+    Abandoned,
+    /// The answer, until the task takes it.
+    Done(Answer<T>),
+}
+
+/// [`run`] and [`run_until`]'s one body. `None` only once `deadline` passed.
+fn handed_off<T, F>(deadline: Option<Instant>, f: F) -> Option<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
     let Some(me) = current_task() else {
-        return inline(f);
+        return Some(inline(f));
     };
     let Some(wake) = reactor::with_current(|reactor| reactor.remote_wake(me)) else {
-        return inline(f);
+        return Some(inline(f));
     };
 
-    type Slot<T> = Option<(std::thread::Result<T>, isize, Duration)>;
-    let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(None));
+    let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(Slot::Waiting));
     // Locked once here, before the pool thread can see it. Where std's mutex is
     // a pthread one (macOS), its first lock allocates it, and that allocation
     // is the task's: made on the pool thread, it is charged to that thread and
@@ -467,36 +520,74 @@ where
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(f));
             JOB_STARTED.set(None);
             let spent = cpu_since(started);
-            let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
-            nvs_runtime::budget::carry(kept.wrapping_neg());
-            // Free before the answer is published: the task can submit its
-            // next call as soon as it sees the answer, and that call must find
-            // this thread free ([`Queue::busy`]).
-            release.release();
-            *lock(&answer) = Some((outcome, kept, spent));
+            let mut published = lock(&answer);
+            if matches!(*published, Slot::Abandoned) {
+                drop(published);
+                release.release();
+                // Freed here, where it was charged. The balance then moves back
+                // to where it stood before the job, so an abandoned job leaves
+                // this thread's count as it found it.
+                drop(outcome);
+                let left = nvs_runtime::budget::live_bytes().wrapping_sub(before);
+                nvs_runtime::budget::carry(left.wrapping_neg());
+            } else {
+                let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
+                nvs_runtime::budget::carry(kept.wrapping_neg());
+                // Free before the answer is published: the task can submit its
+                // next call as soon as it sees the answer, and that call must
+                // find this thread free ([`Queue::busy`]). The slot's lock is
+                // held, so the task cannot see the answer before the release.
+                release.release();
+                *published = Slot::Done((outcome, kept, spent));
+                drop(published);
+            }
             // Explicit rather than left to the end of the Rust closure: the answer is
             // in the slot *before* the wake goes out, so the task cannot be
             // resumed to find it missing. The drop would deliver anyway, which
-            // is what covers the panicking path above.
+            // is what covers the panicking path above. After an abandon the
+            // wake reaches a task that may be parked on something else, which
+            // the parking contract allows: an early wake sends a wait round
+            // again.
             drop(wake);
         });
     });
 
     loop {
-        if let Some((outcome, kept, spent)) = lock(&slot).take() {
-            nvs_runtime::budget::carry(kept);
-            crate::watchdog::charge_running(spent);
-            return match outcome {
-                Ok(value) => value,
-                Err(panic) => std::panic::resume_unwind(panic),
-            };
+        {
+            let mut published = lock(&slot);
+            if matches!(*published, Slot::Done(_)) {
+                let Slot::Done((outcome, kept, spent)) =
+                    std::mem::replace(&mut *published, Slot::Waiting)
+                else {
+                    unreachable!("the slot was read as done under the same lock");
+                };
+                drop(published);
+                nvs_runtime::budget::carry(kept);
+                crate::watchdog::charge_running(spent);
+                return match outcome {
+                    Ok(value) => Some(value),
+                    Err(panic) => std::panic::resume_unwind(panic),
+                };
+            }
+            if deadline.is_some_and(|at| Instant::now() >= at) {
+                *published = Slot::Abandoned;
+                return None;
+            }
         }
-        // A cancellation is not a way out of this wait: the pool thread is
-        // already running the Rust closure and the slot it writes into is on this
-        // stack, so the task has to be here when it lands. Ending early is what
-        // would be unsound, and a cancelled task dies at its next safepoint
-        // once the call it is inside returns.
-        if !suspend_current(Waiting::Parked).suspended() {
+        // A cancellation is not a way out of this wait: a cancelled task dies
+        // at its next safepoint once the call it is inside returns, and a
+        // caller of `run` has no way to read an early end. Only the deadline
+        // ends it early.
+        if let Some(at) = deadline {
+            reactor::with_current(|reactor| reactor.timers().arm(me, at));
+        }
+        let resumed = suspend_current(Waiting::Parked);
+        if deadline.is_some() {
+            // Always: a timer that fired is already off the reactor, and one
+            // that did not would stay filed against a task that went on.
+            reactor::with_current(|reactor| reactor.timers().disarm(me));
+        }
+        if !resumed.suspended() {
             // Unreachable in practice: `current_task` answered, so there is a
             // scheduler. Yielding rather than asserting keeps a hypothetical
             // wrong answer here a slow loop instead of a killed worker.
@@ -849,6 +940,36 @@ mod tests {
             ["neighbour", "blocked"],
             "the call blocked the core instead of parking"
         );
+    }
+
+    /// `run_until` stops waiting at its deadline and leaves the job running:
+    /// the job here is still blocked on a channel when the deadline passes,
+    /// and is let go only after the task has its `None`. A job that answers in
+    /// time gives `Some`, and the loop ends with no timer left filed.
+    #[test]
+    fn a_bounded_blocking_call_stops_waiting_at_its_deadline() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let seen = Rc::new(Cell::new((None, None)));
+        let into = Rc::clone(&seen);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let (go, wait) = mpsc::channel::<()>();
+            let (done, finished) = mpsc::channel::<()>();
+            let late = run_until(Instant::now() + Duration::from_millis(20), move || {
+                wait.recv().ok();
+                done.send(()).ok();
+                1_u32
+            });
+            go.send(()).expect("the job is still waiting on the channel");
+            finished.recv().expect("the abandoned job ran to its end");
+            let prompt = run_until(Instant::now() + Duration::from_secs(60), || 2_u32);
+            into.set((late, prompt));
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 1);
+        assert_eq!(seen.get(), (None, Some(2)), "the deadline did not end the wait");
     }
 
     /// `run`'s charge: the answer is on the caller's balance from the moment

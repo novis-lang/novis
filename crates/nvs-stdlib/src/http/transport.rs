@@ -2070,7 +2070,8 @@ fn tunnel(
     // `rule:security/net-address-policy` states. It is also the one lookup a
     // tunnelled call makes that a direct call does not, and it is paid per
     // connection opened rather than per request.
-    let endpoint = match nvs_runtime::capability::resolve_host(&proxy.host, call.member) {
+    let endpoint = match nvs_runtime::capability::resolve_host(&proxy.host, call.member, Some(until))
+    {
         Ok(address) => SocketAddr::new(address, proxy.port),
         Err(_) => {
             return Ok(Tunnel::Unreachable(format!(

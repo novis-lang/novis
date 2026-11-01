@@ -2088,7 +2088,11 @@ fn bound_of(written: Option<&str>) -> Duration {
 /// `[cache.shared] database`, so a URL carrying either gives one value two
 /// homes, which is two sources those keys exist to be the only one of. Plus
 /// everything [`socket`] refuses, for the third spelling.
-fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
+fn endpoint(
+    url: &str,
+    member: &str,
+    deadline: Option<std::time::Instant>,
+) -> Result<Target, Fault> {
     let refuse = |why: &str| {
         Fault::thrown(format!(
             "{member}: `{URL}` is `{url}`, and {why} — this client reads {READS}"
@@ -2148,7 +2152,7 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     // that the endpoint an operator wrote carries the authority that granted the capability, so
     // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
     // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
-    let address = nvs_runtime::capability::resolve_host(host, member)?;
+    let address = nvs_runtime::capability::resolve_host(host, member, deadline)?;
     let address = SocketAddr::new(address, port);
     if !tls {
         return Ok(Target::Tcp(address));
@@ -2373,7 +2377,7 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
     nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
 
     open_shared(
-        dial_of(ctx, endpoint(&url, member)?),
+        dial_of(ctx, endpoint(&url, member, ctx.wall_bound())?),
         timeout_of(ctx),
         member,
     )
@@ -2535,7 +2539,7 @@ impl Lease {
         database: Option<u32>,
         timeout: Option<&str>,
     ) -> Result<Self, String> {
-        let target = endpoint(url, LEASE_MEMBER).map_err(|refused| match refused {
+        let target = endpoint(url, LEASE_MEMBER, None).map_err(|refused| match refused {
             Fault::Thrown(_, why) => why.into_owned(),
             // `endpoint` builds nothing else. A variant it does not construct
             // still has to read as a refusal rather than reach an `unreachable`.
@@ -4333,7 +4337,7 @@ pub(crate) mod tests {
     fn a_redis_url_carrying_userinfo_or_a_path_is_still_refused() {
         let refusal = |url: &str| {
             let Fault::Thrown(class, message) =
-                endpoint(url, MEMBER).expect_err("a value with two homes is refused")
+                endpoint(url, MEMBER, None).expect_err("a value with two homes is refused")
             else {
                 panic!("a URL this deployment spelled twice is catchable, not fatal");
             };
@@ -4378,7 +4382,7 @@ pub(crate) mod tests {
     #[test]
     fn a_rediss_url_carries_the_name_its_certificate_is_checked_against() {
         assert_eq!(
-            endpoint("rediss://127.0.0.1", MEMBER).expect("`rediss://` is a scheme this reads"),
+            endpoint("rediss://127.0.0.1", MEMBER, None).expect("`rediss://` is a scheme this reads"),
             super::Target::Tls {
                 address: "127.0.0.1:6379".parse().expect("a literal"),
                 name: "127.0.0.1".to_owned(),
@@ -4386,14 +4390,14 @@ pub(crate) mod tests {
             "a URL with no port takes the store's own, exactly as the plaintext arm does"
         );
         assert_eq!(
-            endpoint("rediss://[::1]:6380", MEMBER).expect("an IPv6 address is a host"),
+            endpoint("rediss://[::1]:6380", MEMBER, None).expect("an IPv6 address is a host"),
             super::Target::Tls {
                 address: "[::1]:6380".parse().expect("a literal"),
                 name: "::1".to_owned(),
             },
         );
         assert_eq!(
-            endpoint("rediss://127.0.0.1:6380", MEMBER)
+            endpoint("rediss://127.0.0.1:6380", MEMBER, None)
                 .expect("a scheme this reads")
                 .to_string(),
             "127.0.0.1:6380",
@@ -4414,7 +4418,7 @@ pub(crate) mod tests {
     /// failure the rule exists to prevent and the only one review cannot see.
     #[test]
     fn a_unix_url_is_refused_where_the_platform_has_no_transport() {
-        let read = endpoint("unix:/run/redis.sock", MEMBER);
+        let read = endpoint("unix:/run/redis.sock", MEMBER, None);
 
         #[cfg(unix)]
         {
@@ -4426,8 +4430,8 @@ pub(crate) mod tests {
             // And it is a *path*, so the two spellings that are not one are
             // refused rather than read against a working directory this process
             // promises nothing about.
-            assert!(endpoint("unix:redis.sock", MEMBER).is_err());
-            assert!(endpoint("unix:", MEMBER).is_err());
+            assert!(endpoint("unix:redis.sock", MEMBER, None).is_err());
+            assert!(endpoint("unix:", MEMBER, None).is_err());
         }
 
         #[cfg(not(unix))]
@@ -4502,7 +4506,7 @@ pub(crate) mod tests {
         {
             let written = format!("unix:{}", present.display());
             assert_eq!(
-                endpoint(&written, MEMBER)
+                endpoint(&written, MEMBER, None)
                     .expect("a socket an operator configured is an ordinary store"),
                 super::Target::Socket(present.clone()),
             );

@@ -447,8 +447,12 @@ pub fn pin_host_addresses(
 ///
 /// A `RuntimeError` when the name resolves to no address at all. There is no second failure here:
 /// every refusal [`pinned_address`] can add is one this door's callers do not ask.
-pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
-    resolve_addresses(host, member)?
+pub fn resolve_host(
+    host: &str,
+    member: &str,
+    deadline: Option<std::time::Instant>,
+) -> Result<std::net::IpAddr, Fault> {
+    resolve_addresses(host, member, deadline)?
         .into_iter()
         .next()
         .ok_or_else(|| unresolved(host, member))
@@ -471,7 +475,11 @@ pub const PINNED_ADDRESSES: usize = 8;
 /// door here reaches it through [`resolve_addresses`]. An [`std::io::Error`] and an empty answer are
 /// the same outcome to a caller — the name has no address — and the sentence it reads is the door's
 /// either way.
-pub type Resolver = fn(&str) -> std::io::Result<Vec<std::net::IpAddr>>;
+///
+/// The instant is the latest the caller waits, by `rule:http-server/time-is-bounded-inside-a-helper`:
+/// a lookup still running then is left to finish on its own thread, and the caller reads an error.
+/// `None` waits for the answer.
+pub type Resolver = fn(&str, Option<std::time::Instant>) -> std::io::Result<Vec<std::net::IpAddr>>;
 
 thread_local! {
     /// This thread's resolver, or none, in which case [`lookup_on_this_thread`] is it.
@@ -511,6 +519,15 @@ pub fn lookup_on_this_thread(host: &str) -> std::io::Result<Vec<std::net::IpAddr
         .collect())
 }
 
+/// [`lookup_on_this_thread`] as a [`Resolver`]: off a worker there is no other thread to leave a
+/// lookup on, so the deadline is not read.
+fn lookup_inline(
+    host: &str,
+    _deadline: Option<std::time::Instant>,
+) -> std::io::Result<Vec<std::net::IpAddr>> {
+    lookup_on_this_thread(host)
+}
+
 /// Every address `host` resolves to that a door will carry: the resolver's order, no address twice,
 /// and at most [`PINNED_ADDRESSES`] of them.
 ///
@@ -521,8 +538,12 @@ pub fn lookup_on_this_thread(host: &str) -> std::io::Result<Vec<std::net::IpAddr
 /// # Errors
 ///
 /// A `RuntimeError` when the name answers no address, which is also what a resolver's own failure
-/// looks like from here.
-pub fn resolve_addresses(host: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
+/// looks like from here, and what a lookup still running at `deadline` gives.
+pub fn resolve_addresses(
+    host: &str,
+    member: &str,
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<std::net::IpAddr>, Fault> {
     use std::net::IpAddr;
 
     // A bracketed IPv6 address is written `[::1]` inside an authority and is not one anywhere else,
@@ -537,9 +558,9 @@ pub fn resolve_addresses(host: &str, member: &str) -> Result<Vec<std::net::IpAdd
 
     let resolver = RESOLVER
         .with(std::cell::Cell::get)
-        .unwrap_or(lookup_on_this_thread);
+        .unwrap_or(lookup_inline);
     let mut kept: Vec<IpAddr> = Vec::new();
-    for address in resolver(host).unwrap_or_default() {
+    for address in resolver(host, deadline).unwrap_or_default() {
         if kept.len() == PINNED_ADDRESSES {
             break;
         }
@@ -606,7 +627,9 @@ pub fn pinned_addresses(
         )));
     }
 
-    let addresses = resolve_addresses(host, member)?;
+    // The lookup waits no later than the request's wall deadline. One that ends there is this
+    // door's own error, and the request's flag stops it at its next poll.
+    let addresses = resolve_addresses(host, member, ctx.wall_bound())?;
 
     // `rule:security/net-address-policy`'s table, less whatever this deployment excepted from it with `net.internal`, asked of
     // every address the name answered: one denied refuses the whole host and names that address,
@@ -1803,7 +1826,7 @@ mod tests {
 
     /// A resolver answering what [`scripted_to_answer`] wrote, and counting the asking — which is
     /// what lets a case assert that a lookup did *not* happen.
-    fn scripted(_host: &str) -> std::io::Result<Vec<IpAddr>> {
+    fn scripted(_host: &str, _deadline: Option<std::time::Instant>) -> std::io::Result<Vec<IpAddr>> {
         LOOKUPS.with(|count| count.set(count.get() + 1));
         Ok(ANSWER.with_borrow(Clone::clone))
     }

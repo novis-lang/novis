@@ -1211,6 +1211,7 @@ mod tests {
         let target = super::super::endpoint(
             &format!("rediss://127.0.0.1:{}", address.port()),
             "Core\\Cache::shared()",
+            None,
         )
         .expect("`rediss://` is a scheme this client reads");
         let mut connection =
@@ -1302,7 +1303,8 @@ mod tests {
         #[cfg(not(unix))]
         {
             assert!(
-                super::super::endpoint("unix:/run/redis.sock", "Core\\Cache::shared()").is_err(),
+                super::super::endpoint("unix:/run/redis.sock", "Core\\Cache::shared()", None)
+                    .is_err(),
                 "a spelling this build cannot dial must be refused before the wire sees it"
             );
         }

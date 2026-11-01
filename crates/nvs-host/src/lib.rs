@@ -207,9 +207,20 @@ impl<T> std::fmt::Debug for Worker<T> {
 /// `rule:http-server/an-outbound-call-tries-every-approved-address`. The name is
 /// copied because a job outlives the borrow that submitted it, which is one
 /// allocation per lookup against a call that costs a network round trip.
-fn resolve_off_core(host: &str) -> std::io::Result<Vec<std::net::IpAddr>> {
+///
+/// A lookup still running at `deadline` is left to finish on its pool thread,
+/// and the caller reads a `TimedOut` error ([`blocking::run_until`]).
+fn resolve_off_core(
+    host: &str,
+    deadline: Option<std::time::Instant>,
+) -> std::io::Result<Vec<std::net::IpAddr>> {
     let named = host.to_owned();
-    blocking::run(move || nvs_runtime::capability::lookup_on_this_thread(&named))
+    let lookup = move || nvs_runtime::capability::lookup_on_this_thread(&named);
+    match deadline {
+        None => blocking::run(lookup),
+        Some(at) => blocking::run_until(at, lookup)
+            .unwrap_or_else(|| Err(std::io::ErrorKind::TimedOut.into())),
+    }
 }
 
 impl<T: Send + 'static> Worker<T> {
