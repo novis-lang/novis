@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [limits-within-one-call, release-polish, release-run]
+chain: [release-polish, release-run]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,13 +37,12 @@ floor:
 
 # Goals
 
-The chain holds 3 goal(s). `limits-within-one-call` is live.
+The chain holds 2 goal(s). `release-polish` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`limits-within-one-call`](limits-within-one-call.md) **live** | every wait a member makes ends at the request's deadline, native recursion checks the stack before it goes deeper, and the overshoot scan judges CPU and wall-time readings | 1 ✓ a survey lists every wait, every native recursion and every member whose cost its caller picks · 2 ✓ native recursion checks the stack before it goes deeper · 3 ✓ every wait a member makes ends at the request's deadline · 4 ✓ a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it · 5 ✓ the goal is verified once, and every failure is fixed |
-| 2 | [`release-polish`](release-polish.md) | every should-fix finding of the 2026-10-30 pre-release review is fixed, and the checks below pass. | **1 the website's roadmap, install, footer, security and licenses pages are right, and every page has a social image** · 2 the README, CONTRIBUTING, SECURITY and setup docs describe the released project, and the repo has a code of conduct and a PR template · 3 the agent docs and rules cite only what exists, and every nvs command has a row in the CLI reference · 4 the .vsix and the binary carry every third-party notice they owe · 5 CI checks every lockfile and pins every download, and the release attests its checksums · 6 the editor extension reads as a published package, and the tools share one error helper · 7 the lexical path normalizer, span_text and strip_sigil each exist once · 8 the goal is verified once, and every failure is fixed |
-| 3 | [`release-run`](release-run.md) | a dry-run Release run on main's tip ends green in every job, which a check reads from GitHub. | **1 bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict** · 2 the full ci.yml run on main's tip is green in every job · 3 a dry-run Release run on main's tip is green in every job · 4 the goal is verified once, and every failure is fixed |
+| 1 | [`release-polish`](release-polish.md) **live** | every should-fix finding of the 2026-10-30 pre-release review is fixed, and the checks below pass. | **1 the website's roadmap, install, footer, security and licenses pages are right, and every page has a social image** · 2 the README, CONTRIBUTING, SECURITY and setup docs describe the released project, and the repo has a code of conduct and a PR template · 3 the agent docs and rules cite only what exists, and every nvs command has a row in the CLI reference · 4 the .vsix and the binary carry every third-party notice they owe · 5 CI checks every lockfile and pins every download, and the release attests its checksums · 6 the editor extension reads as a published package, and the tools share one error helper · 7 the lexical path normalizer, span_text and strip_sigil each exist once · 8 the goal is verified once, and every failure is fixed |
+| 2 | [`release-run`](release-run.md) | a dry-run Release run on main's tip ends green in every job, which a check reads from GitHub. | **1 bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict** · 2 the full ci.yml run on main's tip is green in every job · 3 a dry-run Release run on main's tip is green in every job · 4 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
