@@ -345,12 +345,6 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 3 is done: every listed wait ends at the wall deadline, each with an attack or a Rust test.
-The last two are green: a WebSocket `receive` under `set_wall` ends as an error
-(`crates/nvs-server/src/serve.rs`, where the `Framed` tests live), and `nvs run` with a held-open
-stdin pipe ends at the wall-time `FATAL` (`crates/nvs-cli/tests/run_command.rs`). `cargo fmt
---check` passes over the tree.
-
 Stage 4's first four items are done. A CPU or wall-time `FATAL` ends in `: <used> ms used of a
 limit of <limit> ms`, and a CPU limit lowered below the time already spent adds `, set when <n> ms
 were used`. `judgeHostile` and `bun nv proofs --overshoot` judge it against the crossing point plus
