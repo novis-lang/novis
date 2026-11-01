@@ -121,6 +121,14 @@ safepoint flag, raised at the deadline by the watchdog sweep or the run's clock,
 its next poll. Threading `&mut Ctx` into each of those doors was declined: the clamp already ends
 the wait, which is the security property, and the flag gives the same `FATAL` one poll later.
 
+**A CLI run's standard input stops at its wall time, when it has one.** `nvs run` arms a wall
+deadline whenever `[limits] wall_time` is set, so `Core\IO::stdin` reads chunks of 64 KiB on the
+blocking pool with `run_until` and gives up at the deadline with the `FATAL`. No new setting is added.
+A run with no wall time reads inline and pays nothing. A read given up leaves its pool thread waiting
+on the descriptor until input arrives, which is acceptable because the run is ending. Reading on the
+core with a nonblocking descriptor was declined: standard input is not always pollable (a file or a
+Windows console), and the pool already has the bounded wait.
+
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
 
@@ -234,22 +242,35 @@ Most waits go through four doors, so most items are one change at a door. Each i
     The `Resolver` hook takes a deadline, and `pinned_addresses` passes the wall deadline.
 - [x] The three inline `getaddrinfo` calls move to the shared resolver: `crates/nvs-stdlib/src/db/open.rs:152`,
   `mail.rs:428`, `ldap/mod.rs:493`. Today each blocks the core with no bound.
-- [ ] The park door: each `host.park` a member makes takes the shorter of its own bound and the
+- [x] The park door: each `host.park` a member makes takes the shorter of its own bound and the
   deadline. `crates/nvs-stdlib/src/db/pool.rs:168`, `cache.rs:1507`, `socket.rs:1236`, `socket.rs:1506`,
   `sse.rs:884`, `channel.rs:327`, `crates/nvs-runtime/src/stream.rs:228`, `crates/nvs-runtime/src/ctx/late_init.rs:208`.
   - [x] `db/pool.rs`, `cache.rs`, `sse.rs`, `channel.rs` and `late_init.rs` park with the wall
     deadline and give the `FATAL` on a wake past it.
   - [x] `stream.rs`: `Emit::send_by` takes the wall deadline; `response.rs` and `sse.rs`'s
     `onto_the_wire` pass it and give the `FATAL`.
-  - [ ] `socket.rs:1236`, `wait_on_both`: `peer.receive_or` waits on the WebSocket peer.
+  - [x] `socket.rs:1236`, `wait_on_both`: `peer.receive_or` waits on the WebSocket peer. It was
+    bounded only by the idle and lifetime windows. `PeerSocket::set_wall` files the wall deadline,
+    `Framed::arm` caps every wait by it, and a timeout past it is an error the member turns into
+    the `FATAL`. `send` takes it too.
   - [x] `socket.rs:1506` is a test double, `Parking`, with nothing to change.
 - [x] The backoff sleeps stop at the deadline: `Core\Http`'s retry (`http/transport.rs:1501`) and
   `Core\Db`'s transaction retry (`db/transaction.rs:352`). `Core\Http`'s was already bounded by
   `call.deadline`, which `call_of` clamps.
-- [ ] `Core\IO::stdin` (`crates/nvs-stdlib/src/io.rs:2263`) reaches only `nvs run`. Decide in the stage
-  whether a CLI run has a wall deadline; if it has, the read stops at it.
+- [x] `Core\IO::stdin` (`crates/nvs-stdlib/src/io.rs:2263`) reaches only `nvs run`. Decide in the stage
+  whether a CLI run has a wall deadline; if it has, the read stops at it. It has one whenever
+  `[limits] wall_time` is set, since `refresh_limits` publishes it for every run. Under one, the
+  read goes through `StdinUntil` on the blocking pool; with none it stays inline.
 - [ ] An attack step per listed wait a `.nvs` file can reach, ending at the wall-time `FATAL`. A wait
   only a remote peer can hold open is a Rust test with a scripted peer.
+  - [x] `Core\Task\Channel`: `tests/hostile/core/Task-Channel/close/02-a-wait-past-the-time-limit.nvs`, green.
+  - [x] `Core\Cache\Store::getSecret`'s fill wait: `tests/hostile/core/Cache-Store/getSecret/02-a-wait-past-the-time-limit.nvs`, green.
+  - [x] The db pool slot wait: `tests/hostile/core/Db/open/03-a-wait-past-the-time-limit.nvs`, green.
+  - [ ] The WebSocket `receive`: a Rust test in `crates/nvs-server/src/socket.rs`'s tests, a `Framed`
+    over a peer that never sends, `set_wall` a short instant, and `receive` returns `Err`, not `Closed`.
+  - [ ] `Core\IO::stdin` under a wall time: a Rust test of `StdinUntil` is not possible over the
+    process's own standard input, so a `nvs run` integration test with a held-open pipe, in
+    `crates/nvs-cli/tests/`, ends at the `FATAL`.
 
 ### 4. a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it
 
@@ -299,39 +320,37 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 3 is nearly done. The socket, database and blocking-pool doors are done, and so are the
-backoff sleeps and every park but one.
+Stage 3 is nearly done. Every door, park and backoff is done, and so is `Core\IO::stdin`. Two
+Rust tests of the attack item are left.
 
-`nvs_host::blocking::run_until` (`crates/nvs-host/src/blocking.rs`) is `run` with a deadline. At the
-deadline the task marks the slot `Abandoned` and returns `None`; the job finishes on its pool thread,
-frees its answer there and puts that thread's memory balance back. The `Resolver` hook
-(`crates/nvs-runtime/src/capability.rs`) takes `Option<Instant>`, and `resolve_host` and
-`resolve_addresses` take it too. `pinned_addresses` passes `ctx.wall_bound()`. `Core\Db`'s
-`address_of`, `Core\Mail`'s `resolve` and `Core\Ldap`'s `walk` now resolve through it, off the core.
+The WebSocket peer takes the wall deadline through `PeerSocket::set_wall`
+(`crates/nvs-runtime/src/peer.rs`). `Framed` (`crates/nvs-server/src/socket.rs`) caps every wait in
+`arm` by it, and `expiry` reads a timeout past it as an error, not a close. `Core\Socket`'s
+`receive` and `send_frame` (`crates/nvs-stdlib/src/socket.rs`) give `wall_time_fault` on that error.
+`Core\IO::stdin` under a wall time reads through `StdinUntil` (`crates/nvs-stdlib/src/io.rs`) on the
+blocking pool. Three attacks end at the wall-time `FATAL`: a channel, a `getSecret` fill wait and a
+full db pool, each green under `bun nv proofs --run --id`.
 
-The parks in `db/pool.rs`, `cache.rs` (`waited`), `sse.rs`, `channel.rs` (`wait`) and
-`ctx/late_init.rs` take the wall deadline and give `wall_time_fault` on a wake. A streamed write goes
-through the new `Emit::send_by(chunk, wall)` (`crates/nvs-runtime/src/stream.rs`).
-`wait_between_attempts` (`db/transaction.rs`) clamps its backoff.
+The db pool's own `acquire` bound (5 s) caps an open's `timeout`, and `Core\Config::set('db.pool.acquire')`
+does not move it at run time. The attack is still right, since 1 s comes first.
 
-The acceptance sweep's reds are stale, as the last five handoffs said. Nightly run 41187571578 ran
-on `857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition
-in the tree, and no log was written for it.
+The acceptance sweep's reds are stale: nightly run 41187571578 ran on `857b39cad`, before the
+fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition in the tree.
 
 **Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
 A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
-that counts parks with a fake host whose `park` asserts on a `None` deadline. None is known.
+that counts parks with a fake host whose `park` asserts on a `None` deadline. A `Core\Socket` test
+that expects a timeout under a wall time to read as an idle close, `null`. None is known.
 
 ### Next
 
-`socket.rs:1236`, `wait_on_both`: read whether `peer.receive_or` (the WebSocket peer, in
-`crates/nvs-runtime`'s peer trait) parks with a bound. If not, give it the wall deadline the same
-way `Emit::send_by` takes one. Then `Core\IO::stdin` (`io.rs:2263`): check whether `nvs run` arms
-a wall deadline at all (`Ctx::wall_time_left` under `nvs run`). The recommendation is that a read
-stops at it only if `nvs run` already arms one, and no new setting is added. Then the attack steps:
-one `.nvs` step per wait a program can reach (`Core\Channel` receive with no sender,
-`Core\Cache` fill wait, the db pool slot wait), each ending at the wall-time `FATAL`, beside
-`tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs`. Stage 4 touches
-disjoint files and may run as a side goal.
+The two open checkpoints under stage 3's attack item. First, a Rust test in
+`crates/nvs-server/src/socket.rs`'s test module: a `Framed` over a loopback peer that never sends,
+`set_wall(Some(now + 50ms))`, and `receive_or` returns `Err` and not `Received::Closed`. Look for
+an existing `Framed` test there to copy its setup. Second, a `nvs run` integration test in
+`crates/nvs-cli/tests/`: a script sets `limits.wall_time` to `1s` and calls `Core\IO::stdin()`, with
+the child's stdin a pipe held open, and the run ends at the wall-time `FATAL`. Then set stage 3's
+status to done and take stage 4, starting with the `FATAL` text (`limits.rs:1051`,
+`wall_time_message`).
 
 ### Backlog
