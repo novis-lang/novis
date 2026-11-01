@@ -1,15 +1,15 @@
 # Contributing to Novis
 
-Novis is Pre-Alpha, and its first release is `0.0.1`. Any release can change the language, and Novis is
+Novis is Pre-Alpha. Any release can change the language, and Novis is
 not ready for production use. Much of the language is still being decided, which makes this the point
 where an opinion is worth more than a patch — and, for now, the point where a patch is the one thing we
 cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
 yet.** This file routes the first, explains the second, and its second half is the developer's map of the
 tree.
 
-> **Status: Pre-Alpha, released at `0.0.1`.** The language runs: `nvs run` compiles and executes a `.nvs`
-> file, `nvs test` runs the conformance trees, `nvs serve` answers HTTP. Nothing is stable yet. Work runs
-> as a chain of goals, each named by its slug, and `looper orient --full` prints the live one.
+> **Status: Pre-Alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
+> runs the conformance trees, `nvs serve` answers HTTP. Nothing is stable yet. The
+> [roadmap](https://novis-lang.org/in-depth/roadmap/) shows what is planned next.
 
 ## Where to take what you have
 
@@ -90,6 +90,18 @@ looper orient --full           # where the work stands: the live goal, its hando
 bun nv brief --where <word>    # which file owns a topic
 ```
 
+Without looper installed, `bun tools/looper/main.ts orient --full` runs the same command from the copy
+the tree carries.
+
+What a development machine needs, each detailed in [docs/setup.md](docs/setup.md):
+
+- **Rust**, at the version [`rust-toolchain.toml`](rust-toolchain.toml) pins. `rustup` installs it on the
+  first `cargo` command in the tree.
+- **Bun**, at the version `package.json` names. It runs every `bun nv` command. Run `bun install` once
+  after the clone.
+- **Node.js 20 or newer**, with `npm`, for the VS Code extension in `editors/vscode/` and its tests.
+- **Docker**, with Compose, for the database tests and the proxied benchmarks.
+
 ### Building
 
 Requires the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml), which `rustup` installs on
@@ -135,7 +147,7 @@ bun nv rules --check     # every rule fragment is well formed, and every `rule:`
 true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
 has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
 means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
-workspace has *not* built yet, such as the debugger or the package registry, is a goal under
+workspace has *not* built yet is a goal under
 [docs/goals/](docs/goals/README.md). The public roadmap, `website/src/data/roadmap.json`, groups those
 goals into themes, and `bun nv site --check roadmap` fails when the two disagree.
 
@@ -242,11 +254,25 @@ This is the short form. The reasoning behind each choice is in its rule, and
 - [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list: the things that look like they should
   work and do not. Add a bullet when one costs you time.
 - Keep each change small and commit it on its own, so `git log` reads a slice at a time.
-- There are no decision records. A new decision becomes a goal or goes into the plan, and the rule it
-  changes under `docs/rules/` takes its reasons and its Declined list in the same slice, in the shape
+- There are no decision records. A new decision goes into a rule: the fragment under `docs/rules/`
+  takes its reasons and its Declined list in the same slice, in the shape
   [docs/agent/conventions.md](docs/agent/conventions.md) § *A rule fragment* gives.
 - Every added, changed or removed feature owes a statement of its tradeoffs in performance, memory,
   usability and simplicity. Where they are large, raise them before building.
+
+### Third-party notices
+
+[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt) is generated from the dependency tree and built
+into the binary. A change to a dependency regenerates it in the same commit:
+
+```sh
+bun nv gen-attribution           # write the file again after you change a dependency
+bun nv gen-attribution --check   # what CI runs: it fails if the file is out of date
+```
+
+The generator stops on a license it has no policy for, and on one that is not in the allow list of
+[deny.toml](deny.toml), so a notice is never left out. `cargo deny` checks which licenses may be
+linked; the generator writes the notices that must ship with the binary.
 
 Novis ships under the [MIT licence](LICENSE), and contributions — once pull requests open — are accepted
 under that same one.
