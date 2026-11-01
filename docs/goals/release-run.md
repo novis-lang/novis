@@ -271,15 +271,14 @@ and the `02-*` CPU attacks of `Arr/sort`, `Compress/compress` and `Regex/replace
 the QoS class. `a911c3a09` fixes both late terms, untested on macOS: the wait is half the time to
 the crossing (`crates/nvs-host/src/watchdog.rs:1460`), so a wait that ends late by its own length
 still ends before it; and a lowered ceiling wakes the watchdog (`safepoint.rs:104`, `watchdog.rs:1432`).
-Both are local: the run was still going, so nothing is pushed. A watch past the macOS red runs.
+Every other job of `41310544248` was green. Round 4's full run `41317255176` on `921dd7f66` tests the fix, and its watch runs.
 The sweep's other reds are stale: nightly `41295327777` predates round 1, and `env-secret-proofs` has no definition.
 
 ### Next
 
-Stage 2, round 4. Read run `41310544248`'s other jobs first, which the background watch reports.
+Stage 2, round 5. Read run `41317255176`'s verdict first, which the watch's report gives.
 
-- [ ] Fix every other red the run names, one commit each. `.github/workflows/ci.yml:1`
-- [ ] Once the run has ended: `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] If macOS still stops late, the wait is not the cause: read the stop's latency after the sweep, from the flag to the `FATAL` (`crates/nvs-runtime/src/ctx/limits.rs:1103`). `crates/nvs-host/src/watchdog.rs:1460`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
