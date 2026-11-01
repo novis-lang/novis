@@ -1038,6 +1038,7 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     // The runtime's reading of a tree's CPU time is this module's, so the
     // first registration in the process installs it. Idempotent after that.
     nvs_runtime::install_cpu_spent(tree_spent);
+    nvs_runtime::install_cpu_lowered(wake_for_lowered_ceiling);
     let mut state = lock(&shared.state);
     let id = state.next_id;
     state.next_id += 1;
@@ -1421,6 +1422,21 @@ struct TreeSpend {
     threads: u32,
 }
 
+/// Wakes the watchdog the calling thread registered with, so it sweeps now and
+/// reads the CPU ceiling this thread just lowered. A thread that registered
+/// nothing has no watchdog to wake.
+///
+/// What it spends: one condition-variable notify each time a request lowers
+/// its own ceiling, and one extra sweep. Nothing on a request that leaves its
+/// ceiling alone.
+fn wake_for_lowered_ceiling() {
+    METER.with(|meter| {
+        if let Some(local) = meter.borrow().as_ref() {
+            local.shared.change.notify_all();
+        }
+    });
+}
+
 /// The shortest wait the watchdog thread makes, so a tree right at its ceiling
 /// does not keep the thread awake.
 const MIN_WAIT: Duration = Duration::from_millis(1);
@@ -1428,17 +1444,25 @@ const MIN_WAIT: Duration = Duration::from_millis(1);
 /// How long the watchdog thread waits after a sweep that read `trees`.
 ///
 /// A tree under its ceiling crosses it no earlier than its remaining CPU time,
-/// divided by its threads, from now. The wait is the earliest such crossing,
-/// and never longer than `interval` or shorter than [`MIN_WAIT`]. So the next
-/// sweep runs near the moment a request reaches its `[limits] cpu_time`. A
+/// divided by its threads, from now. The wait is half the earliest such
+/// crossing, and never longer than `interval` or shorter than [`MIN_WAIT`]. A
 /// tree already past its ceiling has been stopped by this sweep, and leaves
 /// the wait at `interval`.
+///
+/// Half, because a timed wait can end late by up to its own length: macOS
+/// defers a thread's timers by a share of their length, and CI's macOS
+/// runners stopped requests 103 to 131 ms past their `[limits] cpu_time` with
+/// the whole crossing as the wait. A wait of half ends no later than the
+/// crossing, and each sweep after it halves what is left, so the stop comes
+/// within about [`MIN_WAIT`] of the ceiling. What it spends: about six more
+/// sweeps for a request that runs to within one `interval` of its ceiling,
+/// and none for a request that stays further from it.
 fn next_wait(interval: Duration, trees: impl IntoIterator<Item = TreeSpend>) -> Duration {
     trees
         .into_iter()
         .filter_map(|tree| {
             let left = tree.limit.checked_sub(Duration::from_nanos(tree.spent))?;
-            (!left.is_zero()).then(|| left / tree.threads.max(1))
+            (!left.is_zero()).then(|| left / tree.threads.max(1) / 2)
         })
         .fold(interval, Duration::min)
         .max(MIN_WAIT.min(interval))
@@ -2211,11 +2235,12 @@ mod tests {
         assert!(flagged(&handled), "a handler ran on past its slice");
     }
 
-    /// The wait after a sweep ends at the earliest moment a tree under its CPU
-    /// ceiling can cross it, and stays the whole interval for a tree far from
-    /// its ceiling or already past it.
+    /// The wait after a sweep ends halfway to the earliest moment a tree under
+    /// its CPU ceiling can cross it, so a wait that ends late still ends before
+    /// the crossing. It stays the whole interval for a tree far from its
+    /// ceiling or already past it.
     #[test]
-    fn the_next_sweep_is_due_when_a_tree_can_first_cross_its_ceiling() {
+    fn the_next_sweep_is_due_halfway_to_when_a_tree_can_first_cross_its_ceiling() {
         const INTERVAL: Duration = Duration::from_millis(50);
         let ms = |n: u64| Duration::from_millis(n);
         let tree = |spent: Duration, limit: Duration, threads: u32| TreeSpend {
@@ -2232,12 +2257,17 @@ mod tests {
         );
         assert_eq!(
             next_wait(INTERVAL, [tree(ms(240), ms(250), 1)]),
-            ms(10),
-            "a tree 10 ms from its ceiling waited past its crossing"
+            ms(5),
+            "a tree 10 ms from its ceiling waited past half its crossing"
+        );
+        assert_eq!(
+            next_wait(INTERVAL, [tree(ms(170), ms(250), 1)]),
+            ms(40),
+            "a tree 80 ms from its ceiling waited a whole interval, which a late wake doubles past its crossing"
         );
         assert_eq!(
             next_wait(INTERVAL, [tree(ms(240), ms(250), 2)]),
-            ms(5),
+            Duration::from_micros(2500),
             "a tree on two threads was given one thread's wait"
         );
         assert_eq!(
@@ -2245,8 +2275,8 @@ mod tests {
                 INTERVAL,
                 [tree(ms(10), ms(250), 1), tree(ms(220), ms(250), 1)]
             ),
-            ms(30),
-            "the wait was not the earliest crossing of every tree"
+            ms(15),
+            "the wait was not half the earliest crossing of every tree"
         );
         assert_eq!(
             next_wait(INTERVAL, [tree(ms(300), ms(250), 1)]),

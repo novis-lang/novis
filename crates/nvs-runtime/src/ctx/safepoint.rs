@@ -96,11 +96,21 @@ impl Ctx {
     /// [`Self::run_limit_handler`] on entry and on exit. [`Self::reroot`] owes
     /// it too, because it starts a tree that carries none.
     /// [`Self::tree_root`]'s field doc owns why a child writes nothing.
+    ///
+    /// A ceiling that goes down calls the installed [`CpuLowered`], so the
+    /// sampler reads it now. Its next sweep might otherwise come a whole
+    /// interval later, which is how far past the new ceiling the request
+    /// would run.
     pub(super) fn publish_cpu_limit(&self) {
         if self.tree_root {
-            self.tree
+            let before = self
+                .tree
                 .cpu_limit
-                .store(self.cpu_limit, std::sync::atomic::Ordering::Relaxed);
+                .swap(self.cpu_limit, std::sync::atomic::Ordering::Relaxed);
+            let lowered = self.cpu_limit != 0 && (before == 0 || self.cpu_limit < before);
+            if lowered && let Some(wake) = CPU_LOWERED.get() {
+                wake();
+            }
         }
     }
 
@@ -1283,6 +1293,20 @@ static CPU_SPENT: std::sync::OnceLock<CpuSpent> = std::sync::OnceLock::new();
 /// sampler per process, and every thread asks it.
 pub fn install_cpu_spent(spent: CpuSpent) {
     let _ = CPU_SPENT.set(spent);
+}
+
+/// Wakes the sampler that charges the calling thread, so its next sweep reads
+/// a CPU ceiling the thread just lowered. The host installs it with
+/// [`install_cpu_lowered`], for the same reason as [`CpuSpent`].
+pub type CpuLowered = fn();
+
+/// The process's [`CpuLowered`], or none before a host installs one.
+static CPU_LOWERED: std::sync::OnceLock<CpuLowered> = std::sync::OnceLock::new();
+
+/// Installs the process's [`CpuLowered`]. The first call wins, as with
+/// [`install_cpu_spent`].
+pub fn install_cpu_lowered(wake: CpuLowered) {
+    let _ = CPU_LOWERED.set(wake);
 }
 
 /// What `tree` has spent of the CPU, by the installed [`CpuSpent`].
