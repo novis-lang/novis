@@ -21,10 +21,33 @@
 
 use super::*;
 
-/// The next key [`Ctx::hold_spawned_child`] files a child under, shared by
-/// every context in the process so that no two tasks ever file the same key.
-/// It starts at one, so a zeroed slot never holds a key.
-static NEXT_CHILD_KEY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+/// The next key any of this module's tables files a handle under, shared by
+/// every table of every context in the process, so that no two tasks ever file
+/// the same key. It starts at one, so a zeroed slot never holds a key.
+///
+/// **A key is unique in the process, not an index into its table**
+/// (`rule:concurrency/a-handle-works-only-in-its-task`). A handle is
+/// an ordinary value, so a `Core\Task` child task can return one to the task
+/// that started it. An index would then name whatever the parent filed at the
+/// same position: its own file, socket, reader, connection, started script or
+/// child. A key drawn from here names nothing in any other table, so a handle
+/// used outside its task reads an empty lookup and fails closed. The keys one
+/// table files only ever grow, so a lookup is a binary search ([`filed_at`]).
+///
+/// **What it spends:** one atomic add per handle filed, and eight bytes of key
+/// beside each table entry.
+static NEXT_HANDLE_KEY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// Draws the next key from [`NEXT_HANDLE_KEY`].
+fn next_handle_key() -> u64 {
+    NEXT_HANDLE_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The position of the entry `key` names in `table`, or `None` for a key this
+/// table never filed, which is every key another task filed.
+fn filed_at<T>(table: &[(u64, T)], key: u64) -> Option<usize> {
+    table.binary_search_by_key(&key, |(filed, _)| *filed).ok()
+}
 
 /// A database connection a request is holding open — `nvs_db`'s `Connection`,
 /// and the seam that lets a [`Ctx`] hold one without naming it.
@@ -331,22 +354,24 @@ impl Ctx {
     /// a leak rather than a trade. `crates/nvs-stdlib/src/channel.rs` records
     /// the same reasoning for the queue it keeps in slots instead.
     ///
-    /// **What it spends:** one pointer pair per live handle, and nothing at all
-    /// for a request that spawns none. A key is never reused, so a handle
-    /// awaited twice reads an empty slot rather than another request's isolate.
+    /// **What it spends:** one pointer pair and an eight-byte key per live
+    /// handle, and nothing at all for a request that spawns none. A key is never
+    /// reused, so a handle awaited twice reads an empty slot rather than another
+    /// request's isolate, and [`NEXT_HANDLE_KEY`] says why it is unique in the
+    /// process.
     pub fn hold_started_script(&mut self, running: Box<dyn crate::host::Running>) -> u64 {
-        self.started_scripts.push(Some(running));
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.started_scripts.len() as u64
+        let key = next_handle_key();
+        self.started_scripts.push((key, Some(running)));
+        key
     }
 
     /// Takes the isolate `key` names back out, or `None` when it has already
-    /// been taken — an `await` of a handle a previous `await` consumed.
+    /// been taken — an `await` of a handle a previous `await` consumed — and for
+    /// a key another task filed.
     #[must_use]
     pub fn take_started_script(&mut self, key: u64) -> Option<Box<dyn crate::host::Running>> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.started_scripts.get_mut(index)?.take()
+        let index = filed_at(&self.started_scripts, key)?;
+        self.started_scripts.get_mut(index)?.1.take()
     }
 
     /// Files an open file against this request and answers the key that reads
@@ -361,8 +386,8 @@ impl Ctx {
     /// `Core\IO\File::close` takes the handle out and drops it, and a request
     /// that forgets closes everything it opened when its `Ctx` goes.
     ///
-    /// **What it spends:** one `Option<File>` — a descriptor and a niche — per
-    /// `open` this request performed, *including* the ones it has since closed,
+    /// **What it spends:** one `Option<File>` — a descriptor and a niche — and
+    /// its eight-byte key per `open` this request performed, *including* the ones it has since closed,
     /// because a key is never reused. That is O(opens by one request), released
     /// with the request and charged to its memory limit, and it is the price of
     /// the safety property: a stale handle reads an empty slot and throws,
@@ -373,25 +398,25 @@ impl Ctx {
     /// spends without hesitating to keep a descriptor from being confused for
     /// another.
     pub fn hold_open_file(&mut self, file: std::fs::File) -> u64 {
-        self.open_files.push(Some(file));
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.open_files.len() as u64
+        let key = next_handle_key();
+        self.open_files.push((key, Some(file)));
+        key
     }
 
     /// The file `key` names, borrowed for one read or write, or `None` once it
     /// has been closed or if it was never this request's.
     pub fn open_file_mut(&mut self, key: u64) -> Option<&mut std::fs::File> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_files.get_mut(index)?.as_mut()
+        let index = filed_at(&self.open_files, key)?;
+        self.open_files.get_mut(index)?.1.as_mut()
     }
 
     /// Takes the file `key` names back out, or `None` when it has already been
-    /// taken — a `close` of a handle a previous `close` consumed.
+    /// taken — a `close` of a handle a previous `close` consumed — and for a key
+    /// another task filed.
     #[must_use]
     pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_files.get_mut(index)?.take()
+        let index = filed_at(&self.open_files, key)?;
+        self.open_files.get_mut(index)?.1.take()
     }
 
     /// Files a spawned child against this task and answers the key that reads
@@ -407,13 +432,9 @@ impl Ctx {
     /// [`HeldChild`]'s own `Drop` is that kill, so the table needs no teardown
     /// arm of its own beyond dropping the field.
     ///
-    /// **The key is unique in the process, not an index into this table.** A
-    /// handle is an ordinary value, so a `Core\Task` child task can return one
-    /// to the task that started it. An index would then name whatever child the
-    /// parent filed at the same position. A key drawn from [`NEXT_CHILD_KEY`]
-    /// names nothing in any other table, so a handle used outside its task
-    /// reads no child and fails closed in `nvs-stdlib`'s `child_of`. The keys
-    /// one table files only ever grow, so a lookup is a binary search.
+    /// The key is unique in the process, for [`NEXT_HANDLE_KEY`]'s reason, so
+    /// a handle used outside its task reads no child and fails closed in
+    /// `nvs-stdlib`'s `child_of`.
     ///
     /// **What it spends:** one [`HeldChild`] — a process handle and up to three
     /// pipes — and its eight-byte key per `spawn` this task performed,
@@ -423,7 +444,7 @@ impl Ctx {
     /// address whatever child the same slot now holds. One atomic add per
     /// `spawn`, beside the cost of starting a process.
     pub fn hold_spawned_child(&mut self, child: HeldChild) -> u64 {
-        let key = NEXT_CHILD_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let key = next_handle_key();
         self.spawned_children.push((key, Some(child)));
         key
     }
@@ -431,9 +452,7 @@ impl Ctx {
     /// The position of the child `key` names in this task's table, or `None`
     /// for a key another task filed.
     fn spawned_child_at(&self, key: u64) -> Option<usize> {
-        self.spawned_children
-            .binary_search_by_key(&key, |(filed, _)| *filed)
-            .ok()
+        filed_at(&self.spawned_children, key)
     }
 
     /// The child `key` names, borrowed for one pipe hand-off or one kill, or
@@ -569,10 +588,9 @@ impl Ctx {
     /// empty slot and throws, where a recycled key would address whatever
     /// socket the same slot now holds.
     pub fn hold_open_socket(&mut self, socket: Box<dyn HeldSocket>) -> u64 {
-        self.open_sockets.push(Some(socket));
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.open_sockets.len() as u64
+        let key = next_handle_key();
+        self.open_sockets.push((key, Some(socket)));
+        key
     }
 
     /// The socket `key` names, borrowed for one read, write or accept, or
@@ -583,8 +601,8 @@ impl Ctx {
     /// are `nvs-host`'s and that crate depends on this one. The caller
     /// downcasts through [`HeldSocket::as_any_mut`].
     pub fn open_socket_mut(&mut self, key: u64) -> Option<&mut dyn HeldSocket> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_sockets.get_mut(index)?.as_deref_mut()
+        let index = filed_at(&self.open_sockets, key)?;
+        self.open_sockets.get_mut(index)?.1.as_deref_mut()
     }
 
     /// Takes the socket `key` names back out, or `None` when it has already
@@ -596,8 +614,8 @@ impl Ctx {
     /// many and closes each as it finishes holds one at a time.
     #[must_use]
     pub fn take_open_socket(&mut self, key: u64) -> Option<Box<dyn HeldSocket>> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_sockets.get_mut(index)?.take()
+        let index = filed_at(&self.open_sockets, key)?;
+        self.open_sockets.get_mut(index)?.1.take()
     }
 
     /// Files a reply body still arriving against this request and answers the
@@ -620,10 +638,9 @@ impl Ctx {
     /// [`Ctx::hold_open_file`]'s trade for a forgotten `close` and the same
     /// bound — O(streams this request opened).
     pub fn hold_open_reader(&mut self, reader: Box<dyn HeldReader>) -> u64 {
-        self.open_readers.push(Some(reader));
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.open_readers.len() as u64
+        let key = next_handle_key();
+        self.open_readers.push((key, Some(reader)));
+        key
     }
 
     /// The reader `key` names, borrowed for one framing, or `None` once the
@@ -633,8 +650,8 @@ impl Ctx {
     /// trait object, and the caller downcasts through
     /// [`HeldReader::as_any_mut`].
     pub fn open_reader_mut(&mut self, key: u64) -> Option<&mut dyn HeldReader> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_readers.get_mut(index)?.as_deref_mut()
+        let index = filed_at(&self.open_readers, key)?;
+        self.open_readers.get_mut(index)?.1.as_deref_mut()
     }
 
     /// Takes the reader `key` names back out, or `None` where a walk has
@@ -646,8 +663,8 @@ impl Ctx {
     /// descriptor is, and a request reading many replies in turn holds one.
     #[must_use]
     pub fn take_open_reader(&mut self, key: u64) -> Option<Box<dyn HeldReader>> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_readers.get_mut(index)?.take()
+        let index = filed_at(&self.open_readers, key)?;
+        self.open_readers.get_mut(index)?.1.take()
     }
 
     /// Files an open database connection against this request and answers the
@@ -683,16 +700,18 @@ impl Ctx {
         lease: Option<crate::pool::Lease>,
         connection: Box<dyn HeldConnection>,
     ) -> u64 {
-        self.open_connections.push(OpenConnection {
-            memo,
-            lease,
-            connection: Some(connection),
-            enqueued_under: None,
-            timeout: None,
-        });
-        // The index, one-based, so that a handle slot never holds a key a
-        // zeroed value could be mistaken for.
-        self.open_connections.len() as u64
+        let key = next_handle_key();
+        self.open_connections.push((
+            key,
+            OpenConnection {
+                memo,
+                lease,
+                connection: Some(connection),
+                enqueued_under: None,
+                timeout: None,
+            },
+        ));
+        key
     }
 
     /// The connection `key` names, borrowed for one statement, or `None` for a
@@ -713,19 +732,13 @@ impl Ctx {
     /// caller needs to, because they are a paste error in the caller's own
     /// crate and a program's `close`-then-use respectively.
     pub fn open_connection_mut(&mut self, key: u64) -> Option<&mut dyn HeldConnection> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_connections
-            .get_mut(index)?
-            .connection
-            .as_deref_mut()
+        self.open_connection_entry(key)?.connection.as_deref_mut()
     }
 
     /// Whether `key` names an entry this request filed at all, open or closed.
     #[must_use]
     pub fn connection_is_filed(&self, key: u64) -> bool {
-        key.checked_sub(1)
-            .and_then(|index| usize::try_from(index).ok())
-            .is_some_and(|index| index < self.open_connections.len())
+        filed_at(&self.open_connections, key).is_some()
     }
 
     /// Releases the connection `key` names, answering whether it was still
@@ -745,10 +758,7 @@ impl Ctx {
     /// mistake a program can only have made on purpose. The entry itself stays,
     /// per [`OpenConnection::connection`].
     pub fn close_open_connection(&mut self, key: u64) -> bool {
-        let Some(index) = key.checked_sub(1).and_then(|at| usize::try_from(at).ok()) else {
-            return false;
-        };
-        let Some(held) = self.open_connections.get_mut(index) else {
+        let Some(held) = self.open_connection_entry(key) else {
             return false;
         };
         let Some(connection) = held.connection.take() else {
@@ -773,8 +783,8 @@ impl Ctx {
     pub fn memoized_connection(&self, memo: &str) -> Option<u64> {
         self.open_connections
             .iter()
-            .position(|held| held.memo.as_deref() == Some(memo) && held.connection.is_some())
-            .map(|index| index as u64 + 1)
+            .find(|(_, held)| held.memo.as_deref() == Some(memo) && held.connection.is_some())
+            .map(|(key, _)| *key)
     }
 
     /// Records that a job was enqueued on connection `key` while `open`
@@ -847,15 +857,15 @@ impl Ctx {
     /// where nothing named one.
     #[must_use]
     pub fn connection_timeout(&self, key: u64) -> Option<std::time::Duration> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_connections.get(index)?.timeout
+        let index = filed_at(&self.open_connections, key)?;
+        self.open_connections.get(index)?.1.timeout
     }
 
     /// The entry `key` names, open or closed, or `None` for a key this request
     /// never filed.
     fn open_connection_entry(&mut self, key: u64) -> Option<&mut OpenConnection> {
-        let index = usize::try_from(key.checked_sub(1)?).ok()?;
-        self.open_connections.get_mut(index)
+        let index = filed_at(&self.open_connections, key)?;
+        self.open_connections.get_mut(index).map(|(_, held)| held)
     }
 
     /// Records a directory `Core\IO::temporaryDir` has just created for this

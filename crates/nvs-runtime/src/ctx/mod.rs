@@ -1575,10 +1575,10 @@ pub struct Ctx {
     snapshot_mismatches: Vec<SnapshotMismatch>,
     /// The isolates this request has started and not yet awaited, by the key
     /// its `Core\Script\Handle` carries — see [`Ctx::hold_started_script`].
-    started_scripts: Vec<Option<Box<dyn crate::host::Running>>>,
+    started_scripts: Vec<(u64, Option<Box<dyn crate::host::Running>>)>,
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
-    open_files: Vec<Option<std::fs::File>>,
+    open_files: Vec<(u64, Option<std::fs::File>)>,
     /// The children this task has spawned, by the key its `Core\Process\Handle`
     /// carries — see [`Ctx::hold_spawned_child`], and [`HeldChild`] for the
     /// kill that makes none of them outlive this context.
@@ -1586,15 +1586,15 @@ pub struct Ctx {
     /// The sockets this request has opened and not yet closed, by the key its
     /// `Core\Net\Stream` or `Core\Net\Listener` carries — see
     /// [`Ctx::hold_open_socket`].
-    open_sockets: Vec<Option<Box<dyn HeldSocket>>>,
+    open_sockets: Vec<(u64, Option<Box<dyn HeldSocket>>)>,
     /// The streamed reply bodies this request is still reading, by the key its
     /// `Core\Http\Stream` — and then the one walk that took the body — carries;
     /// see [`Ctx::hold_open_reader`].
-    open_readers: Vec<Option<Box<dyn HeldReader>>>,
+    open_readers: Vec<(u64, Option<Box<dyn HeldReader>>)>,
     /// The database connections this request has opened, each with the
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
-    open_connections: Vec<OpenConnection>,
+    open_connections: Vec<(u64, OpenConnection)>,
     /// The temporary directories `Core\IO::temporaryDir` has handed this script,
     /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
     /// `rule:core-classes/temporary-dir-sweep` for the sweep that reads it.
@@ -1789,7 +1789,7 @@ impl Drop for Ctx {
         // and took its lease with it.
         if !self.open_connections.is_empty() {
             let now = std::time::Instant::now();
-            for held in std::mem::take(&mut self.open_connections) {
+            for (_, held) in std::mem::take(&mut self.open_connections) {
                 let Some(connection) = held.connection else {
                     continue;
                 };

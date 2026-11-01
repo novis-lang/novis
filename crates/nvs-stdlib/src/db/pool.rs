@@ -292,7 +292,8 @@ pub(super) fn filed_connection<'a>(
     }
     let filed = ctx.open_connection_mut(key).ok_or_else(|| {
         Fault::fatal(format!(
-            "{named}: no connection is filed under the key {key}"
+            "`{named}` was called on a connection from another task. A connection works only \
+             in the task that called `Core\\Db::connect`."
         ))
     })?;
     filed

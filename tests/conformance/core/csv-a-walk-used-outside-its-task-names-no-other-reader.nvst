@@ -1,0 +1,36 @@
+--TEST--
+A `Core\Csv::rows` walk that a child task returns names no reader in the task that receives it, so reading it there stops the program and never reaches the task's own walk at the same position
+--FILE--
+<?nvs
+// covers: Core\Csv::rows
+// A task returns a CSV walk, and reading it outside the task stops the program.
+// Before that, the program's own walk reads its own file.
+
+Core\IO\File $out = Core\IO::open("own.csv", Core\IO::FileMode::Write);
+$out->write("own,row\n");
+$out->close();
+Core\IO\File $in = Core\IO::open("own.csv", Core\IO::FileMode::Read);
+var $own = Core\Csv::rows($in);
+
+var $result = Core\Task::all({
+    rows: fn (): Core\Csv\Rows => {
+        Core\IO\File $out = Core\IO::open("task.csv", Core\IO::FileMode::Write);
+        $out->write("task,row\n");
+        $out->close();
+        return Core\Csv::rows(Core\IO::open("task.csv", Core\IO::FileMode::Read));
+    },
+});
+foreach ($own as array<string> $record) {
+    echo "own: ", $record[0], "\n";
+}
+foreach ($result->rows as array<string> $record) {
+    echo "this line does not run\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+own: own
+--EXPECTF-ERROR--
+FATAL: A `Core\Csv\Rows` walk was read in a task other than the one that called `Core\Csv::rows`. A walk works only in that task.

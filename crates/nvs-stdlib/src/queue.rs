@@ -3443,8 +3443,8 @@ pub fn runs(driver: nvs_db::Driver) -> bool {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for a key the request's own table does not hold, which is this crate's paste
-/// error rather than a program's.
+/// A [`Fault::fatal`] for a key the request's own table does not hold: a connection a child task
+/// returned, since handle keys are unique in the process.
 fn queue_connection<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
     key: u64,
@@ -3452,7 +3452,8 @@ fn queue_connection<'a>(
 ) -> Result<Queued<'a>, Fault> {
     let filed = ctx.open_connection_mut(key).ok_or_else(|| {
         Fault::fatal(format!(
-            "{member}: no connection is filed under the key {key}"
+            "`{member}` was called on a connection from another task. A connection works only \
+             in the task that called `Core\\Db::connect`."
         ))
     })?;
     let connection = filed

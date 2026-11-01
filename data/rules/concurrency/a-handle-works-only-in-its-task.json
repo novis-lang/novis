@@ -1,0 +1,18 @@
+{
+  "title": "A handle names its resource only in the task that opened it, so one a child task returns reaches nothing of the task that receives it",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/a-child-belongs-to-the-calling-task",
+    "core-classes/process-spawn",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/ctx/held.rs",
+    "tests/conformance/core/io-file-a-handle-used-outside-its-task-names-no-other-file.nvst",
+    "tests/conformance/core/net-a-handle-used-outside-its-task-names-no-other-socket.nvst",
+    "tests/conformance/core/db-a-handle-used-outside-its-task-names-no-other-connection.nvst",
+    "tests/conformance/core/csv-a-walk-used-outside-its-task-names-no-other-reader.nvst",
+    "tests/conformance/isolate/a-handle-used-outside-its-task-names-no-other-script.nvst",
+    "tests/conformance/core/process-spawn-a-handle-used-outside-its-task-names-no-other-child.nvst"
+  ]
+}

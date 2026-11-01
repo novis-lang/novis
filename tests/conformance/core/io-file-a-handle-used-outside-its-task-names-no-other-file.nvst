@@ -1,0 +1,37 @@
+--TEST--
+A `Core\IO\File` that a child task returns names no file in the task that receives it, so reading it there throws and the task's own file at the same position is left alone
+--FILE--
+<?nvs
+// covers: Core\IO::open
+// A task returns an open file, and reading it outside the task throws an error.
+// The program's own file stays open and still reads its own text.
+
+Core\IO\File $own = Core\IO::open("own.txt", Core\IO::FileMode::Write);
+$own->write("own text");
+$own->close();
+Core\IO\File $mine = Core\IO::open("own.txt", Core\IO::FileMode::Read);
+
+var $result = Core\Task::all({
+    file: fn (): Core\IO\File => {
+        Core\IO\File $out = Core\IO::open("task.txt", Core\IO::FileMode::Write);
+        $out->write("task text");
+        $out->close();
+        return Core\IO::open("task.txt", Core\IO::FileMode::Read);
+    },
+});
+echo "the task returned its file\n";
+try {
+    echo $result->file->read(100), "\n";
+} catch (Throwable $e) {
+    echo "read outside the task: ", $e->message, "\n";
+}
+echo "own file: ", $mine->read(100), "\n";
+$mine->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECTF--
+the task returned its file
+read outside the task: Core\IO\File::read: this handle is closed — %stask.txt
+own file: own text

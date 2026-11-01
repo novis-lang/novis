@@ -1,0 +1,29 @@
+--TEST--
+A `Core\Db\Connection` that a child task returns names no connection in the task that receives it, so a statement on it there stops the program and never reaches the task's own connection at the same position — `rule:core-classes/db-connection-is-named`
+--FILE--
+<?nvs
+// covers: Core\Db::connect
+// A task returns a connection, and a statement on it outside the task stops the program.
+// Before that, the program's own connection reads its own table.
+
+var $own = Core\Db::connect("main");
+$own->execute("create table own (name text)", []);
+$own->execute("insert into own (name) values (?)", ["own row"]);
+
+var $result = Core\Task::all({
+    db: fn (): Core\Db\Connection => Core\Db::connect("main"),
+});
+echo "own rows: ", $own->query("select name from own", [])->count(), "\n";
+$result->db->query("select name from own", []);
+echo "this line does not run\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+own rows: 1
+--EXPECTF-ERROR--
+FATAL: `Core\Db\Connection::query` was called on a connection from another task. A connection works only in the task that called `Core\Db::connect`.

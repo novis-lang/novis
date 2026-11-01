@@ -693,9 +693,10 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] where the request holds no such reader. No case can reach
-/// it: a key is filed by [`super::filed`], moved by [`consumed`] and cleared in
-/// the same breath as the reader is taken out, and all three are this module's.
+/// A [`Fault::fatal`] where the task holds no such reader. A key is filed by
+/// [`super::filed`], moved by [`consumed`] and cleared in the same breath as the
+/// reader is taken out, and all three are this module's, so the one way to reach
+/// it is a stream a child task returned: handle keys are unique in the process.
 fn reader_at<'a>(
     ctx: &'a mut Ctx,
     key: u64,
@@ -705,9 +706,9 @@ fn reader_at<'a>(
         .and_then(|reader| reader.as_any_mut().downcast_mut::<transport::Incoming>())
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "{}::{} found no reply reader under the key in its `body` slot",
-                class.name,
-                nvs_runtime::sequence::ADVANCE
+                "A `{}` body was read in a task other than the one that started the request. \
+                 A body works only in that task.",
+                class.name
             ))
         })
 }

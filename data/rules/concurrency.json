@@ -4,6 +4,7 @@
   "rules": [
     "concurrency/one-scheduler",
     "concurrency/a-child-belongs-to-the-calling-task",
+    "concurrency/a-handle-works-only-in-its-task",
     "concurrency/on-worker-runs-the-child-on-another-core",
     "concurrency/all-answers-a-typed-shape",
     "concurrency/an-all-field-answers-what-its-callable-declares",

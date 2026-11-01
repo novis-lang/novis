@@ -1,0 +1,29 @@
+--TEST--
+A `Core\Net\Listener` that a child task returns names no socket in the task that receives it, so using it there throws and the task's own listener at the same position is left alone — `rule:core-classes/net-one-api-three-transports`
+--FILE--
+<?nvs
+// covers: Core\Net::listen
+// A task returns a listener, and using it outside the task throws an error.
+// The program's own listener stays open.
+
+var $own = Core\Net::listen("127.0.0.1", 0);
+var $result = Core\Task::all({
+    door: fn (): Core\Net\Listener => Core\Net::listen("127.0.0.1", 0),
+});
+echo "the task returned its listener\n";
+try {
+    echo $result->door->port(), "\n";
+} catch (RuntimeError $e) {
+    echo "used outside the task: ", $e->message, "\n";
+}
+echo "own listener has a port: ", $own->port() > 0 ? "yes" : "no", "\n";
+$own->close();
+--FILE nvs.toml--
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+the task returned its listener
+used outside the task: Core\Net\Listener::port: this handle is closed
+own listener has a port: yes

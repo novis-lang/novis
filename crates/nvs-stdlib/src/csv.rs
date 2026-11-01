@@ -1205,17 +1205,17 @@ fn not_text(path: &Value, line: u64) -> Fault {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] where the request holds no such reader. No program can
-/// reach it: the key is written by [`nvs_core_csv_rows`] and by nothing else,
-/// and a drained walk keeps its entry rather than giving it up.
+/// A [`Fault::fatal`] where the task holds no such reader. The key is written by
+/// [`nvs_core_csv_rows`] and by nothing else, and a drained walk keeps its entry
+/// rather than giving it up, so the one way to reach it is a walk a child task
+/// returned: handle keys are unique in the process.
 fn reader_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut RowReader, Fault> {
     ctx.open_reader_mut(key)
         .and_then(|reader| reader.as_any_mut().downcast_mut::<RowReader>())
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "{ROWS_NAME}::{} found no reader under the key in its `{}` slot",
-                nvs_runtime::sequence::ADVANCE,
-                ROWS.slots[ROWS_READER_AT]
+                "A `{ROWS_NAME}` walk was read in a task other than the one that called \
+                 `Core\\Csv::rows`. A walk works only in that task."
             ))
         })
 }

@@ -1,0 +1,34 @@
+--TEST--
+A `Core\Script\Handle` that a child task returns names no started script in the task that receives it, so `await` on it there throws and the task's own script at the same position is left alone — `rule:security/isolate-shares-nothing`
+--FILE nvs.toml--
+[capabilities.script]
+spawn = true
+--FILE own.nvs--
+<?nvs
+echo "from the own script";
+--FILE task.nvs--
+<?nvs
+echo "from the task's script";
+--FILE--
+<?nvs
+// covers: lang:concurrency/isolates-spawn-script-and-await
+// A task returns a script handle, and `await` on it outside the task throws an error.
+// The program's own script is still waiting for its own `await`.
+
+var $own = spawn script "own.nvs" with(output: "capture");
+var $result = Core\Task::all({
+    job: fn (): Core\Script\Handle => spawn script "task.nvs" with(output: "capture"),
+});
+echo "the task returned its handle\n";
+try {
+    var $taken = await $result->job;
+    echo "this line does not run\n";
+} catch (LogicError $e) {
+    echo "used outside the task: ", $e->message, "\n";
+}
+var $done = await $own;
+echo "own output: ", $done->output, "\n";
+--EXPECT--
+the task returned its handle
+used outside the task: `await` was given a handle a previous `await` already collected
+own output: from the own script
