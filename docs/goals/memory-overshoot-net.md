@@ -163,6 +163,12 @@ the limit, such as `Core\Regex::compile`, gets the attack that ends at `FATAL`.
 - **Bounds where the text is kept or handed on.** A metric name, label name or label value past
   1 KiB throws a `LogicError` (`KEY_BYTES`), because a core keeps its series for the life of the
   process. A debug sink path past 32 KiB throws (`PATH_BYTES`), because no system opens one.
+- **A path or host the operator pastes is written whole up to 32 KiB.** Stage 5 found that cutting a
+  capability denial's path at 64 bytes made its text depend on the length of the temp directory, and
+  the help line copied the whole directory anyway. A denial writes a scope within `SCOPE_BYTES`
+  (32 KiB, `crates/nvs-runtime/src/capability.rs`) whole in both lines. A longer one is cut through
+  `quoted` and has no help line, because no grant could name it. A debug sink's failed create writes
+  its path whole, because `PATH_BYTES` already bounds it. Cost: one length comparison per denial.
 - **A regex parse is asked for in front.** `compile_cost` asks 128 bytes per pattern byte and 32 KiB
   per Unicode class escape, on a cache miss only. Cost: a 500 KiB pattern asks 64 MiB, which a
   default request still affords.

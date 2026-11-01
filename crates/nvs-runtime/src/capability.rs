@@ -311,6 +311,10 @@ fn own_file(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
             .is_some_and(|at| ctx.owns_file(&at))
 }
 
+/// The longest path or host a denial writes whole, in bytes: the longest path Windows opens is
+/// 32767 UTF-16 units, no other system opens a longer one, and a host name is at most 253 bytes.
+const SCOPE_BYTES: usize = 32 << 10;
+
 /// `rule:security/denial-is-a-runtime-error`'s message. The capability's name comes first after the member because the reader is usually
 /// the operator, and that string is what they are about to paste into a configuration file.
 ///
@@ -325,19 +329,33 @@ fn own_file(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
 /// by a program rather than by the floor, and a help line the floor owned would be absent from
 /// exactly the path — `catch`, then log `$e->message` — that an operator debugs from. The price is
 /// that a program comparing `$e->message` against a literal compares two lines.
+///
+/// **A path or host past [`SCOPE_BYTES`] is cut and has no help line.** Both lines copy the scope,
+/// so an 8 MiB path would hold its own size several times over inside the message's `format!`.
+/// No grant could name such a scope, so the help line is dropped and the subject quotes it through
+/// [`crate::quoted`]. A scope within the bound is written whole, because it is the text the
+/// operator pastes. **What it spends:** one length comparison per denial.
 fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
     let name = cap.name();
+    let text = match scope {
+        Scope::Path(path) => Some(path.to_string_lossy()),
+        Scope::Host(host) | Scope::Name(host) => Some(std::borrow::Cow::Borrowed(host)),
+        Scope::Unscoped | Scope::Endpoint(_) => None,
+    };
+    if let Some(text) = text.filter(|text| text.len() > SCOPE_BYTES) {
+        return format!(
+            "{member} needs the capability `{name}` for {}, which is not granted",
+            crate::quoted(&text)
+        );
+    }
     let subject = match scope {
         Scope::Unscoped => format!("{member} needs the capability `{name}`, which is not granted"),
         Scope::Path(path) => format!(
             "{member} needs the capability `{name}` for {}, which is not granted",
-            crate::quoted(&path.to_string_lossy())
+            path.display()
         ),
         Scope::Host(host) | Scope::Name(host) => {
-            format!(
-                "{member} needs the capability `{name}` for {}, which is not granted",
-                crate::quoted(host)
-            )
+            format!("{member} needs the capability `{name}` for {host}, which is not granted")
         }
         Scope::Endpoint(endpoint) => {
             format!("{member} needs the capability `{name}` for {endpoint}, which is not granted")
@@ -1749,9 +1767,9 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::{
-        Access, Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, copy, create, exec,
-        granted, install_resolver, open, open_read, pin_host, pin_host_addresses, rename, require,
-        shell_target, temp_dir, working_dir, write,
+        Access, Cap, Ctx, Fault, PINNED_ADDRESSES, Path, SCOPE_BYTES, Scope, ThrownClass, copy,
+        create, denial, exec, granted, install_resolver, open, open_read, pin_host,
+        pin_host_addresses, rename, require, shell_target, temp_dir, working_dir, write,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -2085,6 +2103,24 @@ mod tests {
         let found = working_dir(&ctx, "Core\\Path::fromCwd").expect("no request is being answered");
         assert!(found.is_absolute(), "{}", found.display());
         assert!(found.is_dir(), "{}", found.display());
+    }
+
+    /// A path past the scope bound is cut in the subject and has no help line, and a long path
+    /// within the bound is written whole in both lines.
+    #[test]
+    fn a_scope_past_the_bound_is_cut_and_has_no_help_line() {
+        let long = format!("/srv/{}/x.txt", "d".repeat(SCOPE_BYTES));
+        let cut = denial(Cap::FsRead, Scope::Path(Path::new(&long)), "Core\\IO::read");
+        assert!(cut.len() < crate::QUOTED_BYTES + 120, "{cut}");
+        assert!(cut.contains('…') && !cut.contains("help:"), "{cut}");
+        let within = format!("/srv/{}/x.txt", "d".repeat(200));
+        let whole = denial(
+            Cap::FsRead,
+            Scope::Path(Path::new(&within)),
+            "Core\\IO::read",
+        );
+        assert!(whole.contains(&format!("for {within}, which")), "{whole}");
+        assert!(whole.contains("\nhelp: add `read = "), "{whole}");
     }
 
     /// The line above it does not move. Every scope's wording, character for character, because the

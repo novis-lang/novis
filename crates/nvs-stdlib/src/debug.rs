@@ -517,7 +517,8 @@ const PATH_BYTES: usize = 32 << 10;
 
 /// `startTrace` and `startProfile`'s shared door: the probe under the ceiling, the path under its
 /// own grant, and no second start while a sink is named. A path past [`PATH_BYTES`] throws
-/// first. The grant is asked next, so a path outside it throws whatever the mode says.
+/// first. The grant is asked next, so a path outside it throws whatever the mode says. A path
+/// that passes is short enough that a message quotes it whole.
 ///
 /// **What it spends:** one path per running sink, until its stop.
 fn start_sink(
@@ -632,7 +633,7 @@ nvs_runtime::nvs_helper! {
                 ctx.stop_probes(DebugFlags::TRACE);
                 Err(Fault::thrown(format!(
                     "Core\\Debug::startTrace cannot create `{}`: {err}.",
-                    nvs_runtime::quoted(&path.to_string_lossy())
+                    path.display()
                 )))
             }
         }
@@ -683,8 +684,7 @@ nvs_runtime::nvs_helper! {
             Err(err) => {
                 ctx.stop_probes(DebugFlags::PROFILE);
                 Err(Fault::thrown(format!(
-                    "Core\\Debug::startProfile cannot create `{}`: {err}.",
-                    nvs_runtime::quoted(&label)
+                    "Core\\Debug::startProfile cannot create `{label}`: {err}."
                 )))
             }
         }
