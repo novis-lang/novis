@@ -21,7 +21,7 @@ stages:
     status: done
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: test-ceiling
@@ -262,45 +262,31 @@ gets an attack step that ends at `FATAL` within the bound.
 **Does:** the stages before this one checked with a build alone, so this stage verifies the
 whole goal once and fixes every failure in one pass.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 fixed all 20 findings in five commits: `af0a41b8d` (the
-`nvs_runtime::quoted` helper, and capability denials quote through it), `ceedcd93b` (the regex parse
-ask, and `Match::group`), `d2b961333` (seven members quote their argument), `6515b4efd` (metric key
-bound) and `59b93297b` (debug sink path bound). The standing decision *A fix that removes a copy gets an
-attack that throws* records why and what each costs.
+**The goal is reached.** The gate found two faults, both fixed. `1eaa5d684` renders
+`docs/rules/observability.md` after the metric key bound. `4df0ce9fb` writes a capability denial's
+path or host whole up to `SCOPE_BYTES` (32 KiB), because 22 conformance cases compared a path the
+64-byte cut made depend on the temp directory. A longer scope is cut and has no help line, and
+`a_scope_past_the_bound_is_cut_and_has_no_help_line` passes.
 
-The full `bun nv proofs --probe` is green: **0 red of 555 run in 68 s**, 459 skipped, 27 not built,
-15 did not compile (listed, not red, as before). `bun nv proofs --overshoot` is 0 red of 246, and the
-new regex attack stops at 0.97x. The 14 new attacks under `tests/hostile/core/` (each named
-`02-an-8-mib-…` or `02-a-4-mib-…`) pass `bun nv proofs --run` and `--comments`. Two new Rust tests
-ran once by name and pass: `a_quoted_argument_is_cut_on_a_character_boundary` (abi.rs),
-`a_metric_name_past_the_key_bound_throws_without_quoting_it` (metrics.rs). No full test run was made.
+The second verify run is green, and so are `bun nv verify --doc`, `bun nv owners --closes
+memory-overshoot-net` and `bun nv ci --check`. `81c6aa15a` measures again the members stage 4
+changed, and the three `Core\Command` benches declare `calls 1`, as every record of them shows.
+`bun nv proofs --probe` is 0 red of 555. The probe's design is in `tools/nv/proofs/probe.ts`'s header.
 
-The acceptance sweep's reds are not tree faults. `env-secret-proofs` has no definition in the tree, and
-its log does not exist: it is stale state in looper's service. Nightly run 41187571578 ran on
-`857b39cad`, before the fixes `39795c9c4`, `bfce9c2d2`, `593b6c565` and `8ce92dda5`.
-
-**Tests that may go red in the gate:** any test or `.out` that asserts the full text of an error now
-quoted through `quoted`, whose argument is past 64 bytes. The likeliest are capability-denial tests
-that compare a long absolute path (`crates/nvs-runtime/src/capability.rs:328`), and tests of the seven
-members' messages with a long input. A fix changes the assertion to the cut text, never the bound.
-A regex test that compiles a pattern past 1 MiB inside a context with a ceiling would now hit the
-`compile_cost` ask (`crates/nvs-stdlib/src/regex.rs`, `compile_cost`).
+The installed `looper` has no `verify` subcommand, so the gate ran `bun tools/looper/main.ts verify`.
+The sweep's reds were stale: nightly run 41187571578 ran on `857b39cad`, and `env-secret-proofs` has
+no definition in the tree. **Tests expected to go red:** none.
 
 ### Next
 
-Stage 5, the gate. Start `looper verify` with `run_in_background`, end the turn, and fix every failure
-it names in one pass, then verify once more. Then the goal-end gates from AGENTS.md § *In the loop*:
-`bun nv verify --doc`, `bun nv owners --closes memory-overshoot-net`, `bun nv ci --check`. Before
-`DONE`, move each decision only this file holds into a module doc or rule: the quoting rule belongs in
-`crates/nvs-runtime/src/abi.rs`'s `quoted` doc (already there), and the probe's design in
-`tools/nv/proofs/probe.ts`'s header.
+Nothing. The driver retires this goal, and `limits-within-one-call` is next on the chain.
 
 ### Backlog

@@ -29,6 +29,13 @@
 // mail, a shared store, the terminal or the host, or that sleep: `PROBE_SKIPS`, each with its reason.
 // `memory-ceiling-holes`'s attacks cover those readers. A class outside `Core\` is a component's, and
 // is not probed.
+//
+// A reading past the bound is red, and so are a program the host killed and a runtime crash. What is not
+// a reading is listed and never red: a parameter not built, a program that does not compile, a factory
+// that throws. A memory `FATAL` ends a program, so a run a limit stopped within the bound runs again from
+// its next step, at the cost of one process per stop. The bound is never raised to make a member pass:
+// a member past it is fixed at its site, through `NvsArray`, `ByteWriter`, `StrWriter`, `affords` or
+// `nvs_runtime::quoted`, and gets an attack.
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
