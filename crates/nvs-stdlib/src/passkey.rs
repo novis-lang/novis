@@ -147,6 +147,15 @@ const ATTESTED: u8 = 0x40;
 /// The authenticator data's flag for an extensions map at its end.
 const EXTENSIONS: u8 = 0x80;
 
+/// How deeply an attestation object, a public key or the extensions may nest
+/// before the CBOR reader stops with an error.
+///
+/// The deepest a WebAuthn response nests is about four levels: the attestation
+/// statement's certificate list inside its map. `ciborium`'s own default is
+/// 256, one native frame per level, and the client picks the depth. 16 keeps
+/// every real response and bounds the reader's stack by the response's shape.
+const CBOR_DEPTH: usize = 16;
+
 /// The slots of a [`CREDENTIAL`], in order.
 const ID_SLOT: usize = 0;
 /// The credential's COSE key.
@@ -841,7 +850,8 @@ fn client_data(encoded: &[u8], kind: &str, challenge: &[u8], origin: &str) -> Re
 fn attestation_auth_data(object: &[u8]) -> Result<Vec<u8>, String> {
     let not_one = || "the attestation object is not a WebAuthn attestation object.".to_owned();
     let mut reader = object;
-    let value: Cbor = ciborium::de::from_reader(&mut reader).map_err(|_| not_one())?;
+    let value: Cbor = ciborium::de::from_reader_with_recursion_limit(&mut reader, CBOR_DEPTH)
+        .map_err(|_| not_one())?;
     if !reader.is_empty() {
         return Err(not_one());
     }
@@ -922,10 +932,11 @@ fn attested<'a>(auth: &AuthData<'a>) -> Result<Attested<'a>, String> {
     // key's own octets.
     let not_cbor = || "the passkey's public key is not CBOR.".to_owned();
     let mut reader = after;
-    let _: Cbor = ciborium::de::from_reader(&mut reader).map_err(|_| not_cbor())?;
+    let _: Cbor = ciborium::de::from_reader_with_recursion_limit(&mut reader, CBOR_DEPTH)
+        .map_err(|_| not_cbor())?;
     let key = &after[..after.len() - reader.len()];
     if auth.flags & EXTENSIONS != 0 {
-        let _: Cbor = ciborium::de::from_reader(&mut reader)
+        let _: Cbor = ciborium::de::from_reader_with_recursion_limit(&mut reader, CBOR_DEPTH)
             .map_err(|_| "the authenticator data's extensions are not CBOR.".to_owned())?;
     }
     if !reader.is_empty() {

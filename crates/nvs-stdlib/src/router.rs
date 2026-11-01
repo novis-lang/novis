@@ -1661,11 +1661,7 @@ fn signed_payload(
 /// one `url` would have refused too. The fatal of
 /// [`nvs_runtime::Ctx::native_stack_step`], for a `$params` nested deep enough
 /// to reach the stack's floor: nothing caps the depth, so each level asks first.
-fn written_form(
-    ctx: &nvs_runtime::Ctx,
-    params: &Value,
-    member: &str,
-) -> Result<NvsArray, Fault> {
+fn written_form(ctx: &nvs_runtime::Ctx, params: &Value, member: &str) -> Result<NvsArray, Fault> {
     ctx.native_stack_step()?;
     // Unreachable from source: the row declares `array<mixed>`, so `E0401`
     // refuses anything else before this body runs.

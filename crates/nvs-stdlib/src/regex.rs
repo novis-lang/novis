@@ -1237,7 +1237,10 @@ fn build(
     if prepared == Some(Tier::Backtracking) {
         return backtracking(pattern, &spelled, budget);
     }
-    match regex::Regex::new(&spelled) {
+    match regex::RegexBuilder::new(&spelled)
+        .nest_limit(NEST_LIMIT)
+        .build()
+    {
         Ok(linear) => Ok(Compiled::Linear(linear)),
         Err(regex::Error::Syntax(_)) => backtracking(pattern, &spelled, budget),
         Err(limit) => Err(format!(
@@ -1246,6 +1249,15 @@ fn build(
         )),
     }
 }
+
+/// How deeply [`build`]'s linear engine lets a pattern nest groups and
+/// repetitions.
+///
+/// `regex-syntax`'s own default, 250 in 0.8, written here so an upgrade cannot
+/// move it. The limit bounds the passes over the syntax tree that recurse. A
+/// pattern nested deeper is a syntax error there, and the backtracking engine
+/// reads it next, whose parser stops at 64 levels (`fancy-regex` 0.19).
+const NEST_LIMIT: u32 = 250;
 
 /// What a parse of `pattern` may allocate, at most, which [`compiled_prepared`]
 /// asks the request's memory ceiling for in front of [`build`].
