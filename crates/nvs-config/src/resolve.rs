@@ -38,7 +38,7 @@
 //!
 
 use std::collections::BTreeMap;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, SourceId, SourceMap, code};
 
@@ -1074,23 +1074,10 @@ pub(crate) fn absolute(base: &Path, path: &Path) -> PathBuf {
     }
 }
 
-/// `.` dropped and `..` resolved lexically, with no filesystem access.
-///
-/// A `..` with nothing to pop is kept rather than discarded: dropping it would turn `../etc/nvs.toml`
-/// into `etc/nvs.toml` and read a different file than the operator wrote.
+/// [`nvs_diagnostics::lexical_normalize`], with `.` for a path that normalizes to nothing, so the
+/// result is always a path that can be joined and displayed.
 fn normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    out.push("..");
-                }
-            }
-            other => out.push(other.as_os_str()),
-        }
-    }
+    let mut out = nvs_diagnostics::lexical_normalize(path);
     if out.as_os_str().is_empty() {
         out.push(".");
     }

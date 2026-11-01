@@ -45,8 +45,10 @@
 //! beside the executable afterwards is no part of the program.
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
+use crate::lexical_normalize as normalize;
 
 /// One bundled program's files, keyed by the synthetic path they resolve at.
 #[derive(Debug)]
@@ -214,23 +216,6 @@ pub fn on_disk(dir: &Path) -> Option<PathBuf> {
     let rest = rest.strip_prefix(&payload.root).ok()?;
     let beside = payload.root.parent()?;
     Some(beside.join(rest))
-}
-
-/// `.` dropped and `..` popped, with no filesystem access.
-fn normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for part in path.components() {
-        match part {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    out.push(Component::ParentDir);
-                }
-            }
-            other => out.push(other),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

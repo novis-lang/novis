@@ -707,11 +707,5 @@ pub(crate) struct Env<'a> {
     pub spawn_entry_args: FxHashSet<Span>,
 }
 
-pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {
-    src.span_text(span).unwrap_or_default()
-}
-
-/// Strips a variable's leading `$` sigil, if present.
-pub(crate) fn strip_sigil(s: &str) -> &str {
-    s.strip_prefix('$').unwrap_or(s)
-}
+pub(crate) use nvs_diagnostics::span_text;
+pub(crate) use nvs_syntax::strip_sigil;

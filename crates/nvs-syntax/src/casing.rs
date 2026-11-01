@@ -62,7 +62,7 @@
 //! acts on it" reasoning their own AST doc comments give for not inspecting
 //! them further covers their casing too.
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code, span_text};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AttributeGroup, CallArgs, ClassMember, ClassMemberKind,
@@ -80,10 +80,6 @@ use crate::ast::{
 /// [`crate::parse_file`].
 pub fn check_declarations(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) {
     check_stmts(stmts, src, diags);
-}
-
-fn span_text(src: &SourceFile, span: Span) -> &str {
-    src.span_text(span).unwrap_or_default()
 }
 
 // ============================================================================
@@ -205,7 +201,9 @@ fn suggest_screaming_snake(name: &str) -> String {
         .join("_")
 }
 
-fn strip_sigil(text: &str) -> &str {
+/// `text` without a variable's leading `$`, if it has one.
+#[must_use]
+pub fn strip_sigil(text: &str) -> &str {
     text.strip_prefix('$').unwrap_or(text)
 }
 

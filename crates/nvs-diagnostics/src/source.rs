@@ -295,6 +295,14 @@ pub struct SourceMap {
 /// What a snippet prints for each character of a concealed literal.
 pub const MASK: char = '*';
 
+/// The source text `span` covers in `src`, or `""` for a span of another file
+/// or one out of bounds. The callers that read a name from a node of a file
+/// they parsed use this, since an empty name there is never a match.
+#[must_use]
+pub fn span_text(src: &SourceFile, span: Span) -> &str {
+    src.span_text(span).unwrap_or_default()
+}
+
 /// The form a path is keyed and compared under.
 ///
 /// `std::fs::canonicalize` where the path resolves, and the path itself where

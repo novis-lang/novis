@@ -641,14 +641,5 @@ pub use nvs_types::consts::ConstValue;
 pub use nvs_types::layout::MethodEntry;
 pub use ty::Ty;
 
-use nvs_diagnostics::{SourceFile, Span};
-
-pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {
-    src.span_text(span).unwrap_or_default()
-}
-
-/// Strips a variable's leading `$` sigil, if present — the same idiom
-/// `nvs-types` uses.
-pub(crate) fn strip_sigil(s: &str) -> &str {
-    s.strip_prefix('$').unwrap_or(s)
-}
+pub(crate) use nvs_diagnostics::span_text;
+pub(crate) use nvs_syntax::strip_sigil;

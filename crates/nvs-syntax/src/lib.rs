@@ -111,7 +111,7 @@ pub mod visit;
 pub mod walk;
 pub mod written;
 
-pub use casing::check_declarations;
+pub use casing::{check_declarations, strip_sigil};
 pub use index::{IndexNode, NodePath, SyntaxIndex};
 pub use lexer::{Lexer, OPEN_TAGS, first_open_tag, tokenize};
 pub use parser::{

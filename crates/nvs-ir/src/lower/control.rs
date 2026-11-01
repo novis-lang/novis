@@ -147,9 +147,9 @@ impl<'a> Lowering<'a> {
         let header_block = self.new_block();
         self.seal(pre_block, Terminator::Jump(header_block));
 
-        // Seed a phi for every pre-existing local the body might touch,
-        // carrying only the pre-loop incoming edge for now — the back edge
-        // is patched in once the body's exit environment is known, below.
+        // Seed a phi for every pre-existing local the body might touch. Each
+        // phi starts with the pre-loop incoming edge alone, and the back edge
+        // is added below, once the body's exit environment is known.
         let mut header_env = env.clone();
         let mut phi_slots: Vec<(String, usize)> = Vec::new();
         for name in &reassigned {

@@ -84,7 +84,7 @@
 
 use std::path::{Component, Path, PathBuf, Prefix};
 
-use nvs_diagnostics::{Diagnostic, SourceFile, code};
+use nvs_diagnostics::{Diagnostic, SourceFile, code, lexical_normalize as normalize};
 use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
 use nvs_syntax::ast::{
@@ -422,22 +422,6 @@ fn without_verbatim(path: PathBuf) -> PathBuf {
     };
     let mut out = PathBuf::from(head);
     out.extend(parts);
-    out
-}
-
-/// `.` dropped and `..` taking away the folder before it, with no filesystem
-/// access. A `..` at a root is dropped, because a root has no parent.
-fn normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for part in path.components() {
-        match part {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                out.pop();
-            }
-            other => out.push(other),
-        }
-    }
     out
 }
 
