@@ -117,7 +117,7 @@
 //! a request that waits before it runs away: security and request isolation
 //! are paid for here with request-path latency, in that order of priority.
 //!
-//! [`Shared::sweep`] reads a core's clock and then each charge, on the walk it
+//! [`Shared::sweep_and_wait`] reads a core's clock and then each charge, on the walk it
 //! already makes, and a request whose charge has reached its ceiling is asked
 //! to stop through the handle beside it: `SafepointFlags::CPU_LIMIT` into the
 //! word compiled code polls, which is `rule:errors/on-limit`'s ceiling
@@ -927,7 +927,7 @@ impl Watchdog {
 
     /// Whether any watched core was answering its deadlines at the last sweep.
     ///
-    /// The read side of the episode [`Shared::sweep`] already keeps: a core
+    /// The read side of the episode [`Shared::sweep_and_wait`] already keeps: a core
     /// counts as wedged for exactly as long as its earliest deadline stays a
     /// margin in the past, and the entry recording that is cleared on the first
     /// sweep where it is not. So this costs a walk of the watched set, lags by
@@ -1303,13 +1303,9 @@ impl Shared {
     /// while a stop is one relaxed `fetch_or` into a word that cannot block, so
     /// handing it out to be made later would buy a core registering beside it
     /// nothing at all.
-    #[cfg(test)]
-    fn sweep(&self, now: Instant) -> Vec<Stall> {
-        self.sweep_and_wait(now).0
-    }
-
-    /// [`Self::sweep`], and how long the watchdog thread waits before the next
-    /// one: [`next_wait`] over the trees this sweep read.
+    ///
+    /// It also returns how long the watchdog thread waits before the next
+    /// pass: [`next_wait`] over the trees this pass read.
     fn sweep_and_wait(&self, now: Instant) -> (Vec<Stall>, Duration) {
         let mut state = lock(&self.state);
         let margin = self.margin;
@@ -1402,6 +1398,13 @@ impl Shared {
         }
         state.recount(&self.shed);
         (stalls, wait)
+    }
+
+    /// The stalls of one [`Self::sweep_and_wait`] pass, for the tests that do
+    /// not read the wait.
+    #[cfg(test)]
+    fn sweep(&self, now: Instant) -> Vec<Stall> {
+        self.sweep_and_wait(now).0
     }
 }
 
