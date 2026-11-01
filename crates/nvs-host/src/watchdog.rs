@@ -1060,7 +1060,10 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
         let shared = Arc::clone(shared);
         state.thread = std::thread::Builder::new()
             .name("nvs-watchdog".to_owned())
-            .spawn(move || watch(&shared))
+            .spawn(move || {
+                wake_on_time();
+                watch(&shared);
+            })
             .ok();
     }
     drop(state);
@@ -1437,6 +1440,79 @@ fn wake_for_lowered_ceiling() {
     });
 }
 
+/// Makes the calling thread, the watchdog's, wake from a timed wait on time.
+///
+/// macOS ends an ordinary thread's timed wait late by up to about three times
+/// its length, whatever the load and the thread's quality-of-service class.
+/// CI's macOS runner ended 25 ms waits 26 to 63 ms late at the median and up
+/// to 82 ms late, so one 50 ms wait between sweeps could last 200 ms, and a
+/// request ran up to 131 ms past its `[limits] cpu_time`. A time-constraint
+/// (real-time) thread's waits end about 0.1 ms late there, and 10 ms at worst.
+///
+/// The policy asks for 0.25 ms of CPU in each millisecond, which a sweep stays
+/// under. A sweep that runs longer is preempted like any thread, so it delays
+/// its own stops and no other thread's work.
+///
+/// What it spends: one system call per process, as the watchdog starts, and
+/// nothing on the request path. A refusal leaves the thread as it was. Linux
+/// and Windows end such a wait within their timer's resolution, so this does
+/// nothing there.
+#[cfg(target_os = "macos")]
+fn wake_on_time() {
+    let mut base = libc::mach_timebase_info { numer: 0, denom: 0 };
+    #[expect(
+        unsafe_code,
+        reason = "`mach_timebase_info` reads the ratio of mach time units to nanoseconds, which \
+                  `std` does not expose. The out-parameter is a stack struct of two `u32`s this \
+                  call owns exclusively."
+    )]
+    let read = unsafe { mach_timebase_info(&raw mut base) } == libc::KERN_SUCCESS;
+    if !read || base.numer == 0 {
+        return;
+    }
+    let per_millisecond = 1_000_000_u64 * u64::from(base.denom) / u64::from(base.numer);
+    let (Ok(constraint), Ok(flavor)) = (
+        u32::try_from(per_millisecond),
+        libc::thread_policy_flavor_t::try_from(libc::THREAD_TIME_CONSTRAINT_POLICY),
+    ) else {
+        return;
+    };
+    let mut policy = libc::thread_time_constraint_policy {
+        period: 0,
+        computation: constraint / 4,
+        constraint,
+        preemptible: 1,
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`thread_policy_set` is the mach call that sets a thread's scheduling policy, \
+                  and `std` has none. It names the calling thread, reads a stack struct this call \
+                  owns exclusively whose size `THREAD_TIME_CONSTRAINT_POLICY_COUNT` gives in \
+                  `integer_t`s, and reports a refusal in its return value."
+    )]
+    let _ = unsafe {
+        libc::thread_policy_set(
+            libc::pthread_mach_thread_np(libc::pthread_self()),
+            flavor,
+            (&raw mut policy).cast::<libc::integer_t>(),
+            libc::THREAD_TIME_CONSTRAINT_POLICY_COUNT,
+        )
+    };
+}
+
+#[cfg(target_os = "macos")]
+#[expect(
+    unsafe_code,
+    reason = "`libc` declares `mach_timebase_info` deprecated in favour of another crate, so it \
+              is declared here as `<mach/mach_time.h>` declares it."
+)]
+unsafe extern "C" {
+    fn mach_timebase_info(info: *mut libc::mach_timebase_info) -> libc::kern_return_t;
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wake_on_time() {}
+
 /// The shortest wait the watchdog thread makes, so a tree right at its ceiling
 /// does not keep the thread awake.
 const MIN_WAIT: Duration = Duration::from_millis(1);
@@ -1449,14 +1525,13 @@ const MIN_WAIT: Duration = Duration::from_millis(1);
 /// tree already past its ceiling has been stopped by this sweep, and leaves
 /// the wait at `interval`.
 ///
-/// Half, because a timed wait can end late by up to its own length: macOS
-/// defers a thread's timers by a share of their length, and CI's macOS
-/// runners stopped requests 103 to 131 ms past their `[limits] cpu_time` with
-/// the whole crossing as the wait. A wait of half ends no later than the
-/// crossing, and each sweep after it halves what is left, so the stop comes
-/// within about [`MIN_WAIT`] of the ceiling. What it spends: about six more
-/// sweeps for a request that runs to within one `interval` of its ceiling,
-/// and none for a request that stays further from it.
+/// Half, so a wait that ends late by up to its own length still ends no
+/// later than the crossing, and each sweep after it halves what is left: the
+/// stop comes within about [`MIN_WAIT`] of the ceiling. Windows rounds a wait
+/// up to its timer tick, and the watchdog thread's waits on macOS end up to
+/// 10 ms late even as a real-time thread ([`wake_on_time`]). What it spends:
+/// about six more sweeps for a request that runs to within one `interval` of
+/// its ceiling, and none for a request that stays further from it.
 fn next_wait(interval: Duration, trees: impl IntoIterator<Item = TreeSpend>) -> Duration {
     trees
         .into_iter()
@@ -2816,5 +2891,52 @@ mod tests {
     /// and never a wall interval, is what the spin waits on.
     fn burn_a_charge() {
         crate::cpuclock::burn_at_least(Duration::from_millis(20));
+    }
+
+    /// A thread set up as the watchdog's ends its timed waits close to when
+    /// they are due, which bounds how far past its `[limits] cpu_time` a
+    /// request runs between two sweeps. An ordinary macOS thread ends a 50 ms
+    /// wait 50 ms or more late, so this fails there before any attack does.
+    /// The median is held to the bound, so one wait a loaded runner delays
+    /// does not fail it. The figures go to stderr past the capture, for every
+    /// platform's CI log.
+    #[test]
+    fn the_watchdog_threads_timed_waits_end_on_time() {
+        const WAIT: Duration = Duration::from_millis(50);
+        const WAITS: usize = 9;
+        /// Above Windows' 15.6 ms timer tick, and under what macOS adds to an
+        /// ordinary thread's 50 ms wait.
+        const LATE: Duration = Duration::from_millis(30);
+
+        let mut late = std::thread::spawn(|| {
+            wake_on_time();
+            let gate = Mutex::new(());
+            let never = Condvar::new();
+            let mut held = lock(&gate);
+            let mut late = Vec::with_capacity(WAITS);
+            for _ in 0..WAITS {
+                let start = Instant::now();
+                held = never
+                    .wait_timeout(held, WAIT)
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .0;
+                late.push(start.elapsed().saturating_sub(WAIT));
+            }
+            late
+        })
+        .join()
+        .expect("the waiting thread panicked");
+        late.sort_unstable();
+        let median = late[WAITS / 2];
+        let worst = late[WAITS - 1];
+        let _ = writeln!(
+            std::io::stderr(),
+            "watchdog: {WAITS} waits of {WAIT:?} ended {median:?} late at the median, {worst:?} at worst"
+        );
+        assert!(
+            median < LATE,
+            "the watchdog thread's {WAIT:?} waits ended {median:?} late at the median, past \
+             {LATE:?}: a request would run that far past its CPU limit"
+        );
     }
 }
