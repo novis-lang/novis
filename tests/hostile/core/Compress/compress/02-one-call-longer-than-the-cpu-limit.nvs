@@ -1,0 +1,19 @@
+<?nvs
+// Attack: a request compresses 16 mebibytes of random bytes in one call. That
+// takes longer than its CPU-time limit of 300 ms, so the call should stop part
+// way through, at the limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// Random bytes do not compress well, so gzip works hard on every byte.
+bytes $noise = Core\Random::bytes(16777216);
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Compresses all of it in one call, and then once more.
+echo "step 2\n";
+while (true) {
+    Core\Compress::compress($noise, Core\Compress::Codec::Gzip);
+}

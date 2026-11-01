@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a request unpacks a small frame to 16 mebibytes, again and again.
+// The request has a CPU-time limit of 300 ms, so it should stop at that limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// The frame: one kibibyte of random bytes, repeated to 16 mebibytes. Gzip
+// packs it into far less, but not past the ratio limit of 1000.
+bytes $flat = Core\Bytes::repeat(Core\Random::bytes(1024), 16384);
+bytes $frame = Core\Compress::compress($flat, Core\Compress::Codec::Gzip);
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Unpacks the frame again and again. Each call is allowed, because its
+// output fits the limits on size.
+echo "step 2\n";
+while (true) {
+    Core\Compress::decompress($frame, Core\Compress::Codec::Gzip);
+}

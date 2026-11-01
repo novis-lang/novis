@@ -785,12 +785,71 @@ fn uint_of(args: &[Value], index: usize, member: &str, position: &str) -> Result
 // The codecs
 // ============================================================================
 
-/// `data` compressed under `codec`.
+/// `data` compressed under `codec`, with no request to poll: the tests' form
+/// of [`compress_polled`].
+#[cfg(test)]
+pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
+    encode(codec, Polled::new(data, None))
+}
+
+/// `data` compressed under `codec`, polling the request's deadline every
+/// [`POLL_EVERY`] octets of input. A passed deadline is the CPU or wall-time
+/// `FATAL`, naming `member`.
 ///
 /// Every backend here is driven whole rather than incrementally, which is what
 /// this module's *whole buffer* half means: the input is already a value the
 /// request holds, so there is no window to stream over that would hold less.
-pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
+pub(crate) fn compress_polled(
+    ctx: &Ctx,
+    codec: Codec,
+    data: &[u8],
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    let out = encode(codec, Polled::new(data, Some(ctx)))?;
+    nvs_runtime::poll_deadline(ctx, member)?;
+    Ok(out)
+}
+
+/// The most octets one read through a [`Polled`] reader passes, so the
+/// deadline is polled at least once per this many.
+///
+/// 256 KiB is under a millisecond of work for every codec here, so a call
+/// stops within about a millisecond of the deadline. Cost: one relaxed load
+/// per read, and a read is at most 256 KiB.
+const POLL_EVERY: usize = 256 << 10;
+
+/// A reader that polls the request's deadline before each read it passes on.
+///
+/// A passed deadline reads as the end of the input, never as an error,
+/// because the zstd encoder panics on a failed read. So the caller checks
+/// the deadline once more after the codec returns, and that check gives the
+/// `FATAL`. With no context it is the reader it wraps.
+struct Polled<'a, R> {
+    inner: R,
+    ctx: Option<&'a Ctx>,
+}
+
+impl<'a, R: Read> Polled<'a, R> {
+    fn new(inner: R, ctx: Option<&'a Ctx>) -> Self {
+        Self { inner, ctx }
+    }
+}
+
+impl<R: Read> Read for Polled<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let Some(ctx) = self.ctx else {
+            return self.inner.read(buf);
+        };
+        if ctx.deadline_expired() {
+            return Ok(0);
+        }
+        let want = buf.len().min(POLL_EVERY);
+        self.inner.read(&mut buf[..want])
+    }
+}
+
+/// The encoders behind [`compress_polled`], over `data`.
+fn encode<R: Read>(codec: Codec, data: R) -> Result<Vec<u8>, Fault> {
     let mut out = Vec::new();
     let wrote = match codec {
         Codec::Gzip => {
@@ -860,25 +919,53 @@ pub(crate) fn decompress_within(
     bound: Bound,
     member: &str,
 ) -> Result<Vec<u8>, Fault> {
+    decode(codec, data, bound, member, None)
+}
+
+/// [`decompress_within`] for a member that holds the request: the decoder
+/// polls the request's deadline every [`POLL_EVERY`] octets of output, and a
+/// passed deadline is the CPU or wall-time `FATAL`, naming `member`.
+pub(crate) fn decompress_polled(
+    ctx: &Ctx,
+    codec: Codec,
+    data: &[u8],
+    bound: Bound,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    let out = decode(codec, data, bound, member, Some(ctx));
+    nvs_runtime::poll_deadline(ctx, member)?;
+    out
+}
+
+/// The decoders behind [`decompress_within`] and [`decompress_polled`].
+fn decode(
+    codec: Codec,
+    data: &[u8],
+    bound: Bound,
+    member: &str,
+    ctx: Option<&Ctx>,
+) -> Result<Vec<u8>, Fault> {
     let ceiling = bound.output_ceiling(data.len());
     let stop = usize::try_from(ceiling.saturating_add(1)).unwrap_or(usize::MAX);
     let mut out = Vec::new();
     let read = match codec {
-        Codec::Gzip => flate2::read::GzDecoder::new(data)
+        Codec::Gzip => Polled::new(flate2::read::GzDecoder::new(data), ctx)
             .take(stop as u64)
             .read_to_end(&mut out),
-        Codec::Zlib => flate2::read::ZlibDecoder::new(data)
+        Codec::Zlib => Polled::new(flate2::read::ZlibDecoder::new(data), ctx)
             .take(stop as u64)
             .read_to_end(&mut out),
-        Codec::Deflate => flate2::read::DeflateDecoder::new(data)
+        Codec::Deflate => Polled::new(flate2::read::DeflateDecoder::new(data), ctx)
             .take(stop as u64)
             .read_to_end(&mut out),
-        Codec::Brotli => brotli::Decompressor::new(data, 4096)
+        Codec::Brotli => Polled::new(brotli::Decompressor::new(data, 4096), ctx)
             .take(stop as u64)
             .read_to_end(&mut out),
         Codec::Zstd => {
             match ruzstd::decoding::StreamingDecoder::new_with_max_window_size(data, ZSTD_WINDOW) {
-                Ok(decoder) => decoder.take(stop as u64).read_to_end(&mut out),
+                Ok(decoder) => Polled::new(decoder, ctx)
+                    .take(stop as u64)
+                    .read_to_end(&mut out),
                 Err(ruzstd::decoding::errors::FrameDecoderError::WindowSizeTooBig {
                     requested,
                     ..
@@ -1076,10 +1163,15 @@ nvs_runtime::nvs_helper! {
     /// Total for every input and every case, which is why the card carries no
     /// errors: a compressor's output is bounded by its input, so there is
     /// nothing here for a bound to be about.
-    fn nvs_core_compress_compress(_ctx, args: [2]) {
+    fn nvs_core_compress_compress(ctx, args: [2]) {
         let data = data_of(args, 0, NAME, "compress")?;
         let codec = codec_of(args, 1, "compress")?;
-        Ok(Value::bytes(NvsStr::new(&compress_to(codec, data)?)))
+        Ok(Value::bytes(NvsStr::new(&compress_polled(
+            ctx,
+            codec,
+            data,
+            "Core\\Compress::compress()",
+        )?)))
     }
 }
 
@@ -1102,7 +1194,8 @@ nvs_runtime::nvs_helper! {
             ratio: uint_of(args, 3, "decompress", "`$maxRatio`")?,
         };
         let bound = Bound::ceiling(ctx).within(asked);
-        Ok(Value::bytes(NvsStr::new(&decompress_within(
+        Ok(Value::bytes(NvsStr::new(&decompress_polled(
+            ctx,
             codec,
             data,
             bound,
@@ -1334,14 +1427,19 @@ nvs_runtime::nvs_helper! {
     /// `$compressor->finish(): bytes` — replacing the `ZLIB_FINISH` call every
     /// `deflate_add` sequence ends with, and answering the same octets
     /// [`nvs_core_compress_compress`] would over the concatenation.
-    fn nvs_core_compress_compressor_finish(_ctx, args: [1]) {
+    fn nvs_core_compress_compressor_finish(ctx, args: [1]) {
         let (receiver, codec) = open_stream(args[0], &COMPRESSOR, "finish")?;
         let data = concatenated(receiver, &COMPRESSOR, "finish")?;
         close(receiver);
         let Some(data) = data else {
             return Ok(Value::bytes(NvsStr::new(b"")));
         };
-        Ok(Value::bytes(NvsStr::new(&compress_to(codec, &data)?)))
+        Ok(Value::bytes(NvsStr::new(&compress_polled(
+            ctx,
+            codec,
+            &data,
+            "Core\\Compress\\Compressor::finish()",
+        )?)))
     }
 }
 
@@ -1360,7 +1458,7 @@ nvs_runtime::nvs_helper! {
     /// bound the stream's: the ratio half is measured against everything `add`
     /// was handed and the byte half against one ceiling, so feeding a frame in
     /// ten chunks buys exactly what feeding it in one does.
-    fn nvs_core_compress_decompressor_finish(_ctx, args: [1]) {
+    fn nvs_core_compress_decompressor_finish(ctx, args: [1]) {
         let (receiver, codec) = open_stream(args[0], &DECOMPRESSOR, "finish")?;
         let bound = Bound {
             bytes: bound_slot(receiver, MAX_BYTES_SLOT, "finish")?,
@@ -1371,7 +1469,8 @@ nvs_runtime::nvs_helper! {
         let Some(data) = data else {
             return Ok(Value::bytes(NvsStr::new(b"")));
         };
-        Ok(Value::bytes(NvsStr::new(&decompress_within(
+        Ok(Value::bytes(NvsStr::new(&decompress_polled(
+            ctx,
             codec,
             &data,
             bound,

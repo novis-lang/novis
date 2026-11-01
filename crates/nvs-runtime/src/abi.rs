@@ -402,6 +402,23 @@ where
     Ok(())
 }
 
+/// One deadline poll, for a native loop whose steps [`bounded_loop`] cannot
+/// count: a decoder's output chunk, a regex match, a sort's comparison.
+///
+/// The site picks how often it polls and its doc comment says how often. Cost:
+/// one relaxed load per call.
+///
+/// # Errors
+///
+/// [`bounded_loop`]'s [`Fault::Fatal`], naming `member` and the ceiling that
+/// stopped it, when the deadline has passed.
+pub fn poll_deadline(ctx: &Ctx, member: &str) -> Result<(), Fault> {
+    if ctx.deadline_expired() {
+        return Err(deadline_passed(ctx, member));
+    }
+    Ok(())
+}
+
 /// What a fired poll reports, in one place so every site says the same thing.
 ///
 /// One word carries two ceilings into this poll: `[limits] wall_time` expires
