@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/held.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/tests/read.rs, docs/rules/core-classes/decompression-bound.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: roadmap-tests
@@ -490,57 +490,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 - [x] Run `looper verify` over the whole goal.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. The gate ran: `bun nv affected --run` and `bun nv verify` are green, and so
-is `bun nv verify --doc`. `baf3204a2` commits the fixes an earlier gate pass left uncommitted: the
-`php` keyword out of the extension manifest, `one_binary.rs` through `nvs_repo::path`, the pre-push
-test's absolute binary path, and the literal-path allowlist rows.
-
-`bun nv owners --closes release-polish` was red on two gap records, so the gate became stage 9 and
-stage 8 closed them. Stage 8 is done. `d380ea37f` closes the first: every handle table keys by one
-process-wide counter (`crates/nvs-runtime/src/ctx/held.rs:24`), and six conformance cases pin it.
-
-The second commit after it closes the placed PDF: `wit/pdf.wit`'s `render-options` gains
-`bound: option<decompression-bound>`, `cap_decompression` clamps it for `render` and `renderFirst`
-(`crates/nvs-ext/src/builtin.rs:97`), and `nvs_pdf::render`, `first` and `second` each run under
-`read::under` (`extensions/pdf/src/lib.rs:188`). The writer decodes a placed page's content to copy
-it, which is where a bomb used to run unbounded. `tests/hostile/novis/Pdf-Document/fromHtml/03-a-placed-pdf-bomb.nvs`
-prints `stopped ParseError` on both steps. The component manifest's `render` and `renderFirst`
-types gained the field, so the `Engine` signature changed. `Document.nvs` passes a typed `null`.
+Every stage is done, and the goal is reached. The gate's last pass is green: `bun nv affected
+--run` (23 of 23 verify steps), `bun nv verify --doc`, `bun nv owners --closes release-polish` and
+`bun nv ci --check` (every pre-push check). `080147cf2` commits its fixes: the PDF bound's rule
+fragment rendered into `docs/rules/core-classes.md`, `website/public/llms-full.txt` re-rendered, two
+allowlist rows for `crates/nvs-diagnostics/src/paths.rs`'s test literals, and 25 perf records for
+`Core\Csv`, `Core\Http\Stream`, `Core\Http\Event`, `Core\Queue` and `Core\Queue\Stats`, whose
+sources the handle-key change touched. The backlog moved to `release-run`'s handoff.
 
 The sweep's reds are stale. A reader traced each failure of nightly run 41187571578 (on `857b39cad`)
 to a fix already at HEAD: `browser` to `39795c9c4`, the proofs shots to `bfce9c2d2`, ASAN's SQLite
 ODR report to `9fe05ce88` and `593b6c565`, and the seven Miri timeouts to `8ce92dda5`. No scheduled
-run has happened since. `env-secret-proofs` still has no definition in the tree and no log.
+run has happened since. `env-secret-proofs` has no definition anywhere in the tree and no log under
+`.looper/loops/main/checks/`: it is a check the driver carries from a goal that is gone, and no
+change here can turn it green.
 
 ### Next
 
-Stage 9.
+Nothing: the goal is reached. The driver retires it, and `release-run` is live next.
 
-- [ ] `bun nv affected --run` in the background, then `bun nv verify --doc`, `bun nv owners --closes release-polish` and `bun nv ci --check`. The installed `looper` has no `verify` subcommand, so use `bun nv verify`. `tools/nv/cmd/ci.ts:1`
-
-Tests that may go red:
-
-- A test that builds the PDF `render` or `renderFirst` options by hand without `bound`. The three
-  host tests got `("bound", Value::Null)`. A website or reference page that prints the `Engine`
-  signature from the manifest may need `bun nv render --website`.
-- `crates/nvs-ext/tests/builtin.rs`'s component size figure, if the PDF component moved past 5%.
-  It should not: the change is a few lines.
-- A `nvs-runtime` or `nvs-stdlib` unit test that expects a handle key of `1`, or a connection key
-  equal to a position. Keys now come from the shared counter (`crates/nvs-runtime/src/ctx/held.rs:24`).
-- `bind.rs`'s two db fixtures reach the foreign-key FATAL, and its message changed. They match on the
-  class, not the text, so they should hold.
+No test is expected to go red.
 
 ### Backlog
 
-- `nvs info --licenses | head` panics with "failed printing to stdout" once the pipe closes. A CLI
-  command that prints should end quietly on a closed stdout.
-- `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
-- The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
-- `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component. That CI step and its no-Docker path have not run yet: read its first CI run.
-- The first `ext templates` CI run is the first to check the wasi-sdk digests; read it.
+Moved to `docs/goals/release-run.md`'s handoff.

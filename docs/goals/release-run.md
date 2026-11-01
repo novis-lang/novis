@@ -274,3 +274,10 @@ live.
 No test is expected to go red.
 
 ### Backlog
+
+- `nvs info --licenses | head` panics with "failed printing to stdout" once the pipe closes. A CLI
+  command that prints should end quietly on a closed stdout.
+- `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
+- The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
+- `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component. That CI step and its no-Docker path have not run yet: read its first CI run, which stage 2's full run is.
+- The first `ext templates` CI run is the first to check the wasi-sdk digests; stage 2's full run reads it.
