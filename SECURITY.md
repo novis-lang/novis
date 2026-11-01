@@ -63,7 +63,7 @@ isolation*, and each rule there links its reasons. Anything that defeats one of 
   ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component),
   [`security/extension-manifest-only-tightens`](docs/rules/security.md#security-extension-manifest-only-tightens)).
 - **Memory unsafety** — any undefined behaviour reachable from safe Novis or from safe Rust, including in
-  the three audited `unsafe` modules, and any JIT miscompilation that emits unsound code.
+  the eight audited `unsafe` crates, and any JIT miscompilation that emits unsound code.
 - **Process-wide impact from one request** — a panic, resource-limit bypass or budget evasion that takes
   down the process or another request instead of dying alone
   ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority),
@@ -106,9 +106,13 @@ it is reachable, report it privately as above; if it isn't reachable, an issue i
 
 ## How the claims are checked
 
-CI runs on three platforms with Miri over the front end and the runtime and standard library's unit
-tests, ASAN over the JIT-bearing crates, libFuzzer targets, `cargo deny`, and an audit that keeps
-`unsafe` out of every crate but the three that are allowed it. The conformance suite also runs many
+CI runs on four platforms: Linux on x86_64 and aarch64, Windows on x86_64 and macOS on aarch64. On
+top of the tests it runs Miri over the front end and the runtime and standard library's unit tests,
+ASAN over the JIT-bearing crates, libFuzzer targets, `cargo deny`, and an audit that keeps `unsafe`
+out of every crate but the eight that are allowed it: `nvs-runtime`, `nvs-stdlib`, `nvs-codegen`,
+`nvs-host`, `nvs-config`, `nvs-cli`, `nvs-ext` and the `abi-probe` bench, which no shipped crate
+depends on. The roster and each crate's reason are `UNSAFE_CRATES` in
+[`tools/nv/cmd/lints.ts`](tools/nv/cmd/lints.ts). The conformance suite also runs many
 cases on one shared worker and compares each with its fresh run, and a nightly soak fails when the
 memory one worker holds grows with the requests it served.
 
