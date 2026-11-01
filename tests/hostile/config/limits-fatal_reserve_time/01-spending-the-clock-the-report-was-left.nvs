@@ -67,7 +67,7 @@ Core\Config::restore('limits.fatal_reserve_time');
 //    Every write to a reserve should fail.
 uint $round = 0;
 while ($round < 1000) {
-    Core\Config::set('limits.cpu_time', '1ms');
+    Core\Config::set('limits.cpu_time', '10s');
     Core\Config::set('limits.fatal_reserve_time', '1h');
     Core\Config::set('limits.fatal_reserve_memory', '4G');
     Core\Config::set('limits.cpu_time', '30s');

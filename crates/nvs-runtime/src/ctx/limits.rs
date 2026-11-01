@@ -885,18 +885,30 @@ impl Ctx {
     /// moment ([`TreeState::cpu_limit_set_after`]). One reading of
     /// [`Self::cpu_time_spent`] per change of the limit, never at a request's
     /// start.
+    ///
+    /// A limit at or below that reading was crossed when it was set, so the
+    /// request is stopped here, at its next poll. Left to the watchdog, the
+    /// stop would depend on whether a sweep came before the program raised
+    /// the limit again.
     pub fn refresh_limits_at_run_time(&mut self) {
         let before = self.cpu_limit;
         self.refresh_limits();
         if !self.tree_root || self.cpu_limit == before || self.cpu_limit == 0 {
             return;
         }
-        let spent = self.cpu_time_spent().map_or(0, |spent| {
-            u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX)
-        });
+        let Some(spent) = self.cpu_time_spent() else {
+            self.tree
+                .cpu_limit_set_after
+                .store(0, std::sync::atomic::Ordering::Relaxed);
+            return;
+        };
+        let spent = u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX);
         self.tree
             .cpu_limit_set_after
             .store(spent, std::sync::atomic::Ordering::Relaxed);
+        if spent >= self.cpu_limit {
+            self.request_safepoint(SafepointFlags::CPU_LIMIT);
+        }
     }
 
     /// Re-reads the resource ceilings this request's configuration states.
