@@ -159,9 +159,10 @@ Write the migration note in the same commit as the warning, not at release time.
 
 ## 7. Close the pass
 
-1. **Write the versions down where they live.** A changed toolchain, PHP oracle or developer-tool version
-   goes in the plan's status block § *Toolchain* — overwrite the field, never append. Crate versions live in
-   `Cargo.toml` and nowhere else; do not copy a version number into prose.
+1. **Write the versions down where they live.** A changed Rust toolchain goes in `rust-toolchain.toml`,
+   and a changed PHP oracle or developer-tool version in [setup.md](../setup.md) § *Versions no manifest
+   pins* — overwrite the row, never append. Crate versions live in `Cargo.toml` and nowhere else; do not
+   copy a version number into prose.
 2. **Every hold has a date and a reason** on its own line in `[workspace.dependencies]`, or a dated entry in
    `deny.toml`'s `advisories.ignore`.
 3. **`bun nv links`** if any doc moved.

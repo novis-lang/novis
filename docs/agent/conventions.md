@@ -609,7 +609,8 @@ names the latest Pre-Alpha release and `main` as the ones that get security fixe
 Three sentences and about 400 bytes; `looper wrap` refuses a new bullet past 700. The first sentence
 states the trap and not the story, because it is what a session matches against its symptom. It is
 also the bullet's file name: each bullet is `docs/agent/playbook/<section>/<lead-in words>.md`. The
-trailer is required, and looper's `docs/goal-format.md` § *The playbook* is the only home of its kinds.
+trailer is required, and looper's `docs/goal-format.md` § *The playbook* (in looper's repository) is
+the only home of its kinds. In this tree, the kit's `tools/looper/src/goal/playbook.ts` parses them.
 Each one is a condition the tree answers, so `looper playbook retire` deletes the bullet the day it
 stops being true. A bullet names, in backticks, at least one file in the tree by its path from the
 repository root, and the wrap refuses one that names none.

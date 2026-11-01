@@ -131,8 +131,9 @@ The proofs are the same as for any change:
   then the fix. The test is the proof that the report is answered.
 - **A feature** is finished when its feature proofs exist (`bun nv proofs --id '<feature>'`).
 - **Friction** gets the diagnostic or document change and the test that pins it.
-- A new decision becomes a goal or goes into the plan. What it settles is written into a rule
-  fragment, with its reasons and its Declined list, once the work lands.
+- A new decision becomes a goal, or a stage or item of a goal on the chain (`docs/goals/`). What
+  it settles is written into a rule fragment, with its reasons and its Declined list, once the
+  work lands.
 
 The loop may be committing on `main` while you work: stage only your own files, and never touch
 the live goal's `## Handoff` in `docs/goals/<slug>.md`.

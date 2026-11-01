@@ -65,14 +65,14 @@ if a fact can be derived from the files, derive it.
 
 - **Never answers an open question.** A fork waiting on a measurement waits for whoever takes the
   measurement. What a pass *may* do is narrow a status field to what is actually open.
-- **Never touches the live goal's file, the chain in `docs/goals/README.md`, or the plan's status
-  block.** Those are the running loop's state.
+- **Never touches the live goal's file or the chain in `docs/goals/README.md`.** Those are the
+  running loop's state.
 - **Never renames a rule.** Constraint 1.
 - **Never edits a generated file.** `docs/ground-rules.md` and `docs/rules/<topic>.md` are written
   by `bun nv rules --render`; an edit there is lost on the
   next render, and the file that lost it does not say so. Edit the fragment or the topic JSON.
 - **Never changes what a rule decides** — only what its fragment says the current rule is. A change
-  of substance is a new goal or a plan entry.
+  of substance is a new goal, or a stage of a goal on the chain.
 
 ## The judgment half: what the tool cannot see
 

@@ -1,4 +1,4 @@
-- **A slice the plan files under `nvs-ir` can be unbuildable there, because that crate holds no
+- **A slice a goal files under `nvs-ir` can be unbuildable there, because that crate holds no
   class table.** `Lowering` carries `exprs`, `checked_types` and an `EnumTable` and nothing else
   about a declaration, so a set the checker derived from the hierarchy cannot be re-derived below
   the erasure. Record the set in the checker as `ExprInfo::EnumCase`/`ExprInfo::PropertyKey` do and

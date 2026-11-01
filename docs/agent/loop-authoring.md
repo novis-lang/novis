@@ -1,7 +1,8 @@
 # Authoring a loop goal
 
-Read this before writing a goal: one file, `docs/goals/<slug>.md`, in looper's goal format (looper's own
-`docs/goal-format.md` is that format's home). It carries the rules that every goal so far has needed and
+Read this before writing a goal: one file, `docs/goals/<slug>.md`, in looper's goal format. That
+format's home is `docs/goal-format.md` in looper's repository, and in this tree the kit's
+`tools/looper/src/goal/model.ts` is the code that reads it. It carries the rules that every goal so far has needed and
 that nobody should have to restate — what makes a goal drivable, what has to be settled with the user
 *before* the run rather than during it, and the shape the stages take.
 

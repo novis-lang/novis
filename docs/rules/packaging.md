@@ -2600,8 +2600,8 @@ practice to start early" — that is how a prototype acquires a compatibility su
 to ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)).
 
 **Contract — from the 0.1.0 release onward.** 0.1.0 is the release that first declares the language
-complete enough for someone else to write against; which milestone carries it is the plan's to
-decide. The switch is thrown once, in the commit that tags 0.1.0, and from then on
+complete enough for someone else to write against; which goal on the chain (`docs/goals/`) carries
+it is decided there. The switch is thrown once, in the commit that tags 0.1.0, and from then on
 [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated),
 [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot) and the ladder behind them apply.
 

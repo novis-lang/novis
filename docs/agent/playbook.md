@@ -4,7 +4,8 @@ Hard-won specifics: things that cost a real session real time, written down so t
 pay again. A bullet is a *trap* — "this looks like it should work and does not, and here is what to do
 instead" — in three sentences, ending with the `until: <kind> <arg>` trailer that says what retires it
 ([conventions.md](conventions.md) § *A playbook bullet*; the kinds are looper's `docs/goal-format.md`
-§ *The playbook*). **It is not a changelog.** The session that hit the trap, the stage it was on and what it tried first
+§ *The playbook*, in looper's repository, and the kit's `tools/looper/src/goal/playbook.ts` parses
+them). **It is not a changelog.** The session that hit the trap, the stage it was on and what it tried first
 are `git log`'s to keep, and a bullet that carries them is charged to every session after it.
 
 **One file per bullet.** The bullets are under [playbook/](playbook/), one directory per section and

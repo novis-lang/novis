@@ -41,7 +41,8 @@ calls with nothing read between them is one decision spent one round trip at a t
 
 **A playbook bullet is one file under [playbook/](playbook/)**, and Grep over that directory finds one by
 its words. Every bullet ends with an `` `until: <kind> <arg>` `` trailer, whose kinds are looper's
-`docs/goal-format.md` § *The playbook*. `looper playbook retire` deletes every bullet whose condition
+`docs/goal-format.md` § *The playbook* (in looper's repository; in this tree the kit's
+`tools/looper/src/goal/playbook.ts` parses them). `looper playbook retire` deletes every bullet whose condition
 holds, and only ever removes. Appending a bullet is `looper wrap`'s `## playbook:` section and stays
 there.
 

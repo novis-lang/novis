@@ -50,7 +50,8 @@ Four things follow, and they are the whole design:
 
 A goal's acceptance checks are in its front matter, each tied to the stage that owes it. Every check is
 an exit code plus an exact or ordered match on real output, so no model judgment sits anywhere on the
-stop path. The fields a check takes are looper's `docs/goal-format.md`. When a session writes `DONE`, looper
+stop path. The fields a check takes are looper's `docs/goal-format.md` (in looper's repository), and in this
+tree the kit's `tools/looper/src/goal/model.ts` declares them as `Check`. When a session writes `DONE`, looper
 runs the goal's checks, and the machine outranks the claim: a red check keeps the goal open.
 
 Inspect a goal's checks with `looper goal show`, and run one by hand with `looper check --name <text>`.

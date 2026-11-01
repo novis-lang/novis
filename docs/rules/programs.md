@@ -157,7 +157,7 @@ whose file name mentions PHP keep their names.
 `rule:programs/slice-ranking`
 
 When two slices compete for a session, the one that gets a working web application sooner wins. This
-binds the plan, in this order:
+binds the order of the goals on the chain (`docs/goals/`) and of the stages inside each, in this order:
 
 - **The dependency story is a milestone, not a convenience** — it is the thing a new user hits
   before reaching a language feature. It does **not** outrank language and
