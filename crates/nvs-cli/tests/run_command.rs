@@ -432,6 +432,56 @@ fn nvs_run_ends_with_the_status_its_reference_table_names() {
     assert!(wrong.stdout.is_empty(), "nothing ran");
 }
 
+/// Under `[limits] wall_time`, `Core\IO::stdin` stops waiting at the run's wall
+/// deadline. The input is a pipe this test holds open and never writes to, so
+/// only the deadline can end the read. The run ends with the wall-time `FATAL`
+/// on standard error, and nothing after the read runs.
+#[test]
+fn a_stdin_read_under_a_wall_time_ends_at_the_wall_time_fatal() {
+    let dir = scratch("stdin-wall-time");
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\ntainted string $input = Core\\IO::stdin();\necho \"read\", \"\\n\";\n",
+    )
+    .unwrap();
+    fs::write(dir.join("nvs.toml"), "[limits]\nwall_time = \"1s\"\n").unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
+        .arg("run")
+        .arg("main.nvs")
+        .current_dir(&dir)
+        .env_remove("NOVIS_NO_INIT")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    // Taken out of the child so `wait_with_output` does not close it: the pipe
+    // stays open, with nothing written, until the run has ended.
+    let held = child.stdin.take();
+    let out = child
+        .wait_with_output()
+        .expect("the run's output could not be read");
+    drop(held);
+
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("FATAL") && stderr.contains("exceeded its wall-time limit"),
+        "the read did not end at the wall-time `FATAL`: {stderr}"
+    );
+    assert_ne!(
+        out.status.code(),
+        Some(0),
+        "a `FATAL` run exits 0: {stderr}"
+    );
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("read"),
+        "the program went on after the read: {stderr}"
+    );
+}
+
 /// A process a `Core\Task` child task leaves running is stopped when that task
 /// ends, and its `error` record on standard error says the task ended. The
 /// task's end is not the program's, so the run still exits `0`, as

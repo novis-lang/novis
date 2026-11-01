@@ -5665,6 +5665,94 @@ pub(crate) mod tests {
         );
     }
 
+    /// A `receive` from a peer that never sends ends at the request's wall
+    /// deadline, filed by `set_wall`, and ends as an error: the member turns
+    /// that error into the wall-time `FATAL`. An idle close, `null`, would let
+    /// the program loop and wait again. The idle window is the shipped five
+    /// minutes, so a wait the wall deadline did not cap fails by the clock.
+    #[test]
+    fn a_receive_from_a_silent_peer_ends_at_the_wall_deadline_as_an_error() {
+        fn wait_past_the_wall(conn: &mut Ctx) -> String {
+            let Some(peer) = conn.peer() else {
+                return "no peer".to_owned();
+            };
+            peer.set_wall(Some(Instant::now() + Duration::from_millis(50)));
+            let began = Instant::now();
+            let got = peer.receive();
+            let took = began.elapsed();
+            match got {
+                Ok(Some(_)) => "a frame arrived".to_owned(),
+                Ok(None) => "the loop ended".to_owned(),
+                Err(_) if took < Duration::from_secs(5) => "receive failed in time".to_owned(),
+                Err(error) => format!("receive failed after {took:?}: {error}"),
+            }
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            // Nothing is sent. The read ends when the program's connection ends.
+            drop(peer.read());
+            end_the_loop(addr);
+            head
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                wait_past_the_wall,
+            );
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let head = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols"),
+            "the peer was not answered RFC 6455's handshake: {head}"
+        );
+        let said = said.borrow();
+        assert!(
+            said.iter()
+                .any(|line| line == "connection receive failed in time"),
+            "a wait past the wall deadline did not end as an error in time: {said:?}"
+        );
+    }
+
     /// `rule:concurrency/a-drain-closes-a-connection-cleanly` on a program
     /// that only sends: a push feed that sends, sleeps and sends again, with
     /// no `receive` for the drain to end. The sleep is ten minutes, so a
