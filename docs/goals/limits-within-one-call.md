@@ -225,6 +225,11 @@ Most waits go through four doors, so most items are one change at a door. Each i
   callers wait no longer than the deadline. That covers `Core\Process::run` (`crates/nvs-stdlib/src/process.rs:964`,
   `:1187`, `:1311`), the handle's read, write and kill (`process.rs:1523`) and `Handle::wait` (`process.rs:1661`),
   and the resolver `resolve_off_core` (`crates/nvs-host/src/lib.rs:210`).
+  - [x] `Ctx::wall_clamp`, the earlier of a member's own deadline and the wall deadline.
+  - [x] `Core\Process`: `run` and `spawn` clamp the child's deadline, and `stopped` gives the
+    `FATAL` once the wall time is out. Test `run_stops_a_child_at_the_request_wall_time`, green.
+  - [ ] The resolver: `blocking::run` gets a bounded twin that stops waiting at a deadline and
+    leaves the job to finish on its pool thread, its answer dropped. `resolve_off_core` takes it.
 - [ ] The three inline `getaddrinfo` calls move to the shared resolver: `crates/nvs-stdlib/src/db/open.rs:152`,
   `mail.rs:428`, `ldap/mod.rs:493`. Today each blocks the core with no bound.
 - [ ] The park door: each `host.park` a member makes takes the shorter of its own bound and the

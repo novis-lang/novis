@@ -328,7 +328,7 @@ pub(crate) fn open_named(
         Some(lease) => lease,
         None => wait_for_slot(ctx, ticket, &full, deadline)?,
     };
-    let connect_by = super::execute::within_wall(ctx, deadline);
+    let connect_by = ctx.wall_clamp(deadline);
 
     // The acquire `rule:security/db-pool-reset-is-a-boundary` describes: this
     // core's pool first, and what comes out of it is reset before this
@@ -833,7 +833,7 @@ nvs_runtime::nvs_helper! {
             Some(lease) => lease,
             None => wait_for_slot(ctx, ticket, &full, deadline)?,
         };
-        let connect_by = super::execute::within_wall(ctx, deadline);
+        let connect_by = ctx.wall_clamp(deadline);
         // The pool's acquire, and `{ shared: false }` reaches it too: that
         // option bypasses the memo above and never the pool, which
         // `rule:core-classes/db-connection-is-named` says in as many words. `warm_connection` is where a failed reset destroys the
@@ -1088,7 +1088,7 @@ pub(super) fn sqlite_settings(
             })?;
             target.time_zone = zone;
             target.read_only = read_only;
-            target.deadline = super::execute::within_wall(ctx, deadline);
+            target.deadline = ctx.wall_clamp(deadline);
             let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                 Fault::thrown_as(
                     ThrownClass::Io,

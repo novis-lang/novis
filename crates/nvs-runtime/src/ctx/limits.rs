@@ -1022,6 +1022,17 @@ impl Ctx {
         self.tree.wall_deadline()
     }
 
+    /// The earlier of `at` and the request's wall deadline, or whichever of the
+    /// two there is: the instant a member's wait with a deadline of its own
+    /// ends at. One load, and no clock read.
+    #[must_use]
+    pub fn wall_clamp(&self, at: Option<std::time::Instant>) -> Option<std::time::Instant> {
+        match (at, self.wall_bound()) {
+            (Some(own), Some(wall)) => Some(own.min(wall)),
+            (own, wall) => own.or(wall),
+        }
+    }
+
     /// [`Self::wall_time_breach`]'s fault once the request's wall time has run
     /// out, and `None` before. A member reads it where a wait it bounded with
     /// [`Self::within_wall_time`] or [`Self::wall_bound`] failed, so a wait

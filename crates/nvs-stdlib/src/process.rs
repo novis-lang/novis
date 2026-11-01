@@ -840,6 +840,15 @@ fn not_positive(member: &str) -> Fault {
     ))
 }
 
+/// What a child stopped at its deadline gives: the wall-time `FATAL` once the
+/// request's `[limits] wall_time` has run out, and [`timed_out`]'s
+/// `TimeoutError` before. Every deadline a child is held to is the earlier of
+/// its `timeout` and the request's wall deadline (`Ctx::wall_clamp`), so a
+/// child never outlives the time its request has.
+fn stopped(ctx: &mut Ctx, member: &str) -> Fault {
+    ctx.wall_time_fault().unwrap_or_else(|| timed_out(member))
+}
+
 /// The `TimeoutError` a child stopped by its `timeout` is.
 fn timed_out(member: &str) -> Fault {
     Fault::thrown_as(
@@ -902,12 +911,14 @@ nvs_runtime::nvs_helper! {
             &options.launch(),
             RUN_MEMBER,
         )?;
-        let output = wait_off_core(child, capture, options.until())
+        let output = wait_off_core(child, capture, ctx.wall_clamp(options.until()))
             .map_err(|err| {
                 refused_capture(ctx, RUN_MEMBER, &err)
                     .unwrap_or_else(|| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))
-            })?
-            .ok_or_else(|| timed_out(RUN_MEMBER))?;
+            })?;
+        let Some(output) = output else {
+            return Err(stopped(ctx, RUN_MEMBER));
+        };
         let taken = output.stdout.len() + output.stderr.len();
         if let Some(over) = ctx.intake_breach(RUN_MEMBER, taken) {
             return Err(over);
@@ -1406,7 +1417,7 @@ nvs_runtime::nvs_helper! {
             SPAWN_MEMBER,
         )?;
         let mut held = HeldChild::new(child);
-        held.deadline = options.until();
+        held.deadline = ctx.wall_clamp(options.until());
         program.clone_into(&mut held.program);
         held.spawn_event = ctx.open_spawn(nvs_runtime::SpawnForm::Process);
         let key = ctx.hold_spawned_child(held);
@@ -1490,14 +1501,14 @@ fn failed(member: &str, path: &Value, err: &std::io::Error) -> Fault {
 ///
 /// # Errors
 ///
-/// [`child_of`]'s, and [`timed_out`]'s.
+/// [`child_of`]'s, and [`stopped`]'s.
 fn live_child<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut HeldChild, Fault> {
     let child = child_of(ctx, key, member)?;
     if child.deadline.is_some_and(|at| at <= Instant::now()) {
         let _ = child.kill();
-        return Err(timed_out(&format!("{HANDLE_NAME}::{member}")));
+        return Err(stopped(ctx, &format!("{HANDLE_NAME}::{member}")));
     }
-    Ok(child)
+    child_of(ctx, key, member)
 }
 
 /// `job` run **off this core**, and held to the child's `timeout` while it runs.
@@ -1547,7 +1558,7 @@ fn off_core<T: Send + 'static>(
         (held, done)
     });
     ctx.restore_spawned_child(key, held);
-    done.ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::{member}")))
+    done.ok_or_else(|| stopped(ctx, &format!("{HANDLE_NAME}::{member}")))
 }
 
 /// One chunk off a child's pipe, read where [`off_core`] runs it, into this
@@ -1691,12 +1702,12 @@ nvs_runtime::nvs_helper! {
             status,
             stdout,
             stderr,
-        } = drained
-            .map_err(|err| {
-                refused_capture(ctx, SPAWN_MEMBER, &err)
-                    .unwrap_or_else(|| failed("wait", &path, &err))
-            })?
-            .ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::wait")))?;
+        } = match drained.map_err(|err| {
+            refused_capture(ctx, SPAWN_MEMBER, &err).unwrap_or_else(|| failed("wait", &path, &err))
+        })? {
+            Some(output) => output,
+            None => return Err(stopped(ctx, &format!("{HANDLE_NAME}::wait"))),
+        };
         let taken = stdout.len() + stderr.len();
         if let Some(over) = ctx.intake_breach(SPAWN_MEMBER, taken) {
             return Err(over);
@@ -2973,6 +2984,50 @@ mod tests {
         )
         .expect("a child that ends within its timeout is answered");
         assert!(in_time.contains("probe=[none]"), "{in_time}");
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper` on `run`: a child
+    /// with no `timeout` is held to the request's `[limits] wall_time`, and the
+    /// wait that ends there stops the request with the wall-time `FATAL`.
+    // covers: Core\Process::run
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
+    #[test]
+    fn run_stops_a_child_at_the_request_wall_time() {
+        let me = std::env::current_exe().expect("a test binary knows its own path");
+        let program = me.to_str().expect("this suite is built under a UTF-8 path");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(
+            "[capabilities.process]\nexec = true\n[limits]\nwall_time = \"300ms\"\n",
+        ));
+        ctx.refresh_limits();
+        let mut array = NvsArray::new();
+        for one in SLEEPER {
+            array.append(Value::text(one));
+        }
+        let args = [
+            Value::text(program),
+            Value::array(array),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        let started = std::time::Instant::now();
+        let answered = nvs_runtime::call(super::nvs_core_process_run, &mut ctx, &args);
+        assert_eq!(
+            answered.err(),
+            Some(nvs_runtime::FATAL),
+            "a child that sleeps for thirty seconds outlived the 300ms wall time"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "the wait lasted as long as the child, so the wall time stopped nothing"
+        );
+        for argument in args {
+            #[expect(unsafe_code, reason = "the list holds exactly the references it built")]
+            unsafe {
+                argument.release();
+            }
+        }
     }
 
     /// `rule:core-classes/process-options` on `spawn`: the folder and the environment reach the

@@ -56,21 +56,6 @@ pub(super) fn statement_deadline(
     ))
 }
 
-/// The earlier of `deadline` and the request's wall deadline, or whichever of
-/// the two there is. A statement and a driver's connect both wait no longer
-/// than this, by `rule:http-server/time-is-bounded-inside-a-helper`: a wait
-/// that ends at the wall deadline leaves the request's safepoint flag raised,
-/// and the request stops at its next poll. One load, no clock read.
-pub(super) fn within_wall(
-    ctx: &nvs_runtime::Ctx,
-    deadline: Option<std::time::Instant>,
-) -> Option<std::time::Instant> {
-    match (deadline, ctx.wall_bound()) {
-        (Some(own), Some(wall)) => Some(own.min(wall)),
-        (own, wall) => own.or(wall),
-    }
-}
-
 /// [`filed_connection`], with the statement's `timeout` deadline filed on it
 /// before the statement goes out.
 ///
@@ -108,7 +93,7 @@ pub(super) fn bound_connection<'a>(
     // one it named or not. The reply's wait on a wire driver is bounded by it;
     // a wait that ended there leaves the request's safepoint flag raised, and
     // the request stops at its next poll.
-    let deadline = within_wall(ctx, deadline);
+    let deadline = ctx.wall_clamp(deadline);
     let cpu_left = (ctx.cpu_limit() > 0)
         .then(nvs_host::watchdog::running_spent)
         .flatten()
@@ -1793,7 +1778,7 @@ mod tests {
     /// `rule:http-server/time-is-bounded-inside-a-helper` on the database
     /// door: a connect that names no `timeout` waits no longer than the
     /// request's `[limits] wall_time`. The peer accepts and never replies, so
-    /// only the wall deadline [`within_wall`] gives the connect can end it.
+    /// only the wall deadline `Ctx::wall_clamp` gives the connect can end it.
     #[cfg_attr(miri, ignore = "opens a TCP socket, which Miri does not emulate")]
     #[test]
     fn a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline() {
@@ -1809,7 +1794,9 @@ mod tests {
             ..nvs_config::Snapshot::default()
         }));
         ctx.refresh_limits();
-        let bound = within_wall(&ctx, None).expect("a request with a `wall_time` has a deadline");
+        let bound = ctx
+            .wall_clamp(None)
+            .expect("a request with a `wall_time` has a deadline");
 
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
         let address = listener
