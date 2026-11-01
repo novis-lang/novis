@@ -30,7 +30,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
 import { Tree } from "../lib/proctree.ts";
-import { run as runProc } from "../lib/proc.ts";
+import { messageOf, run as runProc } from "../lib/proc.ts";
 import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
@@ -200,7 +200,7 @@ export async function servicesFor(source: string, services: Set<string> = compos
           const ca = await syncComposeCa(service);
           return ca ? `needs \`${service}\`, and its CA could not be copied to ${COMPOSE_CA}: ${ca}` : null;
         },
-        (e) => `needs \`${service}\`, and Docker could not be started: ${e instanceof Error ? e.message : String(e)}`,
+        (e) => `needs \`${service}\`, and Docker could not be started: ${messageOf(e)}`,
       );
       servicesUp.set(service, up);
     }
@@ -750,7 +750,7 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   try {
     out = await spawnProof(proofArgv(nvs, path, source), path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
   } catch (e) {
-    return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
+    return ["fail", `could not run: ${messageOf(e)}`];
   }
   if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`, out];
   const want = declaredExit(source);
@@ -918,7 +918,7 @@ async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged
   try {
     out = await spawnProof(argv, path, limit, unlogged ? { unlogged } : undefined);
   } catch (e) {
-    return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
+    return ["fail", `could not run: ${messageOf(e)}`];
   }
   return [...judgeHostile(path, source, out, limit, valgrind), out];
 }
@@ -1047,7 +1047,7 @@ export async function overshootScan(nvs: string, out: string[]): Promise<number>
         const red = killed || (reading !== null && overshoot(reading) !== null) || (time !== null && timeOvershoot(time) !== null);
         rows.push({ path, ms: Math.round(ran.ms), reading, time, red, ...(note ? { note } : {}) });
       } catch (e) {
-        rows.push({ path, ms: 0, reading: null, time: null, note: `could not run: ${e instanceof Error ? e.message : String(e)}`, red: false });
+        rows.push({ path, ms: 0, reading: null, time: null, note: `could not run: ${messageOf(e)}`, red: false });
       }
       progress(`proofs: ${rows.length + skipped}/${files.length}`);
     }

@@ -43,6 +43,7 @@ import { abs } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { metaJson } from "./roster.ts";
 import { type MemoryReading, memoryReading, OVERSHOOT_FACTOR, OVERSHOOT_SLACK_BYTES, overshoot, type Ran, spawnProof, hostKilled } from "./run.ts";
+import { messageOf } from "../lib/proc.ts";
 
 /** The memory limit every probe program sets for itself. The bound is then 32 MiB, so the largest input
  * finds any member that grows its input more than four times. */
@@ -533,7 +534,7 @@ async function probeMember(nvs: string, probe: Probe, dir: string): Promise<Prob
     try {
       ran = await spawnProof([nvs, "run", path], path, PROBE_TIMEOUT_MS, { unlogged: true });
     } catch (e) {
-      return worse(row, { member: probe.member, ms: 0, reading: null, step: null, note: `could not run: ${e instanceof Error ? e.message : String(e)}`, red: false });
+      return worse(row, { member: probe.member, ms: 0, reading: null, step: null, note: `could not run: ${messageOf(e)}`, red: false });
     }
     const judged = judgeProbe(probe.member, ran);
     row = worse(row, judged);

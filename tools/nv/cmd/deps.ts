@@ -39,6 +39,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { tracked } from "../lib/git.ts";
 import { abs } from "../lib/paths.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "every pin beside its latest stable release; --check fails on one behind with no hold: nv deps [--check]";
 
@@ -512,7 +513,7 @@ async function resolve(pin: Pin, today: string): Promise<Row> {
     const why = base === "current" && pin.hold ? "the hold above it is no longer needed" : undefined;
     return { ...pin, status, latest, why };
   } catch (e) {
-    return { ...pin, status: "unknown", latest: "?", why: e instanceof Error ? e.message : String(e) };
+    return { ...pin, status: "unknown", latest: "?", why: messageOf(e) };
   }
 }
 

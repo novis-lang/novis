@@ -59,6 +59,7 @@ import { existsSync, statSync } from "node:fs";
 import { cpus } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
+import { messageOf } from "../lib/proc.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { Fail, findNvs, freePort, grouped, host, repoRelative, Server, stamp, version, warnIfStale, writeServeRecord } from "./bench.ts";
 
@@ -191,7 +192,7 @@ async function runProbe(probe: string, port: number, mode: string, connections: 
   try {
     record = JSON.parse(stdout);
   } catch (e) {
-    throw new Fail(`${PROBE_BIN} did not print a record (${e instanceof Error ? e.message : e}):\n${stdout}\n${stderr}`);
+    throw new Fail(`${PROBE_BIN} did not print a record (${messageOf(e)}):\n${stdout}\n${stderr}`);
   }
   record.wrong = code === 1;
   return record;

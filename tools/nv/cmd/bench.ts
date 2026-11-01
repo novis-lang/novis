@@ -69,6 +69,7 @@ import { signalOwned, Tree } from "../lib/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { unrecorded } from "../lib/reads.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "the CLI's warm-start figure: nv bench --warm-start [--max-work-ms MS]";
 
@@ -822,7 +823,6 @@ export async function hammer(open: () => Promise<Conn>, requests: number, concur
   return { elapsed, body: answered.length ? Buffer.from(answered[0]!, "latin1") : EMPTY, reopened };
 }
 
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const pyTypeName = (v: unknown) =>
   v === null ? "NoneType" : typeof v === "string" ? "str" : typeof v === "boolean" ? "bool" : typeof v === "number" ? (Number.isInteger(v) ? "int" : "float") : "dict";

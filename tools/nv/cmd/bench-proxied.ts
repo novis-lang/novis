@@ -30,7 +30,8 @@ import { join } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { bytesRepr, Fail, FcgiConn, grouped, hammer, host, median, round, stamp, version, writeServeRecord } from "./bench.ts";
-import { type Arm, down, logsOf, messageOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
+import { type Arm, down, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "nginx in front of nvs serve and of PHP-FPM, in containers: nv bench-proxied [--arm fair|deployed] [--record PATH] [--down]";
 

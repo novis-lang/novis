@@ -7,8 +7,8 @@
 
 import { basename } from "node:path";
 import { Fail, median, round } from "./bench.ts";
+import { messageOf } from "../lib/proc.ts";
 
-export const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Fails before anything is built if there is no daemon, naming what is missing. */
 export function requireDocker(): void {

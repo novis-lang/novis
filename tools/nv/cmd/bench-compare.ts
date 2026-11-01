@@ -41,8 +41,9 @@ import { dirname, join, resolve } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { Fail, grouped, host, stamp, version } from "./bench.ts";
-import { type Arm, compose, down, type Load, logsOf, messageOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
+import { type Arm, compose, down, type Load, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
 import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE]";
 

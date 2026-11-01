@@ -19,6 +19,9 @@ import { Tree } from "./proctree.ts";
 import { DISCARD_PROFILE, ROOT } from "./paths.ts";
 import { erase } from "./progress.ts";
 
+/** What a caught value says: an `Error`'s message, or anything else as a string. */
+export const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
 export interface RunOptions {
   cwd?: string;
   /** Milliseconds before the program is killed. */

@@ -17,6 +17,8 @@
 // When something already answers on the port — an origin started by hand and left up — it is left alone
 // and `holdOrigin`'s handle closes nothing.
 
+import { messageOf } from "../lib/proc.ts";
+
 export const HOST = "127.0.0.1";
 export const PORT = 8099;
 export const DELAY_MS = 25;
@@ -80,7 +82,7 @@ export async function holdOrigin(host = HOST, port = PORT, delayMs = DELAY_MS): 
     });
     return { line: `origin: serving http://${host}:${port}/ok (${delayMs}ms per answer)`, close: () => server.stop(true) };
   } catch (e) {
-    return { line: `origin: cannot bind ${host}:${port} -- ${e instanceof Error ? e.message : String(e)}`, close() {} };
+    return { line: `origin: cannot bind ${host}:${port} -- ${messageOf(e)}`, close() {} };
   }
 }
 

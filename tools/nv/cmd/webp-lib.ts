@@ -27,7 +27,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { run as runProc } from "../lib/proc.ts";
+import { messageOf, run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
 
 export const summary = "libwebp's wasm static library, rebuilt from its pinned source or checked against its digest: nv webp-lib [--check|--verify]";
@@ -196,7 +196,7 @@ export async function run(args: string[]): Promise<number> {
   try {
     bytes = await build(values.get("--source"));
   } catch (e) {
-    console.error(`error: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`error: ${messageOf(e)}`);
     return 1;
   } finally {
     rmSync(SCRATCH, { recursive: true, force: true });

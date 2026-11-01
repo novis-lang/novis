@@ -155,6 +155,7 @@ import { countProgram, COUNTS, firstLine, PerfError, ProgramFailed } from "../pr
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, servicesFor, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas";
 
@@ -952,7 +953,7 @@ async function serveLoad(copy: string, bench: string, opts: Options, what: strin
   const load = serveShape(what, size);
   let ns = Infinity;
   let peak = Infinity;
-  const why = (e: unknown) => (e instanceof Error ? e.message : String(e)).trim().split(/\r?\n/)[0] ?? "";
+  const why = (e: unknown) => messageOf(e).trim().split(/\r?\n/)[0] ?? "";
   for (let i = 0; i < opts.reps; i++) {
     const port = await freePort();
     const argv = [opts.nvs, "serve", abs(copy), "--listen", `127.0.0.1:${port}`];
@@ -1007,7 +1008,7 @@ async function withServer<T>(bench: string, opts: Options, body: () => Promise<T
   const port = await freePort();
   const argv = [opts.nvs, "serve", fixture, "--listen", `127.0.0.1:${port}`];
   const server = await Server.start(argv, port, dirname(fixture), { LLVM_PROFILE_FILE: DISCARD_PROFILE }).catch((e: unknown) => {
-    throw new PerfError(`\`nvs serve\` did not start on the server ${bench} fetches from: ${(e instanceof Error ? e.message : String(e)).trim().split(/\r?\n/)[0] ?? ""}`);
+    throw new PerfError(`\`nvs serve\` did not start on the server ${bench} fetches from: ${messageOf(e).trim().split(/\r?\n/)[0] ?? ""}`);
   });
   const before = process.env[FETCH_URL_ENV];
   process.env[FETCH_URL_ENV] = `http://127.0.0.1:${port}`;

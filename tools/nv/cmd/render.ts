@@ -6,6 +6,7 @@
 import { apply, orphans, removeOrphans, type Output } from "../lib/render.ts";
 import { ROOT } from "../lib/paths.ts";
 import { RENDERERS, WEBSITE_RENDERERS } from "../renderers/index.ts";
+import { messageOf } from "../lib/proc.ts";
 
 export const summary = "write the rendered files from the records, or --check that they are current; --website for the website's alone";
 
@@ -23,7 +24,7 @@ export async function run(args: string[]): Promise<number> {
     try {
       outputs.push(...(await r.render(ROOT)));
     } catch (e) {
-      console.error(`nv render: ${r.name}: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`nv render: ${r.name}: ${messageOf(e)}`);
       return 1;
     }
   }
