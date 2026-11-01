@@ -95,7 +95,9 @@ backtracking patterns and is not changed.
 time the request used, the way a memory `FATAL` names its peak. The overshoot judge reads it, and a
 reading past the bound is red. The 100 ms is the watchdog's sampling interval plus scheduling noise.
 Stage 4 measures the legitimate worst over the existing attacks first, and sets the slack to twice
-that if it is larger. The bound is never raised to make an attack pass.
+that if it is larger. The bound is never raised to make an attack pass. The sweep interval was
+500 ms, so a CPU limit ran up to half a second over; it is 50 ms now (`DEFAULT_INTERVAL`), at a
+cost of twenty wakeups a second of one thread.
 
 **The output limit counts the response body, wherever it is written.** A streamed chunk, an SSE event
 and a file body are output, and each is charged when it is written; a file body by its size. Headers,
@@ -133,13 +135,20 @@ Windows console), and the pool already has the bounded wait.
 prefix (`WALL_TIME_EXCEEDED`, which `nvs test` matches) and adds `: <used> ms used of a limit of
 <limit> ms`, the one form the overshoot judge parses. Wall time used is the clock now less the
 tree's `started` and the debug hold. CPU time used is the request tree's `Charge` in
-`nvs_host::watchdog`, read on the thread that runs it, so the reading is exact. `nvs-runtime`
-cannot read it itself, so the host installs a hook beside the `Resolver` one, a function from the
-tree's `SafepointView` to the time spent, and `Ctx::cpu_time_spent` calls it. `cpu_time_left`
-is the limit less that. With no hook, or no per-thread clock, the message names the limit alone,
-and the judge counts it as no reading. Storing the watchdog's reading at the raise was declined:
-it would hide a native call that runs on past the raise, which is what the scan exists to find.
-Cost: one clock read and two loads, only on a breach or a member's cost check.
+`nvs_host::watchdog`, summed over every thread the tree is published on, as the sweep sums it
+(`watchdog::tree_spent`). `nvs-runtime` cannot read it itself, so the host installs a
+process-wide hook (`nvs_runtime::install_cpu_spent`, from `enroll`), a function from the tree's
+key to the time spent, and `Ctx::cpu_time_spent` calls it. The CPU limit named is `Ctx::cpu_limit`,
+the point the sampler stops at, which is `[limits] cpu_time` less the handler's reserve, so the
+reading is never below it. A program that lowers `limits.cpu_time` below what it has spent is over
+the moment it does, so `Core\Config::set` and `restore` record the spend when the limit moves
+(`Ctx::refresh_limits_at_run_time`), the message adds `, set when <spent> ms were used`, and the
+judge measures from the larger of the two. Cost: one reading per change of the limit, never at a
+request's start. `cpu_time_left` is that limit less the reading. With no hook, or no
+per-thread clock, the message names the limit alone, and the judge counts it as no reading.
+Storing the watchdog's reading at the raise was declined: it would hide a native call that runs on
+past the raise, which is what the scan exists to find. Cost: one lock of the watchdog's table and
+one clock read per thread the tree runs on, only on a breach or a member's cost check.
 
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
@@ -285,18 +294,18 @@ Most waits go through four doors, so most items are one change at a door. Each i
 
 ### 4. a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it
 
-- [ ] The CPU and wall-time `FATAL`s name the time the request used and its limit. `crates/nvs-runtime/src/abi.rs:381`,
+- [x] The CPU and wall-time `FATAL`s name the time the request used and its limit. `crates/nvs-runtime/src/abi.rs:381`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:1046`, `crates/nvs-runtime/src/ctx/limits.rs:997`
-  - [ ] `TreeState::wall_used` (`safepoint.rs:930`'s twin), and `wall_time_message` names it.
-  - [ ] The CPU-spent hook in `nvs-runtime`, installed by `nvs-host` from `Charge` (`watchdog.rs:311`,
+  - [x] `TreeState::wall_used` (`safepoint.rs:930`'s twin), and `wall_time_message` names it.
+  - [x] The CPU-spent hook in `nvs-runtime`, installed by `nvs-host` from `Charge` (`watchdog.rs:311`,
     `charged_on` at `watchdog.rs:2314`), and `Ctx::cpu_time_spent`.
-  - [ ] One `cpu_time_message`, used by `safepoint.rs:1071` and `abi.rs:417`.
-  - [ ] A Rust test per message: the used time is at least the limit, and the text parses.
-- [ ] `judgeHostile` reads that time and applies the time bound. `bun nv proofs --overshoot` includes
+  - [x] One `cpu_time_message`, used by `safepoint.rs:1071` and `abi.rs:417`.
+  - [x] A Rust test per message: the used time is at least the limit, and the text parses.
+- [x] `judgeHostile` reads that time and applies the time bound. `bun nv proofs --overshoot` includes
   attacks that end at a time limit. `tools/nv/proofs/run.ts:888`, `tools/nv/proofs/run.ts:976`
-- [ ] Measure the legitimate worst over the existing time attacks, and set the slack by the standing
+- [x] Measure the legitimate worst over the existing time attacks, and set the slack by the standing
   decision.
-- [ ] `Ctx::cpu_time_left`, beside `wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). It
+- [x] `Ctx::cpu_time_left`, beside `wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). It
   reads the thread's CPU clock against `cpu_limit` (`limits.rs:1047`). Today only the watchdog reads
   that clock (`crates/nvs-host/src/watchdog.rs:275`).
 - [ ] Each member stage 1 listed checks its cost first or polls:
@@ -342,8 +351,13 @@ The last two are green: a WebSocket `receive` under `set_wall` ends as an error
 stdin pipe ends at the wall-time `FATAL` (`crates/nvs-cli/tests/run_command.rs`). `cargo fmt
 --check` passes over the tree.
 
-Stage 4 is not started. Its design for the time reading is a standing decision: *A time `FATAL`
-names what the request used*. Checkpoints are under its first item.
+Stage 4's first four items are done. A CPU or wall-time `FATAL` ends in `: <used> ms used of a
+limit of <limit> ms`, and a CPU limit lowered below the time already spent adds `, set when <n> ms
+were used`. `judgeHostile` and `bun nv proofs --overshoot` judge it against the crossing point plus
+100 ms. The scan exits 0: 0 red of 252, and the worst time reading is 47 ms over. The watchdog's
+sweep interval went from 500 ms to 50 ms, because a CPU limit ran up to 500 ms over. Both changes
+are recorded in the standing decisions. `Ctx::cpu_time_left` exists, and no member calls it yet.
+The five time conformance cases now use `--EXPECTF-ERROR--` and pass.
 
 The db pool's own `acquire` bound (5 s) caps an open's `timeout`, and `Core\Config::set('db.pool.acquire')`
 does not move it at run time. The attack is still right, since 1 s comes first.
@@ -355,16 +369,18 @@ has no definition in the tree and no log under `.looper/loops/main/checks/`.
 **Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
 A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
 that counts parks with a fake host whose `park` asserts on a `None` deadline. A `Core\Socket` test
-that expects a timeout under a wall time to read as an idle close, `null`. None is known.
+that expects a timeout under a wall time to read as an idle close, `null`. A test or `.out` that
+matches a time `FATAL`'s old exact text, `of 300ms` or a bare `CPU-time limit` with a limit set. A
+watchdog or slice test that assumed a 500 ms sweep. None is known.
 
 ### Next
 
-Stage 4's first item, by its checkpoints and the standing decision. Start with the wall message
-(`crates/nvs-runtime/src/ctx/limits.rs:1051`, `wall_time_message`; `started` and `held_for` are at
-`crates/nvs-runtime/src/ctx/safepoint.rs:930`). Then the CPU-spent hook: copy the shape of the
-`Resolver` hook, and read the tree's `Charge` with `charged_on` (`crates/nvs-host/src/watchdog.rs:2314`).
-Both CPU messages (`safepoint.rs:1071`, `abi.rs:417`) and the test at `safepoint.rs:1551` that
-matches the old text change together. Then `judgeHostile`'s time bound (`tools/nv/proofs/run.ts:888`,
-`HELD_RE` at `run.ts:282` is the memory twin), and `Ctx::cpu_time_left`.
+Stage 4's item *Each member stage 1 listed checks its cost first or polls*. Write its checkpoints
+first, one per member group. Start with `Core\Password` (`crates/nvs-stdlib/src/password.rs:436`,
+`:469`) and `Core\Crypto::deriveKey` (`crates/nvs-stdlib/src/crypto.rs:3165`): estimate the cost
+from the work factor, compare it with `Ctx::cpu_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1142`),
+and give the CPU `FATAL` (`Ctx::cpu_time_message`) when it does not fit. `affordable`
+(`crates/nvs-runtime/src/abi.rs:319`) is the memory twin. Each needs an attack ending in a CPU `FATAL`
+that the overshoot scan reads. Then the output-limit item, then `bun nv proofs --overshoot` again.
 
 ### Backlog
