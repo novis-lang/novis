@@ -835,9 +835,10 @@ pub struct TreeState {
     /// first context.
     pub(super) started: Started,
     /// Whether the stop at [`Self::wall_time`] is claimed, by `nvs run`'s clock
-    /// ([`SafepointView::stop_at_wall_time`]) or by a sleep that ended at the
-    /// deadline ([`Ctx::wall_time_breach`]). Locked once per request at most,
-    /// at its deadline, so nothing on the request path takes it.
+    /// or `nvs_host::watchdog`'s sweep ([`SafepointView::stop_at_wall_time`]),
+    /// or by a sleep that ended at the deadline ([`Ctx::wall_time_breach`]).
+    /// Locked only past the deadline, by the clocks and that sleep, so nothing
+    /// on the request path takes it.
     pub(super) wall_stop: std::sync::Mutex<bool>,
     /// What [`crate::extension`]'s host keeps for this request — the
     /// extension instances its calls made, and the resources they returned —

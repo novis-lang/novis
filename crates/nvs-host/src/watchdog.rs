@@ -1387,16 +1387,32 @@ impl Shared {
 /// compiled code polls, and the deadline a helper loop reads, as the CPU
 /// ceiling's two stores are.
 ///
-/// The `Core\Fatal::onLimit` handler runs with the flag lowered, so a deadline
-/// already expired is raised again only once a whole `interval` has passed
-/// since the wall deadline. That gives the handler at least one interval, from
-/// this sweep or from `nvs run`'s own clock, which expires the same deadline
-/// first and raises its own flag again after the handler's reserve.
+/// The first stop takes the tree's claim ([`SafepointView::stop_at_wall_time`]),
+/// as `nvs run`'s own clock and a `Core\Time::sleep` that ends at the deadline
+/// take it. Whichever of the three reaches the deadline first raises the flag,
+/// and the other two raise nothing then. The `Core\Fatal::onLimit` handler runs
+/// with the flag lowered, so a raise from a second clock would stop it at its
+/// first poll. A stop already claimed is raised again only once a whole
+/// `interval` has passed since the wall deadline, which is the handler's slice
+/// from this sweep. `nvs run`'s clock raises its own flag again after the
+/// handler's reserve.
+///
+/// The claim's lock is taken only past the deadline and before the deadline
+/// word is expired: once by the stop that claims it, and once per sweep inside
+/// the slice of a stop a sleep claimed, since that stop leaves the word as it
+/// was.
 fn stop_at_wall_time(view: &SafepointView, now: Instant, interval: Duration) {
     let Some(at) = view.wall_deadline() else {
         return;
     };
-    if now < at || (view.deadline_expired() && now < at + interval) {
+    if now < at {
+        return;
+    }
+    if !view.deadline_expired() && view.stop_at_wall_time() {
+        view.expire_deadline();
+        return;
+    }
+    if now < at + interval {
         return;
     }
     view.request(SafepointFlags::WALL_TIME);
@@ -2164,6 +2180,48 @@ mod tests {
             "a released request past its moved deadline ran on"
         );
         assert!(view.deadline_expired());
+    }
+
+    /// The sweep and the other two clocks that stop a request at its wall
+    /// time share one claim, so the stop's first raise comes from one of them
+    /// alone, and a second clock never raises inside the handler's slice.
+    #[test]
+    fn the_sweep_and_the_other_clocks_raise_the_first_wall_stop_once() {
+        const INTERVAL: Duration = Duration::from_millis(100);
+
+        // The sweep reaches the deadline first: `nvs run`'s clock, waking
+        // later, finds the stop claimed and raises nothing.
+        let request = configured("[limits]\nwall_time = \"10s\"\n");
+        let view = request.safepoint_view();
+        let at = view
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        stop_at_wall_time(&view, at, INTERVAL);
+        assert!(view.flags().contains(SafepointFlags::WALL_TIME));
+        assert!(view.deadline_expired());
+        assert!(
+            !view.stop_at_wall_time(),
+            "a second clock claimed a stop the sweep had made"
+        );
+
+        // A sleep ended at the deadline and runs the handler with the flag
+        // lowered: the sweep raises it only once the slice has passed.
+        let mut slept = configured("[limits]\nwall_time = \"10s\"\n");
+        let view = slept.safepoint_view();
+        let at = view
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        drop(slept.wall_time_breach());
+        stop_at_wall_time(&view, at, INTERVAL);
+        assert!(
+            !view.flags().contains(SafepointFlags::WALL_TIME),
+            "the sweep raised the flag inside a handler's slice"
+        );
+        stop_at_wall_time(&view, at + INTERVAL, INTERVAL);
+        assert!(
+            view.flags().contains(SafepointFlags::WALL_TIME),
+            "a handler ran on past its slice"
+        );
     }
 
     /// The distinction the ceiling exists for, from the other side: a request

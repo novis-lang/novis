@@ -6,9 +6,10 @@
 //! sleeps until the run's deadline, then raises [`nvs_runtime::SafepointFlags::WALL_TIME`] and expires the
 //! deadline through the run's [`SafepointView`]. The flag stops compiled code at its next
 //! poll, and the deadline stops a helper loop already running. A sleeping task reaches
-//! neither, so `Core\Time::sleep` ends at the deadline itself, and whichever of the two
-//! reaches it first claims the stop ([`SafepointView::stop_at_wall_time`]), so the
-//! thread's first raise never lands inside the sleep's handler. The `Core\Fatal::onLimit`
+//! neither, so `Core\Time::sleep` ends at the deadline itself. `nvs_host::watchdog`'s
+//! sweep, which a run starts for its CPU limit, stops the run at the deadline too. Whichever
+//! of the three reaches it first claims the stop ([`SafepointView::stop_at_wall_time`]),
+//! so a later first raise never lands inside the handler. The `Core\Fatal::onLimit`
 //! handler runs with the flag lowered, and the thread raises it once more after the
 //! default `fatal_reserve_time`, which is the handler's slice.
 //!
