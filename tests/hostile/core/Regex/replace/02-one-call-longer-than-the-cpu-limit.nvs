@@ -1,0 +1,18 @@
+<?nvs
+// Attack: a request replaces every character of a text of 16 million characters
+// in one call. That takes longer than its CPU-time limit of 300 ms, so the call
+// should stop part way through, at the limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+string $text = Core\Str::repeat('a', 16777216);
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Replaces each `a` with a `b`, once per character, and then does it again.
+echo "step 2\n";
+while (true) {
+    Core\Regex::replace($text, 'a', 'b');
+}

@@ -1866,6 +1866,20 @@ fn kept<'a>(found: &mut Vec<Captured<'a>>, groups: Captured<'a>) -> Result<(), F
     Ok(())
 }
 
+/// One poll of the request's deadline, between two matches of the linear tier.
+///
+/// The linear tier has no step budget, and its cost is the pattern's size
+/// times the subject's. So `matchAll`, `replace`, `replaceWith` and `split`
+/// poll once per match, and a passed deadline is the CPU or wall-time `FATAL`.
+/// The backtracking tier is bounded by `[regex] backtracking` instead. Cost:
+/// one relaxed load per match.
+fn polled(ctx: &Ctx, member: &str) -> Result<(), Fault> {
+    if ctx.deadline_expired() {
+        return nvs_runtime::poll_deadline(ctx, &format!("Core\\Regex::{member}"));
+    }
+    Ok(())
+}
+
 /// The error a member returns once the request's memory ceiling refused it.
 /// The breach is already recorded, so the `FATAL` that ends the request names
 /// the ceiling and not this text.
@@ -2048,6 +2062,7 @@ nvs_runtime::nvs_helper! {
                     if nvs_runtime::budget::refused() {
                         return Err(over_memory("matchAll"));
                     }
+                    polled(ctx, "matchAll")?;
                     out.append(built_match(&mut offsets, &names, &linear_groups(&caps)));
                 }
             }
@@ -2206,6 +2221,7 @@ nvs_runtime::nvs_helper! {
         match &*compiled {
             Compiled::Linear(re) if !reads_groups => {
                 for whole in re.find_iter(subject).take(count) {
+                    polled(ctx, "replace")?;
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
                         (number == 0).then(|| whole.as_str())
@@ -2215,6 +2231,7 @@ nvs_runtime::nvs_helper! {
             }
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject).take(count) {
+                    polled(ctx, "replace")?;
                     let Some(whole) = caps.get(0) else { continue };
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
@@ -2322,6 +2339,7 @@ nvs_runtime::nvs_helper! {
         match &*compiled {
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject).take(count) {
+                    polled(ctx, "replaceWith")?;
                     kept(&mut found, linear_groups(&caps))?;
                 }
             }
@@ -2365,7 +2383,11 @@ nvs_runtime::nvs_helper! {
 ///
 /// `each` returns whether the split goes on, so a caller that can afford no
 /// more pieces stops it at the piece it could not keep.
+///
+/// The linear tier polls the request's deadline once per piece, as
+/// [`polled`] says.
 fn each_piece<'a>(
+    ctx: &Ctx,
     compiled: &Compiled,
     subject: &'a str,
     pieces: Option<usize>,
@@ -2377,6 +2399,7 @@ fn each_piece<'a>(
     match compiled {
         Compiled::Linear(re) => {
             for piece in re.splitn(subject, pieces) {
+                polled(ctx, "split")?;
                 if !each(piece) {
                     break;
                 }
@@ -2437,7 +2460,7 @@ nvs_runtime::nvs_helper! {
             // A negative limit needs the count before the first piece is kept,
             // so the split runs twice: once counting, once building.
             let mut all = 0_usize;
-            each_piece(&compiled, subject, None, pattern, &budget, |_| {
+            each_piece(ctx, &compiled, subject, None, pattern, &budget, |_| {
                 all += 1;
                 true
             })?;
@@ -2452,7 +2475,7 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         let mut seen = 0_usize;
         let mut afforded = true;
-        each_piece(&compiled, subject, wanted, pattern, &budget, |piece| {
+        each_piece(ctx, &compiled, subject, wanted, pattern, &budget, |piece| {
             seen += 1;
             if seen <= kept && (keep_empty || !piece.is_empty()) {
                 if !out.affords_write() {

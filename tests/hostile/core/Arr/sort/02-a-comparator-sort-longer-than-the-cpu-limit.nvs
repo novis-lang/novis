@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a request sorts one million numbers with its own comparison function,
+// in one call. That takes longer than its CPU-time limit of 300 ms, so the sort
+// should stop part way through, at the limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+array<int> $numbers = [];
+int $i = 0;
+while ($i < 1000000) {
+    $numbers[] = ($i * 7919) % 1000003;
+    $i = $i + 1;
+}
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Sorts the numbers, largest first. The sort calls the function about
+// twenty million times.
+echo "step 2\n";
+while (true) {
+    Core\Arr::sort($numbers, { comparator: fn (int $x, int $y): int => $y - $x });
+}
