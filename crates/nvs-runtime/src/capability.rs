@@ -331,10 +331,13 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
         Scope::Unscoped => format!("{member} needs the capability `{name}`, which is not granted"),
         Scope::Path(path) => format!(
             "{member} needs the capability `{name}` for {}, which is not granted",
-            path.display()
+            crate::quoted(&path.to_string_lossy())
         ),
         Scope::Host(host) | Scope::Name(host) => {
-            format!("{member} needs the capability `{name}` for {host}, which is not granted")
+            format!(
+                "{member} needs the capability `{name}` for {}, which is not granted",
+                crate::quoted(host)
+            )
         }
         Scope::Endpoint(endpoint) => {
             format!("{member} needs the capability `{name}` for {endpoint}, which is not granted")

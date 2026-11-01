@@ -219,6 +219,42 @@ impl Fault {
     }
 }
 
+/// How many bytes of a caller's text an error message quotes, at most.
+pub const QUOTED_BYTES: usize = 64;
+
+/// `text` as an error message quotes it: whole when it is at most
+/// [`QUOTED_BYTES`] long, and otherwise its first [`QUOTED_BYTES`], cut on a
+/// character boundary, then `…`.
+///
+/// A member that quotes its argument in a `format!` copies it into the
+/// message, and the message's buffer doubles as it grows. An 8 MiB argument
+/// and its message then hold 32 MiB inside one call, before anything can ask
+/// the request's budget. Quoting through this bounds the message instead.
+///
+/// **What it spends:** nothing; it writes into the message being built.
+#[must_use]
+pub fn quoted(text: &str) -> Quoted<'_> {
+    Quoted(text)
+}
+
+/// [`quoted`]'s value, which writes the excerpt where it is formatted.
+#[derive(Clone, Copy, Debug)]
+pub struct Quoted<'a>(&'a str);
+
+impl std::fmt::Display for Quoted<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.len() <= QUOTED_BYTES {
+            return f.write_str(self.0);
+        }
+        let mut end = QUOTED_BYTES;
+        while !self.0.is_char_boundary(end) {
+            end -= 1;
+        }
+        f.write_str(&self.0[..end])?;
+        f.write_str("…")
+    }
+}
+
 /// A size that is about to become an allocation, refused before it is
 /// attempted — **the one place every count-shaped argument is checked**.
 ///
@@ -1063,6 +1099,24 @@ mod tests {
 
     use super::*;
     use crate::value::Tag;
+
+    /// A short text is quoted whole, and a long one is cut to
+    /// [`QUOTED_BYTES`] on a character boundary, then `…`.
+    #[test]
+    fn a_quoted_argument_is_cut_on_a_character_boundary() {
+        assert_eq!(quoted("Europe/Paris").to_string(), "Europe/Paris");
+        let long = "é".repeat(1 << 20);
+        let shown = format!("`{}` is not a zone", quoted(&long));
+        assert!(shown.len() < QUOTED_BYTES + 20, "{shown}");
+        assert!(
+            shown.starts_with("`éé") && shown.ends_with("é…` is not a zone"),
+            "{shown}"
+        );
+        assert_eq!(
+            quoted(&"a".repeat(QUOTED_BYTES)).to_string().len(),
+            QUOTED_BYTES
+        );
+    }
 
     nvs_helper! {
         /// Returns its one argument unchanged.

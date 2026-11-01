@@ -281,7 +281,8 @@ static ACCOUNTING_ALLOCATOR: budget::Accounting = budget::Accounting;
 
 pub use abi::{
     DEADLINE_POLL_BATCH, EXITED, FATAL, Fault, HelperFn, HelperFrame, HelperResult, NvsFn, OK,
-    THROWN, TaskPanic, TaskRoot, Teardown, affordable, bounded_loop, call, run_helper, run_task,
+    QUOTED_BYTES, Quoted, THROWN, TaskPanic, TaskRoot, Teardown, affordable, bounded_loop, call,
+    quoted, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
 pub use array::{
