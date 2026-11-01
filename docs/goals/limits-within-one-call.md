@@ -9,7 +9,7 @@ stages:
     status: done
   - id: 2
     title: "native recursion checks the stack before it goes deeper"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-host/src/stack.rs]
   - id: 3
     title: "every wait a member makes ends at the request's deadline"
@@ -171,13 +171,14 @@ left. `bounded_loop` (`crates/nvs-runtime/src/abi.rs:386`) has two callers, `Cor
 - [x] The third-party recursions take an explicit limit, written beside the call: `regex`'s
   `NEST_LIMIT` 250 (`crates/nvs-stdlib/src/regex.rs`, regex-syntax 0.8's default) and `CBOR_DEPTH` 16
   for the passkey reader's three CBOR reads (ciborium 0.2.2's default is 256).
-- [ ] An attack step per listed recursion that a `.nvs` file can reach, ending at `FATAL`. Only the
+- [x] An attack step per listed recursion that a `.nvs` file can reach, ending at `FATAL`. Only the
   router walk is left: a `$params` nested from `Core\Uri::parseQuery` and passed to
   `Core\Router::urlSigned`.
-  - [ ] Find `parseQuery`'s own nesting cap. If it stops below the depth that reaches the floor in a
-    release build (about 768 KiB over the walk's frame), build the nesting in the program instead.
-  - [ ] Write the step under `tests/hostile/`, ending at `FATAL`, and run it once with
-    `bun nv proofs --only 'Core\Router::urlSigned'`.
+  - [x] Find `parseQuery`'s own nesting cap. It has none: the memory limit bounds the nesting
+    (`crates/nvs-stdlib/src/uri.rs`, the iterative path builder), so 100,000 levels parse.
+  - [x] Write the step under `tests/hostile/`, ending at `FATAL`, and run it once with
+    `bun nv proofs --run --only 'Core\Router::urlSigned'`:
+    `tests/hostile/core/Router/urlSigned/02-a-value-nested-past-the-stack.nvs`, green.
 
 The other recursions have a format cap that fits the stack and stay as they are: XML 1024 iterative,
 HTML 1024 and html5ever 512, signature 32, `assertEqualsDeep` 64, the database schema 16, the LDAP
@@ -263,25 +264,25 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 2 is done but for its attack step. `Ctx::native_stack_step` (`crates/nvs-runtime/src/ctx/safepoint.rs:54`)
-refuses with the call-stack fatal at `NATIVE_STEP_ROOM` above the floor. `Core\Router`'s `written_form`
-asks it at every level. The named test passed when run once. The regex and CBOR parsers take explicit
-nesting limits. JSON, the value graph and the debug record were closed by the new standing decision
-*Where the stack helper cannot be asked*. The survey's claim that the record depth is a setting was
-wrong.
+Stage 2 is done. `Ctx::native_stack_step` (`crates/nvs-runtime/src/ctx/safepoint.rs:54`) guards
+`Core\Router`'s `$params` walk, and the attack
+`tests/hostile/core/Router/urlSigned/02-a-value-nested-past-the-stack.nvs` drives it from a
+`parseQuery` value 100,000 levels deep to `FATAL: the request exceeded its call-stack limit`. Its
+proofs run and comment check are green. A `parseQuery` value's leaves are `bytes`, so `urlSigned`
+throws `RuntimeError` on them; step 1 catches that, and step 2 reaches the floor before any leaf.
 
-The acceptance sweep's reds are stale, as the last handoff said. Nightly run 41187571578 ran on
-`857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` still has no definition
-in the tree, and no log was written for it.
+The acceptance sweep's reds are stale, as the last two handoffs said. Nightly run 41187571578 ran on
+`857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition in
+the tree, and no log was written for it.
 
 **Tests expected to go red:** a passkey test whose fixture CBOR nests deeper than 16, if one exists.
 None is known.
 
 ### Next
 
-Stage 2's last item: the router attack step, with its two checkpoints under the item. Read
-`Core\Uri::parseQuery`'s nesting cap first (`crates/nvs-stdlib/src/uri.rs`), and copy an existing
-`urlSigned` program's keyring setup from `docs/examples/`. Then close stage 2 in the front matter.
-Stages 3 and 4 touch disjoint files and may run as side goals.
+Stage 3, the waits, starting with the socket door (`crates/nvs-host/src/net.rs:250`) and the
+database door (`crates/nvs-stdlib/src/db/execute.rs:77`). Each clamps a deadline to
+`Ctx::wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). Write checkpoints under each
+item first. Stage 4 touches disjoint files and may run as a side goal.
 
 ### Backlog

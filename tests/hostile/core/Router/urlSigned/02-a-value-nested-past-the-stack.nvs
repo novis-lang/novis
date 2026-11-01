@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a visitor sends a query value nested many thousand levels deep, and the program signs a link with it.
+// The request should stop with an error, and the server must not crash.
+// hostile: ends-early 2 FATAL
+
+class Files
+{
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name, #[Core\Query] string $q = ''): string
+    {
+        return 'one file';
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. A value nested ten levels deep. The method returns a link or throws an error.
+// The error is caught, so step 2 still runs.
+array<mixed> $shallow = Core\Uri::parseQuery('q' . Core\Str::repeat('[a]', 10) . '=1');
+try {
+    Core\Router::urlSigned(Files::show, ['name' => 'a', 'q' => $shallow['q']], { keys: $keys, until: null });
+    echo 'shallow: built', "\n";
+} catch (RuntimeError $e) {
+    echo 'shallow: error', "\n";
+}
+
+// 2. A value nested one hundred thousand levels deep. The request stops at its call-stack limit.
+echo "step 2\n";
+array<mixed> $deep = Core\Uri::parseQuery('q' . Core\Str::repeat('[a]', 100000) . '=1');
+Core\Router::urlSigned(Files::show, ['name' => 'a', 'q' => $deep['q']], { keys: $keys, until: null });
+echo 'deep: built', "\n";
