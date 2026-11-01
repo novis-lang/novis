@@ -758,19 +758,27 @@ impl Reactor {
                 return Ok(0);
             };
 
+            self.poll(timeout)?;
             let mut woken = 0;
-            for &id in self.poll(timeout)? {
-                // `false` is ordinary — rule 2's stale or racing wake — so it
-                // is counted out rather than reported.
+            // The clock is read after the poll and not before it: a poll that
+            // waited longer than it was asked to has more than one timer due,
+            // and this wakes all of them rather than one per turn.
+            //
+            // Timers go on the run queue ahead of what the poll reported. A
+            // task that gave up its slice fired its own wake, so the poll
+            // reports it too, and a deadline that came due meanwhile is a wake
+            // from before that yield. Woken behind it, a `Core\Task::all`
+            // parent would wait one more slice for every child that never
+            // waits, and its deadline would stop them a whole round late.
+            let now = Instant::now();
+            while let Some(id) = self.timers.take_due(now) {
                 if sched.wake(id) {
                     woken += 1;
                 }
             }
-            // The clock is read after the poll and not before it: a poll that
-            // waited longer than it was asked to has more than one timer due,
-            // and this wakes all of them rather than one per turn.
-            let now = Instant::now();
-            while let Some(id) = self.timers.take_due(now) {
+            for &id in &self.ready {
+                // `false` is ordinary — rule 2's stale or racing wake — so it
+                // is counted out rather than reported.
                 if sched.wake(id) {
                     woken += 1;
                 }
@@ -1360,6 +1368,41 @@ mod tests {
         );
         assert_eq!(reactor.remote_waits(), 0);
         assert_eq!(sched.run().finished, 1);
+    }
+
+    /// A deadline that came due and a task that gave up its slice, both
+    /// reported by one turn: the deadline's task runs first. A task that never
+    /// waits fires its own wake at every slice, so a deadline queued behind it
+    /// would wait a whole round of such tasks before its group could stop them.
+    #[test]
+    fn a_due_timer_runs_ahead_of_a_task_that_yielded() {
+        let mut sched = Scheduler::new();
+        let mut reactor = Reactor::new().expect("the OS refused a poll");
+        let order = Rc::new(RefCell::new(Vec::new()));
+
+        // The yielder is spawned first, so its id sorts ahead in the poll's
+        // own list and only the turn's order can put the timer first.
+        let ran = Rc::clone(&order);
+        let yielder = sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
+            suspend(ctx, Waiting::Parked);
+            ran.borrow_mut().push("yielder");
+        });
+        let ran = Rc::clone(&order);
+        let timed = sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
+            suspend(ctx, Waiting::Parked);
+            ran.borrow_mut().push("timer");
+        });
+        sched.run();
+        assert_eq!(sched.parked_count(), 2);
+
+        reactor.timers().arm(timed, Instant::now());
+        reactor
+            .remote_wake(yielder)
+            .wake()
+            .expect("the poke failed");
+        assert_eq!(reactor.turn(&mut sched).expect("a turn failed"), 2);
+        assert_eq!(sched.run().finished, 2);
+        assert_eq!(*order.borrow(), ["timer", "yielder"]);
     }
 
     /// Wakes for one task that land before its core polls, the way a run of
