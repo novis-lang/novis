@@ -13,7 +13,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-host/src/stack.rs]
   - id: 3
     title: "every wait a member makes ends at the request's deadline"
-    status: open
+    status: done
   - id: 4
     title: "a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it"
     status: open
@@ -128,6 +128,18 @@ A run with no wall time reads inline and pays nothing. A read given up leaves it
 on the descriptor until input arrives, which is acceptable because the run is ending. Reading on the
 core with a nonblocking descriptor was declined: standard input is not always pollable (a file or a
 Windows console), and the pool already has the bounded wait.
+
+**A time `FATAL` names what the request used, read where it stops.** The message keeps its
+prefix (`WALL_TIME_EXCEEDED`, which `nvs test` matches) and adds `: <used> ms used of a limit of
+<limit> ms`, the one form the overshoot judge parses. Wall time used is the clock now less the
+tree's `started` and the debug hold. CPU time used is the request tree's `Charge` in
+`nvs_host::watchdog`, read on the thread that runs it, so the reading is exact. `nvs-runtime`
+cannot read it itself, so the host installs a hook beside the `Resolver` one, a function from the
+tree's `SafepointView` to the time spent, and `Ctx::cpu_time_spent` calls it. `cpu_time_left`
+is the limit less that. With no hook, or no per-thread clock, the message names the limit alone,
+and the judge counts it as no reading. Storing the watchdog's reading at the raise was declined:
+it would hide a native call that runs on past the raise, which is what the scan exists to find.
+Cost: one clock read and two loads, only on a breach or a member's cost check.
 
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
@@ -261,21 +273,25 @@ Most waits go through four doors, so most items are one change at a door. Each i
   whether a CLI run has a wall deadline; if it has, the read stops at it. It has one whenever
   `[limits] wall_time` is set, since `refresh_limits` publishes it for every run. Under one, the
   read goes through `StdinUntil` on the blocking pool; with none it stays inline.
-- [ ] An attack step per listed wait a `.nvs` file can reach, ending at the wall-time `FATAL`. A wait
+- [x] An attack step per listed wait a `.nvs` file can reach, ending at the wall-time `FATAL`. A wait
   only a remote peer can hold open is a Rust test with a scripted peer.
   - [x] `Core\Task\Channel`: `tests/hostile/core/Task-Channel/close/02-a-wait-past-the-time-limit.nvs`, green.
   - [x] `Core\Cache\Store::getSecret`'s fill wait: `tests/hostile/core/Cache-Store/getSecret/02-a-wait-past-the-time-limit.nvs`, green.
   - [x] The db pool slot wait: `tests/hostile/core/Db/open/03-a-wait-past-the-time-limit.nvs`, green.
-  - [ ] The WebSocket `receive`: a Rust test in `crates/nvs-server/src/socket.rs`'s tests, a `Framed`
-    over a peer that never sends, `set_wall` a short instant, and `receive` returns `Err`, not `Closed`.
-  - [ ] `Core\IO::stdin` under a wall time: a Rust test of `StdinUntil` is not possible over the
-    process's own standard input, so a `nvs run` integration test with a held-open pipe, in
-    `crates/nvs-cli/tests/`, ends at the `FATAL`.
+  - [x] The WebSocket `receive`: `a_receive_from_a_silent_peer_ends_at_the_wall_deadline_as_an_error`
+    in `crates/nvs-server/src/serve.rs`'s tests, where the `Framed` tests live, green.
+  - [x] `Core\IO::stdin` under a wall time: `a_stdin_read_under_a_wall_time_ends_at_the_wall_time_fatal`
+    in `crates/nvs-cli/tests/run_command.rs`, a held-open pipe, green in 1.2 s.
 
 ### 4. a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it
 
 - [ ] The CPU and wall-time `FATAL`s name the time the request used and its limit. `crates/nvs-runtime/src/abi.rs:381`,
   `crates/nvs-runtime/src/ctx/safepoint.rs:1046`, `crates/nvs-runtime/src/ctx/limits.rs:997`
+  - [ ] `TreeState::wall_used` (`safepoint.rs:930`'s twin), and `wall_time_message` names it.
+  - [ ] The CPU-spent hook in `nvs-runtime`, installed by `nvs-host` from `Charge` (`watchdog.rs:311`,
+    `charged_on` at `watchdog.rs:2314`), and `Ctx::cpu_time_spent`.
+  - [ ] One `cpu_time_message`, used by `safepoint.rs:1071` and `abi.rs:417`.
+  - [ ] A Rust test per message: the used time is at least the limit, and the text parses.
 - [ ] `judgeHostile` reads that time and applies the time bound. `bun nv proofs --overshoot` includes
   attacks that end at a time limit. `tools/nv/proofs/run.ts:888`, `tools/nv/proofs/run.ts:976`
 - [ ] Measure the legitimate worst over the existing time attacks, and set the slack by the standing
@@ -320,22 +336,21 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 3 is nearly done. Every door, park and backoff is done, and so is `Core\IO::stdin`. Two
-Rust tests of the attack item are left.
+Stage 3 is done: every listed wait ends at the wall deadline, each with an attack or a Rust test.
+The last two are green: a WebSocket `receive` under `set_wall` ends as an error
+(`crates/nvs-server/src/serve.rs`, where the `Framed` tests live), and `nvs run` with a held-open
+stdin pipe ends at the wall-time `FATAL` (`crates/nvs-cli/tests/run_command.rs`). `cargo fmt
+--check` passes over the tree.
 
-The WebSocket peer takes the wall deadline through `PeerSocket::set_wall`
-(`crates/nvs-runtime/src/peer.rs`). `Framed` (`crates/nvs-server/src/socket.rs`) caps every wait in
-`arm` by it, and `expiry` reads a timeout past it as an error, not a close. `Core\Socket`'s
-`receive` and `send_frame` (`crates/nvs-stdlib/src/socket.rs`) give `wall_time_fault` on that error.
-`Core\IO::stdin` under a wall time reads through `StdinUntil` (`crates/nvs-stdlib/src/io.rs`) on the
-blocking pool. Three attacks end at the wall-time `FATAL`: a channel, a `getSecret` fill wait and a
-full db pool, each green under `bun nv proofs --run --id`.
+Stage 4 is not started. Its design for the time reading is a standing decision: *A time `FATAL`
+names what the request used*. Checkpoints are under its first item.
 
 The db pool's own `acquire` bound (5 s) caps an open's `timeout`, and `Core\Config::set('db.pool.acquire')`
 does not move it at run time. The attack is still right, since 1 s comes first.
 
 The acceptance sweep's reds are stale: nightly run 41187571578 ran on `857b39cad`, before the
-fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition in the tree.
+fixes `39795c9c4` and `8ce92dda5`, and CI is green on the later `401abc9b4`. `env-secret-proofs`
+has no definition in the tree and no log under `.looper/loops/main/checks/`.
 
 **Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
 A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
@@ -344,13 +359,12 @@ that expects a timeout under a wall time to read as an idle close, `null`. None 
 
 ### Next
 
-The two open checkpoints under stage 3's attack item. First, a Rust test in
-`crates/nvs-server/src/socket.rs`'s test module: a `Framed` over a loopback peer that never sends,
-`set_wall(Some(now + 50ms))`, and `receive_or` returns `Err` and not `Received::Closed`. Look for
-an existing `Framed` test there to copy its setup. Second, a `nvs run` integration test in
-`crates/nvs-cli/tests/`: a script sets `limits.wall_time` to `1s` and calls `Core\IO::stdin()`, with
-the child's stdin a pipe held open, and the run ends at the wall-time `FATAL`. Then set stage 3's
-status to done and take stage 4, starting with the `FATAL` text (`limits.rs:1051`,
-`wall_time_message`).
+Stage 4's first item, by its checkpoints and the standing decision. Start with the wall message
+(`crates/nvs-runtime/src/ctx/limits.rs:1051`, `wall_time_message`; `started` and `held_for` are at
+`crates/nvs-runtime/src/ctx/safepoint.rs:930`). Then the CPU-spent hook: copy the shape of the
+`Resolver` hook, and read the tree's `Charge` with `charged_on` (`crates/nvs-host/src/watchdog.rs:2314`).
+Both CPU messages (`safepoint.rs:1071`, `abi.rs:417`) and the test at `safepoint.rs:1551` that
+matches the old text change together. Then `judgeHostile`'s time bound (`tools/nv/proofs/run.ts:888`,
+`HELD_RE` at `run.ts:282` is the memory twin), and `Ctx::cpu_time_left`.
 
 ### Backlog
