@@ -290,31 +290,36 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 3 is under way. The socket door is done: `Core\Net`, `Core\Http`, Redis, `Core\Mail` and
-`Core\Ldap` clamp each wait with the new `Ctx::within_wall_time` and `Ctx::wall_bound`
-(`crates/nvs-runtime/src/ctx/limits.rs`), and the attack
-`tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs` waits one hour under
-`limits.wall_time = 1s` and ends at the `FATAL` in 1.2 s. Its proofs run and comment check are
-green. `Core\Mail` bounded only its connect before; its `timeout` now covers the whole exchange.
-The database door's statements are clamped in `bound_connection`; its connects, `into_wal` and a
-test are left. A new standing decision says where a deadline gives the `FATAL` directly.
+Stage 3 is under way. The socket door and the database door are done. The database door's four
+driver connects take `Ctx::wall_clamp(deadline)` (`crates/nvs-stdlib/src/db/open.rs`, `connect_by`
+in `open_named` and both `open` arms), and SQLite's open stops `into_wal`'s retry at the new
+`SqliteTarget::deadline`. Test `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`
+(`db/execute.rs`) is green in 0.2 s. `Ctx::wall_clamp` (`crates/nvs-runtime/src/ctx/limits.rs`) is
+the one helper for "the earlier of my deadline and the wall deadline"; `bound_connection` reads it.
 
-The acceptance sweep's reds are stale, as the last three handoffs said. Nightly run 41187571578 ran
+The blocking-pool door is half done. `Core\Process`'s `run` and `spawn` clamp the child's deadline,
+and `stopped` (`crates/nvs-stdlib/src/process.rs`) gives the wall-time `FATAL` once the wall time is
+out, else the `TimeoutError`. Test `run_stops_a_child_at_the_request_wall_time` is green. The pool
+slot wait `wait_for_slot` (`db/pool.rs:168`) was left for the park door.
+
+The acceptance sweep's reds are stale, as the last four handoffs said. Nightly run 41187571578 ran
 on `857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition
 in the tree, and no log was written for it.
 
 **Tests expected to go red:** a `Core\Mail` test whose scripted server stalls past `timeout` after
-the connect, if one exists, now gets an error where it waited before. An SQLite test that reads
-`set_statement_deadline`'s `None` deadline under a `wall_time` now sees `Some`. None is known.
+the connect, if one exists. An SQLite test that reads `set_statement_deadline`'s `None` deadline
+under a `wall_time` now sees `Some`. A process test under a `wall_time` shorter than its child's
+run now gets a `FATAL`. None is known.
 
 ### Next
 
-The rest of the database door: the four driver connects (start at `crates/nvs-stdlib/src/db/open.rs`,
-where the connect bound is built), `into_wal`'s retry (`crates/nvs-db/src/sqlite.rs:808`), and a
-Rust test with a peer that never replies. Then the blocking-pool door
-(`crates/nvs-host/src/blocking.rs:442`, `Core\Process` at `crates/nvs-stdlib/src/process.rs:964`)
-and the inline `getaddrinfo` calls (`db/open.rs:152`, `mail.rs:428`, `ldap/mod.rs:493`). Each reads
-`Ctx::within_wall_time` or `Ctx::wall_bound`. Stage 4 touches disjoint files and may run as a side
-goal.
+The resolver: give `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`) a bounded twin,
+`run_until(deadline, f) -> Option<T>`, that parks the task with a timer and on expiry drops its
+interest in the slot, leaving the job to finish on its pool thread. `resolve_off_core`
+(`crates/nvs-host/src/lib.rs:210`) needs a deadline from its caller; find who calls the resolver
+hook in `nvs-runtime::capability`. Then the three inline `getaddrinfo` calls (`db/open.rs:152`,
+`mail.rs:428`, `ldap/mod.rs:493`) move onto it. Then the backoff sleeps (`http/transport.rs:1501`,
+`db/transaction.rs:352`) and the park door, each with `Ctx::wall_clamp` or `Ctx::within_wall_time`.
+Stage 4 touches disjoint files and may run as a side goal.
 
 ### Backlog
