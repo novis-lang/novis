@@ -254,14 +254,7 @@ subagent. Such subagents run side by side, and none of them builds.
 ### State
 
 Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
-(`tools/nv/cmd/ci.ts:621`). Stage 2, round 1's full run `41298422730` on `c3f94ed9f` ended with 52
-of 55 jobs green, `ext templates` on all three OSes among them. Its three reds:
-
-- `miri units (nvs-stdlib 2/12)`: fixed in `4e02da7ec`. Miri skips the router stack-floor test, because
-  Miri's stack pointer is no machine address (`crates/nvs-stdlib/src/router.rs:4174`).
-- `miri units (nvs-runtime 2/2)`: fixed in `8c0a5fa5c`. The array-growth test is sized for Miri
-  (`crates/nvs-runtime/src/budget.rs:1904`), and it passes under Miri for Linux in 33 s.
-- `proofs / macos-aarch64`: CPU stops past the limit plus 100 ms. Open, see round 3.
+(`tools/nv/cmd/ci.ts:621`). Rounds 1 and 2 fixed both Miri reds (`4e02da7ec`, `8c0a5fa5c`).
 
 Round 3's full run `41310544248` on `5047daa20` set the watchdog thread's macOS QoS class, and
 `proofs / macos-aarch64` still stopped four attacks 103 to 128 ms late, one at a time: `limits-fatal_reserve_time/01`
@@ -274,14 +267,16 @@ Its `proofs / linux-x86_64` stopped `limits-fatal_reserve_time/01` in step 3: th
 its brief `1ms` limit, a race the attack had always ridden. `ba6f2d999` stops a limit set below the spend at the
 set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. macOS's
 proofs then failed on that same attack alone: the halved wait cured the three CPU overshoots. Every
-other job was green. Round 5's full run `41323589001` on `a0bf32ea9` tests the fix, and its watch runs.
+other job was green. Round 5's full run `41323589001` on `a0bf32ea9`, two attacks at a time, failed
+`proofs / macos-aarch64` on `Compress/compress/02` alone: 120 ms over. It ran inline and polls every 256 KiB
+(`crates/nvs-stdlib/src/compress.rs:819`). The run's other jobs were still going when the session ended.
 
 ### Next
 
-Stage 2, round 6. Read run `41323589001`'s verdict first, which the watch's report gives.
+Stage 2, round 6. No watch runs: `bun nv ci --status` for run `41323589001`'s other jobs.
 
-- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
-- [ ] If macOS still stops late, the wait is not the cause: read the stop's latency after the sweep, from the flag to the `FATAL` (`crates/nvs-runtime/src/ctx/limits.rs:1103`). `crates/nvs-host/src/watchdog.rs:1460`
+- [ ] Find why `Compress/compress/02` alone still stops about 100 ms late on macOS under two attacks at a time, while sort and regex now pass. Measure, don't guess: have `bun nv proofs` print the overshoot table on macOS (`tools/nv/proofs/run.ts:1065`), and time the read a sweep makes of a thread inside a large allocation, since `thread_suspend` waits for it to leave the kernel (`crates/nvs-host/src/cpuclock.rs:338`). `crates/nvs-host/src/watchdog.rs:1460`
+- [ ] Fix every red, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
