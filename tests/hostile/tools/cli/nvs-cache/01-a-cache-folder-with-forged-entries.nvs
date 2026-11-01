@@ -1,0 +1,20 @@
+<?nvs
+// Attack: this program prints the paths of files and folders that look like cache entries.
+// A test creates them in the cache folder and runs `nvs cache clear`. Only real entries should be deleted.
+
+// 1. A file with the entry extension, outside every cache subfolder.
+echo "file not-in-a-subfolder.nvsc\n";
+
+// 2. A folder with the entry extension. Deleting it fails, so the command counts it as skipped.
+echo "dir zz/a-folder.nvsc\n";
+
+// 3. A file that a run is still writing.
+echo "file zz/.tmp-0123456789abcdef\n";
+
+// 4. Names that are close to the entry extension, but are not it.
+echo "file zz/upper-case.NVSC\n";
+echo "file zz/backup.nvsc.bak\n";
+echo "file zz/no-extension\n";
+
+// 5. A file with the entry extension and no valid content. The command deletes it like any entry.
+echo "entry zz/forged.nvsc\n";

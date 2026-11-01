@@ -192,6 +192,7 @@ mod tests {
     }
 
     /// Over the cap, `gc` removes the oldest entries down to the floor and keeps the newest.
+    // covers: tools:cli/nvs-cache
     #[test]
     fn gc_over_the_cap_removes_the_oldest_entries_down_to_the_floor() {
         let (dir, cache, paths) = filled("cache-cmd-gc-over", 4 * 1024, 6);
@@ -211,6 +212,7 @@ mod tests {
     }
 
     /// Under the cap, `gc` removes nothing and still exits `0`.
+    // covers: tools:cli/nvs-cache
     #[test]
     fn gc_under_the_cap_removes_nothing_and_succeeds() {
         let (dir, cache, paths) = filled("cache-cmd-gc-under", 64 * 1024, 3);
@@ -223,6 +225,7 @@ mod tests {
 
     /// `clear` removes every published entry and leaves a writer's `.tmp-` file where it is, and
     /// `--json` prints the same counts as a document.
+    // covers: tools:cli/nvs-cache
     #[test]
     fn clear_removes_every_entry_and_keeps_a_temp_file() {
         let (dir, cache, paths) = filled("cache-cmd-clear", 64 * 1024, 3);
@@ -241,6 +244,7 @@ mod tests {
     }
 
     /// A `.tmp-` file does not count toward the cap, so it cannot make `gc` evict an entry.
+    // covers: tools:cli/nvs-cache
     #[test]
     fn gc_does_not_count_a_temp_file_toward_the_cap() {
         let (dir, cache, paths) = filled("cache-cmd-gc-temp", 4 * 1024, 3);
@@ -253,6 +257,7 @@ mod tests {
 
     /// A cache folder that does not exist yet, and a tree that places no cache, are both an empty
     /// cache.
+    // covers: tools:cli/nvs-cache
     #[test]
     fn a_missing_folder_and_no_cache_remove_nothing() {
         let dir = nvs_repo::scratch_private("cache-cmd-missing");

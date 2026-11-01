@@ -316,3 +316,78 @@ fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The attack under `tests/hostile/tools/cli/nvs-cache/`: each line its program prints is a file or
+/// a folder that looks like a cache entry. Running the program stores its own entry, and the test
+/// creates every forged path beside it. `nvs cache clear` exits `0`, deletes the real entry and the
+/// forged one in a subfolder, counts the folder as skipped, and leaves every other path in place.
+// covers: tools:cli/nvs-cache
+#[test]
+fn cache_clear_deletes_only_entries_from_a_folder_with_forged_ones() {
+    let program = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-cache")
+        .join("01-a-cache-folder-with-forged-entries.nvs");
+    let dir = private_scratch("forged");
+    let cache = dir.join("artifacts");
+    std::fs::create_dir(&cache).expect("the cache directory");
+    let config = dir.join("nvs.toml");
+    std::fs::write(
+        &config,
+        format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display()),
+    )
+    .expect("the configuration is written");
+
+    let (printed, _) = run(&config, &program);
+    let stored = artifacts(&cache);
+    assert_eq!(stored.len(), 1, "the run stored its program");
+
+    let mut kept = Vec::new();
+    let mut forged = Vec::new();
+    for line in printed.lines() {
+        let (kind, relative) = line.split_once(' ').expect("`<kind> <path>`");
+        let path = cache.join(relative);
+        std::fs::create_dir_all(path.parent().expect("a path inside the cache"))
+            .expect("the folder of a forged path");
+        match kind {
+            "dir" => std::fs::create_dir(&path).expect("a forged folder"),
+            "file" | "entry" => std::fs::write(&path, b"NVSC").expect("a forged file"),
+            other => panic!("unknown kind `{other}` in `{line}`"),
+        }
+        if kind == "entry" {
+            forged.push(path);
+        } else {
+            kept.push(path);
+        }
+    }
+    assert_eq!(kept.len(), 6, "the program printed every step: {printed}");
+
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("--config")
+        .arg(&config)
+        .args(["cache", "clear", "--json"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "`nvs cache clear` succeeds: {stderr}");
+    let document: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON document");
+    assert_eq!(document["removed"], 2, "{document}");
+    assert_eq!(document["skipped"], 1, "the folder named like an entry");
+    assert!(
+        stored.iter().chain(&forged).all(|path| !path.exists()),
+        "every entry in a subfolder is deleted"
+    );
+    assert!(
+        kept.iter().all(|path| path.exists()),
+        "every path that is not an entry is kept"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
