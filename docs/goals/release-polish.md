@@ -26,11 +26,11 @@ stages:
     context: [.github/workflows/ci.yml, deny.toml, .github/workflows/release.yml, tools/nv/cmd/ci.ts, docs/rules/testing/ci-lanes.md]
   - id: 6
     title: "the editor extension reads as a published package, and the tools share one error helper"
-    status: open
+    status: done
     context: [editors/vscode/package.json, editors/vscode/README.md, tools/nv/cmd/deps.ts, docs/agent/dependency-update.md]
   - id: 7
     title: "the lexical path normalizer, span_text and strip_sigil each exist once"
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/source.rs, crates/nvs-config/src/resolve.rs, crates/nvs-types/src/paths.rs, crates/nvs-diagnostics/src/embedded.rs]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -437,24 +437,24 @@ verify `SHA256SUMS` like the archives.
 **Does:** the Marketplace page of the extension reads like a user's page, and the tools lose small
 duplicates and dead files.
 
-- [ ] The extension's README says what the extension does for the user, with no rule id and no internals. `editors/vscode/README.md:8`
-- [ ] `keywords` and `bugs`, and `editors/vscode/CHANGELOG.md`. `editors/vscode/package.json:14`, `editors/vscode/CHANGELOG.md:1`
-- [ ] `holds` moves to a `holds.json` beside each `package.json`, `bun nv deps` reads it, and the extension's is in `.vscodeignore`. `editors/vscode/package.json:590`, `tools/nv/cmd/deps.ts:25`, `tools/nv/cmd/deps.ts:160`, `docs/agent/dependency-update.md:43`
-- [ ] `eslint.config.mjs` uses `defineConfig` from `eslint/config`, without the deprecated `semi` rule. `editors/vscode/eslint.config.mjs:4`, `editors/vscode/eslint.config.mjs:18`
-- [ ] Bun's exact pin moves to `packageManager`, and `engines.bun` is a range. `package.json:9`
-- [ ] `messageOf` in `tools/nv/lib/proc.ts`, and every copy calls it. `tools/nv/lib/proc.ts:1`, `tools/nv/cmd/bench-docker.ts:11`, `tools/nv/cmd/bench.ts:825`, `tools/nv/accept/origin.ts:83`, `tools/nv/cmd/deps.ts:498`, `tools/nv/cmd/render.ts:26`, `tools/nv/cmd/scaling.ts:947`, `tools/nv/cmd/scaling.ts:1002`, `tools/nv/cmd/webp-lib.ts:199`, `tools/nv/proofs/run.ts:203`, `tools/nv/proofs/run.ts:649`, `tools/nv/proofs/run.ts:817`
-- [ ] `tools/data/calibration.json` is deleted: its only reader was the retired `orient.py`. `tools/data/calibration.json:1`
-- [ ] `leak-check.sh` and `tsan.sh` show the plain Linux command beside the `wsl.exe` one. `tools/leak-check.sh:11`, `tools/tsan.sh:8`
+- [x] The extension's README says what the extension does for the user, with no rule id and no internals. `editors/vscode/README.md:8`
+- [x] `keywords` and `bugs`, and `editors/vscode/CHANGELOG.md`. `editors/vscode/package.json:14`, `editors/vscode/CHANGELOG.md:1`
+- [x] `holds` moves to a `holds.json` beside each `package.json`, `bun nv deps` reads it, and the extension's is in `.vscodeignore`. `editors/vscode/package.json:590`, `tools/nv/cmd/deps.ts:25`, `tools/nv/cmd/deps.ts:160`, `docs/agent/dependency-update.md:43`
+- [x] `eslint.config.mjs` uses `defineConfig` from `eslint/config`, without the deprecated `semi` rule. `editors/vscode/eslint.config.mjs:4`, `editors/vscode/eslint.config.mjs:18`
+- [x] Bun's exact pin moves to `packageManager`, and `engines.bun` is a range. `package.json:9`
+- [x] `messageOf` in `tools/nv/lib/proc.ts`, and every copy calls it. `tools/nv/lib/proc.ts:1`, `tools/nv/cmd/bench-docker.ts:11`, `tools/nv/cmd/bench.ts:825`, `tools/nv/accept/origin.ts:83`, `tools/nv/cmd/deps.ts:498`, `tools/nv/cmd/render.ts:26`, `tools/nv/cmd/scaling.ts:947`, `tools/nv/cmd/scaling.ts:1002`, `tools/nv/cmd/webp-lib.ts:199`, `tools/nv/proofs/run.ts:203`, `tools/nv/proofs/run.ts:649`, `tools/nv/proofs/run.ts:817`
+- [x] `tools/data/calibration.json` is deleted: its only reader was the retired `orient.py`. `tools/data/calibration.json:1`
+- [x] `leak-check.sh` and `tsan.sh` show the plain Linux command beside the `wsl.exe` one. `tools/leak-check.sh:11`, `tools/tsan.sh:8`
 
 ### 7. the lexical path normalizer, span_text and strip_sigil each exist once
 
 **Does:** three copies of each helper become one, with every caller's behaviour pinned by a test.
 
-- [ ] `nvs_diagnostics::lexical_normalize` and the tests the `lexical-normalize-tests` check names. `crates/nvs-diagnostics/src/paths.rs:1`, `crates/nvs-diagnostics/src/lib.rs:34`
-- [ ] The three copies call it, and `nvs-config` keeps its `.` step. `crates/nvs-config/src/resolve.rs:1078`, `crates/nvs-diagnostics/src/embedded.rs:220`, `crates/nvs-types/src/paths.rs:430`
-- [ ] `nvs_diagnostics::span_text`, re-exported where each copy was. `crates/nvs-diagnostics/src/source.rs:248`, `crates/nvs-ir/src/lib.rs:646`, `crates/nvs-types/src/lib.rs:703`, `crates/nvs-syntax/src/casing.rs:85`
-- [ ] `nvs_syntax::strip_sigil`, re-exported where each copy was. `crates/nvs-syntax/src/casing.rs:208`, `crates/nvs-ir/src/lib.rs:652`, `crates/nvs-types/src/lib.rs:708`
-- [ ] The phi comment says what the code does, without "for now". `crates/nvs-ir/src/lower/control.rs:149`
+- [x] `nvs_diagnostics::lexical_normalize` and the tests the `lexical-normalize-tests` check names. `crates/nvs-diagnostics/src/paths.rs:1`, `crates/nvs-diagnostics/src/lib.rs:34`
+- [x] The three copies call it, and `nvs-config` keeps its `.` step. `crates/nvs-config/src/resolve.rs:1078`, `crates/nvs-diagnostics/src/embedded.rs:220`, `crates/nvs-types/src/paths.rs:430`
+- [x] `nvs_diagnostics::span_text`, re-exported where each copy was. `crates/nvs-diagnostics/src/source.rs:248`, `crates/nvs-ir/src/lib.rs:646`, `crates/nvs-types/src/lib.rs:703`, `crates/nvs-syntax/src/casing.rs:85`
+- [x] `nvs_syntax::strip_sigil`, re-exported where each copy was. `crates/nvs-syntax/src/casing.rs:208`, `crates/nvs-ir/src/lib.rs:652`, `crates/nvs-types/src/lib.rs:708`
+- [x] The phi comment says what the code does, without "for now". `crates/nvs-ir/src/lower/control.rs:149`
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -473,40 +473,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 landed in one commit. `supply-chain-coverage` passes 3 of 3, and
-`cargo deny check` passes over the root and the four extension manifests, so the four `deny-*`
-checks are green. No new advisory needed an ignore. The tools' `tsc` is clean.
+Stages 1 to 7 are done. Stage 6 landed in five commits and stage 7 in one. `editor-lint`,
+`editor-prose` and `deps-tests` pass, and so do the three `lexical_normalize` tests. `cargo build`,
+`cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` and the tools' `tsc` are clean.
 
-- Items 1 and 2 were already on disk: `ci.yml`'s `supply-chain` job runs cargo-deny on all nine
-  lockfiles, and `PRE_PUSH` maps `LOCKFILE_DIRS` (`tools/nv/cmd/ci-changes.ts:39`). They are ticked.
-- `release.yml`'s `publish` had no attestation. The last handoff's `release.yml:422` was the
-  `docker` job. `publish` now has `id-token` and `attestations`, and an `Attest the checksums` step
-  after `Checksums`, at the SHA `build.yml:222` pins.
-- `deny.toml` lists the six `build.yml` targets plus `wasm32-wasip2`. The MPL-2.0 comment names
-  `avif-parse` (image) and `cssparser`, `cssparser-macros`, `dtoa-short`, `selectors` (pdf). The
-  cranelift exception is gone.
-- The wasi-sdk digests are GitHub's own asset digests for `wasi-sdk-34`. The step uses `sha256sum`
-  or, on macOS, `shasum -a 256`. Neither has run in CI yet: read the first `ext templates` run.
-- `cargo-fuzz` is pinned at `0.13.2`, the newest on crates.io. The push trigger names `main` alone.
-- `tools/nv/test/supply-chain.test.ts` reads tracked lockfiles with `git ls-files`, and parses the
-  workflows with `Bun.YAML` and `deny.toml` with `Bun.TOML`.
+- The extension's README is the user's page: what it does, how to start, the two colour options, and
+  where hidden secrets still show. The commands and *Decided here* moved verbatim to
+  `editors/vscode/DEVELOPING.md`, which `.vscodeignore` leaves out. `surface.ts`, `concealment.test.ts`
+  and the *No tier draws a decoration* playbook bullet now cite it.
+- `holds.json` sits beside `editors/vscode/package.json` and `viewer/package.json`. The root and
+  `website/` had no holds. `deps.ts`'s `filePins` reads the sibling file, and a missing one is no holds.
+- `setup-bun` at the pinned SHA reads `packageManager` first (`src/utils.ts:124`), so the root has
+  `"packageManager": "bun@1.4.4"` and `engines.bun` is `>=1.4.4`. The decision said 1.4.3; the tree
+  was already on 1.4.4. `deps` reads `packageManager` as the `bun` pin. `docs/agent/bun.md` is looper's
+  synced block, so AGENTS.md § *Where Novis departs from the stack files* records the change.
+- `lexical_normalize` also fixes a bug all three copies had: `../../x` became `x`, because the second
+  `..` popped the first. It keeps both now.
 
-The sweep's reds are stale: run 41187571578 is on `857b39cad`, 227 commits back, and
-`env-secret-proofs` has no definition in the tree and no log.
+The sweep's reds are stale. A reader traced each failure of nightly run 41187571578 (on `857b39cad`)
+to a fix already at HEAD: `browser` to `39795c9c4`, the proofs shots to `bfce9c2d2`, ASAN's SQLite
+ODR report to `9fe05ce88` and `593b6c565`, and the seven Miri timeouts to `8ce92dda5`. No scheduled
+run has happened since. `env-secret-proofs` still has no definition in the tree and no log.
 
 ### Next
 
-Stage 6. Read each item against the tree first; tick what an earlier goal already did.
+Stage 8, the gate stage. Start `bun nv affected --run` with `run_in_background` before anything else,
+and end the turn to wait.
 
-- [ ] The extension's README in user prose, then `keywords`, `bugs` and the one-paragraph CHANGELOG. `editors/vscode/README.md:8`, `editors/vscode/package.json:14`
-- [ ] `holds` to `holds.json` beside each `package.json`; `bun nv deps` reads it; `.vscodeignore` and `docs/agent/dependency-update.md:43`. `tools/nv/cmd/deps.ts:25`, `tools/nv/cmd/deps.ts:160`
-- [ ] `eslint.config.mjs` with `defineConfig`, no `semi`; then `npm run lint` in `editors/vscode`. `editors/vscode/eslint.config.mjs:4`
-- [ ] Bun's pin to `packageManager`, `engines.bun` a range; look up `setup-bun`'s `bun-version-file` first. `package.json:9`
-- [ ] `messageOf` in `tools/nv/lib/proc.ts`, every copy calls it; `calibration.json` deleted; the two shell scripts. `tools/nv/cmd/bench-docker.ts:11`, `tools/leak-check.sh:11`
+- [ ] Run `looper verify` over the whole goal, and fix every failure in one pass, never loosening a test. The likeliest are at `crates/nvs-types/src/paths.rs:343` and `crates/nvs-diagnostics/src/paths.rs:19`.
+- [ ] Run it once more, green. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes release-polish`, `bun nv ci --check`. `tools/nv/cmd/ci.ts:1`
 
-Its checks are `editor-lint`, `editor-prose` and `deps-tests`. `deps.test.ts` is expected to go red
-until it reads holds from `holds.json`. Stage 7 touches only crates and may follow in the same
-session if the budget allows.
+Tests that may go red:
+
+- `nvs-types` path tests that join a relative `..` past the base (`crates/nvs-types/src/paths.rs:343`),
+  because a leading `..` is now kept.
+- `nvs-config` and `embedded.rs` tests that expected `/..` from a `..` at a root. It is now `/`.
+- `test:headless`'s contributions suite, if it pins the manifest's keys or `.vscodeignore`. It did
+  not look like it does.
 
 ### Backlog
 
@@ -515,3 +518,4 @@ session if the budget allows.
 - `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
 - The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
 - `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component. That CI step and its no-Docker path have not run yet: read its first CI run.
+- The first `ext templates` CI run is the first to check the wasi-sdk digests; read it.
