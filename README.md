@@ -119,7 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Request limits inside every call.** *Working on it now.* Every `Core` method is tested against a small memory limit, and each method that goes past it is fixed. A long call inside the runtime also stops at the request's time, CPU and stack limits.
+
 <!-- roadmap:end -->
 
 ## Contributing
