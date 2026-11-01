@@ -4171,6 +4171,11 @@ mod tests {
     /// nested value has room on every runner whatever the default stack is.
     // covers: Core\Router::urlSigned
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "Miri gives `stack_pointer` a local's address, which is not on a machine stack, \
+                  so a floor armed below this frame is never reached"
+    )]
     fn native_recursion_past_the_stack_ends_the_request_and_not_the_process() {
         const DEPTH: usize = 2_000;
         let walked = std::thread::Builder::new()
