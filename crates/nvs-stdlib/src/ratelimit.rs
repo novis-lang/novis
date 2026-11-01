@@ -804,7 +804,7 @@ nvs_runtime::nvs_helper! {
             window.tau.to_string(),
             cost.to_string(),
         ];
-        let reply = crate::cache::on_shared(NAME, "consume", |open| {
+        let reply = crate::cache::on_shared(ctx.wall_bound(), NAME, "consume", |open| {
             let argv: Vec<&[u8]> = arguments.iter().map(|text| text.as_bytes()).collect();
             open.eval(SCRIPT, namespaced.as_bytes(), &argv)
         })?;

@@ -80,7 +80,7 @@
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs as _};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -809,17 +809,23 @@ impl Write for Wire {
 impl Session {
     /// The connected session, with the server's banner already accepted.
     ///
+    /// Every wait of the exchange ends at `until`: the connect, the banner,
+    /// each command and the `DATA` body, and the TLS session over the same
+    /// socket after `STARTTLS`.
+    ///
     /// # Errors
     ///
     /// A catchable `IOError` for a socket that will not open and for a banner
     /// that is not a 220.
-    fn open(address: SocketAddr, timeout: Duration, member: &str) -> Result<Self, Fault> {
-        let stream = NvsTcp::connect_timeout(address, timeout).map_err(|why| {
+    fn open(address: SocketAddr, until: Instant, member: &str) -> Result<Self, Fault> {
+        let budget = until.saturating_duration_since(Instant::now());
+        let mut stream = NvsTcp::connect_timeout(address, budget).map_err(|why| {
             Fault::thrown_as(
                 ThrownClass::Io,
                 format!("{member} could not reach {address}: {why}"),
             )
         })?;
+        stream.set_deadline(Some(until));
         let mut session = Self {
             stream: Wire::Plain(stream),
             held: Vec::new(),
@@ -1036,7 +1042,7 @@ fn plain(user: &str, password: &str) -> String {
 }
 
 /// The whole exchange, once every argument has been checked and every
-/// deployment question answered.
+/// deployment question answered. Every wait in it ends at `until`.
 ///
 /// # Errors
 ///
@@ -1047,11 +1053,12 @@ fn plain(user: &str, password: &str) -> String {
 fn deliver(
     address: SocketAddr,
     endpoint: &Endpoint,
+    until: Instant,
     envelope: &[String],
     message: &str,
     member: &str,
 ) -> Result<(), Fault> {
-    let mut session = Session::open(address, endpoint.timeout, member)?;
+    let mut session = Session::open(address, until, member)?;
     // The domain the operator's own `from` names, so nothing about the host
     // serving the request is announced to the relay.
     let domain = endpoint
@@ -1206,8 +1213,13 @@ nvs_runtime::nvs_helper! {
         // makes it blind — the header set above never names it.
         let envelope: Vec<String> = to.iter().chain(&cc).chain(&bcc).cloned().collect();
 
+        // The configured `timeout` bounds the whole exchange, and it ends at the
+        // request's wall deadline if that is sooner. A send that reached it
+        // stops the request with the limit's `FATAL`.
+        let until = Instant::now() + ctx.within_wall_time(configured.timeout);
         let address = resolve(&configured, &member)?;
-        deliver(address, &configured, &envelope, &message, &member)?;
+        deliver(address, &configured, until, &envelope, &message, &member)
+            .map_err(|fault| ctx.wall_time_fault().unwrap_or(fault))?;
         Ok(Value::null())
     }
 }
@@ -1270,8 +1282,8 @@ mod tests {
                 let mut rest = Vec::new();
                 drop(stream.read_to_end(&mut rest));
             });
-            let Err(fault) = Session::open(address, Duration::from_secs(10), "Core\\Mail::send")
-            else {
+            let until = Instant::now() + Duration::from_secs(10);
+            let Err(fault) = Session::open(address, until, "Core\\Mail::send") else {
                 panic!("a greeting past its cap was read");
             };
             assert!(format!("{fault:?}").contains(refused), "{fault:?}");

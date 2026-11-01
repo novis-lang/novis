@@ -155,6 +155,10 @@ pub struct Held {
     conn: nvs_ldap::Connection,
     /// How long one operation on it may take.
     timeout: Duration,
+    /// The wall deadline of the request using the connection now, which every
+    /// operation also ends at. [`held`] files it on each use, so a pooled
+    /// connection never carries one request's deadline into the next.
+    wall: Option<Instant>,
     /// The block's `base`, where a search that names none starts, or `None`
     /// for a connection `open` made.
     base: Option<String>,
@@ -197,6 +201,7 @@ impl Held {
         Self {
             conn,
             timeout,
+            wall: None,
             base: None,
             searches: BTreeMap::new(),
             next_search: 0,
@@ -208,17 +213,24 @@ impl Held {
 
     /// The connection, with a fresh deadline filed for the operation about to run.
     fn ready(&mut self) -> &mut nvs_ldap::Connection {
-        self.conn.set_deadline(Some(Instant::now() + self.timeout));
+        self.conn.set_deadline(Some(self.until()));
         &mut self.conn
+    }
+
+    /// When an operation starting now ends: `timeout` from now, or the
+    /// request's wall deadline if that is sooner.
+    fn until(&self) -> Instant {
+        within_wall(self.wall, self.timeout)
     }
 
     /// What the search parked under `id` reads next. A search that ended, or
     /// failed, is no longer parked.
     fn advance(&mut self, id: u64) -> Result<Step, nvs_ldap::Error> {
+        let until = self.until();
         let Some(cursor) = self.searches.get_mut(&id) else {
             return Ok(Step::Gone);
         };
-        self.conn.set_deadline(Some(Instant::now() + self.timeout));
+        self.conn.set_deadline(Some(until));
         let next = cursor.next(&mut self.conn);
         if let Some(Ok(entry)) = next {
             return Ok(Step::Entry(entry));
@@ -354,12 +366,22 @@ fn cleartext_granted(ctx: &Ctx, tls: nvs_config::ldap::Tls, host: &str) -> bool 
         && nvs_runtime::capability::granted(ctx, Cap::LdapCleartext, Scope::Host(host))
 }
 
+/// `timeout` from now, or `wall`, the request's wall deadline, if that is sooner.
+fn within_wall(wall: Option<Instant>, timeout: Duration) -> Instant {
+    let own = Instant::now() + timeout;
+    wall.map_or(own, |wall| own.min(wall))
+}
+
 /// Dials `url` at `address` and binds as `user`, or not at all for an anonymous session.
+///
+/// The connect and the bind end at `wall`, the request's wall deadline, if that
+/// comes before the settings' `timeout`.
 fn dial(
     url: &nvs_ldap::Url,
     address: SocketAddr,
     settings: &Settings<'_>,
     cleartext: bool,
+    wall: Option<Instant>,
 ) -> Result<Held, nvs_ldap::Error> {
     let timeout = settings
         .timeout
@@ -370,7 +392,7 @@ fn dial(
         tls: wire_tls(settings.tls),
         ca_file: settings.tls_ca_file,
         cleartext_granted: cleartext,
-        deadline: Some(Instant::now() + timeout),
+        deadline: Some(within_wall(wall, timeout)),
     })?;
     if let Some(user) = settings.user {
         conn.bind(user, settings.password)?;
@@ -501,7 +523,7 @@ fn walk(
         }
         let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
         for address in addresses {
-            match dial(&url, address, settings, cleartext) {
+            match dial(&url, address, settings, cleartext, ctx.wall_bound()) {
                 Ok(held) => return Ok(held),
                 Err(error) if refused_the_bind(&error) => return Err(refused(member, &error)),
                 Err(error) => last = Some(error),
@@ -540,8 +562,8 @@ pub fn open(ctx: &mut Ctx, settings: &Settings<'_>) -> Result<u64, Fault> {
     let pinned = nvs_runtime::capability::pinned_address(ctx, &url.host, OPEN)?;
     let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
     let address = SocketAddr::new(pinned, url.port);
-    let mut held =
-        dial(&url, address, settings, cleartext).map_err(|error| fault_of(OPEN, &error))?;
+    let mut held = dial(&url, address, settings, cleartext, ctx.wall_bound())
+        .map_err(|error| fault_of(OPEN, &error))?;
     held.base = settings.base.map(str::to_owned);
     held.redial = Some(Redial {
         url,
@@ -592,8 +614,14 @@ pub fn authenticate(ctx: &mut Ctx, key: u64, login: &str, password: &str) -> Res
                 timeout: Some(timeout),
                 base: None,
             };
-            dial(&redial.url, redial.address, &settings, redial.cleartext)
-                .map_err(|error| login_fault(AUTHENTICATE, &error))?
+            dial(
+                &redial.url,
+                redial.address,
+                &settings,
+                redial.cleartext,
+                ctx.wall_bound(),
+            )
+            .map_err(|error| login_fault(AUTHENTICATE, &error))?
         }
         (None, Some(name)) => {
             let snapshot = ctx
@@ -643,14 +671,18 @@ pub fn authenticate(ctx: &mut Ctx, key: u64, login: &str, password: &str) -> Res
 /// A `LogicError` for a key that names no open LDAP connection, which is a
 /// connection already closed.
 pub fn held<'c>(ctx: &'c mut Ctx, key: u64, member: &str) -> Result<&'c mut Held, Fault> {
-    ctx.open_connection_mut(key)
+    let wall = ctx.wall_bound();
+    let held = ctx
+        .open_connection_mut(key)
         .and_then(|conn| conn.as_any_mut().downcast_mut::<Held>())
         .ok_or_else(|| {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!("{member}: this connection is closed"),
             )
-        })
+        })?;
+    held.wall = wall;
+    Ok(held)
 }
 
 /// `Core\Ldap\Connection::whoami`'s body: the identity the server says the

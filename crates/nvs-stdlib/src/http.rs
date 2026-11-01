@@ -3914,7 +3914,8 @@ fn exchanged(
     if streamed {
         let answer = transport::send_streamed(&call, &mut |hop, downgrade| {
             repinned(ctx, args, hop, downgrade, &named)
-        })?;
+        })
+        .map_err(|fault| wall_or(ctx, fault))?;
         let headers = header_map(&answer.headers);
         let body = filed(ctx, answer.body);
         traced(ctx, &call);
@@ -3922,7 +3923,8 @@ fn exchanged(
     }
     let reply = transport::send(&call, &mut |hop, downgrade| {
         repinned(ctx, args, hop, downgrade, &named)
-    })?;
+    })
+    .map_err(|fault| wall_or(ctx, fault))?;
     let headers = header_map(&reply.headers);
     traced(ctx, &call);
     Ok((
@@ -4283,7 +4285,8 @@ pub fn extension_send(
             )));
         }
         repinned(ctx, &args, hop, downgrade, &named)
-    })?;
+    })
+    .map_err(|fault| wall_or(ctx, fault))?;
     traced(ctx, &call);
     Ok(ExtensionReply {
         status: reply.status,
@@ -4360,14 +4363,25 @@ pub(crate) fn push_send(
         Err(Fault::fatal(format!(
             "{member} asked to follow a redirect under a limit of none"
         )))
-    })?;
+    })
+    .map_err(|fault| wall_or(ctx, fault))?;
     traced(ctx, &call);
     Ok(reply.status)
 }
 
+/// `fault`, unless the request's wall time ran out: a call whose deadline
+/// [`call_of`] clamped to the request's ends there with the limit's `FATAL`
+/// (`nvs_runtime::Ctx::wall_time_fault`), and never with a catchable
+/// `TimeoutError` the program could swallow and call again.
+pub(crate) fn wall_or(ctx: &mut Ctx, fault: Fault) -> Fault {
+    ctx.wall_time_fault().unwrap_or(fault)
+}
+
 /// The [`transport::Call`] to `url` at `addresses`, with no headers and no body yet, and every
 /// bound, the identity and the TLS policy read from `args`, or from `[http.client]` where a slot
-/// is null. Its deadline starts now.
+/// is null. Its deadline starts now, and it and `max_duration` end at the request's wall deadline
+/// at the latest ([`nvs_runtime::Ctx::within_wall_time`]). A send that reached it is
+/// [`wall_or`]'s to report.
 ///
 /// # Errors
 ///
@@ -4387,14 +4401,14 @@ fn call_of<'a>(
         url,
         addresses,
         deadline: Instant::now()
-            + bound_of(
+            + ctx.within_wall_time(bound_of(
                 ctx,
                 args,
                 DEADLINE,
                 "deadline",
                 "http.client.deadline",
                 DEFAULT_DEADLINE,
-            )?,
+            )?),
         connect_timeout: bound_of(
             ctx,
             args,
@@ -4404,14 +4418,14 @@ fn call_of<'a>(
             DEFAULT_CONNECT_TIMEOUT,
         )?,
         idle: bound_of(ctx, args, IDLE, "idle", "http.client.idle", DEFAULT_IDLE)?,
-        max_duration: bound_of(
+        max_duration: ctx.within_wall_time(bound_of(
             ctx,
             args,
             MAX_DURATION,
             "maxDuration",
             "http.client.max_duration",
             DEFAULT_MAX_DURATION,
-        )?,
+        )?),
         headers: Vec::new(),
         redirects: redirects_of(ctx, args),
         attempts: args[RETRY_ATTEMPTS]

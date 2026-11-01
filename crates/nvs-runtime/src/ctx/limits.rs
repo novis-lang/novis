@@ -1005,6 +1005,32 @@ impl Ctx {
             .map(|at| at.saturating_duration_since(std::time::Instant::now()))
     }
 
+    /// `asked`, or the time this request has left if that is shorter — the
+    /// bound a member's blocking wait takes, by
+    /// `rule:http-server/time-is-bounded-inside-a-helper`. A parked task
+    /// reaches no safepoint poll, so its wait is the only thing that can end
+    /// it at the request's `[limits] wall_time`. One clock read.
+    #[must_use]
+    pub fn within_wall_time(&self, asked: std::time::Duration) -> std::time::Duration {
+        self.wall_time_left().map_or(asked, |left| asked.min(left))
+    }
+
+    /// The instant a member's wait with no bound of its own ends at: the
+    /// request's wall deadline, or `None` for a request with none.
+    #[must_use]
+    pub fn wall_bound(&self) -> Option<std::time::Instant> {
+        self.tree.wall_deadline()
+    }
+
+    /// [`Self::wall_time_breach`]'s fault once the request's wall time has run
+    /// out, and `None` before. A member reads it where a wait it bounded with
+    /// [`Self::within_wall_time`] or [`Self::wall_bound`] failed, so a wait
+    /// that ended at the deadline stops the request with the limit's `FATAL`
+    /// and never with the member's own catchable timeout.
+    pub fn wall_time_fault(&mut self) -> Option<crate::Fault> {
+        (self.wall_time_left() == Some(std::time::Duration::ZERO)).then(|| self.wall_time_breach())
+    }
+
     /// How [`Self::wall_time_message`] starts, so `nvs test` can tell a test stopped at its
     /// limit and write its own line in place of this one, which names a request.
     pub const WALL_TIME_EXCEEDED: &'static str = "the request exceeded its wall-time limit";

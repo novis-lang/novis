@@ -1787,7 +1787,7 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
         // [`nvs_core_cache_put`]'s three commands, unchanged: the store keeps
         // its own clock, so it is told a length of time, and a lifetime already
         // over leaves it in the state the memory tier is left in.
-        Tier::Shared => on_shared(STORE_NAME, member, |open| {
+        Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, member, |open| {
             if lifetime.elapsed() {
                 return open.del(&stored);
             }
@@ -1831,7 +1831,9 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
     let stored = sealed_key(key);
     let held = match tier {
         Tier::Memory => memory_get(&scoped(ctx, &stored)),
-        Tier::Shared => on_shared(STORE_NAME, member, |open| open.get(&stored))?,
+        Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, member, |open| {
+            open.get(&stored)
+        })?,
     };
     let Some(sealed) = held else {
         return Ok(None);
@@ -2428,7 +2430,13 @@ fn credential(ctx: &Ctx) -> Option<String> {
 /// like absence: `rule:core-classes/ratelimit-unreachable-store-throws`'s standing rule is that an unreachable store
 /// throws, because the failure mode belongs to the application that knows
 /// whether the entry was a cache or a lock.
+///
+/// Every wait the command makes ends at `wall`, the request's wall deadline
+/// (`nvs_runtime::Ctx::wall_bound`), if that comes before the store's own
+/// `timeout`. The failure there is the same `IOError`, and the request's
+/// safepoint flag, raised at the deadline, stops it at its next poll.
 pub(crate) fn on_shared<T>(
+    wall: Option<Instant>,
     owner: &str,
     member: &str,
     command: impl FnOnce(&mut redis::Connection) -> Result<T, String>,
@@ -2443,7 +2451,10 @@ pub(crate) fn on_shared<T>(
                 ),
             )
         })?;
-        command(open)
+        open.set_wall(wall);
+        let outcome = command(open);
+        open.set_wall(None);
+        outcome
             .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{owner}::{member}: {why}")))
     })
 }
@@ -2694,7 +2705,7 @@ nvs_runtime::nvs_helper! {
             Tier::Memory => {
                 memory_put(&scoped(ctx, &key), payload, lifetime, cap);
             }
-            Tier::Shared => on_shared(STORE_NAME, "put", |open| {
+            Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, "put", |open| {
                 // The store keeps its own clock, so it is told a length of
                 // time rather than an instant — and a lifetime already over
                 // is not a write here either, which is the one command that
@@ -2736,7 +2747,7 @@ nvs_runtime::nvs_helper! {
 
         let held = match tier {
             Tier::Memory => memory_get(&scoped(ctx, &key)),
-            Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
+            Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, "get", |open| open.get(&key))?,
         };
         let Some(payload) = held else {
             return Ok(Value::null());
@@ -2775,7 +2786,7 @@ nvs_runtime::nvs_helper! {
 
         match tier {
             Tier::Memory => memory_forget(&scoped(ctx, &key)),
-            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
+            Tier::Shared => on_shared(ctx.wall_bound(), STORE_NAME, "forget", |open| open.del(&key))?,
         }
         Ok(Value::null())
     }

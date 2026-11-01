@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a server waits one hour for a client that never comes, under a time limit of one second.
+// The request should stop at its time limit with an error, and the server must not crash.
+// hostile: ends-early 2 FATAL
+
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+
+// 1. A short wait with nobody connecting. It throws a `TimeoutError`, which is caught.
+try {
+    $server->accept(10ms);
+} catch (TimeoutError $timeout) {
+    echo "1 ok\n";
+}
+
+// 2. The program sets a time limit of one second, then waits one hour.
+echo "step 2\n";
+Core\Config::set('limits.wall_time', '1s');
+try {
+    $server->accept(1h);
+    echo "2 a client came\n";
+} catch (TimeoutError $timeout) {
+    echo "2 the wait threw an error that a program can catch\n";
+}

@@ -141,6 +141,10 @@ pub(crate) struct Connection {
     dial: Dial,
     /// Every wait's bound: the handshake's, and each command's.
     timeout: Duration,
+    /// The wall deadline of the request the command runs for, which every wait
+    /// ends at if it comes before `timeout` does. [`super::on_shared`] files it
+    /// for each command and lifts it after.
+    wall: Option<Instant>,
     /// Absent before the first dial and after a failed command.
     stream: Option<Transport>,
 }
@@ -151,8 +155,22 @@ impl Connection {
         Self {
             dial,
             timeout,
+            wall: None,
             stream: None,
         }
+    }
+
+    /// Ends every wait of the commands that follow at `at` as well, or lifts
+    /// that bound.
+    pub(crate) fn set_wall(&mut self, at: Option<Instant>) {
+        self.wall = at;
+    }
+
+    /// The instant a wait starting now ends at: `timeout` from now, or the
+    /// request's wall deadline if that is sooner.
+    fn until(&self) -> Instant {
+        let own = Instant::now() + self.timeout;
+        self.wall.map_or(own, |wall| own.min(wall))
     }
 
     /// What this one is made with — what [`super`] compares a later approval
@@ -181,7 +199,8 @@ impl Connection {
         if self.stream.is_some() {
             return Ok(());
         }
-        let stream = Transport::dial(&self.dial.target, self.timeout)
+        let budget = self.until().saturating_duration_since(Instant::now());
+        let stream = Transport::dial(&self.dial.target, budget)
             .map_err(|err| format!("connecting to {} failed: {err}", self.dial.target))?;
         self.stream = Some(stream);
         if let Err(refused) = self.handshake() {
@@ -455,7 +474,7 @@ impl Connection {
     /// this process, which is what [`Connection::command`] replays on.
     fn exchange(&mut self, request: &[u8]) -> Result<Reply, Failure> {
         let target = &self.dial.target;
-        let deadline = Instant::now() + self.timeout;
+        let deadline = self.until();
         let stream = self.stream.as_mut().ok_or_else(|| Failure {
             sent: false,
             why: format!("no connection to {target} to send on"),
