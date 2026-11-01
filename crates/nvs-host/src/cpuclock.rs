@@ -43,6 +43,18 @@
 //! nothing, and a thread that has ended is refused by the kernel rather than
 //! read.
 //!
+//! The kernel brings those times up to date when the thread stops running,
+//! so a thread that has run without a break reads as of when it started: a
+//! sampler would stop a request that much past its limit. So a read of
+//! another thread suspends it with `thread_suspend`, which returns once it is
+//! off its processor, reads it and resumes it, one reader at a time. A read of
+//! the caller's own thread is `clock_gettime(CLOCK_THREAD_CPUTIME_ID)`, which
+//! counts the run in progress.
+//!
+//! Request path, on macOS alone: each sampler read of a core under a CPU
+//! ceiling stops that core for the two context switches a suspend and a resume
+//! take, tens of microseconds, once per watchdog sweep. Memory: nothing.
+//!
 //! Every other platform is the `None` arm, which is the case the section above
 //! describes.
 //!
@@ -291,7 +303,78 @@ fn current() -> Option<Clock> {
 }
 
 #[cfg(target_os = "macos")]
+#[expect(
+    unsafe_code,
+    reason = "`thread_suspend` and `thread_resume` are the mach calls that stop and restart a \
+              thread of this task, and neither `std` nor `libc` declares them. Both take a port \
+              name and return a `kern_return_t`, as `<mach/thread_act.h>` declares them."
+)]
+unsafe extern "C" {
+    fn thread_suspend(target: libc::thread_act_t) -> libc::kern_return_t;
+    fn thread_resume(target: libc::thread_act_t) -> libc::kern_return_t;
+}
+
+/// Held across one suspended read, so no two threads suspend each other at
+/// once: each would wait for the other to resume it.
+#[cfg(target_os = "macos")]
+static SUSPENDING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(target_os = "macos")]
 fn burned(clock: Clock) -> Option<Duration> {
+    if current() == Some(clock) {
+        return own_burned();
+    }
+    let _one_reader = SUSPENDING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    #[expect(
+        unsafe_code,
+        reason = "`thread_suspend` on a port name of this task stops that thread and returns once \
+                  it is off its processor, and the matching `thread_resume` below restarts it. \
+                  The thread named is never the caller, checked above, and nothing between the \
+                  two calls takes a lock or allocates, so it cannot wait on the stopped thread. \
+                  A thread that has ended is refused by the kernel rather than stopped."
+    )]
+    let held = unsafe { thread_suspend(clock) } == libc::KERN_SUCCESS;
+    let read = basic_info_burned(clock);
+    if held {
+        #[expect(
+            unsafe_code,
+            reason = "Restarts the thread the `thread_suspend` above stopped, once, on the same \
+                      port name. A thread that ended in between is refused, and has nothing to \
+                      restart."
+        )]
+        unsafe {
+            thread_resume(clock);
+        }
+    }
+    read
+}
+
+/// The calling thread's own CPU time, from `clock_gettime`. For the caller's
+/// own thread it counts the time since the thread last started running, which
+/// `thread_info` leaves out.
+#[cfg(target_os = "macos")]
+fn own_burned() -> Option<Duration> {
+    #[expect(
+        unsafe_code,
+        reason = "`clock_gettime` on the caller's own CPU clock has no `std` spelling. The \
+                  out-parameter is a stack `timespec` this call owns exclusively, plain data \
+                  with no invalid bit pattern."
+    )]
+    let spent = unsafe {
+        let mut spent: libc::timespec = std::mem::zeroed();
+        (libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &raw mut spent) == 0).then_some(spent)
+    }?;
+    Some(Duration::new(
+        u64::try_from(spent.tv_sec).ok()?,
+        u32::try_from(spent.tv_nsec).ok()?,
+    ))
+}
+
+/// What `thread_info(THREAD_BASIC_INFO)` reports for the thread `clock` names.
+#[cfg(target_os = "macos")]
+fn basic_info_burned(clock: Clock) -> Option<Duration> {
     /// A mach `time_value_t`: whole seconds and the microseconds past them.
     fn micros(time: libc::time_value_t) -> Option<Duration> {
         Some(
@@ -441,6 +524,96 @@ mod tests {
 
         release.send(()).ok();
         busy.join().expect("the busy thread panicked");
+    }
+
+    /// The property the sampler stops a request on: a thread read from another
+    /// **while it is still running** is charged at least what it had already
+    /// read on its own clock. A clock brought up to date only when its thread
+    /// stops running reads short by however long the thread has run since, and
+    /// the sampler would stop a request that much past its limit.
+    ///
+    /// Waits on the busy thread's own clock, never on a wall interval, so a
+    /// loaded runner slows it and cannot fail it. The worst lag is written to
+    /// stderr past the test harness's capture, so a CI log shows each
+    /// platform's figure on a green run too.
+    #[test]
+    fn a_running_thread_read_from_another_is_charged_what_it_has_seen_itself() {
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+        /// How long the busy thread runs without a break, on its own clock:
+        /// longer than any interval a scheduler tick or a sweep would hide.
+        const SPIN: Duration = Duration::from_millis(300);
+        /// How far the reader may read below what the busy thread had already
+        /// seen: a clock rounded to microseconds, and nothing like a run.
+        const LAG: Duration = Duration::from_millis(5);
+        const PATIENCE: Duration = Duration::from_secs(60);
+
+        if ThreadClock::current().is_none() {
+            if CLOCKED {
+                panic!("a platform with a thread clock answered `None`");
+            }
+            return;
+        }
+        let seen = std::sync::Arc::new(AtomicU64::new(0));
+        let done = std::sync::Arc::new(AtomicBool::new(false));
+        let (clocks, clock) = std::sync::mpsc::channel();
+        let busy = std::thread::spawn({
+            let seen = std::sync::Arc::clone(&seen);
+            let done = std::sync::Arc::clone(&done);
+            move || {
+                let mine = ThreadClock::current().expect("a second thread had no clock");
+                clocks.send(mine).expect("the reader hung up");
+                // Runs until the reader has finished, so every read below is
+                // of a thread that is running, never of one that has stopped.
+                while !done.load(Ordering::Acquire) {
+                    let now = mine.burned().expect("this thread's own clock did not read");
+                    let now = u64::try_from(now.as_nanos()).unwrap_or(u64::MAX);
+                    seen.store(now, Ordering::Release);
+                    for _ in 0..4096 {
+                        std::hint::spin_loop();
+                    }
+                }
+            }
+        });
+
+        let clock = clock
+            .recv()
+            .expect("the busy thread never published its clock");
+        let give_up_at = std::time::Instant::now() + PATIENCE;
+        let (mut worst, mut reads, mut last) = (Duration::ZERO, 0_u32, 0_u64);
+        loop {
+            let own = seen.load(Ordering::Acquire);
+            // One read per millisecond the busy thread has been charged, so the
+            // reads spread over the whole run.
+            if own < last + 1_000_000 {
+                assert!(
+                    std::time::Instant::now() < give_up_at,
+                    "the busy thread was charged {own} ns in {PATIENCE:?} of wall time"
+                );
+                std::hint::spin_loop();
+                continue;
+            }
+            last = own;
+            let read = clock.burned().expect("a running thread read as no thread");
+            worst = worst.max(Duration::from_nanos(own).saturating_sub(read));
+            reads += 1;
+            if Duration::from_nanos(own) >= SPIN {
+                break;
+            }
+        }
+        done.store(true, Ordering::Release);
+        busy.join().expect("the busy thread panicked");
+
+        let line = format!(
+            "cpuclock: {reads} reads of a running thread from another, worst lag {worst:?} \
+             behind its own clock\n"
+        );
+        std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes()).ok();
+        assert!(
+            worst <= LAG,
+            "a running thread read from another lagged {worst:?} behind its own clock over \
+             {reads} reads, past the {LAG:?} a rounded clock explains"
+        );
     }
 
     /// The other half of the platform's answer, and the one an operator reads:

@@ -78,7 +78,8 @@ rustc-hash.workspace = true
 # `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
 # measured against and which `std` spells on neither platform.
 # On Linux `pthread_getcpuclockid` names the clock and `clock_gettime` reads it;
-# on macOS `pthread_mach_thread_np` names it and `thread_info` reads it; Windows
+# on macOS `pthread_mach_thread_np` names it and `thread_info` reads it, between a
+# `thread_suspend` and a `thread_resume` for another thread; Windows
 # reopens the thread by id and asks `GetThreadTimes`. Nothing a request chose
 # reaches any of them — the arguments are the caller's own thread and a stack
 # out-parameter — and the answer is a duration.
