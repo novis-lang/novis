@@ -255,9 +255,10 @@ subagent. Such subagents run side by side, and none of them builds.
 
 Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
 (`tools/nv/cmd/ci.ts:621`). Stage 2, round 1: the full run `41298422730` on `c3f94ed9f` is still going,
-and a `bun nv ci --watch --past "proofs / macos-aarch64"` waits on it in the background. That watch
-reports the next red, or exits 4 if the run ends with only that one. Commits after `c3f94ed9f` are
-local only: a push would cancel the full run.
+and a `bun nv ci --watch --past "proofs / macos-aarch64" --past "miri units (nvs-stdlib 2/12)"` waits on
+it in the background. That watch reports the next red, or exits 4 if the run ends with only those. Commits
+after `c3f94ed9f` are local only: a push would cancel the full run. `miri units (nvs-stdlib 2/12)` is
+fixed locally in `4e02da7ec`. Miri now skips the router stack-floor test (`crates/nvs-stdlib/src/router.rs:4174`).
 
 Red so far: `proofs / macos-aarch64`. Two attacks stop 117 and 131 ms past their CPU limits:
 `tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and `tests/hostile/core/Arr/sort/02-*.nvs`.
@@ -279,7 +280,7 @@ fixed by `181d4045e` before this session; its other jobs were cancelled by later
 
 Stage 2, round 2. Do not push until run `41298422730` has ended.
 
-- [ ] Read the watch's report. If it exited on a new red while the run is still going, start `bun nv ci --watch --past "proofs / macos-aarch64" --past "<that job>"` again in the background, and end the turn. `tools/nv/cmd/ci.ts:356`
+- [ ] Read the watch's report. If it exited on a new red while the run is still going, start the watch again with one more `--past "<that job>"` in the background, and end the turn. `tools/nv/cmd/ci.ts:356`
 - [ ] Once run `41298422730` has ended, `bun nv ci --status` for its every red, the macOS proofs one above included, and grep `cpuclock:` in `test / macos-aarch64 (tests)`'s log. `crates/nvs-host/src/cpuclock.rs:540`
 - [ ] Each red job's log to a `reader` subagent; list the reds here by cause, with `file:line`. `.github/workflows/ci.yml:1`
 - [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; `bun nv ci --watch` in the background. `tools/nv/cmd/ci.ts:621`
