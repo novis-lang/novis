@@ -267,6 +267,14 @@ Stage 2's first round is out. `main` was pushed at `c3f94ed9f`, and the full run
 `41298422730` (`workflow_dispatch`) is going on it. A `bun nv ci --watch` was started in the
 background. This handoff's commit is local only: pushing it would cancel that full run.
 
+The watch exited 1 on its first red, while the run's other jobs went on: `proofs / macos-aarch64`,
+step *Feature proofs*, 2 of 1586 hostile files over the CPU-time bound of the limit plus 100 ms.
+`tests/hostile/config/limits-fatal_reserve_time/01-spending-the-clock-the-report-was-left.nvs` used
+146 ms against 15 ms, and `tests/hostile/core/Arr/sort/02-a-comparator-sort-longer-than-the-cpu-limit.nvs`
+367 ms against 250 ms. This is the macOS CPU overshoot `07de303b8` (`fix(host): macOS reads a running
+core's CPU clock with the core suspended`) was to fix, so that fix does not reach these two: start
+from how the watchdog reads a core's clock on macOS (`crates/nvs-host/src/watchdog.rs`).
+
 The sweep's two reds before this session: `env-secret-proofs` has no definition in the tree and no
 log, a stale check the driver carries (earlier goals recorded the same). The nightly `41295327777`'s
 `lint` red was the `rustdoc links` step on `Shared::sweep` in `crates/nvs-host/src/watchdog.rs`,
@@ -276,7 +284,7 @@ fixed by `181d4045e` before this session; its other jobs were cancelled by later
 
 Stage 2, round 2. Do not push until run `41298422730` has ended.
 
-- [ ] Read the watch's verdict, or `bun nv ci --status`, for run `41298422730`. `tools/nv/cmd/ci.ts:356`
+- [ ] Once run `41298422730` has ended, `bun nv ci --status` for its every red, the macOS proofs one above included. `tools/nv/cmd/ci.ts:356`
 - [ ] Each red job's log to a `reader` subagent; list the reds here by cause, with `file:line`. `.github/workflows/ci.yml:1`
 - [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; `bun nv ci --watch` in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
