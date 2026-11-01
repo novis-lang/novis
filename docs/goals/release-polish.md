@@ -18,7 +18,7 @@ stages:
     context: [docs/reference/tools/10-cli.md, crates/nvs-cli/tests/one_binary.rs, crates/nvs-cli/src/cache_cmd.rs, docs/rules/programs/slice-ranking.md]
   - id: 4
     title: "the .vsix and the binary carry every third-party notice they owe"
-    status: open
+    status: done
     context: [tools/nv/cmd/gen-attribution.ts, editors/vscode/.vscodeignore, tools/nv/test/attribution-extensions.test.ts, docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md]
   - id: 5
     title: "CI checks every lockfile and pins every download, and the release attests its checksums"
@@ -281,7 +281,12 @@ and `gen-attribution` fails when `SOURCE.json`'s speedscope version is not the i
 speedscope update owes the folder a refresh. `jszip` is `MIT OR GPL-3.0-or-later`: MIT is taken.
 jfrview's crates are listed from its own `Cargo.lock` at the version pinned; if that is not
 reachable, jfrview is listed with its own licence and the gap goes to the backlog. Reading public
-tarballs is not publishing, so fetching them for this is in scope.
+tarballs is not publishing, so fetching them for this is in scope. As built: a scoped name drops its
+`@` and joins with `-`, and a second licence of an `AND` is `<name>-<version>.<SPDX>.LICENSE`.
+`@types/*` packages bundle no code and are left out. A package with no licence file of its own gets
+one written from what it does say (its README, its `package.json`, its source header), and
+`SOURCE.json`'s `text` says where each came from. The `.vsix` leaves the folder out
+(`licenses/**`), since the notice has every text.
 
 **The WASI WIT files.** `wit/nvs-ext/deps/*.wit` are copies of the WASI 0.2 interfaces, embedded in
 the binary through `crates/nvs-ext/src/pack.rs:51`. The session confirms the upstream and its license
@@ -410,7 +415,7 @@ table lists every command the binary has.
 - [x] `wit/nvs-ext/deps/README.md` with the upstream, version and license, and the WIT entry in the binary's notice. `wit/nvs-ext/deps/README.md:1`, `tools/nv/cmd/gen-attribution.ts:298`, `crates/nvs-ext/src/pack.rs:51`
 - [x] The ext template's commented license line. `crates/nvs-cli/templates/ext/rust/Cargo.toml:5`
 - [x] `bun nv gen-attribution`, and the regenerated `THIRD-PARTY-LICENSES.txt` is committed. `THIRD-PARTY-LICENSES.txt:1`
-- [ ] The packages speedscope's release bundle carries each have an entry in the extension's notice, as *The packages inside speedscope's bundle* says. `tools/nv/cmd/gen-attribution.ts:319`, `editors/vscode/scripts/viewer.mjs:1`
+- [x] The packages speedscope's release bundle carries each have an entry in the extension's notice, as *The packages inside speedscope's bundle* says. `tools/nv/cmd/gen-attribution.ts:319`, `editors/vscode/scripts/viewer.mjs:1`
 
 ### 5. CI checks every lockfile and pins every download, and the release attests its checksums
 
@@ -468,40 +473,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4's six planned items landed in one commit. `attribution` and
-`vsix-notices` are green, and so are clippy, the tools' `tsc`, `rules --check` and the two
-`ext_command` world tests (run once by name, since their helper changed).
+Stages 1 to 4 are done. Stage 4's last item landed in `b18180903`: `attribution` is green and
+`vsix-notices` passes 5 of 5. The tools' `tsc` and `rules --check` are green too.
 
-- `gen-attribution` builds each notice with one `collector` (`addPackage`, `addRecord`, `finish`)
-  and writes both files. `--check` covers both, and names the stale one.
-- The extension's notice lists 11 components: the 9 packages `vscode-languageclient` pulls in, then
-  speedscope and its Source Code Pro font, which `scripts/viewer.mjs` copies. `vscodePackages`
-  walks `package-lock.json` with npm's nested lookup, and stops on a version `node_modules` lacks.
-- BlueOak-1.0.0 (`minimatch`) is new, in `PREFERENCE` and in `NPM_ONLY` (see Standing decisions).
-- The WASI entry is `WebAssembly/WASI 0.2.12`, Apache-2.0 WITH LLVM-exception, borrowing a crate's
-  text. The seven `.wit` files are byte-identical to the `wasip2` crate's `1.0.4+wasi-0.2.12` copies.
-  `ext_command.rs`'s world test now skips the folder's `README.md`. `wit-parser` skips it too.
-- CI's attribution job runs `npm ci --ignore-scripts` in `editors/vscode`, then `--check` and the
-  new test. `.vscodeignore` needed no change, and the test pins that.
-- New gap: speedscope's bundle carries its own devDependencies, whose texts are not on disk. It is a
-  new stage 4 item, decided in *The packages inside speedscope's bundle*.
+- `editors/vscode/licenses/speedscope/` has 54 packages. They are the 36 npm packages that the
+  `v1.25.0` tag's `src/` reaches outside its tests, plus the 18 crates jfrview's wasm reaches in its
+  `v0.2.0` `Cargo.lock`. `bundledPackages` reads the folder. It stops on a speedscope version drift,
+  a missing file, a file no entry names, or a text `classify` does not know. `addTexts` is
+  `addPackage` without the directory read. The extension's notice now lists 65 components.
+- Five texts are written from what the package does say, and `SOURCE.json`'s `text` names each
+  source. Those packages are aphrodite, isarray, string-hash, uint8array-json-parser and pako's Zlib half.
+- ci-green asked for three pre-push fixes, and all three are in: the packaging chapter render (it
+  went into ci-green's `b6b4fbdb8`), `nvs cache`'s proofs (`03c2995e0`, with `e423fdbe6` for its
+  `about.md`), and the three pages' questions and stamp (`041b00ad2`, `a6ef88c92`). After these,
+  `bun nv ci --check` is green.
+- The `nvs cache` attack is `tests/hostile/tools/cli/nvs-cache/01-a-cache-folder-with-forged-entries.nvs`,
+  and `compile_cache.rs::cache_clear_deletes_only_entries_from_a_folder_with_forged_ones` runs it.
+  It passed once, by name.
 
-The sweep's reds are stale: nightly 41187571578 ran on `857b39cad`, and each failure has a fix
-since (`39795c9c4`, `bfce9c2d2`, `593b6c565`, `8ce92dda5`). The next nightly confirms the Miri
-units. `env-secret-proofs` has no definition in the tree and no log.
+The sweep's nightly reds are the ones the last handoff called stale (run 41187571578 on `857b39cad`).
+`env-secret-proofs` still has no definition in the tree and no log.
 
 ### Next
 
-Stage 4's last item, the packages inside speedscope's bundle. Then set stage 4 to done, and take
-stage 5.
+Stage 5. Several items look done on disk already: `ci.yml:1022-1059` runs cargo-deny once per
+manifest, `PRE_PUSH` has an advisories entry per extension (`tools/nv/cmd/ci.ts:111`), and
+`release.yml:422` gives `publish` the attestation permissions. Read each item against the tree
+first, and tick the done ones with a note, as Standing decisions say.
 
-- [ ] Find what `speedscope-*.js` bundles: the imports under the `v1.25.0` tag's `src/`, at the versions its `package-lock.json` pins. `editors/vscode/node_modules/speedscope/package.json:89`
-- [ ] Commit `editors/vscode/licenses/speedscope/` with `SOURCE.json` and one licence file per package. `editors/vscode/licenses/speedscope/SOURCE.json:1`
-- [ ] `VSCODE_COPIED` gets `bundled`, `gen-attribution` reads it and fails on a speedscope version drift, then `bun nv gen-attribution`. `tools/nv/cmd/gen-attribution.ts:319`, `tools/nv/cmd/gen-attribution.ts:1099`
-- [ ] The `vsix-notices` test checks that every `SOURCE.json` package is listed. `tools/nv/test/attribution-vscode.test.ts:1`
+- [ ] Read items 1, 2 and 8 against `ci.yml:1022`, `tools/nv/cmd/ci.ts:104` and `release.yml:363-424`, and tick what is there. `.github/workflows/ci.yml:1022`
+- [ ] `deny.toml`: the four targets, the MPL-2.0 comment, no cranelift exception, then the four `deny-*` checks. `deny.toml:7`
+- [ ] The wasi-sdk digest per leg, in a `wasi-sdk-sha256` matrix field. `.github/workflows/ci.yml:693`, `.github/workflows/ci.yml:727`
+- [ ] `cargo-fuzz` at an exact `--version`, and the push trigger names `main` alone. `.github/workflows/ci.yml:1329`, `.github/workflows/ci.yml:5`
+- [ ] `tools/nv/test/supply-chain.test.ts`, the `supply-chain-coverage` check. `tools/nv/test/supply-chain.test.ts:1`
 
-Its checks are `attribution` and `vsix-notices`. No test is expected to go red. `nv selftest` now
-runs `attribution-vscode.test.ts`, which needs `npm ci` in `editors/vscode` on a fresh clone.
+Its checks are `supply-chain-coverage` and the four `deny-*`. No test is expected to go red.
+`nv selftest` runs `attribution-vscode.test.ts`, which needs `npm ci` in `editors/vscode` on a fresh clone.
 
 ### Backlog
 
