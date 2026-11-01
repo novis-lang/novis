@@ -1111,6 +1111,17 @@
       "Where does the version in my OpenAPI document come from?"
     ]
   },
+  "/reference/cli/nvs-cache/": {
+    "feature": "tools:cli/nvs-cache",
+    "hash": "860f1e8040e76e2e",
+    "questions": [
+      "How do I clear the compile cache?",
+      "Delete the oldest compiled programs when the cache is too big",
+      "How large can the compile cache get before entries are deleted?",
+      "Get the result of a cache cleanup as JSON for a cron job",
+      "Why does nvs cache count some entries as skipped on Windows?"
+    ]
+  },
   "/reference/cli/nvs-check/": {
     "feature": "tools:cli/nvs-check",
     "hash": "85533fbb31eceea9",
@@ -1356,7 +1367,7 @@
   },
   "/reference/cli/one-binary/": {
     "feature": "tools:cli/one-binary",
-    "hash": "990450b05d9aca43",
+    "hash": "d33c811051be5621",
     "questions": [
       "What commands does the Novis command-line tool have?",
       "Overview of every command and its options",
@@ -18170,7 +18181,7 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "a0bb46fe86792c09",
+    "hash": "fa8c4be0e85b8e27",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",
