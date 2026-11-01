@@ -41,7 +41,7 @@ The chain holds 1 goal(s). `release-run` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`release-run`](release-run.md) **live** | a dry-run Release run on main's tip ends green in every job, which a check reads from GitHub. | 1 ✓ bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict · **2 the full ci.yml run on main's tip is green in every job** · 3 a dry-run Release run on main's tip is green in every job · 4 the goal is verified once, and every failure is fixed |
+| 1 | [`release-run`](release-run.md) **live** | a real Release run on main ends green in every job, its draft is published and promoted, and a check reads all of it from GitHub. | 1 ✓ bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict · 2 ✓ the full ci.yml run on main's tip is green in every job · **3 a dry-run Release run on main's tip is green in every job** · 4 bun nv ci cuts a real release: dispatch, approve, publish, and the published verdict · 5 the goal is verified once, a dry run on the final tip is green, and the real release is published |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
