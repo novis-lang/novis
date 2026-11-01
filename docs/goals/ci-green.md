@@ -122,49 +122,34 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `ef0d5cd3b`. Website 41292478447 on it is green. CI 41292478440 on it was
-still going when this session ended, and two jobs had failed:
+`origin/main` is at `07de303b8`, pushed by this loop. Its CI and Website runs were going, unwatched,
+when the user stopped this loop: the `release-run` goal watches CI from here. The push carries:
 
-- `lint`, step `rustdoc links`: two doc links named `Shared::sweep`, which `d59403277` made
-  test-only. The local commit `181d4045e` fixes it. The step's own command,
-  `RUSTDOCFLAGS="-A rustdoc::private_intra_doc_links -D warnings" cargo doc --no-deps --workspace`,
-  is green on it. It is not pushed.
-- `proofs / macos-aarch64`: the CPU-time overshoot, for the third push in a row. It is not noise.
+- `181d4045e`: the `lint` / `rustdoc links` fix for the two doc links to the test-only
+  `Shared::sweep`.
+- `07de303b8`: the likely cause of the macOS CPU overshoot. `thread_info(THREAD_BASIC_INFO)` on
+  another thread leaves out its run in progress, so a thread that never left its CPU read short.
+  A read of another thread now suspends it, reads it and resumes it, under one `SUSPENDING` lock.
+  A thread's read of itself is `clock_gettime(CLOCK_THREAD_CPUTIME_ID)`.
+  `crates/nvs-host/src/cpuclock.rs`. It is inferred from XNU's source and not run on macOS. The
+  test `cpuclock::tests::a_running_thread_read_from_another_is_charged_what_it_has_seen_itself`
+  prints its worst lag to stderr, so the macOS `test` job's log shows it. A red there, or the
+  overshoot again in `proofs / macos-aarch64`, means the suspend is not enough.
 
-The CPU overshoot, macOS arm64 only, each time a different case, always 120 to 150 ms past the
-limit against a bound of 100 ms:
-
-| push | case | used / limit |
-|---|---|---|
-| `a6ef88c92` | `tests/hostile/core/Compress/decompress/02-bombs-until-the-cpu-limit.nvs` | 371 / 250 |
-| `02c95bac1` | `tests/hostile/core/Arr/sort/02-a-comparator-sort-longer-than-the-cpu-limit.nvs` | 374 / 250 |
-| `02c95bac1` | `tests/hostile/config/limits-fatal_reserve_time/01-spending-the-clock-the-report-was-left.nvs` | 157 / 15 |
-| `ef0d5cd3b` | `tests/hostile/core/Regex/replace/02-one-call-longer-than-the-cpu-limit.nvs` | 398 / 250 |
-
-`d59403277`, pushed, makes the sweep wake at the earliest possible crossing
-(`crates/nvs-host/src/watchdog.rs:1436`). The Regex case still went 148 ms over on it, so the
-sweep's interval is not the whole cause. That commit stays, as a real gain on every platform.
+The overshoot it targets: on macOS arm64 alone, a CPU-limit case in `tests/hostile/` (a different
+one each push) stopped 120 to 150 ms past its limit, over the 100 ms bound. Every such case notices
+the sampler's raise within a millisecond, so the delay is in the raise itself.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-- [ ] Watch CI 41292478440 to its end, then push. `tools/nv/cmd/ci.ts:1`
-  Run `bun nv ci --watch --past lint --past "proofs / macos-aarch64"`. Fix any other red it
-  reports. Then `bun nv ci --push` sends `181d4045e` with those fixes, and `--watch --next` follows.
-- [ ] Find why a CPU stop on macOS arm64 lands 120 to 150 ms past the limit. `crates/nvs-host/src/cpuclock.rs:294`
-  Three of the four cases are one long native call: a sort with a comparator, a decoder, a regex
-  replace. Every non-handler case sets `limits.cpu_time` to `300ms` and reports a limit of `250 ms`.
-  The FATAL's `used` is the sampler's charge when the FATAL is written
-  (`crates/nvs-runtime/src/ctx/limits.rs:1101`). The macOS charge is `thread_info(THREAD_BASIC_INFO)`.
-  Give it to a writing subagent with the table above. Its questions, in order:
-  1. How does each native call in the table notice the CPU stop: the safepoint flag, the wall
-     deadline, or its own clock read? How often does it look?
-  2. Why does a `300ms` setting report a `250 ms` limit? Is the stop made at 250 or at 300?
-  3. Does `thread_info` on a running thread report its time late on macOS?
-  Fix the cause it finds. Never raise `TIME_OVERSHOOT_SLACK_MS` (`tools/nv/proofs/run.ts:328`).
-  A diagnostic you cannot run on Windows goes in a test that prints its timings, so the macOS
-  `test` job's log shows them.
+The user stopped this loop: the `release-run` goal takes over watching CI. If this loop resumes:
+
+- [ ] Read the CI run on `07de303b8` with `bun nv ci --status`. `tools/nv/cmd/ci.ts:1`
+  Check `proofs / macos-aarch64` and the macOS `test` job's log line from the new `cpuclock` test.
+  If the overshoot is still there, the next suspect is in Backlog: a lowered limit that does not
+  wake the watchdog. Never raise `TIME_OVERSHOOT_SLACK_MS` (`tools/nv/proofs/run.ts:328`).
 
 ### Backlog
 
@@ -176,3 +161,6 @@ sweep's interval is not the whole cause. That commit stays, as a real gain on ev
 - A CPU-time FATAL from a child task omits the time used, because it reads the child's
   `cpu_limit` of 0 and not the tree's. `crates/nvs-runtime/src/ctx/limits.rs:1101`. It waits
   because no job is red on it.
+- `publish_cpu_limit` (`crates/nvs-runtime/src/ctx/safepoint.rs:99`) does not wake the watchdog, so
+  a limit lowered by `Core\Config::set` is first seen up to one 50 ms `DEFAULT_INTERVAL` late, on
+  every platform. Wake it as `publish_wall_time` does.
