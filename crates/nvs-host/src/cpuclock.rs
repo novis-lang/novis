@@ -538,6 +538,40 @@ mod tests {
     /// platform's figure on a green run too.
     #[test]
     fn a_running_thread_read_from_another_is_charged_what_it_has_seen_itself() {
+        read_a_running_thread("spins", || {
+            for _ in 0..4096 {
+                std::hint::spin_loop();
+            }
+        });
+    }
+
+    /// The same property for a thread that spends much of its run in the
+    /// kernel, as `Core\Compress::compress` does: it grows a 16 MiB buffer,
+    /// copies it and frees both, so most of its time is page faults and
+    /// unmapping. A clock that counted kernel time on one side only, or a
+    /// suspend that waited for the thread to leave a long system call, would
+    /// stop such a request past its limit while a spinning one stops on time.
+    #[test]
+    fn a_running_thread_in_the_kernel_read_from_another_is_charged_what_it_has_seen_itself() {
+        read_a_running_thread("grows and frees 16 MiB buffers", || {
+            // One growth step, as a reader's chunk is.
+            let chunk = vec![7_u8; 64 << 10];
+            let mut grown = Vec::new();
+            while grown.len() < 16 << 20 {
+                grown.extend_from_slice(&chunk);
+            }
+            let copy = grown.clone();
+            std::hint::black_box((grown, copy));
+        });
+    }
+
+    /// Reads a thread that runs `work` in a loop from another thread, once per
+    /// millisecond of the busy thread's own clock, and checks each read is at
+    /// least what the busy thread had already seen, within `LAG`. Each read
+    /// is also timed, since the sampler waits for it under its lock, and a
+    /// read slower than `SLOW_READ` delays every stop that sweep makes. The
+    /// figures go to stderr past the capture, for every platform's CI log.
+    fn read_a_running_thread(doing: &str, work: fn()) {
         use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
         /// How long the busy thread runs without a break, on its own clock:
@@ -546,6 +580,9 @@ mod tests {
         /// How far the reader may read below what the busy thread had already
         /// seen: a clock rounded to microseconds, and nothing like a run.
         const LAG: Duration = Duration::from_millis(5);
+        /// The slowest one read may be: a suspend and a resume are tens of
+        /// microseconds, so this is a thousand times that.
+        const SLOW_READ: Duration = Duration::from_millis(50);
         const PATIENCE: Duration = Duration::from_secs(60);
 
         if ThreadClock::current().is_none() {
@@ -569,9 +606,7 @@ mod tests {
                     let now = mine.burned().expect("this thread's own clock did not read");
                     let now = u64::try_from(now.as_nanos()).unwrap_or(u64::MAX);
                     seen.store(now, Ordering::Release);
-                    for _ in 0..4096 {
-                        std::hint::spin_loop();
-                    }
+                    work();
                 }
             }
         });
@@ -581,6 +616,7 @@ mod tests {
             .expect("the busy thread never published its clock");
         let give_up_at = std::time::Instant::now() + PATIENCE;
         let (mut worst, mut reads, mut last) = (Duration::ZERO, 0_u32, 0_u64);
+        let mut slowest = Duration::ZERO;
         loop {
             let own = seen.load(Ordering::Acquire);
             // One read per millisecond the busy thread has been charged, so the
@@ -594,7 +630,9 @@ mod tests {
                 continue;
             }
             last = own;
+            let started = std::time::Instant::now();
             let read = clock.burned().expect("a running thread read as no thread");
+            slowest = slowest.max(started.elapsed());
             worst = worst.max(Duration::from_nanos(own).saturating_sub(read));
             reads += 1;
             if Duration::from_nanos(own) >= SPIN {
@@ -605,14 +643,19 @@ mod tests {
         busy.join().expect("the busy thread panicked");
 
         let line = format!(
-            "cpuclock: {reads} reads of a running thread from another, worst lag {worst:?} \
-             behind its own clock\n"
+            "cpuclock: {reads} reads of a running thread that {doing}, from another: worst lag \
+             {worst:?} behind its own clock, slowest read {slowest:?}\n"
         );
         std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes()).ok();
         assert!(
             worst <= LAG,
-            "a running thread read from another lagged {worst:?} behind its own clock over \
-             {reads} reads, past the {LAG:?} a rounded clock explains"
+            "a running thread that {doing}, read from another, lagged {worst:?} behind its own \
+             clock over {reads} reads, past the {LAG:?} a rounded clock explains"
+        );
+        assert!(
+            slowest <= SLOW_READ,
+            "reading a running thread that {doing} took {slowest:?} at worst over {reads} reads, \
+             past the {SLOW_READ:?} a suspend and a resume take"
         );
     }
 
