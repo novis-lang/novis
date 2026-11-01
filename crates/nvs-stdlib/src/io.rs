@@ -2260,7 +2260,48 @@ nvs_runtime::nvs_helper! {
         if ctx.run_kind() == nvs_runtime::RunKind::Test {
             return text_of(&[], "Core\\IO::stdin");
         }
-        read_to_text(ctx, &mut std::io::stdin().lock())
+        let Some(deadline) = ctx.wall_bound() else {
+            return read_to_text(ctx, &mut std::io::stdin().lock());
+        };
+        let read = read_to_text(ctx, &mut StdinUntil { deadline });
+        match ctx.wall_time_fault() {
+            Some(fault) if read.is_err() => Err(fault),
+            _ => read,
+        }
+    }
+}
+
+/// The process's standard input, read on the blocking pool and given up at
+/// `deadline`: [`nvs_core_io_stdin`]'s reader for a run with a `[limits]
+/// wall_time` (`rule:http-server/time-is-bounded-inside-a-helper`). A read
+/// at the deadline fails with `TimedOut`, and the member turns that into the
+/// wall-time `FATAL`. Off a task the read runs inline and unbounded, as
+/// every `run_until` job does there.
+///
+/// **What it spends:** one pool hop and one copy per chunk of at most
+/// [`STDIN_CHUNK`] bytes. A run with no wall time reads inline and pays
+/// neither. A read given up at the deadline leaves its pool thread waiting on
+/// the descriptor until input or end of input arrives. That chunk is freed
+/// there, and the run is ending on the `FATAL` anyway.
+struct StdinUntil {
+    deadline: std::time::Instant,
+}
+
+/// The most [`StdinUntil`] reads in one pool hop.
+const STDIN_CHUNK: usize = 64 * 1024;
+
+impl std::io::Read for StdinUntil {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let want = buf.len().min(STDIN_CHUNK);
+        let chunk = nvs_host::blocking::run_until(self.deadline, move || {
+            let mut chunk = vec![0; want];
+            let got = std::io::Read::read(&mut std::io::stdin().lock(), &mut chunk)?;
+            chunk.truncate(got);
+            Ok::<_, std::io::Error>(chunk)
+        })
+        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
+        buf[..chunk.len()].copy_from_slice(&chunk);
+        Ok(chunk.len())
     }
 }
 
