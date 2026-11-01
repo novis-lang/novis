@@ -69,6 +69,21 @@ test("a file under vendor/ or the synced looper kit gives no pin", () => {
   expect(filePins("tools/nv/package.json", read).map((p) => [p.name, p.pinned])).toEqual([["typescript", "^5.9.3"]]);
 });
 
+test("a package.json's holds are read from the holds.json beside it, and a missing one is no holds", () => {
+  const PACKAGE = JSON.stringify({ devDependencies: { typescript: "^5.9.3" } }, null, 2);
+  const files: Record<string, string> = {
+    "web/package.json": PACKAGE,
+    "web/holds.json": JSON.stringify({ typescript: "HOLD (revisit 2026-12-01): a peer needs 5." }),
+    "bare/package.json": PACKAGE,
+  };
+  const read = (f: string) => {
+    if (files[f] === undefined) throw Object.assign(new Error(`ENOENT: ${f}`), { code: "ENOENT" });
+    return files[f];
+  };
+  expect(filePins("web/package.json", read)[0]!.hold).toEqual({ revisit: "2026-12-01", reason: "a peer needs 5." });
+  expect(filePins("bare/package.json", read)[0]!.hold).toBeUndefined();
+});
+
 test("a Cargo requirement is a caret range unless it says otherwise", () => {
   expect(cargoRange("0.258")).toBe("^0.258");
   expect(cargoRange(">=1.2, <2")).toBe(">=1.2 <2");
@@ -80,25 +95,33 @@ test("a Cargo requirement is a caret range unless it says otherwise", () => {
   expect(compare(crate("1"), "1.1.8+spec-1.1.0")).toBe("current");
 });
 
-test("a package.json gives its dependencies, engines.bun and the holds object's entries", () => {
+test("a package.json gives its dependencies and Bun, and holds.json beside it gives the holds", () => {
   const text = JSON.stringify(
     {
-      engines: { bun: "1.4.3", node: ">=22" },
-      holds: { typescript: "HOLD (revisit 2026-11-16): typescript-eslint allows <6.1.0" },
+      packageManager: "bun@1.4.3",
+      engines: { bun: ">=1.4.3", node: ">=22" },
+      holds: { a: "HOLD (revisit 2026-11-16): a holds key in package.json is not read" },
       dependencies: { a: "^1.0.0", b: "workspace:*" },
       devDependencies: { typescript: "~6.0.3" },
     },
     null,
     2,
   );
-  const pins = npmPins(text, "package.json");
+  const holds = JSON.stringify({ typescript: "HOLD (revisit 2026-11-16): typescript-eslint allows <6.1.0" });
+  const pins = npmPins(text, "package.json", holds);
   expect(pins.map((p) => [p.name, p.pinned])).toEqual([
     ["a", "^1.0.0"],
     ["typescript", "~6.0.3"],
     ["bun", "1.4.3"],
   ]);
+  expect(pins[0]!.hold).toBeUndefined();
   expect(pins[1]!.line).toBe(text.split("\n").findIndex((l) => l.includes('"typescript": "~6.0.3"')) + 1);
   expect(pins[1]!.hold?.revisit).toBe("2026-11-16");
+  expect(pins[2]!.line).toBe(text.split("\n").findIndex((l) => l.includes('"packageManager"')) + 1);
+  // With no `packageManager`, `engines.bun` is the pin, and a range is judged as one.
+  const ranged = npmPins(JSON.stringify({ engines: { bun: ">=1.4.3" } }), "package.json");
+  expect(ranged.map((p) => [p.name, p.pinned])).toEqual([["bun", ">=1.4.3"]]);
+  expect(compare(ranged[0]!, "1.4.9")).toBe("current");
   const npm = (pinned: string): Pin => ({ kind: "npm", name: "x", pinned, file: "package.json", line: 1 });
   expect(compare(npm("~6.0.3"), "7.0.2")).toBe("behind");
   expect(compare(npm("1.4.3"), "1.4.3")).toBe("current");

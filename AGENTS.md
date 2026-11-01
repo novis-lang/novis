@@ -271,13 +271,15 @@ What a loop session owes on top of the block's § *Session workflow*:
 
 ## Where Novis departs from the stack files
 
-`docs/agent/rust.md` and `docs/agent/bun.md` are looper's defaults, and Novis's rules win in two places.
+`docs/agent/rust.md` and `docs/agent/bun.md` are looper's defaults, and Novis's rules win in three places.
 
 - **Unsafe code is forbidden in every crate but the unsafe ones.** The workspace `Cargo.toml` sets
   `unsafe_code = "forbid"`. Each crate on `bun nv lints`'s `UNSAFE_CRATES` restates the table with
   `deny` and allows each audited block with a reason. The workspace `Cargo.toml`'s lint comment is
   the home, and the header of `tools/nv/cmd/lints.ts` the reasoning.
 - **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
+- **Bun's exact pin is `package.json`'s `packageManager`**, which CI's `setup-bun` reads first, and
+  `engines.bun` is the range a contributor's Bun must satisfy. Bump both in a commit of its own.
 
 <!-- looper:begin agents v5 -->
 ## Where to look

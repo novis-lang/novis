@@ -8,8 +8,9 @@
 //
 // - `crate`      a versioned row of a dependency table in every tracked `Cargo.toml`,
 //                and each `cargo install <crate> --version <v>` in a workflow. The crates.io sparse index.
-// - `npm`        `dependencies` and `devDependencies` of every tracked `package.json`, and `engines.bun`
-//                as the `bun` package. The npm registry's `latest` tag.
+// - `npm`        `dependencies` and `devDependencies` of every tracked `package.json`, and Bun as the
+//                `bun` package: `packageManager`'s `bun@<version>`, or `engines.bun` where there is no
+//                `packageManager`. The npm registry's `latest` tag.
 // - `action`     each `uses: owner/repo@<sha>` in a workflow. The repository's latest GitHub release, or
 //                the head of the branch the line's comment names (`# nightly branch`).
 // - `image`      `FROM`, `ARG *_BASE=` and compose `image:` lines. The registry's tag list: the newest
@@ -22,7 +23,9 @@
 //
 // A crate's or package's range is current when the latest release satisfies it; anything else is behind.
 // A hold is the line `# HOLD (revisit <date>): <reason>` in the comment block directly above the pin, or
-// in a `package.json`, which has no comments, the same text as the value of `holds.<package>`. A held pin
+// for a `package.json`, which has no comments, the same text as the value of `<package>` in the
+// `holds.json` beside it. The holds stay out of `package.json`, so the `.vsix` ships no key no tool
+// reads. A held pin
 // that is behind is `held` until its date passes and `expired` after. The command reads, and never edits
 // a file. `--check` fails on `behind`, `expired` and `unknown` (a registry that did not answer).
 // GitHub's API is called with `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, whichever comes first.
@@ -82,7 +85,7 @@ export function holdAbove(lines: string[], i: number): Hold | undefined {
   return undefined;
 }
 
-/** A `package.json` hold's value, or undefined when it is not in the hold form. */
+/** A `holds.json` entry's value, or undefined when it is not in the hold form. */
 export function parseHold(text: string): Hold | undefined {
   const m = HOLD_RE.exec(text.trim());
   return m ? { revisit: m[1]!, reason: m[2]! } : undefined;
@@ -162,11 +165,14 @@ function jsonLine(lines: string[], key: string, from = 0): number {
   return from + 1;
 }
 
-/** Every registry package a `package.json` names, `engines.bun` as `bun`, with its `holds` entry. */
-export function npmPins(text: string, file: string): Pin[] {
+/**
+ * Every registry package a `package.json` names, Bun as `bun`, with its entry in `holdsText`,
+ * the text of the `holds.json` beside it (empty when there is none).
+ */
+export function npmPins(text: string, file: string, holdsText = ""): Pin[] {
   const json = JSON.parse(text) as Record<string, unknown>;
   const lines = text.split(/\r?\n/);
-  const holds = (json.holds ?? {}) as Record<string, string>;
+  const holds = (holdsText.trim() ? JSON.parse(holdsText) : {}) as Record<string, string>;
   const pins: Pin[] = [];
   const add = (section: string, name: string, range: string) => {
     if (!/^[\^~<>=\d*xX]/.test(range)) return;
@@ -176,8 +182,14 @@ export function npmPins(text: string, file: string): Pin[] {
   for (const section of ["dependencies", "devDependencies"]) {
     for (const [name, range] of Object.entries((json[section] ?? {}) as Record<string, string>)) add(section, name, range);
   }
+  // Bun's exact pin is `packageManager`, which CI's `setup-bun` reads first. `engines.bun` is then the
+  // range a contributor's Bun must satisfy, and is read only where there is no `packageManager` pin.
+  const manager = typeof json.packageManager === "string" ? /^bun@(.+)$/.exec(json.packageManager)?.[1] : undefined;
   const bun = ((json.engines ?? {}) as Record<string, string>).bun;
-  if (bun) add("engines", "bun", bun);
+  if (manager) {
+    const hold = holds.bun === undefined ? undefined : parseHold(holds.bun);
+    pins.push({ kind: "npm", name: "bun", pinned: manager, file, line: jsonLine(lines, "packageManager"), hold });
+  } else if (bun) add("engines", "bun", bun);
   return pins;
 }
 
@@ -515,13 +527,23 @@ export async function pins(): Promise<Pin[]> {
   return (await tracked()).flatMap((f) => filePins(f, read));
 }
 
+/** The text of the `holds.json` beside the `package.json` at `f`, or `""` when there is none. */
+function readHolds(f: string, read: (f: string) => string): string {
+  try {
+    return read(f.replace(/package\.json$/, "holds.json"));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw e;
+  }
+}
+
 /** The pins one tracked file gives. `read` is called only for a file that can give one. */
 export function filePins(f: string, read: (f: string) => string): Pin[] {
   const out: Pin[] = [];
   if (SKIPPED.some((p) => f.startsWith(p))) return out;
   const base = f.split("/").at(-1)!;
   if (base === "Cargo.toml") out.push(...cargoPins(read(f), f));
-  else if (base === "package.json" && !f.startsWith("data/")) out.push(...npmPins(read(f), f));
+  else if (base === "package.json" && !f.startsWith("data/")) out.push(...npmPins(read(f), f, readHolds(f, read)));
   else if (f.startsWith(".github/workflows/") && /\.ya?ml$/.test(f)) {
     const text = read(f);
     out.push(...actionPins(text, f), ...cargoInstallPins(text, f));

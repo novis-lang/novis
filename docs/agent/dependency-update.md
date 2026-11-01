@@ -40,7 +40,7 @@ of what it reads and how it judges a pin. It reads these places, and `cargo upda
 | Pin | File | A hold |
 |---|---|---|
 | Crate ranges | [Cargo.toml](../../Cargo.toml) `[workspace.dependencies]`, and each `Cargo.toml` under `extensions/`, `fuzz/`, `tools/`, `benches/` and the `nvs ext new` template | `# HOLD (revisit <date>): <reason>` directly above the row |
-| npm packages, and Bun as `engines.bun` | `package.json` at the root, in `editors/vscode/` and in `website/` | `"holds": { "<package>": "HOLD (revisit <date>): <reason>" }`, because JSON has no comments |
+| npm packages, and Bun as `packageManager`'s `bun@<version>` (`engines.bun` is the range around it, moved with it) | `package.json` at the root, in `viewer/`, in `editors/vscode/` and in `website/` | `{ "<package>": "HOLD (revisit <date>): <reason>" }` in a `holds.json` beside the `package.json`, because JSON has no comments and the `.vsix` ships its `package.json` |
 | The Rust toolchain, components and targets | [rust-toolchain.toml](../../rust-toolchain.toml) | the comment form |
 | CI actions, by SHA with the release in a comment, and `cargo install --version` tools | [.github/workflows/](../../.github/workflows/) | the comment form |
 | Container images | `docker/Dockerfile`, the Dockerfiles and compose files under `benches/`, and `tests/db/compose.yaml` | the comment form |
