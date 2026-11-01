@@ -273,14 +273,14 @@ Every other job of `41310544248` was green. Round 4's full run `41317255176` on 
 Its `proofs / linux-x86_64` stopped `limits-fatal_reserve_time/01` in step 3: the woken watchdog caught
 its brief `1ms` limit, a race the attack had always ridden. `ba6f2d999` stops a limit set below the spend at the
 set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. macOS's
-proofs then failed on that same attack alone: the halved wait cured the three CPU overshoots. Local,
-not pushed: the run still goes, and a watch past both proofs reds runs.
+proofs then failed on that same attack alone: the halved wait cured the three CPU overshoots. Every
+other job was green. Round 5's full run `41323589001` on `a0bf32ea9` tests the fix, and its watch runs.
 
 ### Next
 
-Stage 2, round 5. Read run `41317255176`'s other jobs first, which the watch's report gives.
+Stage 2, round 6. Read run `41323589001`'s verdict first, which the watch's report gives.
 
-- [ ] Fix every other red it names, one commit each. Once the run has ended: `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] If macOS still stops late, the wait is not the cause: read the stop's latency after the sweep, from the flag to the `FATAL` (`crates/nvs-runtime/src/ctx/limits.rs:1103`). `crates/nvs-host/src/watchdog.rs:1460`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
