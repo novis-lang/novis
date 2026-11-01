@@ -23,6 +23,8 @@ tree.
 
 If you are not sure which of the first two it is, open a discussion. Someone will move it.
 
+Every space the project runs follows the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Pull requests are not open yet
 
 **We are not accepting pull requests from outside the core team right now — and this restriction is about
