@@ -91,7 +91,7 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
-use std::net::{SocketAddr, ToSocketAddrs as _};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -511,10 +511,14 @@ fn walk(
         // The operator wrote this host, so every address it resolves to is
         // dialled in turn with no address policy in front of it. `localhost`
         // resolves to `::1` and `127.0.0.1`, and a server may listen on one.
-        let addresses: Vec<SocketAddr> = (url.host.as_str(), url.port)
-            .to_socket_addrs()
-            .map(Iterator::collect)
-            .unwrap_or_default();
+        // The lookup runs on the blocking pool and waits no later than the
+        // request's wall deadline.
+        let addresses: Vec<SocketAddr> =
+            nvs_runtime::capability::resolve_addresses(&url.host, member, ctx.wall_bound())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|address| SocketAddr::new(address, url.port))
+                .collect();
         if addresses.is_empty() {
             last = Some(nvs_ldap::Error::new(
                 nvs_ldap::Kind::Unavailable,

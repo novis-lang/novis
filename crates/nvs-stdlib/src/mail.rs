@@ -79,7 +79,7 @@
 //! belongs to the program or a package, which composes *into* these arguments.
 
 use std::io::{Read, Write};
-use std::net::{SocketAddr, ToSocketAddrs as _};
+use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
@@ -412,23 +412,16 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
 /// have granted an exception is the one that wrote it, and every ordinary relay
 /// sits inside the ranges `rule:security/net-address-policy` denies by default.
 ///
+/// The lookup runs on the blocking pool and waits no later than `until`.
+///
 /// # Errors
 ///
-/// A catchable `IOError` for a name that resolves to nothing.
-fn resolve(endpoint: &Endpoint, member: &str) -> Result<SocketAddr, Fault> {
-    let bare = endpoint
-        .host
-        .strip_prefix('[')
-        .and_then(|held| held.strip_suffix(']'))
-        .unwrap_or(&endpoint.host);
-    if let Ok(literal) = bare.parse::<std::net::IpAddr>() {
-        return Ok(SocketAddr::new(literal, endpoint.port));
-    }
-    (endpoint.host.as_str(), endpoint.port)
-        .to_socket_addrs()
-        .ok()
-        .and_then(|mut found| found.next())
-        .ok_or_else(|| {
+/// A catchable `IOError` for a name that resolves to nothing, or whose lookup
+/// is still running at `until`.
+fn resolve(endpoint: &Endpoint, member: &str, until: Instant) -> Result<SocketAddr, Fault> {
+    nvs_runtime::capability::resolve_host(&endpoint.host, member, Some(until))
+        .map(|address| SocketAddr::new(address, endpoint.port))
+        .map_err(|_| {
             Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
@@ -1217,8 +1210,8 @@ nvs_runtime::nvs_helper! {
         // request's wall deadline if that is sooner. A send that reached it
         // stops the request with the limit's `FATAL`.
         let until = Instant::now() + ctx.within_wall_time(configured.timeout);
-        let address = resolve(&configured, &member)?;
-        deliver(address, &configured, until, &envelope, &message, &member)
+        resolve(&configured, &member, until)
+            .and_then(|address| deliver(address, &configured, until, &envelope, &message, &member))
             .map_err(|fault| ctx.wall_time_fault().unwrap_or(fault))?;
         Ok(Value::null())
     }

@@ -131,28 +131,23 @@ fn note_timeout(
 /// are different servers: the caller has already decided which handshake goes
 /// out, and it is the only one that knows what a block writing no `port` meant.
 ///
+/// The lookup runs on the blocking pool and waits no later than `deadline`.
+///
 /// # Errors
 ///
-/// A thrown `IOError` for a host that resolves to nothing.
+/// A thrown `IOError` for a host that resolves to nothing, or whose lookup is
+/// still running at `deadline`.
 pub(super) fn address_of(
     host: &str,
     port: Option<u16>,
     default_port: u16,
     name: &str,
+    deadline: Option<std::time::Instant>,
 ) -> Result<SocketAddr, Fault> {
     let port = port.unwrap_or(default_port);
-    let bare = host
-        .strip_prefix('[')
-        .and_then(|held| held.strip_suffix(']'))
-        .unwrap_or(host);
-    if let Ok(literal) = bare.parse::<std::net::IpAddr>() {
-        return Ok(SocketAddr::new(literal, port));
-    }
-    (host, port)
-        .to_socket_addrs()
-        .ok()
-        .and_then(|mut found| found.next())
-        .ok_or_else(|| {
+    nvs_runtime::capability::resolve_host(host, CONNECT, deadline)
+        .map(|address| SocketAddr::new(address, port))
+        .map_err(|_| {
             Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
@@ -373,7 +368,7 @@ pub(crate) fn open_named(
                     )
                 });
             }
-            address_of(host, port, default_port, name).map(nvs_db::Endpoint::Tcp)
+            address_of(host, port, default_port, name, connect_by).map(nvs_db::Endpoint::Tcp)
         };
     let written = block.driver.as_deref().unwrap_or("");
     let driver = nvs_db::Driver::from_config_name(written);
@@ -451,7 +446,13 @@ pub(crate) fn open_named(
                 let target = nvs_db::TdsTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                let address = address_of(target.host, block.port, nvs_db::tds::DEFAULT_PORT, name)?;
+                let address = address_of(
+                    target.host,
+                    block.port,
+                    nvs_db::tds::DEFAULT_PORT,
+                    name,
+                    connect_by,
+                )?;
                 let conn = nvs_db::TdsConn::connect(address, &target, connect_by)
                     .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::SqlServer(conn)
@@ -1714,7 +1715,7 @@ mod tests {
         // The path `Core\Db::connect` actually takes, on the deployment that
         // granted neither `net` key: it returns the address both refusals above
         // just named.
-        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main").expect(
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main", None).expect(
             "a `connect`-named endpoint is pre-approved — `rule:core-classes/db-capabilities`",
         );
         assert_eq!(
@@ -1774,7 +1775,7 @@ mod tests {
         // And the same address down `connect`'s path, on a deployment that
         // grants no `net` key either: pre-approved, because an operator wrote
         // the endpoint into root-owned configuration.
-        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main").expect(
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main", None).expect(
             "a `connect`-named endpoint is pre-approved — `rule:core-classes/db-capabilities`",
         );
         assert_eq!(
@@ -1809,7 +1810,7 @@ mod tests {
             (nvs_db::pg::DEFAULT_PORT, 5432),
             (nvs_db::mysql::DEFAULT_PORT, 3306),
         ] {
-            let pinned = address_of(HOST, None, default, "main")
+            let pinned = address_of(HOST, None, default, "main", None)
                 .expect("a literal host resolves to itself with no name service at all");
             assert_eq!(
                 pinned,

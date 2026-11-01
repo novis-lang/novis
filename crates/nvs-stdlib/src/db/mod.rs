@@ -290,7 +290,7 @@
 //! doors, and the split is the point: a `DbError` is what the server said, a
 //! `ParseError` is what the shape said.
 
-use std::net::{SocketAddr, ToSocketAddrs as _};
+use std::net::SocketAddr;
 
 use rand::RngExt as _;
 
