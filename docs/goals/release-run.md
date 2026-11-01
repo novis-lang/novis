@@ -255,10 +255,11 @@ subagent. Such subagents run side by side, and none of them builds.
 
 Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
 (`tools/nv/cmd/ci.ts:621`). Stage 2, round 1: the full run `41298422730` on `c3f94ed9f` is still going,
-and a `bun nv ci --watch --past "proofs / macos-aarch64" --past "miri units (nvs-stdlib 2/12)"` waits on
-it in the background. That watch reports the next red, or exits 4 if the run ends with only those. Commits
-after `c3f94ed9f` are local only: a push would cancel the full run. `miri units (nvs-stdlib 2/12)` is
-fixed locally in `4e02da7ec`. Miri now skips the router stack-floor test (`crates/nvs-stdlib/src/router.rs:4174`).
+and a watch with `--past` for the three reds below waits on it in the background. Commits after
+`c3f94ed9f` are local only: a push would cancel the full run. Fixed locally: `miri units (nvs-stdlib
+2/12)` in `4e02da7ec`, where Miri skips the router stack-floor test (`crates/nvs-stdlib/src/router.rs:4174`),
+and `miri units (nvs-runtime 2/2)` in `8c0a5fa5c`, where the array-growth test is sized for Miri
+(`crates/nvs-runtime/src/budget.rs:1904`), which passes under Miri for Linux in 33 s.
 
 Red so far: `proofs / macos-aarch64`. Two attacks stop 117 and 131 ms past their CPU limits:
 `tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and `tests/hostile/core/Arr/sort/02-*.nvs`.
@@ -271,10 +272,7 @@ The data that decides it is the `cpuclock: ... worst lag` line that `cpuclock.rs
 `test / macos-aarch64 (tests)`'s log. It had not run yet. A lag near 100 ms puts the fix in `cpuclock.rs`;
 a lag near 0 puts it in `next_wait` or the `Charge` base (`watchdog.rs:1420`, `watchdog.rs:311`).
 
-The sweep's two reds before this session: `env-secret-proofs` has no definition in the tree and no
-log, a stale check the driver carries (earlier goals recorded the same). The nightly `41295327777`'s
-`lint` red was the `rustdoc links` step on `Shared::sweep` in `crates/nvs-host/src/watchdog.rs`,
-fixed by `181d4045e` before this session; its other jobs were cancelled by later pushes.
+`env-secret-proofs`, which the sweep names, has no definition in the tree: a stale driver check.
 
 ### Next
 
