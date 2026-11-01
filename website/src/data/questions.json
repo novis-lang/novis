@@ -1113,7 +1113,7 @@
   },
   "/reference/cli/nvs-cache/": {
     "feature": "tools:cli/nvs-cache",
-    "hash": "860f1e8040e76e2e",
+    "hash": "78e5402e91cda80f",
     "questions": [
       "How do I clear the compile cache?",
       "Delete the oldest compiled programs when the cache is too big",

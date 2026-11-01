@@ -1198,7 +1198,7 @@ compiles it again.
 Both commands read the configuration the way `nvs run` does, so they work on the same cache folder.
 They print one line:
 
-```output
+```text
 removed 3 entries, freed 81920 bytes, skipped 0
 ```
 
