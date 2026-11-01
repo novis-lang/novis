@@ -164,10 +164,15 @@ pub(crate) fn wait_for_slot(
                 "no connection came free before {bound} was up"
             )));
         }
+        // The park ends at the request's wall deadline if that is sooner, and a
+        // wake past it stops the request with the wall-time `FATAL`.
         if let Some(nvs_runtime::host::Woken::Cancelled) =
-            nvs_runtime::host::with_current(|host| host.park(Some(until)))
+            nvs_runtime::host::with_current(|host| host.park(ctx.wall_clamp(Some(until))))
         {
             return Err(ctx.cancel());
+        }
+        if let Some(fault) = ctx.wall_time_fault() {
+            return Err(fault);
         }
     }
 }

@@ -879,11 +879,16 @@ nvs_runtime::nvs_helper! {
                 ));
             };
             ctx.inbox().wake_on(waker);
-            let until = std::time::Instant::now() + CROSS_CORE_TICK;
+            // The park ends at the request's wall deadline if that is sooner,
+            // and a wake past it stops the request with the wall-time `FATAL`.
+            let until = ctx.wall_clamp(Some(std::time::Instant::now() + CROSS_CORE_TICK));
             if let Some(nvs_runtime::host::Woken::Cancelled) =
-                nvs_runtime::host::with_current(|host| host.park(Some(until)))
+                nvs_runtime::host::with_current(|host| host.park(until))
             {
                 return Err(ctx.cancel());
+            }
+            if let Some(fault) = ctx.wall_time_fault() {
+                return Err(fault);
             }
         }
     }
@@ -948,13 +953,18 @@ nvs_runtime::nvs_helper! {
 /// A `RuntimeError` where the connection draining the stream has gone, and a
 /// [`Fault::fatal`] for a sink that could not take the bytes.
 fn onto_the_wire(ctx: &mut Ctx, framed: Vec<u8>, member: &str) -> Result<Value, Fault> {
+    let wall = ctx.wall_bound();
     if let Some(emit) = ctx.body_stream() {
         // No case can reach this: a stream that can close is one a connection is
         // draining, and a `.nvst` case is offered no cell.
         // `an_event_whose_reader_has_gone_is_refused_rather_than_parked` is the
-        // `#[test]` that asserts it instead.
-        return emit
-            .send(framed)
+        // `#[test]` that asserts it instead. A send that ended at the request's
+        // wall deadline stops the request with the wall-time `FATAL`.
+        let sent = emit.send_by(framed, wall);
+        if let Some(fault) = ctx.wall_time_fault() {
+            return Err(fault);
+        }
+        return sent
             .map(|()| Value::null())
             .map_err(|closed| Fault::thrown(format!("Core\\Sse::{member}(): {closed}")));
     }

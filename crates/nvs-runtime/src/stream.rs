@@ -182,6 +182,17 @@ impl Emit {
     /// [`NO_TASK`] where there is no task to park at all, since blocking the
     /// core instead would stop every other request on it.
     pub fn send(&mut self, chunk: Vec<u8>) -> Result<(), Box<str>> {
+        self.send_by(chunk, None)
+    }
+
+    /// [`Self::send`], whose wait also ends at `wall`, the request's wall
+    /// deadline. A wait that ends there is [`SEND_TIMED_OUT`] and closes the
+    /// stream, and the caller reads the request's wall-time fault.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::send`]'s.
+    pub fn send_by(&mut self, chunk: Vec<u8>, wall: Option<Instant>) -> Result<(), Box<str>> {
         if self.spent {
             return Err(CLOSED.into());
         }
@@ -191,7 +202,10 @@ impl Emit {
         if chunk.len() > self.largest_chunk {
             return Err(over_the_message_bound(chunk.len(), self.largest_chunk));
         }
-        let deadline = Instant::now().checked_add(self.send_timeout);
+        let deadline = match (Instant::now().checked_add(self.send_timeout), wall) {
+            (Some(own), Some(wall)) => Some(own.min(wall)),
+            (own, wall) => own.or(wall),
+        };
         loop {
             {
                 let mut wire = self.wire.borrow_mut();

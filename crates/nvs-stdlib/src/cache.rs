@@ -1503,7 +1503,10 @@ fn waited<T>(
                 ),
             ));
         }
+        // The wait ends at the request's wall deadline if that is sooner, and a
+        // wake past it stops the request with the wall-time `FATAL`.
         let tick = until.min(now + FILL_TICK);
+        let tick = ctx.wall_bound().map_or(tick, |wall| tick.min(wall));
         match nvs_runtime::host::with_current(|host| host.park(Some(tick))) {
             Some(nvs_runtime::host::Woken::Cancelled) => return Err(ctx.cancel()),
             Some(_) => {}
@@ -1512,6 +1515,9 @@ fn waited<T>(
             // sleep `nvs_host::timer::park_until` performs off a core for the
             // same reason.
             None => std::thread::sleep(tick.saturating_duration_since(Instant::now())),
+        }
+        if let Some(fault) = ctx.wall_time_fault() {
+            return Err(fault);
         }
     }
 }

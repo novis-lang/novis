@@ -2412,6 +2412,7 @@ nvs_runtime::nvs_helper! {
                 format!("Core\\Response\\Stream::write(): {past}"),
             )
         })?;
+        let wall = ctx.wall_bound();
         if let Some(emit) = ctx.body_stream() {
             // Owned, because the connection takes the chunk rather than reading
             // it: the copy is the one allocation a streamed chunk costs, and it
@@ -2422,8 +2423,14 @@ nvs_runtime::nvs_helper! {
             // one a connection is draining, and a `.nvst` case is offered no
             // cell. `a_stream_write_after_the_client_left_returns_without_throwing`
             // and `a_stream_write_after_the_send_timeout_returns_without_throwing`
-            // are the `#[test]`s that assert it instead.
-            return match emit.send(chunk.to_vec()) {
+            // are the `#[test]`s that assert it instead. A write that ended at
+            // the request's wall deadline stops the request with the wall-time
+            // `FATAL`.
+            let sent = emit.send_by(chunk.to_vec(), wall);
+            if let Some(fault) = ctx.wall_time_fault() {
+                return Err(fault);
+            }
+            return match sent {
                 Ok(()) => Ok(Value::null()),
                 Err(left)
                     if *left == *nvs_runtime::stream::CLOSED
