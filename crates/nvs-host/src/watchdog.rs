@@ -577,6 +577,37 @@ pub fn running_spent() -> Option<Duration> {
     })
 }
 
+/// The CPU time the request tree keyed `tree` has been charged, summed over
+/// every thread it is published on and read the way the sweep reads it, or
+/// `None` on a thread that registered nothing or where no thread publishes
+/// the tree.
+///
+/// `nvs_runtime::Ctx::cpu_time_spent` reads this through the hook
+/// [`enroll`] installs, so a time `FATAL` names what the request used and a
+/// member can check its cost against the time left. One lock of the shared
+/// table and one clock read per thread the tree runs on, on the calling
+/// thread; never on a statement's path.
+#[must_use]
+pub fn tree_spent(tree: usize) -> Option<Duration> {
+    let shared =
+        METER.with_borrow(|local| local.as_ref().map(|local| Arc::clone(&local.shared)))?;
+    let state = lock(&shared.state);
+    let mut total: Option<u64> = None;
+    for watched in &state.watching {
+        let mut clock: Option<Option<u64>> = None;
+        for running in lock(&watched.running).iter() {
+            if running.view.tree_key() != tree {
+                continue;
+            }
+            let Some(now) = *clock.get_or_insert_with(|| running.clock.burned().map(nanos)) else {
+                break;
+            };
+            total = Some(total.unwrap_or(0).saturating_add(running.charge.at(now)));
+        }
+    }
+    total.map(Duration::from_nanos)
+}
+
 /// The tree this thread is charging now, or [`NO_TREE`].
 pub(crate) fn running_tree() -> usize {
     METER.with_borrow(|local| {
@@ -990,6 +1021,9 @@ pub struct Registration {
 /// [`Watchdog::register_requests`] with the watchdog in hand, and
 /// [`Watcher::adopt`] with a handle another thread carried here.
 fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registration {
+    // The runtime's reading of a tree's CPU time is this module's, so the
+    // first registration in the process installs it. Idempotent after that.
+    nvs_runtime::install_cpu_spent(tree_spent);
     let mut state = lock(&shared.state);
     let id = state.next_id;
     state.next_id += 1;
@@ -2366,6 +2400,46 @@ mod tests {
             parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
             "a tree whose two threads together spent its ceiling ran on"
         );
+    }
+
+    /// A request the sweep stopped at its CPU ceiling reads what its tree
+    /// spent through the runtime's hook, and its `FATAL` names that time and
+    /// the ceiling in the form the overshoot scan parses.
+    #[test]
+    fn a_cpu_time_fatal_names_what_the_tree_spent_and_its_limit() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        let ceiling = Duration::from_millis(35);
+        let request = capped(u64::try_from(ceiling.as_nanos()).expect("35 ms fits a u64"));
+        registered.publish(request.safepoint_view());
+        burn_a_charge();
+        burn_a_charge();
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+        let spent = request
+            .cpu_time_spent()
+            .expect("a published tree has a reading");
+        assert!(spent >= ceiling, "stopped at {spent:?}, below {ceiling:?}");
+        assert_eq!(request.cpu_time_left(), Some(Duration::ZERO));
+
+        let message = request.cpu_time_message();
+        let reading = message
+            .strip_prefix("the request exceeded its CPU-time limit: ")
+            .and_then(|rest| rest.strip_suffix(" ms"))
+            .and_then(|rest| rest.split_once(" ms used of a limit of "))
+            .unwrap_or_else(|| panic!("not a time reading: {message}"));
+        let used: u128 = reading.0.parse().expect("the used time is a number");
+        assert_eq!(reading.1, "35", "{message}");
+        assert!(used >= 35, "{message}");
+        registered.withdraw(&request.safepoint_view());
     }
 
     /// A child placed on another core runs in a task spawned with that core's

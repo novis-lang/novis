@@ -19,5 +19,5 @@ while (true) {
 --EXPECT--
 looping
 onLimit wall_time
---EXPECT-ERROR--
-FATAL: the request exceeded its wall-time limit of 300ms
+--EXPECTF-ERROR--
+FATAL: the request exceeded its wall-time limit: %d ms used of a limit of 300 ms

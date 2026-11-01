@@ -45,5 +45,5 @@ echo "spun again ", $again, "\n";
 start
 child ok=false
 onLimit cpu_time
---EXPECT-ERROR--
-FATAL: the request exceeded its CPU-time limit
+--EXPECTF-ERROR--
+FATAL: the request exceeded its CPU-time limit: %d ms used of a limit of %d ms

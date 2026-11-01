@@ -1046,15 +1046,70 @@ impl Ctx {
     /// limit and write its own line in place of this one, which names a request.
     pub const WALL_TIME_EXCEEDED: &'static str = "the request exceeded its wall-time limit";
 
-    /// The `FATAL`'s message for a request past its `[limits] wall_time`,
-    /// naming the ceiling as the request has it now.
-    pub(super) fn wall_time_message(&self) -> String {
+    /// The `FATAL`'s message for a request past its `[limits] wall_time`:
+    /// [`Self::WALL_TIME_EXCEEDED`], then the wall time the request used and
+    /// the ceiling as the request has it now, in the form
+    /// [`super::safepoint::time_used_text`] writes. One clock read.
+    pub(crate) fn wall_time_message(&self) -> String {
         let ceiling = std::time::Duration::from_nanos(
             self.tree
                 .wall_time
                 .load(std::sync::atomic::Ordering::Relaxed),
         );
-        format!("{} of {ceiling:?}", Self::WALL_TIME_EXCEEDED)
+        let used = Some(self.tree.wall_used());
+        format!(
+            "{}{}",
+            Self::WALL_TIME_EXCEEDED,
+            super::safepoint::time_used_text(used, ceiling)
+        )
+    }
+
+    /// How [`Self::cpu_time_message`] starts.
+    pub const CPU_TIME_EXCEEDED: &'static str = "the request exceeded its CPU-time limit";
+
+    /// The `FATAL`'s message for a request past its CPU ceiling:
+    /// [`Self::CPU_TIME_EXCEEDED`], then [`Self::cpu_time_spent`] and
+    /// [`Self::cpu_limit`], the point the sampler stops the request at. With
+    /// no reading it names the limit alone, and with no limit nothing more.
+    #[must_use]
+    pub fn cpu_time_message(&self) -> String {
+        let limit = std::time::Duration::from_nanos(self.cpu_limit);
+        let used = if limit.is_zero() {
+            None
+        } else {
+            self.cpu_time_spent()
+        };
+        format!(
+            "{}{}",
+            Self::CPU_TIME_EXCEEDED,
+            super::safepoint::time_used_text(used, limit)
+        )
+    }
+
+    /// The CPU time this request's tree has spent, on every thread it runs on
+    /// and in the blocking pool for it, or `None` where nothing charges it: no
+    /// host installed [`crate::install_cpu_spent`], or this thread has no
+    /// per-thread clock.
+    ///
+    /// Read exactly, on the calling thread: one lock of the sampler's table
+    /// and one clock read per thread the tree runs on. Called on a breach and
+    /// by a member that checks its cost first, never per statement.
+    #[must_use]
+    pub fn cpu_time_spent(&self) -> Option<std::time::Duration> {
+        super::safepoint::cpu_spent_by(self.tree_key())
+    }
+
+    /// How much CPU time this request has left before [`Self::cpu_limit`], or
+    /// `None` for a request under no cap or with no reading. `Some(ZERO)`
+    /// once it has none. A member whose caller picks its cost compares that
+    /// cost with this before it starts, as `affordable` does with memory.
+    #[must_use]
+    pub fn cpu_time_left(&self) -> Option<std::time::Duration> {
+        if self.cpu_limit == 0 {
+            return None;
+        }
+        let limit = std::time::Duration::from_nanos(self.cpu_limit);
+        Some(limit.saturating_sub(self.cpu_time_spent()?))
     }
 
     /// Runs `rule:errors/on-limit`'s handler for a request past its

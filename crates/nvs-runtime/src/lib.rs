@@ -298,8 +298,8 @@ pub use callable::{
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,
-    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, ClosedSink, Compared, CoreClasses, Counted, Ctx,
-    CurrentStack, DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEBUG_STEP_OFFSET,
+    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, ClosedSink, Compared, CoreClasses, Counted, CpuSpent,
+    Ctx, CurrentStack, DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEBUG_STEP_OFFSET,
     DEPRECATED_OFFSET, DebugFlags, DebugStop, DeclaredHeader, ErrorClass, EventStreamDoor,
     ExtensionHost, FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE,
     FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, FaultSite, Frame, FrameRecord,
@@ -311,10 +311,10 @@ pub use ctx::{
     STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme, Session, Settled,
     SiteTable, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot,
     Step, StepKind, StmtHits, StmtLines, StopCause, TaskSlot, TraceEvent, TraceKind, TraceSink,
-    TreeState, Upgrade, UpgradeSlot, WeakSafepointView, every_site_probed, is_carrier,
-    nvs_debug_return, nvs_debug_site, nvs_debug_throw, nvs_deprecated_use, nvs_probe_call_enter,
-    nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
-    probe_every_site, stack_pointer, trace_clock, unix_nanos,
+    TreeState, Upgrade, UpgradeSlot, WeakSafepointView, every_site_probed, install_cpu_spent,
+    is_carrier, nvs_debug_return, nvs_debug_site, nvs_debug_throw, nvs_deprecated_use,
+    nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt, nvs_safepoint,
+    nvs_stack_check, probe_every_site, stack_pointer, trace_clock, unix_nanos,
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{

@@ -938,6 +938,16 @@ impl TreeState {
         }
     }
 
+    /// The wall time the request has used: the time since the tree was made,
+    /// less every debug stop that has ended. A stop still in progress is
+    /// counted, which only a breach read during a stop would see.
+    pub(super) fn wall_used(&self) -> std::time::Duration {
+        self.started
+            .0
+            .elapsed()
+            .saturating_sub(self.debug.held_for().unwrap_or_default())
+    }
+
     /// Starts holding the tree's deadlines for a debug stop, and wakes
     /// whoever waits on the wall deadline, so it reads that there is none.
     pub(super) fn hold_deadlines(&self) {
@@ -1068,7 +1078,7 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
         // tree carries where it stood, so a handler is bounded by the next
         // sweep rather than by its reserve.
         ctx.run_limit_handler(Limit::CpuTime);
-        ctx.set_pending("the request exceeded its CPU-time limit");
+        ctx.set_pending(ctx.cpu_time_message());
         return crate::FATAL;
     }
     if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
@@ -1250,6 +1260,44 @@ fn stack_check_slow_path(ctx: &mut Ctx, sp: u64) -> i32 {
     // embedder may re-arm the bounds mid-request; neither is a reason to stop
     // a frame that is in fact within them.
     crate::OK
+}
+
+/// What a request tree has spent of the CPU, given its [`Ctx::tree_key`], or
+/// `None` where nothing charges it. The host's sampler is the one clock that
+/// charges a tree (`nvs_host::watchdog`), and `nvs-runtime` cannot read it, so
+/// the host installs this with [`install_cpu_spent`].
+pub type CpuSpent = fn(usize) -> Option<std::time::Duration>;
+
+/// The process's [`CpuSpent`], or none before a host installs one.
+static CPU_SPENT: std::sync::OnceLock<CpuSpent> = std::sync::OnceLock::new();
+
+/// Installs the process's [`CpuSpent`]. The first call wins: there is one
+/// sampler per process, and every thread asks it.
+pub fn install_cpu_spent(spent: CpuSpent) {
+    let _ = CPU_SPENT.set(spent);
+}
+
+/// What `tree` has spent of the CPU, by the installed [`CpuSpent`].
+pub(super) fn cpu_spent_by(tree: usize) -> Option<std::time::Duration> {
+    CPU_SPENT.get()?(tree)
+}
+
+/// The text a time limit's `FATAL` adds after its prefix: `: <used> ms used of
+/// a limit of <limit> ms`, the one form `bun nv proofs --overshoot` parses, or
+/// ` of <limit> ms` with no reading, or nothing with no limit.
+pub(super) fn time_used_text(
+    used: Option<std::time::Duration>,
+    limit: std::time::Duration,
+) -> String {
+    match (used, limit.is_zero()) {
+        (_, true) => String::new(),
+        (Some(used), false) => format!(
+            ": {} ms used of a limit of {} ms",
+            used.as_millis(),
+            limit.as_millis()
+        ),
+        (None, false) => format!(" of {} ms", limit.as_millis()),
+    }
 }
 
 /// The calling thread's stack pointer, read from the register.
@@ -1620,6 +1668,52 @@ mod tests {
         tree.release_deadlines();
         let after = tree.wall_deadline().expect("a wall time again");
         assert!(after >= before + std::time::Duration::from_millis(5));
+    }
+
+    /// The `<used>` and `<limit>` of a time `FATAL` that starts with `prefix`,
+    /// in the one form the overshoot scan parses.
+    fn time_used(message: &str, prefix: &str) -> (u128, u128) {
+        let rest = message
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.strip_prefix(": "))
+            .and_then(|rest| rest.strip_suffix(" ms"))
+            .unwrap_or_else(|| panic!("not a time reading: {message}"));
+        let (used, limit) = rest
+            .split_once(" ms used of a limit of ")
+            .unwrap_or_else(|| panic!("not a time reading: {message}"));
+        (
+            used.parse().expect("the used time is a number"),
+            limit.parse().expect("the limit is a number"),
+        )
+    }
+
+    #[test]
+    fn a_wall_time_fatal_names_the_time_used_and_its_limit() {
+        let ctx = Ctx::buffered();
+        ctx.tree
+            .wall_time
+            .store(1_000_000, std::sync::atomic::Ordering::Relaxed);
+        // Waits for the deadline by the clock the message reads.
+        while ctx.wall_time_left() != Some(std::time::Duration::ZERO) {
+            std::thread::yield_now();
+        }
+        let message = ctx.wall_time_message();
+        let (used, limit) = time_used(&message, Ctx::WALL_TIME_EXCEEDED);
+        assert_eq!(limit, 1, "{message}");
+        assert!(used >= limit, "{message}");
+    }
+
+    #[test]
+    fn a_cpu_time_fatal_with_no_reading_names_its_limit_alone() {
+        // No host installed a reading in this test binary.
+        let mut ctx = Ctx::buffered();
+        ctx.set_cpu_limit(150_000_000);
+        assert_eq!(ctx.cpu_time_spent(), None);
+        assert_eq!(ctx.cpu_time_left(), None);
+        assert_eq!(
+            ctx.cpu_time_message(),
+            "the request exceeded its CPU-time limit of 150 ms"
+        );
     }
 
     #[test]
