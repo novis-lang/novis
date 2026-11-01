@@ -2109,6 +2109,9 @@ nvs_runtime::nvs_helper! {
             ));
         }
         if ctx.declare_file_body(path) {
+            // The server sends the file, so its size is charged to the output
+            // limit here, as the bytes it will write.
+            ctx.charge_output(usize::try_from(found.len()).unwrap_or(usize::MAX));
             return Ok(Value::null());
         }
         let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\Response::sendFile")?;
@@ -2425,8 +2428,10 @@ nvs_runtime::nvs_helper! {
             // and `a_stream_write_after_the_send_timeout_returns_without_throwing`
             // are the `#[test]`s that assert it instead. A write that ended at
             // the request's wall deadline stops the request with the wall-time
-            // `FATAL`.
+            // `FATAL`. The chunk is response body, so the output limit is
+            // charged for it as it is sent.
             let sent = emit.send_by(chunk.to_vec(), wall);
+            ctx.charge_output(chunk.len());
             if let Some(fault) = ctx.wall_time_fault() {
                 return Err(fault);
             }

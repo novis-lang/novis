@@ -959,8 +959,11 @@ fn onto_the_wire(ctx: &mut Ctx, framed: Vec<u8>, member: &str) -> Result<Value, 
         // draining, and a `.nvst` case is offered no cell.
         // `an_event_whose_reader_has_gone_is_refused_rather_than_parked` is the
         // `#[test]` that asserts it instead. A send that ended at the request's
-        // wall deadline stops the request with the wall-time `FATAL`.
+        // wall deadline stops the request with the wall-time `FATAL`. The
+        // event is response body, so the output limit is charged for it.
+        let length = framed.len();
         let sent = emit.send_by(framed, wall);
+        ctx.charge_output(length);
         if let Some(fault) = ctx.wall_time_fault() {
             return Err(fault);
         }

@@ -1653,4 +1653,20 @@ mod tests {
         assert_eq!(ctx.output_limit(), 0);
         assert!(!ctx.over_output_limit());
     }
+
+    /// A body written past `Ctx::write_output`, such as a streamed chunk or a
+    /// declared file, is charged with `charge_output`, and crossing the limit
+    /// raises the flag that stops the request at its next poll.
+    #[test]
+    fn a_charged_body_past_the_output_limit_raises_the_flag() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_output_limit(100);
+        ctx.charge_output(100);
+        assert!(!ctx.over_output_limit());
+        assert!(!ctx.safepoint_flags().contains(SafepointFlags::OUTPUT_LIMIT));
+        ctx.charge_output(1);
+        assert!(ctx.over_output_limit());
+        assert!(ctx.safepoint_flags().contains(SafepointFlags::OUTPUT_LIMIT));
+        assert!(ctx.output_breach().is_some());
+    }
 }

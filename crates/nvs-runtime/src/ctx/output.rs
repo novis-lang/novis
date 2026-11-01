@@ -308,11 +308,23 @@ impl Ctx {
         // poll only through a raised flag, so a loop that only echoes would
         // otherwise write past the ceiling until it ended. An uncapped context
         // pays one compare.
-        crate::budget::wrote(bytes.len());
+        self.charge_output(bytes.len());
+        write_to(&mut self.output, bytes)
+    }
+
+    /// Charges `bytes` of response body to `[limits] max_output`, and raises
+    /// the flag that stops the request at its next poll once it is over.
+    ///
+    /// [`Self::write_output`] charges what it writes here. A body that does not
+    /// pass through it is charged here by its writer: a streamed chunk and an
+    /// SSE event when each is sent, and a declared file body by the file's size.
+    /// Headers, diagnostics and log records are not the body and are never
+    /// charged. Cost: one add and one compare per write.
+    pub fn charge_output(&mut self, bytes: usize) {
+        crate::budget::wrote(bytes);
         if self.over_output_limit() {
             self.request_safepoint(SafepointFlags::OUTPUT_LIMIT);
         }
-        write_to(&mut self.output, bytes)
     }
 
     /// Writes the bytes of a body member that is not markup — `Core\Response::text`,
