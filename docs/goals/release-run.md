@@ -263,8 +263,6 @@ of 55 jobs green, `ext templates` on all three OSes among them. Its three reds:
   (`crates/nvs-runtime/src/budget.rs:1904`), and it passes under Miri for Linux in 33 s.
 - `proofs / macos-aarch64`: CPU stops past the limit plus 100 ms. Open, see round 3.
 
-Round 2's full run `41304025616` on `32349c25b` ended with 54 of 55 green, both Miri shards included.
-
 Round 3's full run `41310544248` on `5047daa20` set the watchdog thread's macOS QoS class, and
 `proofs / macos-aarch64` still stopped four attacks 103 to 128 ms late, one at a time: `limits-fatal_reserve_time/01`
 and the `02-*` CPU attacks of `Arr/sort`, `Compress/compress` and `Regex/replace`. `e8f112223` reverts
@@ -274,13 +272,13 @@ still ends before it; and a lowered ceiling wakes the watchdog (`safepoint.rs:10
 Every other job of `41310544248` was green. Round 4's full run `41317255176` on `921dd7f66` tests the fix.
 Its `proofs / linux-x86_64` stopped `limits-fatal_reserve_time/01` in step 3: the woken watchdog caught
 its brief `1ms` limit, a race the attack had always ridden. `ba6f2d999` stops a limit set below the spend at the
-set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. Local, not
-pushed: the run still goes, macOS's proofs among it, and a watch past the Linux red runs.
-The sweep's other reds are stale: nightly `41295327777` predates round 1, and `env-secret-proofs` has no definition.
+set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. macOS's
+proofs then failed on that same attack alone: the halved wait cured the three CPU overshoots. Local,
+not pushed: the run still goes, and a watch past both proofs reds runs.
 
 ### Next
 
-Stage 2, round 5. Read run `41317255176`'s other jobs first, which the watch's report gives; above all `proofs / macos-aarch64`.
+Stage 2, round 5. Read run `41317255176`'s other jobs first, which the watch's report gives.
 
 - [ ] Fix every other red it names, one commit each. Once the run has ended: `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] If macOS still stops late, the wait is not the cause: read the stop's latency after the sweep, from the flag to the `FATAL` (`crates/nvs-runtime/src/ctx/limits.rs:1103`). `crates/nvs-host/src/watchdog.rs:1460`
