@@ -371,7 +371,7 @@
     "tools:cli/nvs-build-openapi": "23005b01a5dbbfb1"
   },
   "tools/cli/index.mdx": {
-    "tools:cli/nvs-cache": "e298c15e8a6363c5",
+    "tools:cli/nvs-cache": "860f1e8040e76e2e",
     "tools:cli/nvs-check": "85533fbb31eceea9",
     "tools:cli/nvs-telemetry": "2bd39131b67069de",
     "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
