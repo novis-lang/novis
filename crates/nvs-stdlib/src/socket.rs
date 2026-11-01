@@ -1204,16 +1204,16 @@ nvs_runtime::nvs_helper! {
                 Ok(Received::Closed) => return Ok(Value::null()),
                 Ok(Received::Frame(frame)) => return Ok(message_of_frame(frame)),
                 Ok(Received::Interrupted) => {}
-                // No case can reach this: a `.nvst` case runs a script that was
-                // handed no socket, so it never gets past the refusal above.
-                // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
-                // that asserts it instead.
-                // A read that ended at the request's wall deadline is the
-                // wall-time `FATAL`, and never the member's throw.
                 Err(failed) => {
+                    // A read that ended at the request's wall deadline is the
+                    // wall-time `FATAL`, and never the member's throw.
                     if let Some(fault) = ctx.wall_time_fault() {
                         return Err(fault);
                     }
+                    // No case can reach this: a `.nvst` case runs a script that was
+                    // handed no socket, so it never gets past the refusal above.
+                    // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
+                    // that asserts it instead.
                     return Err(Fault::thrown(format!(
                         "`Core\\Socket::receive` failed on the connection: {}",
                         failed.message()

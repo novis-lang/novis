@@ -20,5 +20,5 @@ Core\Config::set('limits.cpu_time', '300ms');
 // twenty million times.
 echo "step 2\n";
 while (true) {
-    Core\Arr::sort($numbers, { comparator: fn (int $x, int $y): int => $y - $x });
+    Core\Arr::sort($numbers, { comparator: fn(int $x, int $y): int => $y - $x });
 }
