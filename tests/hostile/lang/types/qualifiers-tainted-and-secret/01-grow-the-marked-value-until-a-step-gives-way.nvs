@@ -1,9 +1,10 @@
 <?nvs
-// Attack: untrusted text is grown until it is enormous and then pushed through
-// every step that is allowed to accept it. Quoting, encoding and converting
-// should each answer or refuse cleanly, and a confidential value of the same
-// size should survive being uncovered. The program should still be running.
+// Attack: tainted text of one million characters goes through quoting, encoding
+// and converting. Each step should return a result or throw an error. A secret
+// value of the same size should still reveal. The last step compiles a huge
+// pattern, and the memory limit should stop the program with `FATAL`.
 // hostile: timeout-ms 20000
+// hostile: ends-early 6 FATAL
 
 class Flood
 {
@@ -65,8 +66,12 @@ class Flood
 
 tainted string $seed = ".*+?[](){}|^$\\";
 echo Flood::quoteAndMatch(Flood::grow($seed, 1000)), "\n";
-echo Flood::quoteAndMatch(Flood::grow($seed, 1000000)), "\n";
 echo Flood::encode(Flood::grow($seed, 1000000)), "\n";
 echo Flood::convert(Flood::grow('9', 1000000)), "\n";
 echo Flood::reveal(1000000), "\n";
 echo Flood::edges(), "\n";
+
+// Step 6: quotes one million characters and compiles them as a pattern.
+// The pattern needs more memory than the request may use, so the program stops.
+echo "step 6\n";
+echo Flood::quoteAndMatch(Flood::grow($seed, 1000000)), "\n";

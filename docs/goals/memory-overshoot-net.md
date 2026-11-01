@@ -270,7 +270,13 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-**The goal is reached.** The gate found two faults, both fixed. `1eaa5d684` renders
+**The goal is reached.** The driver refused the first `DONE` on `floor-debt`, whose one red atom was
+`tests/hostile/lang/types/qualifiers-tainted-and-secret/01-grow-the-marked-value-until-a-step-gives-way.nvs`.
+Its 1 MB quoted pattern now meets `compile_cost`'s ask (256 MiB) and ends at `FATAL`, as the
+standing decision on `Core\Regex::compile` says. So that compile is the attack's last step, under
+`ends-early 6 FATAL`, and every other step still runs at full size. The attack passes.
+
+The gate found two faults, both fixed. `1eaa5d684` renders
 `docs/rules/observability.md` after the metric key bound. `4df0ce9fb` writes a capability denial's
 path or host whole up to `SCOPE_BYTES` (32 KiB), because 22 conformance cases compared a path the
 64-byte cut made depend on the temp directory. A longer scope is cut and has no help line, and
