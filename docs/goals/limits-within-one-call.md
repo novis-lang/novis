@@ -150,6 +150,18 @@ Storing the watchdog's reading at the raise was declined: it would hide a native
 past the raise, which is what the scan exists to find. Cost: one lock of the watchdog's table and
 one clock read per thread the tree runs on, only on a breach or a member's cost check.
 
+**A cost checked first is an estimate at a measured rate, and a small one is not checked.**
+`Ctx::cpu_affords(cost, member)` compares a member's estimate with `cpu_time_left` and, when it
+does not fit, runs the limit handler and gives the CPU `FATAL` with `, and this call needs about
+<n> ms` appended. Each estimate is the work factor times a rate measured on one current x86-64
+core, set a little under the measurement, so a call that would fit there is never refused. It is
+not an upper bound: a slower core runs past the limit by the difference, and the watchdog stops the
+request at its next poll. A safe upper bound would refuse a normal bcrypt-12 login under a 1 s limit,
+and learning the rate at run time was declined for simplicity. A cost under `CPU_CHECK_FLOOR`
+(1 ms) is not checked, because reading the time left takes a lock and a clock read per thread;
+so a small `BigInt` call pays one compare. A door with no `Ctx`, such as the Postgres SCRAM login,
+caps its count instead (2,000,000, `deriveKey`'s ceiling, about 120 ms).
+
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
 
@@ -309,22 +321,23 @@ Most waits go through four doors, so most items are one change at a door. Each i
   reads the thread's CPU clock against `cpu_limit` (`limits.rs:1047`). Today only the watchdog reads
   that clock (`crates/nvs-host/src/watchdog.rs:275`).
 - [ ] Each member stage 1 listed checks its cost first or polls:
-  - `Core\Password::verify` and `hash` (`crates/nvs-stdlib/src/password.rs:469`, `:436`). The stored
-    hash picks the cost, up to bcrypt 17 or argon2 4 Mi work. Checked first, from the cost.
-  - `Core\Crypto::deriveKey` (`crates/nvs-stdlib/src/crypto.rs:3165`), up to 2M PBKDF2 iterations.
-    Checked first. RSA `sign` and `verify` (`crypto.rs:3286`, `:3314`): read whether the key size is
-    capped, and cap it if not.
-  - `Core\BigInt::powMod` and the wide `mul`, `div`, `mod`, `sqrt`, `gcd`, `toString`, `parse`
-    (`crates/nvs-stdlib/src/bigint.rs:1154`, `:1197`, `:1088`). Operand width is bounded by memory alone.
-    `powMod` polls per exponent bit; the others are checked first from the widths.
-  - `Core\Compress::decompress` and the stream's `add` and `finish` (`crates/nvs-stdlib/src/compress.rs:1097`,
+  - [x] `Core\Password::verify` and `hash` (`crates/nvs-stdlib/src/password.rs`): checked first
+    from the Argon2 work or the bcrypt cost, through `Ctx::cpu_affords`. Three attacks under
+    `tests/hostile/core/Password/` end at the CPU `FATAL`.
+  - [x] `Core\Crypto::deriveKey` (`crates/nvs-stdlib/src/crypto.rs`): checked first from the count.
+    RSA is already capped at 8192 bits (`MAX_RSA_BITS`, `crypto.rs:486`), so `sign` and `verify` are
+    unchanged. One attack under `tests/hostile/core/Crypto/deriveKey/`.
+  - [x] `Core\BigInt`'s `mul`, `div`, `mod`, `sqrt`, `gcd`, `lcm`, `powMod`, `parse`, `toString` and
+    `format` (`crates/nvs-stdlib/src/bigint.rs`, `afford`): all checked first from the widths,
+    `powMod` included, since its exponent and modulus are known before the work. Two attacks.
+  - [x] Postgres SCRAM login (`crates/nvs-db/src/pg.rs`, `check_scram_iterations`): the count is
+    capped at 2,000,000 before the first HMAC. No time check, since the login has no `Ctx`.
+  - [ ] `Core\Compress::decompress` and the stream's `add` and `finish` (`crates/nvs-stdlib/src/compress.rs:1097`,
     `:1306`, `:1350`). Up to 64 MiB of output by default. Polls per output chunk.
-  - `Core\Regex`'s linear tier, `matchAll`, `replace`, `replaceWith` and `split` (`crates/nvs-stdlib/src/regex.rs:1811`).
+  - [ ] `Core\Regex`'s linear tier, `matchAll`, `replace`, `replaceWith` and `split` (`crates/nvs-stdlib/src/regex.rs:1811`).
     It has no step budget, and the cost is pattern size times input. Polls per match.
-  - `Core\Arr::sort`, `sortByKey`, `diff` and `intersect` with a callback (`crates/nvs-stdlib/src/arr.rs:4610`,
+  - [ ] `Core\Arr::sort`, `sortByKey`, `diff` and `intersect` with a callback (`crates/nvs-stdlib/src/arr.rs:4610`,
     `:4811`, `:6056`). Read whether a callback's entry poll stops the native loop; if not, poll per call.
-  - Postgres SCRAM login (`crates/nvs-db/src/pg.rs:1298`): the server picks the PBKDF2 iteration count.
-    Cap it, and check it first.
 - [ ] The output limit charges every byte of a response body. These paths do not today:
   `Core\Response\Stream::write` to a connection (`crates/nvs-stdlib/src/response.rs:2426`), `Core\Sse`
   events (`crates/nvs-stdlib/src/sse.rs:956`), both through `Emit::send` and `send_all`
@@ -345,36 +358,37 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 4's first four items are done. A CPU or wall-time `FATAL` ends in `: <used> ms used of a
-limit of <limit> ms`, and a CPU limit lowered below the time already spent adds `, set when <n> ms
-were used`. `judgeHostile` and `bun nv proofs --overshoot` judge it against the crossing point plus
-100 ms. The scan exits 0: 0 red of 252, and the worst time reading is 47 ms over. The watchdog's
-sweep interval went from 500 ms to 50 ms, because a CPU limit ran up to 500 ms over. Both changes
-are recorded in the standing decisions. `Ctx::cpu_time_left` exists, and no member calls it yet.
-The five time conformance cases now use `--EXPECTF-ERROR--` and pass.
+Stage 4's first four items are done, and the member item is four groups in. `Ctx::cpu_affords`
+(`crates/nvs-runtime/src/ctx/limits.rs`) checks a member's estimated CPU time against
+`cpu_time_left` and gives the CPU `FATAL`. A cost under `CPU_CHECK_FLOOR` (1 ms) is not checked.
+`Core\Password`, `Core\Crypto::deriveKey` and ten `Core\BigInt` members call it. The Postgres
+SCRAM login caps the server's iteration count at 2,000,000. RSA was already capped. Six new attacks
+end at the CPU `FATAL` under a 300 ms limit, each well inside it. The rates and the floor are in
+the standing decisions.
 
-The db pool's own `acquire` bound (5 s) caps an open's `timeout`, and `Core\Config::set('db.pool.acquire')`
-does not move it at run time. The attack is still right, since 1 s comes first.
-
-The acceptance sweep's reds are stale: nightly run 41187571578 ran on `857b39cad`, before the
-fixes `39795c9c4` and `8ce92dda5`, and CI is green on the later `401abc9b4`. `env-secret-proofs`
-has no definition in the tree and no log under `.looper/loops/main/checks/`.
+The acceptance sweep's reds are still stale: nightly run 41187571578 ran on `857b39cad`, and CI
+is green on the later `401abc9b4`. `env-secret-proofs` has no definition in the tree and no log
+under `.looper/loops/main/checks/`.
 
 **Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
 A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
 that counts parks with a fake host whose `park` asserts on a `None` deadline. A `Core\Socket` test
 that expects a timeout under a wall time to read as an idle close, `null`. A test or `.out` that
-matches a time `FATAL`'s old exact text, `of 300ms` or a bare `CPU-time limit` with a limit set. A
-watchdog or slice test that assumed a 500 ms sweep. None is known.
+matches a time `FATAL`'s old exact text. A watchdog or slice test that assumed a 500 ms sweep. A
+`Core\BigInt`, `Core\Password` or `deriveKey` test that sets a small `cpu_time` and then does
+wide work. None is known.
 
 ### Next
 
-Stage 4's item *Each member stage 1 listed checks its cost first or polls*. Write its checkpoints
-first, one per member group. Start with `Core\Password` (`crates/nvs-stdlib/src/password.rs:436`,
-`:469`) and `Core\Crypto::deriveKey` (`crates/nvs-stdlib/src/crypto.rs:3165`): estimate the cost
-from the work factor, compare it with `Ctx::cpu_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1142`),
-and give the CPU `FATAL` (`Ctx::cpu_time_message`) when it does not fit. `affordable`
-(`crates/nvs-runtime/src/abi.rs:319`) is the memory twin. Each needs an attack ending in a CPU `FATAL`
-that the overshoot scan reads. Then the output-limit item, then `bun nv proofs --overshoot` again.
+The member item's three open groups, which poll rather than check first. `Core\Compress`
+(`crates/nvs-stdlib/src/compress.rs:1097`, `:1306`, `:1350`) polls per output chunk, and
+`Core\Regex`'s linear tier (`crates/nvs-stdlib/src/regex.rs:1811`) polls per match. The poll is
+`ctx.deadline_expired()`, which the watchdog sets on a CPU breach, and the fault is the one
+`deadline_passed` builds (`crates/nvs-runtime/src/abi.rs:415`, private today: make it public, or
+add a `poll_deadline(ctx, member)` beside `bounded_loop`, `abi.rs:386`). `bounded_loop`'s batch of
+256 is too coarse for a chunk or a match. `Core\Arr`'s callback sorts (`crates/nvs-stdlib/src/arr.rs:4610`):
+read whether the callback's entry poll already stops the loop. Each group needs an attack ending
+in a CPU `FATAL`, under `tests/hostile/core/<Class>/<member>/`, as the six in this session do.
+Then the output-limit item, then `bun nv proofs --overshoot`.
 
 ### Backlog
