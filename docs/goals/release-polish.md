@@ -6,7 +6,7 @@ context: []
 stages:
   - id: 1
     title: "the website's roadmap, install, footer, security and licenses pages are right, and every page has a social image"
-    status: open
+    status: done
     context: [website/astro.config.ts, website/src/components/Footer.astro, website/src/components/Roadmap.astro, tools/nv/lib/site-roadmap.ts, website/config/site.mjs]
   - id: 2
     title: "the README, CONTRIBUTING, SECURITY and setup docs describe the released project, and the repo has a code of conduct and a PR template"
@@ -331,16 +331,16 @@ lockfiles, gated by `docs/goals/dependency-sweep.md` being gone.
 **Does:** a first visitor to the website finds no empty list, no wrong install step, and a link for
 security, contributing and licenses on every page.
 
-- [ ] An empty roadmap renders one sentence on the page and in the README, and the roadmap page says "is planned" only above a list. `website/src/components/Roadmap.astro:23`, `website/src/content/docs/in-depth/roadmap.mdx:9`, `website/src/content/docs/in-depth/roadmap.mdx:15`, `tools/nv/lib/site-roadmap.ts:69`, `README.md:121`
-- [ ] The test the `roadmap-tests` check runs gains "an empty roadmap renders one sentence". Then `bun nv site --roadmap`. `tools/nv/test/site-roadmap.test.ts:30`
-- [ ] The *What is new* page describes the package registry as present, with a link to its page. `website/src/content/docs/in-depth/new.mdx:27`
-- [ ] The install page's two "Check that it runs" steps run `nvs --version`. `website/src/content/docs/install/index.mdx:53`, `website/src/content/docs/install/index.mdx:108`
-- [ ] The `/security/` page. `website/src/content/docs/security.mdx:1`
-- [ ] The `/licenses/` page with the two font credits and the OFL text read at build time. `website/src/content/docs/licenses.mdx:1`
-- [ ] The footer: *Security* and *Contributing* in *Project*, *Licenses* in *Legal*. `website/src/components/Footer.astro:22`, `website/src/components/Footer.astro:35`
-- [ ] The social image and its head tags. `website/public/social.png:1`, `website/astro.config.ts:147`
-- [ ] The legal notice and privacy policy are out of the sitemap. `website/astro.config.ts:57`, `website/src/content/docs/impressum.mdx:11`, `website/src/content/docs/datenschutz.mdx:11`
-- [ ] `bun nv site --stamp` on every changed page, and the `site-check` check passes. `tools/nv/cmd/site.ts:1989`
+- [x] An empty roadmap renders one sentence on the page and in the README, and the roadmap page says "is planned" only above a list. `website/src/components/Roadmap.astro:23`, `website/src/content/docs/in-depth/roadmap.mdx:9`, `website/src/content/docs/in-depth/roadmap.mdx:15`, `tools/nv/lib/site-roadmap.ts:69`, `README.md:121`
+- [x] The test the `roadmap-tests` check runs gains "an empty roadmap renders one sentence". Then `bun nv site --roadmap`. `tools/nv/test/site-roadmap.test.ts:30`
+- [x] The *What is new* page describes the package registry as present, with a link to its page. `website/src/content/docs/in-depth/new.mdx:27`
+- [x] The install page's two "Check that it runs" steps run `nvs --version`. `website/src/content/docs/install/index.mdx:53`, `website/src/content/docs/install/index.mdx:108`
+- [x] The `/security/` page. `website/src/content/docs/security.mdx:1`
+- [x] The `/licenses/` page with the two font credits and the OFL text read at build time. `website/src/content/docs/licenses.mdx:1`
+- [x] The footer: *Security* and *Contributing* in *Project*, *Licenses* in *Legal*. `website/src/components/Footer.astro:22`, `website/src/components/Footer.astro:35`
+- [x] The social image and its head tags. `website/public/social.png:1`, `website/astro.config.ts:147`
+- [x] The legal notice and privacy policy are out of the sitemap. `website/astro.config.ts:57`, `website/src/content/docs/impressum.mdx:11`, `website/src/content/docs/datenschutz.mdx:11`
+- [x] `bun nv site --stamp` on every changed page, and the `site-check` check passes. `tools/nv/cmd/site.ts:1989`
 
 ### 2. the README, CONTRIBUTING, SECURITY and setup docs describe the released project, and the repo has a code of conduct and a PR template
 
@@ -442,28 +442,47 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Nothing is built yet. Every anchor was checked against the tree on 2026-10-30. Stage 1 waits for
-`registry-service` only for its `new.mdx` item, and stage 5's `deny-*` checks wait for
-`dependency-sweep`.
+Stage 1 is done, in four commits: the empty roadmap's sentence (`1c0d0b3fe`), the install steps and
+*What is new* (`e393fe653`), the `/security/` and `/licenses/` pages with the footer (`c7371f563`),
+and the social image with the sitemap filter (`ea105c13d`). `roadmap-tests` and `site-check` are
+green, and `site --questions --status` owes nothing.
+
+- The roadmap: `EMPTY` and `ORDER` in `tools/nv/lib/site-roadmap.ts` are the README's copies of the
+  two sentences `Roadmap.astro` prints. The order sentence now stands only above a list.
+- *What is new* links `https://registry.novis-lang.org/`, the binary's default registry, and names
+  `nvs pkg add`. The site has no page of its own for packages: `docs/reference/tools/35-packages.md`
+  is not rendered to the website.
+- `/licenses/` reads each font's OFL text through `website/src/components/FontLicense.astro`. A Vite
+  `?raw` import of a package file fails the build, because the build leaves it to Node.
+- The sitemap is `@astrojs/sitemap` `^3.7.4` in `website/package.json`, with a filter on `NOINDEX` in
+  `website/astro.config.ts`. Starlight adds its own only when the config has none.
+
+The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`, and every failure
+it shows has a fix between that commit and HEAD: the browser job's relative `NVS_BIN`
+(`39795c9c4`), the two debug viewer shots (`bfce9c2d2`), ASAN's same-size ODR pair (`593b6c565`),
+and the seven Miri units, each one test over the 300 s timeout (`8ce92dda5`). No Miri run has
+confirmed the sized-down tests finish in time; the next nightly does. `env-secret-proofs` has no
+definition in the tree and no log, as the last goal's handoff found too.
 
 ### Next
 
-Stage 1, the website. The slices share `website/astro.config.ts`, `website/src/components/` and
-`tools/nv/lib/site-roadmap.ts`. Gate: `docs/goals/registry-service.md` is gone, for the `new.mdx`
-item alone.
+Stage 2, the files GitHub shows a visitor. The slices share `README.md`, `CONTRIBUTING.md`,
+`SECURITY.md` and `docs/setup.md`. The roadmap sentence in `README.md` is already settled by stage 1.
 
-- [ ] An empty roadmap renders one sentence. `website/src/components/Roadmap.astro:23`, `website/src/content/docs/in-depth/roadmap.mdx:9`, `tools/nv/lib/site-roadmap.ts:69`, `README.md:121`
-- [ ] The roadmap test's new case, then `bun nv site --roadmap`. `tools/nv/test/site-roadmap.test.ts:30`
-- [ ] The registry is present on *What is new*. `website/src/content/docs/in-depth/new.mdx:27`
-- [ ] The install steps run `nvs --version`. `website/src/content/docs/install/index.mdx:53`, `website/src/content/docs/install/index.mdx:108`
-- [ ] The `/security/` and `/licenses/` pages and the footer links. `website/src/content/docs/security.mdx:1`, `website/src/content/docs/licenses.mdx:1`, `website/src/components/Footer.astro:22`
-- [ ] The social image and the sitemap filter. `website/public/social.png:1`, `website/astro.config.ts:147`, `website/astro.config.ts:57`
-- [ ] Stamps, and the `site-check` check. `tools/nv/cmd/site.ts:1989`
+- [ ] SECURITY.md: eight audited `unsafe` crates, and the CI platforms. `SECURITY.md:66`, `SECURITY.md:109`, `tools/nv/cmd/lints.ts:73`
+- [ ] CONTRIBUTING.md: the status, the start block with its fallback and prerequisites, the registry and "the plan". `CONTRIBUTING.md:10`, `CONTRIBUTING.md:89`, `CONTRIBUTING.md:138`, `CONTRIBUTING.md:245`
+- [ ] README.md: the quick start and the License section. `README.md:8`, `README.md:161`, `website/snippets/install/01-hello.nvs:1`
+- [ ] docs/setup.md's outsider path, and docs/release.md's broken sentence. `docs/setup.md:1`, `docs/release.md:176`
+- [ ] `CODE_OF_CONDUCT.md` and `.github/pull_request_template.md`. `CODE_OF_CONDUCT.md:1`, `.github/pull_request_template.md:1`
+- [ ] `gh repo edit` for the description and homepage; if refused, the handoff names the command. `website/src/content/docs/index.mdx:4`
 
-No test is expected to go red.
+Then `bun nv layout --check` and `bun nv prose README.md`, the stage's two checks. No test is
+expected to go red.
 
 ### Backlog
 
+- `nvs info --licenses | head` panics with "failed printing to stdout" once the pipe closes. A CLI
+  command that prints should end quietly on a closed stdout.
 - `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
 - The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
 - `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component. That CI step and its no-Docker path have not run yet: read its first CI run.
