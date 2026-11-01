@@ -51,7 +51,9 @@
 //! publication per request in flight on that core, which leaves with its
 //! request: O(in-flight), never O(requests served). It wakes once per
 //! [`DEFAULT_INTERVAL`] to read one atomic per entry and one per publication
-//! under a ceiling, beside one reading of that core's clock. What a core pays
+//! under a ceiling, beside one reading of that core's clock. A request close
+//! to its CPU ceiling brings the next wakeup forward to the moment it can
+//! cross it, which is one more wakeup and no memory. What a core pays
 //! for its publications is *Charging a request for the time it runs* below.
 //!
 //! `[server] watchdog_margin` sets the margin, and [`DEFAULT_MARGIN`] is the
@@ -218,11 +220,15 @@ pub const DEFAULT_MARGIN: Duration = Duration::from_secs(5);
 /// one wakeup and one relaxed load per core, which is why it can be short
 /// without being an expense worth tuning.
 ///
-/// It is also how far a request may run past its `[limits] cpu_time`: the
-/// sweep is the one clock that raises the CPU flag, so a loop that crossed
-/// just after a sweep runs until the next. `bun nv proofs --overshoot` holds
-/// a CPU `FATAL` to its limit plus 100 ms, so this stays well under that.
-/// Cost: twenty wakeups a second of one thread, each a few loads per core.
+/// It is the longest wait between two sweeps, not the only one. The sweep is
+/// the one clock that raises the CPU flag, so a sweep that sees a tree under
+/// its `[limits] cpu_time` waits only until the earliest moment that tree can
+/// cross it ([`next_wait`]). A request then stops at its limit plus the time
+/// the OS takes to wake this thread. `bun nv proofs --overshoot` holds a CPU
+/// `FATAL` to its limit plus 100 ms.
+/// Cost: twenty wakeups a second of one thread, each a few loads per core,
+/// and at most one more wakeup for each crossing that falls between two of
+/// them. It spends no memory.
 pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(50);
 
 /// One report: a core whose earliest deadline passed and stayed passed.
@@ -1295,7 +1301,14 @@ impl Shared {
     /// while a stop is one relaxed `fetch_or` into a word that cannot block, so
     /// handing it out to be made later would buy a core registering beside it
     /// nothing at all.
+    #[cfg(test)]
     fn sweep(&self, now: Instant) -> Vec<Stall> {
+        self.sweep_and_wait(now).0
+    }
+
+    /// [`Self::sweep`], and how long the watchdog thread waits before the next
+    /// one: [`next_wait`] over the trees this sweep read.
+    fn sweep_and_wait(&self, now: Instant) -> (Vec<Stall>, Duration) {
         let mut state = lock(&self.state);
         let margin = self.margin;
         let mut stalls = Vec::new();
@@ -1303,7 +1316,7 @@ impl Shared {
         // it is published on: a child placed on another core is charged
         // there, and its time counts against the tree's one ceiling
         // (`rule:security/isolate-budget-is-the-trees`).
-        let mut spent: HashMap<usize, u64> = HashMap::new();
+        let mut spent: HashMap<usize, TreeSpend> = HashMap::new();
         for watched in &state.watching {
             // Read once per core, at the first request under a ceiling, and
             // before any charge is: the module doc's *Charging a request*
@@ -1312,24 +1325,32 @@ impl Shared {
             for running in lock(&watched.running).iter() {
                 // The ceiling first, so a request under no cap costs this walk
                 // one load and no reading of its core's clock.
-                if running.limit().is_none() {
+                let Some(limit) = running.limit() else {
                     continue;
-                }
+                };
                 let Some(now) = *clock.get_or_insert_with(|| running.clock.burned().map(nanos))
                 else {
                     break;
                 };
-                let total = spent.entry(running.view.tree_key()).or_default();
-                *total = total.saturating_add(running.charge.at(now));
+                let tree = spent.entry(running.view.tree_key()).or_insert(TreeSpend {
+                    spent: 0,
+                    limit,
+                    threads: 0,
+                });
+                tree.spent = tree.spent.saturating_add(running.charge.at(now));
+                tree.limit = tree.limit.min(limit);
+                tree.threads = tree.threads.saturating_add(1);
             }
         }
+        let wait = next_wait(self.interval, spent.values().copied());
         for watched in &mut state.watching {
             for running in lock(&watched.running).iter() {
                 stop_at_wall_time(running.view(), now, self.interval);
                 let Some(limit) = running.limit() else {
                     continue;
                 };
-                let Some(&total) = spent.get(&running.view.tree_key()) else {
+                let Some(&TreeSpend { spent: total, .. }) = spent.get(&running.view.tree_key())
+                else {
                     continue;
                 };
                 if Duration::from_nanos(total) < limit {
@@ -1378,8 +1399,44 @@ impl Shared {
             });
         }
         state.recount(&self.shed);
-        stalls
+        (stalls, wait)
     }
+}
+
+/// What one request tree under a CPU ceiling has spent, as a sweep reads it.
+#[derive(Clone, Copy, Debug)]
+struct TreeSpend {
+    /// The CPU time the tree has spent, in nanoseconds, summed over its threads.
+    spent: u64,
+    /// The lowest ceiling any of its publications carries.
+    limit: Duration,
+    /// How many publications the tree has under a ceiling. Each runs on at
+    /// most one thread, so the tree spends at most this much CPU time per unit
+    /// of wall time.
+    threads: u32,
+}
+
+/// The shortest wait the watchdog thread makes, so a tree right at its ceiling
+/// does not keep the thread awake.
+const MIN_WAIT: Duration = Duration::from_millis(1);
+
+/// How long the watchdog thread waits after a sweep that read `trees`.
+///
+/// A tree under its ceiling crosses it no earlier than its remaining CPU time,
+/// divided by its threads, from now. The wait is the earliest such crossing,
+/// and never longer than `interval` or shorter than [`MIN_WAIT`]. So the next
+/// sweep runs near the moment a request reaches its `[limits] cpu_time`. A
+/// tree already past its ceiling has been stopped by this sweep, and leaves
+/// the wait at `interval`.
+fn next_wait(interval: Duration, trees: impl IntoIterator<Item = TreeSpend>) -> Duration {
+    trees
+        .into_iter()
+        .filter_map(|tree| {
+            let left = tree.limit.checked_sub(Duration::from_nanos(tree.spent))?;
+            (!left.is_zero()).then(|| left / tree.threads.max(1))
+        })
+        .fold(interval, Duration::min)
+        .max(MIN_WAIT.min(interval))
 }
 
 /// Stops `view`'s request once its `[limits] wall_time` has passed
@@ -1419,8 +1476,11 @@ fn stop_at_wall_time(view: &SafepointView, now: Instant, interval: Duration) {
     view.expire_deadline();
 }
 
-/// The watchdog thread: wait an interval, read every core, report what is new.
+/// The watchdog thread: wait until the next sweep is due, read every core,
+/// report what is new. The first wait is a whole interval, and each later one
+/// is what [`next_wait`] gives for the sweep before it.
 fn watch(shared: &Arc<Shared>) {
+    let mut wait = shared.interval;
     loop {
         {
             let state = lock(&shared.state);
@@ -1429,7 +1489,7 @@ fn watch(shared: &Arc<Shared>) {
             }
             let (state, _) = shared
                 .change
-                .wait_timeout(state, shared.interval)
+                .wait_timeout(state, wait)
                 .unwrap_or_else(PoisonError::into_inner);
             if !state.running {
                 return;
@@ -1437,7 +1497,9 @@ fn watch(shared: &Arc<Shared>) {
         }
         // Outside the lock, so a sink that takes its time cannot keep a core
         // from registering or deregistering.
-        for stall in shared.sweep(Instant::now()) {
+        let (stalls, next) = shared.sweep_and_wait(Instant::now());
+        wait = next;
+        for stall in stalls {
             (shared.sink)(&stall);
         }
     }
@@ -2142,6 +2204,58 @@ mod tests {
         assert!(!flagged(&handled), "a handler was stopped inside its slice");
         dog.shared.sweep(at + INTERVAL);
         assert!(flagged(&handled), "a handler ran on past its slice");
+    }
+
+    /// The wait after a sweep ends at the earliest moment a tree under its CPU
+    /// ceiling can cross it, and stays the whole interval for a tree far from
+    /// its ceiling or already past it.
+    #[test]
+    fn the_next_sweep_is_due_when_a_tree_can_first_cross_its_ceiling() {
+        const INTERVAL: Duration = Duration::from_millis(50);
+        let ms = |n: u64| Duration::from_millis(n);
+        let tree = |spent: Duration, limit: Duration, threads: u32| TreeSpend {
+            spent: u64::try_from(spent.as_nanos()).expect("a test spend fits"),
+            limit,
+            threads,
+        };
+
+        assert_eq!(next_wait(INTERVAL, []), INTERVAL);
+        assert_eq!(
+            next_wait(INTERVAL, [tree(ms(10), ms(250), 1)]),
+            INTERVAL,
+            "a tree far from its ceiling brought the sweep forward"
+        );
+        assert_eq!(
+            next_wait(INTERVAL, [tree(ms(240), ms(250), 1)]),
+            ms(10),
+            "a tree 10 ms from its ceiling waited past its crossing"
+        );
+        assert_eq!(
+            next_wait(INTERVAL, [tree(ms(240), ms(250), 2)]),
+            ms(5),
+            "a tree on two threads was given one thread's wait"
+        );
+        assert_eq!(
+            next_wait(
+                INTERVAL,
+                [tree(ms(10), ms(250), 1), tree(ms(220), ms(250), 1)]
+            ),
+            ms(30),
+            "the wait was not the earliest crossing of every tree"
+        );
+        assert_eq!(
+            next_wait(INTERVAL, [tree(ms(300), ms(250), 1)]),
+            INTERVAL,
+            "a tree already stopped kept the thread awake"
+        );
+        assert_eq!(
+            next_wait(
+                INTERVAL,
+                [tree(ms(250) - Duration::from_nanos(1), ms(250), 1)]
+            ),
+            MIN_WAIT,
+            "a tree at its ceiling spun the thread"
+        );
     }
 
     /// `rule:testing/a-stop-pauses-the-whole-task-tree`: a request a debugger
