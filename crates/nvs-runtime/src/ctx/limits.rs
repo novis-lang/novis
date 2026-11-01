@@ -1147,10 +1147,18 @@ impl Ctx {
         Some(limit.saturating_sub(self.cpu_time_spent()?))
     }
 
+    /// The smallest cost [`Self::cpu_affords`] checks. Reading the time left
+    /// takes a lock and a clock read per thread, about a microsecond, so a call
+    /// cheaper than this is left to the watchdog: it runs past the limit by
+    /// at most this much before the next poll stops it.
+    pub const CPU_CHECK_FLOOR: std::time::Duration = std::time::Duration::from_millis(1);
+
     /// Checks `cost`, the CPU time one call of `member` is about to spend,
     /// against [`Self::cpu_time_left`] before the work starts: the CPU twin of
     /// [`crate::affordable`]. A request under no cap, or with no reading, is
-    /// refused nothing, and reads nothing but [`Self::cpu_limit`].
+    /// refused nothing, and reads nothing but [`Self::cpu_limit`]. A cost
+    /// under [`Self::CPU_CHECK_FLOOR`] is not checked at all, so a member may
+    /// call this on every call and pay one compare for a small one.
     ///
     /// `cost` is the member's estimate on one current x86-64 core. It is not
     /// an upper bound: a slower core runs past the limit by the difference,
@@ -1165,6 +1173,9 @@ impl Ctx {
         cost: std::time::Duration,
         member: &str,
     ) -> Result<(), crate::Fault> {
+        if cost < Self::CPU_CHECK_FLOOR {
+            return Ok(());
+        }
         let Some(left) = self.cpu_time_left() else {
             return Ok(());
         };

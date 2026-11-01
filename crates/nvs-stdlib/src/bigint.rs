@@ -88,9 +88,13 @@
 //! request's memory ceiling bounds its length.
 //!
 //! [`MAX_BITS`] bounds only what `pow` and `shl` produce. Every other member's
-//! operands are as wide as the program made them, so its cost per call is
-//! bounded by the request's memory ceiling and by the growth its bench
-//! declares.
+//! operands are as wide as the program made them, which the memory ceiling
+//! alone bounds, and one `mul` at that width takes minutes. So `mul`, `div`,
+//! `mod`, `sqrt`, `gcd`, `lcm`, `powMod`, `parse`, `toString` and `format`
+//! estimate their CPU time from the widths with the figures above and check it
+//! against the time the request has left before the work ([`afford`]). A
+//! call estimated under a millisecond is not checked. `add`, `sub` and the
+//! shifts are linear and are not checked.
 
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
@@ -1012,6 +1016,70 @@ fn ordering(found: std::cmp::Ordering) -> Value {
 }
 
 // ============================================================================
+// CPU cost — what a call is estimated to take, checked before the work
+// ============================================================================
+
+/// The CPU time one product of two [`MUL_REF_BYTES`]-byte magnitudes takes on
+/// one current x86-64 core, in nanoseconds: 120 ms measured.
+const MUL_REF_NS: f64 = 120_000_000.0;
+
+/// The width [`MUL_REF_NS`] was measured at, in bytes (about 5 million bits).
+const MUL_REF_BYTES: f64 = 634_000.0;
+
+/// How a product's time grows with its width: Toom-3's `log 5 / log 3`, the
+/// algorithm `num-bigint` uses above 256 limbs. The measured growth per
+/// doubling, 2.7 times, agrees.
+const MUL_GROWTH: f64 = 1.465;
+
+/// A magnitude's width in bytes, the unit [`mul_ns`] takes.
+fn width_bytes(value: &BigUint) -> u64 {
+    value.bits().div_ceil(8)
+}
+
+/// The estimated CPU time of one product of an `a`-byte and a `b`-byte
+/// magnitude, in nanoseconds: a product of the narrower width with itself,
+/// once for each narrower width the wider one spans.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "an estimate: a width past 2^53 bytes is far past any memory limit"
+)]
+fn mul_ns(a: u64, b: u64) -> f64 {
+    let (short, long) = if a <= b { (a, b) } else { (b, a) };
+    if short == 0 {
+        return 0.0;
+    }
+    let short = short as f64;
+    MUL_REF_NS * (short / MUL_REF_BYTES).powf(MUL_GROWTH) * (long as f64 / short)
+}
+
+/// Checks `nanos`, a member's estimated CPU time, against the CPU time the
+/// request has left, through [`nvs_runtime::Ctx::cpu_affords`]. Every member
+/// whose operands are as wide as the program made them calls this first,
+/// because one call on wide operands can take minutes. `member` is written
+/// `Core\BigInt::name()`. A small call costs one compare.
+///
+/// The factors at each call site are measured against [`mul_ns`] on the same
+/// core and set a little under it: a quotient or a `gcd` 1.3 products of its
+/// operands, an `lcm` 2.5, a square root 2.5 squares of its width, a
+/// conversion to or from a radix that is not a power of two 2.4, and `powMod`
+/// 3 squares of the modulus per exponent bit.
+/// The estimated CPU time of `dividend / divisor` or `dividend % divisor`, in
+/// nanoseconds. A dividend narrower than its divisor is answered at once.
+fn quotient_ns(dividend: &BigInt, divisor: &BigInt) -> f64 {
+    let (wide, narrow) = (width_bytes(dividend.magnitude()), width_bytes(divisor.magnitude()));
+    if wide < narrow {
+        return 0.0;
+    }
+    1.3 * mul_ns(wide, narrow)
+}
+
+fn afford(ctx: &mut nvs_runtime::Ctx, nanos: f64, member: &str) -> Result<(), Fault> {
+    let cost = std::time::Duration::try_from_secs_f64(nanos / 1e9)
+        .unwrap_or(std::time::Duration::MAX);
+    ctx.cpu_affords(cost, member)
+}
+
+// ============================================================================
 // Construction
 // ============================================================================
 
@@ -1046,9 +1114,14 @@ nvs_runtime::nvs_helper! {
     /// `string`'s — `"1_000" as int` refuses it (`rule:types/conversion`) — and
     /// two spellings of "read this text as an integer" answering differently is
     /// the divergence worth one comparison per call to avoid.
-    fn nvs_core_bigint_parse(_ctx, args: [2]) {
+    fn nvs_core_bigint_parse(ctx, args: [2]) {
         let text = text_of(&args[0], "parse")?;
         let radix = radix(&args[1], "parse")?;
+        if !radix.is_power_of_two() {
+            let digits = u64::try_from(text.len()).unwrap_or(u64::MAX);
+            let bytes = digits.saturating_mul(u64::from(radix.ilog2() + 1)) / 8;
+            afford(ctx, 2.4 * mul_ns(bytes, bytes), "Core\\BigInt::parse()")?;
+        }
         Some(text)
             .filter(|text| !text.as_bytes().contains(&b'_'))
             .and_then(|text| parsed(text, radix))
@@ -1085,8 +1158,12 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$n->mul(BigInt $other): BigInt`.
-    fn nvs_core_bigint_mul(_ctx, args: [2]) {
-        built(&(operand(args, 0, "mul")? * operand(args, 1, "mul")?))
+    fn nvs_core_bigint_mul(ctx, args: [2]) {
+        let left = operand(args, 0, "mul")?;
+        let right = operand(args, 1, "mul")?;
+        let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
+        afford(ctx, cost, "Core\\BigInt::mul()")?;
+        built(&(left * right))
     }
 }
 
@@ -1094,12 +1171,13 @@ nvs_runtime::nvs_helper! {
     /// `$n->div(BigInt $divisor): BigInt`, truncating toward zero — `intdiv`'s
     /// rounding, which is Rust's `/` on integers and not a rule this module
     /// implements.
-    fn nvs_core_bigint_div(_ctx, args: [2]) {
+    fn nvs_core_bigint_div(ctx, args: [2]) {
         let dividend = operand(args, 0, "div")?;
         let divisor = operand(args, 1, "div")?;
         if divisor.sign() == Sign::NoSign {
             return Err(refused("Core\\BigInt::div(): the divisor is zero".to_owned()));
         }
+        afford(ctx, quotient_ns(&dividend, &divisor), "Core\\BigInt::div()")?;
         built(&(dividend / divisor))
     }
 }
@@ -1109,12 +1187,13 @@ nvs_runtime::nvs_helper! {
     /// on `int`, which is Rust's `%` and not a rule this module implements.
     /// `Core\Math::mod`'s Euclidean answer is a different member of a different
     /// class and stays there.
-    fn nvs_core_bigint_mod(_ctx, args: [2]) {
+    fn nvs_core_bigint_mod(ctx, args: [2]) {
         let dividend = operand(args, 0, "mod")?;
         let divisor = operand(args, 1, "mod")?;
         if divisor.sign() == Sign::NoSign {
             return Err(refused("Core\\BigInt::mod(): the divisor is zero".to_owned()));
         }
+        afford(ctx, quotient_ns(&dividend, &divisor), "Core\\BigInt::mod()")?;
         built(&(dividend % divisor))
     }
 }
@@ -1151,7 +1230,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The two refusals are thrown ahead of the call: a zero modulus has no
     /// residues, and a negative exponent would need the receiver's inverse.
-    fn nvs_core_bigint_pow_mod(_ctx, args: [3]) {
+    fn nvs_core_bigint_pow_mod(ctx, args: [3]) {
         let base = operand(args, 0, "powMod")?;
         let exponent = operand(args, 1, "powMod")?;
         let modulus = operand(args, 2, "powMod")?;
@@ -1163,6 +1242,10 @@ nvs_runtime::nvs_helper! {
                 "Core\\BigInt::powMod(): the exponent is negative".to_owned(),
             ));
         }
+        let square = mul_ns(width_bytes(modulus.magnitude()), width_bytes(modulus.magnitude()));
+        #[expect(clippy::cast_precision_loss, reason = "an estimate of a bit count")]
+        let steps = exponent.bits() as f64;
+        afford(ctx, 3.0 * square * steps, "Core\\BigInt::powMod()")?;
         let residue = pow_mod(base.magnitude(), exponent.magnitude(), modulus.magnitude());
         let residue = if base.sign() == Sign::Minus
             && exponent.magnitude().bit(0)
@@ -1254,13 +1337,15 @@ fn inverse_modulo_power_of_two(n: &BigUint, k: u64) -> BigUint {
 nvs_runtime::nvs_helper! {
     /// `$n->sqrt(): BigInt`, the floor — `sqrt` panics below zero, so the
     /// refusal is written ahead of it.
-    fn nvs_core_bigint_sqrt(_ctx, args: [1]) {
+    fn nvs_core_bigint_sqrt(ctx, args: [1]) {
         let value = operand(args, 0, "sqrt")?;
         if value.sign() == Sign::Minus {
             return Err(refused(
                 "Core\\BigInt::sqrt(): a negative value has no integer square root".to_owned(),
             ));
         }
+        let width = width_bytes(value.magnitude());
+        afford(ctx, 2.5 * mul_ns(width, width), "Core\\BigInt::sqrt()")?;
         built(&BigInt::from(root(value.magnitude())))
     }
 }
@@ -1460,9 +1545,11 @@ fn hgcd(a: BigUint, b: BigUint) -> (Steps, BigUint, BigUint) {
 
 nvs_runtime::nvs_helper! {
     /// `$n->gcd(BigInt $other): BigInt`, never negative, by [`gcd`].
-    fn nvs_core_bigint_gcd(_ctx, args: [2]) {
+    fn nvs_core_bigint_gcd(ctx, args: [2]) {
         let left = operand(args, 0, "gcd")?;
         let right = operand(args, 1, "gcd")?;
+        let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
+        afford(ctx, 1.3 * cost, "Core\\BigInt::gcd()")?;
         built(&BigInt::from(gcd(left.magnitude(), right.magnitude())))
     }
 }
@@ -1473,9 +1560,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// A zero operand answers zero here rather than reaching the quotient,
     /// which would be a division by zero when both are.
-    fn nvs_core_bigint_lcm(_ctx, args: [2]) {
+    fn nvs_core_bigint_lcm(ctx, args: [2]) {
         let left = operand(args, 0, "lcm")?;
         let right = operand(args, 1, "lcm")?;
+        let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
+        afford(ctx, 2.5 * cost, "Core\\BigInt::lcm()")?;
         if left.sign() == Sign::NoSign || right.sign() == Sign::NoSign {
             return built(&BigInt::from(0));
         }
@@ -1594,8 +1683,11 @@ nvs_runtime::nvs_helper! {
     /// `$n->toString(): string` in radix 10 — `Stringable`'s member
     /// (`rule:classes/stringable`), which is what `echo` reaches through this
     /// class's descriptor.
-    fn nvs_core_bigint_to_string(_ctx, args: [1]) {
-        let text = operand(args, 0, "toString")?.to_string();
+    fn nvs_core_bigint_to_string(ctx, args: [1]) {
+        let value = operand(args, 0, "toString")?;
+        let width = width_bytes(value.magnitude());
+        afford(ctx, 2.4 * mul_ns(width, width), "Core\\BigInt::toString()")?;
+        let text = value.to_string();
         nvs_runtime::affordable(Some(text.len()), NAME)?;
         Ok(Value::text(&text))
     }
@@ -1604,9 +1696,14 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$n->format({ radix?: uint }): string` — `toString` in any base `parse`
     /// reads back.
-    fn nvs_core_bigint_format(_ctx, args: [2]) {
+    fn nvs_core_bigint_format(ctx, args: [2]) {
         let value = operand(args, 0, "format")?;
-        let text = value.to_str_radix(radix(&args[1], "format")?);
+        let radix = radix(&args[1], "format")?;
+        if !radix.is_power_of_two() {
+            let width = width_bytes(value.magnitude());
+            afford(ctx, 2.4 * mul_ns(width, width), "Core\\BigInt::format()")?;
+        }
+        let text = value.to_str_radix(radix);
         nvs_runtime::affordable(Some(text.len()), NAME)?;
         Ok(Value::text(&text))
     }

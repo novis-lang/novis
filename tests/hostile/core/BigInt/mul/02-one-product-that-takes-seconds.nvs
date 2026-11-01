@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a request squares a number until one product takes seconds. The
+// request has a CPU-time limit of 300 ms, so it should stop before a product
+// that does not fit in the time left.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// 1. Lowers the CPU-time limit to 300 ms and makes a number of about 600,000 bits.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+Core\BigInt $value = Core\BigInt::of(3)->pow(400000);
+
+// 2. Squares the number again and again. Each product is twice as wide.
+echo "step 2\n";
+while (true) {
+    $value = $value->mul($value);
+}

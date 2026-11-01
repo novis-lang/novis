@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a request asks for a power with a huge exponent and a wide modulus.
+// That takes hours of work. The request has a CPU-time limit of 300 ms, so
+// it should stop before the work starts.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+// 1. Lowers the CPU-time limit to 300 ms. A small power still fits.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+echo Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(497)), "\n";
+
+// 2. The exponent and the modulus each have about 600,000 bits.
+echo "step 2\n";
+Core\BigInt $exponent = Core\BigInt::of(3)->pow(400000);
+Core\BigInt $modulus = Core\BigInt::of(7)->pow(220000);
+echo Core\BigInt::of(5)->powMod($exponent, $modulus), "\n";
