@@ -261,23 +261,29 @@ of 55 jobs green, `ext templates` on all three OSes among them. Its three reds:
   Miri's stack pointer is no machine address (`crates/nvs-stdlib/src/router.rs:4174`).
 - `miri units (nvs-runtime 2/2)`: fixed in `8c0a5fa5c`. The array-growth test is sized for Miri
   (`crates/nvs-runtime/src/budget.rs:1904`), and it passes under Miri for Linux in 33 s.
-- `proofs / macos-aarch64`: open. Two attacks stop 117 and 131 ms past a CPU limit that the program
-  lowered at runtime: `tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and
-  `tests/hostile/core/Arr/sort/02-*.nvs`. The clock is not the cause. The lag test
-  (`crates/nvs-host/src/cpuclock.rs:540`) read macOS's running thread with 0 ns of lag over 291 reads.
-  So the late stop is in the sweep: `next_wait` (`crates/nvs-host/src/watchdog.rs:1420`), the
-  `Charge` base (`watchdog.rs:311`), or how a lowered ceiling reaches the walk (`watchdog.rs:1325`).
+- `proofs / macos-aarch64`: two attacks stopped 117 and 131 ms past a CPU limit the program lowered
+  at runtime: `tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and
+  `tests/hostile/core/Arr/sort/02-*.nvs`. The thread clock reads with no lag there
+  (`crates/nvs-host/src/cpuclock.rs:540`).
 
 Round 2's full run `41304025616` on `32349c25b` ended with 54 of 55 green, both Miri shards included.
-Its one red is `proofs / macos-aarch64`, now one attack: `limits-fatal_reserve_time/01`, 129 ms over.
-`env-secret-proofs`, which the sweep names, has no definition in the tree: a stale driver check.
+Its one red was `proofs / macos-aarch64`, one attack: `limits-fatal_reserve_time/01`, 129 ms over.
+
+Round 3 fixed it in `5047daa20`, untested on macOS until the run below ends. The cause, by reasoning,
+since this machine cannot build for macOS: macOS coalesces a thread's timed waits by its QoS class,
+up to 100 ms late for a background thread, and the stop waits for the watchdog's next sweep. The
+watchdog thread now takes `QOS_CLASS_USER_INTERACTIVE` when it starts (`wake_on_time`,
+`crates/nvs-host/src/watchdog.rs:1531`). Round 3's full run is `41310544248` on `5047daa20`, and its
+watch runs in the background.
+
+The sweep's other reds are stale: nightly `41295327777` predates round 1, and `env-secret-proofs` has no definition.
 
 ### Next
 
-Stage 2, round 3. No run is going, so a push is free.
+Stage 2, round 4. Read run `41310544248`'s verdict first, which the watch's report gives.
 
-- [ ] Find why macOS stops a lowered CPU limit late, though its clock reads with no lag. Compare a macOS run's sweep timing with Linux's. `crates/nvs-host/src/watchdog.rs:1420`
-- [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] If `proofs / macos-aarch64` is red again with a CPU overshoot, the QoS class was not the cause, or the kernel clamped it. Then a lowered ceiling also waits up to one 50 ms interval for the watchdog's next sweep, since `Core\Config::set` does not wake it: a wake from `publish_cpu_limit` (`crates/nvs-runtime/src/ctx/limits.rs:1253`) to the watchdog's `change` condvar removes that term. `crates/nvs-host/src/watchdog.rs:1343`
+- [ ] Fix every other red, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
