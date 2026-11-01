@@ -8,6 +8,9 @@
 //                                       # wait for the first failed job, or the next green verdict
 //     bun nv ci --status                # the newest run of each watched workflow, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
+//     bun nv ci --dispatch full|dry-run # start a full ci.yml run, or a dry-run Release, on main
+//     bun nv ci --watch --release       # watch the newest Release run, and cancel no run
+//     bun nv ci --release-status        # the verdict of the newest completed dry-run Release
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
 // Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
@@ -51,6 +54,27 @@
 // **`--rerun`** reruns the failed jobs of each red newest run, for a failure that a fix cannot reach,
 // such as a runner that went away.
 //
+// **`--dispatch full`** starts `ci.yml` on `main` with `workflow_dispatch`, which runs every job.
+// **`--dispatch dry-run`** starts `release.yml` on `main` as a dry run, which writes nothing, tags
+// nothing and pushes no image. Each argv is one constant in `DISPATCH`, and the release's carries
+// `dry_run=true`, so no argument can start a real release: that is a person's (`docs/release.md`).
+// Both refuse with 1 while local `main` has commits `origin/main` lacks, since the run would test
+// `origin`'s tip and not the tree. Both then wait until GitHub lists a run newer than every one before
+// the dispatch, and print its address, so a `--watch` started after reads the new run. Five minutes
+// with no new run exits 2.
+//
+// **`--watch --release`** watches the newest `Release` run on `main` in place of `CI` and `Website`,
+// with the same polling, report and exit codes. Neither it nor `--push` ever cancels a `Release` run: a
+// cancelled `publish` is the torn state `release.yml`'s `concurrency` comment exists to prevent.
+//
+// **`--release-status`** judges the newest completed run of `release.yml` on `main` that its `run-name`
+// titles `Release (dry run)`, prints each job, and exits 0 green, 1 red and 2 when `gh` or `git` cannot
+// answer. `judgeDryRun` is the judgement: the run's commit is local `main`, or one that only
+// `NOTES_ONLY` paths changed since; every job passed, except a `publish` a dry run skips, a `verify`
+// skipped beside a green full `ci.yml` run of the commit (`greenFullRun`, the lookup `plan` makes),
+// and a failed leg `build.yml` marks optional, which is a warning. It only reads: it never fetches,
+// pushes, dispatches or cancels.
+//
 // What it spends: one `gh api` call per watched run every 15 seconds while a run is in progress, about
 // 500 calls an hour of GitHub's 5,000, and up to `LOGS_KEPT` job logs on disk.
 
@@ -59,16 +83,44 @@ import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { LOCKFILE_DIRS } from "./ci-changes.ts";
+import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
-  "pushes main and watches GitHub CI: nv ci --push | --check | --watch [--max-min <n>] [--past <job>] [--next] | --status | --rerun";
+  "pushes main and watches GitHub CI: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run | --release-status";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun";
+  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run\n       bun nv ci --release-status";
 
 /** The workflows whose runs on `main` are watched, by their `name:`. */
 export const WORKFLOWS = ["CI", "Website"];
+/** `release.yml`'s `name:`, the one workflow `--watch --release` watches. No command cancels its runs. */
+export const RELEASE = "Release";
+/** The title `release.yml`'s `run-name` gives a dry run. */
+export const DRY_RUN_TITLE = "Release (dry run)";
 const BRANCH = "main";
+
+/**
+ * What `--dispatch` starts: each argv is a constant, so no argument can change it. A `workflow_dispatch`
+ * of `ci.yml` runs every job, and the release's argv always carries `dry_run=true`, so no agent can start
+ * a real release.
+ */
+export const DISPATCH = {
+  full: { workflow: "CI", file: "ci.yml", argv: ["workflow", "run", "ci.yml", "--ref", BRANCH] },
+  "dry-run": {
+    workflow: RELEASE,
+    file: "release.yml",
+    argv: ["workflow", "run", "release.yml", "--ref", BRANCH, "-f", "bump=patch", "-f", "dry_run=true"],
+  },
+} as const;
+type DispatchKind = keyof typeof DISPATCH;
+/** How long `--dispatch` waits for GitHub to list the run it started. */
+const DISPATCH_WAIT_MS = 5 * 60_000;
+
+/** The job `release.yml`'s `publish` is, which a dry run skips, and the one its `test` is. */
+export const PUBLISH_JOB = "tag, changelog and draft release";
+export const VERIFY_JOB = "verify";
+/** The paths a commit after a dry run may change and leave its verdict standing: the loop's own notes. */
+export const NOTES_ONLY = ["docs/goals/", "docs/agent/playbook/", "docs/agent/playbook.md"];
 
 /** How often a run in progress is polled, and how often an idle watch looks for a new run. */
 export const POLL_BUSY_MS = 15_000;
@@ -175,6 +227,8 @@ export interface Run {
   conclusion: string | null;
   head_sha: string;
   html_url: string;
+  /** The run's title: its `run-name`, such as `Release (dry run)`, or the workflow's name. */
+  display_title: string;
 }
 
 /** A job of a run, with its steps. */
@@ -205,7 +259,7 @@ export function listRuns(s: CiSeams): Promise<Run[]> {
     "api",
     `repos/{owner}/{repo}/actions/runs?branch=${BRANCH}&per_page=40`,
     "--jq",
-    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, html_url}]",
+    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, html_url, display_title}]",
   ]);
 }
 
@@ -224,9 +278,9 @@ export function listJobs(s: CiSeams, id: number): Promise<Job[]> {
  * commit other than `tip`, `origin/main`'s. A newer push cancels those, and its own runs may not be
  * listed yet. A cancelled run on `tip` stopped for another reason, such as a job's time limit.
  */
-export function newest(runs: Run[], tip: string): Run[] {
+export function newest(runs: Run[], tip: string, workflows: readonly string[] = WORKFLOWS): Run[] {
   const out: Run[] = [];
-  for (const w of WORKFLOWS) {
+  for (const w of workflows) {
     const kept = (x: Run) => x.conclusion !== "cancelled" || x.head_sha === tip;
     const r = runs.filter((x) => x.name === w && kept(x)).sort((a, b) => b.id - a.id)[0];
     if (r !== undefined) out.push(r);
@@ -252,11 +306,13 @@ function runLine(r: Run): string {
 
 /**
  * The runs of each watched workflow still going that a newer run replaces: every one but the newest,
- * and with `head` given, every one on another commit too, since its run may not be listed yet.
+ * and with `head` given, every one on another commit too, since its run may not be listed yet. It never
+ * names a `Release` run: a cancelled `publish` is the torn state `release.yml`'s `concurrency` exists to
+ * prevent.
  */
-export function superseded(runs: Run[], head?: string): Run[] {
+export function superseded(runs: Run[], head?: string, workflows: readonly string[] = WORKFLOWS): Run[] {
   const out: Run[] = [];
-  for (const w of WORKFLOWS) {
+  for (const w of workflows.filter((x) => x !== RELEASE)) {
     const going = runs.filter((x) => x.name === w && !done(x)).sort((a, b) => b.id - a.id);
     out.push(...going.filter((r, i) => i > 0 || (head !== undefined && r.head_sha !== head)));
   }
@@ -264,8 +320,8 @@ export function superseded(runs: Run[], head?: string): Run[] {
 }
 
 /** Cancels each run `superseded` names that `asked` has not cancelled already. A failed cancel only warns. */
-async function cancelSuperseded(s: CiSeams, runs: Run[], head: string | undefined, asked: Set<number>): Promise<void> {
-  for (const r of superseded(runs, head).filter((x) => !asked.has(x.id))) {
+async function cancelSuperseded(s: CiSeams, runs: Run[], head: string | undefined, asked: Set<number>, workflows: readonly string[] = WORKFLOWS): Promise<void> {
+  for (const r of superseded(runs, head, workflows).filter((x) => !asked.has(x.id))) {
     asked.add(r.id);
     const c = await s.gh(["run", "cancel", String(r.id)]);
     s.say(c.code === 0 ? `cancelled ${runLine(r)}: a newer run replaces it` : `could not cancel ${r.id}: ${firstLine(c)}`);
@@ -352,8 +408,10 @@ const under = (name: string, p: string) => name === p || name.startsWith(`${p} /
  * Watches until a job fails (1), every run it saw in progress is green (0), or `maxMin` passes (3). A
  * failed job that `past` names is passed over, and a watched run that ended red in those jobs alone
  * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over.
+ * `workflows` are the workflows watched: `WORKFLOWS`, or `[RELEASE]` under `--release`, whose runs it
+ * never cancels.
  */
-export async function watch(s: CiSeams, maxMin: number, past: string[] = [], next = false): Promise<number> {
+export async function watch(s: CiSeams, maxMin: number, past: string[] = [], next = false, workflows: readonly string[] = WORKFLOWS): Promise<number> {
   if (sayRefused(s)) return 1;
   const until = s.now() + maxMin * 60_000;
   const watched = new Set<number>();
@@ -377,8 +435,8 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = [], nex
     let busy = false;
     try {
       const all = await listRuns(s);
-      await cancelSuperseded(s, all, undefined, cancelled);
-      const runs = newest(all, await tipOf(s));
+      await cancelSuperseded(s, all, undefined, cancelled, workflows);
+      const runs = newest(all, await tipOf(s), workflows);
       failures = 0;
       for (const r of runs) {
         if (first && next && done(r)) {
@@ -538,6 +596,160 @@ async function rerun(s: CiSeams): Promise<number> {
   return code;
 }
 
+// ---- --dispatch --------------------------------------------------------------------------------------
+
+/** The newest runs of one workflow file on `main`, newest first, with their branch and title. */
+export function workflowRuns(s: CiSeams, file: string, query = ""): Promise<(Run & WorkflowRun)[]> {
+  return ghJson<(Run & WorkflowRun)[]>(s, [
+    "api",
+    `repos/{owner}/{repo}/actions/workflows/${file}/runs?branch=${BRANCH}&per_page=30${query}`,
+    "--jq",
+    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title}]",
+  ]);
+}
+
+/** The runs `--dispatch` may have started: a `workflow_dispatch` one, and of a release, a dry run. */
+function dispatched(kind: DispatchKind, r: Run): boolean {
+  return r.event === "workflow_dispatch" && (kind !== "dry-run" || r.display_title === DRY_RUN_TITLE);
+}
+
+/**
+ * Starts the run `DISPATCH[kind]` names on `main`, then waits until GitHub lists a run of it newer than
+ * every one before, and prints its address. It refuses while local `main` has commits `origin/main`
+ * lacks, since the run would test `origin`'s tip and not the tree. Five minutes with no new run exits 2.
+ */
+export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> {
+  const d = DISPATCH[kind];
+  await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
+  const ahead = Number(await gitOut(s, ["rev-list", "--count", `origin/${BRANCH}..${BRANCH}`]));
+  if (ahead > 0) {
+    s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks: run \`bun nv ci --push\` first, so the run tests the tree`);
+    return 1;
+  }
+  const before = Math.max(0, ...(await workflowRuns(s, d.file)).map((r) => r.id));
+  const started = await s.gh([...d.argv]);
+  if (started.code !== 0) {
+    s.say(`could not dispatch ${d.file}: ${firstLine(started)}`);
+    return 1;
+  }
+  s.say(`dispatched ${d.file} on ${BRANCH}${kind === "dry-run" ? " as a dry run" : ""}: waiting for GitHub to list the run`);
+  const until = s.now() + DISPATCH_WAIT_MS;
+  while (true) {
+    await s.sleep(POLL_BUSY_MS);
+    try {
+      const fresh = (await workflowRuns(s, d.file)).filter((r) => r.id > before && dispatched(kind, r)).sort((a, b) => a.id - b.id)[0];
+      if (fresh !== undefined) {
+        s.say(`started ${runLine(fresh)}`);
+        s.say(`watch it with \`bun nv ci --watch${kind === "dry-run" ? " --release" : ""}\``);
+        return 0;
+      }
+    } catch (e) {
+      if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;
+      s.say(`the runs could not be listed: ${e.message}`);
+    }
+    if (s.now() >= until) {
+      s.say(`GitHub listed no new ${d.workflow} run within ${DISPATCH_WAIT_MS / 60_000} minutes of the dispatch`);
+      return 2;
+    }
+  }
+}
+
+// ---- --release-status --------------------------------------------------------------------------------
+
+/** What `judgeDryRun` reads: the dry run, its jobs, the `ci.yml` runs of its commit, and what changed since. */
+export interface DryRunFacts {
+  run: Run;
+  jobs: Job[];
+  /** The `ci.yml` runs of the dry run's commit, for a `verify` job it skipped. */
+  ciRuns: WorkflowRun[];
+  /** The paths changed between the dry run's commit and local `main`, or null when `main` does not contain it. */
+  changed: string[] | null;
+  /** The job names of `build.yml`'s legs marked `optional: true`, as the release shows them. */
+  optional: string[];
+}
+
+/** The verdict of `--release-status`: green, the lines it prints, and the warnings among them. */
+export interface DryRunVerdict {
+  green: boolean;
+  lines: string[];
+}
+
+/**
+ * Judges one completed dry run as `release.yml`'s own `if:` lines do. Its commit is local `main`, or one
+ * whose changes since touch only `NOTES_ONLY`. Every job passed, except that `publish` is skipped, as
+ * every dry run's is; `verify` may be skipped only beside a green full `ci.yml` run of that commit, the
+ * lookup `plan` makes; and a failed optional build leg is a warning, since the release ships without it.
+ */
+export function judgeDryRun(f: DryRunFacts): DryRunVerdict {
+  const lines = [`dry run ${runLine(f.run)}`];
+  let green = true;
+  const fail = (l: string) => {
+    green = false;
+    lines.push(l);
+  };
+  if (f.changed === null) fail(`RED its commit ${short(f.run.head_sha)} is not on local ${BRANCH}: dispatch a new dry run`);
+  else {
+    const code = f.changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
+    if (code.length > 0) fail(`RED ${code.length} file(s) outside the loop's notes changed since its commit, such as ${code.slice(0, 5).join(", ")}: dispatch a new dry run`);
+  }
+  if (f.jobs.length === 0) fail("RED the run lists no jobs");
+  for (const j of f.jobs) {
+    const step = j.steps.find(red)?.name;
+    const where = `${j.name}${step === undefined ? "" : ` / step "${step}"`}  ${j.html_url}`;
+    if (j.name.includes("${{")) fail(`RED ${j.name}: a job whose matrix did not expand  ${j.html_url}`);
+    else if (j.name === PUBLISH_JOB) {
+      if (j.conclusion === "skipped") lines.push(`  ok ${j.name}: skipped, as in every dry run`);
+      else fail(`RED ${j.name} ended ${j.conclusion ?? j.status}, and a dry run skips it  ${j.html_url}`);
+    } else if (j.name === VERIFY_JOB && j.conclusion === "skipped") {
+      const full = greenFullRun(f.ciRuns, f.run.head_sha);
+      if (full !== null) lines.push(`  ok ${j.name}: skipped beside the green full ci.yml run ${full.html_url}`);
+      else fail(`RED ${j.name} was skipped, and no full ci.yml run of ${short(f.run.head_sha)} on ${BRANCH} is green`);
+    } else if (j.conclusion === "success") lines.push(`  ok ${j.name}`);
+    else if (f.optional.includes(j.name) && (j.conclusion === "failure" || j.conclusion === "timed_out")) {
+      lines.push(`  WARNING ${where}: an optional leg, so the release ships without it`);
+    } else fail(`FAILED ${where} (${j.conclusion ?? j.status})`);
+  }
+  lines.push(green ? `GREEN the dry run on ${short(f.run.head_sha)} passed` : "RED the dry run does not stand for main");
+  return { green, lines };
+}
+
+/** The job names of `build.yml`'s optional legs, as a run of `release.yml` shows them. */
+export function optionalLegs(root: string): string[] {
+  type Leg = { name?: string; optional?: boolean };
+  const wf = Bun.YAML.parse(readFileSync(join(root, ".github", "workflows", "build.yml"), "utf8")) as {
+    jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } };
+  };
+  const legs = wf.jobs?.build?.strategy?.matrix?.include ?? [];
+  return legs.filter((l) => l.optional === true && l.name !== undefined).map((l) => `build / build ${l.name}`);
+}
+
+/**
+ * The verdict on the newest completed dry run of `release.yml` on `main`: 0 green, 1 red, 2 when `gh` or
+ * `git` cannot answer. It reads only, and never fetches, pushes, dispatches or cancels.
+ */
+async function releaseStatus(s: CiSeams): Promise<number> {
+  const dry = (await workflowRuns(s, "release.yml")).filter((r) => r.display_title === DRY_RUN_TITLE).sort((a, b) => b.id - a.id);
+  for (const r of dry.filter((x) => !done(x))) s.say(`going, and not judged until it ends: ${runLine(r)}`);
+  const run = dry.find(done);
+  if (run === undefined) {
+    s.say(`RED no completed run of release.yml on ${BRANCH} is titled \`${DRY_RUN_TITLE}\`: start one with \`bun nv ci --dispatch dry-run\``);
+    return 1;
+  }
+  const main = await gitOut(s, ["rev-parse", BRANCH]);
+  let changed: string[] | null = [];
+  if (run.head_sha !== main) {
+    const anc = await s.git(["merge-base", "--is-ancestor", run.head_sha, BRANCH]);
+    if (anc.code !== 0) changed = null;
+    else changed = (await gitOut(s, ["diff", "--name-only", run.head_sha, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
+  }
+  const jobs = await listJobs(s, run.id);
+  const skippedVerify = jobs.some((j) => j.name === VERIFY_JOB && j.conclusion === "skipped");
+  const ciRuns = skippedVerify ? await workflowRuns(s, "ci.yml", `&head_sha=${run.head_sha}`) : [];
+  const v = judgeDryRun({ run, jobs, ciRuns, changed, optional: optionalLegs(ROOT) });
+  for (const l of v.lines) s.say(l);
+  return v.green ? 0 : 1;
+}
+
 // ---- the command -------------------------------------------------------------------------------------
 
 /** Parses and runs one mode; returns the exit code. */
@@ -547,10 +759,18 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   let maxMin = MAX_MIN;
   const past: string[] = [];
   let next = false;
-  let bad = ["--push", "--check", "--watch", "--status", "--rerun"].includes(mode ?? "") ? "" : "name one mode";
-  for (let i = 1; i < args.length && bad === ""; i++) {
+  let release = false;
+  let kind: DispatchKind | undefined;
+  let bad = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status"].includes(mode ?? "") ? "" : "name one mode";
+  if (bad === "" && mode === "--dispatch") {
+    const k = args[1];
+    if (k === "full" || k === "dry-run") kind = k;
+    else bad = "--dispatch takes `full` or `dry-run`";
+  }
+  for (let i = kind === undefined ? 1 : 2; i < args.length && bad === ""; i++) {
     const v = args[i + 1];
-    if (mode === "--watch" && args[i] === "--max-min" && v !== undefined && /^\d+$/.test(v)) {
+    if (mode === "--watch" && args[i] === "--release") release = true;
+    else if (mode === "--watch" && args[i] === "--max-min" && v !== undefined && /^\d+$/.test(v)) {
       maxMin = Number(v);
       i++;
     } else if (mode === "--watch" && args[i] === "--past" && v !== undefined && v !== "") {
@@ -570,8 +790,10 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
       for (const r of reds) s.say(r);
       return reds.length > 0 ? 1 : 0;
     }
-    if (mode === "--watch") return await watch(s, maxMin, past, next);
+    if (mode === "--watch") return await watch(s, maxMin, past, next, release ? [RELEASE] : WORKFLOWS);
     if (mode === "--status") return await status(s);
+    if (mode === "--dispatch" && kind !== undefined) return await dispatch(s, kind);
+    if (mode === "--release-status") return await releaseStatus(s);
     return await rerun(s);
   } catch (e) {
     if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;

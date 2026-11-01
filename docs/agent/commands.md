@@ -630,6 +630,9 @@ bun nv side --prepare --hook                          # looper's before_run: rea
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
+bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release (never a real one), on main
+bun nv ci --watch --release                           # watches the newest Release run, and cancels no run
+bun nv ci --release-status                            # the newest completed dry-run Release: green, or each job that is not
 bun nv debt                                           # pays the floor debt: the floor check `floor-debt`
 
 bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
@@ -642,7 +645,8 @@ bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or comp
 
 Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes
 what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrote there, and `bun nv ci
---watch`, which also exits 3 when nothing failed within `--max-min`. `--goal` and
+--watch`, which also exits 3 when nothing failed within `--max-min`. `bun nv ci --dispatch` and
+`--release-status` exit 2 also when GitHub cannot answer or lists no new run. `--goal` and
 `--stage` win over `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next
 stage. looper runs four on its own: `looper.toml` wires `bun nv side --prepare --hook` as
 `[hooks] before_run`, `bun nv sweep` as `[hooks] after_session` and `bun nv ci --push` as `[hooks]
