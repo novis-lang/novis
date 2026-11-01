@@ -14,7 +14,7 @@ stages:
     context: [README.md, CONTRIBUTING.md, SECURITY.md, docs/setup.md]
   - id: 3
     title: "the agent docs and rules cite only what exists, and every nvs command has a row in the CLI reference"
-    status: open
+    status: done
     context: [docs/reference/tools/10-cli.md, crates/nvs-cli/tests/one_binary.rs, crates/nvs-cli/src/cache_cmd.rs, docs/rules/programs/slice-ranking.md]
   - id: 4
     title: "the .vsix and the binary carry every third-party notice they owe"
@@ -366,13 +366,13 @@ table lists every command the binary has.
 
 **Split:** none. The edits are one line each.
 
-- [ ] "The plan" as a document is reworded in each agent doc. `docs/agent/user-report.md:134`, `docs/agent/dependency-update.md:163`, `docs/agent/doc-cleanup.md:68`
-- [ ] "The plan" in two rules and one playbook bullet. Then `bun nv rules --render`. `rule:packaging/the-version-contract-starts-at-0-1-0`, `rule:programs/slice-ranking`, `docs/rules/packaging/the-version-contract-starts-at-0-1-0.md:10`, `docs/rules/programs/slice-ranking.md:2`, `docs/agent/playbook/writing-novis/a-slice-the-plan-files-under-nvs-ir-can-be-unbuildable-there.md:1`
-- [ ] Each `docs/goal-format.md` citation names looper's repository and the kit file in this tree. `docs/agent/commands.md:44`, `docs/agent/conventions.md:603`, `docs/agent/coordinator.md:53`, `docs/agent/loop-authoring.md:4`, `docs/agent/playbook.md:6`
-- [ ] `# nvs cache`: what `nvs cache gc` and `nvs cache clear` do, and `--json`. `docs/reference/tools/10-cli.md:1151`, `crates/nvs-cli/src/cache_cmd.rs:43`
-- [ ] The command table has a row for every subcommand, and the "In other chapters" and "Not in this chapter yet" paragraphs shrink to what the rows do not say. `docs/reference/tools/10-cli.md:20`, `docs/reference/tools/10-cli.md:41`
-- [ ] The test the `cli-reference-rows` check names. `crates/nvs-cli/tests/one_binary.rs:29`
-- [ ] `bun nv render --website` writes the new section into the website's CLI reference, and the CLI tools page links it. `website/src/data/reference.json:1`, `website/src/content/docs/tools/cli/index.mdx:75`
+- [x] "The plan" as a document is reworded in each agent doc. `docs/agent/user-report.md:134`, `docs/agent/dependency-update.md:163`, `docs/agent/doc-cleanup.md:68`
+- [x] "The plan" in two rules and one playbook bullet. Then `bun nv rules --render`. `rule:packaging/the-version-contract-starts-at-0-1-0`, `rule:programs/slice-ranking`, `docs/rules/packaging/the-version-contract-starts-at-0-1-0.md:10`, `docs/rules/programs/slice-ranking.md:2`, `docs/agent/playbook/writing-novis/a-slice-a-goal-files-under-nvs-ir-can-be-unbuildable-there.md:1`
+- [x] Each `docs/goal-format.md` citation names looper's repository and the kit file in this tree. `docs/agent/commands.md:44`, `docs/agent/conventions.md:603`, `docs/agent/coordinator.md:53`, `docs/agent/loop-authoring.md:4`, `docs/agent/playbook.md:6`
+- [x] `# nvs cache`: what `nvs cache gc` and `nvs cache clear` do, and `--json`. `docs/reference/tools/10-cli.md:1151`, `crates/nvs-cli/src/cache_cmd.rs:43`
+- [x] The command table has a row for every subcommand, and the "In other chapters" and "Not in this chapter yet" paragraphs shrink to what the rows do not say. `docs/reference/tools/10-cli.md:20`, `docs/reference/tools/10-cli.md:41`
+- [x] The test the `cli-reference-rows` check names. `crates/nvs-cli/tests/one_binary.rs:29`
+- [x] `bun nv render --website` writes the new section into the website's CLI reference, and the CLI tools page links it. `website/src/data/reference.json:1`, `website/src/content/docs/tools/cli/index.mdx:75`
 
 ### 4. the .vsix and the binary carry every third-party notice they owe
 
@@ -442,19 +442,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 landed in five commits: SECURITY.md (`8c9ba7035`), CONTRIBUTING.md
-(`743300220`), the README (`42bb39db4`), setup.md and release.md (`64300f0ed`), and the code of
-conduct with the PR template (`f30325318`). `layout-check`, `readme-prose` and `bun nv links` are
-green. `gh repo edit` ran, and `gh repo view` shows the home page's description and
-`https://novis-lang.org` as the homepage.
+Stages 1, 2 and 3 are done. Stage 3 landed in two commits: the doc rewording (`be6606e56`) and
+the CLI reference (`3d7a6171a`). `cli-reference-rows` (run once by name), `rules-check`, `links`
+and `site --check stale` are green, and clippy is clean.
 
-- SECURITY.md names the eight `UNSAFE_CRATES` entries (seven crates and the `abi-probe` bench) and
-  CI's four platforms, from `ci.yml`'s `test` matrix.
-- The attribution commands moved to CONTRIBUTING.md § *Third-party notices*, which the README's
-  License section links.
-- CODE_OF_CONDUCT.md is the upstream 2.1 text, with `[INSERT CONTACT METHOD]` replaced by a link to
-  the legal notice. CONTRIBUTING.md links it under its routing table.
-- No `v*` tag exists yet, so docs/release.md's first-release sentence still holds.
+- "The plan" is reworded in three agent docs, two rules and one playbook bullet. The bullet's file
+  is renamed to `a-slice-a-goal-files-under-nvs-ir-can-be-unbuildable-there.md`, from its new
+  lead-in. Versions now point at `rust-toolchain.toml` and setup.md § *Versions no manifest pins*.
+- Each `docs/goal-format.md` citation says it is in looper's repository and names
+  `tools/looper/src/goal/playbook.ts` (the `until` kinds) or `model.ts` (a check's fields).
+- The command table has a row for every command `nvs --help` lists. Rows for a command in another
+  chapter link the chapter anchor (`#tools-server`, `#tools-packages`, `#tools-editor`,
+  `#tools-agents`). The "In other chapters" paragraph is gone. "Not in this chapter yet" keeps the
+  five commands with no section.
+- `# nvs cache` follows *The compile cache*. The website's CLI page links
+  `/reference/cli/nvs-cache/`, covers `tools:cli/nvs-cache`, and is restamped.
 
 The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`, and every failure
 it shows has a fix between that commit and HEAD: the browser job's relative `NVS_BIN`
@@ -465,17 +467,17 @@ definition in the tree and no log, as the last goal's handoff found too.
 
 ### Next
 
-Stage 3, the agent docs and the CLI reference. Two groups: the doc rewording, then the CLI table
-and its test.
+Stage 4, the third-party notices of the `.vsix` and the binary. Two groups: the extension's notice
+with its test, then the WIT entry, the template line and the regenerated file.
 
-- [ ] "The plan" as a document, in three agent docs. `docs/agent/user-report.md:134`, `docs/agent/dependency-update.md:163`, `docs/agent/doc-cleanup.md:68`
-- [ ] "The plan" in two rules and one playbook bullet, then `bun nv rules --render`. `docs/rules/packaging/the-version-contract-starts-at-0-1-0.md:10`, `docs/rules/programs/slice-ranking.md:2`
-- [ ] Each `docs/goal-format.md` citation names looper's repository and the kit file. `docs/agent/commands.md:44`, `docs/agent/conventions.md:603`, `docs/agent/coordinator.md:53`, `docs/agent/loop-authoring.md:4`, `docs/agent/playbook.md:6`
-- [ ] `# nvs cache`, a row per subcommand, and the test. `docs/reference/tools/10-cli.md:20`, `docs/reference/tools/10-cli.md:1151`, `crates/nvs-cli/src/cache_cmd.rs:43`, `crates/nvs-cli/tests/one_binary.rs:29`
-- [ ] `bun nv render --website`, and the CLI tools page links the new section. `website/src/data/reference.json:1`, `website/src/content/docs/tools/cli/index.mdx:75`
+- [ ] `gen-attribution` writes `editors/vscode/THIRD-PARTY-NOTICES.txt`, and `--check` covers it. `tools/nv/cmd/gen-attribution.ts:299`, `tools/nv/cmd/gen-attribution.ts:926`
+- [ ] `.vscodeignore` keeps it, and CI's attribution job installs the extension's packages if needed. `editors/vscode/.vscodeignore:1`, `.github/workflows/ci.yml:986`
+- [ ] `tools/nv/test/attribution-vscode.test.ts`, the `vsix-notices` check. `tools/nv/test/attribution-vscode.test.ts:1`
+- [ ] `wit/nvs-ext/deps/README.md` and the `WIT_DIRS` entry. `wit/nvs-ext/deps/README.md:1`, `tools/nv/cmd/gen-attribution.ts:279`, `crates/nvs-ext/src/pack.rs:51`
+- [ ] The ext template's commented license line, then `bun nv gen-attribution`. `crates/nvs-cli/templates/ext/rust/Cargo.toml:5`, `THIRD-PARTY-LICENSES.txt:1`
 
-Its checks are `cli-reference-rows`, `rules-check` and `links`. The new test in `one_binary.rs`
-goes red until every row exists.
+Its checks are `attribution` and `vsix-notices`. `bun nv gen-attribution --check` goes red until
+the extension's notice is committed.
 
 ### Backlog
 
