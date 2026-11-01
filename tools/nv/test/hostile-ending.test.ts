@@ -138,6 +138,38 @@ describe("an attack that ends at its memory limit", () => {
   });
 });
 
+describe("an attack that ends at a time limit", () => {
+  const fatal = (kind: string, used: number, limit: number) =>
+    `FATAL: the request exceeded its ${kind}-time limit: ${used} ms used of a limit of ${limit} ms\n`;
+  const atLimit = (kind: string, used: number, limit: number) => judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", fatal(kind, used, limit)));
+
+  test("a time FATAL within the limit plus 100 ms passes", () => {
+    expect(atLimit("CPU", 162, 150)).toEqual(["ok", ""]);
+    expect(atLimit("wall", 400, 300)).toEqual(["ok", ""]);
+  });
+
+  test("a time FATAL past the limit plus 100 ms fails and names the reading and the limit", () => {
+    const [verdict, why] = atLimit("CPU", 2150, 150);
+    expect(verdict).toBe("fail");
+    expect(why).toContain("used 2150 ms against a CPU-time limit of 150 ms");
+    expect(atLimit("wall", 401, 300)[0]).toBe("fail");
+  });
+
+  test("a CPU limit set below the time already used is measured from when it was set", () => {
+    const late = (used: number) =>
+      `FATAL: the request exceeded its CPU-time limit: ${used} ms used of a limit of 15 ms, set when 480 ms were used\n`;
+    expect(judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", late(500)))).toEqual(["ok", ""]);
+    const [verdict, why] = judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", late(700)));
+    expect(verdict).toBe("fail");
+    expect(why).toContain("set when 480 ms were used, 220 ms over");
+  });
+
+  test("a time FATAL that names its limit alone has no reading", () => {
+    const bare = "FATAL: the request exceeded its CPU-time limit of 150 ms\n";
+    expect(judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", bare))).toEqual(["ok", ""]);
+  });
+});
+
 describe("an attack that runs under nvs test", () => {
   const tested = "<?nvs\n// Attack: a test is given a very large input.\n// proof: test\n";
   const judgeTest = (out: Ran) => judgeHostile(PATH, tested, out, 10_000, false);

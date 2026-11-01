@@ -322,6 +322,45 @@ export function overshoot(reading: MemoryReading): string | null {
   );
 }
 
+/** How far past its CPU or wall-time limit a request may get before its time `FATAL` is red: the
+ * watchdog samples once per interval, and a native call reaches its next poll a little after the raise,
+ * so a legitimate reading is a little over the limit. The bound is never raised to make an attack pass. */
+export const TIME_OVERSHOOT_SLACK_MS = 100;
+/** The reading of a time `FATAL`: `exceeded its CPU-time limit: N ms used of a limit of L ms`, or the
+ * wall-time twin. A CPU limit the program set below what it had spent adds `, set when S ms were used`.
+ * A `FATAL` that names its limit alone has no reading. */
+const TIME_USED_RE = /exceeded its (CPU|wall)-time limit: ([0-9]+) ms used of a limit of ([0-9]+) ms(?:, set when ([0-9]+) ms were used)?/g;
+
+/** How far a run got past a time limit: the worst `used` past `crossed` its output carries. `crossed` is
+ * where the request went over: the limit, or the time it had used when it set a lower one. */
+export interface TimeReading {
+  kind: "CPU" | "wall";
+  used: number;
+  limit: number;
+  crossed: number;
+}
+
+/** The worst time reading in a run's output, by how far `used` is past `crossed`, or null when it has none. */
+export function timeReading(out: Ran): TimeReading | null {
+  let worst: TimeReading | null = null;
+  for (const m of (out.stderr + out.stdout).matchAll(TIME_USED_RE)) {
+    const limit = Number(m[3]);
+    const reading = { kind: m[1] as "CPU" | "wall", used: Number(m[2]), limit, crossed: Math.max(limit, Number(m[4] ?? 0)) };
+    if (worst === null || reading.used - reading.crossed > worst.used - worst.crossed) worst = reading;
+  }
+  return worst;
+}
+
+/** Why a time reading is red, or null when it is within `crossed` plus `TIME_OVERSHOOT_SLACK_MS`. */
+export function timeOvershoot(reading: TimeReading): string | null {
+  if (reading.used <= reading.crossed + TIME_OVERSHOOT_SLACK_MS) return null;
+  const set = reading.crossed > reading.limit ? `, set when ${reading.crossed} ms were used` : "";
+  return (
+    `used ${reading.used} ms against a ${reading.kind}-time limit of ${reading.limit} ms${set}, ` +
+    `${reading.used - reading.crossed} ms over -- past the bound of the limit plus ${TIME_OVERSHOOT_SLACK_MS} ms`
+  );
+}
+
 /** Whether the host killed the program. With no memory reading of its own, that means the host ran out
  * of memory before the request's ceiling stopped it. A status of 9 or 137 counts only for an attack that
  * expects a `FATAL`, because a program may also `exit(9)` itself. */
@@ -908,6 +947,10 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   const reading = memoryReading(out);
   const past = reading === null ? null : overshoot(reading);
   if (past !== null) return ["fail", past];
+  // A time limit is the same promise about time: a native call that ran on far past the raise is red.
+  const time = timeReading(out);
+  const late = time === null ? null : timeOvershoot(time);
+  if (late !== null) return ["fail", late];
   if (reading === null && hostKilled(out, declared?.ending === "FATAL")) {
     return ["fail", `the host ran out of memory: the program was killed (${out.signal ?? `exit ${out.code}`}) before its memory limit stopped it`];
   }
@@ -954,16 +997,18 @@ interface OvershootRow {
   path: string;
   ms: number;
   reading: MemoryReading | null;
+  time: TimeReading | null;
   note?: string;
   red: boolean;
 }
 
 /**
  * `bun nv proofs --overshoot`: runs every attack under `tests/hostile/` whose `ends-early` names `FATAL`,
- * `OVERSHOOT_JOBS` at a time, and prints how far past its memory ceiling each one got, worst first. It
- * fails when a reading is past `overshootBound`, when the server's memory filled first, or when the host
- * killed a program before it printed a reading. An attack that stopped at another limit has no reading,
- * and is counted.
+ * `OVERSHOOT_JOBS` at a time, and prints how far past its memory ceiling, or its CPU or wall-time limit,
+ * each one got, worst first. It fails when a memory reading is past `overshootBound`, when a time reading
+ * is past its limit plus `TIME_OVERSHOOT_SLACK_MS`, when the server's memory filled first, or when the
+ * host killed a program before it printed a reading. An attack that stopped at another limit has no
+ * reading, and is counted.
  *
  * Every member fixed to stop at the ceiling has an attack that builds its amplification (shared
  * references, a doubling graph, a huge separator, a peer that never ends a frame) and ends here within
@@ -996,11 +1041,13 @@ export async function overshootScan(nvs: string, out: string[]): Promise<number>
         // Two programs at once may slow each other, so each gets twice its own time limit.
         const ran = await spawnProof(proofArgv(nvs, path, source), path, 2 * hostileLimitMs(source), { unlogged: true });
         const reading = memoryReading(ran);
+        const time = timeReading(ran);
         const killed = reading === null && hostKilled(ran, true);
         const note = killed ? `killed by the host (${ran.signal ?? `exit ${ran.code}`})` : ran.timedOut ? "still running at its time limit" : undefined;
-        rows.push({ path, ms: Math.round(ran.ms), reading, red: killed || (reading !== null && overshoot(reading) !== null), ...(note ? { note } : {}) });
+        const red = killed || (reading !== null && overshoot(reading) !== null) || (time !== null && timeOvershoot(time) !== null);
+        rows.push({ path, ms: Math.round(ran.ms), reading, time, red, ...(note ? { note } : {}) });
       } catch (e) {
-        rows.push({ path, ms: 0, reading: null, note: `could not run: ${e instanceof Error ? e.message : String(e)}`, red: false });
+        rows.push({ path, ms: 0, reading: null, time: null, note: `could not run: ${e instanceof Error ? e.message : String(e)}`, red: false });
       }
       progress(`proofs: ${rows.length + skipped}/${files.length}`);
     }
@@ -1015,11 +1062,20 @@ export async function overshootScan(nvs: string, out: string[]): Promise<number>
     const figure = ceiling === null ? `server full at ${mb(held)}` : `${ratio(r.reading!).toFixed(2)}x  ${mb(held)} / ${mb(ceiling)}`;
     out.push(`  ${r.red ? "FAIL" : "ok  "}  ${figure}  ${r.ms} ms  ${r.path}`);
   }
-  for (const r of rows.filter((r) => r.reading === null && r.note).sort((a, b) => a.path.localeCompare(b.path))) {
+  const over = (t: TimeReading) => t.used - t.crossed;
+  const timed = rows.filter((r) => r.time !== null).sort((a, b) => over(b.time!) - over(a.time!) || a.path.localeCompare(b.path));
+  out.push(`nv proofs overshoot: ${timed.length} attack(s) stopped at a time limit, worst first (the bound is the limit plus ${TIME_OVERSHOOT_SLACK_MS} ms):`);
+  for (const r of timed) {
+    const { kind, used, limit, crossed } = r.time!;
+    const late = timeOvershoot(r.time!) !== null;
+    const set = crossed > limit ? `, set at ${crossed} ms` : "";
+    out.push(`  ${late ? "FAIL" : "ok  "}  ${kind} ${used} / ${limit} ms${set} (+${used - crossed})  ${r.ms} ms  ${r.path}`);
+  }
+  for (const r of rows.filter((r) => r.reading === null && r.time === null && r.note).sort((a, b) => a.path.localeCompare(b.path))) {
     out.push(`  ${r.red ? "FAIL" : "-   "}  ${r.note}  ${r.path}`);
   }
   const red = rows.filter((r) => r.red).length;
-  const other = rows.filter((r) => r.reading === null && !r.note).length;
+  const other = rows.filter((r) => r.reading === null && r.time === null && !r.note).length;
   out.push(
     `nv proofs overshoot: ${red} red of ${rows.length} run; ${other} stopped at another limit, and ${skipped} skipped on this host.`,
   );

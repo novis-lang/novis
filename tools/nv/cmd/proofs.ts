@@ -13,8 +13,9 @@
 //     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
 //                                          line, its output, its exit status and time
 //     bun nv proofs --overshoot            run every attack whose `ends-early` names `FATAL`, two at a time,
-//                                          and print how far past its memory ceiling each got, worst
-//                                          first; exit 1 when one is past the bound or the host killed it
+//                                          and print how far past its memory ceiling, or its CPU or
+//                                          wall-time limit, each got, worst first; exit 1 when one is past
+//                                          its bound or the host killed it
 //     bun nv proofs --probe [--only NAME...] write a program per `Core` member that lowers its own memory
 //                                          limit to 16 MiB and calls the member, on a receiver from its
 //                                          class's factory when it is an instance member, on growing inputs
