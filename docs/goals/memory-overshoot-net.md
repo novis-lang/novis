@@ -18,7 +18,7 @@ stages:
     context: [tools/nv/cmd/proofs.ts, crates/nvs-stdlib/src/registry.rs]
   - id: 4
     title: "every member the probe or the test ceiling found past the bound is fixed and has an attack"
-    status: open
+    status: done
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -151,6 +151,22 @@ the probe and the binary always agree.
   receiver. A factory that throws is listed with its error, never red. Cost: one table to keep, and a
   new class's instance members are skipped, by name, until it has a row.
 
+**A fix that removes a copy gets an attack that throws, not one that ends at `FATAL`.** Stage 4
+settled this. Once a member quotes 64 bytes of its argument or refuses a long key first, an 8 MiB
+argument under a 16 MiB limit throws a short error and the program goes on. Its attack checks that the
+message is short, and `--overshoot` judges its reading. A member whose own work still needs more than
+the limit, such as `Core\Regex::compile`, gets the attack that ends at `FATAL`.
+- **One quoting helper.** `nvs_runtime::quoted` (`crates/nvs-runtime/src/abi.rs`) writes at most
+  `QUOTED_BYTES` (64) of a caller's text into a message. Declined: a cap on every message where the
+  fault is recorded. It runs after the `format!`, which is where the 32 MiB was held, and the probe
+  read the same 32.0 MiB with it in place.
+- **Bounds where the text is kept or handed on.** A metric name, label name or label value past
+  1 KiB throws a `LogicError` (`KEY_BYTES`), because a core keeps its series for the life of the
+  process. A debug sink path past 32 KiB throws (`PATH_BYTES`), because no system opens one.
+- **A regex parse is asked for in front.** `compile_cost` asks 128 bytes per pattern byte and 32 KiB
+  per Unicode class escape, on a cache miss only. Cost: a 500 KiB pattern asks 64 MiB, which a
+  default request still affords.
+
 **Two at a time, like `--overshoot`.** The full run is a floor check with a 3600 s timeout. Stage 2
 records how long it took. If it takes more than 30 minutes, the sizes drop to the three largest and
 the shapes to the ones a member's parameters can take.
@@ -217,20 +233,23 @@ gets an attack step that ends at `FATAL` within the bound.
 
 **Split:** one writing subagent per class, side by side. The session builds once they all end.
 
-- [ ] The findings table: filled in by stages 1 to 3. Stage 2's, from `bun nv proofs --probe` on the
+- [x] The findings table: filled in by stages 1 to 3. Stage 2's, from `bun nv proofs --probe` on the
   proof binary of `9925cba9a` (input is the step's flat string, ceiling 16 MiB, bound 32 MiB):
-  - [ ] `Core\Regex::compile`: flat 8 MiB pattern, 731.2 MiB (45.70x).
-  - [ ] `Core\Regex::match`, `matches`, `matchAll`, `split`, `replaceWith`: flat 2 MiB, 193.3 MiB
-    (12.08x) each. The pattern is the same 2 MiB string, so the compile is the likely site.
-  - [ ] `Core\Regex::replace`: flat 512 KiB, 72.3 MiB (4.52x).
-  - [ ] `Core\Metrics::increment`, `gauge`, `observe`: flat 8 MiB name, 37.2 MiB (2.32x).
-  - [ ] `Core\BigInt::parse`, `Core\Time\Zone::of`, `Core\Debug::startTrace`, `startProfile`,
-    `Core\Command::help`, `Core\Cldr::pluralCategory`, `ordinalCategory`: flat 8 MiB, 32.0 MiB (2.00x),
-    just past the bound. Each likely copies the input twice, such as into an error message.
-  - [ ] Stage 3's, from instance members on a receiver from `PROBE_FACTORIES`:
+  - [x] `Core\Regex::compile`: flat 8 MiB pattern, 731.2 MiB (45.70x). Fixed in `ceedcd93b`, now 0.97x.
+  - [x] `Core\Regex::match`, `matches`, `matchAll`, `split`, `replaceWith`: flat 2 MiB, 193.3 MiB
+    (12.08x) each. The compile site, fixed in `ceedcd93b`, now 0.98x.
+  - [x] `Core\Regex::replace`: flat 512 KiB, 72.3 MiB (4.52x). The compile site, now 0.98x.
+  - [x] `Core\Metrics::increment`, `gauge`, `observe`: flat 8 MiB name, 37.2 MiB (2.32x). Fixed in
+    `6515b4efd`.
+  - [x] `Core\BigInt::parse`, `Core\Time\Zone::of`, `Core\Command::help`, `Core\Cldr::pluralCategory`,
+    `ordinalCategory`: flat 8 MiB, 32.0 MiB (2.00x). The error message copied the input. Fixed in
+    `af0a41b8d` and `d2b961333`.
+  - [x] `Core\Debug::startTrace`, `startProfile`: flat 8 MiB, 32.0 MiB (2.00x). The path was copied
+    several times. Fixed in `59b93297b`.
+  - [x] Stage 3's, from instance members on a receiver from `PROBE_FACTORIES`:
     `Core\Regex\Match::group`, `Core\Reflect\ClassInfo::constant`, `Core\Reflect\EnumInfo::valueOf`:
-    flat 8 MiB, 32.0 MiB (2.00x) each, the same shape as the seven above.
-- [ ] `bun nv proofs --probe` exits 0.
+    flat 8 MiB, 32.0 MiB (2.00x) each. Fixed in `ceedcd93b` and `d2b961333`.
+- [x] `bun nv proofs --probe` exits 0: 0 red of 555 run in 68 s.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -245,36 +264,37 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 added `PROBE_FACTORIES` and `PROBE_NO_FACTORY` to
-`tools/nv/proofs/probe.ts`: an instance member runs on a fresh receiver per step, and a parameter of a
-class in the table takes the same expression. The judge names a setup that threw (a factory) and does
-not make it red. `tools/nv/test/probe.test.ts` has five tests, all passing, run once by name.
+Stages 1 to 4 are done. Stage 4 fixed all 20 findings in five commits: `af0a41b8d` (the
+`nvs_runtime::quoted` helper, and capability denials quote through it), `ceedcd93b` (the regex parse
+ask, and `Match::group`), `d2b961333` (seven members quote their argument), `6515b4efd` (metric key
+bound) and `59b93297b` (debug sink path bound). The standing decision *A fix that removes a copy gets an
+attack that throws* records why and what each costs.
 
-The full run, `bun nv proofs --probe --nvs target/proof/nvs.exe`, now covers static and instance
-members: **555 run in 62 s**, 459 skipped (by `PROBE_SKIPS` or no factory), 27 not built (down from 42).
-No factory threw. **20 are red**: stage 2's 17 and three instance members, all listed under stage 4.
-The seven 2.00x statics and the three new ones all hold exactly 32.0 MiB on a flat 8 MiB string, so
-they likely share one cause: the string argument copied once more on the way in.
+The full `bun nv proofs --probe` is green: **0 red of 555 run in 68 s**, 459 skipped, 27 not built,
+15 did not compile (listed, not red, as before). `bun nv proofs --overshoot` is 0 red of 246, and the
+new regex attack stops at 0.97x. The 14 new attacks under `tests/hostile/core/` (each named
+`02-an-8-mib-…` or `02-a-4-mib-…`) pass `bun nv proofs --run` and `--comments`. Two new Rust tests
+ran once by name and pass: `a_quoted_argument_is_cut_on_a_character_boundary` (abi.rs),
+`a_metric_name_past_the_key_bound_throws_without_quoting_it` (metrics.rs). No full test run was made.
 
-Thirteen programs did not compile, and are listed, not red. `Core\Arr::fillKeys`, `fromKeysAndValues`
-and `from` need a typed list. `Core\Math::abs` needs a number for its bounded `T`. The `*As` members
-and `Core\Attributes` reject the `array<{ a: string }>` type argument. `Core\Path::thisDir` and
-`Core\Test::assertThrows` need a literal. They need no change for the goal.
+The acceptance sweep's reds are not tree faults. `env-secret-proofs` has no definition in the tree, and
+its log does not exist: it is stale state in looper's service. Nightly run 41187571578 ran on
+`857b39cad`, before the fixes `39795c9c4`, `bfce9c2d2`, `593b6c565` and `8ce92dda5`.
 
-The acceptance sweep's reds are not tree faults. `env-secret-proofs` has no definition in the tree. It
-is stale state in looper's service. The nightly run 41187571578 ran on `857b39cad`, before the fixes
-`39795c9c4`, `bfce9c2d2`, `593b6c565` and `8ce92dda5`.
-
-The `no-probe-overshoot` check is red until stage 4 fixes the 20. No other test is expected to go red.
+**Tests that may go red in the gate:** any test or `.out` that asserts the full text of an error now
+quoted through `quoted`, whose argument is past 64 bytes. The likeliest are capability-denial tests
+that compare a long absolute path (`crates/nvs-runtime/src/capability.rs:328`), and tests of the seven
+members' messages with a long input. A fix changes the assertion to the cut text, never the bound.
+A regex test that compiles a pattern past 1 MiB inside a context with a ceiling would now hit the
+`compile_cost` ask (`crates/nvs-stdlib/src/regex.rs`, `compile_cost`).
 
 ### Next
 
-Stage 4, the fixes. Regex first: `Core\Regex::compile` at 45.70x, and the five members at 12.08x that
-take a pattern string, which likely share the compile site. Then `Core\Metrics` (2.32x on a long name).
-Before giving the ten 2.00x members to subagents, check whether one shared site copies a string
-argument (an argument conversion or a tainted-string check); if so it is one fix, not ten. Each fix
-goes through `NvsArray`, `ByteWriter`, `StrWriter` or `affords`, and each fixed member gets an attack
-step ending at `FATAL` within the bound. Rerun one class with
-`bun nv proofs --probe --nvs target/proof/nvs.exe --only 'Core\Regex'` after the proof binary rebuilds.
+Stage 5, the gate. Start `looper verify` with `run_in_background`, end the turn, and fix every failure
+it names in one pass, then verify once more. Then the goal-end gates from AGENTS.md § *In the loop*:
+`bun nv verify --doc`, `bun nv owners --closes memory-overshoot-net`, `bun nv ci --check`. Before
+`DONE`, move each decision only this file holds into a module doc or rule: the quoting rule belongs in
+`crates/nvs-runtime/src/abi.rs`'s `quoted` doc (already there), and the probe's design in
+`tools/nv/proofs/probe.ts`'s header.
 
 ### Backlog
