@@ -253,27 +253,22 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done (`cb9fb5560`, `6443fe285`), and `ci-release-tests` is green. `release.yml` titles a
-dry run `Release (dry run)` with `run-name`. `bun nv ci` has `--dispatch full|dry-run`
-(`tools/nv/cmd/ci.ts:621`), `--watch --release`, and `--release-status` (`judgeDryRun` at
-`tools/nv/cmd/ci.ts:683`, the wrapper at `tools/nv/cmd/ci.ts:730`). `--release-status` exits 1 today:
-no run on GitHub carries the new title yet. GitHub keeps no Release run any more (the five old ones,
-`40085277618` among them, are gone), so the test fixtures take their job names from `release.yml`,
-`build.yml` and `image.yml`: `plan`, `verify / <job>`, a skipped `verify`, `build / build <leg>`,
-`build / build the VS Code extension`, `tag, changelog and draft release` and
-`docker / container images (<variant>)`. Stage 3's first dry run checks them.
+Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
+(`tools/nv/cmd/ci.ts:621`). Stage 2, round 1: the full run `41298422730` on `c3f94ed9f` is still going,
+and a `bun nv ci --watch --past "proofs / macos-aarch64"` waits on it in the background. That watch
+reports the next red, or exits 4 if the run ends with only that one. Commits after `c3f94ed9f` are
+local only: a push would cancel the full run.
 
-Stage 2's first round is out. `main` was pushed at `c3f94ed9f`, and the full run
-`41298422730` (`workflow_dispatch`) is going on it. A `bun nv ci --watch` was started in the
-background. This handoff's commit is local only: pushing it would cancel that full run.
-
-The watch exited 1 on its first red, while the run's other jobs went on: `proofs / macos-aarch64`,
-step *Feature proofs*, 2 of 1586 hostile files over the CPU-time bound of the limit plus 100 ms.
-`tests/hostile/config/limits-fatal_reserve_time/01-spending-the-clock-the-report-was-left.nvs` used
-146 ms against 15 ms, and `tests/hostile/core/Arr/sort/02-a-comparator-sort-longer-than-the-cpu-limit.nvs`
-367 ms against 250 ms. This is the macOS CPU overshoot `07de303b8` (`fix(host): macOS reads a running
-core's CPU clock with the core suspended`) was to fix, so that fix does not reach these two: start
-from how the watchdog reads a core's clock on macOS (`crates/nvs-host/src/watchdog.rs`).
+Red so far: `proofs / macos-aarch64`. Two attacks stop 117 and 131 ms past their CPU limits:
+`tests/hostile/config/limits-fatal_reserve_time/01-*.nvs` and `tests/hostile/core/Arr/sort/02-*.nvs`.
+The run contains `07de303b8`, the suspended macOS read, and the overshoot has not changed. The sweep
+reads with `thread_suspend` plus `thread_info` (`crates/nvs-host/src/cpuclock.rs:323`). A `Charge`'s base
+and the `FATAL`'s "used" figure both come from the thread's own `clock_gettime`
+(`cpuclock.rs:358`, `crates/nvs-runtime/src/ctx/safepoint.rs:1290`). If the two sources disagree, the
+stop is late and the report shows the gap. The sweep interval is 50 ms (`watchdog.rs:234`).
+The data that decides it is the `cpuclock: ... worst lag` line that `cpuclock.rs:540` writes in
+`test / macos-aarch64 (tests)`'s log. It had not run yet. A lag near 100 ms puts the fix in `cpuclock.rs`;
+a lag near 0 puts it in `next_wait` or the `Charge` base (`watchdog.rs:1420`, `watchdog.rs:311`).
 
 The sweep's two reds before this session: `env-secret-proofs` has no definition in the tree and no
 log, a stale check the driver carries (earlier goals recorded the same). The nightly `41295327777`'s
@@ -284,7 +279,8 @@ fixed by `181d4045e` before this session; its other jobs were cancelled by later
 
 Stage 2, round 2. Do not push until run `41298422730` has ended.
 
-- [ ] Once run `41298422730` has ended, `bun nv ci --status` for its every red, the macOS proofs one above included. `tools/nv/cmd/ci.ts:356`
+- [ ] Read the watch's report. If it exited on a new red while the run is still going, start `bun nv ci --watch --past "proofs / macos-aarch64" --past "<that job>"` again in the background, and end the turn. `tools/nv/cmd/ci.ts:356`
+- [ ] Once run `41298422730` has ended, `bun nv ci --status` for its every red, the macOS proofs one above included, and grep `cpuclock:` in `test / macos-aarch64 (tests)`'s log. `crates/nvs-host/src/cpuclock.rs:540`
 - [ ] Each red job's log to a `reader` subagent; list the reds here by cause, with `file:line`. `.github/workflows/ci.yml:1`
 - [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; `bun nv ci --watch` in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
