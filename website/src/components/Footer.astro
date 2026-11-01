@@ -7,7 +7,7 @@
  * what comes next in its own text, and `editLink` and `lastUpdated` in
  * astro.config.ts say why the other two are off.
  */
-import { GITHUB_URL, GITHUB_BRANCH, DISCORD_URL, AREAS, INSTALL } from '@config/site.mjs'
+import { GITHUB_URL, DISCORD_URL, AREAS, INSTALL, githubFile } from '@config/site.mjs'
 import { externalLinkAttrs } from '@config/external-links.mjs'
 import { withBase } from '~/lib/base'
 
@@ -23,6 +23,8 @@ const columns = [
     links: [
       { label: 'Release notes', href: withBase('/in-depth/what-changed/') },
       { label: 'Sponsoring', href: withBase('/sponsoring/') },
+      { label: 'Security', href: withBase('/security/') },
+      { label: 'Contributing', href: githubFile('CONTRIBUTING.md') },
       { label: 'GitHub', href: GITHUB_URL },
       { label: 'Discord', href: DISCORD_URL },
     ],
@@ -32,7 +34,7 @@ const columns = [
     links: [
       { label: 'Legal notice', href: withBase('/impressum/') },
       { label: 'Privacy policy', href: withBase('/datenschutz/') },
-      { label: 'License', href: `${GITHUB_URL}/blob/${GITHUB_BRANCH}/LICENSE` },
+      { label: 'Licenses', href: withBase('/licenses/') },
     ],
   },
 ]

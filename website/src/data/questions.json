@@ -888,12 +888,13 @@
   },
   "/in-depth/new/": {
     "feature": "in-depth/new.mdx",
-    "hash": "32978755a64aa817",
+    "hash": "421e3b4da7d427b8",
     "questions": [
       "What are the disadvantages of using Novis today?",
       "Is Novis ready for production use?",
       "Has Novis had a security audit?",
       "Does Novis have third-party packages?",
+      "Where can I find packages for Novis?",
       "Why does Novis need more checks than other languages?"
     ]
   },
@@ -909,11 +910,11 @@
   },
   "/in-depth/roadmap/": {
     "feature": "in-depth/roadmap.mdx",
-    "hash": "61000179bd834b72",
+    "hash": "8f0c4e1fa69b0cfb",
     "questions": [
       "What features are planned for Novis?",
-      "Will Novis get a package manager?",
-      "Will Novis get a debugger?",
+      "What comes after the current Novis release?",
+      "Is there a public plan for future Novis versions?",
       "What is the Novis team working on now?",
       "Is there a release date for the next feature?"
     ]
@@ -942,7 +943,7 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "7df4216279efb84c",
+    "hash": "639dedd5d5abbfd0",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",
@@ -973,6 +974,17 @@
       "Why does nvs warn that it cannot use its data folder?",
       "Set folder permissions for Novis on Windows with icacls",
       "Check config file owners for the account my service runs as"
+    ]
+  },
+  "/licenses/": {
+    "feature": "licenses.mdx",
+    "hash": "dc7a2e95f3f1ea14",
+    "questions": [
+      "What license is Novis released under?",
+      "Which open source libraries are inside nvs?",
+      "Where can I read the third-party licenses of nvs?",
+      "Which fonts does the Novis website use?",
+      "Is the Novis source code free to use?"
     ]
   },
   "/reference/": {
@@ -17398,6 +17410,17 @@
       "Read comments from a parsed XML or HTML document",
       "Which kinds of nodes can a parsed document contain?",
       "Walk all nodes of an HTML document the same way as XML"
+    ]
+  },
+  "/security/": {
+    "feature": "security.mdx",
+    "hash": "01d6332ccf3fe648",
+    "questions": [
+      "How do I report a security bug in Novis?",
+      "Where do I send a vulnerability report privately?",
+      "How fast does the Novis team reply to a security report?",
+      "Does Novis publish security advisories?",
+      "Am I credited when I report a vulnerability?"
     ]
   },
   "/sponsoring/": {

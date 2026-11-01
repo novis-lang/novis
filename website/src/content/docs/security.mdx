@@ -1,0 +1,38 @@
+---
+title: Security
+covers: []
+description: How to report a security problem in Novis, and what happens after you report it.
+template: splash
+tableOfContents: false
+---
+
+import { githubFile } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+
+export const REPORT = 'https://github.com/novis-lang/novis/security/advisories/new'
+export const POLICY = githubFile('SECURITY.md')
+
+If you find a security problem in Novis, report it privately. Do not open a public issue.
+
+## How to report a problem
+
+Use the form <a href={REPORT} {...externalLinkAttrs(REPORT)}>Report a vulnerability</a> on GitHub.
+Only the Novis team can read what you send there.
+
+A report helps most when it contains these things:
+
+- the version of `nvs`, which `nvs --version` prints
+- a short program that shows the problem
+- what you expected, and what happened
+
+## What happens next
+
+The team replies within 3 days. Within 10 days, you get a first assessment of the problem.
+
+Each security fix gets a public advisory on GitHub. The advisory names the versions with the problem
+and the release with the fix. It names you as the reporter, unless you want to stay anonymous.
+
+## The full policy
+
+The file <a href={POLICY} {...externalLinkAttrs(POLICY)}>SECURITY.md</a> has the full policy. It
+says which versions get security fixes, and how long a report stays private.

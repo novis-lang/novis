@@ -1,0 +1,45 @@
+---
+title: Licenses
+covers: []
+description: The license of Novis, the licenses of the code inside nvs, and the fonts of this website.
+template: splash
+tableOfContents: false
+pagefind: false
+---
+
+import { githubFile } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+import FontLicense from '@components/FontLicense.astro'
+
+export const LICENSE = githubFile('LICENSE')
+export const NOTICES = githubFile('THIRD-PARTY-LICENSES.txt')
+
+## Novis
+
+Novis is open source under the MIT license. The full text is in the file
+<a href={LICENSE} {...externalLinkAttrs(LICENSE)}>LICENSE</a>.
+
+## Code from other projects
+
+`nvs` contains code from other open source projects. Each copy of `nvs` contains their licenses.
+This command prints them:
+
+```sh
+nvs info --licenses
+```
+
+The release archives and the Docker image also contain the file
+<a href={NOTICES} {...externalLinkAttrs(NOTICES)}>THIRD-PARTY-LICENSES.txt</a>, with the same text.
+
+## Fonts on this website
+
+This website uses two fonts. Both are under the SIL Open Font License 1.1. The fonts are part of
+the website only, not of `nvs`.
+
+### Plus Jakarta Sans
+
+<FontLicense pkg="@fontsource-variable/plus-jakarta-sans" />
+
+### JetBrains Mono
+
+<FontLicense pkg="@fontsource-variable/jetbrains-mono" />

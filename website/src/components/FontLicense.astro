@@ -1,0 +1,29 @@
+---
+/**
+ * The license text of one self-hosted font, read at build time from the
+ * `LICENSE` its `@fontsource-variable/*` package ships, so the licenses page
+ * never drifts from the font the site serves. Node's resolver finds the file
+ * through the package's `exports`, which name `./LICENSE`. A Vite `?raw`
+ * import does not work here: the build leaves a package import to Node,
+ * which loads the text as a module.
+ */
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+
+interface Props {
+  /** The font's package, such as `@fontsource-variable/jetbrains-mono`. */
+  pkg: string
+}
+
+const { pkg } = Astro.props
+const text = readFileSync(createRequire(import.meta.url).resolve(`${pkg}/LICENSE`), 'utf8')
+---
+
+<pre class="font-license">{text}</pre>
+
+<style>
+  .font-license {
+    white-space: pre-wrap;
+    font-size: var(--sl-text-xs);
+  }
+</style>
