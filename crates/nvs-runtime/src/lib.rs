@@ -305,7 +305,7 @@ pub use ctx::{
     FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, FaultSite, Frame, FrameRecord,
     Frames, HOLD_PIECE, HOT_LINE_BYTES, HeldChild, HeldConnection, HeldReader, HeldSocket,
     HeldValue, HttpAnswer, HttpSent, Inbound, InboundSpec, LateInit, LateInitCall, Limit,
-    LogChannel, LogWriter, OnDeprecated, OpenSpawn, OutputSink, PlacedIsolate, ProfileFormat,
+    LogChannel, LogWriter, NATIVE_STEP_ROOM, OnDeprecated, OpenSpawn, OutputSink, PlacedIsolate, ProfileFormat,
     ProfileTrack, Profiler, QuerySites, RequestBody, Returned, RunKind, SAFEPOINT_OFFSET,
     SPAN_EVENT_CEILING, SPEEDSCOPE_SCHEMA, STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE,
     STATICS_OFFSET, SafepointFlags, SafepointView, Scheme, Session, Settled, SiteTable,

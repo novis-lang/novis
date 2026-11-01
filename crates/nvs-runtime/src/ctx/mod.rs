@@ -1912,6 +1912,14 @@ pub const STACK_CEILING: usize = 8 << 20;
 /// allocates no further calls cannot cross the floor.
 pub const STACK_RESERVE: usize = 256 << 10;
 
+/// The stack [`Ctx::native_stack_step`] keeps above the hard floor: room for
+/// one native step's frame and for the fault that ends the request.
+///
+/// 64 KiB, a quarter of [`STACK_RESERVE`], so the native threshold sits inside
+/// the reserve and below the soft address compiled code throws at. The largest
+/// native step today is a JSON decode level, about 8 KiB in a debug build.
+pub const NATIVE_STEP_ROOM: usize = 64 << 10;
+
 /// Which of `rule:errors/on-limit`'s resource limits stopped the request, as the tier-1 handler is told it.
 ///
 /// The rule spells that handler's parameter `LimitReport`, and this is what the

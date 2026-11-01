@@ -35,6 +35,31 @@ impl Ctx {
         (self.stack_limit, self.stack_floor)
     }
 
+    /// Whether native code may take one more recursive step: an `Err` with
+    /// the [`crate::FATAL`] [`nvs_stack_check`] gives below the floor, once the
+    /// stack pointer is within [`NATIVE_STEP_ROOM`] of the hard floor.
+    ///
+    /// A native recursion — a walk over a value whose depth the request picks —
+    /// runs no compiled prologue on its way down, so nothing else compares its
+    /// depth with `rule:errors/on-limit`'s pair. Each such walk calls this
+    /// before it goes one level deeper. It is a fatal and not a catchable
+    /// `Recursion`, because a native walk has no catch point of its own to
+    /// unwind to, and the room under it is the walk's own frame and the fault.
+    ///
+    /// What it costs: one register read, one load and one compare per step.
+    ///
+    /// # Errors
+    ///
+    /// The fatal above, when the next step could reach the floor.
+    pub fn native_stack_step(&self) -> Result<(), crate::Fault> {
+        if stack_pointer() < self.stack_floor.saturating_add(NATIVE_STEP_ROOM) {
+            return Err(crate::Fault::fatal(
+                "the request exceeded its call-stack limit",
+            ));
+        }
+        Ok(())
+    }
+
     /// The pending safepoint requests — one relaxed load of the word this
     /// request tree shares, which is where every reader on this side goes.
     /// Only compiled code follows [`Ctx`]'s raw address of it.
