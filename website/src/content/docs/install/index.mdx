@@ -50,10 +50,10 @@ The file <a href={sums.url}><code>{sums.file}</code></a> has the checksum of eac
 2. Copy `nvs` to a folder that is on your `PATH`, as step 4 of
    [Build from source](#build-from-source) shows.
 
-3. Check that it runs. The first line of the output is the version.
+3. Check that it runs. The command prints the version of `nvs`.
 
    ```sh
-   nvs --help
+   nvs --version
    ```
 
 </Steps>
@@ -105,22 +105,22 @@ compiler.
    cargo build --release -p nvs-cli
    ```
 
-3. Check that it runs. The first line of the output is the version.
+3. Check that it runs. The command prints the version of `nvs`.
 
    <Tabs syncKey="os">
    <TabItem label="Windows">
    ```powershell
-   .\target\release\nvs.exe --help
+   .\target\release\nvs.exe --version
    ```
    </TabItem>
    <TabItem label="Linux">
    ```sh
-   ./target/release/nvs --help
+   ./target/release/nvs --version
    ```
    </TabItem>
    <TabItem label="macOS">
    ```sh
-   ./target/release/nvs --help
+   ./target/release/nvs --version
    ```
    </TabItem>
    </Tabs>
