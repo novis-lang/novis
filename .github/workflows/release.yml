@@ -257,8 +257,12 @@ jobs:
     if: ${{ !cancelled() && !inputs.dry_run && needs.plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     environment: release
+    # `contents` pushes the tag and drafts the release. The other two are for the attestation of
+    # `SHA256SUMS`, as in `build`, and for nothing else.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -362,6 +366,13 @@ jobs:
           rm -f ./*.sha256
           sha256sum nvs-* > SHA256SUMS
           cat SHA256SUMS
+
+      # `build` attests each archive, and this attests the list of their digests, so a user
+      # checks `SHA256SUMS` with the same `gh attestation verify` as an archive.
+      - name: Attest the checksums
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/SHA256SUMS
 
       - name: Draft the release
         env:

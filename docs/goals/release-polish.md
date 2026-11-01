@@ -22,7 +22,7 @@ stages:
     context: [tools/nv/cmd/gen-attribution.ts, editors/vscode/.vscodeignore, tools/nv/test/attribution-extensions.test.ts, docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md]
   - id: 5
     title: "CI checks every lockfile and pins every download, and the release attests its checksums"
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, deny.toml, .github/workflows/release.yml, tools/nv/cmd/ci.ts, docs/rules/testing/ci-lanes.md]
   - id: 6
     title: "the editor extension reads as a published package, and the tools share one error helper"
@@ -422,15 +422,15 @@ table lists every command the binary has.
 **Does:** nothing CI downloads runs unchecked, every lockfile in the tree is audited, and a user can
 verify `SHA256SUMS` like the archives.
 
-- [ ] `supply-chain` runs cargo-deny over the root and the four extension manifests. `rule:testing/ci-lanes`, `.github/workflows/ci.yml:986`, `.github/workflows/ci.yml:1000`
-- [ ] `PRE_PUSH` gets one advisories entry per extension manifest. `tools/nv/cmd/ci.ts:103`, `tools/nv/cmd/ci.ts:110`
-- [ ] `deny.toml`: the four new targets, the MPL-2.0 comment, and no cranelift exception. `deny.toml:7`, `deny.toml:58`, `deny.toml:65`
-- [ ] Any advisory the four `deny-*` checks name is fixed or ignored with a reason and a date. `deny.toml:22`, `extensions/image/Cargo.lock:1`, `extensions/intl/Cargo.lock:1`, `extensions/pdf/Cargo.lock:1`, `extensions/spreadsheet/Cargo.lock:1`
-- [ ] The wasi-sdk tarball is checked against a pinned SHA256 per leg. `.github/workflows/ci.yml:671`, `.github/workflows/ci.yml:709`
-- [ ] `cargo-fuzz` at an exact version. `.github/workflows/ci.yml:1234`
-- [ ] The push trigger names `main` alone. `.github/workflows/ci.yml:5`
-- [ ] `SHA256SUMS` is attested in `publish`. `.github/workflows/release.yml:260`, `.github/workflows/release.yml:363`
-- [ ] The test the `supply-chain-coverage` check runs: it globs every `Cargo.lock`, and fails naming one that `ci.yml` or `PRE_PUSH` does not cover, or a `build.yml` target `deny.toml` does not list. `tools/nv/test/supply-chain.test.ts:1`
+- [x] `supply-chain` runs cargo-deny over the root and the four extension manifests. `rule:testing/ci-lanes`, `.github/workflows/ci.yml:986`, `.github/workflows/ci.yml:1000`
+- [x] `PRE_PUSH` gets one advisories entry per extension manifest. `tools/nv/cmd/ci.ts:103`, `tools/nv/cmd/ci.ts:110`
+- [x] `deny.toml`: the four new targets, the MPL-2.0 comment, and no cranelift exception. `deny.toml:7`, `deny.toml:58`, `deny.toml:65`
+- [x] Any advisory the four `deny-*` checks name is fixed or ignored with a reason and a date. `deny.toml:22`, `extensions/image/Cargo.lock:1`, `extensions/intl/Cargo.lock:1`, `extensions/pdf/Cargo.lock:1`, `extensions/spreadsheet/Cargo.lock:1`
+- [x] The wasi-sdk tarball is checked against a pinned SHA256 per leg. `.github/workflows/ci.yml:671`, `.github/workflows/ci.yml:709`
+- [x] `cargo-fuzz` at an exact version. `.github/workflows/ci.yml:1234`
+- [x] The push trigger names `main` alone. `.github/workflows/ci.yml:5`
+- [x] `SHA256SUMS` is attested in `publish`. `.github/workflows/release.yml:260`, `.github/workflows/release.yml:363`
+- [x] The test the `supply-chain-coverage` check runs: it globs every `Cargo.lock`, and fails naming one that `ci.yml` or `PRE_PUSH` does not cover, or a `build.yml` target `deny.toml` does not list. `tools/nv/test/supply-chain.test.ts:1`
 
 ### 6. the editor extension reads as a published package, and the tools share one error helper
 
@@ -473,42 +473,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4's last item landed in `b18180903`: `attribution` is green and
-`vsix-notices` passes 5 of 5. The tools' `tsc` and `rules --check` are green too.
+Stages 1 to 5 are done. Stage 5 landed in one commit. `supply-chain-coverage` passes 3 of 3, and
+`cargo deny check` passes over the root and the four extension manifests, so the four `deny-*`
+checks are green. No new advisory needed an ignore. The tools' `tsc` is clean.
 
-- `editors/vscode/licenses/speedscope/` has 54 packages. They are the 36 npm packages that the
-  `v1.25.0` tag's `src/` reaches outside its tests, plus the 18 crates jfrview's wasm reaches in its
-  `v0.2.0` `Cargo.lock`. `bundledPackages` reads the folder. It stops on a speedscope version drift,
-  a missing file, a file no entry names, or a text `classify` does not know. `addTexts` is
-  `addPackage` without the directory read. The extension's notice now lists 65 components.
-- Five texts are written from what the package does say, and `SOURCE.json`'s `text` names each
-  source. Those packages are aphrodite, isarray, string-hash, uint8array-json-parser and pako's Zlib half.
-- ci-green asked for three pre-push fixes, and all three are in: the packaging chapter render (it
-  went into ci-green's `b6b4fbdb8`), `nvs cache`'s proofs (`03c2995e0`, with `e423fdbe6` for its
-  `about.md`), and the three pages' questions and stamp (`041b00ad2`, `a6ef88c92`). After these,
-  `bun nv ci --check` is green.
-- The `nvs cache` attack is `tests/hostile/tools/cli/nvs-cache/01-a-cache-folder-with-forged-entries.nvs`,
-  and `compile_cache.rs::cache_clear_deletes_only_entries_from_a_folder_with_forged_ones` runs it.
-  It passed once, by name.
+- Items 1 and 2 were already on disk: `ci.yml`'s `supply-chain` job runs cargo-deny on all nine
+  lockfiles, and `PRE_PUSH` maps `LOCKFILE_DIRS` (`tools/nv/cmd/ci-changes.ts:39`). They are ticked.
+- `release.yml`'s `publish` had no attestation. The last handoff's `release.yml:422` was the
+  `docker` job. `publish` now has `id-token` and `attestations`, and an `Attest the checksums` step
+  after `Checksums`, at the SHA `build.yml:222` pins.
+- `deny.toml` lists the six `build.yml` targets plus `wasm32-wasip2`. The MPL-2.0 comment names
+  `avif-parse` (image) and `cssparser`, `cssparser-macros`, `dtoa-short`, `selectors` (pdf). The
+  cranelift exception is gone.
+- The wasi-sdk digests are GitHub's own asset digests for `wasi-sdk-34`. The step uses `sha256sum`
+  or, on macOS, `shasum -a 256`. Neither has run in CI yet: read the first `ext templates` run.
+- `cargo-fuzz` is pinned at `0.13.2`, the newest on crates.io. The push trigger names `main` alone.
+- `tools/nv/test/supply-chain.test.ts` reads tracked lockfiles with `git ls-files`, and parses the
+  workflows with `Bun.YAML` and `deny.toml` with `Bun.TOML`.
 
-The sweep's nightly reds are the ones the last handoff called stale (run 41187571578 on `857b39cad`).
-`env-secret-proofs` still has no definition in the tree and no log.
+The sweep's reds are stale: run 41187571578 is on `857b39cad`, 227 commits back, and
+`env-secret-proofs` has no definition in the tree and no log.
 
 ### Next
 
-Stage 5. Several items look done on disk already: `ci.yml:1022-1059` runs cargo-deny once per
-manifest, `PRE_PUSH` has an advisories entry per extension (`tools/nv/cmd/ci.ts:111`), and
-`release.yml:422` gives `publish` the attestation permissions. Read each item against the tree
-first, and tick the done ones with a note, as Standing decisions say.
+Stage 6. Read each item against the tree first; tick what an earlier goal already did.
 
-- [ ] Read items 1, 2 and 8 against `ci.yml:1022`, `tools/nv/cmd/ci.ts:104` and `release.yml:363-424`, and tick what is there. `.github/workflows/ci.yml:1022`
-- [ ] `deny.toml`: the four targets, the MPL-2.0 comment, no cranelift exception, then the four `deny-*` checks. `deny.toml:7`
-- [ ] The wasi-sdk digest per leg, in a `wasi-sdk-sha256` matrix field. `.github/workflows/ci.yml:693`, `.github/workflows/ci.yml:727`
-- [ ] `cargo-fuzz` at an exact `--version`, and the push trigger names `main` alone. `.github/workflows/ci.yml:1329`, `.github/workflows/ci.yml:5`
-- [ ] `tools/nv/test/supply-chain.test.ts`, the `supply-chain-coverage` check. `tools/nv/test/supply-chain.test.ts:1`
+- [ ] The extension's README in user prose, then `keywords`, `bugs` and the one-paragraph CHANGELOG. `editors/vscode/README.md:8`, `editors/vscode/package.json:14`
+- [ ] `holds` to `holds.json` beside each `package.json`; `bun nv deps` reads it; `.vscodeignore` and `docs/agent/dependency-update.md:43`. `tools/nv/cmd/deps.ts:25`, `tools/nv/cmd/deps.ts:160`
+- [ ] `eslint.config.mjs` with `defineConfig`, no `semi`; then `npm run lint` in `editors/vscode`. `editors/vscode/eslint.config.mjs:4`
+- [ ] Bun's pin to `packageManager`, `engines.bun` a range; look up `setup-bun`'s `bun-version-file` first. `package.json:9`
+- [ ] `messageOf` in `tools/nv/lib/proc.ts`, every copy calls it; `calibration.json` deleted; the two shell scripts. `tools/nv/cmd/bench-docker.ts:11`, `tools/leak-check.sh:11`
 
-Its checks are `supply-chain-coverage` and the four `deny-*`. No test is expected to go red.
-`nv selftest` runs `attribution-vscode.test.ts`, which needs `npm ci` in `editors/vscode` on a fresh clone.
+Its checks are `editor-lint`, `editor-prose` and `deps-tests`. `deps.test.ts` is expected to go red
+until it reads holds from `holds.json`. Stage 7 touches only crates and may follow in the same
+session if the budget allows.
 
 ### Backlog
 

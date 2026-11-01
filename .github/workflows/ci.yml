@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   pull_request:
   workflow_dispatch:
   # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
@@ -691,12 +691,15 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-latest
             wasi-sdk: x86_64-linux
+            wasi-sdk-sha256: b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4
           - name: windows-x86_64
             os: windows-latest
             wasi-sdk: x86_64-windows
+            wasi-sdk-sha256: cccb5c323a9b34f0349a9b09e8804a0a7632c68c3310f4b5f437ed57d7e71d8f
           - name: macos-aarch64
             os: macos-latest
             wasi-sdk: arm64-macos
+            wasi-sdk-sha256: 9c59398106b417f8f14913380fdf0097a8cc0ff4af9eb3ce0065a859e88d49e9
     env:
       WASI_SDK_VERSION: '34'
       NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ matrix.os == 'windows-latest' && '.exe' || '' }}
@@ -723,13 +726,18 @@ jobs:
         run: bun nv checkout-acl
 
       # The C template's two tools, as its README tells an author to install them. tar runs inside
-      # the folder because GNU tar reads `D:` in a Windows path as a remote host.
+      # the folder because GNU tar reads `D:` in a Windows path as a remote host. Each leg's
+      # tarball is checked against the SHA256 its matrix row pins, so a replaced asset fails the
+      # step before it runs. Raising `WASI_SDK_VERSION` raises the three digests with it. macOS
+      # has `shasum` where the other runners have `sha256sum`.
       - name: wasi-sdk
         shell: bash
         run: |
           cd "$RUNNER_TEMP"
           curl -fsSL -o wasi-sdk.tar.gz \
             "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}.tar.gz"
+          if command -v sha256sum > /dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+          echo "${{ matrix.wasi-sdk-sha256 }}  wasi-sdk.tar.gz" | $sum -c -
           tar -xzf wasi-sdk.tar.gz
           echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}" >> "$GITHUB_ENV"
       - name: wit-bindgen
@@ -1326,7 +1334,7 @@ jobs:
           workspaces: fuzz -> target
           save-if: ${{ matrix.leg == 1 }}
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
       # The key carries the run id so every night saves a new entry, and the prefix restores the
       # newest one that exists — the accumulate-forever shape, not the write-once shape. A leg's
       # entry is the corpus of its own five targets.
