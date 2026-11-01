@@ -103,6 +103,15 @@ diagnostics, and log or dump records sent to a named target are not the response
 uncharged: memory bounds the headers, and each sink has its own bound. Cost: one add and one compare
 per streamed write.
 
+**Where the stack helper cannot be asked.** `Ctx::native_stack_step` reads the bounds of the task
+stack the context was armed for. A walk that runs on another stack, such as JSON's spare stack, or
+that has no `Ctx` and no error type for a fatal, such as the value-graph walk, keeps its format cap.
+That cap must be shown to fit by a test or by its size. Threading a `Ctx` through the graph's carriers
+to guard a cap of 256 was declined: it spends simplicity for no depth a request can reach. The helper
+refuses at `NATIVE_STEP_ROOM` (64 KiB) above the floor, inside the reserve, with the fatal compiled
+code gives at the floor. A native walk has no catch point of its own, so it is never a catchable
+`Recursion`.
+
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
 
@@ -144,25 +153,31 @@ left. `bounded_loop` (`crates/nvs-runtime/src/abi.rs:386`) has two callers, `Cor
 
 ### 2. native recursion checks the stack before it goes deeper
 
-- [ ] The stack helper in `nvs-runtime`, by the standing decision. `crates/nvs-runtime/src/ctx/safepoint.rs:1216`
-- [ ] The test `native_recursion_past_the_stack_ends_the_request_and_not_the_process`, which drives
+- [x] The stack helper in `nvs-runtime`, by the standing decision: `Ctx::native_stack_step` and
+  `NATIVE_STEP_ROOM` (`crates/nvs-runtime/src/ctx/safepoint.rs:54`).
+- [x] The test `native_recursion_past_the_stack_ends_the_request_and_not_the_process`, which drives
   one listed recursion past the stack. Run once by name.
-- [ ] Each recursion stage 1 listed asks the helper:
-  - `Core\Router`'s `$params` walk, `written_form` (`crates/nvs-stdlib/src/router.rs:1657`). It has no
-    cap, and a nested array from `Core\Uri::parseQuery` can drive it about 5k levels deep. The test
-    above drives this one.
-  - `Core\Json::decode` and `decodeAs` (`crates/nvs-stdlib/src/json.rs:1953`, `json.rs:2894`). serde_json's
-    own limit is off and the cap is 512, up to 1024. A debug frame is about 8 KiB, so a text under
-    `IN_PLACE_BYTES` that runs on the task stack can end it before the cap.
-  - The value-graph walk and read behind serialize, cache and session (`crates/nvs-runtime/src/graph.rs:251`,
-    `graph.rs:983`). Cap 256, which fits; the helper is the guard if a frame grows.
-  - `Core\Debug`'s record walk (`crates/nvs-runtime/src/record.rs:182`). Its depth cap is a setting,
-    default 8, so a program's own setting picks the depth.
-- [ ] The third-party recursions take an explicit limit, written beside the call: `regex`'s
-  `nest_limit` (`crates/nvs-stdlib/src/regex.rs:1371`, default 250 today) and ciborium's recursion limit
-  for passkey attestation (`crates/nvs-stdlib/src/passkey.rs:844`, `passkey.rs:925`). Read each crate's
-  installed version for its default first.
-- [ ] An attack step per listed recursion that a `.nvs` file can reach, ending at `FATAL`.
+- [x] Each recursion stage 1 listed asks the helper, or is closed by the standing decision *Where the
+  stack helper cannot be asked*:
+  - [x] `Core\Router`'s `$params` walk, `written_form` (`crates/nvs-stdlib/src/router.rs`). It asks
+    at every level. The test above drives it.
+  - [x] `Core\Json::decode` and `decodeAs` (`json.rs:1966`, `json.rs:2885`): closed. A text of at most
+    `IN_PLACE_BYTES` nests at most 64 deep, and two tests show that fits the reserve. A longer text
+    runs on the spare stack, whose bounds the context does not hold.
+  - [x] The value-graph walk and read (`crates/nvs-runtime/src/graph.rs:251`, `graph.rs:983`): closed.
+    Cap 256, no `Ctx` in scope, and `GraphError` cannot carry a fatal.
+  - [x] `Core\Debug`'s record walk (`crates/nvs-runtime/src/record.rs:182`): closed. The survey was
+    wrong: its depth is `Caps::default()`'s constant 8, never a setting.
+- [x] The third-party recursions take an explicit limit, written beside the call: `regex`'s
+  `NEST_LIMIT` 250 (`crates/nvs-stdlib/src/regex.rs`, regex-syntax 0.8's default) and `CBOR_DEPTH` 16
+  for the passkey reader's three CBOR reads (ciborium 0.2.2's default is 256).
+- [ ] An attack step per listed recursion that a `.nvs` file can reach, ending at `FATAL`. Only the
+  router walk is left: a `$params` nested from `Core\Uri::parseQuery` and passed to
+  `Core\Router::urlSigned`.
+  - [ ] Find `parseQuery`'s own nesting cap. If it stops below the depth that reaches the floor in a
+    release build (about 768 KiB over the walk's frame), build the nesting in the program instead.
+  - [ ] Write the step under `tests/hostile/`, ending at `FATAL`, and run it once with
+    `bun nv proofs --only 'Core\Router::urlSigned'`.
 
 The other recursions have a format cap that fits the stack and stay as they are: XML 1024 iterative,
 HTML 1024 and html5ever 512, signature 32, `assertEqualsDeep` 64, the database schema 16, the LDAP
@@ -248,21 +263,25 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 1 is done. Its three readers' lists are now the items of stages 2, 3 and 4, with each site's
-anchor, and the survey's findings sit under stage 1. One design call was recorded under Standing
-decisions: the output limit counts the response body, wherever it is written.
+Stage 2 is done but for its attack step. `Ctx::native_stack_step` (`crates/nvs-runtime/src/ctx/safepoint.rs:54`)
+refuses with the call-stack fatal at `NATIVE_STEP_ROOM` above the floor. `Core\Router`'s `written_form`
+asks it at every level. The named test passed when run once. The regex and CBOR parsers take explicit
+nesting limits. JSON, the value graph and the debug record were closed by the new standing decision
+*Where the stack helper cannot be asked*. The survey's claim that the record depth is a setting was
+wrong.
 
-The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`. Its browser job is
-fixed by `39795c9c4`, and its seven Miri timeouts by `8ce92dda5`. `proofs / linux-x86_64` and `asan`
-are green on push run 41250387116. `env-secret-proofs` has no definition in the tree.
+The acceptance sweep's reds are stale, as the last handoff said. Nightly run 41187571578 ran on
+`857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` still has no definition
+in the tree, and no log was written for it.
 
-**Tests expected to go red:** none. This session changed only the goal file.
+**Tests expected to go red:** a passkey test whose fixture CBOR nests deeper than 16, if one exists.
+None is known.
 
 ### Next
 
-Stage 2: the stack helper in `nvs-runtime`, beside `nvs_stack_check` (`crates/nvs-runtime/src/ctx/safepoint.rs:1216`).
-Next the test `native_recursion_past_the_stack_ends_the_request_and_not_the_process`, driving
-`Core\Router`'s `written_form` (`crates/nvs-stdlib/src/router.rs:1657`), then the other listed sites.
+Stage 2's last item: the router attack step, with its two checkpoints under the item. Read
+`Core\Uri::parseQuery`'s nesting cap first (`crates/nvs-stdlib/src/uri.rs`), and copy an existing
+`urlSigned` program's keyring setup from `docs/examples/`. Then close stage 2 in the front matter.
 Stages 3 and 4 touch disjoint files and may run as side goals.
 
 ### Backlog
