@@ -25,6 +25,8 @@ crates/nvs-cli/src/package/pack.rs  "../a.txt"  --  a `files` line a pure functi
 crates/nvs-cli/tests/package_fetch.rs  "echo Core\\IO::readText('../data/../../../../secret.txt');"  --  Novis source written into a scratch package, whose read the compiler is expected to refuse
 crates/nvs-diagnostics/src/paths.rs  "../etc/nvs.toml"  --  a path a pure function normalizes lexically, never opened
 crates/nvs-diagnostics/src/paths.rs  "../b"  --  a path a pure function normalizes lexically, never opened
+crates/nvs-diagnostics/src/paths.rs  "a/../../b"  --  a path a pure function normalizes lexically, never opened
+crates/nvs-diagnostics/src/paths.rs  "./../x"  --  a path a pure function normalizes lexically, never opened
 crates/nvs-diagnostics/src/paths.rs  "../../x"  --  a path a pure function normalizes lexically, never opened
 crates/nvs-diagnostics/src/paths.rs  "../x"  --  a path a pure function normalizes lexically, never opened
 crates/nvs-config/tests/capability.rs  "../escape.txt"  --  judged against a grant of `.`, expected to be refused, never opened

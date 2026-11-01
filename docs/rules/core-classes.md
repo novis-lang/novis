@@ -3344,8 +3344,11 @@ the way `[image] max_pixels` does, clamped by the host before the call. Every `C
 the part, the half of the bound that stopped it and the key that raises that half, and names no
 rule: a program's caller reads it, and has no way to call with a lower bound. The PDF component's
 `Reader::open`, `Reader::text` and `Pages::merge` decode every stream under both bounds, and the
-attachments `Reader::open` holds count together against the ceiling. Their message has the
-spreadsheet reader's shape. A stream's decode stops as its output grows, in the repository's patched
+attachments `Reader::open` holds count together against the ceiling. `Document::render` decodes a
+PDF file the document places as an image under both bounds too, from the layout through the write
+of the file, since the writer decodes the placed page's content to copy it. The host clamps the
+bound in the render's options, as it does a reader's. Their message has the spreadsheet reader's
+shape. A stream's decode stops as its output grows, in the repository's patched
 `hayro-syntax` (`vendor/hayro-syntax`), and an image's pixels are bounded by its dimensions instead.
 
 A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
