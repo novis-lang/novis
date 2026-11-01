@@ -268,17 +268,15 @@ of 55 jobs green, `ext templates` on all three OSes among them. Its three reds:
   So the late stop is in the sweep: `next_wait` (`crates/nvs-host/src/watchdog.rs:1420`), the
   `Charge` base (`watchdog.rs:311`), or how a lowered ceiling reaches the walk (`watchdog.rs:1325`).
 
-Round 2 is out: `main` pushed at `32349c25b`, and the full run `41304025616` is going on it. A
-`bun nv ci --watch --past "proofs / macos-aarch64"` waits on it in the background.
+Round 2's full run `41304025616` on `32349c25b` ended with 54 of 55 green, both Miri shards included.
+Its one red is `proofs / macos-aarch64`, now one attack: `limits-fatal_reserve_time/01`, 129 ms over.
 `env-secret-proofs`, which the sweep names, has no definition in the tree: a stale driver check.
 
 ### Next
 
-Stage 2, round 2. Do not push while run `41304025616` is going.
+Stage 2, round 3. No run is going, so a push is free.
 
-- [ ] Read the watch's report. On a new red while the run goes on, start the watch again with one more `--past "<that job>"`. `tools/nv/cmd/ci.ts:356`
 - [ ] Find why macOS stops a lowered CPU limit late, though its clock reads with no lag. Compare a macOS run's sweep timing with Linux's. `crates/nvs-host/src/watchdog.rs:1420`
-- [ ] Once run `41304025616` ends, `bun nv ci --status`; each red job's log to a `reader` subagent; list the reds here by cause. `.github/workflows/ci.yml:1`
 - [ ] Fix every cause, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
