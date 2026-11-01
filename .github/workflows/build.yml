@@ -10,8 +10,8 @@
 #
 #   * No version bump and no notes. The binary prints `X.Y.Z+dev (commit …)`, the archives are
 #     `nvs-dev-<name>.*` and the extension is `nvs-dev.vsix`.
-#   * No Rust cache. The repository's cache is 10 GB, shared by every workflow, and `ci.yml`'s
-#     entries already fill it. Six release targets would save about 1 GB each per push, and every
+#   * No Rust cache. The repository's cache is 15 GB, shared by every workflow, and `ci.yml`'s
+#     entries already fill most of it. Six release targets would save about 1 GB each per push, and every
 #     one would push out an entry a test leg needs. A dev build pays for cold release builds
 #     instead, after its CI run, so they cost CI nothing.
 #   * No provenance attestation. The dev build grants this file `contents: read` alone, and a

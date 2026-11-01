@@ -56,10 +56,13 @@ concurrency:
 # bill; they are not a performance budget. A job that starts timing out is a regression to
 # investigate, never a number to raise here without one.
 #
-# The repository's Actions cache holds 10 GB, and GitHub evicts the least recently used entry past
-# that, so every Rust cache a job saves can push a slower job's cache out. The entries below are
-# the ones that fit, about 9.4 GB together, and each is one a cold build would make the run longer
-# without. A job that builds what one of them holds reads it through the same `shared-key` and
+# The repository's Actions cache holds 15 GB, and GitHub evicts the least recently used entry past
+# that, so every Rust cache a job saves can push a slower job's cache out. GitHub's first 10 GB are
+# free, and the organization pays $0.07 per GiB a month for the rest. The limit is set on the
+# organization and on the repository with `gh api -X PUT <owner>/actions/cache/storage-limit -F
+# max_cache_size_gb=<n>`, where `<owner>` is `orgs/novis-lang` or `repos/novis-lang/novis`. The
+# entries below are the ones that fit, about 11.8 GB together, and each is one a cold build would
+# make the run longer without. A job that builds what one of them holds reads it through the same `shared-key` and
 # saves nothing (`save-if: false`). The readers restore the entry the last run on `main` saved,
 # so no job waits for another inside a run.
 #
@@ -1312,7 +1315,7 @@ jobs:
   #
   # Three legs of five targets each, run one after another, and one Rust cache for all three. A leg
   # per target took fifteen of the run's twenty concurrent job slots and saved fifteen copies of
-  # the same `fuzz` build, 307 MB each, into the repository's 10 GB cache, where they evicted the
+  # the same `fuzz` build, 307 MB each, into the repository's cache, where they evicted the
   # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is 25 minutes
   # of fuzzing on top of its build. Only the first leg saves the cache the three restore.
   # ---------------------------------------------------------------------------
