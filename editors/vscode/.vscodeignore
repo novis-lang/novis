@@ -12,5 +12,7 @@ node_modules/**
 **/eslint.config.mjs
 **/.eslintrc.json
 .gitignore
+holds.json
+DEVELOPING.md
 .nvmrc
 *.vsix

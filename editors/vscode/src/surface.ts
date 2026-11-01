@@ -13,7 +13,7 @@
 // on the user's screen without the user asking, which is exactly what
 // `rule:ide/reveal-is-explicit-and-window-local` reserves for the person at the keyboard. So the
 // readings below are plain values copied out at the moment they are asked for, holding no editor, no
-// decoration type, no status item and no client. The README's § *Decided here* is where that is
+// decoration type, no status item and no client. `DEVELOPING.md` § *Decided here* is where that is
 // recorded.
 
 import { LanguageStatusSeverity, Range, TreeDataProvider, ViewColumn } from "vscode";

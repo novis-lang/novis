@@ -3,7 +3,7 @@
 // `src/concealment.ts` imports no `vscode`, which is what lets this run in the headless tier the
 // unattended loop gates on (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
 // What is left in `src/redactions.ts` once this file has run is position conversion and a call to
-// `setDecorations`, and the extension's README § *Decided here* records why no tier drives that.
+// `setDecorations`, and the extension's `DEVELOPING.md` § *Decided here* records why no tier drives that.
 //
 // The two security properties under test are `rule:ide/reveal-is-explicit-and-window-local` —
 // one range, this window, gone when the editor closes — and the fail direction of
