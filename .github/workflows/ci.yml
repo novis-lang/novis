@@ -479,7 +479,11 @@ jobs:
 
       - run: cargo build --profile proof --bin nvs
 
+      # Two programs at a time on every leg. The default is half the runner's cores, and one image
+      # comes with 3 or 5 cores, so the same commit was judged at a different load from run to run.
       - name: Feature proofs
+        env:
+          NVS_PROOF_JOBS: '2'
         run: bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
       # The PDF/A-2b, PDF/A-3b and PDF/UA-1 files the same binary writes, checked by veraPDF's image,
