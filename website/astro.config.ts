@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import sitemap from '@astrojs/sitemap'
 import { SITE_URL, SITE_TITLE, SITE_DESCRIPTION, GITHUB_URL, DISCORD_URL, INSTALL } from './config/site.mjs'
 import { baseLinks } from './config/base-links.mjs'
 import { externalLinks } from './config/external-links.mjs'
@@ -45,6 +46,13 @@ const coreSidebar = core.classes.map((cls) => ({
   ],
 }))
 
+/** The pages the sitemap leaves out: each one is `noindex` in its front matter. */
+const NOINDEX = ['/impressum/', '/datenschutz/']
+
+/** The link preview image, absolute because a preview reads it from another host. */
+const SOCIAL_IMAGE = new URL(`${(process.env.ASTRO_BASE ?? '').replace(/\/+$/, '')}/social.png`, SITE_URL).href
+const SOCIAL_IMAGE_ALT = `The ${SITE_TITLE} logo and the name ${SITE_TITLE} on a dark background`
+
 export default defineConfig({
   site: SITE_URL,
   // Deploying under a subfolder: set ASTRO_BASE, or pass `--base /sub/` on
@@ -58,6 +66,9 @@ export default defineConfig({
     baseLinks(),
     externalLinks(),
     textSources(),
+    // Starlight adds a sitemap only when the config has none. This one leaves
+    // out the legal notice and the privacy policy, whose pages are `noindex`.
+    sitemap({ filter: (page) => !NOINDEX.some((path) => new URL(page).pathname.endsWith(path)) }),
     starlight({
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
@@ -152,6 +163,13 @@ export default defineConfig({
         { tag: 'meta', attrs: { name: 'theme-color', content: '#111111', media: '(prefers-color-scheme: dark)' } },
         { tag: 'meta', attrs: { name: 'theme-color', content: '#fafafa', media: '(prefers-color-scheme: light)' } },
         { tag: 'meta', attrs: { property: 'og:site_name', content: SITE_TITLE } },
+        // The one image a link preview shows for every page: public/social.png,
+        // 1200x630. Starlight writes `twitter:card` as `summary_large_image`.
+        { tag: 'meta', attrs: { property: 'og:image', content: SOCIAL_IMAGE } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: SOCIAL_IMAGE_ALT } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: SOCIAL_IMAGE } },
       ],
       // One top-level group per area, labelled as AREAS and INSTALL in
       // config/site.mjs. A page shows only the group of the area its URL is
