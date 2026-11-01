@@ -114,6 +114,8 @@ export const PRE_PUSH: PrePush[] = [
     argv: ["cargo", "deny", "--all-features", "--manifest-path", `${d}/Cargo.toml`, "--config", "deny.toml", "check", "advisories"],
   })),
   { name: "build", argv: ["cargo", "build"] },
+  // `nv reference` runs each example in a folder of its own, so the binary's path is absolute.
+  { name: "chapter examples", argv: ["bun", "nv", "reference"], env: { NVS_BIN: join(ROOT, DEBUG_NVS) } },
   { name: "feature proofs", argv: ["bun", "nv", "proofs", "--gate", "--limit", "0", "--nvs", DEBUG_NVS] },
   { name: "website render", argv: ["bun", "nv", "render", "--website", "--check"], env: { NVS_BIN: DEBUG_NVS } },
   { name: "website stale guard", argv: ["bun", "nv", "site", "--check", "structure", "snippets", "stale", "questions", "syntax", "guides", "tools", "in-depth", "roadmap", "prose", "--nvs", DEBUG_NVS] },
