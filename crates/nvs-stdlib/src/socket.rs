@@ -1092,17 +1092,23 @@ fn send_frame(
     member: &str,
 ) -> Result<Value, Fault> {
     crate::instance::receiver(receiver, &CLASS, member)?;
+    let wall = ctx.wall_bound();
     let peer = ctx.peer().ok_or_else(|| no_connection(member))?;
+    peer.set_wall(wall);
+    let sent = peer.send(frame);
     // No case can reach this: a `.nvst` case runs a script that was handed no
     // socket, so it never gets past the refusal above.
     // `send_throws_on_the_send_timeout_rather_than_waiting` is the `#[test]`
-    // that asserts it instead.
-    peer.send(frame).map_err(|failed| {
-        Fault::thrown(format!(
-            "`Core\\Socket::{member}` failed on the connection: {}",
-            failed.message()
-        ))
-    })?;
+    // that asserts it instead. A send that ended at the request's wall
+    // deadline is the wall-time `FATAL` instead of the throw.
+    if let Err(failed) = sent {
+        return Err(ctx.wall_time_fault().unwrap_or_else(|| {
+            Fault::thrown(format!(
+                "`Core\\Socket::{member}` failed on the connection: {}",
+                failed.message()
+            ))
+        }));
+    }
     Ok(Value::null())
 }
 
@@ -1202,7 +1208,12 @@ nvs_runtime::nvs_helper! {
                 // handed no socket, so it never gets past the refusal above.
                 // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
                 // that asserts it instead.
+                // A read that ended at the request's wall deadline is the
+                // wall-time `FATAL`, and never the member's throw.
                 Err(failed) => {
+                    if let Some(fault) = ctx.wall_time_fault() {
+                        return Err(fault);
+                    }
                     return Err(Fault::thrown(format!(
                         "`Core\\Socket::receive` failed on the connection: {}",
                         failed.message()
@@ -1222,11 +1233,17 @@ nvs_runtime::nvs_helper! {
 /// interrupt early, and the read then ends at once. The registration with the
 /// bus is dropped when the read returns, and the one on the queue is replaced
 /// by the next wait.
+///
+/// The read ends at the request's wall deadline at the latest, filed on the
+/// socket with `set_wall`. A read that ends there is an error, and the member
+/// turns it into the wall-time `FATAL`.
 fn wait_on_both(ctx: &mut Ctx) -> Result<Received, nvs_runtime::PeerError> {
     let inbox = ctx.deliveries();
+    let wall = ctx.wall_bound();
     let peer = ctx
         .peer()
         .expect("`has_peer` answered above and nothing since could have taken it");
+    peer.set_wall(wall);
     let Some(inbox) = inbox else {
         return peer.receive_or(&|| false);
     };
