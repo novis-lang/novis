@@ -367,7 +367,7 @@ nvs_runtime::nvs_helper! {
         // `nvs_runtime::Ctx::memory_limit`'s field doc for why the value is
         // held as an integer and refreshed here rather than parsed per poll.
         if accepted {
-            ctx.refresh_limits();
+            ctx.refresh_limits_at_run_time();
         }
         Ok(Value::bool(accepted))
     }
@@ -380,7 +380,7 @@ nvs_runtime::nvs_helper! {
         if let Some(config) = ctx.config_mut() {
             config.restore(&name);
         }
-        ctx.refresh_limits();
+        ctx.refresh_limits_at_run_time();
         Ok(Value::null())
     }
 }

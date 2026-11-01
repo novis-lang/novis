@@ -13,6 +13,6 @@ What it spends, as `rule:programs/memory-priority` requires: one OS thread per p
 A thread with no per-thread clock publishes no request to the watchdog, so nothing asks it to yield, and a request there keeps its core until it waits or its deadline ends it.
 
 **Declined:**
-- **A slice driven by the watchdog's sweep.** The sweep reads each core's thread clock every 500 ms, which is fifty slices. That is far too coarse to share a core, and reading every clock at every tick costs more than the epoch store does.
+- **A slice driven by the watchdog's sweep.** The sweep reads each core's thread clock every 50 ms, which is five slices. That is too coarse to share a core, and reading every clock at every tick costs more than the epoch store does.
 - **A configuration key for the slice.** A key is one more thing an operator must understand, for a figure nobody tunes per deployment. Go preempts at the same 10 ms, and a slice is long next to the cost of a switch. If a measurement shows `hello` losing more than 3%, the constant becomes 20 ms and this rule says so.
 - **Preemption by signal.** A signal interrupts compiled code at any instruction, where no stack map and no consistent value exist, and makes every helper reentrant. The safepoint poll is already at every back edge and function entry, so a cooperative yield there costs nothing new and leaves every value consistent.

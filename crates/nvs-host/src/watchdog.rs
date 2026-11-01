@@ -217,7 +217,13 @@ pub const DEFAULT_MARGIN: Duration = Duration::from_secs(5);
 /// The detection latency is this plus [`DEFAULT_MARGIN`] at worst; the cost is
 /// one wakeup and one relaxed load per core, which is why it can be short
 /// without being an expense worth tuning.
-pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(500);
+///
+/// It is also how far a request may run past its `[limits] cpu_time`: the
+/// sweep is the one clock that raises the CPU flag, so a loop that crossed
+/// just after a sweep runs until the next. `bun nv proofs --overshoot` holds
+/// a CPU `FATAL` to its limit plus 100 ms, so this stays well under that.
+/// Cost: twenty wakeups a second of one thread, each a few loads per core.
+pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(50);
 
 /// One report: a core whose earliest deadline passed and stayed passed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2439,6 +2445,34 @@ mod tests {
         let used: u128 = reading.0.parse().expect("the used time is a number");
         assert_eq!(reading.1, "35", "{message}");
         assert!(used >= 35, "{message}");
+        registered.withdraw(&request.safepoint_view());
+    }
+
+    /// A program that lowers its CPU limit below what it has already spent is
+    /// over at once, and its `FATAL` says how much it had used when it did, so
+    /// the overshoot scan measures from that moment.
+    #[test]
+    fn a_cpu_limit_set_below_the_time_spent_names_when_it_was_set() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        let mut request = configured("[limits]\ncpu_time = \"30s\"\n");
+        registered.publish(request.safepoint_view());
+        burn_a_charge();
+        burn_a_charge();
+        let config = request.config_mut().expect("a configuration");
+        assert!(config.set("limits.cpu_time", "10ms"));
+        request.refresh_limits_at_run_time();
+        let message = request.cpu_time_message();
+        let set = message
+            .rsplit_once(", set when ")
+            .and_then(|(_, rest)| rest.strip_suffix(" ms were used"))
+            .unwrap_or_else(|| panic!("names no time it was set at: {message}"));
+        let set: u128 = set.parse().expect("a number");
+        assert!(set >= 40, "{message}");
         registered.withdraw(&request.safepoint_view());
     }
 

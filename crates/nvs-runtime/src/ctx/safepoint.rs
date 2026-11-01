@@ -781,6 +781,12 @@ pub struct TreeState {
     /// published for as long as the request ran, whatever `Core\Config::set`
     /// had narrowed `limits.cpu_time` to since.
     pub(super) cpu_limit: std::sync::atomic::AtomicU64,
+    /// The CPU time the tree had spent when its program last moved
+    /// [`Self::cpu_limit`] while it ran, in nanoseconds, or `0` when it has
+    /// not. A limit set below that is crossed at the moment it is set, so the
+    /// CPU `FATAL` names this too and the overshoot scan measures from it.
+    /// Written by [`Ctx::refresh_limits_at_run_time`].
+    pub(super) cpu_limit_set_after: std::sync::atomic::AtomicU64,
     /// What this tree holds, and has written, on cores other than its root's —
     /// [`crate::budget::OffCore`] owns what the pair means and what it costs.
     pub(super) off_core: crate::budget::OffCore,

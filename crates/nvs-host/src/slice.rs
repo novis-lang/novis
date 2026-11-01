@@ -20,8 +20,8 @@
 //! that lowered the bit and kept running is asked again.
 //!
 //! The thread reads no core's clock. The watchdog's sweep reads each core's
-//! thread clock once per `crate::watchdog::DEFAULT_INTERVAL`, which is fifty
-//! slices: far too coarse to share a core, and too costly to run every tick.
+//! thread clock once per `crate::watchdog::DEFAULT_INTERVAL`, which is five
+//! slices: too coarse to share a core, and too costly to run every tick.
 //!
 //! # Which request is asked
 //!

@@ -879,12 +879,33 @@ impl Ctx {
         self.task_slot = Some(slot);
     }
 
+    /// [`Self::refresh_limits`] for a program that moved its own configuration
+    /// while it runs: `Core\Config::set` and `::restore`. Where that moved the
+    /// tree's CPU limit, it also records what the tree had spent at that
+    /// moment ([`TreeState::cpu_limit_set_after`]). One reading of
+    /// [`Self::cpu_time_spent`] per change of the limit, never at a request's
+    /// start.
+    pub fn refresh_limits_at_run_time(&mut self) {
+        let before = self.cpu_limit;
+        self.refresh_limits();
+        if !self.tree_root || self.cpu_limit == before || self.cpu_limit == 0 {
+            return;
+        }
+        let spent = self.cpu_time_spent().map_or(0, |spent| {
+            u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX)
+        });
+        self.tree
+            .cpu_limit_set_after
+            .store(spent, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Re-reads the resource ceilings this request's configuration states.
     ///
     /// Called by [`Self::set_config`], and owed by anything that moves the
     /// request's own overlay afterwards — `Core\Config::set` and `::restore`,
-    /// which is why [`Self::memory_limit`]'s field doc calls the value cached
-    /// rather than derived.
+    /// through [`Self::refresh_limits_at_run_time`] — which is why
+    /// [`Self::memory_limit`]'s field doc calls the value cached rather than
+    /// derived.
     pub fn refresh_limits(&mut self) {
         let ceiling = self.configured_memory_limit();
         self.fatal_reserve = Self::reserve_within(ceiling, self.configured_fatal_reserve());
@@ -1079,11 +1100,25 @@ impl Ctx {
         } else {
             self.cpu_time_spent()
         };
-        format!(
+        let mut message = format!(
             "{}{}",
             Self::CPU_TIME_EXCEEDED,
             super::safepoint::time_used_text(used, limit)
-        )
+        );
+        // A limit the program set below what it had already spent was crossed
+        // when it was set, so the message says when that was.
+        let set_after = std::time::Duration::from_nanos(
+            self.tree
+                .cpu_limit_set_after
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
+        if used.is_some() && set_after > limit {
+            message.push_str(&format!(
+                ", set when {} ms were used",
+                set_after.as_millis()
+            ));
+        }
+        message
     }
 
     /// The CPU time this request's tree has spent, on every thread it runs on
