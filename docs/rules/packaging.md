@@ -741,7 +741,16 @@ normal and build dependencies alike, reading each component's own license file f
 debug viewer's bundle, which the binary embeds, adds the npm packages `viewer/package.json` lists under
 `dependencies` and every package they depend on, at the versions `bun.lock` resolves, each license file
 read from the installed package. A package used only to build the bundle, such as Babel, ships in
-nothing and is not listed. Four properties are load-bearing:
+nothing and is not listed. The embedded copies of the WASI interfaces under `wit/nvs-ext/deps/` are
+one entry, read from that folder's `README.md`.
+
+The VS Code extension's `.vsix` carries a second notice in the same format,
+`editors/vscode/THIRD-PARTY-NOTICES.txt`, from the same generator. It lists the npm packages esbuild
+bundles into `out/extension.js`: the extension's `dependencies` and every package they depend on, at
+the versions `editors/vscode/package-lock.json` resolves. It adds the built package
+`scripts/viewer.mjs` copies into the `.vsix`, and the fonts that package carries. A licence an npm
+package alone may take, such as `minimatch`'s BlueOak-1.0.0, is ranked in `PREFERENCE` and kept out of
+`deny.toml`, so no crate may take it. Four properties are load-bearing:
 
 - **It fails closed.** An SPDX identifier with no policy, a component whose source is not fetched, a
   chosen license with no text anywhere in the tree, or an identifier missing from `deny.toml`'s allow

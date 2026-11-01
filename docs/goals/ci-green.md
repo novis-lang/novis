@@ -122,8 +122,24 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `401abc9b4`, and CI 41263805416 and Website 41263805426 are green on it. The
-next push is the main loop's next goal end.
+`origin/main` is at `441d27ced`, and CI 41279676146 on it is red in four jobs. Website is green.
+Each red has a fix committed on the local `main`, and none is pushed:
+
+- `cost guards / linux-x86_64`, `the_memory_mark_stays_small_beside_the_allocation_it_fronts` at
+  1.05x: `2388e7510` puts `#[inline]` on `budget::carry`. Thin LTO had stopped inlining it into
+  the guard's crate.
+- `test / macos-aarch64 (conformance)`, `config/wall-time-stops-a-loop-that-calls-nothing`, where
+  `onLimit` never printed: `722110c9d`. The watchdog's sweep now takes the wall-stop claim, so
+  `nvs run`'s own clock no longer raises the flag again inside the handler.
+- `test / windows-x86_64 (tests)`, `serve_isolation`'s `a_looping_guest_reaches_on_limit...`:
+  `71cedff2c`. `run_limit_handler` now publishes its widened CPU ceiling, so the 50 ms sweep no
+  longer stops the handler.
+- `proofs / macos-aarch64`, `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` stopped by
+  its CPU limit: `672ed07f5`. `Reactor::turn` now wakes due timers ahead of tasks that yielded.
+
+`bun nv ci --push` is refused by three pre-push checks the main loop's `release-polish` owns,
+and it was told with `loop say`: `docs/rules/packaging.md` is stale after `d7d43fca4`,
+`tools:cli/nvs-cache` owes its proofs, and three pages' site questions are owed or stale.
 
 A background `Bash` or `Monitor` watch can report its first events many minutes late, or only once
 the next one starts. A `--max-min 9` watch in the foreground is the reliable fallback.
@@ -132,11 +148,18 @@ the next one starts. A `--max-min 9` watch in the foreground is the reliable fal
 
 **Stage 1, the cycle.**
 
-- [ ] Watch with `bun nv ci --watch --next`, for the next push. `tools/nv/cmd/ci.ts:1`
-  Its reds that the main loop's open goal does not own are this goal's: fix them, push, and watch
-  until green.
+- [ ] Run `bun nv ci --check` (`tools/nv/cmd/ci.ts:1`). If the main loop has committed the three
+  owed checks and it is green, run `bun nv ci --push` and watch the new run with `bun nv ci --watch`.
+  If a check is still red only because of the main loop's work, watch nothing and hand off again.
+- [ ] Expect the four jobs above green on that push. `crates/nvs-host/src/reactor.rs:761`
+  If one fails the same way again, its fix did not reach the cause.
+
+A side note from the fixes: a CPU-time FATAL raised in a child task prints no `N ms used of M ms`.
+The child's own `cpu_limit` is 0 (`crates/nvs-runtime/src/ctx/safepoint.rs:1089`), and nothing
+checks that message, so it waits in the Backlog.
 
 ### Backlog
 
-- Nothing yet. A red this goal sets aside, because its fix is a design change to another goal's
-  module, is written here with its anchor and the reason it waits.
+- A CPU-time FATAL from a child task omits the time used, because it reads the child's
+  `cpu_limit` of 0 and not the tree's. `crates/nvs-runtime/src/ctx/limits.rs:1101`. It waits
+  because no job is red on it.
