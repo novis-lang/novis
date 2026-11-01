@@ -30,7 +30,7 @@ test("the CI job runs both templates on Linux, Windows and macOS", () => {
   };
   const job = yml.jobs["ext-templates"];
   expect(job).toBeDefined();
-  expect(job!.if).toBe("needs.changes.outputs.ext == 'true'");
+  expect(job!.if).toContain("needs.changes.outputs.ext == 'true'");
   const oses = (job!.strategy?.matrix?.include ?? []).map((row) => row.os).sort();
   expect(oses).toEqual(["macos-latest", "ubuntu-latest", "windows-latest"]);
   const runs = job!.steps.map((s) => s.run?.trim()).filter(Boolean);

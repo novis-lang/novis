@@ -81,11 +81,11 @@ concurrency:
 # minutes, and `docker`, `asan` and `tsan` in under six. `docker` runs on Ubuntu 22.04, so it must
 # not read an entry built on a newer image, whose build scripts need a newer glibc than 22.04 has.
 #
-# The run has 20 concurrent job slots, and it has more jobs than that. `unsafe-audit`,
-# `fuzz-smoke`, `miri` and `miri-units` take 20 slots for 20 to 45 minutes each, and none of them
-# sets the run's length, so they start once `lint` has finished, about ten minutes in. That leaves
-# the slots at the start to the `test`, `cost-guards` and `proofs` legs, which do set it. The
-# nightly `valgrind` job waits for `lint` too. Each one's `if` starts with `!cancelled()`, so a red
+# The organization's Team plan gives 60 concurrent jobs, and a full run has about 55, so every job
+# but the macOS ones starts at once. macOS has 5 concurrent jobs on any plan below Enterprise, and
+# the run has 6 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
+# `ext-templates` and `extension` start once `lint` has finished, about ten minutes in, and the
+# four long macOS legs take the 5 slots first. Their `if` starts with `!cancelled()`, so a red
 # `lint` does not skip them.
 jobs:
   # ---------------------------------------------------------------------------
@@ -155,13 +155,12 @@ jobs:
     # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
     # warm cache fits keeps the leg cold and red on every later run.
     #
-    # Linux x86_64, Windows and macOS are two legs each, because one leg set the whole run's length.
-    # A cold Windows leg took 110 minutes: a 43-minute build, 35 of tests and 28 of the two
-    # conformance runs. Linux x86_64 took 74 minutes cold and macOS 53. The `tests` leg builds the
+    # Every platform is two legs, because one leg set the whole run's length. A cold Windows leg
+    # took 110 minutes: a 43-minute build, 35 of tests and 28 of the two conformance runs. Linux
+    # x86_64 took 74 minutes cold, Linux aarch64 68 warm and macOS 53. The `tests` leg builds the
     # workspace and runs `cargo test`, the `conformance` leg runs the two suites, and the two run
     # side by side. They share one cache entry, which the `tests` leg alone saves: its workspace
-    # build covers everything the `conformance` leg compiles. Linux aarch64 stays one leg, because
-    # it took 40 minutes, inside the time of the slowest split leg.
+    # build covers everything the `conformance` leg compiles.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -175,6 +174,10 @@ jobs:
             part: conformance
           - name: linux-aarch64
             os: ubuntu-24.04-arm
+            part: tests
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            part: conformance
           - name: windows-x86_64
             os: windows-latest
             part: tests
@@ -687,8 +690,8 @@ jobs:
   # ---------------------------------------------------------------------------
   ext-templates:
     name: ext templates / ${{ matrix.name }}
-    needs: changes
-    if: needs.changes.outputs.ext == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.ext == 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -798,8 +801,8 @@ jobs:
   # ---------------------------------------------------------------------------
   extension:
     name: extension / ${{ matrix.name }}
-    needs: changes
-    if: needs.changes.outputs.editor == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.editor == 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -1250,8 +1253,8 @@ jobs:
   # again on the day it becomes a hard gate. `rule:testing/the-deep-lane`.
   unsafe-audit:
     name: unsafe audit
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     # Geiger builds every member under its own feature set, so the scan grows with the workspace.
     timeout-minutes: 60
@@ -1288,8 +1291,8 @@ jobs:
   # `rule:testing/the-deep-lane`.
   flood:
     name: overload past capacity
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -1314,15 +1317,15 @@ jobs:
   # `rule:testing/the-deep-lane`.
   #
   # Three legs of five targets each, run one after another, and one Rust cache for all three. A leg
-  # per target took fifteen of the run's twenty concurrent job slots and saved fifteen copies of
+  # per target took fifteen concurrent job slots and saved fifteen copies of
   # the same `fuzz` build, 307 MB each, into the repository's cache, where they evicted the
   # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is 25 minutes
   # of fuzzing on top of its build. Only the first leg saves the cache the three restore.
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -1398,8 +1401,8 @@ jobs:
   # samples. Run as one, the five outgrew 45 minutes. When a leg outgrows it, split that leg again.
   miri:
     name: miri (${{ matrix.part }})
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
     # the filesystem, so this job grows with the front end's test count rather than its code size.
@@ -1507,8 +1510,8 @@ jobs:
   # rest, so a test that asserts an exact float result checks the library and not Miri's noise.
   miri-units:
     name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -1556,8 +1559,8 @@ jobs:
   # `rule:testing/the-deep-lane`.
   valgrind:
     name: valgrind over the examples
-    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     # A debug build from the Linux test cache, then 82 programs two at a time under memcheck.
     timeout-minutes: 45
