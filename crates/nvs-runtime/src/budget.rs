@@ -1539,6 +1539,10 @@ pub(crate) fn add(bytes: isize) {
 /// raises the mark and meets the ceiling exactly as an allocation does,
 /// because the bytes are this thread's to hold from here on;
 /// `nvs_host::blocking::run` is the caller.
+///
+/// `#[inline]`, so a caller in another crate runs the same inlined update as
+/// the registered allocator. Thin LTO otherwise decides that per build.
+#[inline]
 pub fn carry(bytes: isize) {
     COUNTERS.with(|counters| shift(counters, bytes));
 }
