@@ -1,0 +1,17 @@
+<?nvs
+// Attack: somebody stores an Argon2 hash that is allowed but takes a second to
+// check. The request has a CPU-time limit of 300 ms, so the check should stop
+// the request before the work starts.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+secret string $password = 'correct horse battery staple';
+
+// 1. Lowers the CPU-time limit to 300 ms. A normal hash still fits.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+echo Core\Password::verify($password, Core\Password::hash($password)) ? 'matched' : 'false', "\n";
+
+// 2. The stored hash asks for 32 passes over 128 MiB, about one second of work.
+echo "step 2\n";
+echo Core\Password::verify($password, '$argon2id$v=19$m=131072,t=32,p=1$jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI') ? 'matched' : 'false', "\n";

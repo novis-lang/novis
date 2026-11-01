@@ -1147,6 +1147,38 @@ impl Ctx {
         Some(limit.saturating_sub(self.cpu_time_spent()?))
     }
 
+    /// Checks `cost`, the CPU time one call of `member` is about to spend,
+    /// against [`Self::cpu_time_left`] before the work starts: the CPU twin of
+    /// [`crate::affordable`]. A request under no cap, or with no reading, is
+    /// refused nothing, and reads nothing but [`Self::cpu_limit`].
+    ///
+    /// `cost` is the member's estimate on one current x86-64 core. It is not
+    /// an upper bound: a slower core runs past the limit by the difference,
+    /// and the watchdog stops the request at its next poll after the call.
+    ///
+    /// # Errors
+    ///
+    /// The CPU-time `FATAL` when the cost does not fit, after the limit
+    /// handler has run, as [`Self::wall_time_breach`] runs it for a wait.
+    pub fn cpu_affords(
+        &mut self,
+        cost: std::time::Duration,
+        member: &str,
+    ) -> Result<(), crate::Fault> {
+        let Some(left) = self.cpu_time_left() else {
+            return Ok(());
+        };
+        if cost <= left {
+            return Ok(());
+        }
+        self.run_limit_handler(crate::Limit::CpuTime);
+        Err(crate::Fault::fatal(format!(
+            "{member}: {}, and this call needs about {} ms",
+            self.cpu_time_message(),
+            cost.as_millis()
+        )))
+    }
+
     /// Runs `rule:errors/on-limit`'s handler for a request past its
     /// `[limits] wall_time`, and gives the [`crate::Fault`] the helper that
     /// found it returns. The safepoint poll's branch, for a helper:

@@ -420,6 +420,12 @@ pub(crate) const MIN_ITERATIONS: u32 = 100_000;
 /// *two derivations* section is why a ceiling exists at all.
 pub(crate) const MAX_ITERATIONS: u32 = 2_000_000;
 
+/// The CPU time one PBKDF2-HMAC-SHA256 iteration takes on one current x86-64
+/// core, in nanoseconds, a little under the 69 measured: [`MAX_ITERATIONS`] is
+/// about 120 ms. `Core\Crypto::deriveKey` checks the count times this against
+/// the CPU time left before it starts.
+const PBKDF2_NS_PER_ITERATION: u64 = 60;
+
 /// The shortest salt PBKDF2 will accept, in octets — enough that a table built
 /// against one derivation is worthless against the next.
 pub(crate) const MIN_SALT_LEN: usize = 16;
@@ -3162,10 +3168,18 @@ nvs_runtime::nvs_helper! {
     /// [`derive_key`]'s, which is also PBES2's door onto the same construction:
     /// a `p2c` a token carries and a number a program wrote are the same
     /// question asked of one check.
-    fn nvs_core_crypto_derive_key(_ctx, args: [3]) {
+    fn nvs_core_crypto_derive_key(ctx, args: [3]) {
         let password = text_of(args, 0, "deriveKey")?;
         let salt = bytes_of(args, 1, "deriveKey")?;
         let iterations = rounds_of(args, 2, "deriveKey")?;
+        // The caller picks the count, so its time is checked before the first
+        // HMAC. A count past the ceiling is `derive_key`'s error, not this one.
+        if iterations <= u64::from(MAX_ITERATIONS) {
+            ctx.cpu_affords(
+                std::time::Duration::from_nanos(iterations * PBKDF2_NS_PER_ITERATION),
+                "Core\\Crypto::deriveKey()",
+            )?;
+        }
 
         let key = derive_key(
             password.as_bytes(),

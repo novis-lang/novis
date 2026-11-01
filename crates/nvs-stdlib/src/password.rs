@@ -199,6 +199,25 @@ const BCRYPT_TAGS: [&str; 3] = ["$2y$", "$2a$", "$2b$"];
 /// roster.
 const MAX_BCRYPT_COST: u32 = 17;
 
+/// The CPU time one KiB-pass of Argon2 takes on one current x86-64 core, in
+/// nanoseconds, a little under the 300 measured. [`work`] times this is the
+/// estimate [`nvs_core_password_hash`] and [`nvs_core_password_verify`] check
+/// against the CPU time left, so a stored hash at [`MAX_WORK`] (about 1.3 s)
+/// is refused before it starts under a limit it cannot fit in.
+const ARGON2_NS_PER_KIB_PASS: u64 = 250;
+
+/// The CPU time one unit of bcrypt's `2^cost` rounds takes on one current
+/// x86-64 core, in nanoseconds, a little under the 43 µs measured: cost 12 is
+/// about 160 ms and [`MAX_BCRYPT_COST`] about 5 s. Checked as
+/// [`ARGON2_NS_PER_KIB_PASS`] is.
+const BCRYPT_NS_PER_ROUND: u64 = 40_000;
+
+/// The CPU time Argon2 with `m_cost` KiB over `t_cost` passes is estimated to
+/// take.
+fn argon2_cost(m_cost: u32, t_cost: u32) -> std::time::Duration {
+    std::time::Duration::from_nanos(work(m_cost, t_cost).saturating_mul(ARGON2_NS_PER_KIB_PASS))
+}
+
 /// Every bcrypt hash is exactly this many ASCII bytes: a four-byte tag, two
 /// cost digits, a `$`, and 53 characters of bcrypt's own base64 carrying the
 /// 16-byte salt and the 23-byte digest.
@@ -440,6 +459,7 @@ nvs_runtime::nvs_helper! {
         crate::random::draw(ctx, |rng| rng.fill_bytes(&mut salt));
 
         nvs_runtime::affordable(Some(footprint(M_COST)), "Core\\Password::hash()")?;
+        ctx.cpu_affords(argon2_cost(M_COST, T_COST), "Core\\Password::hash()")?;
         let hasher = Argon2::new(ALGORITHM, VERSION, params());
         let hash = hasher.hash_password_with_salt(password.as_bytes(), &salt).map_err(|_| {
             // Unreachable from source with no diagnostic to name: every input
@@ -466,7 +486,7 @@ nvs_runtime::nvs_helper! {
     /// The parameters come from `$hash` and not from [`params`], which is the
     /// whole reason a hash written years ago still verifies; the module doc's
     /// last section is why that is bounded rather than honoured unconditionally.
-    fn nvs_core_password_verify(_ctx, args: [2]) {
+    fn nvs_core_password_verify(ctx, args: [2]) {
         let password = text_of(args, 0, "verify")?;
         let stored = text_of(args, 1, "verify")?;
 
@@ -483,6 +503,12 @@ nvs_runtime::nvs_helper! {
                      work"
                 )));
             }
+            // The rounds are `2^cost`, read from the stored hash, so the time
+            // is checked first as the cost is.
+            ctx.cpu_affords(
+                std::time::Duration::from_nanos(BCRYPT_NS_PER_ROUND << cost),
+                "Core\\Password::verify()",
+            )?;
             return match bcrypt::verify(password.as_bytes(), stored) {
                 Ok(matched) => Ok(Value::bool(matched)),
                 // The shape passed `bcrypt_cost` and the crate still could not
@@ -521,6 +547,10 @@ nvs_runtime::nvs_helper! {
                 )));
             }
             nvs_runtime::affordable(Some(footprint(asked.m_cost())), "Core\\Password::verify()")?;
+            ctx.cpu_affords(
+                argon2_cost(asked.m_cost(), asked.t_cost()),
+                "Core\\Password::verify()",
+            )?;
         }
 
         let verifier = Argon2::new(ALGORITHM, VERSION, params());

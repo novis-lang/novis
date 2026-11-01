@@ -1,0 +1,19 @@
+<?nvs
+// Attack: a request derives keys with the highest count, 2,000,000, in a loop.
+// The request has a CPU-time limit of 300 ms, so it should stop before a call
+// that does not fit in the time left.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+secret string $password = 'correct horse battery staple';
+bytes $salt = Core\Random::bytes(16);
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Derives a key again and again. Each call takes over 100 ms.
+echo "step 2\n";
+while (true) {
+    Core\Crypto::deriveKey($password, $salt, 2000000);
+}

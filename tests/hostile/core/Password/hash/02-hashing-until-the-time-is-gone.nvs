@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a request hashes passwords in a loop that never ends. The request has
+// a CPU-time limit of 300 ms, so it should stop with an error near that limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+secret string $password = 'correct horse battery staple';
+
+// 1. Lowers the CPU-time limit to 300 ms.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+
+// 2. Hashes the password again and again.
+echo "step 2\n";
+while (true) {
+    Core\Password::hash($password);
+}

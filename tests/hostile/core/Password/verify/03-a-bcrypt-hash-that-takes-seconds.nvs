@@ -1,0 +1,17 @@
+<?nvs
+// Attack: somebody stores a bcrypt hash of cost 17, which is allowed but takes
+// seconds to check. The request has a CPU-time limit of 300 ms, so the check
+// should stop the request before the work starts.
+// hostile: timeout-ms 60000
+// hostile: ends-early 2 FATAL
+
+secret string $password = 'correct horse battery staple';
+
+// 1. Lowers the CPU-time limit to 300 ms. A hash of cost 4 still fits.
+echo "step 1\n";
+Core\Config::set('limits.cpu_time', '300ms');
+echo Core\Password::verify($password, '$2y$04$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi') ? 'matched' : 'false', "\n";
+
+// 2. The stored hash asks for cost 17, about five seconds of work.
+echo "step 2\n";
+echo Core\Password::verify($password, '$2y$17$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi') ? 'matched' : 'false', "\n";
