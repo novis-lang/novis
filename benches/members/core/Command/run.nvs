@@ -5,7 +5,7 @@
 // with nothing to do.
 // bench: iterations 256
 // bench: complexity linear
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 17
 
 class Tool

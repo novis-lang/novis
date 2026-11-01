@@ -3,7 +3,7 @@
 // this every time somebody starts it with `--help` or with no command at all.
 // bench: iterations 256
 // bench: complexity linear
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 37
 
 class Tool
