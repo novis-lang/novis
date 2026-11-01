@@ -221,22 +221,31 @@ Most waits go through four doors, so most items are one change at a door. Each i
     `connect_by`, from `execute::within_wall`. The pool's slot wait is the park door's.
   - [x] `into_wal`'s retry stops at the wall deadline: `SqliteTarget::deadline`.
   - [x] A Rust test: `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`, green.
-- [ ] The blocking-pool door: `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`). Its
+- [x] The blocking-pool door: `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`). Its
   callers wait no longer than the deadline. That covers `Core\Process::run` (`crates/nvs-stdlib/src/process.rs:964`,
   `:1187`, `:1311`), the handle's read, write and kill (`process.rs:1523`) and `Handle::wait` (`process.rs:1661`),
   and the resolver `resolve_off_core` (`crates/nvs-host/src/lib.rs:210`).
   - [x] `Ctx::wall_clamp`, the earlier of a member's own deadline and the wall deadline.
   - [x] `Core\Process`: `run` and `spawn` clamp the child's deadline, and `stopped` gives the
     `FATAL` once the wall time is out. Test `run_stops_a_child_at_the_request_wall_time`, green.
-  - [ ] The resolver: `blocking::run` gets a bounded twin that stops waiting at a deadline and
+  - [x] The resolver: `blocking::run` gets a bounded twin that stops waiting at a deadline and
     leaves the job to finish on its pool thread, its answer dropped. `resolve_off_core` takes it.
-- [ ] The three inline `getaddrinfo` calls move to the shared resolver: `crates/nvs-stdlib/src/db/open.rs:152`,
+    `blocking::run_until`, test `a_bounded_blocking_call_stops_waiting_at_its_deadline`, green.
+    The `Resolver` hook takes a deadline, and `pinned_addresses` passes the wall deadline.
+- [x] The three inline `getaddrinfo` calls move to the shared resolver: `crates/nvs-stdlib/src/db/open.rs:152`,
   `mail.rs:428`, `ldap/mod.rs:493`. Today each blocks the core with no bound.
 - [ ] The park door: each `host.park` a member makes takes the shorter of its own bound and the
   deadline. `crates/nvs-stdlib/src/db/pool.rs:168`, `cache.rs:1507`, `socket.rs:1236`, `socket.rs:1506`,
   `sse.rs:884`, `channel.rs:327`, `crates/nvs-runtime/src/stream.rs:228`, `crates/nvs-runtime/src/ctx/late_init.rs:208`.
-- [ ] The backoff sleeps stop at the deadline: `Core\Http`'s retry (`http/transport.rs:1501`) and
-  `Core\Db`'s transaction retry (`db/transaction.rs:352`).
+  - [x] `db/pool.rs`, `cache.rs`, `sse.rs`, `channel.rs` and `late_init.rs` park with the wall
+    deadline and give the `FATAL` on a wake past it.
+  - [x] `stream.rs`: `Emit::send_by` takes the wall deadline; `response.rs` and `sse.rs`'s
+    `onto_the_wire` pass it and give the `FATAL`.
+  - [ ] `socket.rs:1236`, `wait_on_both`: `peer.receive_or` waits on the WebSocket peer.
+  - [x] `socket.rs:1506` is a test double, `Parking`, with nothing to change.
+- [x] The backoff sleeps stop at the deadline: `Core\Http`'s retry (`http/transport.rs:1501`) and
+  `Core\Db`'s transaction retry (`db/transaction.rs:352`). `Core\Http`'s was already bounded by
+  `call.deadline`, which `call_of` clamps.
 - [ ] `Core\IO::stdin` (`crates/nvs-stdlib/src/io.rs:2263`) reaches only `nvs run`. Decide in the stage
   whether a CLI run has a wall deadline; if it has, the read stops at it.
 - [ ] An attack step per listed wait a `.nvs` file can reach, ending at the wall-time `FATAL`. A wait
@@ -290,36 +299,39 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 3 is under way. The socket door and the database door are done. The database door's four
-driver connects take `Ctx::wall_clamp(deadline)` (`crates/nvs-stdlib/src/db/open.rs`, `connect_by`
-in `open_named` and both `open` arms), and SQLite's open stops `into_wal`'s retry at the new
-`SqliteTarget::deadline`. Test `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`
-(`db/execute.rs`) is green in 0.2 s. `Ctx::wall_clamp` (`crates/nvs-runtime/src/ctx/limits.rs`) is
-the one helper for "the earlier of my deadline and the wall deadline"; `bound_connection` reads it.
+Stage 3 is nearly done. The socket, database and blocking-pool doors are done, and so are the
+backoff sleeps and every park but one.
 
-The blocking-pool door is half done. `Core\Process`'s `run` and `spawn` clamp the child's deadline,
-and `stopped` (`crates/nvs-stdlib/src/process.rs`) gives the wall-time `FATAL` once the wall time is
-out, else the `TimeoutError`. Test `run_stops_a_child_at_the_request_wall_time` is green. The pool
-slot wait `wait_for_slot` (`db/pool.rs:168`) was left for the park door.
+`nvs_host::blocking::run_until` (`crates/nvs-host/src/blocking.rs`) is `run` with a deadline. At the
+deadline the task marks the slot `Abandoned` and returns `None`; the job finishes on its pool thread,
+frees its answer there and puts that thread's memory balance back. The `Resolver` hook
+(`crates/nvs-runtime/src/capability.rs`) takes `Option<Instant>`, and `resolve_host` and
+`resolve_addresses` take it too. `pinned_addresses` passes `ctx.wall_bound()`. `Core\Db`'s
+`address_of`, `Core\Mail`'s `resolve` and `Core\Ldap`'s `walk` now resolve through it, off the core.
 
-The acceptance sweep's reds are stale, as the last four handoffs said. Nightly run 41187571578 ran
+The parks in `db/pool.rs`, `cache.rs` (`waited`), `sse.rs`, `channel.rs` (`wait`) and
+`ctx/late_init.rs` take the wall deadline and give `wall_time_fault` on a wake. A streamed write goes
+through the new `Emit::send_by(chunk, wall)` (`crates/nvs-runtime/src/stream.rs`).
+`wait_between_attempts` (`db/transaction.rs`) clamps its backoff.
+
+The acceptance sweep's reds are stale, as the last five handoffs said. Nightly run 41187571578 ran
 on `857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition
 in the tree, and no log was written for it.
 
-**Tests expected to go red:** a `Core\Mail` test whose scripted server stalls past `timeout` after
-the connect, if one exists. An SQLite test that reads `set_statement_deadline`'s `None` deadline
-under a `wall_time` now sees `Some`. A process test under a `wall_time` shorter than its child's
-run now gets a `FATAL`. None is known.
+**Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
+A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
+that counts parks with a fake host whose `park` asserts on a `None` deadline. None is known.
 
 ### Next
 
-The resolver: give `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`) a bounded twin,
-`run_until(deadline, f) -> Option<T>`, that parks the task with a timer and on expiry drops its
-interest in the slot, leaving the job to finish on its pool thread. `resolve_off_core`
-(`crates/nvs-host/src/lib.rs:210`) needs a deadline from its caller; find who calls the resolver
-hook in `nvs-runtime::capability`. Then the three inline `getaddrinfo` calls (`db/open.rs:152`,
-`mail.rs:428`, `ldap/mod.rs:493`) move onto it. Then the backoff sleeps (`http/transport.rs:1501`,
-`db/transaction.rs:352`) and the park door, each with `Ctx::wall_clamp` or `Ctx::within_wall_time`.
-Stage 4 touches disjoint files and may run as a side goal.
+`socket.rs:1236`, `wait_on_both`: read whether `peer.receive_or` (the WebSocket peer, in
+`crates/nvs-runtime`'s peer trait) parks with a bound. If not, give it the wall deadline the same
+way `Emit::send_by` takes one. Then `Core\IO::stdin` (`io.rs:2263`): check whether `nvs run` arms
+a wall deadline at all (`Ctx::wall_time_left` under `nvs run`). The recommendation is that a read
+stops at it only if `nvs run` already arms one, and no new setting is added. Then the attack steps:
+one `.nvs` step per wait a program can reach (`Core\Channel` receive with no sender,
+`Core\Cache` fill wait, the db pool slot wait), each ending at the wall-time `FATAL`, beside
+`tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs`. Stage 4 touches
+disjoint files and may run as a side goal.
 
 ### Backlog
