@@ -6,7 +6,11 @@ it makes is `bun nv release`, in [tools/nv/cmd/release.ts](../tools/nv/cmd/relea
 and is not repeated here. **This file is the procedure and the one-time GitHub setup it needs.**
 
 Nothing here is automatic. No push, no schedule and no agent may start a release; the workflow has
-exactly one trigger, and it is a person choosing `Run workflow`.
+exactly one trigger, `workflow_dispatch`, and only a person dispatches a real run. The one exception
+is a **dry run**, which writes nothing, tags nothing and pushes no image: an agent may dispatch one
+with `bun nv ci --dispatch dry-run`, whose single argv always carries `dry_run=true`, and read its
+verdict with `bun nv ci --release-status`. The workflow's `run-name` titles such a run
+`Release (dry run)` in the Actions list.
 
 ## What happens, in order
 
@@ -134,7 +138,16 @@ thing to question.
 
 ## Cutting a release
 
-1. **Preview it locally first.** No runner, no credentials, writes nothing:
+This is the whole of a real run, the first one included. Steps 1 and 9 are once, ever.
+
+1. **Before the first release, commit the registry's verifier key.** `DEFAULT_KEY` in
+   [manifest.rs](../crates/nvs-cli/src/package/manifest.rs) is `None`, so `nvs pkg` reads no
+   archive from `registry.novis-lang.org`. Make the production registry's key pair offline, keep
+   the private key off every machine the loop or CI reaches, and commit the public key into that
+   constant. No agent makes, reads or commits that key. The commit is code, so the release's `test`
+   job runs the full suite on it unless a full CI run of it is already green.
+
+2. **Preview it locally.** No runner, no credentials, writes nothing:
 
    ```sh
    bun nv release --preview patch
@@ -142,31 +155,40 @@ thing to question.
 
    That prints the exact version and the exact notes the run will produce.
 
-2. **Pause the loop.** `publish` takes the current tip of `main` and pushes onto it; if the
+3. **Pause the loop.** `publish` takes the current tip of `main` and pushes onto it; if the
    unattended loop commits in the same few seconds, the push is rejected and the run fails after
    the builds. Nothing is corrupted — but the whole matrix has to run again.
 
-3. **Actions → Release → Run workflow.** Choose the branch `main` and:
+4. **Actions → Release → Run workflow.** Choose the branch `main` and:
 
    | Input | |
    |---|---|
-   | `bump` | `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
+   | `bump` | `patch` for the first release; otherwise `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
    | `version` | leave empty; an exact version here overrides the arithmetic |
    | `allow_contract` | only when deliberately reaching 0.1.0 |
-   | `dry_run` | **tick this for the first ever run** — everything happens except the writing |
+   | `dry_run` | **leave it unticked** for a real run. A dry run does everything except the writing; `bun nv ci --dispatch dry-run` starts one, and `bun nv ci --release-status` reads it. A green dry run on `main`'s tip is the rehearsal |
 
-4. **Approve the `release` environment** when the run pauses, after checking the notes in the run
+5. **Approve the `release` environment** when the run pauses, after checking the notes in the run
    summary and that every build leg passed.
 
-5. **Review the draft** at *Releases*, then press **Publish**. The workflow never does: everything
+6. **Review the draft** at *Releases*, then press **Publish**. The workflow never does: everything
    it produces is a draft, and announcing it is a separate human decision.
 
-6. That click starts [release-promote.yml](../.github/workflows/release-promote.yml), which points
+7. That click starts [release-promote.yml](../.github/workflows/release-promote.yml), which points
    the `latest` and `MAJOR.MINOR` container tags at the digest already published under the version
    tag. Nothing is rebuilt. Its last step dispatches [pages.yml](../.github/workflows/pages.yml) on
    `main`, so the website shows the new version: the release commit was pushed with the run's
    `GITHUB_TOKEN`, and that push started no workflow. If the `docker` job had to be re-run by hand
    and the promotion was therefore missed, dispatch that workflow with the tag — it is idempotent.
+
+8. **Resume the loop.**
+
+9. **After the first release, make the container package public:** setup § 6, *Packages → `novis`
+   → Package settings → Change visibility → Public*.
+
+10. **Check what a user gets.** `docker pull ghcr.io/novis-lang/novis:<version>` succeeds without a
+    login, and each archive link on the website's
+    [install page](../website/src/content/docs/install/index.mdx) downloads.
 
 ## The version scheme is not plain SemVer
 
@@ -254,9 +276,9 @@ has to be done again on the next release.
 | `plan` refuses: *crosses into the version contract* | Working as intended. Read § *The version scheme*; tick `allow_contract` only if you mean it. |
 | An `optional` build leg failed | `linux-x86_64-musl` and `windows-aarch64` are marked optional because `wasmtime` and `corosensei` carry assembly and neither lists Windows on ARM64 as supported. The release still ships; drop `optional:` from that leg once a run has proved it. |
 | A **required** leg failed | `publish` refuses by name rather than shipping a quietly incomplete release. Fix and re-run; nothing was written. |
-| The push in `publish` was rejected | `main` moved (see step 2) or is protected (see setup § 4). Nothing was written — re-run. |
+| The push in `publish` was rejected | `main` moved (see step 3 of § *Cutting a release*) or is protected (see setup § 4). Nothing was written — re-run. |
 | A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo, and § *Recalling a published image* above is that procedure. Do it in that order: deleting the git tag is what unblocks moving `latest` back. |
 | `docker pull` says *denied* or asks for a login | The package is still private. Setup § 6 — it is a one-time switch and it is not the repository's own visibility. |
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
 | The `docker` job failed *before* the release was tagged | Only a dry run gets there, and a dry run pushes nothing, so no image exists for a version the repository has no tag for. Its failure is the smoke test or the image build, and the step log names which check. `tests/docker/smoke.sh` runs the same checks locally — [docker/README.md](../docker/README.md) § *Building an image locally*. |
-| `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
+| `latest` did not move | It moves on *publish*, not on draft (see step 7 of § *Cutting a release*), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |

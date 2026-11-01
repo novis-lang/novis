@@ -1,7 +1,10 @@
 # The release cycle: test everything, build everything, and only then write anything.
 #
 # Fired by hand from the Actions tab. Nothing here runs on a push, on a schedule or from a fork —
-# a release is a decision a person takes, and this file never takes it on its own.
+# a release is a decision a person takes, and this file never takes it on its own. Only a person
+# dispatches a real run. An agent may dispatch a dry run, which writes nothing, with
+# `bun nv ci --dispatch dry-run`, whose one argv carries `dry_run=true`. `run-name` puts
+# `(dry run)` in such a run's title, which is how `bun nv ci --release-status` tells it apart.
 #
 # ## The order, and why it is this order
 #
@@ -64,6 +67,7 @@
 # Assets are attached to a **draft**. Publishing it is a separate, human click.
 
 name: Release
+run-name: ${{ inputs.dry_run && 'Release (dry run)' || 'Release' }}
 
 on:
   workflow_dispatch:
