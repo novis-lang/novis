@@ -271,14 +271,18 @@ and the `02-*` CPU attacks of `Arr/sort`, `Compress/compress` and `Regex/replace
 the QoS class. `a911c3a09` fixes both late terms, untested on macOS: the wait is half the time to
 the crossing (`crates/nvs-host/src/watchdog.rs:1460`), so a wait that ends late by its own length
 still ends before it; and a lowered ceiling wakes the watchdog (`safepoint.rs:104`, `watchdog.rs:1432`).
-Every other job of `41310544248` was green. Round 4's full run `41317255176` on `921dd7f66` tests the fix, and its watch runs.
+Every other job of `41310544248` was green. Round 4's full run `41317255176` on `921dd7f66` tests the fix.
+Its `proofs / linux-x86_64` stopped `limits-fatal_reserve_time/01` in step 3: the woken watchdog caught
+its brief `1ms` limit, a race the attack had always ridden. `ba6f2d999` stops a limit set below the spend at the
+set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. Local, not
+pushed: the run still goes, macOS's proofs among it, and a watch past the Linux red runs.
 The sweep's other reds are stale: nightly `41295327777` predates round 1, and `env-secret-proofs` has no definition.
 
 ### Next
 
-Stage 2, round 5. Read run `41317255176`'s verdict first, which the watch's report gives.
+Stage 2, round 5. Read run `41317255176`'s other jobs first, which the watch's report gives; above all `proofs / macos-aarch64`.
 
-- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Fix every other red it names, one commit each. Once the run has ended: `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] If macOS still stops late, the wait is not the cause: read the stop's latency after the sweep, from the flag to the `FATAL` (`crates/nvs-runtime/src/ctx/limits.rs:1103`). `crates/nvs-host/src/watchdog.rs:1460`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
