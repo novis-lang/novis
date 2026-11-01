@@ -122,40 +122,56 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `a6ef88c92`. It carries the four fixes of the last run. Website 41283592505 on
-it is green. CI 41283592496 was still going when this session ended, and two jobs had failed:
+`origin/main` is at `ef0d5cd3b`. Website 41292478447 on it is green. CI 41292478440 on it was
+still going when this session ended, and two jobs had failed:
 
-- `the chapter examples run and the website matches the binary`: `nv reference` failed on
-  `10-cli.md:1201`, "an `output` block with no program before it". The local commit `741bc5748`
-  fixes it, and `bun nv ci --check`'s `chapter examples` check is green on it. It is not pushed.
-- `proofs / macos-aarch64`: `tests/hostile/core/Compress/decompress/02-bombs-until-the-cpu-limit.nvs`
-  used 371 ms against a CPU limit of 250 ms, 121 ms past the limit. The bound is the limit plus
-  100 ms. The case passed on the push before. The diff between the two pushes touches only the
-  wall-time claim and the `onLimit` handler's slice, and this attack has neither. So it is read as
-  a timing failure on a loaded runner, and the next push reruns it. The decoder polls the deadline
-  every 256 KiB (`crates/nvs-stdlib/src/compress.rs:819`), and the sweep runs every 50 ms
-  (`crates/nvs-host/src/watchdog.rs:226`).
+- `lint`, step `rustdoc links`: two doc links named `Shared::sweep`, which `d59403277` made
+  test-only. The local commit `181d4045e` fixes it. The step's own command,
+  `RUSTDOCFLAGS="-A rustdoc::private_intra_doc_links -D warnings" cargo doc --no-deps --workspace`,
+  is green on it. It is not pushed.
+- `proofs / macos-aarch64`: the CPU-time overshoot, for the third push in a row. It is not noise.
 
-`bun nv ci --check` was green at the start of this session, and 12 commits wait to be pushed.
-`bun nv ci --push` then failed its `build` check on `crates/nvs-runtime/src/ctx/held.rs`. The main
-loop was editing that file and had not committed it (`started_scripts` changed type, and
-`filed_at` still takes `&[(u64, T)]`). While a push is refused, `--watch` prints the refusal and
-exits 1. So it cannot watch the run in progress.
+The CPU overshoot, macOS arm64 only, each time a different case, always 120 to 150 ms past the
+limit against a bound of 100 ms:
+
+| push | case | used / limit |
+|---|---|---|
+| `a6ef88c92` | `tests/hostile/core/Compress/decompress/02-bombs-until-the-cpu-limit.nvs` | 371 / 250 |
+| `02c95bac1` | `tests/hostile/core/Arr/sort/02-a-comparator-sort-longer-than-the-cpu-limit.nvs` | 374 / 250 |
+| `02c95bac1` | `tests/hostile/config/limits-fatal_reserve_time/01-spending-the-clock-the-report-was-left.nvs` | 157 / 15 |
+| `ef0d5cd3b` | `tests/hostile/core/Regex/replace/02-one-call-longer-than-the-cpu-limit.nvs` | 398 / 250 |
+
+`d59403277`, pushed, makes the sweep wake at the earliest possible crossing
+(`crates/nvs-host/src/watchdog.rs:1436`). The Regex case still went 148 ms over on it, so the
+sweep's interval is not the whole cause. That commit stays, as a real gain on every platform.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-- [ ] Push once `crates/nvs-runtime/src/ctx/held.rs:47` is committed. `tools/nv/cmd/ci.ts:1`
-  Check it with `git status --short -- crates/nvs-runtime/src/ctx/held.rs`. If the file is still
-  modified, hand off again. Once it is committed, run `bun nv ci --push`, then `bun nv ci --watch`.
-  A push refused for another reason in a committed file is this loop's to fix.
-- [ ] Expect both reds green on that push. `crates/nvs-stdlib/src/compress.rs:950`
-  If the Compress CPU attack goes over the bound a second time, it is not noise. Look at what runs
-  between the crossing and the stop: the 16 MiB `Vec` that `read_to_end` grows there, and the
-  sweep's own lateness.
+- [ ] Watch CI 41292478440 to its end, then push. `tools/nv/cmd/ci.ts:1`
+  Run `bun nv ci --watch --past lint --past "proofs / macos-aarch64"`. Fix any other red it
+  reports. Then `bun nv ci --push` sends `181d4045e` with those fixes, and `--watch --next` follows.
+- [ ] Find why a CPU stop on macOS arm64 lands 120 to 150 ms past the limit. `crates/nvs-host/src/cpuclock.rs:294`
+  Three of the four cases are one long native call: a sort with a comparator, a decoder, a regex
+  replace. Every non-handler case sets `limits.cpu_time` to `300ms` and reports a limit of `250 ms`.
+  The FATAL's `used` is the sampler's charge when the FATAL is written
+  (`crates/nvs-runtime/src/ctx/limits.rs:1101`). The macOS charge is `thread_info(THREAD_BASIC_INFO)`.
+  Give it to a writing subagent with the table above. Its questions, in order:
+  1. How does each native call in the table notice the CPU stop: the safepoint flag, the wall
+     deadline, or its own clock read? How often does it look?
+  2. Why does a `300ms` setting report a `250 ms` limit? Is the stop made at 250 or at 300?
+  3. Does `thread_info` on a running thread report its time late on macOS?
+  Fix the cause it finds. Never raise `TIME_OVERSHOOT_SLACK_MS` (`tools/nv/proofs/run.ts:328`).
+  A diagnostic you cannot run on Windows goes in a test that prints its timings, so the macOS
+  `test` job's log shows them.
 
 ### Backlog
+
+- `bun nv ci --check` does not run CI's `rustdoc links` step, so a broken doc link reaches CI. It
+  takes about a minute once warm. Add it to `PRE_PUSH` in `tools/nv/cmd/ci.ts`.
+- `crates/nvs-runtime/src/ctx/hooks.rs:603` says the sampler notices a crossing "up to one sweep
+  late". Since `d59403277`, the sweep wakes at the earliest possible crossing.
 
 - A CPU-time FATAL from a child task omits the time used, because it reads the child's
   `cpu_limit` of 0 and not the tree's. `crates/nvs-runtime/src/ctx/limits.rs:1101`. It waits
