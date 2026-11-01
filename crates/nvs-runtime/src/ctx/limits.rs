@@ -1237,10 +1237,10 @@ impl Ctx {
     /// nothing. This one is a flag edit as well as a ceiling edit — that method
     /// owns why a handler entered under [`SafepointFlags::CPU_LIMIT`] would
     /// otherwise stop at its own first back edge. What samples the clock is
-    /// `nvs_host::watchdog`, and it is told of neither edit: it charges against
-    /// the ceiling the tree carries ([`Self::publish_cpu_limit`]), which the
-    /// handler's widening leaves alone, so a handler is bounded by that
-    /// sampler's next sweep rather than by the slice this names.
+    /// `nvs_host::watchdog`, which charges against the ceiling the tree carries
+    /// ([`Self::publish_cpu_limit`]). The handler's call publishes its widened
+    /// ceiling, measured from what the tree has spent at its entry, so a
+    /// handler is bounded by the slice this names.
     #[must_use]
     pub fn fatal_reserve_time(&self) -> u64 {
         self.fatal_reserve_time

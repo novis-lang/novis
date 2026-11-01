@@ -599,7 +599,16 @@ impl Ctx {
         let cpu_reserve = self.fatal_reserve_time;
         let stopped_for_cpu = self.safepoint_flags().contains(SafepointFlags::CPU_LIMIT);
         if cpu_ordinary != 0 {
-            self.cpu_limit = cpu_ordinary.saturating_add(cpu_reserve);
+            // The slice starts where the handler does. The sampler notices a
+            // crossing up to one sweep late, and that time is the request's,
+            // so the widened ceiling is measured from what the tree has spent
+            // now. Published, because the sampler compares the tree's charge
+            // with the published ceiling and raises the flag again past it.
+            let spent = self.cpu_time_spent().map_or(0, |spent| {
+                u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX)
+            });
+            self.cpu_limit = cpu_ordinary.max(spent).saturating_add(cpu_reserve);
+            self.publish_cpu_limit();
             // Spent, not merely lent, for [`Self::fatal_reserve`]'s reason.
             self.fatal_reserve_time = 0;
         }
@@ -642,6 +651,7 @@ impl Ctx {
         self.arm_memory_ceiling();
         crate::budget::restore_refusal(refused);
         self.cpu_limit = cpu_ordinary;
+        self.publish_cpu_limit();
         self.fatal_reserve_time = cpu_reserve;
         if stopped_for_cpu {
             self.request_safepoint(SafepointFlags::CPU_LIMIT);

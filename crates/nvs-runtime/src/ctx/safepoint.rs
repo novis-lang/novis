@@ -91,9 +91,10 @@ impl Ctx {
     /// Writes this context's CPU ceiling into the state its tree shares, where
     /// this context is the tree's root, and nothing where it is not.
     ///
-    /// Owed by everything that moves [`Self::cpu_limit`] for longer than a
-    /// handler's call — [`Self::refresh_limits`] and [`Self::set_cpu_limit`] —
-    /// and by [`Self::reroot`], which starts a tree that carries none.
+    /// Owed by everything that moves [`Self::cpu_limit`]:
+    /// [`Self::refresh_limits`], [`Self::set_cpu_limit`], and
+    /// [`Self::run_limit_handler`] on entry and on exit. [`Self::reroot`] owes
+    /// it too, because it starts a tree that carries none.
     /// [`Self::tree_root`]'s field doc owns why a child writes nothing.
     pub(super) fn publish_cpu_limit(&self) {
         if self.tree_root {
