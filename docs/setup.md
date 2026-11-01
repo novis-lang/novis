@@ -12,6 +12,23 @@ happens next is committed — the chain and its live goal, the goal's handoff re
 below lands the new machine where the old one stopped. § *What a clone does not carry* is the part that is
 not an install; § *Picking up where the last machine left off* is the order to do it all in.
 
+## The short path
+
+To build the tree and run its tests once, without the loop, this is all a machine needs:
+
+```sh
+git clone https://github.com/novis-lang/novis
+cd novis
+bun install              # Bun, at the version package.json names, from https://bun.sh
+cargo build              # rustup installs the pinned Rust on this first cargo command
+bun nv verify --fast     # the build and the tests; bun nv verify adds fmt, the .nvst trees and clippy
+```
+
+Rust comes from [rustup](https://rustup.rs), and on Windows it also needs the MSVC build tools
+(§ *Versions no manifest pins*). The rest of this file is for a machine that runs the whole gate or
+the unattended loop: WSL on Windows, Node for the editor extension, Docker for the database tests,
+and what a clone does not carry.
+
 ## Getting the repository
 
 ```sh

@@ -172,7 +172,7 @@ thing to question.
 
 `rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and the website's
 [What changed](../website/src/content/docs/in-depth/what-changed.mdx) page says it to users. What
-it means for `bump`. `Cargo.toml` says 0.0.1 and no `v*` tag exists, so the first release is the
+it means for `bump` is the table below. `Cargo.toml` says 0.0.1 and no `v*` tag exists, so the first release is the
 version the tree already says, and the release commit changes `CHANGELOG.md` alone:
 
 | `bump` | First release | Once `v0.0.1` exists | |
