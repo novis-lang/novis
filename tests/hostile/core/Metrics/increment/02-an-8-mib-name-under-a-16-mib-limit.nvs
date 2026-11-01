@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and counts under a name and a label of 8 MiB.
+// A name or label is at most 1 KiB, so each call should throw an error and keep nothing.
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. A name of 8 MiB. This throws a `LogicError`, and its message is short.
+string $long = Core\Str::repeat('a', 8388608);
+try {
+    Core\Metrics::increment($long);
+    echo "counted\n";
+} catch (LogicError $error) {
+    echo Core\Str::length($error->message) < 200 ? 'short message' : 'long message', "\n";
+}
+
+// 3. A label value of 8 MiB. This throws a `LogicError` too.
+try {
+    Core\Metrics::increment('label_total', { labels: ['user' => $long] });
+    echo "counted\n";
+} catch (LogicError $error) {
+    echo Core\Str::length($error->message) < 200 ? 'short message' : 'long message', "\n";
+}

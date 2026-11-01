@@ -364,7 +364,8 @@ fn write(args: &[Value], member: &str, written: Written) -> Result<Value, Fault>
             .map(|source| nvs_runtime::source::location(&source))
     };
     let name = name_of(&args[1], member)?;
-    let labels = labels_of(args[3]);
+    within_key_bound(name, "name", member)?;
+    let labels = labels_of(args[3], member)?;
     let written_labels: Vec<(&str, &str)> = labels
         .iter()
         .map(|(label, value)| (label.as_str(), value.as_str()))
@@ -432,9 +433,14 @@ fn name_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// type is a `CoreTy::Text`, so `E0401` has already refused anything else at the
 /// call, and a bag arriving any other way is the engine's bug and not a
 /// program's to catch.
-fn labels_of(value: Value) -> Vec<(String, String)> {
+///
+/// # Errors
+///
+/// [`within_key_bound`]'s, for a label name or value past [`KEY_BYTES`],
+/// before that label is copied.
+fn labels_of(value: Value, member: &str) -> Result<Vec<(String, String)>, Fault> {
     let Some(pointer) = value.array_ptr() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let array = crate::arr::borrowed(pointer);
     let mut written = Vec::with_capacity(array.count());
@@ -445,9 +451,46 @@ fn labels_of(value: Value) -> Vec<(String, String)> {
         let Some(text) = held.as_text() else {
             continue;
         };
+        if key.len() > KEY_BYTES {
+            return Err(too_long("label name", key.len(), member));
+        }
+        within_key_bound(text, "label value", member)?;
         written.push((String::from_utf8_lossy(&key).into_owned(), text.to_owned()));
     }
-    written
+    Ok(written)
+}
+
+/// The longest series name, label name or label value a write takes, in bytes.
+///
+/// A series is kept by its core for the life of the process, so its key is
+/// memory no request frees. `[metrics] max_series` bounds how many keys a core
+/// keeps, and this bounds each one. 1 KiB is far past a name or a route.
+///
+/// **What it spends:** one length comparison per name and per label.
+pub(crate) const KEY_BYTES: usize = 1 << 10;
+
+/// `text`, refused when it is longer than [`KEY_BYTES`].
+///
+/// # Errors
+///
+/// A `LogicError` naming what was too long and by how much, and quoting none
+/// of it.
+fn within_key_bound(text: &str, what: &str, member: &str) -> Result<(), Fault> {
+    if text.len() > KEY_BYTES {
+        return Err(too_long(what, text.len(), member));
+    }
+    Ok(())
+}
+
+/// The `LogicError` [`within_key_bound`] throws.
+fn too_long(what: &str, len: usize, member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "Core\\Metrics::{member}(): a metric {what} is at most {KEY_BYTES} bytes, \
+             and this one is {len} bytes"
+        ),
+    )
 }
 
 #[cfg(test)]
@@ -484,6 +527,32 @@ mod tests {
             name.release();
         }
         answer
+    }
+
+    /// A name past [`super::KEY_BYTES`] throws without quoting it, and one at
+    /// the bound is written.
+    #[test]
+    fn a_metric_name_past_the_key_bound_throws_without_quoting_it() {
+        let mut ctx = Ctx::buffered();
+        let long = "a".repeat(super::KEY_BYTES + 1);
+        assert!(called(nvs_core_metrics_increment, &mut ctx, &long, Value::null()).is_err());
+        let message = ctx.take_pending().expect("a throw is pending");
+        assert!(message.contains("at most 1024 bytes"), "{message}");
+        assert!(
+            !message.contains(&long[..100]),
+            "the message quotes the name"
+        );
+
+        let at_bound = "b".repeat(super::KEY_BYTES);
+        assert!(
+            called(
+                nvs_core_metrics_increment,
+                &mut ctx,
+                &at_bound,
+                Value::null()
+            )
+            .is_ok()
+        );
     }
 
     /// `rule:observability/metrics-three-members`: `gauge` *sets* the level, so

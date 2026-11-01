@@ -11,7 +11,8 @@ eviction is that every value is unchanged across the boundary. The ten of
 
 - **Memory:** O(cores × series), bounded by `max_series` per core, a counter costing its key and
   eight bytes and a histogram its bucket array. Charged to the core, not to a request, and never
-  O(requests served). Zero series until something registers one.
+  O(requests served). Zero series until something registers one. A key is bounded too: a name, a
+  label name or a label value past 1 KiB throws a `LogicError` before anything is kept.
 
 **Declined:**
 - **Evicting the least-recently-used series past the cap.** A recreated counter appears to reset,
