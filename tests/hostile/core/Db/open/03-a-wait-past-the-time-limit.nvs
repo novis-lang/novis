@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program holds every connection the pool allows, then waits for one more under a time limit of one second.
+// The request should stop at its time limit with an error, and the program must not crash.
+// hostile: ends-early 2 FATAL
+
+// The pool allows 16 connections for the same settings. `shared: false` opens a new
+// connection every time, so these 16 connections fill the pool.
+array<Core\Db\Connection> $held = [];
+uint $i = 0;
+while ($i < 16) {
+    $held[] = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' }, { shared: false });
+    $i = $i + 1;
+}
+
+// 1. One more connection with a `timeout` of 10 milliseconds. No connection comes free,
+//    so the call throws an `IOError`, which is caught.
+try {
+    Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:', timeout: 10ms }, { shared: false });
+    echo "1 a connection came free\n";
+} catch (IOError $full) {
+    echo "1 ok\n";
+}
+
+// 2. The program sets a time limit of one second. Then it opens one more connection
+//    with a `timeout` of one hour.
+echo "step 2\n";
+Core\Config::set('limits.wall_time', '1s');
+try {
+    Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:', timeout: 1h }, { shared: false });
+    echo "2 a connection came free\n";
+} catch (IOError $full) {
+    echo "2 the wait threw an error that a program can catch\n";
+}

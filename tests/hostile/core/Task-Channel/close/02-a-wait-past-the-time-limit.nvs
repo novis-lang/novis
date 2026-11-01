@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a task reads from a channel that is never sent to and never closed, under a time limit of one second.
+// The request should stop at its time limit with an error, and the program must not crash.
+// hostile: ends-early 2 FATAL
+
+// 1. A reader waits on an empty channel. Another task closes it after 10 milliseconds, so the loop ends.
+var $short = new Core\Task\Channel<int>(1);
+Core\Task::all({
+    read: fn(): int => {
+        int $seen = 0;
+        foreach ($short as int $value) {
+            $seen += 1;
+        }
+        echo '1 ok, read ', $seen, " values\n";
+        return 0;
+    },
+    shut: fn(): int => {
+        Core\Time::sleep(10ms);
+        $short->close();
+        return 0;
+    },
+});
+
+// 2. The program sets a time limit of one second. Then it reads from a channel
+//    that nothing sends to and nothing closes.
+echo "step 2\n";
+Core\Config::set('limits.wall_time', '1s');
+var $never = new Core\Task\Channel<int>(1);
+foreach ($never as int $value) {
+    echo "2 a value came\n";
+}
+echo "2 the loop ended\n";

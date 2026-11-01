@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a task waits one hour for another task's `fill` that takes one hour, under a time limit of one second.
+// The request should stop at its time limit with an error, and the program must not crash.
+// hostile: ends-early 2 FATAL
+
+var $cache = Core\Cache::memory();
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+var $other = fn(): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('second', 1h);
+
+// 1. One task runs a `fill` that takes 200 milliseconds. A second task waits for it
+//    for 10 milliseconds. That wait throws a `TimeoutError`, which is caught.
+var $slow = fn(): Core\Cache\SecretEntry => {
+    Core\Time::sleep(200ms);
+    return Core\Cache\SecretEntry::of('first', 1h);
+};
+Core\Task::all({
+    fill: fn(): int => {
+        $cache->getSecret('slow', $keys, { fill: $slow });
+        return 0;
+    },
+    wait: fn(): int => {
+        Core\Time::sleep(10ms);
+        try {
+            $cache->getSecret('slow', $keys, { fill: $other, wait: 10ms });
+            echo "1 the wait returned\n";
+        } catch (TimeoutError $timeout) {
+            echo "1 ok\n";
+        }
+        return 0;
+    },
+});
+
+// 2. The program sets a time limit of one second. One task runs a `fill` that takes
+//    one hour, and a second task waits one hour for it.
+echo "step 2\n";
+Core\Config::set('limits.wall_time', '1s');
+var $hour = fn(): Core\Cache\SecretEntry => {
+    Core\Time::sleep(1h);
+    return Core\Cache\SecretEntry::of('first', 1h);
+};
+Core\Task::all({
+    fill: fn(): int => {
+        $cache->getSecret('hour', $keys, { fill: $hour });
+        return 0;
+    },
+    wait: fn(): int => {
+        Core\Time::sleep(10ms);
+        try {
+            $cache->getSecret('hour', $keys, { fill: $other, wait: 1h });
+            echo "2 the wait returned\n";
+        } catch (TimeoutError $timeout) {
+            echo "2 the wait threw an error that a program can catch\n";
+        }
+        return 0;
+    },
+});
