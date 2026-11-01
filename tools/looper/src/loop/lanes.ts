@@ -7,6 +7,9 @@
 // - **A loop is its folder, `.looper/loops/<name>/`,** and `loop.json` there names what it works
 //   (`LoopRecord`): its kind, branch, worktree and goal, and the lane it holds or since when it waits for
 //   one. A folder without `loop.json` is a main loop in the project root.
+// - **`loop.json` holds the worktree relative to the root,** with `/` and `.` for the root itself, so a
+//   project moved to another folder keeps its loops. A reader resolves it against the root, and an
+//   absolute path a record holds stands as it is.
 // - **A main loop works the chain in the root,** on the branch checked out there. A project has one.
 // - **A side loop works one goal,** is named `side-<slug>`, and gets the branch `side/<slug>`. A new
 //   branch starts at `from`, or else at the main loop's branch, or the root's `HEAD` when there is no
@@ -34,7 +37,7 @@
 // Each loop's record is a few hundred bytes, so the loops folder grows with the loops a project has.
 
 import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { loadConfig } from "../goal/config.ts";
 import { goalPath, Refused } from "../goal/model.ts";
 import { type Mutex, openMutex } from "../os/index.ts";
@@ -90,7 +93,14 @@ export function loopsDir(root: string): string {
 
 /** The record of the loop whose folder is `dir`, as a main loop in `root` when it has none. */
 export function loopRecord(root: string, dir: string): LoopRecord {
-  return readState<LoopRecord>(join(dir, LOOP_FILE)) ?? { kind: "main", branch: "", worktree: root, goal: null, lane: null, laneWait: null };
+  const rec = readState<LoopRecord>(join(dir, LOOP_FILE));
+  if (rec === undefined) return { kind: "main", branch: "", worktree: root, goal: null, lane: null, laneWait: null };
+  return { ...rec, worktree: rec.worktree === "" ? "" : resolve(root, rec.worktree) };
+}
+
+/** Worktree `tree` as `loop.json` holds it: relative to `root` with `/`, `.` for the root, empty for none. */
+function heldTree(root: string, tree: string): string {
+  return tree === "" ? "" : relative(root, tree).replaceAll("\\", "/") || ".";
 }
 
 /** Every loop of the project at `root`, sorted by name. */
@@ -138,7 +148,7 @@ function write(root: string, name: string, record: LoopRecord): Named {
   const dir = join(loopsDir(root), name);
   mkdirSync(dir, { recursive: true });
   const { kind, branch, worktree, goal, lane, laneWait, landed, inRoot } = record;
-  writeState(join(dir, LOOP_FILE), { kind, branch, worktree, goal, lane, laneWait, landed, inRoot });
+  writeState(join(dir, LOOP_FILE), { kind, branch, worktree: heldTree(root, worktree), goal, lane, laneWait, landed, inRoot });
   return { name, kind, branch, worktree, goal, lane, laneWait, landed, inRoot };
 }
 
