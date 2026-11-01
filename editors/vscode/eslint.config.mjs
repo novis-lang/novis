@@ -1,7 +1,8 @@
 import js from "@eslint/js";
+import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default defineConfig(
   { ignores: ["out/**", "node_modules/**", ".vscode-test/**", "*.vsix"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -14,8 +15,7 @@ export default tseslint.config(
       ],
       curly: "warn",
       eqeqeq: "warn",
-      "no-throw-literal": "warn",
-      semi: "warn"
+      "no-throw-literal": "warn"
     }
   },
   {
