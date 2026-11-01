@@ -2334,9 +2334,9 @@ proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every o
 
 The registry service under `apps/registry/` runs these commands. `nvs pkg audit` compares the second
 copy of the checkpoint a registry's root file names with the log the file host serves, and stops on
-a disagreement (`crates/nvs-cli/src/package/audit.rs`). The client reads the default registry once its
-verifier key is in the binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), and reads
-nothing from it while that is `None`.
+a disagreement (`crates/nvs-cli/src/package/audit.rs`). The default registry's verifier key is in the
+binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), named `registry.novis-lang.org`.
+Its signer key lives with the registry service and is never in this repository, CI or the loop.
 
 <sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 

@@ -88,9 +88,12 @@ const FILE: &str = nvs_config::grants::FILE;
 /// The registry every vendor that `[registries]` does not name resolves from.
 pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.novis-lang.org";
 
-/// The verifier key of [`DEFAULT_REGISTRY`]'s log. It is `None` until the registry service makes
-/// its key, and until then no archive is read from the default registry.
-const DEFAULT_KEY: Option<&str> = None;
+/// The verifier key of [`DEFAULT_REGISTRY`]'s log, pinned in the binary
+/// (`rule:packaging/the-registry-keeps-an-append-only-log`). Its name is the registry's host, the
+/// origin of every checkpoint the log signs. The signer key lives with the registry service and
+/// nowhere in this repository.
+const DEFAULT_KEY: Option<&str> =
+    Some("registry.novis-lang.org+779cb139+AcFhRn6CMRhqFNFcR1ptPF/HN9fzwPxreRm7ulEoQtwE");
 
 /// The namespace no package may take, compared without case (`rule:core-api/reserved-namespace`).
 const RESERVED: &str = "Core";
@@ -834,7 +837,20 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{DEFAULT_REGISTRY, Manifest, Source, Version, parse};
+    use super::{DEFAULT_KEY, DEFAULT_REGISTRY, Manifest, Source, Version, parse};
+    use crate::package::note::Verifier;
+
+    /// The pinned key is a verifier key, and its name is the default registry's host, so every
+    /// checkpoint that registry signs opens under it.
+    #[test]
+    fn the_default_key_is_the_default_registrys() {
+        let key = DEFAULT_KEY.expect("the default registry's key is pinned");
+        let verifier = Verifier::parse(key).expect("a verifier key");
+        assert_eq!(
+            Some(verifier.name()),
+            DEFAULT_REGISTRY.strip_prefix("https://")
+        );
+    }
 
     /// `text` as a `package.toml` in a package directory.
     fn read(text: &str) -> Result<Manifest, String> {

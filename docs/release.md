@@ -138,14 +138,14 @@ thing to question.
 
 ## Cutting a release
 
-This is the whole of a real run, the first one included. Steps 1 and 9 are once, ever.
+This is the whole of a real run, the first one included. Step 9 is once, ever.
 
-1. **Before the first release, commit the registry's verifier key.** `DEFAULT_KEY` in
-   [manifest.rs](../crates/nvs-cli/src/package/manifest.rs) is `None`, so `nvs pkg` reads no
-   archive from `registry.novis-lang.org`. Make the production registry's key pair offline, keep
-   the private key off every machine the loop or CI reaches, and commit the public key into that
-   constant. No agent makes, reads or commits that key. The commit is code, so the release's `test`
-   job runs the full suite on it unless a full CI run of it is already green.
+1. **The registry's verifier key is pinned.** `DEFAULT_KEY` in
+   [manifest.rs](../crates/nvs-cli/src/package/manifest.rs) is the public key of
+   `registry.novis-lang.org`, made with `nvs registry key`. Its private key is kept off every machine
+   the loop or CI reaches, and it goes only to the registry service. Nothing is done here unless the
+   key is replaced. A new key is a code commit, so the release's `test` job runs the full suite on it
+   unless a full CI run of it is already green.
 
 2. **Preview it locally.** No runner, no credentials, writes nothing:
 

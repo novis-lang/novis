@@ -95,6 +95,6 @@ proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every o
 
 The registry service under `apps/registry/` runs these commands. `nvs pkg audit` compares the second
 copy of the checkpoint a registry's root file names with the log the file host serves, and stops on
-a disagreement (`crates/nvs-cli/src/package/audit.rs`). The client reads the default registry once its
-verifier key is in the binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), and reads
-nothing from it while that is `None`.
+a disagreement (`crates/nvs-cli/src/package/audit.rs`). The default registry's verifier key is in the
+binary as `DEFAULT_KEY` (`crates/nvs-cli/src/package/manifest.rs`), named `registry.novis-lang.org`.
+Its signer key lives with the registry service and is never in this repository, CI or the loop.
