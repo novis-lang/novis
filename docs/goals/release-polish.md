@@ -10,7 +10,7 @@ stages:
     context: [website/astro.config.ts, website/src/components/Footer.astro, website/src/components/Roadmap.astro, tools/nv/lib/site-roadmap.ts, website/config/site.mjs]
   - id: 2
     title: "the README, CONTRIBUTING, SECURITY and setup docs describe the released project, and the repo has a code of conduct and a PR template"
-    status: open
+    status: done
     context: [README.md, CONTRIBUTING.md, SECURITY.md, docs/setup.md]
   - id: 3
     title: "the agent docs and rules cite only what exists, and every nvs command has a row in the CLI reference"
@@ -347,17 +347,17 @@ security, contributing and licenses on every page.
 **Does:** the files GitHub shows a visitor say what is true at the release, and the community files
 GitHub looks for exist.
 
-- [ ] SECURITY.md says eight audited `unsafe` crates (the roster in `tools/nv/cmd/lints.ts:73`), and the platforms CI runs on. `SECURITY.md:66`, `SECURITY.md:109`, `SECURITY.md:111`
-- [ ] CONTRIBUTING.md's status names no version and no "live one", and points at the roadmap. `CONTRIBUTING.md:10`
-- [ ] CONTRIBUTING.md's start block gives the `bun tools/looper/main.ts orient --full` fallback and lists the prerequisites: Rust (from `rust-toolchain.toml`), Bun, Node for the extension, and Docker for the database and bench tests. `CONTRIBUTING.md:89`
-- [ ] CONTRIBUTING.md no longer names the package registry as unbuilt, and a new decision "goes into a rule", with no "plan". `CONTRIBUTING.md:138`, `CONTRIBUTING.md:245`
-- [ ] README.md: a quick start of four lines under the status: the install link, the hello world from `website/snippets/install/01-hello.nvs`, and `nvs run hello.nvs`. `README.md:8`
-- [ ] README.md: the maintainer commands (`bun nv gen-attribution`) leave the License section for CONTRIBUTING.md. `README.md:161`, `README.md:170`
-- [ ] docs/setup.md: a short path for an outsider first (clone, Rust, Bun, `cargo build`, `bun nv verify --fast`), then the loop operator's material. `docs/setup.md:1`, `docs/setup.md:54`
-- [ ] docs/release.md: the broken sentence "What it means for `bump`." is a whole sentence. `docs/release.md:176`
-- [ ] `CODE_OF_CONDUCT.md`, the Contributor Covenant 2.1. `CODE_OF_CONDUCT.md:1`
-- [ ] The PR template. `.github/pull_request_template.md:1`
-- [ ] The GitHub description and homepage: `gh repo edit novis-lang/novis --description "<the home page's description>" --homepage https://novis-lang.org`. If refused, the handoff names the command. `website/src/content/docs/index.mdx:4`
+- [x] SECURITY.md says eight audited `unsafe` crates (the roster in `tools/nv/cmd/lints.ts:73`), and the platforms CI runs on. `SECURITY.md:66`, `SECURITY.md:109`, `SECURITY.md:111`
+- [x] CONTRIBUTING.md's status names no version and no "live one", and points at the roadmap. `CONTRIBUTING.md:10`
+- [x] CONTRIBUTING.md's start block gives the `bun tools/looper/main.ts orient --full` fallback and lists the prerequisites: Rust (from `rust-toolchain.toml`), Bun, Node for the extension, and Docker for the database and bench tests. `CONTRIBUTING.md:89`
+- [x] CONTRIBUTING.md no longer names the package registry as unbuilt, and a new decision "goes into a rule", with no "plan". `CONTRIBUTING.md:138`, `CONTRIBUTING.md:245`
+- [x] README.md: a quick start of four lines under the status: the install link, the hello world from `website/snippets/install/01-hello.nvs`, and `nvs run hello.nvs`. `README.md:8`
+- [x] README.md: the maintainer commands (`bun nv gen-attribution`) leave the License section for CONTRIBUTING.md. `README.md:161`, `README.md:170`
+- [x] docs/setup.md: a short path for an outsider first (clone, Rust, Bun, `cargo build`, `bun nv verify --fast`), then the loop operator's material. `docs/setup.md:1`, `docs/setup.md:54`
+- [x] docs/release.md: the broken sentence "What it means for `bump`." is a whole sentence. `docs/release.md:176`
+- [x] `CODE_OF_CONDUCT.md`, the Contributor Covenant 2.1. `CODE_OF_CONDUCT.md:1`
+- [x] The PR template. `.github/pull_request_template.md:1`
+- [x] The GitHub description and homepage: `gh repo edit novis-lang/novis --description "<the home page's description>" --homepage https://novis-lang.org`. If refused, the handoff names the command. `website/src/content/docs/index.mdx:4`
 
 ### 3. the agent docs and rules cite only what exists, and every nvs command has a row in the CLI reference
 
@@ -442,20 +442,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done, in four commits: the empty roadmap's sentence (`1c0d0b3fe`), the install steps and
-*What is new* (`e393fe653`), the `/security/` and `/licenses/` pages with the footer (`c7371f563`),
-and the social image with the sitemap filter (`ea105c13d`). `roadmap-tests` and `site-check` are
-green, and `site --questions --status` owes nothing.
+Stages 1 and 2 are done. Stage 2 landed in five commits: SECURITY.md (`8c9ba7035`), CONTRIBUTING.md
+(`743300220`), the README (`42bb39db4`), setup.md and release.md (`64300f0ed`), and the code of
+conduct with the PR template (`f30325318`). `layout-check`, `readme-prose` and `bun nv links` are
+green. `gh repo edit` ran, and `gh repo view` shows the home page's description and
+`https://novis-lang.org` as the homepage.
 
-- The roadmap: `EMPTY` and `ORDER` in `tools/nv/lib/site-roadmap.ts` are the README's copies of the
-  two sentences `Roadmap.astro` prints. The order sentence now stands only above a list.
-- *What is new* links `https://registry.novis-lang.org/`, the binary's default registry, and names
-  `nvs pkg add`. The site has no page of its own for packages: `docs/reference/tools/35-packages.md`
-  is not rendered to the website.
-- `/licenses/` reads each font's OFL text through `website/src/components/FontLicense.astro`. A Vite
-  `?raw` import of a package file fails the build, because the build leaves it to Node.
-- The sitemap is `@astrojs/sitemap` `^3.7.4` in `website/package.json`, with a filter on `NOINDEX` in
-  `website/astro.config.ts`. Starlight adds its own only when the config has none.
+- SECURITY.md names the eight `UNSAFE_CRATES` entries (seven crates and the `abi-probe` bench) and
+  CI's four platforms, from `ci.yml`'s `test` matrix.
+- The attribution commands moved to CONTRIBUTING.md § *Third-party notices*, which the README's
+  License section links.
+- CODE_OF_CONDUCT.md is the upstream 2.1 text, with `[INSERT CONTACT METHOD]` replaced by a link to
+  the legal notice. CONTRIBUTING.md links it under its routing table.
+- No `v*` tag exists yet, so docs/release.md's first-release sentence still holds.
 
 The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`, and every failure
 it shows has a fix between that commit and HEAD: the browser job's relative `NVS_BIN`
@@ -466,18 +465,17 @@ definition in the tree and no log, as the last goal's handoff found too.
 
 ### Next
 
-Stage 2, the files GitHub shows a visitor. The slices share `README.md`, `CONTRIBUTING.md`,
-`SECURITY.md` and `docs/setup.md`. The roadmap sentence in `README.md` is already settled by stage 1.
+Stage 3, the agent docs and the CLI reference. Two groups: the doc rewording, then the CLI table
+and its test.
 
-- [ ] SECURITY.md: eight audited `unsafe` crates, and the CI platforms. `SECURITY.md:66`, `SECURITY.md:109`, `tools/nv/cmd/lints.ts:73`
-- [ ] CONTRIBUTING.md: the status, the start block with its fallback and prerequisites, the registry and "the plan". `CONTRIBUTING.md:10`, `CONTRIBUTING.md:89`, `CONTRIBUTING.md:138`, `CONTRIBUTING.md:245`
-- [ ] README.md: the quick start and the License section. `README.md:8`, `README.md:161`, `website/snippets/install/01-hello.nvs:1`
-- [ ] docs/setup.md's outsider path, and docs/release.md's broken sentence. `docs/setup.md:1`, `docs/release.md:176`
-- [ ] `CODE_OF_CONDUCT.md` and `.github/pull_request_template.md`. `CODE_OF_CONDUCT.md:1`, `.github/pull_request_template.md:1`
-- [ ] `gh repo edit` for the description and homepage; if refused, the handoff names the command. `website/src/content/docs/index.mdx:4`
+- [ ] "The plan" as a document, in three agent docs. `docs/agent/user-report.md:134`, `docs/agent/dependency-update.md:163`, `docs/agent/doc-cleanup.md:68`
+- [ ] "The plan" in two rules and one playbook bullet, then `bun nv rules --render`. `docs/rules/packaging/the-version-contract-starts-at-0-1-0.md:10`, `docs/rules/programs/slice-ranking.md:2`
+- [ ] Each `docs/goal-format.md` citation names looper's repository and the kit file. `docs/agent/commands.md:44`, `docs/agent/conventions.md:603`, `docs/agent/coordinator.md:53`, `docs/agent/loop-authoring.md:4`, `docs/agent/playbook.md:6`
+- [ ] `# nvs cache`, a row per subcommand, and the test. `docs/reference/tools/10-cli.md:20`, `docs/reference/tools/10-cli.md:1151`, `crates/nvs-cli/src/cache_cmd.rs:43`, `crates/nvs-cli/tests/one_binary.rs:29`
+- [ ] `bun nv render --website`, and the CLI tools page links the new section. `website/src/data/reference.json:1`, `website/src/content/docs/tools/cli/index.mdx:75`
 
-Then `bun nv layout --check` and `bun nv prose README.md`, the stage's two checks. No test is
-expected to go red.
+Its checks are `cli-reference-rows`, `rules-check` and `links`. The new test in `one_binary.rs`
+goes red until every row exists.
 
 ### Backlog
 
