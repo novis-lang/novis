@@ -170,6 +170,10 @@ pub struct SqliteTarget<'a> {
     /// through `nvs_config::db::JournalMode`. A read-only open never does, and SQLite keeps a
     /// `:memory:` database in its own `memory` mode whatever is asked.
     pub wal: bool,
+    /// The instant [`open`] stops waiting at, or `None` to wait [`LOCK_WAIT`].
+    /// [`into_wal`]'s retry stops at the earlier of the two. `nvs-stdlib` sets
+    /// the request's wall deadline here, so an open never waits past it.
+    pub deadline: Option<std::time::Instant>,
 }
 
 impl<'a> SqliteTarget<'a> {
@@ -239,6 +243,7 @@ impl<'a> SqliteTarget<'a> {
             // `nvs_config::db::validate` has refused any other value at boot, so a value that is
             // neither spelling only reaches here from a block no boot read, and it opens as it is.
             wal: nvs_config::db::JournalMode::of(block) == Some(nvs_config::db::JournalMode::Wal),
+            deadline: None,
         })
     }
 }
@@ -740,6 +745,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let watching = Arc::clone(&interrupt);
     let read_only = target.read_only;
     let wal = target.wal;
+    let wal_until = target.deadline;
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
         let mut connection = if read_only {
@@ -755,7 +761,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         };
         connection.set_prepared_statement_cache_capacity(capacity);
         if wal && !read_only {
-            into_wal(&connection)?;
+            into_wal(&connection, wal_until)?;
         }
         connection.execute_batch(SESSION_PRAGMAS)?;
         connection.authorizer(Some(authorize))?;
@@ -794,7 +800,7 @@ pub const WAL: &str = "WAL";
 const WAL_RETRY: std::time::Duration = std::time::Duration::from_millis(5);
 
 /// Puts `connection`'s file in [`WAL`], trying again on `SQLITE_BUSY` until
-/// [`LOCK_WAIT`] has passed.
+/// [`LOCK_WAIT`] has passed or `deadline` is reached, whichever is first.
 ///
 /// **The busy timeout does not cover this switch.** Two connections that open a
 /// file still in rollback mode at once both read it under a shared lock, and
@@ -804,8 +810,12 @@ const WAL_RETRY: std::time::Duration = std::time::Duration::from_millis(5);
 /// and finds the file in WAL once the other has switched it. What it spends:
 /// one blocking-pool thread for at most [`LOCK_WAIT`], only while two opens of
 /// one file race.
-fn into_wal(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
-    let until = std::time::Instant::now() + LOCK_WAIT;
+fn into_wal(
+    connection: &rusqlite::Connection,
+    deadline: Option<std::time::Instant>,
+) -> rusqlite::Result<()> {
+    let waited = std::time::Instant::now() + LOCK_WAIT;
+    let until = deadline.map_or(waited, |at| at.min(waited));
     loop {
         match connection
             .pragma_update_and_check(None, "journal_mode", WAL, |row| row.get::<_, String>(0))

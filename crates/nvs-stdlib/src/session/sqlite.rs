@@ -114,6 +114,7 @@ fn opened(path: &Path) -> io::Result<Held> {
         statement_cache: STATEMENTS,
         read_only: false,
         wal: true,
+        deadline: None,
     })?;
     for statement in SCHEMA {
         drop(conn.query(statement, Vec::new())?);

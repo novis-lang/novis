@@ -328,6 +328,7 @@ pub(crate) fn open_named(
         Some(lease) => lease,
         None => wait_for_slot(ctx, ticket, &full, deadline)?,
     };
+    let connect_by = super::execute::within_wall(ctx, deadline);
 
     // The acquire `rule:security/db-pool-reset-is-a-boundary` describes: this
     // core's pool first, and what comes out of it is reset before this
@@ -397,9 +398,10 @@ pub(crate) fn open_named(
             // steps absent rather than skipped, and `opening` above goes unused
             // here because there is no address to name in a refusal.
             Some(nvs_db::Driver::Sqlite) => {
-                let target = nvs_db::SqliteTarget::resolve(block).map_err(|refused| {
+                let mut target = nvs_db::SqliteTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
+                target.deadline = connect_by;
                 let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                     Fault::thrown_as(
                         ThrownClass::Io,
@@ -421,7 +423,7 @@ pub(crate) fn open_named(
                     nvs_db::mysql::DEFAULT_PORT,
                     nvs_db::mysql::socket_endpoint,
                 )?;
-                let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, deadline)
+                let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, connect_by)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MySql(conn)
             }
@@ -441,7 +443,7 @@ pub(crate) fn open_named(
                     nvs_db::maria::DEFAULT_PORT,
                     nvs_db::mysql::socket_endpoint,
                 )?;
-                let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, deadline)
+                let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, connect_by)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MariaDb(conn)
             }
@@ -450,7 +452,7 @@ pub(crate) fn open_named(
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
                 let address = address_of(target.host, block.port, nvs_db::tds::DEFAULT_PORT, name)?;
-                let conn = nvs_db::TdsConn::connect(address, &target, deadline)
+                let conn = nvs_db::TdsConn::connect(address, &target, connect_by)
                     .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::SqlServer(conn)
             }
@@ -464,7 +466,7 @@ pub(crate) fn open_named(
                     nvs_db::pg::DEFAULT_PORT,
                     nvs_db::pg::socket_endpoint,
                 )?;
-                let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, deadline)
+                let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, connect_by)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::Postgres(conn)
             }
@@ -831,6 +833,7 @@ nvs_runtime::nvs_helper! {
             Some(lease) => lease,
             None => wait_for_slot(ctx, ticket, &full, deadline)?,
         };
+        let connect_by = super::execute::within_wall(ctx, deadline);
         // The pool's acquire, and `{ shared: false }` reaches it too: that
         // option bypasses the memo above and never the pool, which
         // `rule:core-classes/db-connection-is-named` says in as many words. `warm_connection` is where a failed reset destroys the
@@ -874,7 +877,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::mysql::DEFAULT_PORT));
-                        let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
+                        let conn = nvs_db::MySqlConn::connect(address, &target, connect_by)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::MySql(conn)
                     }
@@ -883,7 +886,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::maria::DEFAULT_PORT));
-                        let conn = nvs_db::MariaConn::connect(address, &target, deadline)
+                        let conn = nvs_db::MariaConn::connect(address, &target, connect_by)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::MariaDb(conn)
                     }
@@ -892,7 +895,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::pg::DEFAULT_PORT));
-                        let conn = nvs_db::PgConn::connect(address, &target, deadline)
+                        let conn = nvs_db::PgConn::connect(address, &target, connect_by)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::Postgres(conn)
                     }
@@ -901,7 +904,7 @@ nvs_runtime::nvs_helper! {
                         target.time_zone = zone;
                         let address =
                             SocketAddr::new(pinned, port_of(port, nvs_db::tds::DEFAULT_PORT));
-                        let conn = nvs_db::TdsConn::connect(address, &target, deadline)
+                        let conn = nvs_db::TdsConn::connect(address, &target, connect_by)
                             .map_err(|err| opening(address, &err))?;
                         nvs_db::Connection::SqlServer(conn)
                     }
@@ -1085,6 +1088,7 @@ pub(super) fn sqlite_settings(
             })?;
             target.time_zone = zone;
             target.read_only = read_only;
+            target.deadline = super::execute::within_wall(ctx, deadline);
             let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                 Fault::thrown_as(
                     ThrownClass::Io,

@@ -198,7 +198,7 @@ filter 100, Postgres arrays 6, the redaction walk 128 on the spare stack.
 Most waits go through four doors, so most items are one change at a door. Each item reads
 `wall_time_left`, by the standing decision.
 
-- [ ] The socket door: `NvsStream`'s deadline (`crates/nvs-host/src/net.rs:250`, `net.rs:727`,
+- [x] The socket door: `NvsStream`'s deadline (`crates/nvs-host/src/net.rs:250`, `net.rs:727`,
   `net.rs:1055`, waits at `net.rs:1414` and `net.rs:1689`). The stream has no `Ctx`, so each member that
   sets a stream's deadline clamps it to the wall deadline. That covers `Core\Net` (`crates/nvs-stdlib/src/net.rs:1419`,
   `:1631`, `:1662`, `:1712`, `:1834`, `:1885`), `Core\Http` (`crates/nvs-stdlib/src/http/transport.rs:1673`,
@@ -211,16 +211,16 @@ Most waits go through four doors, so most items are one change at a door. Each i
   - [x] `Core\Mail`: one deadline over the whole exchange. Before, only the connect was bounded.
   - [x] `Core\Ldap`: `held` files the wall on `Held`, and `dial` takes it.
   - [x] Attack `tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs`, green.
-- [ ] The database door: `bound_connection` (`crates/nvs-stdlib/src/db/execute.rs:77`) clamps every
+- [x] The database door: `bound_connection` (`crates/nvs-stdlib/src/db/execute.rs:77`) clamps every
   statement's deadline. That covers the four wire drivers' replies (`crates/nvs-db/src/pg.rs:461`,
   `mysql.rs:449`, `maria.rs:462`, `conn.rs:1236`) and their connects (`pg.rs:1099`, `mysql.rs:1819`,
   `maria.rs:381`, `tds/mod.rs:401`). SQLite's busy wait with a statement `timeout` takes the shorter of
   the two (`execute.rs:86`), and `into_wal`'s retry (`crates/nvs-db/src/sqlite.rs:808`) stops at it.
   - [x] `bound_connection` files the earlier of the statement's deadline and the wall deadline.
-  - [ ] The four connects take the wall deadline: find where `Core\Db::connect` and the pool's open
-    build the connect bound (`crates/nvs-stdlib/src/db/open.rs`).
-  - [ ] `into_wal`'s retry stops at the wall deadline.
-  - [ ] A Rust test: a scripted peer that never replies, under a short wall time, ends at the deadline.
+  - [x] The four connects take the wall deadline: `open_named` and both `open` arms pass
+    `connect_by`, from `execute::within_wall`. The pool's slot wait is the park door's.
+  - [x] `into_wal`'s retry stops at the wall deadline: `SqliteTarget::deadline`.
+  - [x] A Rust test: `a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline`, green.
 - [ ] The blocking-pool door: `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`). Its
   callers wait no longer than the deadline. That covers `Core\Process::run` (`crates/nvs-stdlib/src/process.rs:964`,
   `:1187`, `:1311`), the handle's read, write and kill (`process.rs:1523`) and `Handle::wait` (`process.rs:1661`),

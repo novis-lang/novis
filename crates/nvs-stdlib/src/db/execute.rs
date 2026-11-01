@@ -56,6 +56,21 @@ pub(super) fn statement_deadline(
     ))
 }
 
+/// The earlier of `deadline` and the request's wall deadline, or whichever of
+/// the two there is. A statement and a driver's connect both wait no longer
+/// than this, by `rule:http-server/time-is-bounded-inside-a-helper`: a wait
+/// that ends at the wall deadline leaves the request's safepoint flag raised,
+/// and the request stops at its next poll. One load, no clock read.
+pub(super) fn within_wall(
+    ctx: &nvs_runtime::Ctx,
+    deadline: Option<std::time::Instant>,
+) -> Option<std::time::Instant> {
+    match (deadline, ctx.wall_bound()) {
+        (Some(own), Some(wall)) => Some(own.min(wall)),
+        (own, wall) => own.or(wall),
+    }
+}
+
 /// [`filed_connection`], with the statement's `timeout` deadline filed on it
 /// before the statement goes out.
 ///
@@ -93,10 +108,7 @@ pub(super) fn bound_connection<'a>(
     // one it named or not. The reply's wait on a wire driver is bounded by it;
     // a wait that ended there leaves the request's safepoint flag raised, and
     // the request stops at its next poll.
-    let deadline = match (deadline, ctx.wall_bound()) {
-        (Some(own), Some(wall)) => Some(own.min(wall)),
-        (own, wall) => own.or(wall),
-    };
+    let deadline = within_wall(ctx, deadline);
     let cpu_left = (ctx.cpu_limit() > 0)
         .then(nvs_host::watchdog::running_spent)
         .flatten()
@@ -1776,6 +1788,60 @@ mod tests {
             "a statement that ran out of time did not throw an `IOError`"
         );
         drop(peer);
+    }
+
+    /// `rule:http-server/time-is-bounded-inside-a-helper` on the database
+    /// door: a connect that names no `timeout` waits no longer than the
+    /// request's `[limits] wall_time`. The peer accepts and never replies, so
+    /// only the wall deadline [`within_wall`] gives the connect can end it.
+    #[cfg_attr(miri, ignore = "opens a TCP socket, which Miri does not emulate")]
+    #[test]
+    fn a_connect_to_a_peer_that_never_replies_ends_at_the_wall_deadline() {
+        let written = "[limits]\nwall_time = \"200ms\"\n";
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx.refresh_limits();
+        let bound = within_wall(&ctx, None).expect("a request with a `wall_time` has a deadline");
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let address = listener
+            .local_addr()
+            .expect("a bound listener has an address");
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("postgres")),
+            host: Some(String::from("127.0.0.1")),
+            user: Some(String::from("app")),
+            database: Some(String::from("shop")),
+            password: Some(String::from("secret")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::PgTarget::resolve(&block).expect("a `postgres` block resolves");
+
+        // The listener's backlog accepts the connect, and nothing ever reads
+        // or writes on it: the handshake's first reply never comes.
+        let started = std::time::Instant::now();
+        let Err(refused) = nvs_db::PgConn::connect(address, &target, Some(bound)) else {
+            panic!("a connect to a peer that never replies opened");
+        };
+        let waited = started.elapsed();
+        assert_eq!(refused.kind(), std::io::ErrorKind::TimedOut, "{refused}");
+        assert!(
+            std::time::Instant::now() >= bound,
+            "the connect gave up {waited:?} in, before the wall deadline"
+        );
+        assert!(
+            waited < std::time::Duration::from_secs(5),
+            "the connect waited {waited:?}, past the 200ms wall deadline"
+        );
+        drop(listener);
     }
 
     /// `rule:core-classes/db-statement-members`'s buffered read, which is the
