@@ -142,8 +142,8 @@ This is the whole of a real run, the first one included. Step 9 is once, ever.
 
 1. **The registry's verifier key is pinned.** `DEFAULT_KEY` in
    [manifest.rs](../crates/nvs-cli/src/package/manifest.rs) is the public key of
-   `registry.novis-lang.org`, made with `nvs registry key`. Its private key is kept off every machine
-   the loop or CI reaches, and it goes only to the registry service. Nothing is done here unless the
+   `registry.novis-lang.org`, made with `nvs registry key`. Its private key is outside this
+   repository, no agent reads it, and it goes only to the registry service. Nothing is done here unless the
    key is replaced. A new key is a code commit, so the release's `test` job runs the full suite on it
    unless a full CI run of it is already green.
 
