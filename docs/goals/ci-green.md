@@ -122,43 +122,38 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `441d27ced`, and CI 41279676146 on it is red in four jobs. Website is green.
-Each red has a fix committed on the local `main`, and none is pushed:
+`origin/main` is at `a6ef88c92`. It carries the four fixes of the last run. Website 41283592505 on
+it is green. CI 41283592496 was still going when this session ended, and two jobs had failed:
 
-- `cost guards / linux-x86_64`, the memory mark at 1.05x: `2388e7510` inlines `budget::carry`.
-- `test / macos-aarch64 (conformance)`, `config/wall-time-stops-a-loop-that-calls-nothing`:
-  `722110c9d`, the watchdog's sweep claims the wall stop.
-- `test / windows-x86_64 (tests)`, `serve_isolation`'s on-limit case: `71cedff2c`.
-- `proofs / macos-aarch64`, `core/Task/all/03-tasks-that-never-wait.nvs`: `672ed07f5`.
+- `the chapter examples run and the website matches the binary`: `nv reference` failed on
+  `10-cli.md:1201`, "an `output` block with no program before it". The local commit `741bc5748`
+  fixes it, and `bun nv ci --check`'s `chapter examples` check is green on it. It is not pushed.
+- `proofs / macos-aarch64`: `tests/hostile/core/Compress/decompress/02-bombs-until-the-cpu-limit.nvs`
+  used 371 ms against a CPU limit of 250 ms, 121 ms past the limit. The bound is the limit plus
+  100 ms. The case passed on the push before. The diff between the two pushes touches only the
+  wall-time claim and the `onLimit` handler's slice, and this attack has neither. So it is read as
+  a timing failure on a loaded runner, and the next push reruns it. The decoder polls the deadline
+  every 256 KiB (`crates/nvs-stdlib/src/compress.rs:819`), and the sweep runs every 50 ms
+  (`crates/nvs-host/src/watchdog.rs:226`).
 
-`bun nv ci --push` is still refused, by two pre-push checks. `docs/rules/packaging.md` is green
-now. The main loop's session for `release-polish` is writing the other two, uncommitted in the
-tree. Do not write them here, because the claims guard refuses those files:
-
-- `feature proofs`: `tools:cli/nvs-cache` owes its about, example, attack and tests. The main loop
-  has them in progress under `docs/examples/tools/cli/nvs-cache/`, `tests/hostile/tools/cli/nvs-cache/`
-  and `crates/nvs-cli/src/cache_cmd.rs`.
-- `website stale guard`: the site questions of `/reference/cli/nvs-cache/` are owed, and those of
-  `/reference/cli/one-binary/` and `/tools/cli/` are stale.
-
-A background `Bash` or `Monitor` watch can report its first events many minutes late, or only once
-the next one starts. A `--max-min 9` watch in the foreground is the reliable fallback.
+`bun nv ci --check` was green at the start of this session, and 12 commits wait to be pushed.
+`bun nv ci --push` then failed its `build` check on `crates/nvs-runtime/src/ctx/held.rs`. The main
+loop was editing that file and had not committed it (`started_scripts` changed type, and
+`filed_at` still takes `&[(u64, T)]`). While a push is refused, `--watch` prints the refusal and
+exits 1. So it cannot watch the run in progress.
 
 ### Next
 
 **Stage 1, the cycle.**
 
-- [ ] Run `bun nv ci --check` (`tools/nv/cmd/ci.ts:1`). If the main loop has committed the
-  `nvs-cache` proofs and the three pages' questions and it is green, run `bun nv ci --push` and
-  watch the new run with `bun nv ci --watch`. If a check is still red only because of the main
-  loop's uncommitted work, watch nothing and hand off again. If the tree is clean and a check is
-  still red, the red is this loop's to fix.
-- [ ] Expect the four jobs above green on that push. `crates/nvs-host/src/reactor.rs:761`
-  If one fails the same way again, its fix did not reach the cause.
-
-A side note from the fixes: a CPU-time FATAL raised in a child task prints no `N ms used of M ms`.
-The child's own `cpu_limit` is 0 (`crates/nvs-runtime/src/ctx/safepoint.rs:1089`), and nothing
-checks that message, so it waits in the Backlog.
+- [ ] Push once `crates/nvs-runtime/src/ctx/held.rs:47` is committed. `tools/nv/cmd/ci.ts:1`
+  Check it with `git status --short -- crates/nvs-runtime/src/ctx/held.rs`. If the file is still
+  modified, hand off again. Once it is committed, run `bun nv ci --push`, then `bun nv ci --watch`.
+  A push refused for another reason in a committed file is this loop's to fix.
+- [ ] Expect both reds green on that push. `crates/nvs-stdlib/src/compress.rs:950`
+  If the Compress CPU attack goes over the bound a second time, it is not noise. Look at what runs
+  between the crossing and the stop: the 16 MiB `Vec` that `read_to_end` grows there, and the
+  sweep's own lateness.
 
 ### Backlog
 
