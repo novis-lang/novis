@@ -1,9 +1,10 @@
-// `bun nv gen-attribution`: `THIRD-PARTY-LICENSES.txt` from the resolved dependency graph, and the
-// default binary's C dependencies held against the ledger
+// `bun nv gen-attribution`: `THIRD-PARTY-LICENSES.txt` from the resolved dependency graph, the VS Code
+// extension's `editors/vscode/THIRD-PARTY-NOTICES.txt` from its `package-lock.json`, and the default
+// binary's C dependencies held against the ledger
 // `rule:packaging/a-c-dependency-answers-two-questions` asks for.
 //
-//     bun nv gen-attribution                   regenerate the notice
-//     bun nv gen-attribution --check           exit 1 if the committed notice is stale (CI)
+//     bun nv gen-attribution                   regenerate both notices
+//     bun nv gen-attribution --check           exit 1 if a committed notice is stale (CI)
 //     bun nv gen-attribution --check-c-deps    list the C dependencies; exit 1 on one the ledger does not record
 //
 // The notice is the one file that reproduces every third-party license with the binary, for the
@@ -26,8 +27,13 @@
 // dependency, and every package reachable the same way from each built-in component's crate
 // (`BUILT_IN_COMPONENTS`), which is compiled to wasm and embedded in the binary. The C libraries a
 // component carries prebuilt (`PREBUILT_C`) have no manifest, so their licence files are read from
-// beside the library, and so are the embedded fonts' (`FONT_DIRS`). The debug viewer's runtime npm
-// packages are read from `viewer/package.json`, `bun.lock` and `node_modules` (`viewerPackages`).
+// beside the library, and so are the embedded fonts' (`FONT_DIRS`). The copied WASI interfaces
+// (`WIT_DIRS`) name their upstream in a README. The debug viewer's runtime npm packages are read from
+// `viewer/package.json`, `bun.lock` and `node_modules` (`viewerPackages`).
+//
+// The extension's notice is the same format over another set: the npm packages esbuild bundles into
+// `out/extension.js`, from `editors/vscode/package-lock.json` (`vscodePackages`), and the built
+// package `scripts/viewer.mjs` copies beside it (`VSCODE_COPIED`).
 //
 // The C-dependency enumeration reads the binary's package set alone. A package counts when it
 // declares `links`, or when it build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either
@@ -43,12 +49,11 @@ import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 import { checkLibrary, readRecord } from "./webp-lib.ts";
 
-export const summary = "THIRD-PARTY-LICENSES.txt from the dependency graph, and the C-dependency ledger: nv gen-attribution [--check|--check-c-deps]";
+export const summary = "THIRD-PARTY-LICENSES.txt and the VS Code extension's notice from their lockfiles, and the C-dependency ledger: nv gen-attribution [--check|--check-c-deps]";
 
 const USAGE = "usage: nv gen-attribution [-h] [--check] [--check-c-deps]";
 
 const OUTPUT_NAME = "THIRD-PARTY-LICENSES.txt";
-const OUTPUT = join(ROOT, OUTPUT_NAME);
 const DENY = join(ROOT, "deny.toml");
 
 // The package whose dependency set is distributed. Everything else in the workspace is a library
@@ -62,7 +67,7 @@ const BINARY = "nvs";
 // entering the tree is a decision somebody makes.
 //
 // It names exactly the identifiers `deny.toml`'s `licenses.allow` does, only ordered, plus the font-data
-// licences of `FONT_DATA`: that file decides what Novis may *link*, this one what it ships and which half
+// licences of `FONT_DATA` and the npm licences of `NPM_ONLY`: that file decides what Novis may *link*, this one what it ships and which half
 // of a choice. `checkPoliciesAgree` fails on a drift in either direction.
 const PREFERENCE = [
   "MIT",
@@ -88,11 +93,18 @@ const PREFERENCE = [
   // (`rule:core-classes/pdf-default-fonts`). Font data only: it is in `FONT_DATA`, so a crate offering it
   // is still refused by `deny.toml`, which does not allow it.
   "OFL-1.1",
+  // The Blue Oak Model License, a permissive licence `minimatch` is offered under. For npm packages
+  // only: it is in `NPM_ONLY`, so a crate offering it is still refused by `deny.toml`.
+  "BlueOak-1.0.0",
 ];
 
 // The identifiers `PREFERENCE` ranks for font data alone. A font file is shipped, never linked, so
 // `deny.toml` does not name these, and `checkPoliciesAgree` does not ask it to.
 const FONT_DATA = ["OFL-1.1"];
+
+// The identifiers `PREFERENCE` ranks for an npm package alone. `deny.toml` audits crates, so it does not
+// name these, and a crate taking one is an error here too.
+const NPM_ONLY = ["BlueOak-1.0.0"];
 
 // Content fingerprints, checked in order: a license file is classified by what it says, not by what it
 // is called, so LICENSE, LICENSE-MIT and license.txt all work, and a LICENSE that is Apache is filed as
@@ -108,6 +120,7 @@ const FINGERPRINTS: [string, string[]][] = [
   ["MPL-2.0", ["mozilla public license version 2.0"]],
   ["CC0-1.0", ["creative commons legal code", "cc0 1.0 universal"]],
   ["OFL-1.1", ["sil open font license", "version 1.1"]],
+  ["BlueOak-1.0.0", ["blue oak model license", "version 1.0.0"]],
   ["CDLA-Permissive-2.0", ["community data license agreement", "permissive"]],
   ["BSD-3-Clause", ["redistribution and use in source and binary forms", "endorse or promote"]],
   ["BSD-2-Clause", ["redistribution and use in source and binary forms"]],
@@ -278,11 +291,37 @@ const PREBUILT_C: Prebuilt[] = [
 // shipped and never linked, so it is not a C dependency and `deny.toml` does not see it.
 const FONT_DIRS = ["extensions/fonts"];
 
+// The WIT folders `nvs-ext` embeds that are copies of somebody else's interfaces: the WASI 0.2 files
+// under `deps/`, which `nvs ext` writes into each extension it creates. Each folder's `README.md`
+// names the upstream on a `Upstream:`, a `Version:` and a `License:` line. The folder ships no
+// licence text: an Apache-2.0 text carries no copyright line, so the notice reuses a crate's.
+const WIT_DIRS = ["wit/nvs-ext/deps"];
+
 // The debug viewer's bundle, which `nvs-cli` embeds, carries its runtime npm packages: each package this
 // manifest lists under `dependencies`, and each one those depend on, at the version `bun.lock`
 // resolves. A build-time package, such as Babel or Solid's JSX preset, is in no bundle and is not
 // listed. A package the bundler leaves out is still listed, which is the direction to err in.
 const VIEWER_MANIFEST = "viewer/package.json";
+
+// The VS Code extension's `.vsix` has its own notice, `THIRD-PARTY-NOTICES.txt` beside its manifest.
+// esbuild bundles into `out/extension.js` each package the manifest lists under `dependencies`, and
+// each one those depend on, at the version `package-lock.json` resolves. `tools/nv/test/attribution-vscode.test.ts`
+// holds that set against what esbuild bundles.
+const VSCODE_DIR = "editors/vscode";
+const VSCODE_NOTICE = `${VSCODE_DIR}/THIRD-PARTY-NOTICES.txt`;
+
+// A package `scripts/viewer.mjs` copies into the `.vsix` as built files, so its own dependencies are not
+// followed. `fonts` are the font files its build carries, each with the licence file beside them.
+interface Copied {
+  name: string;
+  fonts: { name: string; license: string; text: string }[];
+}
+const VSCODE_COPIED: Copied[] = [
+  {
+    name: "speedscope",
+    fonts: [{ name: "Source Code Pro", license: "OFL-1.1", text: "dist/release/source-code-pro.LICENSE.md" }],
+  },
+];
 
 interface NpmPackage {
   name: string;
@@ -315,6 +354,56 @@ function viewerPackages(): NpmPackage[] {
     }
     found.set(name, { name, version, license: installed.license, dir });
     queue.push(...Object.keys(entry[2]?.dependencies ?? {}));
+  }
+  return [...found.values()];
+}
+
+interface NpmLock {
+  packages: Record<string, { version?: string; dependencies?: Record<string, string> }>;
+}
+
+/** The installed package at `key` in `VSCODE_DIR`'s `package-lock.json`. Its version must be the lock's. */
+function installedVscodePackage(lock: NpmLock, key: string): NpmPackage {
+  const name = key.slice(key.lastIndexOf("node_modules/") + "node_modules/".length);
+  const version = lock.packages[key]!.version ?? "";
+  const dir = join(ROOT, VSCODE_DIR, key);
+  const meta = join(dir, "package.json");
+  const installed = isFile(meta) ? (JSON.parse(readText(meta)) as { version?: string; license?: string }) : null;
+  if (installed?.version !== version) {
+    throw new Fatal(
+      `error: ${VSCODE_DIR}/package-lock.json resolves ${name} ${version}, and ${VSCODE_DIR}/${key} holds ` +
+        `${installed?.version ?? "nothing"}. Run \`npm ci\` in ${VSCODE_DIR}.`,
+    );
+  }
+  return { name, version, license: installed.license, dir };
+}
+
+/** The extension's runtime packages and the packages it copies, from `package-lock.json` and the
+ * installed `node_modules`. A package the lock does not resolve, or one whose installed version is not
+ * the lock's, stops the run. */
+function vscodePackages(): NpmPackage[] {
+  const manifest = JSON.parse(readText(join(ROOT, VSCODE_DIR, "package.json"))) as { dependencies?: Record<string, string> };
+  const lock = JSON.parse(readText(join(ROOT, VSCODE_DIR, "package-lock.json"))) as NpmLock;
+  // npm's lookup: the dependent's own `node_modules`, then each one that encloses it, then the top.
+  const resolve = (from: string, name: string): string => {
+    for (let base = from; ; ) {
+      const key = `${base === "" ? "" : `${base}/`}node_modules/${name}`;
+      if (lock.packages[key]) return key;
+      if (base === "") throw new Fatal(`error: ${VSCODE_DIR} needs ${name}, which its package-lock.json does not resolve. Run \`npm install\` there.`);
+      const at = base.lastIndexOf("/node_modules/");
+      base = at < 0 ? "" : base.slice(0, at);
+    }
+  };
+  const found = new Map<string, NpmPackage>();
+  const queue = Object.keys(manifest.dependencies ?? {}).map((name) => resolve("", name));
+  for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
+    if (found.has(key)) continue;
+    found.set(key, installedVscodePackage(lock, key));
+    queue.push(...Object.keys(lock.packages[key]!.dependencies ?? {}).map((name) => resolve(key, name)));
+  }
+  for (const copied of VSCODE_COPIED) {
+    const key = resolve("", copied.name);
+    if (!found.has(key)) found.set(key, installedVscodePackage(lock, key));
   }
   return [...found.values()];
 }
@@ -752,13 +841,13 @@ function denyAllowlist(): Set<string> {
 /**
  * Fails when `PREFERENCE` and `deny.toml`'s allow list have drifted apart. The two cannot be merged —
  * `deny.toml` is cargo-deny's format and has no order — so they are checked against each other, which
- * catches a license added to one file and not the other. A `FONT_DATA` identifier is ranked and not
- * allowed, because no crate may offer it.
+ * catches a license added to one file and not the other. A `FONT_DATA` or `NPM_ONLY` identifier is
+ * ranked and not allowed, because no crate may offer it.
  */
 function checkPoliciesAgree(allowed: Set<string>): void {
   if (allowed.size === 0) return;
   const unranked = [...allowed].filter((i) => !PREFERENCE.includes(i)).sort(cmp);
-  const unallowed = PREFERENCE.filter((i) => !allowed.has(i) && !FONT_DATA.includes(i)).sort(cmp);
+  const unallowed = PREFERENCE.filter((i) => !allowed.has(i) && !FONT_DATA.includes(i) && !NPM_ONLY.includes(i)).sort(cmp);
   const problems: string[] = [];
   if (unranked.length > 0) problems.push(`allowed by deny.toml but absent from PREFERENCE: ${unranked.join(", ")}`);
   if (unallowed.length > 0) problems.push(`ranked in PREFERENCE but not allowed by deny.toml: ${unallowed.join(", ")}`);
@@ -790,16 +879,41 @@ const line = (char = "-") => char.repeat(WIDTH);
 const width = (s: string) => [...s].length;
 const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - width(s)));
 
-function render(components: Component[], groups: Group[], notices: [string, string, string][]): string {
+/** What one notice says about itself: its title, the paragraph under it, and a line of its table's. */
+interface Header {
+  title: string;
+  intro: string[];
+  table: string[];
+}
+
+const BINARY_HEADER: Header = {
+  title: "Novis — third-party attribution",
+  intro: [
+    "This file is the complete notice for third-party components compiled into",
+    `the \`${BINARY}\` binary. Novis's own terms are MIT and live in LICENSE; they are`,
+    "not restated here.",
+  ],
+  table: ["platform Novis builds for, so one may appear that a given build omits."],
+};
+
+const VSCODE_HEADER: Header = {
+  title: "Novis for VS Code — third-party attribution",
+  intro: [
+    "This file is the complete notice for third-party components bundled into",
+    "the Novis extension for VS Code. The extension's own terms are MIT and live",
+    "in LICENSE; they are not restated here.",
+  ],
+  table: ["platform VS Code runs on."],
+};
+
+function render(header: Header, components: Component[], groups: Group[], notices: [string, string, string][]): string {
   const out: string[] = [];
   const add = (s: string) => out.push(s);
 
-  add("Novis — third-party attribution");
+  add(header.title);
   add(line("="));
   add("");
-  add("This file is the complete notice for third-party components compiled into");
-  add(`the \`${BINARY}\` binary. Novis's own terms are MIT and live in LICENSE; they are`);
-  add("not restated here.");
+  for (const s of header.intro) add(s);
   add("");
   add("GENERATED FILE — do not edit by hand. Regenerate with:");
   add("");
@@ -814,7 +928,7 @@ function render(components: Component[], groups: Group[], notices: [string, stri
   add("");
   add("Where a component offers a choice of licenses, Novis takes the one shown and");
   add("the full offer follows in parentheses. Components are listed for every");
-  add("platform Novis builds for, so one may appear that a given build omits.");
+  for (const s of header.table) add(s);
   add("");
 
   const nameW = Math.max(...components.map((c) => width(c.name)));
@@ -871,12 +985,9 @@ function render(components: Component[], groups: Group[], notices: [string, stri
   return rstrip(out.join("\n")) + "\n";
 }
 
-async function build(): Promise<string> {
-  const meta = await cargoMetadata();
-  const packages = await allShippedPackages(meta);
-  const allowed = denyAllowlist();
-  checkPoliciesAgree(allowed);
-
+/** One notice as it is assembled: its components, its license texts grouped by content, and what is
+ * wrong with it. `finish` renders it, and throws on the first notice with a problem. */
+function collector(allowed: Set<string>) {
   const components: Component[] = [];
   // Keyed by identifier and text together, so identical texts collapse and a differing copyright line
   // keeps its own entry. A Map keeps first-seen order, which is the tie-break the groups sort on.
@@ -892,8 +1003,9 @@ async function build(): Promise<string> {
     return byText.get(key)!.names;
   };
 
-  // A crate or an npm package: its manifest's SPDX expression, and the license files in `dir`.
-  const addPackage = (name: string, version: string, expr: string | null | undefined, dir: string) => {
+  // A crate or an npm package: its manifest's SPDX expression, and the license files in `dir`. Only an
+  // npm package may take a licence of `NPM_ONLY`.
+  const addPackage = (name: string, version: string, expr: string | null | undefined, dir: string, npm: boolean) => {
     const label = `${name} ${version}`;
     if (!expr) {
       // `license-file` instead of `license`: the package's terms are not an SPDX expression at all.
@@ -904,6 +1016,7 @@ async function build(): Promise<string> {
     components.push({ name, version, taken: taken.join(" AND "), offered: expr });
 
     for (const ident of taken) {
+      if (npm && NPM_ONLY.includes(ident)) continue;
       if (allowed.size > 0 && !allowed.has(ident)) problems.push(`${label}: ${ident} is not in deny.toml's allow list`);
     }
 
@@ -922,23 +1035,17 @@ async function build(): Promise<string> {
     }
   };
 
-  for (const pkg of packages) addPackage(pkg.name, pkg.version, pkg.license, dirname(pkg.manifest_path));
-  for (const pkg of viewerPackages()) addPackage(pkg.name, pkg.version, pkg.license, pkg.dir);
+  // A component with no manifest: its record names the licence, and `text` is the licence text. With
+  // no text, it takes another component's text for the same licence, as a crate with no file does.
+  const addRecord = (name: string, version: string, license: string, text: string | undefined) => {
+    const label = `${name} ${version}`;
+    if (!PREFERENCE.includes(license)) problems.push(`${label}: ${license} has no entry in PREFERENCE`);
+    components.push({ name, version, taken: license, offered: license });
+    if (text === undefined) pending.push([label, license]);
+    else group(license, text).push(label);
+  };
 
-  // A prebuilt C library has no manifest: its record names the licence, and its own files are the text.
-  for (const lib of PREBUILT_C) {
-    const version = prebuiltVersion(lib);
-    components.push({ name: lib.name, version, taken: lib.license, offered: lib.license });
-    const text = lib.texts.map((name) => normalize(readText(join(ROOT, lib.dir, name)))).join("\n\n");
-    group(lib.license, text).push(`${lib.name} ${version}`);
-  }
-  // A font folder has no manifest either: its record names the licence, and its LICENSE is the text.
-  for (const dir of FONT_DIRS) {
-    const record = JSON.parse(readText(join(ROOT, dir, "SOURCE.json"))) as FontRecord;
-    if (!FONT_DATA.includes(record.license)) problems.push(`${dir}: ${record.license} is not a licence admitted for font data`);
-    components.push({ name: record.name, version: record.source.version, taken: record.license, offered: record.license });
-    group(record.license, normalize(readText(join(ROOT, dir, "LICENSE")))).push(`${record.name} ${record.source.version}`);
-  }
+  const finish = (header: Header): string => {
   components.sort((a, b) => cmp(a.name.toLowerCase(), b.name.toLowerCase()) || cmp(a.version, b.version));
 
   // A crate with no license file of its own is common where only a repository's root crate carries
@@ -971,41 +1078,106 @@ async function build(): Promise<string> {
   );
   notices.sort((a, b) => cmp(a[0], b[0]) || cmp(a[1], b[1]) || cmp(a[2], b[2]));
 
-  return render(components, groups, notices);
+  return render(header, components, groups, notices);
+  };
+
+  return { addPackage, addRecord, problems, finish };
+}
+
+/** A copied WIT folder's upstream, from the `Upstream:`, `Version:` and `License:` lines of its README. */
+function witRecord(dir: string): { name: string; version: string; license: string } {
+  const readme = readText(join(ROOT, dir, "README.md"));
+  const field = (key: string) => {
+    const value = new RegExp(`^${key}: *(.+?) *$`, "m").exec(readme)?.[1]?.replaceAll("`", "");
+    if (value === undefined) throw new Fatal(`error: ${dir}/README.md has no \`${key}:\` line`);
+    return value;
+  };
+  return { name: field("Upstream"), version: field("Version"), license: field("License") };
+}
+
+/** Both notices: the binary's and the VS Code extension's. */
+async function build(): Promise<{ binary: string; vscode: string }> {
+  const meta = await cargoMetadata();
+  const packages = await allShippedPackages(meta);
+  const allowed = denyAllowlist();
+  checkPoliciesAgree(allowed);
+
+  const binary = collector(allowed);
+  for (const pkg of packages) binary.addPackage(pkg.name, pkg.version, pkg.license, dirname(pkg.manifest_path), false);
+  for (const pkg of viewerPackages()) binary.addPackage(pkg.name, pkg.version, pkg.license, pkg.dir, true);
+  // A prebuilt C library has no manifest: its own files are the text.
+  for (const lib of PREBUILT_C) {
+    const text = lib.texts.map((name) => normalize(readText(join(ROOT, lib.dir, name)))).join("\n\n");
+    binary.addRecord(lib.name, prebuiltVersion(lib), lib.license, text);
+  }
+  // A font folder has no manifest either: its `SOURCE.json` names the licence, and its LICENSE is the text.
+  for (const dir of FONT_DIRS) {
+    const record = JSON.parse(readText(join(ROOT, dir, "SOURCE.json"))) as FontRecord;
+    if (!FONT_DATA.includes(record.license)) binary.problems.push(`${dir}: ${record.license} is not a licence admitted for font data`);
+    binary.addRecord(record.name, record.source.version, record.license, normalize(readText(join(ROOT, dir, "LICENSE"))));
+  }
+  for (const dir of WIT_DIRS) {
+    const record = witRecord(dir);
+    binary.addRecord(record.name, record.version, record.license, undefined);
+  }
+
+  const vscode = collector(allowed);
+  const npm = vscodePackages();
+  for (const pkg of npm) vscode.addPackage(pkg.name, pkg.version, pkg.license, pkg.dir, true);
+  for (const copied of VSCODE_COPIED) {
+    const pkg = npm.find((p) => p.name === copied.name)!;
+    for (const font of copied.fonts) {
+      if (!FONT_DATA.includes(font.license)) vscode.problems.push(`${font.name}: ${font.license} is not a licence admitted for font data`);
+      vscode.addRecord(font.name, `${pkg.name}-${pkg.version}`, font.license, normalize(readText(join(pkg.dir, font.text))));
+    }
+  }
+
+  return { binary: binary.finish(BINARY_HEADER), vscode: vscode.finish(VSCODE_HEADER) };
 }
 
 async function writeOrCheck(check: boolean): Promise<number> {
-  const generated = await build();
-  if (check) {
-    let current: string;
-    try {
-      current = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(OUTPUT));
-    } catch {
-      console.error(`error: ${OUTPUT_NAME} does not exist`);
-      return 1;
+  const { binary, vscode } = await build();
+  const outputs: [string, string][] = [
+    [OUTPUT_NAME, binary],
+    [VSCODE_NOTICE, vscode],
+  ];
+  let failed = false;
+  for (const [name, generated] of outputs) {
+    const path = join(ROOT, name);
+    if (check) {
+      let current: string;
+      try {
+        current = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(path));
+      } catch {
+        console.error(`error: ${name} does not exist. Run \`bun nv gen-attribution\` and commit the result.`);
+        failed = true;
+        continue;
+      }
+      if (current.replaceAll("\r\n", "\n").replaceAll("\r", "\n") !== generated) {
+        console.error(
+          `error: ${name} is out of date with its lockfile.\n` +
+            `       Run \`bun nv gen-attribution\` and commit the result.`,
+        );
+        failed = true;
+        continue;
+      }
+      console.log(`${name} is up to date`);
+      continue;
     }
-    if (current.replaceAll("\r\n", "\n").replaceAll("\r", "\n") !== generated) {
-      console.error(
-        `error: ${OUTPUT_NAME} is out of date with Cargo.lock.\n` +
-          `       Run \`bun nv gen-attribution\` and commit the result.`,
-      );
-      return 1;
-    }
-    console.log(`${OUTPUT_NAME} is up to date`);
-    return 0;
+    writeFileSync(path, generated, "utf-8");
+    const commas = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const lines = generated.split("\n").length - 1;
+    console.log(`wrote ${name} (${commas(width(generated))} bytes, ${commas(lines)} lines)`);
   }
-  writeFileSync(OUTPUT, generated, "utf-8");
-  const commas = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const lines = generated.split("\n").length - 1;
-  console.log(`wrote ${OUTPUT_NAME} (${commas(width(generated))} bytes, ${commas(lines)} lines)`);
-  return 0;
+  return failed ? 1 : 0;
 }
 
 function help(): string {
   return [
     USAGE,
     "",
-    "Generate THIRD-PARTY-LICENSES.txt from the resolved dependency graph.",
+    "Generate THIRD-PARTY-LICENSES.txt from the resolved dependency graph, and",
+    "editors/vscode/THIRD-PARTY-NOTICES.txt from the extension's package-lock.json.",
     "",
     "options:",
     "  -h, --help      show this help message and exit",

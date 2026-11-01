@@ -258,6 +258,31 @@ covers both files. The `.vsix` packs it, since
 does. Safe fallback: if `node_modules` is missing in CI's attribution job, the job runs `npm ci` in
 `editors/vscode` first.
 
+**BlueOak-1.0.0 is an npm-only licence.** `minimatch` takes it. It is ranked in `PREFERENCE` and
+listed in a new `NPM_ONLY`, which `checkPoliciesAgree` exempts the way it exempts `FONT_DATA`. It
+stays out of `deny.toml`, so no crate may take it. Trade-offs: none on the request path or in memory;
+one more list beside `FONT_DATA`.
+
+**What the `.vsix` copies is in its notice too.** `scripts/viewer.mjs` copies speedscope's built
+`dist/release/` into `out/speedscope/`, so `VSCODE_COPIED` adds speedscope and the Source Code Pro
+font that release carries (OFL-1.1, from `dist/release/source-code-pro.LICENSE.md`). A copied
+package's own `dependencies` are not followed: `open` is for speedscope's command line, which is not
+copied.
+
+**The packages inside speedscope's bundle.** speedscope's `speedscope-*.js` bundles its own
+devDependencies, among them `preact`, `aphrodite`, `jszip`, `pako`, `protobufjs`, `source-map`,
+`uint8array-json-parser` and `jfrview` (a wasm build of Rust crates). npm does not install them, so
+their texts are not on disk. Each gets an entry: a committed `editors/vscode/licenses/speedscope/`
+with one licence file per package, named `<name>-<version>.LICENSE`, at the versions the
+`v1.25.0` tag's `package-lock.json` pins, and a `SOURCE.json` that names the tag and lists
+`name`, `version`, `license`. Which packages count comes from the imports under the tag's `src/`;
+over-including is the direction to err in. `VSCODE_COPIED` gets a `bundled` field naming that folder,
+and `gen-attribution` fails when `SOURCE.json`'s speedscope version is not the installed one, so a
+speedscope update owes the folder a refresh. `jszip` is `MIT OR GPL-3.0-or-later`: MIT is taken.
+jfrview's crates are listed from its own `Cargo.lock` at the version pinned; if that is not
+reachable, jfrview is listed with its own licence and the gap goes to the backlog. Reading public
+tarballs is not publishing, so fetching them for this is in scope.
+
 **The WASI WIT files.** `wit/nvs-ext/deps/*.wit` are copies of the WASI 0.2 interfaces, embedded in
 the binary through `crates/nvs-ext/src/pack.rs:51`. The session confirms the upstream and its license
 from the copy `wasmtime-wasi` ships in `~/.cargo/registry` (expected: Apache-2.0 WITH LLVM-exception).
@@ -379,12 +404,13 @@ table lists every command the binary has.
 **Does:** every component that ships in the `.vsix` or the binary has its notice, and
 `bun nv gen-attribution --check` holds both.
 
-- [ ] `gen-attribution` writes `editors/vscode/THIRD-PARTY-NOTICES.txt` from the extension's runtime npm packages, in the way `viewerPackages` reads the viewer's. `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`, `tools/nv/cmd/gen-attribution.ts:299`, `tools/nv/cmd/gen-attribution.ts:926`, `editors/vscode/THIRD-PARTY-NOTICES.txt:1`
-- [ ] `.vscodeignore` keeps the notice in the `.vsix`, and CI's attribution job installs the extension's packages if it needs them. `rule:testing/attribution-is-diffed-in-ci`, `editors/vscode/.vscodeignore:1`, `.github/workflows/ci.yml:986`
-- [ ] The test the `vsix-notices` check runs. `tools/nv/test/attribution-vscode.test.ts:1`
-- [ ] `wit/nvs-ext/deps/README.md` with the upstream, version and license, and the WIT entry in the binary's notice. `wit/nvs-ext/deps/README.md:1`, `tools/nv/cmd/gen-attribution.ts:279`, `crates/nvs-ext/src/pack.rs:51`
-- [ ] The ext template's commented license line. `crates/nvs-cli/templates/ext/rust/Cargo.toml:5`
-- [ ] `bun nv gen-attribution`, and the regenerated `THIRD-PARTY-LICENSES.txt` is committed. `THIRD-PARTY-LICENSES.txt:1`
+- [x] `gen-attribution` writes `editors/vscode/THIRD-PARTY-NOTICES.txt` from the extension's runtime npm packages, in the way `viewerPackages` reads the viewer's. `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`, `tools/nv/cmd/gen-attribution.ts:384`, `tools/nv/cmd/gen-attribution.ts:1099`, `editors/vscode/THIRD-PARTY-NOTICES.txt:1`
+- [x] `.vscodeignore` keeps the notice in the `.vsix`, and CI's attribution job installs the extension's packages if it needs them. `rule:testing/attribution-is-diffed-in-ci`, `editors/vscode/.vscodeignore:1`, `.github/workflows/ci.yml:1101`
+- [x] The test the `vsix-notices` check runs. `tools/nv/test/attribution-vscode.test.ts:1`
+- [x] `wit/nvs-ext/deps/README.md` with the upstream, version and license, and the WIT entry in the binary's notice. `wit/nvs-ext/deps/README.md:1`, `tools/nv/cmd/gen-attribution.ts:298`, `crates/nvs-ext/src/pack.rs:51`
+- [x] The ext template's commented license line. `crates/nvs-cli/templates/ext/rust/Cargo.toml:5`
+- [x] `bun nv gen-attribution`, and the regenerated `THIRD-PARTY-LICENSES.txt` is committed. `THIRD-PARTY-LICENSES.txt:1`
+- [ ] The packages speedscope's release bundle carries each have an entry in the extension's notice, as *The packages inside speedscope's bundle* says. `tools/nv/cmd/gen-attribution.ts:319`, `editors/vscode/scripts/viewer.mjs:1`
 
 ### 5. CI checks every lockfile and pins every download, and the release attests its checksums
 
@@ -442,42 +468,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 landed in two commits: the doc rewording (`be6606e56`) and
-the CLI reference (`3d7a6171a`). `cli-reference-rows` (run once by name), `rules-check`, `links`
-and `site --check stale` are green, and clippy is clean.
+Stages 1, 2 and 3 are done. Stage 4's six planned items landed in one commit. `attribution` and
+`vsix-notices` are green, and so are clippy, the tools' `tsc`, `rules --check` and the two
+`ext_command` world tests (run once by name, since their helper changed).
 
-- "The plan" is reworded in three agent docs, two rules and one playbook bullet. The bullet's file
-  is renamed to `a-slice-a-goal-files-under-nvs-ir-can-be-unbuildable-there.md`, from its new
-  lead-in. Versions now point at `rust-toolchain.toml` and setup.md § *Versions no manifest pins*.
-- Each `docs/goal-format.md` citation says it is in looper's repository and names
-  `tools/looper/src/goal/playbook.ts` (the `until` kinds) or `model.ts` (a check's fields).
-- The command table has a row for every command `nvs --help` lists. Rows for a command in another
-  chapter link the chapter anchor (`#tools-server`, `#tools-packages`, `#tools-editor`,
-  `#tools-agents`). The "In other chapters" paragraph is gone. "Not in this chapter yet" keeps the
-  five commands with no section.
-- `# nvs cache` follows *The compile cache*. The website's CLI page links
-  `/reference/cli/nvs-cache/`, covers `tools:cli/nvs-cache`, and is restamped.
+- `gen-attribution` builds each notice with one `collector` (`addPackage`, `addRecord`, `finish`)
+  and writes both files. `--check` covers both, and names the stale one.
+- The extension's notice lists 11 components: the 9 packages `vscode-languageclient` pulls in, then
+  speedscope and its Source Code Pro font, which `scripts/viewer.mjs` copies. `vscodePackages`
+  walks `package-lock.json` with npm's nested lookup, and stops on a version `node_modules` lacks.
+- BlueOak-1.0.0 (`minimatch`) is new, in `PREFERENCE` and in `NPM_ONLY` (see Standing decisions).
+- The WASI entry is `WebAssembly/WASI 0.2.12`, Apache-2.0 WITH LLVM-exception, borrowing a crate's
+  text. The seven `.wit` files are byte-identical to the `wasip2` crate's `1.0.4+wasi-0.2.12` copies.
+  `ext_command.rs`'s world test now skips the folder's `README.md`. `wit-parser` skips it too.
+- CI's attribution job runs `npm ci --ignore-scripts` in `editors/vscode`, then `--check` and the
+  new test. `.vscodeignore` needed no change, and the test pins that.
+- New gap: speedscope's bundle carries its own devDependencies, whose texts are not on disk. It is a
+  new stage 4 item, decided in *The packages inside speedscope's bundle*.
 
-The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`, and every failure
-it shows has a fix between that commit and HEAD: the browser job's relative `NVS_BIN`
-(`39795c9c4`), the two debug viewer shots (`bfce9c2d2`), ASAN's same-size ODR pair (`593b6c565`),
-and the seven Miri units, each one test over the 300 s timeout (`8ce92dda5`). No Miri run has
-confirmed the sized-down tests finish in time; the next nightly does. `env-secret-proofs` has no
-definition in the tree and no log, as the last goal's handoff found too.
+The sweep's reds are stale: nightly 41187571578 ran on `857b39cad`, and each failure has a fix
+since (`39795c9c4`, `bfce9c2d2`, `593b6c565`, `8ce92dda5`). The next nightly confirms the Miri
+units. `env-secret-proofs` has no definition in the tree and no log.
 
 ### Next
 
-Stage 4, the third-party notices of the `.vsix` and the binary. Two groups: the extension's notice
-with its test, then the WIT entry, the template line and the regenerated file.
+Stage 4's last item, the packages inside speedscope's bundle. Then set stage 4 to done, and take
+stage 5.
 
-- [ ] `gen-attribution` writes `editors/vscode/THIRD-PARTY-NOTICES.txt`, and `--check` covers it. `tools/nv/cmd/gen-attribution.ts:299`, `tools/nv/cmd/gen-attribution.ts:926`
-- [ ] `.vscodeignore` keeps it, and CI's attribution job installs the extension's packages if needed. `editors/vscode/.vscodeignore:1`, `.github/workflows/ci.yml:986`
-- [ ] `tools/nv/test/attribution-vscode.test.ts`, the `vsix-notices` check. `tools/nv/test/attribution-vscode.test.ts:1`
-- [ ] `wit/nvs-ext/deps/README.md` and the `WIT_DIRS` entry. `wit/nvs-ext/deps/README.md:1`, `tools/nv/cmd/gen-attribution.ts:279`, `crates/nvs-ext/src/pack.rs:51`
-- [ ] The ext template's commented license line, then `bun nv gen-attribution`. `crates/nvs-cli/templates/ext/rust/Cargo.toml:5`, `THIRD-PARTY-LICENSES.txt:1`
+- [ ] Find what `speedscope-*.js` bundles: the imports under the `v1.25.0` tag's `src/`, at the versions its `package-lock.json` pins. `editors/vscode/node_modules/speedscope/package.json:89`
+- [ ] Commit `editors/vscode/licenses/speedscope/` with `SOURCE.json` and one licence file per package. `editors/vscode/licenses/speedscope/SOURCE.json:1`
+- [ ] `VSCODE_COPIED` gets `bundled`, `gen-attribution` reads it and fails on a speedscope version drift, then `bun nv gen-attribution`. `tools/nv/cmd/gen-attribution.ts:319`, `tools/nv/cmd/gen-attribution.ts:1099`
+- [ ] The `vsix-notices` test checks that every `SOURCE.json` package is listed. `tools/nv/test/attribution-vscode.test.ts:1`
 
-Its checks are `attribution` and `vsix-notices`. `bun nv gen-attribution --check` goes red until
-the extension's notice is committed.
+Its checks are `attribution` and `vsix-notices`. No test is expected to go red. `nv selftest` now
+runs `attribution-vscode.test.ts`, which needs `npm ci` in `editors/vscode` on a fresh clone.
 
 ### Backlog
 

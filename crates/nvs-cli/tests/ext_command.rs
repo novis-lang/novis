@@ -87,7 +87,8 @@ fn written(dir: &Path, path: &str) -> String {
 }
 
 /// Every file of the world under `wit/nvs-ext/` is in the project under `wit/deps/`, byte for
-/// byte, each WASI package as one file and the `nvs:ext` package as a folder of its own.
+/// byte, each WASI package as one file and the `nvs:ext` package as a folder of its own. The WASI
+/// folder's `README.md`, which names their upstream, is not part of the world.
 fn assert_the_binarys_own_world(dir: &Path) {
     let world = nvs_repo::path("wit/nvs-ext");
     let mut compared = 0;
@@ -101,6 +102,9 @@ fn assert_the_binarys_own_world(dir: &Path) {
         if path.is_dir() {
             for dep in std::fs::read_dir(&path).expect("the WASI folder is on disk") {
                 let dep = dep.expect("an entry is readable").path();
+                if dep.extension().is_none_or(|ext| ext != "wit") {
+                    continue;
+                }
                 let name = dep
                     .file_name()
                     .expect("a name")

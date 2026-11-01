@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (727)
+COMPONENTS (728)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -690,6 +690,7 @@ platform Novis builds for, so one may appear that a given build omits.
   wast                                       262.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wat                                        1.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.3.0                          MIT                             (MIT OR Apache-2.0)
+  WebAssembly/WASI                           0.2.12                         Apache-2.0 WITH LLVM-exception
   webpki-roots                               1.0.11                         CDLA-Permissive-2.0
   weezl                                      0.1.12                         MIT                             (MIT OR Apache-2.0)
   winapi                                     0.3.9                          MIT                             (MIT/Apache-2.0)
@@ -8895,6 +8896,7 @@ Applies to:
   wasmtime-internal-versioned-export-macros 50.0.1
   wasmtime-internal-wit-bindgen 50.0.1
   wasmtime-wasi-io 50.0.1
+  WebAssembly/WASI 0.2.12
 
 ------------------------------------------------------------------------------
 

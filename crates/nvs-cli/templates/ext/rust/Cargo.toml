@@ -3,6 +3,8 @@ name = "greeting"
 version = "0.1.0"
 edition = "2024"
 publish = false
+# Choose a license for your extension, then remove the `#` below.
+# license = "MIT"
 
 # A `cdylib` builds one wasm file for `nvs ext build` to pack.
 [lib]

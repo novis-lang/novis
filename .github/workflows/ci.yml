@@ -1118,8 +1118,20 @@ jobs:
       # nothing here compiles.
       - name: Fetch dependency sources
         run: cargo fetch --locked
-      - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
+      # The extension's notice reads each npm package's licence from its
+      # installed copy. `--ignore-scripts`: nothing here runs a package.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install the extension's packages
+        working-directory: editors/vscode
+        run: npm ci --ignore-scripts
+      - name: Both notices match their lockfiles
         run: bun nv gen-attribution --check
+      - name: The extension's notice names every package its bundle carries
+        run: bun test tools/nv/test/attribution-vscode.test.ts
       - name: Every C dependency of the default binary is recorded
         run: bun nv gen-attribution --check-c-deps
 

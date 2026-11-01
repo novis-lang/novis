@@ -84,6 +84,9 @@ export const LANES: Record<string, string[]> = {
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
     "tools/nv/cmd/gen-attribution.ts", "viewer/package.json", "bun.lock", ".github/workflows/",
+    "editors/vscode/package.json", "editors/vscode/package-lock.json", "editors/vscode/THIRD-PARTY-NOTICES.txt",
+    "editors/vscode/.vscodeignore", "editors/vscode/scripts/viewer.mjs", "editors/vscode/src/",
+    "tools/nv/test/attribution-vscode.test.ts", "wit/nvs-ext/deps/README.md",
     ...LOCKFILE_DIRS.flatMap((d) => [`${d}/Cargo.toml`, `${d}/Cargo.lock`]),
   ],
   // The website's `Core` pages and `/llms-full.txt` are rendered from the binary's registry and the
