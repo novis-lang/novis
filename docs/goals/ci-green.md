@@ -125,21 +125,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 `origin/main` is at `441d27ced`, and CI 41279676146 on it is red in four jobs. Website is green.
 Each red has a fix committed on the local `main`, and none is pushed:
 
-- `cost guards / linux-x86_64`, `the_memory_mark_stays_small_beside_the_allocation_it_fronts` at
-  1.05x: `2388e7510` puts `#[inline]` on `budget::carry`. Thin LTO had stopped inlining it into
-  the guard's crate.
-- `test / macos-aarch64 (conformance)`, `config/wall-time-stops-a-loop-that-calls-nothing`, where
-  `onLimit` never printed: `722110c9d`. The watchdog's sweep now takes the wall-stop claim, so
-  `nvs run`'s own clock no longer raises the flag again inside the handler.
-- `test / windows-x86_64 (tests)`, `serve_isolation`'s `a_looping_guest_reaches_on_limit...`:
-  `71cedff2c`. `run_limit_handler` now publishes its widened CPU ceiling, so the 50 ms sweep no
-  longer stops the handler.
-- `proofs / macos-aarch64`, `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` stopped by
-  its CPU limit: `672ed07f5`. `Reactor::turn` now wakes due timers ahead of tasks that yielded.
+- `cost guards / linux-x86_64`, the memory mark at 1.05x: `2388e7510` inlines `budget::carry`.
+- `test / macos-aarch64 (conformance)`, `config/wall-time-stops-a-loop-that-calls-nothing`:
+  `722110c9d`, the watchdog's sweep claims the wall stop.
+- `test / windows-x86_64 (tests)`, `serve_isolation`'s on-limit case: `71cedff2c`.
+- `proofs / macos-aarch64`, `core/Task/all/03-tasks-that-never-wait.nvs`: `672ed07f5`.
 
-`bun nv ci --push` is refused by three pre-push checks the main loop's `release-polish` owns,
-and it was told with `loop say`: `docs/rules/packaging.md` is stale after `d7d43fca4`,
-`tools:cli/nvs-cache` owes its proofs, and three pages' site questions are owed or stale.
+`bun nv ci --push` is still refused, by two pre-push checks. `docs/rules/packaging.md` is green
+now. The main loop's session for `release-polish` is writing the other two, uncommitted in the
+tree. Do not write them here, because the claims guard refuses those files:
+
+- `feature proofs`: `tools:cli/nvs-cache` owes its about, example, attack and tests. The main loop
+  has them in progress under `docs/examples/tools/cli/nvs-cache/`, `tests/hostile/tools/cli/nvs-cache/`
+  and `crates/nvs-cli/src/cache_cmd.rs`.
+- `website stale guard`: the site questions of `/reference/cli/nvs-cache/` are owed, and those of
+  `/reference/cli/one-binary/` and `/tools/cli/` are stale.
 
 A background `Bash` or `Monitor` watch can report its first events many minutes late, or only once
 the next one starts. A `--max-min 9` watch in the foreground is the reliable fallback.
@@ -148,9 +148,11 @@ the next one starts. A `--max-min 9` watch in the foreground is the reliable fal
 
 **Stage 1, the cycle.**
 
-- [ ] Run `bun nv ci --check` (`tools/nv/cmd/ci.ts:1`). If the main loop has committed the three
-  owed checks and it is green, run `bun nv ci --push` and watch the new run with `bun nv ci --watch`.
-  If a check is still red only because of the main loop's work, watch nothing and hand off again.
+- [ ] Run `bun nv ci --check` (`tools/nv/cmd/ci.ts:1`). If the main loop has committed the
+  `nvs-cache` proofs and the three pages' questions and it is green, run `bun nv ci --push` and
+  watch the new run with `bun nv ci --watch`. If a check is still red only because of the main
+  loop's uncommitted work, watch nothing and hand off again. If the tree is clean and a check is
+  still red, the red is this loop's to fix.
 - [ ] Expect the four jobs above green on that push. `crates/nvs-host/src/reactor.rs:761`
   If one fails the same way again, its fix did not reach the cause.
 
