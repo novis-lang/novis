@@ -508,9 +508,16 @@ const PROBES: [(DebugFlags, &str); 4] = [
     (DebugFlags::PROFILE, "profile"),
 ];
 
+/// The longest path `startTrace` and `startProfile` take, in bytes: the
+/// longest path Windows opens is 32767 UTF-16 units, and no other system
+/// opens a longer one.
+///
+/// **What it spends:** one length comparison per start.
+const PATH_BYTES: usize = 32 << 10;
+
 /// `startTrace` and `startProfile`'s shared door: the probe under the ceiling, the path under its
-/// own grant, and no second start while a sink is named. The grant is asked first, so a path
-/// outside it throws whatever the mode says.
+/// own grant, and no second start while a sink is named. A path past [`PATH_BYTES`] throws
+/// first. The grant is asked next, so a path outside it throws whatever the mode says.
 ///
 /// **What it spends:** one path per running sink, until its stop.
 fn start_sink(
@@ -528,6 +535,15 @@ fn start_sink(
             path.tag_byte()
         ))
     })?;
+    // A path is copied several times on its way to the file system, and once
+    // more into the operating system's own form, so a longer one is refused
+    // before the first copy.
+    if text.len() > PATH_BYTES {
+        return Err(Fault::thrown(format!(
+            "Core\\Debug::{member}: a path is at most {PATH_BYTES} bytes, and this one is {} bytes",
+            text.len()
+        )));
+    }
     let path = std::path::Path::new(text);
     nvs_runtime::capability::require(
         ctx,
@@ -616,7 +632,7 @@ nvs_runtime::nvs_helper! {
                 ctx.stop_probes(DebugFlags::TRACE);
                 Err(Fault::thrown(format!(
                     "Core\\Debug::startTrace cannot create `{}`: {err}.",
-                    path.display()
+                    nvs_runtime::quoted(&path.to_string_lossy())
                 )))
             }
         }
@@ -667,7 +683,8 @@ nvs_runtime::nvs_helper! {
             Err(err) => {
                 ctx.stop_probes(DebugFlags::PROFILE);
                 Err(Fault::thrown(format!(
-                    "Core\\Debug::startProfile cannot create `{label}`: {err}."
+                    "Core\\Debug::startProfile cannot create `{}`: {err}.",
+                    nvs_runtime::quoted(&label)
                 )))
             }
         }
