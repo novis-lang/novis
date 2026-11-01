@@ -115,11 +115,11 @@ counts the tests in the repository and the crates with no unsafe Rust.
 
 ## Roadmap
 
-This is the work that is planned, in the order it is planned. The order can change, and there are no
-dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
+This section shows what comes next for Novis. There are no dates. The
+[roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing

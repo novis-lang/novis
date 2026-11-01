@@ -65,9 +65,19 @@ export function readRoadmap(root: string): Roadmap | string {
   return r as Roadmap;
 }
 
-/** The README's list, without the markers: one numbered line per theme. */
+/** The one sentence the page and the README print when no theme is left. The page's component says the same. */
+export const EMPTY = "Nothing is planned after the current release yet.";
+/** The sentence above a list of themes. The page's component says the same. */
+export const ORDER = "The work is in the order it is planned. The order can change.";
+
+/**
+ * The README's text between the markers: `ORDER` and one numbered line per theme, or `EMPTY` alone when
+ * there is no theme, so the README never says "is planned" above an empty list.
+ */
 export function renderRoadmap(map: Roadmap): string {
-  return map.themes.map((t, i) => `${i + 1}. **${t.title}.**${i === 0 ? ` *${NOW}.*` : ""} ${t.text}`).join("\n");
+  if (map.themes.length === 0) return EMPTY;
+  const list = map.themes.map((t, i) => `${i + 1}. **${t.title}.**${i === 0 ? ` *${NOW}.*` : ""} ${t.text}`);
+  return [ORDER, "", ...list].join("\n");
 }
 
 /** `text` with the list between the markers replaced, or null when the markers are not both there. */

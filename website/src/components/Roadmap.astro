@@ -4,7 +4,10 @@
  * src/data/roadmap.json, in the order of the goal chain. The first theme is
  * the work in progress. `bun nv site --check roadmap` keeps the file in step
  * with the chain, and `bun nv site --roadmap` copies the same list into the
- * README. A theme's text may put code in backticks, and nothing else.
+ * README. A theme's text may put code in backticks, and nothing else. With
+ * no theme it prints one sentence, and the sentence about the order only
+ * stands above a list: `EMPTY` and `ORDER` in tools/nv/lib/site-roadmap.ts
+ * are the README's copies of both.
  */
 import data from '@data/roadmap.json'
 
@@ -20,16 +23,23 @@ const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
 const inline = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
 ---
 
-<ol class="roadmap">
-  {
-    themes.map((theme, i) => (
-      <li>
-        <strong>{theme.title}.</strong>
-        {i === 0 && <span class="roadmap-now">Working on it now</span>} <Fragment set:html={inline(theme.text)} />
-      </li>
-    ))
-  }
-</ol>
+{
+  themes.length === 0 ? (
+    <p>Nothing is planned after the current release yet.</p>
+  ) : (
+    <>
+      <p>The work is in the order it is planned. The order can change.</p>
+      <ol class="roadmap">
+        {themes.map((theme, i) => (
+          <li>
+            <strong>{theme.title}.</strong>
+            {i === 0 && <span class="roadmap-now">Working on it now</span>} <Fragment set:html={inline(theme.text)} />
+          </li>
+        ))}
+      </ol>
+    </>
+  )
+}
 
 <style>
   .roadmap-now {

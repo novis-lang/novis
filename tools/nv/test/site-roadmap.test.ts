@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { README, ROADMAP, ROADMAP_END, ROADMAP_START, pruneRetired, renderRoadmap, roadmapProblems, writeRoadmap, type Roadmap } from "../lib/site-roadmap.ts";
+import { EMPTY, ORDER, README, ROADMAP, ROADMAP_END, ROADMAP_START, pruneRetired, renderRoadmap, roadmapProblems, writeRoadmap, type Roadmap } from "../lib/site-roadmap.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -33,7 +33,17 @@ describe("site roadmap", () => {
   });
 
   test("the README's list numbers the themes and labels the first", () => {
-    expect(renderRoadmap(GOOD).split("\n")[0]).toBe("1. **Command line.** *Working on it now.* `nvs fmt` formats code.");
+    const lines = renderRoadmap(GOOD).split("\n");
+    expect(lines[0]).toBe(ORDER);
+    expect(lines[2]).toBe("1. **Command line.** *Working on it now.* `nvs fmt` formats code.");
+    expect(lines).toHaveLength(5);
+  });
+
+  test("an empty roadmap renders one sentence", () => {
+    const empty: Roadmap = { internal: CHAIN, themes: [] };
+    expect(renderRoadmap(empty)).toBe(EMPTY);
+    expect(roadmapProblems(tree(empty))).toEqual([]);
+    expect(readFileSync(join(tmp.root, README), "utf8")).toContain(`${ROADMAP_START}\n${EMPTY}\n${ROADMAP_END}`);
   });
 
   test("a goal on the chain in no theme is named", () => {
