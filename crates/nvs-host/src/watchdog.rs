@@ -1485,6 +1485,7 @@ fn stop_at_wall_time(view: &SafepointView, now: Instant, interval: Duration) {
 /// report what is new. The first wait is a whole interval, and each later one
 /// is what [`next_wait`] gives for the sweep before it.
 fn watch(shared: &Arc<Shared>) {
+    wake_on_time();
     let mut wait = shared.interval;
     loop {
         {
@@ -1509,6 +1510,40 @@ fn watch(shared: &Arc<Shared>) {
         }
     }
 }
+
+/// Asks the kernel to end this thread's timed waits when they are due.
+///
+/// macOS coalesces the timers of a thread by its quality-of-service class: a
+/// wait may end late by a share of its length, up to 100 ms for a thread the
+/// kernel counts as background, as a process a service manager started can
+/// be. A CPU ceiling is stopped at the sweep after the crossing, so that slack
+/// was the whole of a stop's lateness there: 117 and 131 ms past a ceiling on
+/// CI's macOS runners, whose thread clock reads with no lag. The
+/// user-interactive class is the one whose timers the kernel does not defer.
+/// It raises no priority over the cores, since this thread sleeps between
+/// sweeps and a sweep is one walk under a lock.
+///
+/// What it spends: one system call when the thread starts, and on macOS only.
+/// Linux's default timer slack is 50 µs and Windows defers no wait this way,
+/// so neither needs the call. A refusal leaves the thread's class as it was,
+/// which is the late stop and no worse.
+#[cfg(target_os = "macos")]
+fn wake_on_time() {
+    #[expect(
+        unsafe_code,
+        reason = "`pthread_set_qos_class_self_np` is the only way to set a thread's \
+                  quality-of-service class on macOS, and `std` has no equivalent. It takes \
+                  two plain values, changes only the calling thread, and reports a refusal \
+                  in its return value, which leaves the class as it was."
+    )]
+    let _ = unsafe {
+        libc::pthread_set_qos_class_self_np(libc::qos_class_t::QOS_CLASS_USER_INTERACTIVE, 0)
+    };
+}
+
+/// Linux's and Windows's timed waits end when due, so there is nothing to ask.
+#[cfg(not(target_os = "macos"))]
+fn wake_on_time() {}
 
 #[cfg(test)]
 mod tests {
