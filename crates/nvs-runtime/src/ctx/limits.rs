@@ -1092,6 +1092,11 @@ impl Ctx {
     /// [`Self::CPU_TIME_EXCEEDED`], then [`Self::cpu_time_spent`] and
     /// [`Self::cpu_limit`], the point the sampler stops the request at. With
     /// no reading it names the limit alone, and with no limit nothing more.
+    ///
+    /// The reading is taken here, where the request stops, never stored by
+    /// the watchdog when it raised the flag: a stored reading would hide a
+    /// native call that ran on past the raise, which is what `bun nv proofs
+    /// --overshoot` exists to find.
     #[must_use]
     pub fn cpu_time_message(&self) -> String {
         let limit = std::time::Duration::from_nanos(self.cpu_limit);
@@ -1163,6 +1168,10 @@ impl Ctx {
     /// `cost` is the member's estimate on one current x86-64 core. It is not
     /// an upper bound: a slower core runs past the limit by the difference,
     /// and the watchdog stops the request at its next poll after the call.
+    /// An upper bound would refuse a normal bcrypt-12 login under a 1 s limit,
+    /// and a rate learned at run time costs simplicity for no request the
+    /// watchdog does not already stop. A door with no `Ctx`, such as the
+    /// Postgres SCRAM login, caps its count instead.
     ///
     /// # Errors
     ///

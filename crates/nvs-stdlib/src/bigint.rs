@@ -1063,20 +1063,23 @@ fn mul_ns(a: u64, b: u64) -> f64 {
 /// operands, an `lcm` 2.5, a square root 2.5 squares of its width, a
 /// conversion to or from a radix that is not a power of two 2.4, and `powMod`
 /// 3 squares of the modulus per exponent bit.
+fn afford(ctx: &mut nvs_runtime::Ctx, nanos: f64, member: &str) -> Result<(), Fault> {
+    let cost =
+        std::time::Duration::try_from_secs_f64(nanos / 1e9).unwrap_or(std::time::Duration::MAX);
+    ctx.cpu_affords(cost, member)
+}
+
 /// The estimated CPU time of `dividend / divisor` or `dividend % divisor`, in
 /// nanoseconds. A dividend narrower than its divisor is answered at once.
 fn quotient_ns(dividend: &BigInt, divisor: &BigInt) -> f64 {
-    let (wide, narrow) = (width_bytes(dividend.magnitude()), width_bytes(divisor.magnitude()));
+    let (wide, narrow) = (
+        width_bytes(dividend.magnitude()),
+        width_bytes(divisor.magnitude()),
+    );
     if wide < narrow {
         return 0.0;
     }
     1.3 * mul_ns(wide, narrow)
-}
-
-fn afford(ctx: &mut nvs_runtime::Ctx, nanos: f64, member: &str) -> Result<(), Fault> {
-    let cost = std::time::Duration::try_from_secs_f64(nanos / 1e9)
-        .unwrap_or(std::time::Duration::MAX);
-    ctx.cpu_affords(cost, member)
 }
 
 // ============================================================================
