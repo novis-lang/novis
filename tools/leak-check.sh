@@ -8,7 +8,11 @@
 # `nvs_ir::lower::end_iteration`) went unnoticed until a fixture happened to
 # declare one.
 #
-#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs
+#   bash tools/leak-check.sh target/mine.nvs examples/report.nvs        on Linux
+#   bash tools/leak-check.sh --test target/tests.nvs
+#   bash tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
+#
+#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs    on Windows
 #   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --test target/tests.nvs
 #   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
 #
