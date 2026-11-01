@@ -1234,6 +1234,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-cache",
+      "url": "/reference/cli/nvs-cache/",
+      "title": "nvs cache",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-cache",
+        "title": "nvs cache",
+        "examples": "tools/cli/nvs-cache"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-serve",
       "url": "/reference/cli/nvs-serve/",
       "title": "nvs serve",

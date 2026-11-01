@@ -80,6 +80,56 @@ fn nvs_is_one_binary_with_a_subcommand_for_every_operation() {
     );
 }
 
+/// Every command `nvs --help` lists, but `help`, has a row in the command table of
+/// `docs/reference/tools/10-cli.md` § *One binary*: a row whose first cell starts with
+/// `` `nvs <command> `` and then a space or the closing backtick. A new command fails
+/// this until the table names it.
+#[test]
+fn every_command_nvs_help_lists_has_a_row_in_the_cli_reference() {
+    let help = nvs(&["--help"]);
+    assert_eq!(help.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&help.stdout);
+    let listed: Vec<&str> = stdout
+        .lines()
+        .skip_while(|line| *line != "Commands:")
+        .skip(1)
+        .take_while(|line| !line.is_empty())
+        .filter_map(|line| line.strip_prefix("  "))
+        .filter(|line| !line.starts_with(' '))
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|name| *name != "help")
+        .collect();
+    assert!(
+        listed.len() > SUBCOMMANDS.len(),
+        "`nvs --help` lists its commands: {stdout}"
+    );
+
+    let chapter = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/reference/tools/10-cli.md");
+    let text = std::fs::read_to_string(&chapter).expect("the CLI chapter is in the tree");
+    let table: Vec<&str> = text
+        .lines()
+        .skip_while(|line| *line != "# One binary")
+        .skip_while(|line| !line.starts_with("| Command |"))
+        .take_while(|line| line.starts_with('|'))
+        .collect();
+    let missing: Vec<&str> = listed
+        .iter()
+        .copied()
+        .filter(|name| {
+            let cell = format!("| `nvs {name}");
+            !table.iter().any(|row| {
+                row.strip_prefix(&cell)
+                    .is_some_and(|rest| rest.starts_with(' ') || rest.starts_with('`'))
+            })
+        })
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "commands with no row in the table: {missing:?}"
+    );
+}
+
 /// `nvs service --help` and the help of each of its subcommands are written as
 /// `AGENTS.md` § *Text an end user reads* asks: no dash joins two sentences, and
 /// none of the words below, which an operator would have to look up, appears.

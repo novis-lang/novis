@@ -371,10 +371,11 @@
     "tools:cli/nvs-build-openapi": "23005b01a5dbbfb1"
   },
   "tools/cli/index.mdx": {
+    "tools:cli/nvs-cache": "e298c15e8a6363c5",
     "tools:cli/nvs-check": "85533fbb31eceea9",
     "tools:cli/nvs-telemetry": "2bd39131b67069de",
     "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
-    "tools:cli/one-binary": "990450b05d9aca43",
+    "tools:cli/one-binary": "d33c811051be5621",
     "tools:cli/the-compile-cache": "a5080b1566be22a6"
   },
   "tools/debug-viewer/index.mdx": {

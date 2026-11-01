@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 ---
 
 # One binary
@@ -18,19 +18,35 @@ usually one file:
 | Command | What it does |
 |---|---|
 | `nvs run <file>` | check, compile and run a program |
+| `nvs serve <file>` | run an application until it is stopped: its HTTP requests, its scheduled jobs and its queue workers. See [the server chapter](#tools-server) |
+| `nvs service <verb>` | install, start, stop and remove a program that runs as a system service. See [the server chapter](#tools-server) |
 | `nvs check <path>` | parse, resolve and type-check a file or a directory, reporting every diagnostic; runs nothing |
 | `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |
 | `nvs build --compile <file>` | write a single-file executable holding the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
 | `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs pkg <verb>` | add, download, update, pack and publish Novis packages. See [the packages chapter](#tools-packages) |
+| `nvs ext <verb>` | create, build, test, check and pin an extension |
 | `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the one path `--config` names — see [Installing on a host](#tools-install) |
 | `nvs config check [files]` | resolve the configuration tree and report what it holds |
 | `nvs config dump [files]` | print every configuration key in force |
+| `nvs queue migrate` | create the job queue's tables in its database |
+| `nvs schema <verb>` | print what a schema value would change in a database, run the safe steps, or print the schema the database has |
+| `nvs tmp clean` | delete the temporary files of a script that was killed |
+| `nvs cache gc` and `nvs cache clear` | delete compiled programs from the compile cache. See [nvs cache](#nvs-cache) |
+| `nvs update-check` | check whether a newer version of Novis is released |
+| `nvs telemetry <verb>` | turn the anonymous usage counters on or off, and show what an upload sends |
 | `nvs info` | build, host and third-party licensing information |
 | `nvs meta --json` | the whole `Core` registry as JSON |
-| `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
+| `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs. See [the agents chapter](#tools-agents) |
+| `nvs doc <file>` | write a program's declarations as Markdown, one page per class |
+| `nvs stubs` | write one declaration file for each `Core` class, enum and attribute |
+| `nvs code <verb>` | find where a name is declared and used, print a file's outline, and rename or move code |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 | `nvs fmt [paths]...` | rewrite files in the one standard layout, or with `--check` list the files that would change |
+| `nvs lsp` | run the language server on standard input and output. See [the editor chapter](#tools-editor) |
+| `nvs lsp-test <paths>...` | run a tree of `.lspt` cases against the language server. See [the editor chapter](#tools-editor) |
+| `nvs dap` | run the debug adapter on standard input and output. See [the editor chapter](#tools-editor) |
 | `nvs debug` | read recorded requests into the debug index, and keep reading |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
@@ -38,13 +54,9 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 [Installing on a host](#tools-install)). Every operation is a subcommand: there is no `-i`, `-a`,
 `-r`, `-f` or lowercase `-v`.
 
-**In other chapters:** `nvs serve` and `nvs service` are in
-[the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
-[the editor chapter](#tools-editor).
-
-**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and
-`nvs stubs` are in the binary and answer `--help`, but their sections here are unwritten.
-`nvs --help` lists every subcommand this build carries.
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and `nvs stubs` have
+no section here. Run the command with `--help` to see its options. `nvs --help` lists every
+command.
 
 # Files, extensions and tags
 
@@ -1170,3 +1182,34 @@ The directory must be owned by the account running `nvs` and writable by no othe
 and so must the directory containing it. A named directory that fails prints one `warning:` line
 and the program is compiled again on every start; [Installing on a host](#tools-install) has the
 permissions that pass.
+
+# nvs cache
+
+    nvs cache gc [--json]
+    nvs cache clear [--json]
+
+`nvs cache gc` checks the size of the compile cache. If the cache is larger than
+`[opcache] file_cache_max_size`, it deletes the oldest entries until the cache is at 80% of that
+size. If the cache is not larger, it deletes nothing. The default size is 256 MB.
+
+`nvs cache clear` deletes every entry in the compile cache. The next run of a deleted program
+compiles it again.
+
+Both commands read the configuration the way `nvs run` does, so they work on the same cache folder.
+They print one line:
+
+```output
+removed 3 entries, freed 81920 bytes, skipped 0
+```
+
+`--json` prints the same result as one JSON document:
+
+```json
+{"schema":1,"removed":3,"freed_bytes":81920,"skipped":0}
+```
+
+`skipped` is the number of entries that could not be deleted. On Windows, this is a file that
+another program has open. The next `nvs cache gc` deletes it. A file that a run is still writing is
+not an entry, so neither command deletes it. If the cache is turned off, both commands print
+`removed 0 entries, freed 0 bytes, skipped 0`. Both commands exit with status `0`. They exit with
+`1` when the configuration has an error, or when the cache folder cannot be read.

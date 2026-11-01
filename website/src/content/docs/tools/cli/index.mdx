@@ -1,6 +1,6 @@
 ---
 title: The command line
-covers: ['tools:cli/one-binary', 'tools:cli/nvs-check', 'tools:cli/the-compile-cache', 'tools:cli/nvs-update-check', 'tools:cli/nvs-telemetry']
+covers: ['tools:cli/one-binary', 'tools:cli/nvs-check', 'tools:cli/the-compile-cache', 'tools:cli/nvs-cache', 'tools:cli/nvs-update-check', 'tools:cli/nvs-telemetry']
 description: Use the nvs program to check code, manage the compile cache, look for a new version and control telemetry.
 ---
 
@@ -80,7 +80,8 @@ example above, the cache is smaller, so nothing is removed. `nvs cache clear` re
 nvs cache clear
 ```
 
-The next run of a removed program compiles it again.
+The next run of a removed program compiles it again. [Reference: nvs cache](/reference/cli/nvs-cache/)
+shows the output of both commands, and their `--json` option.
 
 ## Check for a new version
 
