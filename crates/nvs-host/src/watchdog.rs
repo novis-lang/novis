@@ -1459,7 +1459,7 @@ fn wake_for_lowered_ceiling() {
 /// nothing there.
 #[cfg(target_os = "macos")]
 fn wake_on_time() {
-    let mut base = libc::mach_timebase_info { numer: 0, denom: 0 };
+    let mut base = Timebase { numer: 0, denom: 0 };
     #[expect(
         unsafe_code,
         reason = "`mach_timebase_info` reads the ratio of mach time units to nanoseconds, which \
@@ -1500,14 +1500,23 @@ fn wake_on_time() {
     };
 }
 
+/// `<mach/mach_time.h>`'s `mach_timebase_info_data_t`: mach time units are
+/// `numer / denom` nanoseconds.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+struct Timebase {
+    numer: u32,
+    denom: u32,
+}
+
 #[cfg(target_os = "macos")]
 #[expect(
     unsafe_code,
-    reason = "`libc` declares `mach_timebase_info` deprecated in favour of another crate, so it \
-              is declared here as `<mach/mach_time.h>` declares it."
+    reason = "`libc` declares `mach_timebase_info` and its struct deprecated in favour of another \
+              crate, so both are declared here as `<mach/mach_time.h>` declares them."
 )]
 unsafe extern "C" {
-    fn mach_timebase_info(info: *mut libc::mach_timebase_info) -> libc::kern_return_t;
+    fn mach_timebase_info(info: *mut Timebase) -> libc::kern_return_t;
 }
 
 #[cfg(not(target_os = "macos"))]
