@@ -16,7 +16,7 @@ stages:
     status: done
   - id: 4
     title: "a CPU or wall-time FATAL names what the request used, and the overshoot scan judges it"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/abi.rs, tools/nv/cmd/proofs.ts]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -320,7 +320,7 @@ Most waits go through four doors, so most items are one change at a door. Each i
 - [x] `Ctx::cpu_time_left`, beside `wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). It
   reads the thread's CPU clock against `cpu_limit` (`limits.rs:1047`). Today only the watchdog reads
   that clock (`crates/nvs-host/src/watchdog.rs:275`).
-- [ ] Each member stage 1 listed checks its cost first or polls:
+- [x] Each member stage 1 listed checks its cost first or polls:
   - [x] `Core\Password::verify` and `hash` (`crates/nvs-stdlib/src/password.rs`): checked first
     from the Argon2 work or the bcrypt cost, through `Ctx::cpu_affords`. Three attacks under
     `tests/hostile/core/Password/` end at the CPU `FATAL`.
@@ -332,18 +332,23 @@ Most waits go through four doors, so most items are one change at a door. Each i
     `powMod` included, since its exponent and modulus are known before the work. Two attacks.
   - [x] Postgres SCRAM login (`crates/nvs-db/src/pg.rs`, `check_scram_iterations`): the count is
     capped at 2,000,000 before the first HMAC. No time check, since the login has no `Ctx`.
-  - [ ] `Core\Compress::decompress` and the stream's `add` and `finish` (`crates/nvs-stdlib/src/compress.rs:1097`,
-    `:1306`, `:1350`). Up to 64 MiB of output by default. Polls per output chunk.
-  - [ ] `Core\Regex`'s linear tier, `matchAll`, `replace`, `replaceWith` and `split` (`crates/nvs-stdlib/src/regex.rs:1811`).
-    It has no step budget, and the cost is pattern size times input. Polls per match.
-  - [ ] `Core\Arr::sort`, `sortByKey`, `diff` and `intersect` with a callback (`crates/nvs-stdlib/src/arr.rs:4610`,
-    `:4811`, `:6056`). Read whether a callback's entry poll stops the native loop; if not, poll per call.
-- [ ] The output limit charges every byte of a response body. These paths do not today:
+  - [x] `Core\Compress::decompress` and the stream's `add` and `finish` (`crates/nvs-stdlib/src/compress.rs`,
+    `Polled`, `compress_polled`, `decompress_polled`). The codec reads through a reader that polls
+    the deadline before each read of at most 256 KiB, on the compress side too. `add` only stores
+    the chunk, so `finish` is where the work is. Two attacks.
+  - [x] `Core\Regex`'s linear tier, `matchAll`, `replace`, `replaceWith` and `split` (`crates/nvs-stdlib/src/regex.rs`,
+    `polled`): one poll per match. One attack under `tests/hostile/core/Regex/replace/`.
+  - [x] `Core\Arr::sort`, `sortByKey`, `diff` and `intersect` with a callback: the callback is
+    compiled code, and its entry poll stops the sort with the CPU `FATAL`. Unchanged. One attack
+    under `tests/hostile/core/Arr/sort/` shows it.
+- [x] The output limit charges every byte of a response body. `Ctx::charge_output`
+  (`crates/nvs-runtime/src/ctx/output.rs`) is the charge `write_output` makes, and these paths now
+  call it. They did not before:
   `Core\Response\Stream::write` to a connection (`crates/nvs-stdlib/src/response.rs:2426`), `Core\Sse`
   events (`crates/nvs-stdlib/src/sse.rs:956`), both through `Emit::send` and `send_all`
   (`crates/nvs-runtime/src/stream.rs:184`, `:254`), and the file body `sendFile` declares
   (`crates/nvs-runtime/src/ctx/output.rs:868`), charged by the file's size.
-- [ ] `bun nv proofs --overshoot` exits 0.
+- [x] `bun nv proofs --overshoot` exits 0: 0 red of 262, and the worst time reading is 31 ms over.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -358,17 +363,17 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 4's first four items are done, and the member item is four groups in. `Ctx::cpu_affords`
-(`crates/nvs-runtime/src/ctx/limits.rs`) checks a member's estimated CPU time against
-`cpu_time_left` and gives the CPU `FATAL`. A cost under `CPU_CHECK_FLOOR` (1 ms) is not checked.
-`Core\Password`, `Core\Crypto::deriveKey` and ten `Core\BigInt` members call it. The Postgres
-SCRAM login caps the server's iteration count at 2,000,000. RSA was already capped. Six new attacks
-end at the CPU `FATAL` under a 300 ms limit, each well inside it. The rates and the floor are in
-the standing decisions.
+Stages 1 to 4 are done. This session finished stage 4. `nvs_runtime::poll_deadline`
+(`crates/nvs-runtime/src/abi.rs`) is one deadline poll for a native loop. `Core\Compress` reads
+each codec through `Polled` (256 KiB a read, the compress side too). `Core\Regex`'s linear tier
+polls once per match (`polled`). `Core\Arr`'s callback sorts were already stopped by the
+callback's entry poll, and are unchanged. `Ctx::charge_output` (`ctx/output.rs`) charges a
+streamed chunk, an SSE event and a declared `sendFile` body to `[limits] max_output`. Four new
+attacks end at the CPU `FATAL`. `bun nv proofs --overshoot` exits 0, worst +31 ms of the 100 ms bound.
 
-The acceptance sweep's reds are still stale: nightly run 41187571578 ran on `857b39cad`, and CI
-is green on the later `401abc9b4`. `env-secret-proofs` has no definition in the tree and no log
-under `.looper/loops/main/checks/`.
+The acceptance sweep's reds are still stale: nightly run 41187571578 ran on `857b39cad`, before
+this goal's later commits. `env-secret-proofs` has no definition in the tree and no log under
+`.looper/loops/main/checks/`.
 
 **Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
 A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
@@ -376,19 +381,17 @@ that counts parks with a fake host whose `park` asserts on a `None` deadline. A 
 that expects a timeout under a wall time to read as an idle close, `null`. A test or `.out` that
 matches a time `FATAL`'s old exact text. A watchdog or slice test that assumed a 500 ms sweep. A
 `Core\BigInt`, `Core\Password` or `deriveKey` test that sets a small `cpu_time` and then does
-wide work. None is known.
+wide work. A server test of a streamed body, an SSE connection or `sendFile` under a
+`max_output` smaller than the body: it now stops at the output `FATAL`. None is known.
 
 ### Next
 
-The member item's three open groups, which poll rather than check first. `Core\Compress`
-(`crates/nvs-stdlib/src/compress.rs:1097`, `:1306`, `:1350`) polls per output chunk, and
-`Core\Regex`'s linear tier (`crates/nvs-stdlib/src/regex.rs:1811`) polls per match. The poll is
-`ctx.deadline_expired()`, which the watchdog sets on a CPU breach, and the fault is the one
-`deadline_passed` builds (`crates/nvs-runtime/src/abi.rs:415`, private today: make it public, or
-add a `poll_deadline(ctx, member)` beside `bounded_loop`, `abi.rs:386`). `bounded_loop`'s batch of
-256 is too coarse for a chunk or a match. `Core\Arr`'s callback sorts (`crates/nvs-stdlib/src/arr.rs:4610`):
-read whether the callback's entry poll already stops the loop. Each group needs an attack ending
-in a CPU `FATAL`, under `tests/hostile/core/<Class>/<member>/`, as the six in this session do.
-Then the output-limit item, then `bun nv proofs --overshoot`.
+Stage 5, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in
+one pass (the expected reds above first), and run it once more. Then the goal-end gates in
+AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes limits-within-one-call`
+and `bun nv ci --check`, and the acceptance check `deep-native-recursion`. Before `DONE`, move each
+decision only this file holds into a rule or module doc: the time `FATAL`'s text and the hook
+(`ctx/limits.rs`), the CPU rates (`bigint.rs`, `password.rs`, `crypto.rs`), and the output charge
+(`ctx/output.rs` already says it).
 
 ### Backlog
