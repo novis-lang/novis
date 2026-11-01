@@ -96,6 +96,8 @@ final class Document
     /// Two renders of the same document give the same bytes.
     public function render(): Rendered
     {
+        // The server sets the decompression limits of a placed PDF file from its configuration.
+        ?{ maxBytes: ?uint, maxRatio: ?uint } $bound = null;
         var $document = {
             html: $this->html,
             assets: $this->assets,
@@ -104,6 +106,7 @@ final class Document
                 password: $this->password,
                 invoiceXml: $this->invoiceXml,
                 created: $this->created,
+                bound: $bound,
             },
         };
         if ($this->header == null && $this->footer == null && $this->slots == null) {

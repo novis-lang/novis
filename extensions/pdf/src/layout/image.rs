@@ -4,7 +4,8 @@
 //! A PDF asset is one of its pages, the first unless the reference ends in `#page=N`, drawn as
 //! the page's own vector content at the page's size in points. Only its appearance is drawn: its
 //! links, form fields and bookmarks are not. It opens as `read`'s module doc says, so an
-//! encrypted PDF returns `Parse`.
+//! encrypted PDF returns `Parse`. Every pass runs under the options' `read::Bound`, so a placed
+//! page's streams decode under it here and when the writer copies them (`crate::render`).
 
 use std::sync::{Arc, Mutex};
 

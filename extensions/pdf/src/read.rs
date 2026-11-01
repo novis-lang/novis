@@ -23,7 +23,8 @@
 //! sets it on the thread for the job, and the repository's patched `hayro-syntax` stops each
 //! stream's decode once its output passes `min(compressed size × ratio, ceiling)`. That covers
 //! the cross-reference and object streams [`open`] reads, the content and font streams [`text`]
-//! interprets, and each attachment [`read`] returns. A job that passed the bound returns `Parse`
+//! interprets, each attachment [`read`] returns, and each placed page a render copies
+//! (`crate::render`). A job that passed the bound returns `Parse`
 //! naming the half that stopped it, even where the interpreter went on without that stream. The
 //! attachments [`read`] returns are held together, so their total counts against the ceiling too.
 //! An image's pixels are not counted, because its own dimensions bound them.

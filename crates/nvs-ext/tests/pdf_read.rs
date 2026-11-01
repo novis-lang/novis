@@ -108,6 +108,7 @@ fn render_with(
         ("password", Value::Null),
         ("invoiceXml", Value::Null),
         ("created", Value::Null),
+        ("bound", Value::Null),
     ];
     for (name, value) in options {
         all.iter_mut().find(|(each, _)| *each == name).unwrap().1 = value;

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use nvs_ext::builtin::{PDF, PDF_CLASS, PDF_SHA256};
+use nvs_ext::builtin::{Decompression, PDF, PDF_CLASS, PDF_SHA256, cap_decompression};
 use nvs_ext::call::{Error, Failure, Host, Limit, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, Extension, Loader};
@@ -81,6 +81,7 @@ fn whole(html: &str, assets: &[(&str, &[u8])]) -> Value {
                 ("password", Value::Null),
                 ("invoiceXml", Value::Null),
                 ("created", Value::Null),
+                ("bound", Value::Null),
             ]),
         ),
     ])
@@ -742,4 +743,44 @@ fn base64(text: &str) -> Vec<u8> {
         }
     }
     out
+}
+
+/// The bound a render decodes a placed PDF under is clamped as a reader's is: a missing one
+/// becomes the configured one, and an asked one can lower a half and never raise it
+/// (`rule:core-classes/decompression-bound`).
+#[test]
+fn the_host_clamps_the_bound_a_render_decodes_a_placed_pdf_under() {
+    let in_force = Decompression {
+        bytes: 5000,
+        ratio: 50,
+    };
+    let pair = |bytes: Value, ratio: Value| shape(vec![("maxBytes", bytes), ("maxRatio", ratio)]);
+    let bound = |document: &Value| field(&field(document, "options"), "bound");
+
+    let mut args = vec![whole("<p>Shop</p>", &[])];
+    cap_decompression(PDF_CLASS, "render", &mut args, in_force);
+    assert_eq!(bound(&args[0]), pair(Value::Uint(5000), Value::Uint(50)));
+
+    let options = shape(vec![
+        ("standard", Value::Null),
+        ("password", Value::Null),
+        ("invoiceXml", Value::Null),
+        ("created", Value::Null),
+        ("bound", pair(Value::Uint(100), Value::Uint(1_000_000))),
+    ]);
+    let document = shape(vec![
+        ("html", Value::String("<p>Shop</p>".to_owned())),
+        ("assets", Value::Array(Vec::new())),
+        ("options", options),
+    ]);
+    let mut args = vec![shape(vec![
+        ("document", document),
+        ("headerHeight", Value::Null),
+        ("footerHeight", Value::Null),
+    ])];
+    cap_decompression(PDF_CLASS, "renderFirst", &mut args, in_force);
+    assert_eq!(
+        bound(&field(&args[0], "document")),
+        pair(Value::Uint(100), Value::Uint(50))
+    );
 }

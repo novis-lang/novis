@@ -57,7 +57,7 @@ world! {
 
 records! {
     Asset { name, data }
-    RenderOptions { standard, password, invoice_xml, created }
+    RenderOptions { standard, password, invoice_xml, created, bound }
     Document { html, assets, options }
     FirstPass { document, header_height, footer_height }
     NamedValue { name, value }

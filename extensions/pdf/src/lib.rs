@@ -91,6 +91,9 @@ pub struct Options {
     pub password: Option<String>,
     pub invoice_xml: Option<String>,
     pub created: Option<Instant>,
+    /// The decompression bound every placed PDF asset decodes under, when it is opened and
+    /// when it is written.
+    pub bound: read::Bound,
 }
 
 /// The WIT `document`.
@@ -185,17 +188,29 @@ pub enum Error {
 /// (`factur_x`'s module doc). A `password` encrypts the file with AES-256 (`encrypt`'s module
 /// doc). A reference the asset map does not resolve returns `Invalid` naming it, and an image
 /// whose bytes do not decode returns `Parse` naming it.
+///
+/// The whole pass runs under the options' [`read::Bound`], so a placed PDF asset whose streams
+/// pass it returns `Parse` naming the half that stopped them, whether the layout or the writer
+/// decoded them (`rule:core-classes/decompression-bound`).
 pub fn render(document: &Document) -> Result<Rendered, Error> {
-    let (kept, _) = first(document, &Heights::default())?;
-    finish(kept, Vec::new())
+    read::under(document.options.bound, || {
+        let (kept, _) = lay_out(document, &Heights::default())?;
+        finish(kept, Vec::new())
+    })
 }
 
 /// The `first` pass: `document` laid out as [`render`] lays it out, each height in `heights`
-/// replacing its margin, and each page's facts with no file.
+/// replacing its margin, and each page's facts with no file. It runs under the options'
+/// [`read::Bound`], as [`render`] does.
 ///
 /// A height that is not one CSS length of 0 or more returns `Invalid`, and so does everything
 /// [`render`] returns `Invalid` for.
 pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered), Error> {
+    read::under(document.options.bound, || lay_out(document, heights))
+}
+
+/// [`first`] with no bound set, which each pass sets once around all of its work.
+fn lay_out(document: &Document, heights: &Heights) -> Result<(Kept, Rendered), Error> {
     let options = &document.options;
     if options.invoice_xml.is_some() && options.standard != Some(Standard::PdfA3b) {
         return Err(Error::Invalid(
@@ -253,10 +268,13 @@ pub fn first(document: &Document, heights: &Heights) -> Result<(Kept, Rendered),
 }
 
 /// The `second` pass: each page's markup in `pages` drawn over the body `kept` holds, as
-/// [`draw`] draws it, and the file written.
+/// [`draw`] draws it, and the file written. It runs under the bound of the options [`first`]
+/// kept, so the writer decodes a placed PDF under the same bound its layout did.
 pub fn second(kept: Kept, pages: &[Markup]) -> Result<Rendered, Error> {
-    let (kept, overflows) = draw(kept, pages)?;
-    finish(kept, overflows)
+    read::under(kept.options.bound, || {
+        let (kept, overflows) = draw(kept, pages)?;
+        finish(kept, overflows)
+    })
 }
 
 /// Draws each page's header and footer markup in `pages` over that page's margins, and each
@@ -493,6 +511,9 @@ mod guest {
                     seconds: created.seconds,
                     nanos: created.nanos,
                 }),
+                bound: options
+                    .bound
+                    .map_or_else(crate::read::Bound::default, decompression),
             },
         }
     }

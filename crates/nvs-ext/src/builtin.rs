@@ -10,7 +10,7 @@
 //! The bytes are only data here. Nothing reads or compiles them until a component is loaded.
 //!
 //! [`cap_pixels`] is the host's half of the image component's pixel cap, and
-//! [`cap_decompression`] of the spreadsheet component's decompression bound: each clamps a call's
+//! [`cap_decompression`] of the spreadsheet and PDF components' decompression bound: each clamps a call's
 //! arguments to what the request's snapshot gives, before they cross.
 
 use crate::convert::{Key, Value};
@@ -99,21 +99,44 @@ pub struct Decompression {
 /// `Novis\Pdf\Engine::merge`, `::read` or `::readText` call, its second argument, gets
 /// `maxBytes` and `maxRatio` set to the smaller of its own and `in_force`'s, the calling request's
 /// `[limits]`. A bound with neither gets `in_force`'s, so a call can lower the bound and never
-/// raise it. Any other call is left as it is, and a bound that is not a shape is left for the
+/// raise it. A `Novis\Pdf\Engine::render` or `::renderFirst` call gets the same in its options'
+/// `bound`, which every placed PDF asset decodes under, and a missing or `null` one becomes
+/// `in_force`'s. Any other call is left as it is, and a bound that is not a shape is left for the
 /// manifest's conversion to refuse.
 pub fn cap_decompression(class: &str, method: &str, args: &mut [Value], in_force: Decompression) {
-    let bounded = match class {
-        SPREADSHEET_CLASS => matches!(method, "readerOpen" | "templateOpen"),
-        PDF_CLASS => matches!(method, "merge" | "read" | "readText"),
-        _ => false,
+    let bound = match (class, method) {
+        (SPREADSHEET_CLASS, "readerOpen" | "templateOpen")
+        | (PDF_CLASS, "merge" | "read" | "readText") => args.get_mut(1),
+        (PDF_CLASS, "render") => render_bound(args.get_mut(0)),
+        (PDF_CLASS, "renderFirst") => match args.get_mut(0) {
+            Some(Value::Array(fields)) => render_bound(field(fields, "document")),
+            _ => None,
+        },
+        _ => None,
     };
-    if !bounded {
-        return;
-    }
-    if let Some(Value::Array(fields)) = args.get_mut(1) {
+    if let Some(Value::Array(fields)) = bound {
         clamp(fields, "maxBytes", in_force.bytes);
         clamp(fields, "maxRatio", in_force.ratio);
     }
+}
+
+/// The `bound` of a PDF `document`'s options, set to an empty shape first when it is missing or
+/// `null`, so [`clamp`] fills both halves.
+fn render_bound(document: Option<&mut Value>) -> Option<&mut Value> {
+    let Some(Value::Array(fields)) = document else {
+        return None;
+    };
+    let Some(Value::Array(options)) = field(fields, "options") else {
+        return None;
+    };
+    if field(options, "bound").is_none() {
+        options.push((Key::String("bound".to_owned()), Value::Null));
+    }
+    let bound = field(options, "bound")?;
+    if matches!(bound, Value::Null) {
+        *bound = Value::Array(Vec::new());
+    }
+    Some(bound)
 }
 
 fn cap_source(source: &mut Value, in_force: u64) {

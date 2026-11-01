@@ -403,3 +403,48 @@ fn an_attachment_past_the_decompression_bound_throws() {
         Some(invoice.as_str())
     );
 }
+
+/// The writer decodes a placed page's content stream to copy it, so a render runs under its
+/// options' bound until the file is written, through both passes.
+#[test]
+fn a_placed_pdf_past_the_decompression_bound_throws() {
+    let placed = rendered(&"<p>Shop invoice line</p>".repeat(2000), Options::default());
+    let document = |bound: Bound| Document {
+        html: "<img src=\"lines.pdf\">".to_owned(),
+        assets: vec![Asset {
+            name: "lines.pdf".to_owned(),
+            data: placed.clone(),
+        }],
+        options: Options {
+            bound,
+            ..Options::default()
+        },
+    };
+    let ceiling = Bound {
+        max_bytes: 1000,
+        max_ratio: 1000,
+    };
+    let ratio = Bound {
+        max_bytes: 64 << 20,
+        max_ratio: 2,
+    };
+    for (bound, key) in [
+        (ceiling, "`[limits] max_decompressed`"),
+        (ratio, "`[limits] max_decompression_ratio`"),
+    ] {
+        let whole = render(&document(bound)).map(drop);
+        let passes = nvs_pdf::first(&document(bound), &nvs_pdf::Heights::default())
+            .and_then(|(kept, facts)| {
+                let pages = vec![nvs_pdf::Markup::default(); facts.pages.len()];
+                nvs_pdf::second(kept, &pages)
+            })
+            .map(drop);
+        for result in [whole, passes] {
+            let Err(Error::Parse(message)) = &result else {
+                panic!("a placed PDF under {bound:?} gave {result:?}");
+            };
+            assert!(message.contains(key), "{message}");
+        }
+    }
+    render(&document(Bound::default())).unwrap();
+}

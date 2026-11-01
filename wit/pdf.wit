@@ -29,12 +29,15 @@ interface engine {
     }
 
     /// An `invoice-xml` without `pdf-a3b`, or a `password` with a PDF/A
-    /// standard, returns `invalid`.
+    /// standard, returns `invalid`. `bound` is the decompression bound every
+    /// placed PDF asset decodes under, while it is laid out and while it is
+    /// written. `none` is the shipped default.
     record render-options {
         standard: option<standard>,
         password: option<string>,
         invoice-xml: option<string>,
         created: option<instant>,
+        bound: option<decompression-bound>,
     }
 
     record document {
@@ -120,7 +123,8 @@ interface engine {
         pages: option<list<u64>>,
     }
 
-    /// `rule:core-classes/decompression-bound` for one call: every stream the
+    /// `rule:core-classes/decompression-bound` for one call, or for every PDF
+    /// asset a render places: every stream the
     /// call decodes decompresses to at most `max-bytes`, and to at most
     /// `max-ratio` times its compressed size, and the attachments `read`
     /// returns to at most `max-bytes` together. The host sets both to the

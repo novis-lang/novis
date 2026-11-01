@@ -114,6 +114,7 @@ fn render_locked(
                         ],
                     }),
                 ),
+                ("bound", Value::Null),
             ]),
         ),
     ]);

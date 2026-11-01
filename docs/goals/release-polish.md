@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-diagnostics/src/source.rs, crates/nvs-config/src/resolve.rs, crates/nvs-types/src/paths.rs, crates/nvs-diagnostics/src/embedded.rs]
   - id: 8
     title: "the two security gaps this goal owns are closed: handle keys and a placed PDF's decompression bound"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/held.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/tests/read.rs, docs/rules/core-classes/decompression-bound.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -473,7 +473,11 @@ isolation or bound finding, so each is built here, never handed on.
   - [x] the foreign-key FATALs of a connection, a CSV walk and a streamed body name the other task
   - [x] one case per class, each red on the old keying (checked for the file case)
   - [x] the rule, its topic row, and the gap record deleted
-- [ ] The write of a placed PDF page runs under the render's `read::Bound`, as `data/gaps/nvs-pdf/a-placed-pdf-decodes-without-a-bound.json` says, and the record is deleted. `extensions/pdf/src/layout/image.rs:1`
+- [x] The write of a placed PDF page runs under the render's `read::Bound`, as the gap record said, and the record is deleted. `extensions/pdf/src/layout/image.rs:1`
+  - [x] `render-options` carries a `bound`, the host clamps it in `render` and `renderFirst`, and `Document::render` sends one
+  - [x] `render`, `first` and `second` each run under it, from the layout to the written file
+  - [x] the test in `extensions/pdf/tests/read.rs`, the host clamp test, and a hostile case with two steps
+  - [x] the rule names the case, and the gap record is deleted
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -498,10 +502,16 @@ is `bun nv verify --doc`. `baf3204a2` commits the fixes an earlier gate pass lef
 test's absolute binary path, and the literal-path allowlist rows.
 
 `bun nv owners --closes release-polish` was red on two gap records, so the gate became stage 9 and
-stage 8 closes them. `d380ea37f` closes the first: every handle table keys by one process-wide
-counter (`crates/nvs-runtime/src/ctx/held.rs:24`), and six conformance cases pin it, one per class.
-Under the old keying, the file case read the parent's own file. The `await` message stays as it was,
-because a published example, the reference and the website pin it.
+stage 8 closed them. Stage 8 is done. `d380ea37f` closes the first: every handle table keys by one
+process-wide counter (`crates/nvs-runtime/src/ctx/held.rs:24`), and six conformance cases pin it.
+
+The second commit after it closes the placed PDF: `wit/pdf.wit`'s `render-options` gains
+`bound: option<decompression-bound>`, `cap_decompression` clamps it for `render` and `renderFirst`
+(`crates/nvs-ext/src/builtin.rs:97`), and `nvs_pdf::render`, `first` and `second` each run under
+`read::under` (`extensions/pdf/src/lib.rs:188`). The writer decodes a placed page's content to copy
+it, which is where a bomb used to run unbounded. `tests/hostile/novis/Pdf-Document/fromHtml/03-a-placed-pdf-bomb.nvs`
+prints `stopped ParseError` on both steps. The component manifest's `render` and `renderFirst`
+types gained the field, so the `Engine` signature changed. `Document.nvs` passes a typed `null`.
 
 The sweep's reds are stale. A reader traced each failure of nightly run 41187571578 (on `857b39cad`)
 to a fix already at HEAD: `browser` to `39795c9c4`, the proofs shots to `bfce9c2d2`, ASAN's SQLite
@@ -510,13 +520,17 @@ run has happened since. `env-secret-proofs` still has no definition in the tree 
 
 ### Next
 
-Stage 8's last item, then stage 9.
+Stage 9.
 
-- [ ] A placed PDF page's write runs under the render's `read::Bound`, so a placed bomb throws `ParseError` as `Reader::open` does. Add a hostile step under `tests/hostile/novis/Pdf-Document/fromHtml/` and a test in `extensions/pdf/tests/read.rs`, name the case in `rule:core-classes/decompression-bound`, and delete `data/gaps/nvs-pdf/a-placed-pdf-decodes-without-a-bound.json`. `extensions/pdf/src/layout/image.rs:1`
-- [ ] Stage 9: `bun nv affected --run` in the background, then `bun nv owners --closes release-polish` and `bun nv ci --check`. The installed `looper` has no `verify` subcommand, so use `bun nv verify`. `tools/nv/cmd/ci.ts:1`
+- [ ] `bun nv affected --run` in the background, then `bun nv verify --doc`, `bun nv owners --closes release-polish` and `bun nv ci --check`. The installed `looper` has no `verify` subcommand, so use `bun nv verify`. `tools/nv/cmd/ci.ts:1`
 
 Tests that may go red:
 
+- A test that builds the PDF `render` or `renderFirst` options by hand without `bound`. The three
+  host tests got `("bound", Value::Null)`. A website or reference page that prints the `Engine`
+  signature from the manifest may need `bun nv render --website`.
+- `crates/nvs-ext/tests/builtin.rs`'s component size figure, if the PDF component moved past 5%.
+  It should not: the change is a few lines.
 - A `nvs-runtime` or `nvs-stdlib` unit test that expects a handle key of `1`, or a connection key
   equal to a position. Keys now come from the shared counter (`crates/nvs-runtime/src/ctx/held.rs:24`).
 - `bind.rs`'s two db fixtures reach the foreign-key FATAL, and its message changed. They match on the

@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a request places a PDF file in its document whose page unpacks to 64 MB.
+// The render should throw a `ParseError`, and the server keeps running.
+use Novis\Pdf\Document;
+
+class Forge
+{
+    // This method builds a PDF file from its objects, with a correct table of where each object starts.
+    public static function pdf(array<bytes> $objects): bytes
+    {
+        array<bytes> $parts = ["%PDF-1.7\n" as bytes];
+        array<int> $offsets = [];
+        int $at = 9;
+        int $n = 0;
+        foreach ($objects as bytes $body) {
+            $n = $n + 1;
+            $offsets[] = $at;
+            bytes $object = Core\Bytes::join(["{$n} 0 obj\n" as bytes, $body, "\nendobj\n" as bytes]);
+            $parts[] = $object;
+            $at = $at + Core\Bytes::length($object) as int;
+        }
+        string $table = "xref\n0 " . ($n + 1) as string . "\n0000000000 65535 f \n";
+        foreach ($offsets as int $offset) {
+            $table .= Core\Str::padStart($offset as string, 10, '0') . " 00000 n \n";
+        }
+        $parts[] = ($table . "trailer\n<< /Size " . ($n + 1) as string . " /Root 1 0 R >>\nstartxref\n{$at}\n%%EOF\n") as bytes;
+        return Core\Bytes::join($parts);
+    }
+}
+
+// 1. A page whose content is a small compressed stream that unpacks to 64 MB.
+// It unpacks to more than 1000 times its packed size, so the render throws a `ParseError`.
+bytes $packed = Core\Compress::compress(Core\Str::repeat(' ', 67108864) as bytes, Core\Compress::Codec::Zlib);
+uint $length = Core\Bytes::length($packed);
+var $bomb = Forge::pdf([
+    '<< /Type /Catalog /Pages 2 0 R >>' as bytes,
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>' as bytes,
+    Core\Bytes::join(["<< /Length {$length} /Filter /FlateDecode >>\nstream\n" as bytes, $packed, "\nendstream" as bytes]),
+]);
+try {
+    var $rendered = Document::fromHtml('<img src="page.pdf">')->asset('page.pdf', $bomb)->render();
+    echo 'step 1 ran ', $rendered->pageCount, "\n";
+} catch (Throwable $e) {
+    echo 'step 1 stopped ', $e::class, "\n";
+}
+
+// 2. The same page in the header of each page. A render with a header throws the same error.
+try {
+    var $framed = Document::fromHtml('<p>Shop</p>')
+        ->asset('page.pdf', $bomb)
+        ->header(fn(Novis\Pdf\Page $page): Core\Html\Markup => html`<img src="page.pdf" style="height: 1cm">`)
+        ->render();
+    echo 'step 2 ran ', $framed->pageCount, "\n";
+} catch (Throwable $e) {
+    echo 'step 2 stopped ', $e::class, "\n";
+}

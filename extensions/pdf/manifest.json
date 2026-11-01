@@ -8,15 +8,15 @@
     {
       "name": "render",
       "params": [
-        {"name": "document", "type": "{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }"}
+        {"name": "document", "type": "{ html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant, bound: ?{ maxBytes: ?uint, maxRatio: ?uint } } }"}
       ],
       "returns": "{ data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> }",
-      "help": "Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw."
+      "help": "Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw. Every stream of a PDF file the document shows as an image decompresses to at most `bound`'s `maxBytes` bytes, and to at most its `maxRatio` times its compressed size. The server sets both from `[limits]`."
     },
     {
       "name": "renderFirst",
       "params": [
-        {"name": "pass", "type": "{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant } }, headerHeight: ?string, footerHeight: ?string }"}
+        {"name": "pass", "type": "{ document: { html: string, assets: array<{ name: string, data: bytes }>, options: { standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant, bound: ?{ maxBytes: ?uint, maxRatio: ?uint } } }, headerHeight: ?string, footerHeight: ?string }"}
       ],
       "returns": "{ body: Kept, facts: { data: bytes, pageCount: uint, pages: array<{ number: uint, name: ?string, strings: array<{ name: string, value: string }>, marks: array<{ name: string, value: string }> }>, dropped: array<{ property: string, value: string, selector: string, line: uint, column: uint }>, missingGlyphs: array<{ text: string, fonts: array<string>, page: uint }>, overflows: array<{ page: uint, area: string, text: string }> } }",
       "help": "Lays out the body of a document that has header, footer or slot functions. Returns the laid-out body and the facts of each page. The file is empty."
