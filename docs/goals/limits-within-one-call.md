@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-runtime/src/ctx/safep
 stages:
   - id: 1
     title: "a survey lists every wait, every native recursion and every member whose cost its caller picks"
-    status: open
+    status: done
   - id: 2
     title: "native recursion checks the stack before it goes deeper"
     status: open
@@ -97,6 +97,12 @@ reading past the bound is red. The 100 ms is the watchdog's sampling interval pl
 Stage 4 measures the legitimate worst over the existing attacks first, and sets the slack to twice
 that if it is larger. The bound is never raised to make an attack pass.
 
+**The output limit counts the response body, wherever it is written.** A streamed chunk, an SSE event
+and a file body are output, and each is charged when it is written; a file body by its size. Headers,
+diagnostics, and log or dump records sent to a named target are not the response body and stay
+uncharged: memory bounds the headers, and each sink has its own bound. Cost: one add and one compare
+per streamed write.
+
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
 
@@ -115,29 +121,82 @@ may run as a side goal.
 `crates/nvs-db`, `crates/nvs-ldap`, `crates/nvs-host` and `crates/nvs-runtime`. Each returns
 `file.rs:NN`, the member that reaches the site and one line each.
 
-- [ ] Every blocking wait a member can reach: a socket read or write, a database reply, a child
+- [x] Every blocking wait a member can reach: a socket read or write, a database reply, a child
   process, a lock or a channel. For each: whether it reads the request's deadline today. Written as
   stage 3's items.
-- [ ] Every native recursion a request's input can drive: a parser, a walk, an encoder, a matcher. For
+- [x] Every native recursion a request's input can drive: a parser, a walk, an encoder, a matcher. For
   each: its depth cap if it has one, and the depth at which the stack would end first. Written as
   stage 2's items.
-- [ ] Every member whose CPU cost grows faster than its input or is picked by an argument. Examples to
+- [x] Every member whose CPU cost grows faster than its input or is picked by an argument. Examples to
   check: an edit distance, a password hash's cost, decompression, sorting with a callback. Written as
   stage 4's items.
-- [ ] Whether the output limit is written through one path. If it is not, each other path is a stage 4
+- [x] Whether the output limit is written through one path. If it is not, each other path is a stage 4
   item.
+
+**What the survey found.** A task stack is 1 MiB (`crates/nvs-host/src/stack.rs:202`), so about
+768 KiB is usable above the 256 KiB reserve. No native site consults `stack_floor`: only compiled code
+calls `nvs_stack_check` (`crates/nvs-codegen/src/emit.rs:1396`). Drop, release, equality and hash are
+already iterative. `wall_time_left` has two readers, `Core\Time::sleep` (`crates/nvs-stdlib/src/time.rs:3738`)
+and SQLite's busy wait (`crates/nvs-stdlib/src/db/execute.rs:86`). No `Ctx` accessor gives the CPU time
+left. `bounded_loop` (`crates/nvs-runtime/src/abi.rs:386`) has two callers, `Core\Arr::map` and
+`Core\Task::map`. There is no edit-distance member in `Core`. The output limit is charged only in
+`Ctx::write_output` (`crates/nvs-runtime/src/ctx/output.rs:275`).
 
 ### 2. native recursion checks the stack before it goes deeper
 
 - [ ] The stack helper in `nvs-runtime`, by the standing decision. `crates/nvs-runtime/src/ctx/safepoint.rs:1216`
 - [ ] The test `native_recursion_past_the_stack_ends_the_request_and_not_the_process`, which drives
   one listed recursion past the stack. Run once by name.
-- [ ] Each recursion stage 1 listed asks the helper. Filled in by stage 1.
+- [ ] Each recursion stage 1 listed asks the helper:
+  - `Core\Router`'s `$params` walk, `written_form` (`crates/nvs-stdlib/src/router.rs:1657`). It has no
+    cap, and a nested array from `Core\Uri::parseQuery` can drive it about 5k levels deep. The test
+    above drives this one.
+  - `Core\Json::decode` and `decodeAs` (`crates/nvs-stdlib/src/json.rs:1953`, `json.rs:2894`). serde_json's
+    own limit is off and the cap is 512, up to 1024. A debug frame is about 8 KiB, so a text under
+    `IN_PLACE_BYTES` that runs on the task stack can end it before the cap.
+  - The value-graph walk and read behind serialize, cache and session (`crates/nvs-runtime/src/graph.rs:251`,
+    `graph.rs:983`). Cap 256, which fits; the helper is the guard if a frame grows.
+  - `Core\Debug`'s record walk (`crates/nvs-runtime/src/record.rs:182`). Its depth cap is a setting,
+    default 8, so a program's own setting picks the depth.
+- [ ] The third-party recursions take an explicit limit, written beside the call: `regex`'s
+  `nest_limit` (`crates/nvs-stdlib/src/regex.rs:1371`, default 250 today) and ciborium's recursion limit
+  for passkey attestation (`crates/nvs-stdlib/src/passkey.rs:844`, `passkey.rs:925`). Read each crate's
+  installed version for its default first.
 - [ ] An attack step per listed recursion that a `.nvs` file can reach, ending at `FATAL`.
+
+The other recursions have a format cap that fits the stack and stay as they are: XML 1024 iterative,
+HTML 1024 and html5ever 512, signature 32, `assertEqualsDeep` 64, the database schema 16, the LDAP
+filter 100, Postgres arrays 6, the redaction walk 128 on the spare stack.
 
 ### 3. every wait a member makes ends at the request's deadline
 
-- [ ] Each wait stage 1 listed reads `wall_time_left`, by the standing decision. Filled in by stage 1.
+Most waits go through four doors, so most items are one change at a door. Each item reads
+`wall_time_left`, by the standing decision.
+
+- [ ] The socket door: `NvsStream`'s deadline (`crates/nvs-host/src/net.rs:250`, `net.rs:727`,
+  `net.rs:1055`, waits at `net.rs:1414` and `net.rs:1689`). The stream has no `Ctx`, so each member that
+  sets a stream's deadline clamps it to the wall deadline. That covers `Core\Net` (`crates/nvs-stdlib/src/net.rs:1419`,
+  `:1631`, `:1662`, `:1712`, `:1834`, `:1885`), `Core\Http` (`crates/nvs-stdlib/src/http/transport.rs:1673`,
+  `:1723`, `:2093`), Redis (`crates/nvs-stdlib/src/cache/redis.rs:463`), `Core\Mail` (`crates/nvs-stdlib/src/mail.rs:817`,
+  `:1054`) and `Core\Ldap` (`crates/nvs-ldap/src/conn.rs:276`).
+- [ ] The database door: `bound_connection` (`crates/nvs-stdlib/src/db/execute.rs:77`) clamps every
+  statement's deadline. That covers the four wire drivers' replies (`crates/nvs-db/src/pg.rs:461`,
+  `mysql.rs:449`, `maria.rs:462`, `conn.rs:1236`) and their connects (`pg.rs:1099`, `mysql.rs:1819`,
+  `maria.rs:381`, `tds/mod.rs:401`). SQLite's busy wait with a statement `timeout` takes the shorter of
+  the two (`execute.rs:86`), and `into_wal`'s retry (`crates/nvs-db/src/sqlite.rs:808`) stops at it.
+- [ ] The blocking-pool door: `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`). Its
+  callers wait no longer than the deadline. That covers `Core\Process::run` (`crates/nvs-stdlib/src/process.rs:964`,
+  `:1187`, `:1311`), the handle's read, write and kill (`process.rs:1523`) and `Handle::wait` (`process.rs:1661`),
+  and the resolver `resolve_off_core` (`crates/nvs-host/src/lib.rs:210`).
+- [ ] The three inline `getaddrinfo` calls move to the shared resolver: `crates/nvs-stdlib/src/db/open.rs:152`,
+  `mail.rs:428`, `ldap/mod.rs:493`. Today each blocks the core with no bound.
+- [ ] The park door: each `host.park` a member makes takes the shorter of its own bound and the
+  deadline. `crates/nvs-stdlib/src/db/pool.rs:168`, `cache.rs:1507`, `socket.rs:1236`, `socket.rs:1506`,
+  `sse.rs:884`, `channel.rs:327`, `crates/nvs-runtime/src/stream.rs:228`, `crates/nvs-runtime/src/ctx/late_init.rs:208`.
+- [ ] The backoff sleeps stop at the deadline: `Core\Http`'s retry (`http/transport.rs:1501`) and
+  `Core\Db`'s transaction retry (`db/transaction.rs:352`).
+- [ ] `Core\IO::stdin` (`crates/nvs-stdlib/src/io.rs:2263`) reaches only `nvs run`. Decide in the stage
+  whether a CLI run has a wall deadline; if it has, the read stops at it.
 - [ ] An attack step per listed wait a `.nvs` file can reach, ending at the wall-time `FATAL`. A wait
   only a remote peer can hold open is a Rust test with a scripted peer.
 
@@ -149,7 +208,31 @@ may run as a side goal.
   attacks that end at a time limit. `tools/nv/proofs/run.ts:888`, `tools/nv/proofs/run.ts:976`
 - [ ] Measure the legitimate worst over the existing time attacks, and set the slack by the standing
   decision.
-- [ ] Each member stage 1 listed checks its cost first or polls. Filled in by stage 1.
+- [ ] `Ctx::cpu_time_left`, beside `wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). It
+  reads the thread's CPU clock against `cpu_limit` (`limits.rs:1047`). Today only the watchdog reads
+  that clock (`crates/nvs-host/src/watchdog.rs:275`).
+- [ ] Each member stage 1 listed checks its cost first or polls:
+  - `Core\Password::verify` and `hash` (`crates/nvs-stdlib/src/password.rs:469`, `:436`). The stored
+    hash picks the cost, up to bcrypt 17 or argon2 4 Mi work. Checked first, from the cost.
+  - `Core\Crypto::deriveKey` (`crates/nvs-stdlib/src/crypto.rs:3165`), up to 2M PBKDF2 iterations.
+    Checked first. RSA `sign` and `verify` (`crypto.rs:3286`, `:3314`): read whether the key size is
+    capped, and cap it if not.
+  - `Core\BigInt::powMod` and the wide `mul`, `div`, `mod`, `sqrt`, `gcd`, `toString`, `parse`
+    (`crates/nvs-stdlib/src/bigint.rs:1154`, `:1197`, `:1088`). Operand width is bounded by memory alone.
+    `powMod` polls per exponent bit; the others are checked first from the widths.
+  - `Core\Compress::decompress` and the stream's `add` and `finish` (`crates/nvs-stdlib/src/compress.rs:1097`,
+    `:1306`, `:1350`). Up to 64 MiB of output by default. Polls per output chunk.
+  - `Core\Regex`'s linear tier, `matchAll`, `replace`, `replaceWith` and `split` (`crates/nvs-stdlib/src/regex.rs:1811`).
+    It has no step budget, and the cost is pattern size times input. Polls per match.
+  - `Core\Arr::sort`, `sortByKey`, `diff` and `intersect` with a callback (`crates/nvs-stdlib/src/arr.rs:4610`,
+    `:4811`, `:6056`). Read whether a callback's entry poll stops the native loop; if not, poll per call.
+  - Postgres SCRAM login (`crates/nvs-db/src/pg.rs:1298`): the server picks the PBKDF2 iteration count.
+    Cap it, and check it first.
+- [ ] The output limit charges every byte of a response body. These paths do not today:
+  `Core\Response\Stream::write` to a connection (`crates/nvs-stdlib/src/response.rs:2426`), `Core\Sse`
+  events (`crates/nvs-stdlib/src/sse.rs:956`), both through `Emit::send` and `send_all`
+  (`crates/nvs-runtime/src/stream.rs:184`, `:254`), and the file body `sendFile` declares
+  (`crates/nvs-runtime/src/ctx/output.rs:868`), charged by the file's size.
 - [ ] `bun nv proofs --overshoot` exits 0.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -165,10 +248,21 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Not started. The goal was written on 2026-10-31, beside `memory-overshoot-net`.
+Stage 1 is done. Its three readers' lists are now the items of stages 2, 3 and 4, with each site's
+anchor, and the survey's findings sit under stage 1. One design call was recorded under Standing
+decisions: the output limit counts the response body, wherever it is written.
+
+The acceptance sweep's reds are stale. Nightly run 41187571578 ran on `857b39cad`. Its browser job is
+fixed by `39795c9c4`, and its seven Miri timeouts by `8ce92dda5`. `proofs / linux-x86_64` and `asan`
+are green on push run 41250387116. `env-secret-proofs` has no definition in the tree.
+
+**Tests expected to go red:** none. This session changed only the goal file.
 
 ### Next
 
-Stage 1, the survey. Its three lanes are listed under its `**Split:**`.
+Stage 2: the stack helper in `nvs-runtime`, beside `nvs_stack_check` (`crates/nvs-runtime/src/ctx/safepoint.rs:1216`).
+Next the test `native_recursion_past_the_stack_ends_the_request_and_not_the_process`, driving
+`Core\Router`'s `written_form` (`crates/nvs-stdlib/src/router.rs:1657`), then the other listed sites.
+Stages 3 and 4 touch disjoint files and may run as side goals.
 
 ### Backlog
