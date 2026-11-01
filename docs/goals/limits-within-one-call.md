@@ -112,6 +112,15 @@ refuses at `NATIVE_STEP_ROOM` (64 KiB) above the floor, inside the reserve, with
 code gives at the floor. A native walk has no catch point of its own, so it is never a catchable
 `Recursion`.
 
+**A wait at the deadline is the FATAL where the member has the context, and the flag elsewhere.** A
+member that holds `&mut Ctx` where its wait fails maps the failure through `Ctx::wall_time_fault`, so
+the request stops there with the wall-time `FATAL` (`Core\Net`, `Core\Http`, `Core\Mail`). A door
+that reaches the wait without the context, such as Redis's `on_shared`, LDAP's operations and the
+database's statements, only clamps the wait. Its failure is the member's own error, and the request's
+safepoint flag, raised at the deadline by the watchdog sweep or the run's clock, stops the request at
+its next poll. Threading `&mut Ctx` into each of those doors was declined: the clamp already ends
+the wait, which is the security property, and the flag gives the same `FATAL` one poll later.
+
 **Lanes.** Stage 1 runs first. Stages 2, 3 and 4 touch disjoint files once the survey is in, and each
 may run as a side goal.
 
@@ -195,11 +204,23 @@ Most waits go through four doors, so most items are one change at a door. Each i
   `:1631`, `:1662`, `:1712`, `:1834`, `:1885`), `Core\Http` (`crates/nvs-stdlib/src/http/transport.rs:1673`,
   `:1723`, `:2093`), Redis (`crates/nvs-stdlib/src/cache/redis.rs:463`), `Core\Mail` (`crates/nvs-stdlib/src/mail.rs:817`,
   `:1054`) and `Core\Ldap` (`crates/nvs-ldap/src/conn.rs:276`).
+  - [x] `Ctx::within_wall_time`, `Ctx::wall_bound` and `Ctx::wall_time_fault` (`crates/nvs-runtime/src/ctx/limits.rs`).
+  - [x] `Core\Net`: `within` clamps every bound, and `waited` gives the `FATAL`.
+  - [x] `Core\Http`: `call_of` and the socket open clamp `deadline` and `maxDuration`, and `wall_or` gives the `FATAL`.
+  - [x] Redis: `Connection::set_wall`, filed by `on_shared` for each command.
+  - [x] `Core\Mail`: one deadline over the whole exchange. Before, only the connect was bounded.
+  - [x] `Core\Ldap`: `held` files the wall on `Held`, and `dial` takes it.
+  - [x] Attack `tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs`, green.
 - [ ] The database door: `bound_connection` (`crates/nvs-stdlib/src/db/execute.rs:77`) clamps every
   statement's deadline. That covers the four wire drivers' replies (`crates/nvs-db/src/pg.rs:461`,
   `mysql.rs:449`, `maria.rs:462`, `conn.rs:1236`) and their connects (`pg.rs:1099`, `mysql.rs:1819`,
   `maria.rs:381`, `tds/mod.rs:401`). SQLite's busy wait with a statement `timeout` takes the shorter of
   the two (`execute.rs:86`), and `into_wal`'s retry (`crates/nvs-db/src/sqlite.rs:808`) stops at it.
+  - [x] `bound_connection` files the earlier of the statement's deadline and the wall deadline.
+  - [ ] The four connects take the wall deadline: find where `Core\Db::connect` and the pool's open
+    build the connect bound (`crates/nvs-stdlib/src/db/open.rs`).
+  - [ ] `into_wal`'s retry stops at the wall deadline.
+  - [ ] A Rust test: a scripted peer that never replies, under a short wall time, ends at the deadline.
 - [ ] The blocking-pool door: `nvs_host::blocking::run` (`crates/nvs-host/src/blocking.rs:442`). Its
   callers wait no longer than the deadline. That covers `Core\Process::run` (`crates/nvs-stdlib/src/process.rs:964`,
   `:1187`, `:1311`), the handle's read, write and kill (`process.rs:1523`) and `Handle::wait` (`process.rs:1661`),
@@ -264,25 +285,31 @@ whole goal once and fixes every failure in one pass.
 
 ### State
 
-Stage 2 is done. `Ctx::native_stack_step` (`crates/nvs-runtime/src/ctx/safepoint.rs:54`) guards
-`Core\Router`'s `$params` walk, and the attack
-`tests/hostile/core/Router/urlSigned/02-a-value-nested-past-the-stack.nvs` drives it from a
-`parseQuery` value 100,000 levels deep to `FATAL: the request exceeded its call-stack limit`. Its
-proofs run and comment check are green. A `parseQuery` value's leaves are `bytes`, so `urlSigned`
-throws `RuntimeError` on them; step 1 catches that, and step 2 reaches the floor before any leaf.
+Stage 3 is under way. The socket door is done: `Core\Net`, `Core\Http`, Redis, `Core\Mail` and
+`Core\Ldap` clamp each wait with the new `Ctx::within_wall_time` and `Ctx::wall_bound`
+(`crates/nvs-runtime/src/ctx/limits.rs`), and the attack
+`tests/hostile/core/Net-Listener/accept/02-a-wait-past-the-time-limit.nvs` waits one hour under
+`limits.wall_time = 1s` and ends at the `FATAL` in 1.2 s. Its proofs run and comment check are
+green. `Core\Mail` bounded only its connect before; its `timeout` now covers the whole exchange.
+The database door's statements are clamped in `bound_connection`; its connects, `into_wal` and a
+test are left. A new standing decision says where a deadline gives the `FATAL` directly.
 
-The acceptance sweep's reds are stale, as the last two handoffs said. Nightly run 41187571578 ran on
-`857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition in
-the tree, and no log was written for it.
+The acceptance sweep's reds are stale, as the last three handoffs said. Nightly run 41187571578 ran
+on `857b39cad`, before the fixes `39795c9c4` and `8ce92dda5`. `env-secret-proofs` has no definition
+in the tree, and no log was written for it.
 
-**Tests expected to go red:** a passkey test whose fixture CBOR nests deeper than 16, if one exists.
-None is known.
+**Tests expected to go red:** a `Core\Mail` test whose scripted server stalls past `timeout` after
+the connect, if one exists, now gets an error where it waited before. An SQLite test that reads
+`set_statement_deadline`'s `None` deadline under a `wall_time` now sees `Some`. None is known.
 
 ### Next
 
-Stage 3, the waits, starting with the socket door (`crates/nvs-host/src/net.rs:250`) and the
-database door (`crates/nvs-stdlib/src/db/execute.rs:77`). Each clamps a deadline to
-`Ctx::wall_time_left` (`crates/nvs-runtime/src/ctx/limits.rs:1002`). Write checkpoints under each
-item first. Stage 4 touches disjoint files and may run as a side goal.
+The rest of the database door: the four driver connects (start at `crates/nvs-stdlib/src/db/open.rs`,
+where the connect bound is built), `into_wal`'s retry (`crates/nvs-db/src/sqlite.rs:808`), and a
+Rust test with a peer that never replies. Then the blocking-pool door
+(`crates/nvs-host/src/blocking.rs:442`, `Core\Process` at `crates/nvs-stdlib/src/process.rs:964`)
+and the inline `getaddrinfo` calls (`db/open.rs:152`, `mail.rs:428`, `ldap/mod.rs:493`). Each reads
+`Ctx::within_wall_time` or `Ctx::wall_bound`. Stage 4 touches disjoint files and may run as a side
+goal.
 
 ### Backlog
