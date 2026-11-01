@@ -18,8 +18,7 @@
   "keywords": [
     "novis",
     "nvs",
-    "language server",
-    "php"
+    "language server"
   ],
   "engines": {
     "vscode": "^1.97.0"

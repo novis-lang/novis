@@ -307,7 +307,9 @@ describe("bun nv ci --push", () => {
   test("the checks after `cargo build` read the debug binary it made", () => {
     const after = PRE_PUSH.slice(PRE_PUSH.findIndex((c) => c.name === "build") + 1);
     expect(after.length).toBeGreaterThan(0);
-    for (const c of after) expect([...c.argv, ...Object.values(c.env ?? {})].some((a) => a.startsWith("target/debug/nvs"))).toBe(true);
+    // A check that runs examples in folders of their own names the binary by its absolute path.
+    const debug = ["target/debug/nvs", join(ROOT, "target/debug/nvs")];
+    for (const c of after) expect([...c.argv, ...Object.values(c.env ?? {})].some((a) => debug.some((d) => a.startsWith(d)))).toBe(true);
   });
 });
 

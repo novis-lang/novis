@@ -104,8 +104,7 @@ fn every_command_nvs_help_lists_has_a_row_in_the_cli_reference() {
         "`nvs --help` lists its commands: {stdout}"
     );
 
-    let chapter = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../docs/reference/tools/10-cli.md");
+    let chapter = nvs_repo::path("docs/reference/tools/10-cli.md");
     let text = std::fs::read_to_string(&chapter).expect("the CLI chapter is in the tree");
     let table: Vec<&str> = text
         .lines()
