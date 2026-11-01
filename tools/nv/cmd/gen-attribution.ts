@@ -32,8 +32,9 @@
 // `viewer/package.json`, `bun.lock` and `node_modules` (`viewerPackages`).
 //
 // The extension's notice is the same format over another set: the npm packages esbuild bundles into
-// `out/extension.js`, from `editors/vscode/package-lock.json` (`vscodePackages`), and the built
-// package `scripts/viewer.mjs` copies beside it (`VSCODE_COPIED`).
+// `out/extension.js`, from `editors/vscode/package-lock.json` (`vscodePackages`), the built
+// package `scripts/viewer.mjs` copies beside it (`VSCODE_COPIED`), and the packages that package's
+// release bundles, which npm does not install, from a committed folder (`bundledPackages`).
 //
 // The C-dependency enumeration reads the binary's package set alone. A package counts when it
 // declares `links`, or when it build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either
@@ -312,16 +313,28 @@ const VSCODE_NOTICE = `${VSCODE_DIR}/THIRD-PARTY-NOTICES.txt`;
 
 // A package `scripts/viewer.mjs` copies into the `.vsix` as built files, so its own dependencies are not
 // followed. `fonts` are the font files its build carries, each with the licence file beside them.
+// `bundled` is the committed folder that lists the packages its build bundles, which npm does not
+// install: a `SOURCE.json` (`Bundled`) and the licence files it names.
 interface Copied {
   name: string;
   fonts: { name: string; license: string; text: string }[];
+  bundled: string;
 }
 const VSCODE_COPIED: Copied[] = [
   {
     name: "speedscope",
     fonts: [{ name: "Source Code Pro", license: "OFL-1.1", text: "dist/release/source-code-pro.LICENSE.md" }],
+    bundled: `${VSCODE_DIR}/licenses/speedscope`,
   },
 ];
+
+// A `bundled` folder's `SOURCE.json`: the copied package's version it was read from, and each package
+// that release bundles, with its SPDX expression and its licence files in the folder.
+interface Bundled {
+  package: string;
+  version: string;
+  packages: { name: string; version: string; license: string; files: string[] }[];
+}
 
 interface NpmPackage {
   name: string;
@@ -1006,12 +1019,18 @@ function collector(allowed: Set<string>) {
   // A crate or an npm package: its manifest's SPDX expression, and the license files in `dir`. Only an
   // npm package may take a licence of `NPM_ONLY`.
   const addPackage = (name: string, version: string, expr: string | null | undefined, dir: string, npm: boolean) => {
-    const label = `${name} ${version}`;
     if (!expr) {
       // `license-file` instead of `license`: the package's terms are not an SPDX expression at all.
-      problems.push(`${label}: no \`license\` field in its manifest`);
+      problems.push(`${name} ${version}: no \`license\` field in its manifest`);
       return;
     }
+    const [texts, packageNotices] = readLicenseFiles(dir);
+    addTexts(name, version, expr, texts, packageNotices, npm);
+  };
+
+  // A package whose licence texts are already read, by SPDX identifier, with its NOTICE files.
+  const addTexts = (name: string, version: string, expr: string, texts: Map<string, string>, packageNotices: [string, string][], npm: boolean) => {
+    const label = `${name} ${version}`;
     const taken = choose(parseSpdx(expr), label);
     components.push({ name, version, taken: taken.join(" AND "), offered: expr });
 
@@ -1020,7 +1039,6 @@ function collector(allowed: Set<string>) {
       if (allowed.size > 0 && !allowed.has(ident)) problems.push(`${label}: ${ident} is not in deny.toml's allow list`);
     }
 
-    const [texts, packageNotices] = readLicenseFiles(dir);
     for (const [filename, text] of packageNotices) notices.push([label, filename, normalize(text)]);
 
     for (const ident of taken) {
@@ -1081,7 +1099,7 @@ function collector(allowed: Set<string>) {
   return render(header, components, groups, notices);
   };
 
-  return { addPackage, addRecord, problems, finish };
+  return { addPackage, addTexts, addRecord, problems, finish };
 }
 
 /** A copied WIT folder's upstream, from the `Upstream:`, `Version:` and `License:` lines of its README. */
@@ -1093,6 +1111,46 @@ function witRecord(dir: string): { name: string; version: string; license: strin
     return value;
   };
   return { name: field("Upstream"), version: field("Version"), license: field("License") };
+}
+
+/**
+ * The packages a copied package's build bundles, from its `bundled` folder, each with its licence texts
+ * by SPDX identifier. The folder must be for the installed `version`, so updating the package stops the
+ * run until the folder is refreshed. Every file the folder has is one `SOURCE.json` names, and each
+ * file is a licence text `classify` knows.
+ */
+function bundledPackages(copied: Copied, version: string): { name: string; version: string; license: string; texts: Map<string, string> }[] {
+  const dir = join(ROOT, copied.bundled);
+  const source = JSON.parse(readText(join(dir, "SOURCE.json"))) as Bundled;
+  if (source.package !== copied.name || source.version !== version) {
+    throw new Fatal(
+      `error: ${copied.bundled}/SOURCE.json lists what ${source.package} ${source.version} bundles, and ` +
+        `${VSCODE_DIR}/node_modules holds ${copied.name} ${version}.\n` +
+        `       Read the new release's bundled packages, and refresh the folder and its SOURCE.json.`,
+    );
+  }
+  const named = new Set(source.packages.flatMap((entry) => entry.files));
+  const problems: string[] = [];
+  for (const file of readdirSync(dir)) {
+    if (file !== "SOURCE.json" && !named.has(file)) problems.push(`${file}: no package in SOURCE.json names it`);
+  }
+  const out = source.packages.map((entry) => {
+    const texts = new Map<string, string>();
+    for (const file of entry.files) {
+      const path = join(dir, file);
+      if (!isFile(path)) {
+        problems.push(`${entry.name} ${entry.version}: ${file} is missing`);
+        continue;
+      }
+      const text = readText(path);
+      const ident = classify(text);
+      if (ident === null) problems.push(`${entry.name} ${entry.version}: ${file} is no licence text this tool knows`);
+      else if (!texts.has(ident)) texts.set(ident, text);
+    }
+    return { name: entry.name, version: entry.version, license: entry.license, texts };
+  });
+  if (problems.length > 0) throw new Fatal(`error: ${copied.bundled} is incomplete:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
+  return out;
 }
 
 /** Both notices: the binary's and the VS Code extension's. */
@@ -1130,6 +1188,8 @@ async function build(): Promise<{ binary: string; vscode: string }> {
       if (!FONT_DATA.includes(font.license)) vscode.problems.push(`${font.name}: ${font.license} is not a licence admitted for font data`);
       vscode.addRecord(font.name, `${pkg.name}-${pkg.version}`, font.license, normalize(readText(join(pkg.dir, font.text))));
     }
+    const bundled = bundledPackages(copied, pkg.version);
+    for (const entry of bundled) vscode.addTexts(entry.name, entry.version, entry.license, entry.texts, [], true);
   }
 
   return { binary: binary.finish(BINARY_HEADER), vscode: vscode.finish(VSCODE_HEADER) };

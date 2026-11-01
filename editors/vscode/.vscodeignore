@@ -4,6 +4,7 @@ test/**
 out/src/**
 out/test/**
 scripts/**
+licenses/**
 src/**
 node_modules/**
 **/*.map

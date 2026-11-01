@@ -748,7 +748,10 @@ The VS Code extension's `.vsix` carries a second notice in the same format,
 `editors/vscode/THIRD-PARTY-NOTICES.txt`, from the same generator. It lists the npm packages esbuild
 bundles into `out/extension.js`: the extension's `dependencies` and every package they depend on, at
 the versions `editors/vscode/package-lock.json` resolves. It adds the built package
-`scripts/viewer.mjs` copies into the `.vsix`, and the fonts that package carries. A licence an npm
+`scripts/viewer.mjs` copies into the `.vsix`, and the fonts that package carries. That package's
+release bundles packages npm does not install, so `editors/vscode/licenses/speedscope/` lists them:
+a `SOURCE.json` with each package's name, version and licence, and the licence files it names. The
+run stops when that folder is for another speedscope version than the installed one. A licence an npm
 package alone may take, such as `minimatch`'s BlueOak-1.0.0, is ranked in `PREFERENCE` and kept out of
 `deny.toml`, so no crate may take it. Four properties are load-bearing:
 

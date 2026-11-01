@@ -1,6 +1,6 @@
 // The VS Code extension's notice, `editors/vscode/THIRD-PARTY-NOTICES.txt`: it names every npm package
-// esbuild bundles into `out/extension.js` and the package `scripts/viewer.mjs` copies, and the `.vsix`
-// packs it. `bun nv gen-attribution --check` holds the file equal to what the generator writes; this
+// esbuild bundles into `out/extension.js`, the package `scripts/viewer.mjs` copies and the packages that
+// package's release bundles, and the `.vsix` packs it. `bun nv gen-attribution --check` holds the file equal to what the generator writes; this
 // holds the generator's package set against what the bundle really carries.
 //
 // It needs the extension's packages installed: `npm ci` in `editors/vscode`.
@@ -70,6 +70,17 @@ test("the notice names the package scripts/viewer.mjs copies into the package", 
   expect(copied.length).toBeGreaterThan(0);
   const names = listed();
   expect(copied.filter((p) => !names.has(p))).toEqual([]);
+});
+
+test("the notice names every package speedscope's release bundles, at its version", () => {
+  const source = JSON.parse(readFileSync(join(DIR, "licenses", "speedscope", "SOURCE.json"), "utf8")) as {
+    packages: { name: string; version: string }[];
+  };
+  expect(source.packages.length).toBeGreaterThan(0);
+  const notice = readFileSync(join(DIR, NOTICE_NAME), "utf8").replaceAll("\r\n", "\n");
+  const table = notice.slice(notice.indexOf("COMPONENTS ("), notice.indexOf("LICENSE TEXTS ("));
+  const rows = new Set([...table.matchAll(/^ {2}(\S+) +(\S+)/gm)].map((m) => `${m[1]} ${m[2]}`));
+  expect(source.packages.map((p) => `${p.name} ${p.version}`).filter((row) => !rows.has(row))).toEqual([]);
 });
 
 test("src/ imports only vscode, node: modules and the manifest's dependencies", () => {
