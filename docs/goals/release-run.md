@@ -256,32 +256,41 @@ subagent. Such subagents run side by side, and none of them builds.
 Stage 1 is done (`6443fe285`): `bun nv ci --dispatch|--watch --release|--release-status`
 (`tools/nv/cmd/ci.ts:621`). Rounds 1 and 2 fixed both Miri reds (`4e02da7ec`, `8c0a5fa5c`).
 
-Round 3's full run `41310544248` on `5047daa20` set the watchdog thread's macOS QoS class, and
-`proofs / macos-aarch64` still stopped four attacks 103 to 128 ms late, one at a time: `limits-fatal_reserve_time/01`
-and the `02-*` CPU attacks of `Arr/sort`, `Compress/compress` and `Regex/replace`. `e8f112223` reverts
-the QoS class. `a911c3a09` fixes both late terms, untested on macOS: the wait is half the time to
-the crossing (`crates/nvs-host/src/watchdog.rs:1460`), so a wait that ends late by its own length
-still ends before it; and a lowered ceiling wakes the watchdog (`safepoint.rs:104`, `watchdog.rs:1432`).
-Every other job of `41310544248` was green. Round 4's full run `41317255176` on `921dd7f66` tests the fix.
-Its `proofs / linux-x86_64` stopped `limits-fatal_reserve_time/01` in step 3: the woken watchdog caught
-its brief `1ms` limit, a race the attack had always ridden. `ba6f2d999` stops a limit set below the spend at the
-set (`crates/nvs-runtime/src/ctx/limits.rs:888`), and step 3 moves between `10s` and `30s`. macOS's
-proofs then failed on that same attack alone: the halved wait cured the three CPU overshoots. Every
-other job was green. Round 5's full run `41323589001` on `a0bf32ea9`, two attacks at a time, failed
-`proofs / macos-aarch64` on `Compress/compress/02` alone: 120 ms over. It ran inline and polls every 256 KiB
-(`crates/nvs-stdlib/src/compress.rs:819`). The run's other jobs were still going when the session ended.
+Rounds 1 to 5 failed `proofs / macos-aarch64` on CPU attacks stopped 107 to 131 ms past their limit,
+a different attack each round. The cause was one and is fixed (`01ac9f143`): macOS ends an ordinary
+thread's timed wait up to about three times its length late, whatever the load or QoS class. A probe
+on CI's macOS runner measured 25 ms condvar waits ending 26 to 63 ms late at the median, so one 50 ms
+wait between sweeps lasted up to 200 ms. The QoS class (round 3), the halved wait (round 4) and the
+suspended clock read did not move it. The clock read was never late: its lag is `0ns` on every run.
+Which attack crossed 100 ms followed the runner's cores, 3 or 5, since the width was half of them.
+
+- The watchdog thread is a time-constraint (real-time) thread on macOS (`wake_on_time`,
+  `crates/nvs-host/src/watchdog.rs:1461`). Its 50 ms waits end 14 to 20 µs late on CI's runner.
+- `the_watchdog_threads_timed_waits_end_on_time` (`watchdog.rs:2913`) holds those waits to 30 ms
+  late at the median, so `test / macos-aarch64` names this cause before any attack does.
+- The proofs job runs 2 programs at a time on every leg (`NVS_PROOF_JOBS`, `.github/workflows/ci.yml:492`).
+- `bc8d40e3a` prints the clock test's read time and bounds it no more: it is wall time on a loaded
+  runner, 4 to 72 ms on macOS.
+
+Measured on macOS before the push, the 15 time attacks' worst CPU overshoot was +84 ms before the fix
+and +3 ms with it. Every one of the 12 CPU attacks passed twice at 2 at a time. Round 6's full run
+`41346116301` on `ec40af25e` is the first on `main` with the fix. That push also carries another
+session's CI layout commits (`249118be8`, `ec40af25e`).
 
 ### Next
 
-Stage 2, round 6. No watch runs: `bun nv ci --status` for run `41323589001`'s other jobs.
+Stage 2, round 6. `bun nv ci --status` for run `41346116301`.
 
-- [ ] Find why `Compress/compress/02` alone still stops about 100 ms late on macOS under two attacks at a time, while sort and regex now pass. Measure, don't guess: have `bun nv proofs` print the overshoot table on macOS (`tools/nv/proofs/run.ts:1065`), and time the read a sweep makes of a thread inside a large allocation, since `thread_suspend` waits for it to leave the kernel (`crates/nvs-host/src/cpuclock.rs:338`). `crates/nvs-host/src/watchdog.rs:1460`
-- [ ] Fix every red, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. A macOS timing red is measured on a probe branch first, never fixed by guess: a `probe/<name>` branch with a workflow of its own runs only that, in minutes. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
 
 ### Backlog
+
+- `cargo clippy` on macOS warns `chunks_exact` with a constant chunk size at
+  `crates/nvs-runtime/src/child_watch.rs:845`. CI's `lint` job runs on Linux, so the macOS-only code
+  is linted nowhere.
 
 - `nvs info --licenses | head` panics with "failed printing to stdout" once the pipe closes. A CLI
   command that prints should end quietly on a closed stdout.
