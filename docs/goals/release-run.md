@@ -274,14 +274,16 @@ Which attack crossed 100 ms followed the runner's cores, 3 or 5, since the width
 
 Measured on macOS before the push, the 15 time attacks' worst CPU overshoot was +84 ms before the fix
 and +3 ms with it. Every one of the 12 CPU attacks passed twice at 2 at a time. Round 6's full run
-`41346116301` on `ec40af25e` is the first on `main` with the fix. That push also carries another
-session's CI layout commits (`249118be8`, `ec40af25e`).
+`41346116301` on `ec40af25e` is green in all 56 jobs, in 66 minutes, with the CI layout commits
+`249118be8` and `ec40af25e` from another session. Its `proofs / macos-aarch64` ran 1501 attacks with
+none red, and `test / macos-aarch64 (tests)` printed the watchdog's waits 20 µs late at the median.
 
 ### Next
 
-Stage 2, round 6. `bun nv ci --status` for run `41346116301`.
+Stage 2's full run is green on `ec40af25e`. `main` has two local docs commits past it, which change
+no code: the handoff and a playbook entry.
 
-- [ ] Fix every red it names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. A macOS timing red is measured on a probe branch first, never fixed by guess: a `probe/<name>` branch with a workflow of its own runs only that, in minutes. `tools/nv/cmd/ci.ts:621`
+- [x] Fix every red the full run names, one commit each; `bun nv ci --push`; `bun nv ci --dispatch full`; the watch in the background. A macOS timing red is measured on a probe branch first, never fixed by guess: a `probe/<name>` branch with a workflow of its own runs only that, in minutes. `tools/nv/cmd/ci.ts:621`
 - [ ] Once a full run on `origin/main`'s tip is green: `bun nv release --tested <sha>` prints `tested=true`, then stage 3. `tools/nv/cmd/release.ts:1030`
 
 No test is expected to go red.
