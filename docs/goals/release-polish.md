@@ -511,6 +511,13 @@ run has happened since. `env-secret-proofs` has no definition anywhere in the tr
 `.looper/loops/main/checks/`: it is a check the driver carries from a goal that is gone, and no
 change here can turn it green.
 
+`floor-debt` is paid: `looper check --name floor-debt` passes. The driver's run left `test:nvs-ir
+test refusals` owed (now 2 of 2 green) and one red, the only `requires: mssql` proof,
+`tests/hostile/core/Db-Connection/query/04-...-memory-limit.nvs`. It passed six `--no-cache` runs in
+a row, about 2 s each against its 60 s bound. Its red output was not kept, so the cause is unknown.
+CI skips it (no Docker), so if a debt run turns it red again, keep the output and check the SQL Server
+container first.
+
 ### Next
 
 Nothing: the goal is reached. The driver retires it, and `release-run` is live next.
