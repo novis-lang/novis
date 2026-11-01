@@ -2490,7 +2490,8 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
-                    "{CLASS_INFO_NAME}::constant(): `{described}` has no constant named `{name}`"
+                    "{CLASS_INFO_NAME}::constant(): `{described}` has no constant named `{}`",
+                    nvs_runtime::quoted(name)
                 ),
             ));
         };
@@ -2814,8 +2815,9 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
-                    "enum `{}` declares no case `{wanted}`",
-                    name.as_text().unwrap_or("?")
+                    "enum `{}` declares no case `{}`",
+                    name.as_text().unwrap_or("?"),
+                    nvs_runtime::quoted(wanted)
                 ),
             ));
         };

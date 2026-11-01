@@ -3959,7 +3959,8 @@ nvs_runtime::nvs_helper! {
         // R20 forbids.
         if TimeZone::get(id).is_err() || id.starts_with('+') || id.starts_with('-') {
             return Err(Fault::thrown(format!(
-                "Core\\Time\\Zone::of(): unknown time zone `{id}`"
+                "Core\\Time\\Zone::of(): unknown time zone `{}`",
+                nvs_runtime::quoted(id)
             )));
         }
         Ok(zone_built(id))

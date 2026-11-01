@@ -257,8 +257,9 @@ nvs_runtime::nvs_helper! {
                     return Err(Fault::thrown_as(
                         ThrownClass::Logic,
                         format!(
-                            "`Core\\Command::help` was asked for `{name}`, which this program \
-                             declares no `#[Command]` for"
+                            "`Core\\Command::help` was asked for `{}`, which this program \
+                             declares no `#[Command]` for",
+                            nvs_runtime::quoted(name)
                         ),
                     ));
                 };

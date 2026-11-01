@@ -1,0 +1,20 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and reads a class constant with a name of 8 MiB.
+// The call should throw an error with a short message, and stay inside the limit.
+
+class Plain
+{
+}
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Reads a constant named with 8 MiB of letters. The class has no such constant,
+// so this throws a `LogicError`, and its message is short.
+var $info = Core\Reflect::forObject(new Plain());
+string $name = Core\Str::repeat('a', 8388608);
+try {
+    echo $info->constant($name) == null ? 'null' : 'a value', "\n";
+} catch (Throwable $error) {
+    echo Core\Str::length($error->message) < 200 ? 'short message' : 'long message', "\n";
+}

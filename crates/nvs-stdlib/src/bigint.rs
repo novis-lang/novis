@@ -1055,7 +1055,10 @@ nvs_runtime::nvs_helper! {
             .ok_or_else(|| {
                 Fault::thrown_as(
                     ThrownClass::Parse,
-                    format!("Core\\BigInt::parse(): `{text}` is not an integer in radix {radix}"),
+                    format!(
+                        "Core\\BigInt::parse(): `{}` is not an integer in radix {radix}",
+                        nvs_runtime::quoted(text)
+                    ),
                 )
             })
             .and_then(|value| built(&value))

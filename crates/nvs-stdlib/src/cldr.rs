@@ -2865,8 +2865,9 @@ fn subtag_of<'tag>(tag: &'tag str, member: &str) -> Result<&'tag str, Fault> {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{member} read no language subtag from the locale `{tag}`: a tag begins with \
-                 letters"
+                "{member} read no language subtag from the locale `{}`: a tag begins with \
+                 letters",
+                nvs_runtime::quoted(tag)
             ),
         ));
     }
@@ -2892,9 +2893,10 @@ fn rules_for(subtag: &str, member: &str) -> Result<RuleSet, Fault> {
                 ThrownClass::Logic,
                 format!(
                     "{member} carries no plural rules for the language \
-                     `{subtag}`: a language is never given another one's rules, because a \
+                     `{}`: a language is never given another one's rules, because a \
                      catalog written against the wrong forms reads correctly for one count and \
-                     wrongly for the rest"
+                     wrongly for the rest",
+                    nvs_runtime::quoted(subtag)
                 ),
             )
         })

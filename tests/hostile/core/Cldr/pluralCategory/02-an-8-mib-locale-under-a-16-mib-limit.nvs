@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and asks for a plural form with a locale of 8 MiB.
+// Each call should throw an error with a short message, and stay inside the limit.
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. A locale of 8 MiB of letters. No language has that name, so this throws a `LogicError`.
+string $letters = Core\Str::repeat('a', 8388608);
+try {
+    echo Core\Cldr::pluralCategory(1, $letters) == Core\Cldr::PluralCategory::One ? 'one' : 'another form', "\n";
+} catch (Throwable $error) {
+    echo Core\Str::length($error->message) < 400 ? 'short message' : 'long message', "\n";
+}
+$letters = '';
+
+// 3. A locale of 8 MiB of digits. A locale starts with letters, so this throws a `LogicError`.
+string $digits = Core\Str::repeat('7', 8388608);
+try {
+    echo Core\Cldr::pluralCategory(1, $digits) == Core\Cldr::PluralCategory::One ? 'one' : 'another form', "\n";
+} catch (Throwable $error) {
+    echo Core\Str::length($error->message) < 400 ? 'short message' : 'long message', "\n";
+}

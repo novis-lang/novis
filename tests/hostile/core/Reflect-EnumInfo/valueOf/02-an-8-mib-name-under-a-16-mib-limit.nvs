@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and reads an enum case with a name of 8 MiB.
+// The call should throw an error with a short message, and stay inside the limit.
+
+enum Size: uint
+{
+    Small = 1,
+    Large = 2,
+}
+
+// 1. Lowers the memory limit to `16M`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+
+// 2. Reads a case named with 8 MiB of letters. The enum has no such case,
+// so this throws a `LogicError`, and its message is short.
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Size::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    string $name = Core\Str::repeat('a', 8388608);
+    try {
+        echo $info->valueOf($name), "\n";
+    } catch (Throwable $error) {
+        echo Core\Str::length($error->message) < 200 ? 'short message' : 'long message', "\n";
+    }
+}
