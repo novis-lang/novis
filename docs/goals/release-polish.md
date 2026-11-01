@@ -33,6 +33,10 @@ stages:
     status: done
     context: [crates/nvs-diagnostics/src/source.rs, crates/nvs-config/src/resolve.rs, crates/nvs-types/src/paths.rs, crates/nvs-diagnostics/src/embedded.rs]
   - id: 8
+    title: "the two security gaps this goal owns are closed: handle keys and a placed PDF's decompression bound"
+    status: open
+    context: [crates/nvs-runtime/src/ctx/held.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/tests/read.rs, docs/rules/core-classes/decompression-bound.md]
+  - id: 9
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -136,13 +140,13 @@ checks:
       - lexical_normalize_keeps_a_parent_it_cannot_pop_from_a_relative_path
       - lexical_normalize_drops_a_parent_at_a_root
   - id: ci-check
-    stage: 8
+    stage: 9
     name: the checks the goal end's push runs are green
     run: [bun, nv, ci, --check]
     timeout: 3600
     reach: true
   - id: owners-closes
-    stage: 8
+    stage: 9
     name: no gap record or designed rule names this goal
     run: [bun, nv, owners, --closes, release-polish]
     reach: true
@@ -317,8 +321,9 @@ runs. The push trigger names `main` alone. `SHA256SUMS` gets an `actions/attest-
 step in `publish`, at the SHA build.yml:222 pins, and `publish` gets `id-token: write` and
 `attestations: write`.
 
-**The extension's manifest.** `keywords` (`novis`, `nvs`, `language server`, `php`) and `bugs` (the
-issues URL). The `holds` key leaves every `package.json`: each moves to a `holds.json` beside it,
+**The extension's manifest.** `keywords` (`novis`, `nvs`, `language server`) and `bugs` (the
+issues URL). No `php` keyword: `rule:ide/the-extension-claims-nvs-only` keeps every quoted `"php"`
+out of the manifest, and its test judges the text, so the rule wins over discoverability. The `holds` key leaves every `package.json`: each moves to a `holds.json` beside it,
 `bun nv deps` reads only that file, and `docs/agent/dependency-update.md:43` says so. One rule for all
 three `package.json` files, and the `.vsix` no longer ships a key no tool reads. `holds.json` goes in
 `.vscodeignore`. `editors/vscode/CHANGELOG.md` is one short paragraph that points at the website's
@@ -456,7 +461,21 @@ duplicates and dead files.
 - [x] `nvs_syntax::strip_sigil`, re-exported where each copy was. `crates/nvs-syntax/src/casing.rs:208`, `crates/nvs-ir/src/lib.rs:652`, `crates/nvs-types/src/lib.rs:708`
 - [x] The phi comment says what the code does, without "for now". `crates/nvs-ir/src/lower/control.rs:149`
 
-### 8. the goal is verified once, and every failure is fixed
+### 8. the two security gaps this goal owns are closed: handle keys and a placed PDF's decompression bound
+
+**Does:** the gate's `owners --closes` found two gap records naming this goal. Each is a request
+isolation or bound finding, so each is built here, never handed on.
+
+**Split:** one session, the PDF item alone; the handle item is done.
+
+- [x] Every handle table keys by a process-wide counter, one conformance case per class, `rule:concurrency/a-handle-works-only-in-its-task`, and the record deleted. `crates/nvs-runtime/src/ctx/held.rs:24`
+  - [x] the five tables key by `next_handle_key()` and find by `filed_at`
+  - [x] the foreign-key FATALs of a connection, a CSV walk and a streamed body name the other task
+  - [x] one case per class, each red on the old keying (checked for the file case)
+  - [x] the rule, its topic row, and the gap record deleted
+- [ ] The write of a placed PDF page runs under the render's `read::Bound`, as `data/gaps/nvs-pdf/a-placed-pdf-decodes-without-a-bound.json` says, and the record is deleted. `extensions/pdf/src/layout/image.rs:1`
+
+### 9. the goal is verified once, and every failure is fixed
 
 **Does:** the stages before this one checked with a build alone, so this stage verifies the
 whole goal once and fixes every failure in one pass.
@@ -465,30 +484,24 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 6 landed in five commits and stage 7 in one. `editor-lint`,
-`editor-prose` and `deps-tests` pass, and so do the three `lexical_normalize` tests. `cargo build`,
-`cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` and the tools' `tsc` are clean.
+Stages 1 to 7 are done. The gate ran: `bun nv affected --run` and `bun nv verify` are green, and so
+is `bun nv verify --doc`. `baf3204a2` commits the fixes an earlier gate pass left uncommitted: the
+`php` keyword out of the extension manifest, `one_binary.rs` through `nvs_repo::path`, the pre-push
+test's absolute binary path, and the literal-path allowlist rows.
 
-- The extension's README is the user's page: what it does, how to start, the two colour options, and
-  where hidden secrets still show. The commands and *Decided here* moved verbatim to
-  `editors/vscode/DEVELOPING.md`, which `.vscodeignore` leaves out. `surface.ts`, `concealment.test.ts`
-  and the *No tier draws a decoration* playbook bullet now cite it.
-- `holds.json` sits beside `editors/vscode/package.json` and `viewer/package.json`. The root and
-  `website/` had no holds. `deps.ts`'s `filePins` reads the sibling file, and a missing one is no holds.
-- `setup-bun` at the pinned SHA reads `packageManager` first (`src/utils.ts:124`), so the root has
-  `"packageManager": "bun@1.4.4"` and `engines.bun` is `>=1.4.4`. The decision said 1.4.3; the tree
-  was already on 1.4.4. `deps` reads `packageManager` as the `bun` pin. `docs/agent/bun.md` is looper's
-  synced block, so AGENTS.md § *Where Novis departs from the stack files* records the change.
-- `lexical_normalize` also fixes a bug all three copies had: `../../x` became `x`, because the second
-  `..` popped the first. It keeps both now.
+`bun nv owners --closes release-polish` was red on two gap records, so the gate became stage 9 and
+stage 8 closes them. `d380ea37f` closes the first: every handle table keys by one process-wide
+counter (`crates/nvs-runtime/src/ctx/held.rs:24`), and six conformance cases pin it, one per class.
+Under the old keying, the file case read the parent's own file. The `await` message stays as it was,
+because a published example, the reference and the website pin it.
 
 The sweep's reds are stale. A reader traced each failure of nightly run 41187571578 (on `857b39cad`)
 to a fix already at HEAD: `browser` to `39795c9c4`, the proofs shots to `bfce9c2d2`, ASAN's SQLite
@@ -497,19 +510,17 @@ run has happened since. `env-secret-proofs` still has no definition in the tree 
 
 ### Next
 
-Stage 8, the gate stage. Start `bun nv affected --run` with `run_in_background` before anything else,
-and end the turn to wait.
+Stage 8's last item, then stage 9.
 
-- [ ] Run `looper verify` over the whole goal, and fix every failure in one pass, never loosening a test. The likeliest are at `crates/nvs-types/src/paths.rs:343` and `crates/nvs-diagnostics/src/paths.rs:19`.
-- [ ] Run it once more, green. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes release-polish`, `bun nv ci --check`. `tools/nv/cmd/ci.ts:1`
+- [ ] A placed PDF page's write runs under the render's `read::Bound`, so a placed bomb throws `ParseError` as `Reader::open` does. Add a hostile step under `tests/hostile/novis/Pdf-Document/fromHtml/` and a test in `extensions/pdf/tests/read.rs`, name the case in `rule:core-classes/decompression-bound`, and delete `data/gaps/nvs-pdf/a-placed-pdf-decodes-without-a-bound.json`. `extensions/pdf/src/layout/image.rs:1`
+- [ ] Stage 9: `bun nv affected --run` in the background, then `bun nv owners --closes release-polish` and `bun nv ci --check`. The installed `looper` has no `verify` subcommand, so use `bun nv verify`. `tools/nv/cmd/ci.ts:1`
 
 Tests that may go red:
 
-- `nvs-types` path tests that join a relative `..` past the base (`crates/nvs-types/src/paths.rs:343`),
-  because a leading `..` is now kept.
-- `nvs-config` and `embedded.rs` tests that expected `/..` from a `..` at a root. It is now `/`.
-- `test:headless`'s contributions suite, if it pins the manifest's keys or `.vscodeignore`. It did
-  not look like it does.
+- A `nvs-runtime` or `nvs-stdlib` unit test that expects a handle key of `1`, or a connection key
+  equal to a position. Keys now come from the shared counter (`crates/nvs-runtime/src/ctx/held.rs:24`).
+- `bind.rs`'s two db fixtures reach the foreign-key FATAL, and its message changed. They match on the
+  class, not the text, so they should hold.
 
 ### Backlog
 
