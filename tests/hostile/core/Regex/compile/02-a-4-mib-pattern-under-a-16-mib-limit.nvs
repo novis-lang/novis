@@ -1,0 +1,15 @@
+<?nvs
+// Attack: a program lowers its memory limit to 16 MiB and compiles patterns of 64 KiB and 4 MiB.
+// Compiling a pattern needs many times its size, so the large one should stop at the limit.
+// hostile: ends-early 2 FATAL
+
+// 1. Lowers the memory limit to `16M` and compiles a pattern of 64 KiB. This prints `compiled`.
+echo 'limit lowered: ', Core\Config::set('limits.memory', '16M') ? 'yes' : 'no', "\n";
+Core\Regex\Pattern $small = Core\Regex::compile(Core\Str::repeat('a', 65536));
+echo "compiled\n";
+
+// 2. Compiles a pattern of 4 MiB. The program stops here with a memory limit error,
+// before the pattern is read.
+echo "step 2\n";
+Core\Regex\Pattern $large = Core\Regex::compile(Core\Str::repeat('a', 4194304));
+echo "not reached\n";

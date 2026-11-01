@@ -1141,6 +1141,9 @@ fn compiled_prepared(
         Backtrack::Within(budget.steps())
     };
     let budget = budget.steps();
+    // Asked before either engine parses the text, because a parse is one
+    // call that cannot be stopped partway.
+    nvs_runtime::affordable(Some(compile_cost(pattern)), "Core\\Regex")?;
     let built = build(pattern, flags, prepared, allowed)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
     let cost = search_cost(&built, &effective(pattern, flags));
@@ -1243,6 +1246,48 @@ fn build(
         )),
     }
 }
+
+/// What a parse of `pattern` may allocate, at most, which [`compiled_prepared`]
+/// asks the request's memory ceiling for in front of [`build`].
+///
+/// Both engines parse the text into a syntax tree and then translate it, all
+/// inside one call, so the allocator's count sees the bytes only once they are
+/// held. Measured on a pattern of plain letters, the parse holds about 90 bytes
+/// per byte of text, so the figure per byte is [`COMPILE_BYTES_PER_BYTE`].
+///
+/// A Unicode class escape (`\w`, `\d`, `\s`, `\p{..}` and their negations) is
+/// two or three bytes of text and a table of hundreds of ranges. Each one is
+/// asked [`COMPILE_BYTES_PER_CLASS`]. A backslash that only escapes another
+/// backslash is counted too: the figure is an upper bound, never an estimate
+/// below the truth.
+///
+/// **What it spends:** one scan of the text's bytes on a cache miss, and no
+/// allocation. A pattern a program writes by hand asks a few hundred KiB.
+fn compile_cost(pattern: &str) -> usize {
+    let classes = pattern
+        .as_bytes()
+        .windows(2)
+        .filter(|pair| {
+            pair[0] == b'\\'
+                && matches!(
+                    pair[1],
+                    b'w' | b'W' | b'd' | b'D' | b's' | b'S' | b'p' | b'P'
+                )
+        })
+        .count();
+    pattern
+        .len()
+        .saturating_mul(COMPILE_BYTES_PER_BYTE)
+        .saturating_add(classes.saturating_mul(COMPILE_BYTES_PER_CLASS))
+}
+
+/// [`compile_cost`]'s figure for each byte of pattern text.
+const COMPILE_BYTES_PER_BYTE: usize = 128;
+
+/// [`compile_cost`]'s figure for each Unicode class escape: the largest class
+/// table is under 2048 ranges of 8 bytes, and folding case and negating each
+/// build a second table beside it.
+const COMPILE_BYTES_PER_CLASS: usize = 32 << 10;
 
 /// The bytes the linear engine allocates on this core the first time it
 /// searches with `built`, which [`compiled_prepared`] asks the request's
@@ -2025,7 +2070,7 @@ nvs_runtime::nvs_helper! {
         let found = groups.get(&key).ok_or_else(|| {
             Fault::thrown(format!(
                 "Core\\Regex\\Match::group(): the pattern declares no group `{}`",
-                String::from_utf8_lossy(&key)
+                nvs_runtime::quoted(&String::from_utf8_lossy(&key))
             ))
         })?;
         #[expect(
