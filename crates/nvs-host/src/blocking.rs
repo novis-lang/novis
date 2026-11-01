@@ -961,7 +961,8 @@ mod tests {
                 done.send(()).ok();
                 1_u32
             });
-            go.send(()).expect("the job is still waiting on the channel");
+            go.send(())
+                .expect("the job is still waiting on the channel");
             finished.recv().expect("the abandoned job ran to its end");
             let prompt = run_until(Instant::now() + Duration::from_secs(60), || 2_u32);
             into.set((late, prompt));
@@ -969,7 +970,11 @@ mod tests {
 
         let report = run_until_idle(&mut sched).expect("the loop failed");
         assert_eq!(report.finished, 1);
-        assert_eq!(seen.get(), (None, Some(2)), "the deadline did not end the wait");
+        assert_eq!(
+            seen.get(),
+            (None, Some(2)),
+            "the deadline did not end the wait"
+        );
     }
 
     /// `run`'s charge: the answer is on the caller's balance from the moment

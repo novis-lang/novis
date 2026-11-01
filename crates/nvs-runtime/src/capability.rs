@@ -556,9 +556,7 @@ pub fn resolve_addresses(
         return Ok(vec![literal]);
     }
 
-    let resolver = RESOLVER
-        .with(std::cell::Cell::get)
-        .unwrap_or(lookup_inline);
+    let resolver = RESOLVER.with(std::cell::Cell::get).unwrap_or(lookup_inline);
     let mut kept: Vec<IpAddr> = Vec::new();
     for address in resolver(host, deadline).unwrap_or_default() {
         if kept.len() == PINNED_ADDRESSES {
@@ -1826,7 +1824,10 @@ mod tests {
 
     /// A resolver answering what [`scripted_to_answer`] wrote, and counting the asking — which is
     /// what lets a case assert that a lookup did *not* happen.
-    fn scripted(_host: &str, _deadline: Option<std::time::Instant>) -> std::io::Result<Vec<IpAddr>> {
+    fn scripted(
+        _host: &str,
+        _deadline: Option<std::time::Instant>,
+    ) -> std::io::Result<Vec<IpAddr>> {
         LOOKUPS.with(|count| count.set(count.get() + 1));
         Ok(ANSWER.with_borrow(Clone::clone))
     }

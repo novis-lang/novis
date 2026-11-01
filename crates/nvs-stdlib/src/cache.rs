@@ -4388,7 +4388,8 @@ pub(crate) mod tests {
     #[test]
     fn a_rediss_url_carries_the_name_its_certificate_is_checked_against() {
         assert_eq!(
-            endpoint("rediss://127.0.0.1", MEMBER, None).expect("`rediss://` is a scheme this reads"),
+            endpoint("rediss://127.0.0.1", MEMBER, None)
+                .expect("`rediss://` is a scheme this reads"),
             super::Target::Tls {
                 address: "127.0.0.1:6379".parse().expect("a literal"),
                 name: "127.0.0.1".to_owned(),
