@@ -20,7 +20,7 @@ stages:
     context: [crates/nvs-runtime/src/abi.rs, tools/nv/cmd/proofs.ts]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: deep-native-recursion
@@ -355,43 +355,32 @@ Most waits go through four doors, so most items are one change at a door. Each i
 **Does:** the stages before this one checked with a build alone, so this stage verifies the
 whole goal once and fixes every failure in one pass.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. This session finished stage 4. `nvs_runtime::poll_deadline`
-(`crates/nvs-runtime/src/abi.rs`) is one deadline poll for a native loop. `Core\Compress` reads
-each codec through `Polled` (256 KiB a read, the compress side too). `Core\Regex`'s linear tier
-polls once per match (`polled`). `Core\Arr`'s callback sorts were already stopped by the
-callback's entry poll, and are unchanged. `Ctx::charge_output` (`ctx/output.rs`) charges a
-streamed chunk, an SSE event and a declared `sendFile` body to `[limits] max_output`. Four new
-attacks end at the CPU `FATAL`. `bun nv proofs --overshoot` exits 0, worst +31 ms of the 100 ms bound.
+Every stage is done, and the goal is reached. Verify is green (`bun tools/looper/main.ts
+verify`: the installed `looper` binary has no `verify` subcommand). `bun nv verify --doc`,
+`bun nv owners --closes limits-within-one-call`, `deep-native-recursion` and `bun nv ci --check`
+are green. `bun nv proofs --overshoot` exits 0, worst +31 ms of the 100 ms bound. The decisions
+only this file held are in `ctx/limits.rs`, `ctx/safepoint.rs` and `ctx/output.rs`'s docs, and
+the CPU rates beside their constants in `bigint.rs`, `password.rs` and `crypto.rs`.
 
-The acceptance sweep's reds are still stale: nightly run 41187571578 ran on `857b39cad`, before
-this goal's later commits. `env-secret-proofs` has no definition in the tree and no log under
-`.looper/loops/main/checks/`.
+The acceptance sweep's reds are stale: nightly run 41187571578 ran on `857b39cad`, before this
+goal's later commits. `env-secret-proofs` has no definition in the tree and no log.
 
-**Tests expected to go red:** a `Core\Ldap` test that expects more than eight addresses of a name.
-A cache, channel or SSE test under a `wall_time` shorter than its wait now gets a `FATAL`. A test
-that counts parks with a fake host whose `park` asserts on a `None` deadline. A `Core\Socket` test
-that expects a timeout under a wall time to read as an idle close, `null`. A test or `.out` that
-matches a time `FATAL`'s old exact text. A watchdog or slice test that assumed a 500 ms sweep. A
-`Core\BigInt`, `Core\Password` or `deriveKey` test that sets a small `cpu_time` and then does
-wide work. A server test of a streamed body, an SSE connection or `sendFile` under a
-`max_output` smaller than the body: it now stops at the output `FATAL`. None is known.
+**Tests expected to go red:** none known. The nightly's Miri, ASAN and browser jobs run first on
+this goal's commits, so a red there is new.
 
 ### Next
 
-Stage 5, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in
-one pass (the expected reds above first), and run it once more. Then the goal-end gates in
-AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes limits-within-one-call`
-and `bun nv ci --check`, and the acceptance check `deep-native-recursion`. Before `DONE`, move each
-decision only this file holds into a rule or module doc: the time `FATAL`'s text and the hook
-(`ctx/limits.rs`), the CPU rates (`bigint.rs`, `password.rs`, `crypto.rs`), and the output charge
-(`ctx/output.rs` already says it).
+Nothing: the goal is reached. The driver retires it and the chain moves to `release-polish`.
 
 ### Backlog
+
+- `bun nv nvs-fmt <file>` exits 1 because the `packages/rest/` files are outside every tree in
+  `tools/data/nvs-fmt-corpus.txt`. It predates this goal, and the next goal can fix it.
