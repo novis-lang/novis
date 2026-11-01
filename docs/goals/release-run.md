@@ -6,7 +6,7 @@ context: [docs/release.md, tools/nv/cmd/ci.ts]
 stages:
   - id: 1
     title: "bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict"
-    status: open
+    status: done
     context: [tools/nv/test/ci.test.ts, tools/nv/cmd/release.ts, .github/workflows/release.yml, docs/rules/testing/one-run-on-main.md]
   - id: 2
     title: "the full ci.yml run on main's tip is green in every job"
@@ -183,14 +183,14 @@ drives CI at a time (`docs/agent/commands.md` § *The loop's hooks*). The stages
 their tests, `release.yml` names a dry run, and `docs/release.md` allows an agent's dry run and
 lists every click of the real one.
 
-- [ ] `release.yml` gains its `run-name` after `name: Release`, and its header says an agent may dispatch a dry run with `bun nv ci --dispatch dry-run`, while only a person dispatches a real run. `.github/workflows/release.yml:66`, `.github/workflows/release.yml:3`
-- [ ] `docs/release.md` says the same at its rule, and step 3's `dry_run` row names the command. § *Cutting a release* lists the user's whole first run: make the production registry's verifier key pair offline, keep the private key, and commit the public key into `DEFAULT_KEY` (today `None`, so `nvs pkg` reads nothing from `registry.novis-lang.org`); pause any loop; Actions → Release → `main`, `bump` `patch`, not a dry run; approve `release`; review and publish the draft; make the GHCR package public (§ 6: Packages → `novis` → Package settings → Change visibility → Public); then `docker pull ghcr.io/novis-lang/novis:<version>` and the website's install links. `docs/release.md:8`, `docs/release.md:149`, `crates/nvs-cli/src/package/manifest.rs:93`
-- [ ] `Run` gains `display_title`, `listRuns` asks for it, and the watched workflows become a parameter, `["CI", "Website"]` by default and `["Release"]` under `--release`. `superseded` never names a `Release` run. `tools/nv/cmd/ci.ts:69`, `tools/nv/cmd/ci.ts:163`, `tools/nv/cmd/ci.ts:196`, `tools/nv/cmd/ci.ts:250`, `tools/nv/cmd/ci.ts:349`
-- [ ] `--dispatch full|dry-run`: the two constant argvs, the refusal while `main` is ahead of `origin/main`, and the wait for the new run. `tools/nv/cmd/ci.ts:537`, `tools/nv/cmd/ci.ts:472`
-- [ ] `--release-status`: one exported pure function judges a run, its jobs, the `ci.yml` runs of its sha and the paths changed since it, and a thin wrapper feeds it from `gh` and `git`. It imports `greenFullRun`. The optional legs are read from `build.yml`'s matrix, not copied. The real job names (`verify / …`, `build / …`, `container images (…)`, `tag, changelog and draft release`) are read once with `gh api` from run `40085277618` for the fixtures. `tools/nv/cmd/release.ts:689`, `.github/workflows/build.yml:89`, `tools/nv/cmd/ci.ts:507`
-- [ ] The module doc, `summary` and `USAGE` describe the new modes, and `commands.md` names them beside `--watch`. `tools/nv/cmd/ci.ts:1`, `tools/nv/cmd/ci.ts:62`, `docs/agent/commands.md:631`
-- [ ] The tests the `ci-release-tests` check names, in a new `describe` with the stubbed `gh` the file already uses. Run once by name: `bun test tools/nv/test/ci.test.ts`. `tools/nv/test/ci.test.ts:314`
-- [ ] `bun nv ci --release-status` runs once against GitHub and exits 1, naming why: no dry run carries the new `run-name` yet. `tools/nv/cmd/ci.ts:537`
+- [x] `release.yml` gains its `run-name` after `name: Release`, and its header says an agent may dispatch a dry run with `bun nv ci --dispatch dry-run`, while only a person dispatches a real run. `.github/workflows/release.yml:66`, `.github/workflows/release.yml:3`
+- [x] `docs/release.md` says the same at its rule, and step 3's `dry_run` row names the command. § *Cutting a release* lists the user's whole first run: make the production registry's verifier key pair offline, keep the private key, and commit the public key into `DEFAULT_KEY` (today `None`, so `nvs pkg` reads nothing from `registry.novis-lang.org`); pause any loop; Actions → Release → `main`, `bump` `patch`, not a dry run; approve `release`; review and publish the draft; make the GHCR package public (§ 6: Packages → `novis` → Package settings → Change visibility → Public); then `docker pull ghcr.io/novis-lang/novis:<version>` and the website's install links. `docs/release.md:8`, `docs/release.md:149`, `crates/nvs-cli/src/package/manifest.rs:93`
+- [x] `Run` gains `display_title`, `listRuns` asks for it, and the watched workflows become a parameter, `["CI", "Website"]` by default and `["Release"]` under `--release`. `superseded` never names a `Release` run. `tools/nv/cmd/ci.ts:69`, `tools/nv/cmd/ci.ts:163`, `tools/nv/cmd/ci.ts:196`, `tools/nv/cmd/ci.ts:250`, `tools/nv/cmd/ci.ts:349`
+- [x] `--dispatch full|dry-run`: the two constant argvs, the refusal while `main` is ahead of `origin/main`, and the wait for the new run. `tools/nv/cmd/ci.ts:537`, `tools/nv/cmd/ci.ts:472`
+- [x] `--release-status`: one exported pure function judges a run, its jobs, the `ci.yml` runs of its sha and the paths changed since it, and a thin wrapper feeds it from `gh` and `git`. It imports `greenFullRun`. The optional legs are read from `build.yml`'s matrix, not copied. The real job names (`verify / …`, `build / …`, `container images (…)`, `tag, changelog and draft release`) are read once with `gh api` from run `40085277618` for the fixtures. `tools/nv/cmd/release.ts:689`, `.github/workflows/build.yml:89`, `tools/nv/cmd/ci.ts:507`
+- [x] The module doc, `summary` and `USAGE` describe the new modes, and `commands.md` names them beside `--watch`. `tools/nv/cmd/ci.ts:1`, `tools/nv/cmd/ci.ts:62`, `docs/agent/commands.md:631`
+- [x] The tests the `ci-release-tests` check names, in a new `describe` with the stubbed `gh` the file already uses. Run once by name: `bun test tools/nv/test/ci.test.ts`. `tools/nv/test/ci.test.ts:314`
+- [x] `bun nv ci --release-status` runs once against GitHub and exits 1, naming why: no dry run carries the new `run-name` yet. `tools/nv/cmd/ci.ts:537`
 
 ### 2. the full ci.yml run on main's tip is green in every job
 
