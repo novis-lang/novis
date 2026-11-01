@@ -8,6 +8,15 @@ modern web application needs are built in.
 > **Status: Pre-Alpha.** Novis is released, and the [install page](https://novis-lang.org/install/) has
 > the latest version. Any release can change the language, and Novis is not ready for production use.
 
+Install `nvs` from the [install page](https://novis-lang.org/install/). Then save this as `hello.nvs`:
+
+```nvs
+<?nvs
+echo "Hello, World!\n";
+```
+
+Run it with `nvs run hello.nvs`. It prints `Hello, World!`.
+
 Free and open source · Windows, Linux and macOS · An extension for VS Code · Ready for Docker
 
 [Install Novis](https://novis-lang.org/install/) · [Take the tour](https://novis-lang.org/guides/tour/) ·
@@ -168,17 +177,11 @@ of these licenses are permissive. Five components are under MPL-2.0: `avif-parse
 `cssparser-macros`, `dtoa-short` and `selectors`. The MPL-2.0 covers only the files of the component
 itself, and Novis uses these files unchanged.
 [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt) lists each one with its copyright notice and its full
-license text. A tool generates this file from the dependencies. The file is also built into the binary,
-so every copy of `nvs` contains the notices:
+license text. The file is also built into the binary, so every copy of `nvs` contains the notices:
 
 ```sh
 nvs info                # facts about the build and the host, and every component with its license
 nvs info --licenses     # the same, and the full text of every license
-
-bun nv gen-attribution           # generate the file again after you change a dependency
-bun nv gen-attribution --check   # what CI runs: it fails if the file is out of date
 ```
 
-The generator stops the build for a license it has no policy for. It also stops it for a license that is
-not in the allow list of [deny.toml](deny.toml). So a notice is never left out. `cargo deny` checks which
-licenses may be linked. The generator writes the notices that must ship with the binary.
+[CONTRIBUTING.md](CONTRIBUTING.md#third-party-notices) says how the file is generated.
