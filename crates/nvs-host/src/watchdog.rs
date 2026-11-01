@@ -223,12 +223,14 @@ pub const DEFAULT_MARGIN: Duration = Duration::from_secs(5);
 /// It is the longest wait between two sweeps, not the only one. The sweep is
 /// the one clock that raises the CPU flag, so a sweep that sees a tree under
 /// its `[limits] cpu_time` waits only until the earliest moment that tree can
-/// cross it ([`next_wait`]). A request then stops at its limit plus the time
+/// cross it (`next_wait`). A request then stops at its limit plus the time
 /// the OS takes to wake this thread. `bun nv proofs --overshoot` holds a CPU
 /// `FATAL` to its limit plus 100 ms.
-/// Cost: twenty wakeups a second of one thread, each a few loads per core,
-/// and at most one more wakeup for each crossing that falls between two of
-/// them. It spends no memory.
+/// Cost: twenty wakeups a second of one thread, each a few loads per core.
+/// While a tree is within one interval of its ceiling, the thread wakes once
+/// per remaining CPU time instead, and at most once per `MIN_WAIT`: a
+/// request that sits idle 1 ms under its ceiling keeps the thread at a
+/// thousand wakeups a second until it ends or crosses. It spends no memory.
 pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(50);
 
 /// One report: a core whose earliest deadline passed and stayed passed.
