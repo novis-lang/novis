@@ -376,9 +376,6 @@ Dry run `41371737071` on `eb9358fdb` is going, with `verify` running the full su
 `plan`, `lint`, `docs`, `asan`, `tsan` and `container images` jobs had passed when this session
 started its watch, `bun nv ci --watch --release --max-min 110`, in the background.
 
-The acceptance sweep's reds were the stale ones the last handoff named: nightly `41295327777` on
-`ef0d5cd3b`, and `env-secret-proofs`, which has no definition and no log.
-
 `build / build windows-aarch64` cannot build: `corosensei` 0.3.4, the newest release, has no
 context-switch backend for `aarch64` on Windows (its `src/arch/mod.rs:160` excludes it, and line 177 is
 `compile_error!("Unsupported target")`). `Cargo.toml:122` and `crates/nvs-host/Cargo.toml:44` pull it.
