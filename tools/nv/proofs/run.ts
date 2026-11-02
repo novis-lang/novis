@@ -1196,12 +1196,15 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   let failed = 0;
   const say = () => progress(`proofs: ${ran}/${todo.length} programs run${cached ? ` (${cached} more unchanged)` : ""}${failed ? `, ${failed} failed` : ""}`);
   if (todo.length > 0) say();
+  const times: string[] = [];
   const runOne = async (t: Program) => {
     const unlogged = opts.unlogged === true;
+    const began = performance.now();
     const [verdict, why, out] = await inPart(t.parts ?? [], async () => {
       const [raw, rawWhy, ran] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
       return [...judgeGap(t.path, raw, rawWhy), ran] as const;
     });
+    times.push(`${Math.round(performance.now() - began)}\t${out?.timedOut === true ? "timed-out" : verdict}\t${t.path}`);
     results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
   };
   const worker = async () => {
@@ -1233,6 +1236,11 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
     await runOne(t);
     opts.onResult?.(t, results.get(`${t.what}:${t.path}`)!);
   }
+  // `NVS_PROOF_TIMES` names a file that gets each run's wall time in milliseconds, its verdict and its
+  // path, slowest first, one tab-separated line each. A program that ran out of time and ran again
+  // alone has two lines. This is how a slow platform's proofs run is taken apart.
+  const timesFile = process.env.NVS_PROOF_TIMES;
+  if (timesFile) writeFileSync(timesFile, times.sort((a, b) => parseInt(b, 10) - parseInt(a, 10)).join("\n") + "\n");
   return { results, width, seconds: (performance.now() - started) / 1000 };
 }
 
