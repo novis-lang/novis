@@ -36,23 +36,12 @@
 //! **Read at the top of a turn and nowhere inside one**, which is the semantics rather than an
 //! economy: a drain means stop taking *new* work, and claiming a job is taking new work, so a job
 //! already claimed is run and written back exactly as a request already accepted is answered. A
-//! flag and a bit rather than a cancellation once a worker is connected, because every wait a stop
-//! can land in from then on is either ended by the stop or bounded and short. A worker waiting for
-//! work is woken by it (§ *What an idle worker waits on*). The tail a stop pays otherwise is one
-//! statement's round trip while a claim is in flight, or one [`STATEMENT_DEADLINE`] for a server
-//! that stopped answering mid-statement, which is the only wait here a peer rather than this
-//! process decides the length of.
-//!
-//! **A worker still opening its connection is cancelled by [`Workers::stop`] instead.** It holds
-//! no job and has written nothing, so there is nothing for it to finish, and the scheduler's
-//! teardown of a parked task runs native `Drop` alone: the half-open socket closes exactly as it
-//! does when the handshake's deadline passes. Waiting the handshake out was the one tail a stop
-//! could not end, and it is a long one. A server that is down on the same host refuses the
-//! connection at once on Linux and macOS, but Windows tries again for about two seconds, so every
-//! `nvs run` that parked long enough to give a worker its turn, against a configured database that
-//! was not running, ended one whole [`CONNECT_DEADLINE`] after its script did. A drain does not
-//! cancel: `nvs serve` stops taking requests at the same moment, and a served worker's handshake
-//! is bounded by that deadline like every other wait in a shutdown.
+//! flag and a bit rather than a cancellation because every wait a stop can land in is either ended
+//! by the stop or bounded and short. A worker waiting for work is woken by it (§ *What an idle
+//! worker waits on*). The tail a stop pays otherwise is one statement's round trip while a claim
+//! is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with a
+//! server that is not answering — or one [`STATEMENT_DEADLINE`] for one that stopped answering
+//! mid-statement, which is the only wait here a peer rather than this process decides the length of.
 //!
 //! ## What an idle worker waits on
 //!
@@ -143,7 +132,7 @@
 //! job is under no obligation to be one that saw it fail before.
 //!
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -158,9 +147,8 @@ use nvs_stdlib::queue::Bell;
 ///
 /// Much shorter than [`crate::queue`]'s own connect deadline, and for the opposite reason: that
 /// command exists to reach the server and has nothing else to do, while a worker is a passenger on
-/// a run whose script may finish in milliseconds. An unreachable server costs a worker this much
-/// and then stops costing it anything. It costs the run nothing past its script's end, because
-/// [`Workers::stop`] cancels a worker that is still connecting.
+/// a run whose script may finish in milliseconds. An unreachable server costs the run this much and
+/// then stops costing it anything.
 const CONNECT_DEADLINE: Duration = Duration::from_secs(2);
 
 /// How long a worker that found no due work waits before it asks again, when nothing wakes it.
@@ -233,26 +221,6 @@ pub(crate) struct Workers {
     bell: Bell,
     /// How long that worker waits when nothing wakes it: [`IDLE_WAIT`] from both constructors.
     idle: Duration,
-    /// The tasks of the workers on this switch that are still opening their connection, which
-    /// [`Workers::stop`] cancels (the module doc's *A worker still opening its connection*).
-    ///
-    /// Each worker adds itself through [`Workers::connecting`] and the guard that returns removes
-    /// it, on the way out of the handshake and on the teardown that cancels it alike. So the list
-    /// holds at most `[queue] workers` ids, and only while those workers connect.
-    connecting: Rc<RefCell<Vec<nvs_host::TaskId>>>,
-}
-
-/// A worker's entry in [`Workers`]'s list of workers still opening their connection, removed when
-/// this is dropped.
-struct Connecting {
-    list: Rc<RefCell<Vec<nvs_host::TaskId>>>,
-    id: nvs_host::TaskId,
-}
-
-impl Drop for Connecting {
-    fn drop(&mut self) {
-        self.list.borrow_mut().retain(|&id| id != self.id);
-    }
 }
 
 impl Workers {
@@ -263,7 +231,6 @@ impl Workers {
             draining: None,
             bell: Bell::process(),
             idle: IDLE_WAIT,
-            connecting: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -275,34 +242,12 @@ impl Workers {
         }
     }
 
-    /// Tells every worker this run started to finish its turn and return, wakes the ones waiting
-    /// for work so that none of them waits out [`IDLE_WAIT`] first, and cancels the ones still
-    /// opening their connection so that none of them waits out [`CONNECT_DEADLINE`].
-    ///
-    /// The cancel only marks each task, and the scheduler tears it down on its own stack, so this
-    /// returns at once. It is called from a task on the core the workers run on, which is where
-    /// [`nvs_host::cancel_task`] finds them. With no scheduler beneath the call it cancels nothing,
-    /// and a connecting worker then ends at its handshake's deadline.
+    /// Tells every worker this run started to finish its turn and return, and wakes the ones
+    /// waiting for work so that none of them waits out [`IDLE_WAIT`] first.
     pub(crate) fn stop(&self) {
         // The flag first: a worker the ring wakes reads it at the top of its next turn.
         self.stop.set(true);
         self.bell.ring();
-        // Copied out first, because a teardown removes its own entry from the list.
-        let connecting = self.connecting.borrow().clone();
-        for id in connecting {
-            nvs_host::cancel_task(id);
-        }
-    }
-
-    /// Records the running worker as one still opening its connection, until the guard returned
-    /// is dropped. `None` where no task is running, which only a unit case reaches.
-    fn connecting(&self) -> Option<Connecting> {
-        let id = nvs_host::current_task()?;
-        self.connecting.borrow_mut().push(id);
-        Some(Connecting {
-            list: Rc::clone(&self.connecting),
-            id,
-        })
     }
 
     /// Whether a worker reading this may open another turn.
@@ -609,13 +554,7 @@ fn claim_until_stopped(
     if workers.stopping() {
         return;
     }
-    // Cancellable while the handshake runs, and only then: from the first turn on, a stop is a
-    // flag read between turns, so a claimed job is always written back.
-    let opened = {
-        let _connecting = workers.connecting();
-        open(name, block)
-    };
-    let Some(mut conn) = opened else {
+    let Some(mut conn) = open(name, block) else {
         return;
     };
     // A worker that stops on a failed statement says so, on the stream [`open`]'s own refusals use.
@@ -3173,7 +3112,6 @@ mod tests {
             draining,
             bell: bell.clone(),
             idle,
-            connecting: Rc::default(),
         };
         (workers, bell)
     }
