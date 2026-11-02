@@ -5,7 +5,7 @@ description: Download the nvs program for Windows, Linux or macOS, or build it f
 ---
 
 import { Code, Steps, Tabs, TabItem } from '@astrojs/starlight/components'
-import { version, status, releaseUrl, image, archives, archiveFor, sums } from '@data/release'
+import { version, status, releaseUrl, image, archives, archiveFor, sums, vsix } from '@data/release'
 
 Novis is one program, `nvs`. It checks, compiles, runs, tests and serves your code. You download
 `nvs` or build it from source. Then you put it on your `PATH`.
@@ -57,6 +57,17 @@ The file <a href={sums.url}><code>{sums.file}</code></a> has the checksum of eac
    ```
 
 </Steps>
+
+## Install the VS Code extension
+
+Each release also has the VS Code extension as a file:
+<a href={vsix.url}><code>{vsix.file}</code></a>. The extension adds colours, errors and
+completion for `.nvs` files. This command installs the file you downloaded:
+
+<Code lang="sh" code={`code --install-extension ${vsix.file}`} />
+
+[Install the extension](/tools/editor/#install-the-extension) shows how to install it from the
+command palette in VS Code.
 
 ## Run Novis with Docker
 

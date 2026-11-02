@@ -943,13 +943,13 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "639dedd5d5abbfd0",
+    "hash": "37066f8dc2ee4555",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",
-      "Build nvs from source on Windows, Linux or macOS",
-      "Which Rust version and C compiler do I need to build Novis?",
+      "Which Rust version and C compiler do I need to build nvs from source?",
       "How do I add nvs to my PATH?",
+      "Download and install the Novis extension for VS Code",
       "Check the checksum and signature of a release archive"
     ]
   },
