@@ -9,8 +9,12 @@
 //     bun nv ci --status                # the newest run of each watched workflow, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
 //     bun nv ci --dispatch full|dry-run # start a full ci.yml run, or a dry-run Release, on main
+//     bun nv ci --dispatch release      # start the real Release, after a green dry run of main's tip
 //     bun nv ci --watch --release       # watch the newest Release run, and cancel no run
-//     bun nv ci --release-status        # the verdict of the newest completed dry-run Release
+//     bun nv ci --release-status        # the verdict of the newest completed Release, dry or real
+//     bun nv ci --approve-release       # approve the waiting real run's `release` environment
+//     bun nv ci --publish-release       # publish the draft a green real run made
+//     bun nv ci --release-published     # the verdict of the newest release, its images and its tag
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
 // Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
@@ -56,8 +60,8 @@
 //
 // **`--dispatch full`** starts `ci.yml` on `main` with `workflow_dispatch`, which runs every job.
 // **`--dispatch dry-run`** starts `release.yml` on `main` as a dry run, which writes nothing, tags
-// nothing and pushes no image. Each argv is one constant in `DISPATCH`, and the release's carries
-// `dry_run=true`, so no argument can start a real release: that is a person's (`docs/release.md`).
+// nothing and pushes no image. Each argv is one constant in `DISPATCH`, and the dry run's carries
+// `dry_run=true`, so no argument turns it into a real release.
 // Both refuse with 1 while local `main` has commits `origin/main` lacks that change a file outside
 // `NOTES_ONLY`, since the run would test `origin`'s tip and not the tree. Commits to the loop's notes
 // alone change nothing a run builds, and `--release-status` passes over them in the same way, so a
@@ -70,13 +74,27 @@
 // with the same polling, report and exit codes. Neither it nor `--push` ever cancels a `Release` run: a
 // cancelled `publish` is the torn state `release.yml`'s `concurrency` comment exists to prevent.
 //
-// **`--release-status`** judges the newest completed run of `release.yml` on `main` that its `run-name`
-// titles `Release (dry run)`, prints each job, and exits 0 green, 1 red and 2 when `gh` or `git` cannot
-// answer. `judgeDryRun` is the judgement: the run's commit is local `main`, or one that only
-// `NOTES_ONLY` paths changed since; every job passed, except a `publish` a dry run skips, a `verify`
-// skipped beside a green full `ci.yml` run of the commit (`greenFullRun`, the lookup `plan` makes),
-// and a failed leg `build.yml` marks optional, which is a warning. It only reads: it never fetches,
-// pushes, dispatches or cancels.
+// **`--release-status`** judges the newest completed run of `release.yml` on `main`, dry or real, prints
+// each job, and exits 0 green, 1 red and 2 when `gh` or `git` cannot answer. Its `run-name` titles a dry
+// run `Release (dry run)`. `judgeRun` is the judgement. The commit the run stands for is local `main`, or
+// one that only `NOTES_ONLY` paths changed since: a dry run's own commit, and a real run's tagged commit,
+// which `publish` pushed onto `main`. Every job passed, except a `publish` a dry run skips, a `verify`
+// skipped beside a green full `ci.yml` run of the commit (`greenFullRun`, the lookup `plan` makes), and
+// a failed leg `build.yml` marks optional, which is a warning. It only reads: it never fetches, pushes,
+// dispatches or cancels. `--watch --release` passes over a failed optional leg in the same way.
+//
+// **`--dispatch release`** starts the real release: the one argv with `dry_run=false`. Only a live goal
+// that says so runs it (`docs/release.md`). It refuses as the other two do, and also unless the newest
+// completed `release.yml` run is a dry run `--release-status` calls green, and while any `release.yml`
+// run is going. **`--approve-release`** approves the `release` environment `publish` waits on, in the
+// newest real run. It refuses a dry run, a run not waiting, and a run where a job before `publish` did
+// not pass, and prints the notes `plan` rendered before it approves. **`--publish-release`** publishes
+// that run's draft once every job passed, `docker` included, and the draft carries each asset
+// `draftAssets` names: every required leg's archive from `build.yml`, the `.vsix` and the checksums.
+// **`--release-published`** is the read-only verdict on the newest release: not a draft, its tag on
+// `origin/main`, its `release-promote.yml` run green, and its version tag's manifest read from `ghcr.io`
+// with an anonymous token. A `401` or `403` there is a private package, and it prints the visibility
+// click as the one step left to the user, since no API makes a package public.
 //
 // What it spends: one `gh api` call per watched run every 15 seconds while a run is in progress, about
 // 500 calls an hour of GitHub's 5,000, and up to `LOGS_KEPT` job logs on disk.
@@ -89,10 +107,10 @@ import { LOCKFILE_DIRS } from "./ci-changes.ts";
 import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
-  "pushes main and watches GitHub CI: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run | --release-status";
+  "pushes main, watches GitHub CI and cuts a release: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run|release | --release-status | --approve-release | --publish-release | --release-published";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run\n       bun nv ci --release-status";
+  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run|release\n       bun nv ci --release-status\n       bun nv ci --approve-release\n       bun nv ci --publish-release\n       bun nv ci --release-published";
 
 /** The workflows whose runs on `main` are watched, by their `name:`. */
 export const WORKFLOWS = ["CI", "Website"];
@@ -109,8 +127,8 @@ const BRANCH = "main";
 
 /**
  * What `--dispatch` starts: each argv is a constant, so no argument can change it. A `workflow_dispatch`
- * of `ci.yml` runs every job, and the release's argv always carries `dry_run=true`, so no agent can start
- * a real release.
+ * of `ci.yml` runs every job. `dry-run`'s argv always carries `dry_run=true`, and `release`'s is the one
+ * argv with `dry_run=false`, which `dispatch` starts only beside a green dry run of `main`'s tip.
  */
 export const DISPATCH = {
   full: { workflow: "CI", file: "ci.yml", argv: ["workflow", "run", "ci.yml", "--ref", BRANCH] },
@@ -118,6 +136,11 @@ export const DISPATCH = {
     workflow: RELEASE,
     file: "release.yml",
     argv: ["workflow", "run", "release.yml", "--ref", BRANCH, "-f", "bump=patch", "-f", "dry_run=true"],
+  },
+  release: {
+    workflow: RELEASE,
+    file: "release.yml",
+    argv: ["workflow", "run", "release.yml", "--ref", BRANCH, "-f", "bump=patch", "-f", "dry_run=false"],
   },
 } as const;
 type DispatchKind = keyof typeof DISPATCH;
@@ -127,6 +150,23 @@ const DISPATCH_WAIT_MS = 5 * 60_000;
 /** The job `release.yml`'s `publish` is, which a dry run skips, and the one its `test` is. */
 export const PUBLISH_JOB = "tag, changelog and draft release";
 export const VERIFY_JOB = "verify";
+/** The reusable-workflow job `release.yml`'s `docker` is, whose jobs run after `publish`. */
+export const DOCKER_JOB = "docker";
+/** The environment `publish` waits on, which `--approve-release` approves. */
+export const RELEASE_ENV = "release";
+/** The notes artifact `plan` uploads, and the file in it. */
+const NOTES_ARTIFACT = "release-notes-preview";
+const NOTES_FILE = "release-notes.md";
+/** The workflow `release: published` starts, which moves `latest` and `MAJOR.MINOR`. */
+const PROMOTE_FILE = "release-promote.yml";
+/** The container image a release pushes to `ghcr.io`, and the media types its manifest may have. */
+export const IMAGE = "novis-lang/novis";
+const MANIFEST_TYPES = [
+  "application/vnd.oci.image.index.v1+json",
+  "application/vnd.docker.distribution.manifest.list.v2+json",
+  "application/vnd.oci.image.manifest.v1+json",
+  "application/vnd.docker.distribution.manifest.v2+json",
+].join(", ");
 /** The paths a commit after a dry run may change and leave its verdict standing: the loop's own notes. */
 export const NOTES_ONLY = ["docs/goals/", "docs/agent/playbook/", "docs/agent/playbook.md"];
 
@@ -204,6 +244,8 @@ export interface CiSeams {
   sleep(ms: number): Promise<void>;
   now(): number;
   say(line: string): void;
+  /** One HTTP GET with no credential, for `--release-published`'s anonymous registry read. */
+  fetch(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }>;
 }
 
 const REAL: CiSeams = {
@@ -224,6 +266,14 @@ const REAL: CiSeams = {
   sleep: (ms) => Bun.sleep(ms),
   now: () => Date.now(),
   say: (line) => console.log(line),
+  fetch: async (url, headers) => {
+    try {
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
+      return { status: r.status, body: await r.text() };
+    } catch (e) {
+      throw new GhFailed(`GET ${url} failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  },
 };
 
 /** A workflow run on `main`, as the runs API gives it. */
@@ -239,6 +289,8 @@ export interface Run {
   display_title: string;
   /** The workflow's file, such as `.github/workflows/release.yml`. */
   path?: string;
+  /** When the run was created, as ISO 8601. */
+  created_at?: string;
 }
 
 /** `r` with `name` set to its workflow's `name:`, which GitHub replaces with the run's `run-name` title. */
@@ -426,7 +478,7 @@ const under = (name: string, p: string) => name === p || name.startsWith(`${p} /
  * failed job that `past` names is passed over, and a watched run that ended red in those jobs alone
  * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over.
  * `workflows` are the workflows watched: `WORKFLOWS`, or `[RELEASE]` under `--release`, whose runs it
- * never cancels.
+ * never cancels, and where a failed leg `build.yml` marks optional is passed over too.
  */
 export async function watch(s: CiSeams, maxMin: number, past: string[] = [], next = false, workflows: readonly string[] = WORKFLOWS): Promise<number> {
   if (sayRefused(s)) return 1;
@@ -435,7 +487,9 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = [], nex
   const before = new Set<number>();
   const finished = new Map<number, number>();
   const passedOver = new Set<number>();
-  const passed = (j: Job) => past.some((p) => under(j.name, p));
+  // A failed optional build leg does not fail a release, which ships without it.
+  const pass = workflows.includes(RELEASE) ? [...past, ...optionalLegs(ROOT)] : past;
+  const passed = (j: Job) => pass.some((p) => under(j.name, p));
   /** Prints each failed job of `jobs` that `past` names, once, and reports whether any other failed. */
   const sort = (r: Run, jobs: Job[]): boolean => {
     for (const j of jobs.filter((x) => red(x) && passed(x) && !passedOver.has(x.id))) {
@@ -621,21 +675,29 @@ export async function workflowRuns(s: CiSeams, file: string, query = ""): Promis
     "api",
     `repos/{owner}/{repo}/actions/workflows/${file}/runs?branch=${BRANCH}&per_page=30${query}`,
     "--jq",
-    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title, path}]",
+    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title, path, created_at}]",
   ]);
   return runs.map(workflowOf);
 }
 
-/** The runs `--dispatch` may have started: a `workflow_dispatch` one, and of a release, a dry run. */
+/** Whether `r`, a run of `release.yml`, is a dry run: its `run-name` says so. */
+const isDry = (r: Run) => r.display_title === DRY_RUN_TITLE;
+
+/** The runs `--dispatch` may have started: a `workflow_dispatch` one, and of a release, a dry or a real run. */
 function dispatched(kind: DispatchKind, r: Run): boolean {
-  return r.event === "workflow_dispatch" && (kind !== "dry-run" || r.display_title === DRY_RUN_TITLE);
+  if (r.event !== "workflow_dispatch") return false;
+  if (kind === "dry-run") return isDry(r);
+  if (kind === "release") return r.display_title === RELEASE;
+  return true;
 }
 
 /**
  * Starts the run `DISPATCH[kind]` names on `main`, then waits until GitHub lists a run of it newer than
  * every one before, and prints its address. It refuses while local `main` has commits `origin/main`
  * lacks that change a file outside `NOTES_ONLY`, since the run would test `origin`'s tip and not the
- * tree. Five minutes with no new run exits 2.
+ * tree. A real release also refuses unless the newest completed `release.yml` run is a green dry run
+ * that stands for local `main`, and while any `release.yml` run is going. Five minutes with no new run
+ * exits 2.
  */
 export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> {
   const d = DISPATCH[kind];
@@ -650,13 +712,28 @@ export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> 
     }
     s.say(`local ${BRANCH} has ${ahead} commit(s) origin/${BRANCH} lacks, which change only the loop's notes: the run tests origin/${BRANCH}'s tip`);
   }
+  if (kind === "release") {
+    const going = (await workflowRuns(s, d.file)).filter((r) => !done(r));
+    if (going.length > 0) {
+      for (const r of going) s.say(`going: ${runLine(r)}`);
+      s.say("REFUSED a Release run is going: dispatch the real release once it ends");
+      return 1;
+    }
+    const v = await releaseVerdict(s);
+    for (const l of v.lines) s.say(l);
+    if (!v.green || v.run === undefined || !isDry(v.run)) {
+      s.say(`REFUSED a real release needs a green dry run of local ${BRANCH}'s tip as the newest completed Release run: \`bun nv ci --dispatch dry-run\``);
+      return 1;
+    }
+  }
   const before = Math.max(0, ...(await workflowRuns(s, d.file)).map((r) => r.id));
   const started = await s.gh([...d.argv]);
   if (started.code !== 0) {
     s.say(`could not dispatch ${d.file}: ${firstLine(started)}`);
     return 1;
   }
-  s.say(`dispatched ${d.file} on ${BRANCH}${kind === "dry-run" ? " as a dry run" : ""}: waiting for GitHub to list the run`);
+  const as = kind === "dry-run" ? " as a dry run" : kind === "release" ? " as a real release" : "";
+  s.say(`dispatched ${d.file} on ${BRANCH}${as}: waiting for GitHub to list the run`);
   const until = s.now() + DISPATCH_WAIT_MS;
   while (true) {
     await s.sleep(POLL_BUSY_MS);
@@ -664,7 +741,7 @@ export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> 
       const fresh = (await workflowRuns(s, d.file)).filter((r) => r.id > before && dispatched(kind, r)).sort((a, b) => a.id - b.id)[0];
       if (fresh !== undefined) {
         s.say(`started ${runLine(fresh)}`);
-        s.say(`watch it with \`bun nv ci --watch${kind === "dry-run" ? " --release" : ""}\``);
+        s.say(`watch it with \`bun nv ci --watch${kind === "full" ? "" : " --release"}\``);
         return 0;
       }
     } catch (e) {
@@ -680,50 +757,70 @@ export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> 
 
 // ---- --release-status --------------------------------------------------------------------------------
 
-/** What `judgeDryRun` reads: the dry run, its jobs, the `ci.yml` runs of its commit, and what changed since. */
-export interface DryRunFacts {
+/**
+ * Which run `judgeRun` judges: a completed dry run, a completed real run, or a real run waiting on the
+ * `release` environment, which `--approve-release` judges before it approves.
+ */
+export type Stage = "dry" | "real" | "approve";
+
+/** What `judgeRun` reads: the run, its jobs, the `ci.yml` runs of its commit, and what changed since. */
+export interface RunFacts {
   run: Run;
   jobs: Job[];
-  /** The `ci.yml` runs of the dry run's commit, for a `verify` job it skipped. */
+  stage: Stage;
+  /** The `ci.yml` runs of the run's commit, for a `verify` job it skipped. */
   ciRuns: WorkflowRun[];
-  /** The paths changed between the dry run's commit and local `main`, or null when `main` does not contain it. */
-  changed: string[] | null;
+  /**
+   * The paths changed between the commit the run stands for and local `main`, or null when `main` does
+   * not contain it. A dry run stands for its own commit, and a real run for the commit its tag names.
+   * Left out, the path rule is not judged, as `--approve-release` and `--publish-release` do.
+   */
+  changed?: string[] | null;
   /** The job names of `build.yml`'s legs marked `optional: true`, as the release shows them. */
   optional: string[];
 }
 
-/** The verdict of `--release-status`: green, the lines it prints, and the warnings among them. */
-export interface DryRunVerdict {
+/** A judge's verdict: green, and the lines it prints. */
+export interface Verdict {
   green: boolean;
   lines: string[];
 }
 
 /**
- * Judges one completed dry run as `release.yml`'s own `if:` lines do. Its commit is local `main`, or one
- * whose changes since touch only `NOTES_ONLY`. Every job passed, except that `publish` is skipped, as
- * every dry run's is; `verify` may be skipped only beside a green full `ci.yml` run of that commit, the
- * lookup `plan` makes; and a failed optional build leg is a warning, since the release ships without it.
+ * Judges one run of `release.yml` as the workflow's own `if:` lines do. Its commit stands for local
+ * `main` when the paths changed since touch only `NOTES_ONLY`. Every job passed, with these exceptions.
+ * `publish` is skipped in a dry run, and waits on `release` in a run to approve, whose `docker` jobs come
+ * after it and are not judged. `verify` may be skipped only beside a green full `ci.yml` run of that
+ * commit, the lookup `plan` makes. A failed optional build leg is a warning, since the release ships
+ * without it.
  */
-export function judgeDryRun(f: DryRunFacts): DryRunVerdict {
-  const lines = [`dry run ${runLine(f.run)}`];
+export function judgeRun(f: RunFacts): Verdict {
+  const kind = f.stage === "dry" ? "dry run" : "release run";
+  const lines = [`${kind} ${runLine(f.run)}`];
   let green = true;
   const fail = (l: string) => {
     green = false;
     lines.push(l);
   };
-  if (f.changed === null) fail(`RED its commit ${short(f.run.head_sha)} is not on local ${BRANCH}: dispatch a new dry run`);
-  else {
+  const again = f.stage === "dry" ? "dispatch a new dry run" : "fetch and merge origin/main, or cut a new release";
+  if (f.changed === null) fail(`RED the commit it stands for is not on local ${BRANCH}: ${again}`);
+  else if (f.changed !== undefined) {
     const code = f.changed.filter((p) => !NOTES_ONLY.some((n) => p.startsWith(n)));
-    if (code.length > 0) fail(`RED ${code.length} file(s) outside the loop's notes changed since its commit, such as ${code.slice(0, 5).join(", ")}: dispatch a new dry run`);
+    if (code.length > 0) fail(`RED ${code.length} file(s) outside the loop's notes changed since its commit, such as ${code.slice(0, 5).join(", ")}: ${again}`);
   }
   if (f.jobs.length === 0) fail("RED the run lists no jobs");
   for (const j of f.jobs) {
     const step = j.steps.find(red)?.name;
     const where = `${j.name}${step === undefined ? "" : ` / step "${step}"`}  ${j.html_url}`;
     if (j.name.includes("${{")) fail(`RED ${j.name}: a job whose matrix did not expand  ${j.html_url}`);
-    else if (j.name === PUBLISH_JOB) {
+    else if (j.name === PUBLISH_JOB && f.stage === "dry") {
       if (j.conclusion === "skipped") lines.push(`  ok ${j.name}: skipped, as in every dry run`);
       else fail(`RED ${j.name} ended ${j.conclusion ?? j.status}, and a dry run skips it  ${j.html_url}`);
+    } else if (j.name === PUBLISH_JOB && f.stage === "approve") {
+      if (j.status === "waiting") lines.push(`  waiting ${j.name}: on the ${RELEASE_ENV} environment`);
+      else fail(`RED ${j.name} is ${j.conclusion ?? j.status}, and not waiting on the ${RELEASE_ENV} environment  ${j.html_url}`);
+    } else if (under(j.name, DOCKER_JOB) && f.stage === "approve") {
+      lines.push(`  after publish ${j.name}: ${j.conclusion ?? j.status}`);
     } else if (j.name === VERIFY_JOB && j.conclusion === "skipped") {
       const full = greenFullRun(f.ciRuns, f.run.head_sha);
       if (full !== null) lines.push(`  ok ${j.name}: skipped beside the green full ci.yml run ${full.html_url}`);
@@ -733,43 +830,335 @@ export function judgeDryRun(f: DryRunFacts): DryRunVerdict {
       lines.push(`  WARNING ${where}: an optional leg, so the release ships without it`);
     } else fail(`FAILED ${where} (${j.conclusion ?? j.status})`);
   }
-  lines.push(green ? `GREEN the dry run on ${short(f.run.head_sha)} passed` : "RED the dry run does not stand for main");
+  const at = short(f.run.head_sha);
+  if (f.stage === "approve") lines.push(green ? `GREEN every job before ${PUBLISH_JOB} passed on ${at}` : "RED the run is not ready to approve");
+  else lines.push(green ? `GREEN the ${kind} on ${at} passed` : `RED the ${kind} does not stand for ${BRANCH}`);
   return { green, lines };
+}
+
+/** One leg of `build.yml`'s matrix: its name, its archive's extension, and whether the release needs it. */
+interface Leg {
+  name?: string;
+  archive?: string;
+  optional?: boolean;
+}
+
+function buildLegs(root: string): Leg[] {
+  const wf = Bun.YAML.parse(readFileSync(join(root, ".github", "workflows", "build.yml"), "utf8")) as {
+    jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } };
+  };
+  return wf.jobs?.build?.strategy?.matrix?.include ?? [];
 }
 
 /** The job names of `build.yml`'s optional legs, as a run of `release.yml` shows them. */
 export function optionalLegs(root: string): string[] {
-  type Leg = { name?: string; optional?: boolean };
-  const wf = Bun.YAML.parse(readFileSync(join(root, ".github", "workflows", "build.yml"), "utf8")) as {
-    jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } };
-  };
-  const legs = wf.jobs?.build?.strategy?.matrix?.include ?? [];
-  return legs.filter((l) => l.optional === true && l.name !== undefined).map((l) => `build / build ${l.name}`);
+  return buildLegs(root)
+    .filter((l) => l.optional === true && l.name !== undefined)
+    .map((l) => `build / build ${l.name}`);
 }
 
 /**
- * The verdict on the newest completed dry run of `release.yml` on `main`: 0 green, 1 red, 2 when `gh` or
- * `git` cannot answer. It reads only, and never fetches, pushes, dispatches or cancels.
+ * The assets a whole draft of `version` carries: each required leg's archive, the extension and the
+ * checksums. They are the files `publish`'s *Every required archive arrived* step checks, and the names
+ * `bun nv release --package` gives them.
  */
-async function releaseStatus(s: CiSeams): Promise<number> {
-  const dry = (await workflowRuns(s, "release.yml")).filter((r) => r.display_title === DRY_RUN_TITLE).sort((a, b) => b.id - a.id);
-  for (const r of dry.filter((x) => !done(x))) s.say(`going, and not judged until it ends: ${runLine(r)}`);
-  const run = dry.find(done);
+export function draftAssets(root: string, version: string): string[] {
+  const legs = buildLegs(root).filter((l) => l.optional !== true && l.name !== undefined && l.archive !== undefined);
+  return [...legs.map((l) => `nvs-${version}-${l.name}.${l.archive}`), `nvs-${version}.vsix`, "SHA256SUMS"];
+}
+
+/** A GitHub release, as the releases API gives it. */
+export interface GhRelease {
+  tag_name: string;
+  draft: boolean;
+  prerelease: boolean;
+  created_at: string;
+  html_url: string;
+  assets: string[];
+}
+
+/** The newest releases, drafts included, newest first. */
+async function listReleases(s: CiSeams): Promise<GhRelease[]> {
+  const rels = await ghJson<GhRelease[]>(s, [
+    "api",
+    "repos/{owner}/{repo}/releases?per_page=20",
+    "--jq",
+    "[.[] | {tag_name, draft, prerelease, created_at, html_url, assets: [.assets[].name]}]",
+  ]);
+  return rels.sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** The release real run `run` drafted: the newest one created after the run started, or null. */
+async function releaseOf(s: CiSeams, run: Run): Promise<GhRelease | null> {
+  return (await listReleases(s)).find((r) => r.created_at >= (run.created_at ?? "")) ?? null;
+}
+
+/** The commit tag `tag` names on GitHub. */
+function tagCommit(s: CiSeams, tag: string): Promise<string> {
+  return ghJson<string>(s, ["api", `repos/{owner}/{repo}/commits/${tag}`, "--jq", ".sha | tojson"]);
+}
+
+/** The `ci.yml` runs of `run`'s commit, read only when its `verify` job was skipped. */
+function ciRunsFor(s: CiSeams, run: Run, jobs: Job[]): Promise<WorkflowRun[]> {
+  const skipped = jobs.some((j) => j.name === VERIFY_JOB && j.conclusion === "skipped");
+  return skipped ? workflowRuns(s, "ci.yml", `&head_sha=${run.head_sha}`) : Promise.resolve([]);
+}
+
+/** The newest run of `release.yml` on `main`, dry or real, with every run before it, newest first. */
+async function releaseRuns(s: CiSeams): Promise<(Run & WorkflowRun)[]> {
+  return (await workflowRuns(s, "release.yml")).sort((a, b) => b.id - a.id);
+}
+
+/**
+ * The verdict on the newest completed run of `release.yml` on `main`, dry or real, and that run. A dry
+ * run stands for its own commit, and a real run for the commit its tag names, which `publish` pushed
+ * onto `main`. It reads only, and never fetches, pushes, dispatches or cancels.
+ */
+async function releaseVerdict(s: CiSeams): Promise<Verdict & { run?: Run }> {
+  const runs = await releaseRuns(s);
+  const lines = runs.filter((x) => !done(x)).map((r) => `going, and not judged until it ends: ${runLine(r)}`);
+  const run = runs.find(done);
   if (run === undefined) {
-    s.say(`RED no completed run of release.yml on ${BRANCH} is titled \`${DRY_RUN_TITLE}\`: start one with \`bun nv ci --dispatch dry-run\``);
-    return 1;
+    lines.push(`RED no run of release.yml on ${BRANCH} has completed: start a dry run with \`bun nv ci --dispatch dry-run\``);
+    return { green: false, lines };
+  }
+  const stage: Stage = isDry(run) ? "dry" : "real";
+  let base = run.head_sha;
+  if (stage === "real") {
+    const rel = await releaseOf(s, run);
+    if (rel !== null) {
+      base = await tagCommit(s, rel.tag_name);
+      lines.push(`its tag ${rel.tag_name} names ${short(base)}`);
+    }
   }
   const main = await gitOut(s, ["rev-parse", BRANCH]);
   let changed: string[] | null = [];
-  if (run.head_sha !== main) {
-    const anc = await s.git(["merge-base", "--is-ancestor", run.head_sha, BRANCH]);
+  if (base !== main) {
+    const anc = await s.git(["merge-base", "--is-ancestor", base, BRANCH]);
     if (anc.code !== 0) changed = null;
-    else changed = (await gitOut(s, ["diff", "--name-only", run.head_sha, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
+    else changed = (await gitOut(s, ["diff", "--name-only", base, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
   }
   const jobs = await listJobs(s, run.id);
-  const skippedVerify = jobs.some((j) => j.name === VERIFY_JOB && j.conclusion === "skipped");
-  const ciRuns = skippedVerify ? await workflowRuns(s, "ci.yml", `&head_sha=${run.head_sha}`) : [];
-  const v = judgeDryRun({ run, jobs, ciRuns, changed, optional: optionalLegs(ROOT) });
+  const v = judgeRun({ run, jobs, stage, ciRuns: await ciRunsFor(s, run, jobs), changed, optional: optionalLegs(ROOT) });
+  return { green: v.green, lines: [...lines, ...v.lines], run };
+}
+
+/** `--release-status`: 0 green, 1 red, 2 when `gh` or `git` cannot answer. */
+async function releaseStatus(s: CiSeams): Promise<number> {
+  const v = await releaseVerdict(s);
+  for (const l of v.lines) s.say(l);
+  return v.green ? 0 : 1;
+}
+
+// ---- --approve-release and --publish-release ----------------------------------------------------------
+
+/** The newest run of `release.yml`, which must be a real one: null, and a line said, when it is not. */
+async function newestReal(s: CiSeams, verb: string): Promise<Run | null> {
+  const run = (await releaseRuns(s))[0];
+  if (run === undefined) s.say(`REFUSED no run of release.yml on ${BRANCH}: nothing to ${verb}`);
+  else if (isDry(run)) s.say(`REFUSED the newest Release run is a dry run, which has nothing to ${verb}: ${runLine(run)}`);
+  else return run;
+  return null;
+}
+
+/**
+ * Approves the `release` environment of the newest real `Release` run. It refuses a dry run, a run not
+ * waiting on `release`, and a run where a job before `publish` did not pass, as `judgeRun` judges it. It
+ * prints the notes `plan` rendered before it approves, and refuses when they cannot be read.
+ */
+async function approveRelease(s: CiSeams): Promise<number> {
+  const run = await newestReal(s, "approve");
+  if (run === null) return 1;
+  if (run.status !== "waiting") {
+    s.say(`REFUSED the run is not waiting on the ${RELEASE_ENV} environment: ${runLine(run)}`);
+    return 1;
+  }
+  const pending = await ghJson<{ id: number; name: string }[]>(s, [
+    "api",
+    `repos/{owner}/{repo}/actions/runs/${run.id}/pending_deployments`,
+    "--jq",
+    "[.[] | {id: .environment.id, name: .environment.name}]",
+  ]);
+  const env = pending.find((p) => p.name === RELEASE_ENV);
+  if (env === undefined) {
+    s.say(`REFUSED the run waits on no ${RELEASE_ENV} environment: ${runLine(run)}`);
+    return 1;
+  }
+  const jobs = await listJobs(s, run.id);
+  const v = judgeRun({ run, jobs, stage: "approve", ciRuns: await ciRunsFor(s, run, jobs), optional: optionalLegs(ROOT) });
+  for (const l of v.lines) s.say(l);
+  if (!v.green) return 1;
+  const notes = await readNotes(s, run.id);
+  if (notes === null) {
+    s.say(`REFUSED the run's ${NOTES_ARTIFACT} artifact could not be read, so its notes are not checked`);
+    return 1;
+  }
+  s.say("the notes this release will carry:");
+  for (const l of notes.split(/\r?\n/)) s.say(`  | ${l}`);
+  const ok = await s.gh([
+    "api",
+    "-X",
+    "POST",
+    `repos/{owner}/{repo}/actions/runs/${run.id}/pending_deployments`,
+    "-F",
+    `environment_ids[]=${env.id}`,
+    "-f",
+    "state=approved",
+    "-f",
+    "comment=Approved by bun nv ci --approve-release: every job before publish passed.",
+  ]);
+  if (ok.code !== 0) {
+    s.say(`could not approve the ${RELEASE_ENV} environment: ${firstLine(ok)}`);
+    return 1;
+  }
+  s.say(`approved the ${RELEASE_ENV} environment of ${run.html_url}: watch it with \`bun nv ci --watch --release\``);
+  return 0;
+}
+
+/** The notes of run `id`, from its `release-notes-preview` artifact, or null. The download is deleted. */
+async function readNotes(s: CiSeams, id: number): Promise<string | null> {
+  const dir = join(s.root, ".agent-tmp", "ci", `notes-${id}`);
+  rmSync(dir, { recursive: true, force: true });
+  try {
+    const r = await s.gh(["run", "download", String(id), "-n", NOTES_ARTIFACT, "-D", dir]);
+    const file = join(dir, NOTES_FILE);
+    return r.code === 0 && existsSync(file) ? readFileSync(file, "utf8").trimEnd() : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The assets of `draftAssets` that release `rel` lacks. */
+export function missingAssets(root: string, rel: GhRelease): string[] {
+  const version = rel.tag_name.replace(/^v/, "");
+  return draftAssets(root, version).filter((a) => !rel.assets.includes(a));
+}
+
+/**
+ * Publishes the draft the newest real `Release` run made. It refuses unless every job of that run passed,
+ * `publish` and `docker` included, and the draft carries every asset `draftAssets` names.
+ */
+async function publishRelease(s: CiSeams): Promise<number> {
+  const run = await newestReal(s, "publish");
+  if (run === null) return 1;
+  if (!done(run)) {
+    s.say(`REFUSED the run has not ended: ${runLine(run)}`);
+    return 1;
+  }
+  const jobs = await listJobs(s, run.id);
+  const v = judgeRun({ run, jobs, stage: "real", ciRuns: await ciRunsFor(s, run, jobs), optional: optionalLegs(ROOT) });
+  for (const l of v.lines) s.say(l);
+  if (!v.green) return 1;
+  const rel = await releaseOf(s, run);
+  if (rel === null) {
+    s.say("REFUSED no release was drafted after the run started");
+    return 1;
+  }
+  if (!rel.draft) {
+    s.say(`the release ${rel.tag_name} is published already: ${rel.html_url}`);
+    return 0;
+  }
+  const missing = missingAssets(ROOT, rel);
+  if (missing.length > 0) {
+    s.say(`REFUSED the draft ${rel.tag_name} lacks ${missing.join(", ")}  ${rel.html_url}`);
+    return 1;
+  }
+  const ok = await s.gh(["release", "edit", rel.tag_name, "--draft=false"]);
+  if (ok.code !== 0) {
+    s.say(`could not publish ${rel.tag_name}: ${firstLine(ok)}`);
+    return 1;
+  }
+  s.say(`published ${rel.tag_name}: ${rel.html_url}`);
+  s.say("its promote run moves the image tags next: read it with `bun nv ci --release-published`");
+  return 0;
+}
+
+// ---- --release-published ------------------------------------------------------------------------------
+
+/** What `judgePublished` reads, each part fetched by `releasePublished`. */
+export interface PublishedFacts {
+  release: GhRelease | null;
+  /** Whether the tag's commit is on `origin/main`, as GitHub's compare API says. */
+  onMain: boolean;
+  /** The newest `Promote release images` run for the tag, or null. */
+  promote: Run | null;
+  /** The HTTP status of the anonymous manifest read, or of the token request when that failed. */
+  image: number;
+}
+
+/** The step a person takes once, which no API can: GitHub makes a new package private. */
+export const VISIBILITY_CLICK = `make the GHCR package ${IMAGE.split("/")[1]} public: Packages → ${IMAGE.split("/")[1]} → Package settings → Change visibility → Public`;
+
+/**
+ * Judges the newest release: it is not a draft, its tag's commit is on `origin/main`, its promote run
+ * passed, and its version tag pulls from `ghcr.io` with no login. A `401` or `403` on the pull is a
+ * private package, and its line names the visibility click as the one step left to the user.
+ */
+export function judgePublished(f: PublishedFacts): Verdict {
+  const lines: string[] = [];
+  let green = true;
+  const fail = (l: string) => {
+    green = false;
+    lines.push(l);
+  };
+  const rel = f.release;
+  if (rel === null) {
+    fail("RED there is no release: cut one with `bun nv ci --dispatch release`");
+    return { green, lines };
+  }
+  const version = rel.tag_name.replace(/^v/, "");
+  lines.push(`release ${rel.tag_name}  ${rel.html_url}`);
+  if (rel.draft) fail(`RED ${rel.tag_name} is a draft: publish it with \`bun nv ci --publish-release\``);
+  else lines.push(`  ok ${rel.tag_name} is published`);
+  if (f.onMain) lines.push(`  ok its tag is on origin/${BRANCH}`);
+  else fail(`RED its tag's commit is not on origin/${BRANCH}`);
+  const p = f.promote;
+  if (p === null) fail(`RED no ${PROMOTE_FILE} run for ${rel.tag_name}: it starts when the release is published`);
+  else if (!done(p)) fail(`RED its promote run has not ended: ${runLine(p)}`);
+  else if (p.conclusion !== "success") fail(`RED its promote run ended ${p.conclusion}: ${p.html_url}`);
+  else lines.push(`  ok its promote run passed  ${p.html_url}`);
+  const ref = `ghcr.io/${IMAGE}:${version}`;
+  if (f.image === 200) lines.push(`  ok ${ref} pulls with no login`);
+  else if (f.image === 401 || f.image === 403) {
+    fail(`RED ${ref} does not pull with no login, since the package is private`);
+    lines.push(`  the one step left is the user's: ${VISIBILITY_CLICK}`);
+  } else fail(`RED ${ref} has no manifest (HTTP ${f.image})`);
+  lines.push(green ? `GREEN ${rel.tag_name} is published: ${rel.html_url}` : `RED ${rel.tag_name} is not published whole`);
+  return { green, lines };
+}
+
+/** The HTTP status of reading `version`'s manifest from `ghcr.io` with an anonymous token. */
+async function imageStatus(s: CiSeams, version: string): Promise<number> {
+  const t = await s.fetch(`https://ghcr.io/token?scope=repository:${IMAGE}:pull`, {});
+  if (t.status !== 200) return t.status;
+  const token = (JSON.parse(t.body) as { token?: string }).token ?? "";
+  const m = await s.fetch(`https://ghcr.io/v2/${IMAGE}/manifests/${version}`, { Authorization: `Bearer ${token}`, Accept: MANIFEST_TYPES });
+  return m.status;
+}
+
+/**
+ * `--release-published`: 0 when the newest release is published whole, 1 when it is not, 2 when `gh` or
+ * the registry cannot answer. It reads only.
+ */
+async function releasePublished(s: CiSeams): Promise<number> {
+  const release = (await listReleases(s)).find((r) => !r.prerelease) ?? null;
+  let onMain = false;
+  let promote: Run | null = null;
+  let image = 0;
+  if (release !== null) {
+    const sha = await tagCommit(s, release.tag_name);
+    const cmp = await ghJson<string>(s, ["api", `repos/{owner}/{repo}/compare/${sha}...${BRANCH}`, "--jq", ".status | tojson"]);
+    onMain = cmp === "identical" || cmp === "ahead";
+    const promotes = await ghJson<(Run & WorkflowRun)[]>(s, [
+      "api",
+      `repos/{owner}/{repo}/actions/workflows/${PROMOTE_FILE}/runs?event=release&per_page=20`,
+      "--jq",
+      "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title, path, created_at}]",
+    ]);
+    promote = promotes.filter((r) => r.head_branch === release.tag_name).sort((a, b) => b.id - a.id)[0] ?? null;
+    image = await imageStatus(s, release.tag_name.replace(/^v/, ""));
+  }
+  const v = judgePublished({ release, onMain, promote, image });
   for (const l of v.lines) s.say(l);
   return v.green ? 0 : 1;
 }
@@ -785,11 +1174,12 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   let next = false;
   let release = false;
   let kind: DispatchKind | undefined;
-  let bad = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status"].includes(mode ?? "") ? "" : "name one mode";
+  const modes = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status", "--approve-release", "--publish-release", "--release-published"];
+  let bad = modes.includes(mode ?? "") ? "" : "name one mode";
   if (bad === "" && mode === "--dispatch") {
     const k = args[1];
-    if (k === "full" || k === "dry-run") kind = k;
-    else bad = "--dispatch takes `full` or `dry-run`";
+    if (k === "full" || k === "dry-run" || k === "release") kind = k;
+    else bad = "--dispatch takes `full`, `dry-run` or `release`";
   }
   for (let i = kind === undefined ? 1 : 2; i < args.length && bad === ""; i++) {
     const v = args[i + 1];
@@ -818,6 +1208,9 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
     if (mode === "--status") return await status(s);
     if (mode === "--dispatch" && kind !== undefined) return await dispatch(s, kind);
     if (mode === "--release-status") return await releaseStatus(s);
+    if (mode === "--approve-release") return await approveRelease(s);
+    if (mode === "--publish-release") return await publishRelease(s);
+    if (mode === "--release-published") return await releasePublished(s);
     return await rerun(s);
   } catch (e) {
     if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;

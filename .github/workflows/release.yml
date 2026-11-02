@@ -1,10 +1,13 @@
 # The release cycle: test everything, build everything, and only then write anything.
 #
-# Fired by hand from the Actions tab. Nothing here runs on a push, on a schedule or from a fork —
-# a release is a decision a person takes, and this file never takes it on its own. Only a person
-# dispatches a real run. An agent may dispatch a dry run, which writes nothing, with
+# Fired by `workflow_dispatch` alone. Nothing here runs on a push, on a schedule or from a fork —
+# a release is a decision a person takes, and this file never takes it on its own. A person
+# dispatches a real run from the Actions tab, or an agent does with `bun nv ci --dispatch release`
+# when, and only when, the live goal says to cut the release; that command refuses unless a dry run
+# of `main`'s tip is green. Any agent may dispatch a dry run, which writes nothing, with
 # `bun nv ci --dispatch dry-run`, whose one argv carries `dry_run=true`. `run-name` puts
-# `(dry run)` in such a run's title, which is how `bun nv ci --release-status` tells it apart.
+# `(dry run)` in such a run's title, which is how `bun nv ci --release-status` tells it apart. The
+# `release` environment's approval stays the gate before anything is written, whoever gives it.
 #
 # ## The order, and why it is this order
 #

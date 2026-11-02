@@ -5,12 +5,17 @@ schedule is [.github/workflows/release.yml](../.github/workflows/release.yml) an
 it makes is `bun nv release`, in [tools/nv/cmd/release.ts](../tools/nv/cmd/release.ts) — that split is the workflow header's subject
 and is not repeated here. **This file is the procedure and the one-time GitHub setup it needs.**
 
-Nothing here is automatic. No push, no schedule and no agent may start a release; the workflow has
-exactly one trigger, `workflow_dispatch`, and only a person dispatches a real run. The one exception
-is a **dry run**, which writes nothing, tags nothing and pushes no image: an agent may dispatch one
-with `bun nv ci --dispatch dry-run`, whose single argv always carries `dry_run=true`, and read its
-verdict with `bun nv ci --release-status`. The workflow's `run-name` titles such a run
-`Release (dry run)` in the Actions list.
+Nothing here is automatic. No push and no schedule starts a release; the workflow has exactly one
+trigger, `workflow_dispatch`. A **dry run** writes nothing, tags nothing and pushes no image, and any
+agent may dispatch one with `bun nv ci --dispatch dry-run`, whose single argv always carries
+`dry_run=true`, and read its verdict with `bun nv ci --release-status`. The workflow's `run-name`
+titles such a run `Release (dry run)` in the Actions list.
+
+A **real run** is a person's decision. A person cuts it from the Actions tab, or an agent cuts it
+through `bun nv ci`, only when the live goal under `docs/goals/` says to cut a release, and only with
+the commands § *Cutting a release* names. Those commands refuse a real run without a green dry run of
+`main`'s tip, approve only a run whose every build passed, and publish only a whole draft. No
+command cancels a `Release` run.
 
 ## What happens, in order
 
@@ -138,7 +143,10 @@ thing to question.
 
 ## Cutting a release
 
-This is the whole of a real run, the first one included. Step 9 is once, ever.
+This is the whole of a real run, the first one included. Step 9 is once, ever. Each step names the
+click a person makes and the `bun nv ci` command an agent runs in its place, under a live goal that
+says to cut the release. Each command waits for the step before it to be green, and step 9 is a
+person's click either way.
 
 1. **The registry's verifier key is pinned.** `DEFAULT_KEY` in
    [manifest.rs](../crates/nvs-cli/src/package/manifest.rs) is the public key of
@@ -155,11 +163,14 @@ This is the whole of a real run, the first one included. Step 9 is once, ever.
 
    That prints the exact version and the exact notes the run will produce.
 
-3. **Pause the loop.** `publish` takes the current tip of `main` and pushes onto it; if the
-   unattended loop commits in the same few seconds, the push is rejected and the run fails after
-   the builds. Nothing is corrupted — but the whole matrix has to run again.
+3. **Pause the loop** with `looper loop pause`. `publish` takes the current tip of `main` and pushes
+   onto it; if the unattended loop commits in the same few seconds, the push is rejected and the run
+   fails after the builds. Nothing is corrupted — but the whole matrix has to run again.
 
-4. **Actions → Release → Run workflow.** Choose the branch `main` and:
+4. **Start the run.** An agent runs `bun nv ci --dispatch release`, then `bun nv ci --watch
+   --release`. The command refuses unless the newest completed `Release` run is a green dry run of
+   `main`'s tip, and while any `Release` run is going. A person uses **Actions → Release → Run
+   workflow**, chooses the branch `main`, and sets:
 
    | Input | |
    |---|---|
@@ -169,10 +180,14 @@ This is the whole of a real run, the first one included. Step 9 is once, ever.
    | `dry_run` | **leave it unticked** for a real run. A dry run does everything except the writing; `bun nv ci --dispatch dry-run` starts one, and `bun nv ci --release-status` reads it. A green dry run on `main`'s tip is the rehearsal |
 
 5. **Approve the `release` environment** when the run pauses, after checking the notes in the run
-   summary and that every build leg passed.
+   summary and that every build leg passed. `bun nv ci --approve-release` does both checks, prints
+   the notes, and then approves. It refuses a dry run, a run not waiting on `release`, and a run
+   where a job before `publish` did not pass.
 
 6. **Review the draft** at *Releases*, then press **Publish**. The workflow never does: everything
-   it produces is a draft, and announcing it is a separate human decision.
+   it produces is a draft, and announcing it is a separate decision. `bun nv ci --publish-release`
+   publishes it only when every job passed, `docker` included, and the draft has each required
+   archive, the `.vsix` and `SHA256SUMS`.
 
 7. That click starts [release-promote.yml](../.github/workflows/release-promote.yml), which points
    the `latest` and `MAJOR.MINOR` container tags at the digest already published under the version
@@ -181,13 +196,18 @@ This is the whole of a real run, the first one included. Step 9 is once, ever.
    `GITHUB_TOKEN`, and that push started no workflow. If the `docker` job had to be re-run by hand
    and the promotion was therefore missed, dispatch that workflow with the tag — it is idempotent.
 
-8. **Resume the loop.**
+8. **Resume the loop.** First `git fetch` and `git merge --ff-only origin/main`, so local `main`
+   has `publish`'s version commit, then `looper loop resume`.
 
 9. **After the first release, make the container package public:** setup § 6, *Packages → `novis`
-   → Package settings → Change visibility → Public*.
+   → Package settings → Change visibility → Public*. GitHub has no API for this, so it is always a
+   person's click.
 
-10. **Check what a user gets.** `docker pull ghcr.io/novis-lang/novis:<version>` succeeds without a
-    login, and each archive link on the website's
+10. **Check what a user gets.** `bun nv ci --release-published` checks that the release is
+    published, its tag is on `main`, its promote run passed, and
+    `ghcr.io/novis-lang/novis:<version>` pulls with no login. When only the last part fails, the
+    package is still private, and it prints step 9 as the one step left. Then check by hand that
+    each archive link on the website's
     [install page](../website/src/content/docs/install/index.mdx) downloads.
 
 ## The version scheme is not plain SemVer

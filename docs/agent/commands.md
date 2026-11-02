@@ -630,9 +630,12 @@ bun nv side --prepare --hook                          # looper's before_run: rea
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
-bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release (never a real one), on main
+bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release, on main
+bun nv ci --dispatch release                          # the real Release, only under a live goal that says so (docs/release.md)
 bun nv ci --watch --release                           # watches the newest Release run, and cancels no run
-bun nv ci --release-status                            # the newest completed dry-run Release: green, or each job that is not
+bun nv ci --release-status                            # the newest completed Release, dry or real: green, or each job that is not
+bun nv ci --approve-release | --publish-release       # approves the waiting real run, then publishes its whole draft
+bun nv ci --release-published                         # the newest release: published, tag on main, images promoted and public
 bun nv debt                                           # pays the floor debt: the floor check `floor-debt`
 
 bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
