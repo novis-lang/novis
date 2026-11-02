@@ -37,7 +37,7 @@ checks:
   - id: lsp-work-counted
     stage: 1
     name: an analysis and a settled refresh report the files they parsed and the files whose bodies they checked
-    run: [bun, nv, verify, --fast, -p, nvs-lsp]
+    run: [cargo, test, --test, incremental]
     timeout: 1800
     tests:
       - the_generated_tree_has_the_programs_and_the_library_it_was_asked_for
@@ -45,7 +45,7 @@ checks:
   - id: hir-parse-cache
     stage: 2
     name: the program walk takes a parse it is handed and parses no file it was given
-    run: [bun, nv, verify, --fast, -p, nvs-hir]
+    run: [cargo, test, --lib, --, a_walk_takes_a_cached_parse_and_parses_no_file_it_was_given, a_cached_parse_replays_its_parse_diagnostics]
     timeout: 1800
     tests:
       - a_walk_takes_a_cached_parse_and_parses_no_file_it_was_given
@@ -53,7 +53,7 @@ checks:
   - id: lsp-parse-cache
     stage: 2
     name: an unchanged file is parsed once across keystrokes
-    run: [bun, nv, verify, --fast, -p, nvs-lsp]
+    run: [cargo, test, --test, incremental]
     timeout: 1800
     tests:
       - an_unchanged_file_is_parsed_once_across_keystrokes
@@ -61,7 +61,7 @@ checks:
   - id: types-partial-check
     stage: 3
     name: a check of a body set with every other file's cached output reports and records what a whole check does
-    run: [bun, nv, verify, --fast, -p, nvs-types]
+    run: [cargo, test, --test, partial_check]
     timeout: 1800
     tests:
       - a_partial_check_with_cached_outputs_matches_a_whole_check
@@ -72,7 +72,7 @@ checks:
   - id: lsp-surface
     stage: 4
     name: a body-only edit keeps a file's surface hash, a declaration edit changes it, and only a changed surface re-queues readers
-    run: [bun, nv, verify, --fast, -p, nvs-lsp]
+    run: [cargo, test, --test, incremental]
     timeout: 1800
     tests:
       - a_body_only_edit_keeps_the_surface_hash
@@ -82,7 +82,7 @@ checks:
   - id: lsp-incremental
     stage: 5
     name: a body-only keystroke in a library file parses one file and checks one file's bodies whatever the number of programs, and a cached analysis reports what a fresh one does
-    run: [bun, nv, verify, --fast, -p, nvs-lsp]
+    run: [cargo, test, --test, incremental]
     timeout: 1800
     tests:
       - a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies
@@ -92,7 +92,7 @@ checks:
   - id: lsp-disk-index
     stage: 6
     name: a cold start with a valid on-disk index analyses only the open document's entry, and a stale, foreign or broken index file is never trusted
-    run: [bun, nv, verify, --fast, -p, nvs-lsp]
+    run: [cargo, test, --test, incremental]
     timeout: 1800
     tests:
       - a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry
@@ -503,20 +503,17 @@ Every stage is done, and the goal is reached. The rule is
 The Standing decisions are all in that fragment or in the module docs of `parse_cache.rs`,
 `session.rs`, `surface.rs`, `disk_index.rs` and `nvs_types::partial`.
 
-The gate: the first whole verify had one red, `only_the_language_server_switches_the_recording_on`
-in `crates/nvs-types/tests/provenance.rs`. `ExprTypeTable::part` called `record_provenance`,
-which only `nvs-lsp` may call, and now copies the field. The second verify was green. The latency
-guard was green, so the interner's copy-on-write did not show. `bun nv verify --doc` and
-`bun nv owners --closes incremental-index` are green.
+The whole verify (`bun tools/looper/main.ts verify`) is green, as are the latency guard,
+`bun nv verify --doc` and `bun nv owners --closes incremental-index`.
 
-`bun nv ci --check` is green except `site questions` for `/in-depth/personal-opinions/`. The red comes
-from the user's uncommitted edit to `website/src/content/docs/in-depth/personal-opinions.mdx`, made
-after their commit `ad8b83e75` stamped the page. The session did not touch it. It clears once the user
-runs `bun nv site --questions --stamp /in-depth/personal-opinions/` with their edit.
+`bun nv ci --check` is green except `site questions` for `/in-depth/personal-opinions/`, from the
+user's uncommitted edit to that page, which no session touches. It clears once the user runs
+`bun nv site --questions --stamp /in-depth/personal-opinions/` with their edit.
 
-The installed `looper` binary has no `verify` subcommand, so the gate ran
-`bun tools/looper/main.ts verify`. The sweep's reds were stale: no `env-secret-proofs` check is
-defined, and nightly `41428598621` was cancelled by a later push.
+The seven checks that name tests run `cargo test` over the binary that holds them, since
+`bun nv verify` prints no test names. `bun tools/looper/main.ts check --name` is green for all seven.
+The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
+cancelled by a later push.
 
 ### Next
 
