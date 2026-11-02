@@ -14,7 +14,7 @@ stages:
     context: [.github/workflows/ci.yml, docs/rules/testing/ci-lanes.md, docs/rules/testing/the-deep-lane.md, docs/agent/testing.md]
   - id: 3
     title: "a dry-run Release run on main's tip is green in every job"
-    status: open
+    status: done
     context: [.github/workflows/release.yml, .github/workflows/build.yml, .github/workflows/image.yml, docker/README.md]
   - id: 4
     title: "bun nv ci cuts a real release: dispatch, approve, publish, and the published verdict"
@@ -317,8 +317,8 @@ dry run's `verify` job runs the full suite itself, and its reds are read the sam
 
 - [x] The first dry run is dispatched. It runs on `df536b806`, since another session's CI cache commit `9d94ca78a` had to be pushed first, so its `verify` job runs the full suite itself. `.github/workflows/release.yml:210`
 - [x] The fixtures of the `ci-release-tests` check are compared with the job names the first dry run shows, and corrected in the same slice if they differ. `tools/nv/test/ci.test.ts:314`
-- [ ] Every red of `plan`, `build`, the `.vsix` and `docker` is fixed at its cause, one commit per cause. `.github/workflows/build.yml:1`, `.github/workflows/image.yml:1`, `tools/nv/cmd/release.ts:821`
-- [ ] `bun nv ci --release-status` exits 0. `tools/nv/cmd/ci.ts:537`
+- [x] Every red of `plan`, `build`, the `.vsix` and `docker` is fixed at its cause, one commit per cause. `.github/workflows/build.yml:1`, `.github/workflows/image.yml:1`, `tools/nv/cmd/release.ts:821`
+- [x] `bun nv ci --release-status` exits 0. `tools/nv/cmd/ci.ts:537`
 
 ### 4. bun nv ci cuts a real release: dispatch, approve, publish, and the published verdict
 
@@ -360,36 +360,25 @@ are one session's, one step per turn, each waiting on its watch.
 
 ### State
 
-Stages 1 and 2 are done. Full run `41346116301` on `ec40af25e` is green in all 56 jobs, and
-`bun nv release --tested` printed `tested=true` for it. The macOS CPU-stop cause is fixed in
-`01ac9f143` (`wake_on_time`, `crates/nvs-host/src/watchdog.rs:1461`).
+Stages 1 to 3 are done. Dry run `41371737071` on `eb9358fdb` passed every job, its `verify` job
+running the full suite, and `bun nv ci --release-status` printed `GREEN`. Every commit since is
+under `docs/goals/`.
 
-Stage 3: dry run `41352454403` on `df536b806` passed every job, its `verify` job running the full
-suite. Only the optional `build / build windows-aarch64` failed, in its `Build` step. It does not
-stand for `main`, since `613573f75` (the registry key) is code.
+Its one red is the optional `build / build windows-aarch64` leg: `corosensei` 0.3.4, the newest
+release, has no `aarch64` backend on Windows (its `src/arch/mod.rs:160`, then `compile_error!` at
+177). `Cargo.toml:122` pulls it. The release ships without that leg.
 
-`eb9358fdb` fixes `--watch --release`: GitHub sets a run's `name` from `run-name`, so the watch
-looked for `Release` and never saw `Release (dry run)`. Runs are now named from their `path`
-(`workflowOf`, `tools/nv/cmd/ci.ts`). The test fixture's image jobs are `(debian)`, as on GitHub.
+`--watch --release` stops at any failed job, so the first watch exited 1 on that leg. A second
+watch with `--past "build / build windows-aarch64"` read the run to its green end.
 
-Dry run `41371737071` on `eb9358fdb` is going, with `verify` running the full suite again. Its
-`plan`, `lint`, `docs`, `asan`, `tsan` and `container images` jobs had passed when this session
-started its watch, `bun nv ci --watch --release --max-min 110`, in the background.
-
-`build / build windows-aarch64` cannot build: `corosensei` 0.3.4, the newest release, has no
-context-switch backend for `aarch64` on Windows (its `src/arch/mod.rs:160` excludes it, and line 177 is
-`compile_error!("Unsupported target")`). `Cargo.toml:122` and `crates/nvs-host/Cargo.toml:44` pull it.
-The leg is `optional: true`, so the release ships without it. No change was made while the dry run is
-going, since a `build.yml` edit would stop it standing for `main`.
-
-The first watch exited 1 on that optional leg: `--watch --release` stops at any failed job, while
-`--release-status` passes over an optional one. The watch runs again with `--past "build / build
-windows-aarch64"`, and exits 4 when that leg is the run's only red.
+Stage 4 is code in `tools/nv/cmd/ci.ts` alone, with its tests. It changes `main`, so stage 5's dry
+run on the final tip is the one the real run stands on.
 
 ### Next
 
-- [ ] Read the watch's report. Exit 4 with only the arm64 leg red is the green case. A watch that exits 3 is started again with the same `--past`. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
-- [ ] On green: `bun nv ci --release-status` exits 0, then stage 4. `tools/nv/cmd/ci.ts:537`
+- [ ] Stage 4's items, in order, with checkpoints written under each first. The judge to reuse is `judgeDryRun` (`tools/nv/cmd/ci.ts:707`), fed by `releaseStatus` (`tools/nv/cmd/ci.ts:754`). The argvs are `DISPATCH` (`tools/nv/cmd/ci.ts:115`), and the notes rule is `NOTES_ONLY` (`tools/nv/cmd/ci.ts:131`).
+- [ ] With them, `watch` (`tools/nv/cmd/ci.ts:431`) passes over a failed optional `build` leg under `--release`, as the backlog bullet says.
+- [ ] Run once by name: `bun test tools/nv/test/ci.test.ts`. No Rust changes, so no `cargo build`. `tools/nv/test/ci.test.ts:314`
 
 No test is expected to go red.
 
