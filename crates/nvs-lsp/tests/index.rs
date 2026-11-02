@@ -157,7 +157,12 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
     // refreshed as documents arrive; the one a `.lspt` case is answered
     // against; and the `Workspace` `nvs code` asks by name. The last two are
     // built for one question and dropped with its answer.
-    for (file, _) in code_hits("SymbolIndex::build") {
+    // `SymbolIndex::planned` is the session's index before it is settled, and
+    // is held to the same rule.
+    for (file, _) in code_hits("SymbolIndex::build")
+        .into_iter()
+        .chain(code_hits("SymbolIndex::planned"))
+    {
         assert_eq!(
             file, "server.rs",
             "the index is built outside the one module that owns one"
@@ -195,20 +200,21 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 }
 
 /// The index's read-only methods that answer nobody's feature: how much it
-/// holds, whether it holds one file, how many of its files had errors, and
-/// which entry points read one file.
+/// holds, whether it holds one file, how many of its files had errors, which
+/// entry points read one file, and which entry points wait to be settled.
 ///
-/// The refresh path, `nvs code`, a file move's `require` rewrite and this
-/// suite ask these; a feature asks the queries beside them, which is what
-/// [`every_reader_queries_the_one_index`] counts. None of them looks a name
-/// up.
-const BOOKKEEPING: [&str; 6] = [
+/// The refresh path, the server's loop, `nvs code`, a file move's `require`
+/// rewrite and this suite ask these; a feature asks the queries beside them,
+/// which is what [`every_reader_queries_the_one_index`] counts. None of them
+/// looks a name up.
+const BOOKKEEPING: [&str; 7] = [
     "files",
     "holds",
     "len",
     "is_empty",
     "files_with_errors",
     "readers",
+    "pending",
 ];
 
 /// Eight readers, and each one of them is a query against the one index.
@@ -289,8 +295,8 @@ fn every_reader_queries_the_one_index() {
         }
     }
 
-    // Every read-only method the index offers. `build`, `refresh` and
-    // `invalidate` are not among them: they take the index mutably, and holding
+    // Every read-only method the index offers. `build`, `planned`, `refresh`
+    // and `settle` are not among them: they make or take the index mutably, and holding
     // one that way is the construction site's business rather than a feature's.
     let source = fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -478,6 +484,63 @@ fn a_change_invalidates_the_file_and_its_readers_and_nothing_else() {
         names(&dropped),
         vec!["main.nvs".to_owned()],
         "editing a document invalidated a file that only it requires"
+    );
+}
+
+/// A reader nobody has open waits for `settle`, and keeps its files indexed
+/// while it waits. The open document is re-indexed at once.
+#[test]
+fn a_reader_that_is_not_open_waits_and_keeps_its_files() {
+    let dir = TempDir::new("pending");
+    dir.write("lib.nvs", LIB);
+    dir.write("main.nvs", MAIN);
+    let mut documents = Documents::new();
+    dir.open(&mut documents, "lib.nvs", LIB);
+
+    let mut index =
+        SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
+    assert!(index.pending().is_empty(), "`build` settles every entry");
+    let calls = |index: &SymbolIndex| {
+        index
+            .occurrences_in(&dir.at("main.nvs"))
+            .iter()
+            .filter(|used| used.symbol == "Counter::bump")
+            .count()
+    };
+    assert_eq!(calls(&index), 1, "main.nvs calls `bump` once");
+
+    // The method is renamed in the open buffer, so the call in main.nvs no
+    // longer resolves to it.
+    let renamed = LIB.replace("bump", "step");
+    let uri = uri_of(&dir.at("lib.nvs")).expect("a temp path is UTF-8");
+    assert!(documents.change(&uri, 2, renamed));
+    let refreshed = index.refresh(&documents, &dir.at("lib.nvs"));
+    assert_eq!(
+        names(&refreshed.dropped),
+        vec!["lib.nvs".to_owned()],
+        "only the open document is re-indexed before the next answer"
+    );
+    assert_eq!(
+        names(&index.pending().iter().cloned().collect::<Vec<_>>()),
+        vec!["main.nvs".to_owned()],
+        "the reader nobody has open waits"
+    );
+    assert!(
+        index.declaration("Counter::step").is_some(),
+        "the open document's new declaration is indexed at once"
+    );
+    assert_eq!(
+        calls(&index),
+        1,
+        "a waiting reader keeps the uses its last analysis found"
+    );
+
+    index.settle(&documents);
+    assert!(index.pending().is_empty(), "`settle` empties the queue");
+    assert_eq!(
+        calls(&index),
+        0,
+        "the settled reader is indexed against the renamed method"
     );
 }
 

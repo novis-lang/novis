@@ -37,16 +37,27 @@
 //! An entry point records **every file its analysis read**, which is
 //! `nvs_lsp::Analysed::files` — the same set [`crate::Documents::record_graph`]
 //! keeps for republishing — once, and each file it indexed names that entry
-//! point. A `didChange` therefore drops the file that changed
-//! and every file whose entry was produced by an analysis that read it, and
-//! nothing else, which is what [`SymbolIndex::invalidate`] is and what
-//! `tests/index.rs` pins. Following the `require` edge instead would need a
-//! second graph, kept by hand, that says the same thing.
+//! point. A `didChange` therefore re-indexes the file that changed and every
+//! file whose entry was produced by an analysis that read it, and nothing
+//! else, which is what [`SymbolIndex::refresh`] does and what `tests/index.rs`
+//! pins. Following the `require` edge instead would need a second graph, kept
+//! by hand, that says the same thing.
 //!
-//! This is also the whole of why the index is warm at all: a keystroke costs
-//! one analysis of the changed file's graph rather than a walk of the
-//! workspace, which is the bound `rule:ide/a-full-reanalysis-stays-under-a-bound`
-//! names and `tests/latency.rs` measures with the index warm.
+//! # Decision: only the open documents are analysed before an answer
+//!
+//! A keystroke re-analyses the open documents among the readers at once,
+//! because those are published and a cursor stands in them. Every other reader
+//! waits in [`SymbolIndex::pending`], and the server settles one entry at a
+//! time while no message is waiting. The first build is the same queue. So a
+//! completion or a hover waits for one analysis of its own document, never
+//! for the tree. Its files stay indexed while it waits: their text did not
+//! change, so only what a use in them resolved to can be behind. A reader that
+//! needs every file, such as references, rename and the hierarchies, settles
+//! the queue before it answers.
+//!
+//! An entry is analysed only when it would index a file nobody indexed yet, or
+//! re-index files it owns. A library that many programs autoload is one graph
+//! that every program and every test reaches, so this skips most of the tree.
 //!
 //! # Decision: the scope selects the tree, and never the construction site
 //!
@@ -72,9 +83,11 @@
 //!
 //! # What it costs
 //!
-//! An edit re-analyses every indexed entry whose graph read the changed file,
-//! which [`SymbolIndex::invalidate`] returns. That is linear in the readers per
-//! edit.
+//! An edit re-analyses the open entries whose graph read the changed file
+//! before the next answer, and every other such entry when the server is idle.
+//! The whole is linear in the readers per edit, and the part a cursor waits for
+//! is linear in the open documents. The queue spends one path per waiting
+//! entry.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -350,7 +363,7 @@ struct Indexed {
     broken: bool,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
-    /// [`SymbolIndex::invalidate`] follows.
+    /// [`SymbolIndex::refresh`] follows.
     entry: PathBuf,
 }
 
@@ -398,6 +411,11 @@ pub struct SymbolIndex {
     by_request: Postings,
     /// Every entry of an indexed file's `unfollowed`, by what it names.
     by_unfollowed: Postings,
+    /// The entry points whose analysis is waiting, in path order: the tree of
+    /// a [`planned`](Self::planned) index, and each entry a
+    /// [`refresh`](Self::refresh) found reading the changed file and did not
+    /// analyse at once. One path per entry, freed as it is settled.
+    pending: BTreeSet<PathBuf>,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -418,16 +436,34 @@ impl SymbolIndex {
     /// would index whatever happened to be beside it.
     #[must_use]
     pub fn build(documents: &Documents, scope: CheckScope, root: Option<&Path>) -> Self {
-        let mut index = Self::default();
-        for (path, version) in tree(documents, scope, root) {
-            index.absorb(documents, &path, version);
-        }
+        let mut index = Self::planned(documents, scope, root);
+        index.settle(documents);
         index
     }
 
-    /// Re-indexes `changed` and every file whose analysis read it, and nothing
-    /// else, returning the files that were dropped and the analyses of the
-    /// open documents among the entries it re-analysed.
+    /// [`build`](Self::build) with nothing analysed yet: every entry point the
+    /// tree selects waits in [`pending`](Self::pending), and
+    /// [`settle_one`](Self::settle_one) analyses them one at a time.
+    ///
+    /// The server holds this one and settles it while no message is waiting,
+    /// so the first answer about an open document never waits for the whole
+    /// tree. A reader that needs every file calls [`settle`](Self::settle)
+    /// first.
+    #[must_use]
+    pub fn planned(documents: &Documents, scope: CheckScope, root: Option<&Path>) -> Self {
+        Self {
+            pending: tree(documents, scope, root)
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect(),
+            ..Self::default()
+        }
+    }
+
+    /// Re-indexes `changed` and every file whose analysis read it. The open
+    /// entries among them are re-analysed now, and every other entry is added
+    /// to [`pending`](Self::pending). Returns the files dropped now and the
+    /// analyses of the open entries.
     ///
     /// The dropped set is the answer the test asks for and the one a caller
     /// wants anyway: it is exactly the files whose declarations and
@@ -437,52 +473,102 @@ impl SymbolIndex {
     /// An open entry is analysed under its document's own path and version,
     /// which is exactly the analysis [`crate::analyse`] makes of that document,
     /// so the server publishes from it instead of running the front end over
-    /// the same version a second time. Every other entry's analysis is dropped
-    /// as soon as it is indexed: only an open document is published for, and
-    /// keeping one analysis per open entry for the length of one edit is the
-    /// memory this spends.
+    /// the same version a second time.
+    ///
+    /// A pending entry keeps its files indexed until it is settled. Their own
+    /// text did not change, so their declarations and the sites of their
+    /// occurrences are still right, and only what a use in them resolved to
+    /// may be behind the edit. That is what lets a keystroke cost the open
+    /// documents' analyses alone: in a library many programs read, every
+    /// program and test is a reader of every file.
     pub fn refresh(&mut self, documents: &Documents, changed: &Path) -> Refreshed {
         let key = canonical_key(changed);
-        let mut entries = self.readers_of(&key);
+        let readers = self.readers_of(&key);
+        let mut now: Vec<PathBuf> = readers
+            .iter()
+            .filter(|entry| open_document(documents, entry).is_some())
+            .cloned()
+            .collect();
         // A file the index has never seen — one just opened, or one created
         // under a workspace root — is an entry point in its own right, and
-        // nothing above found it because nothing had read it yet.
-        if !entries.contains(&key) && open_document(documents, &key).is_some() {
-            entries.push(key.clone());
+        // nothing above found it because nothing had read it yet. An open file
+        // that a pending entry owns is re-indexed by its own analysis.
+        let reindexed = open_document(documents, &key).is_some();
+        if reindexed {
+            now.push(key.clone());
         }
-        entries.sort();
-        entries.dedup();
+        now.sort();
+        now.dedup();
+        for entry in readers {
+            if !now.contains(&entry) {
+                self.pending.insert(entry);
+            }
+        }
 
-        let dropped = self.invalidate(changed);
+        let mut dropped = self.drop_owned(&now);
+        if reindexed && let Some(indexed) = self.files.remove(&key) {
+            self.unpost(&key, &indexed);
+            dropped.push(key);
+        }
+        dropped.sort();
+        dropped.dedup();
         let mut analysed = Vec::new();
-        for entry in entries {
-            let open = open_document(documents, &entry);
-            match open.and_then(|document| Some((document, document.path()?))) {
-                Some((document, path)) => {
-                    if let Some(analysis) = self.absorb(documents, path, document.version()) {
-                        analysed.push((document.uri().clone(), analysis));
-                    }
-                }
-                None => {
-                    self.absorb(documents, &entry, NO_BUFFER);
-                }
+        for entry in now {
+            self.pending.remove(&entry);
+            let Some(document) = open_document(documents, &entry) else {
+                continue;
+            };
+            let Some(path) = document.path() else {
+                continue;
+            };
+            if let Some(analysis) = self.absorb(documents, path, document.version()) {
+                analysed.push((document.uri().clone(), analysis));
             }
         }
         Refreshed { dropped, analysed }
     }
 
-    /// Drops `changed` and every file whose analysis read it, returning them
-    /// in path order.
+    /// Analyses the first entry point in [`pending`](Self::pending) in path
+    /// order, and returns whether any is left.
     ///
-    /// Separate from [`refresh`](Self::refresh) because the two halves are
-    /// separately true: what goes stale is a fact about the read edge, and
-    /// what is rebuilt is a fact about the tree.
-    pub fn invalidate(&mut self, changed: &Path) -> Vec<PathBuf> {
-        let readers = self.readers_of(&canonical_key(changed));
+    /// An entry whose own file is already indexed and that owns no file is
+    /// skipped. Its analysis would read the graph another entry already
+    /// indexed, and [`absorb`](Self::absorb) keeps the first analysis that
+    /// reaches a file. Where a library is shared by many programs, this skips
+    /// most of the tree.
+    pub fn settle_one(&mut self, documents: &Documents) -> bool {
+        let Some(entry) = self.pending.pop_first() else {
+            return false;
+        };
+        let owns = self.files.values().any(|indexed| indexed.entry == entry);
+        if owns || !self.files.contains_key(&entry) {
+            self.drop_owned(std::slice::from_ref(&entry));
+            let version = open_document(documents, &entry).map_or(NO_BUFFER, |open| open.version());
+            self.absorb(documents, &entry, version);
+        }
+        !self.pending.is_empty()
+    }
+
+    /// Analyses every entry in [`pending`](Self::pending), which is what a
+    /// reader that needs every file asks for first.
+    pub fn settle(&mut self, documents: &Documents) {
+        while self.settle_one(documents) {}
+    }
+
+    /// The entry points that are waiting for [`settle_one`](Self::settle_one),
+    /// in path order.
+    #[must_use]
+    pub fn pending(&self) -> &BTreeSet<PathBuf> {
+        &self.pending
+    }
+
+    /// Drops every file the entries in `entries` indexed, and their reads, and
+    /// returns the files in path order.
+    fn drop_owned(&mut self, entries: &[PathBuf]) -> Vec<PathBuf> {
         let stale: Vec<PathBuf> = self
             .files
             .iter()
-            .filter(|(_, indexed)| readers.contains(&indexed.entry))
+            .filter(|(_, indexed)| entries.contains(&indexed.entry))
             .map(|(path, _)| path.clone())
             .collect();
         for path in &stale {
@@ -490,7 +576,7 @@ impl SymbolIndex {
                 self.unpost(path, &indexed);
             }
         }
-        for entry in &readers {
+        for entry in entries {
             self.reads.remove(entry);
         }
         stale

@@ -227,9 +227,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // this point at open scope — nothing is open yet — and filled by the
     // refresh below as documents arrive; under
     // `rule:ide/check-scope-defaults-to-the-workspace`'s `Workspace`, which is
-    // the default, it already holds every `.nvs` file under the root the
-    // client named.
-    let mut index = SymbolIndex::build(&documents, settings.scope, settings.root.as_deref());
+    // the default, every `.nvs` file under the root the client named is
+    // waiting in it, and the loop below settles them while no message waits.
+    let mut index = SymbolIndex::planned(&documents, settings.scope, settings.root.as_deref());
 
     // The values the compiler does not derive, read from the same root the
     // index walks. No root, at open scope, is no workspace and no files.
@@ -290,6 +290,26 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     // before it ever waited for anything.
                     Err(_) => return Ok(()),
                 },
+                // Index work is waiting, so the channel is only looked at. A
+                // message that is there goes first, and one entry is settled
+                // when none is. An answer therefore waits for one entry's
+                // analysis at most.
+                None if !index.pending().is_empty() => match connection.receiver.try_recv() {
+                    Ok(message) => message,
+                    Err(error) if error.is_empty() => {
+                        if !index.settle_one(&documents) {
+                            settled(
+                                connection,
+                                &index,
+                                &mut completion_files,
+                                &settings,
+                                encoding,
+                            )?;
+                        }
+                        continue;
+                    }
+                    Err(_) => return Ok(()),
+                },
                 None => match connection.receiver.recv() {
                     Ok(message) => message,
                     Err(_) => return Ok(()),
@@ -335,6 +355,18 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         settings.scope,
                         encoding,
                         &pending,
+                    )?;
+                }
+                // A reader that lists or counts across files settles the queue
+                // first, so its answer covers every file the scope selects.
+                if needs_every_file(&request.method) && !index.pending().is_empty() {
+                    index.settle(&documents);
+                    settled(
+                        connection,
+                        &index,
+                        &mut completion_files,
+                        &settings,
+                        encoding,
                     )?;
                 }
                 // The one request that changes what the server holds, so it is
@@ -534,6 +566,61 @@ fn shut_down(
     }
 }
 
+/// Whether the request `method` lists or counts uses across files, so its
+/// answer is wrong while an entry of the index is still waiting.
+///
+/// Every other request reads the open document's own analysis, or a
+/// declaration, and a waiting entry keeps its declarations. CodeLens is not
+/// here: a lens answers from what the index holds, and [`settled`] asks the
+/// client for the lenses again once the queue is empty.
+fn needs_every_file(method: &str) -> bool {
+    matches!(
+        method,
+        References::METHOD
+            | Rename::METHOD
+            | WillRenameFiles::METHOD
+            | GotoImplementation::METHOD
+            | WorkspaceSymbolRequest::METHOD
+            | TypeHierarchyPrepare::METHOD
+            | TypeHierarchySupertypes::METHOD
+            | TypeHierarchySubtypes::METHOD
+            | CallHierarchyPrepare::METHOD
+            | CallHierarchyIncomingCalls::METHOD
+            | CallHierarchyOutgoingCalls::METHOD
+            | file_kinds::METHOD
+    )
+}
+
+/// What follows once the index has no entry waiting: the completion files are
+/// checked against the whole index, and the client is asked for its lenses
+/// again, because a count may have changed while entries waited.
+///
+/// # Errors
+///
+/// When the connection is gone.
+fn settled(
+    connection: &Connection,
+    index: &SymbolIndex,
+    completion_files: &mut CompletionFiles,
+    settings: &Settings,
+    encoding: PositionEncoding,
+) -> Result<(), ServerError> {
+    if completion_files.check(index) {
+        publish_completion_files(connection, completion_files, encoding)?;
+    }
+    if settings.code_lens && settings.client.refresh_lenses {
+        connection.sender.send(
+            Request::new(
+                RequestId::from(REFRESH_LENSES.to_owned()),
+                CodeLensRefresh::METHOD.to_owned(),
+                (),
+            )
+            .into(),
+        )?;
+    }
+    Ok(())
+}
+
 /// Analyses what `changed` made stale and publishes for every open document on
 /// that list, which is the work one document-sync notification owes and the work
 /// `nvs.lsp.debounce` defers.
@@ -541,7 +628,9 @@ fn shut_down(
 /// The index is refreshed for every edit and not just for the documents
 /// [`publish`] re-analyses: a file nobody has open is still a file a reference
 /// list has to be right about, which is where the index stops being the document
-/// server `rule:ide/an-open-document-is-its-own-entry-point` describes. Before
+/// server `rule:ide/an-open-document-is-its-own-entry-point` describes. The
+/// refresh analyses the open documents now and queues every other entry, which
+/// the main loop settles while no message waits. Before
 /// the publish because that one takes the store mutably, and on this thread
 /// nothing reads the index in between. The refresh's analyses of open
 /// documents go to the publish, which sends from them instead of analysing the
@@ -614,7 +703,7 @@ fn configure(
     if changed.scope {
         let root = settings.root.as_deref();
         documents.survey(settings.scope, root);
-        *index = SymbolIndex::build(documents, settings.scope, root);
+        *index = SymbolIndex::planned(documents, settings.scope, root);
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;
         }
