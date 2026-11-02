@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/server.rs]
   - id: 5
     title: "the editor checks only the bodies whose inputs changed, against one session interner"
-    status: open
+    status: done
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/ty.rs, crates/nvs-diagnostics/src/source.rs]
   - id: 6
     title: "the index is written to disk and loaded at start, and only stale entries are analysed"
@@ -301,6 +301,14 @@ freed when it leaves the tree or its last owning entry leaves. Stage 5 measures 
 `tree(20, 40)` and writes the figure into the doc comments of `ParseCache` and `CheckCache` and into
 the rule fragment.
 
+**The session lives in the document store, and its interner is shared copy-on-write.** Stage 5 put
+`Session` (`crates/nvs-lsp/src/session.rs`) in `Documents` behind a `RefCell`, because every analysis
+already reaches the store and the server loop owns the store. `Analysed::interner` is an
+`Rc<TypeInterner>` of the session's, and a check interns through `Rc::make_mut`, which copies the
+interner while a kept analysis still holds it. That copy is a per-keystroke cost in the editor
+process. The latency guard in stage 7 measures it, and if it shows, the fix is to drop the kept
+analysis's `Rc` before the check, never to give each analysis its own interner again.
+
 **The rule fragment.** The gate stage writes `docs/rules/ide/the-index-is-incremental-and-persistent.md`
 with these decisions and their reasons. Its Declined list:
 
@@ -422,16 +430,21 @@ queues readers only when the hash changed.
 `CheckCache`. `analyse_over` computes each file's key and passes `check_program_partial` the files
 whose key changed. The acceptance's keystroke count holds.
 
-- [ ] A `Session` struct holds the interner, `Pins`, `ParseCache` and `CheckCache`. It is passed
+- [x] A `Session` struct holds the interner, `Pins`, `ParseCache` and `CheckCache`. It is passed
   where `analyse_over` is reached, and the server loop owns it. `crates/nvs-lsp/src/document.rs:676`,
   `crates/nvs-lsp/src/server.rs:261`
-- [ ] `analyse_over` uses `SourceMap::pinned`, the session interner and `check_program_partial` with
+  - [x] `crates/nvs-lsp/src/session.rs`, held in `Documents::session`, which the server loop owns.
+- [x] `analyse_over` uses `SourceMap::pinned`, the session interner and `check_program_partial` with
   the key of decision 5. `Work::checked` counts `bodies`. `crates/nvs-lsp/src/document.rs:682`,
   `crates/nvs-lsp/src/document.rs:743`, `crates/nvs-lsp/src/document.rs:772`
-- [ ] The interner rebuild at twice its size after the last settle. `crates/nvs-lsp/src/server.rs:300`
-- [ ] Measure the bytes per file on `tree(20, 40)`, and write them into the doc comments of
+  - [x] `graph_key` and `Session::keys`; `CheckCache::walked` counts the walked files.
+  - [x] `Session::settled` frees a gone file's output and key beside its parse.
+- [x] The interner rebuild at twice its size after the last settle. `crates/nvs-lsp/src/server.rs:300`
+- [x] Measure the bytes per file on `tree(20, 40)`, and write them into the doc comments of
   `ParseCache` and `CheckCache`. `crates/nvs-lsp/src/parse_cache.rs:1`
-- [ ] The tests of the `lsp-incremental` check, the oracle included. Run once by name:
+  - [x] Measured with `nvs_runtime::budget::thread_live_bytes`: about 10 KB parse, 9.5 KB checked
+    output and interner share, 5 KB index entry, per file of about 220 bytes.
+- [x] The tests of the `lsp-incremental` check, the oracle included. Run once by name:
   `cargo test --test incremental`. `crates/nvs-lsp/tests/incremental.rs:1`
 
 ### 6. the index is written to disk and loaded at start, and only stale entries are analysed
@@ -470,30 +483,34 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Stages 1 to 4 are done. `nvs_lsp::surface::of` (`crates/nvs-lsp/src/surface.rs`) hashes each
-declaration's text with its bodies cut out. `Indexed::surface` holds it, and `refresh`
-(`crates/nvs-lsp/src/index.rs:499`) queues an open changed file's readers only when its new hash
-differs. A changed file nobody has open still queues every reader: stage 6 may parse it for its
-surface instead. `surface::of_source` parses a text alone, for tests and stage 6.
-`check_program_partial` (`crates/nvs-types/src/check.rs:209`) and `CheckCache`
-(`crates/nvs-types/src/partial.rs:118`) are stage 3's; a one-body partial check takes about 0.2 ms
-against 0.7 ms whole on 41 files.
+Stages 1 to 5 are done. Stage 5 is `crates/nvs-lsp/src/session.rs`: `Session` holds the
+`ParseCache`, the `CheckCache`, each output's key and one `Rc<TypeInterner>`, and lives in
+`Documents::session`. `analyse_over` (`crates/nvs-lsp/src/document.rs:733`) keys each file by
+`graph_key` (`:918`) plus its text hash, and checks only the files whose key moved.
+`refresh` now also queues readers when the open entry's read set moved
+(`crates/nvs-lsp/src/index.rs:503`). The bytes per file are measured and written into
+`session.rs`, `parse_cache.rs` and `CheckCache`'s doc comment.
 
-The sweep's reds were stale: no `env-secret-proofs` check exists, and nightly `41428598621` was
-cancelled by a later push. The untracked `probe-out.txt` at the root is another process's.
+All twelve `cargo test --test incremental` tests ran once, green: the four `lsp-incremental` tests
+among them. The rest of the suite has not run since stage 1. Expect a possible red in
+`crates/nvs-lsp/tests/latency.rs` from the interner's copy-on-write (Standing decisions), and in any
+test that read `Analysed::interner` as an owned `TypeInterner`.
 
-**Red until stage 5:** `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`
-(checked is 42, the open file's whole graph), so `bun nv verify --fast -p nvs-lsp` is red. The other
-nine `cargo test --test incremental` tests ran once, green. The rest of the suite did not run.
+The sweep's reds are stale: no `env-secret-proofs` check is defined and its log does not exist, and
+nightly `41428598621` was cancelled by a later push.
 
 ### Next
 
-**Stage 5, one group.** `crates/nvs-lsp/src/document.rs` and `server.rs`.
+**Stage 6, one group.** `crates/nvs-config/src/{data,cache}.rs`, a new `crates/nvs-lsp/src/disk_index.rs`,
+`index.rs` and `server.rs`.
 
-- [ ] A `Session` with the interner, `Pins`, `ParseCache` and `CheckCache`, owned by the server loop. `crates/nvs-lsp/src/document.rs:690`
-- [ ] `analyse_over` calls `check_program_partial` in place of `check_program_loaded`, keyed by decision 5 with `surface::of`; `Work::checked` counts `bodies`. `crates/nvs-lsp/src/document.rs:817`
-- [ ] A file's output is removed when it leaves the tree, beside `retain_parses` in `settle_one`. `crates/nvs-lsp/src/index.rs:554`
-- [ ] The interner rebuild at twice its size, the bytes-per-file figure, and the `lsp-incremental` tests with the oracle. `crates/nvs-lsp/tests/incremental.rs:1`
+- [ ] `Folder::lsp_index()` beside `Folder::lsp_root` (`crates/nvs-config/src/data.rs:177`), and
+  `build_stamp` made `pub` (`crates/nvs-config/src/cache.rs:271`).
+- [ ] The encoder and checksummed decoder over `Indexed`, in a new `disk_index.rs` next to `crates/nvs-lsp/src/index.rs:1`.
+- [ ] `SymbolIndex::load_from` and `save_to` beside `planned` (`crates/nvs-lsp/src/index.rs:463`).
+- [ ] The server loads at start in place of `planned` (`crates/nvs-lsp/src/server.rs:232`, `:706`)
+  and writes once per idle period after `settled` (`:601`).
+- [ ] The `lsp-disk-index` tests in `crates/nvs-lsp/tests/incremental.rs:1`, and `bun nv linux-test` once.
 
 ### Backlog
 

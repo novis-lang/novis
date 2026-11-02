@@ -1,9 +1,10 @@
 //! Interned type representation (`rule:types/grammar`, `rule:types/arithmetic` and `rule:types/arrays`): every distinct type the
 //! program uses gets one [`TypeId`], and two structurally identical types
 //! share it — the "descriptors are interned process-wide" requirement,
-//! scoped for this milestone to one [`TypeInterner`] per type-check run
-//! rather than truly process-wide, since nothing yet needs a check run to
-//! outlive the request that produced it.
+//! scoped to one [`TypeInterner`] per type-check run rather than truly
+//! process-wide. The one caller that keeps an interner across checks is the
+//! language server, whose session interns every check of the editor into one
+//! so a cached output's ids stay valid.
 //!
 //! [`Ty`] mirrors [`nvs_syntax::ast::TypeAtom`] closely, but resolved: a
 //! `self`/`static`/`parent`/`type`-alias/class-name atom has already been

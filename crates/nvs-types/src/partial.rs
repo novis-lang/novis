@@ -114,6 +114,11 @@ impl FileOutput {
 /// [`crate::check::check_program_partial`] fills it with each file it walks
 /// and reads it for each file it does not. The caller removes the output of
 /// a file that left the program.
+///
+/// An output is the file's part of the expression table, its diagnostics and
+/// its rows. The language server keeps one per file of its tree, measured at
+/// under 9.5 KB a file for files of about 220 bytes of text
+/// (`nvs_lsp`'s `session` module gives the figure and how it was taken).
 #[derive(Clone, Debug, Default)]
 pub struct CheckCache {
     pub(crate) outputs: FxHashMap<SourceId, FileOutput>,

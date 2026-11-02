@@ -46,11 +46,15 @@
 //!
 //! [`ParseCache`] says what a parse costs. Per file of the tree, the session
 //! also keeps its checked output, which is the file's part of the expression
-//! table, its diagnostics and its rows, and one 32-byte key. On the generated
-//! tree of `tests/incremental.rs`, twenty programs and a forty-class library,
-//! a parse costs about 7 KB a file and a checked output about 6 KB.
-//! Both are freed when the file leaves the tree. The interner is bounded by
-//! twice its size at the last settle.
+//! table, its diagnostics and its rows, and one 32-byte key. Measured with the
+//! runtime's live-byte counter on the generated tree of `tests/incremental.rs`,
+//! twenty programs and a forty-class library (100 files of about 220 bytes of
+//! text each): the session keeps about 19 KB a file. A parse is about 10 KB of
+//! it, and the checked output, its key and the file's share of the interner
+//! are the other 9.5 KB. The index entry (`crate::index`) is another 5 KB. All
+//! of it grows with a file's text, at roughly 45 times its size for the parse
+//! alone. Each part is freed when the file leaves the tree. The interner is
+//! bounded by twice its size at the last settle.
 //!
 //! [`Analysed`]: crate::Analysed
 
