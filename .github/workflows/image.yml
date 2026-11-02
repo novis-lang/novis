@@ -1,9 +1,10 @@
-# The container images, from Linux archives `build.yml` already made in the same run.
+# The container images, from Linux archives `build.yml` already made.
 #
-# `release.yml` calls this with the version it released. The dev build (`dev-build.yml`) calls it
-# with none once a push's CI run on `main` is green, to publish the `dev` image.
-# One file builds both, so the `dev` image is made the way a release's is: the same Dockerfile, the
-# same staging, the same smoke test before any push.
+# `release.yml` calls this with the version it released, and the archives are from the same run.
+# The dev build (`dev-build.yml`) calls it with none once a push's CI run on `main` is green, to
+# publish the `dev` image. Its archives are from the push's own run of `dev-build.yml`, which
+# `binaries-run` names. One file builds both, so the `dev` image is made the way a release's is: the
+# same Dockerfile, the same staging, the same smoke test before any push.
 #
 # It compiles nothing: it packages the binaries `build.yml` produced, so the bytes in the image are
 # the bytes in the archive. Each variant is built for amd64 first and run through
@@ -16,7 +17,8 @@
 #   * No provenance attestation. The dev build grants `packages: write` and nothing else to write
 #     with.
 #
-# No job here declares `permissions:`, so each takes what its caller's job grants.
+# No job here declares `permissions:`, so each takes what its caller's job grants. Archives from
+# another run are read with the run's token, which needs `actions: read`; the dev build grants it.
 
 name: Image
 
@@ -38,6 +40,11 @@ on:
         type: boolean
         required: false
         default: true
+      binaries-run:
+        description: 'The id of the run whose Linux archives are packaged. Empty is this run.'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   docker:
@@ -70,11 +77,15 @@ jobs:
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
 
+      # Without a token, the action reads this run's artifacts and ignores `run-id`. With one, it
+      # reads the run `run-id` names, so the token is passed only when `binaries-run` is set.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: dist-linux-*
           merge-multiple: true
           path: dist
+          run-id: ${{ inputs.binaries-run || github.run_id }}
+          github-token: ${{ inputs.binaries-run && github.token || '' }}
 
       # The build context is `docker/`, and this fills `bin/` in it. Unpacking the archive rather
       # than rebuilding is the entire point of the job: `gh attestation verify` on a release's

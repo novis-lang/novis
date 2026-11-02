@@ -49,11 +49,12 @@ secret**, and the release itself reads none — see *Credentials* below.
 
 `origin` is `github.com/novis-lang/novis`, and its default branch is `main`. GitHub reads several
 files only from the default branch: the issue forms, the security policy, the Dependabot
-configuration, and the `schedule` and `workflow_run` triggers. So the nightly in `ci.yml` and
-[dev-build.yml](../.github/workflows/dev-build.yml) run only while `main` is the default.
-`dev-build.yml` starts when a push's CI run on `main` finishes. It builds that run's commit with
-`build.yml` and `image.yml`, publishes the `dev` image when the run is green, and then posts the
-build to Discord with `discord.yml`.
+configuration, and the `schedule` and `workflow_run` triggers. So the nightly in `ci.yml` and the
+`dev` image from [dev-build.yml](../.github/workflows/dev-build.yml) run only while `main` is the
+default. `dev-build.yml` starts at each push to `main` and builds that commit's binaries with
+`build.yml`, beside the push's CI run. When that CI run finishes green, a second run of the file
+publishes the `dev` image from those binaries with `image.yml`, and then posts the build to Discord
+with `discord.yml`.
 
 Set `main` in **Settings → General → Default branch**. Cut a release from the Actions tab on
 `main`. The `plan` job refuses to run on any other ref, so a release cut from a topic branch is

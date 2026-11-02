@@ -1,7 +1,7 @@
 // The release binaries and the container images are built by `build.yml` and `image.yml`, which the
-// release calls with its version and the dev build calls with none, at the commit CI
-// tested. The release's call of `ci.yml` grants every permission a job there asks for, which GitHub
-// checks when the run starts.
+// release calls with its version and the dev build calls with none. The dev build builds the
+// binaries at the push, and its image waits for the push's CI run to pass. The release's call of
+// `ci.yml` grants every permission a job there asks for, which GitHub checks when the run starts.
 
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -40,13 +40,28 @@ test("ci.yml builds no release binaries and pushes no image", () => {
   expect(writes.map(([name]) => name)).toEqual([]);
 });
 
-test("the dev build builds only when the push changed a path the build reads", () => {
-  const dev = workflow("dev-build.yml").jobs as Record<string, Job & { if?: string; outputs?: Record<string, string> }>;
+type DevJob = Job & { if?: string; outputs?: Record<string, string> };
+
+test("the dev build builds at the push, only when the push changed a path the build reads", () => {
+  const dev = workflow("dev-build.yml").jobs as Record<string, DevJob>;
+  expect(dev.check!.if).toBe("github.event_name == 'push'");
   expect(dev.check!.outputs?.build).toBe("${{ steps.lanes.outputs.release }}");
+  expect(dev.binaries!.needs).toBe("check");
   expect(dev.binaries!.if).toBe("needs.check.outputs.build == 'true'");
-  // The image and the Discord post need the binaries, so they are skipped with them.
-  expect(dev.image!.needs).toContain("binaries");
+});
+
+test("the dev image waits for a green CI run, and packages the binaries of the push's own run", () => {
+  const dev = workflow("dev-build.yml").jobs as Record<string, DevJob>;
+  expect(dev.ci!.if).toContain("github.event_name == 'workflow_run'");
+  // The image and the Discord post need the push's binaries, so they are skipped without them.
+  expect(dev.image!.needs).toBe("ci");
+  expect(dev.image!.if).toBe("needs.ci.outputs.image == 'true'");
+  expect(dev.image!.with?.["binaries-run"]).toBe("${{ needs.ci.outputs.run }}");
+  expect(dev.image!.permissions?.actions).toBe("read");
   expect(dev.discord!.needs).toContain("image");
+  expect(Object.keys(workflow("image.yml").on.workflow_call?.inputs ?? {})).toContain("binaries-run");
+  // A release packages the archives of its own run, so it names no other one.
+  expect(workflow("release.yml").jobs.docker!.with?.["binaries-run"]).toBeUndefined();
 });
 
 test("build.yml and image.yml check out the commit the dev build names, in every job", () => {

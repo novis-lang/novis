@@ -151,8 +151,8 @@ export const LANES: Record<string, string[]> = {
 
 // The paths no part of the dev build reads: not the release binaries, the VS Code extension or the
 // container images. `release` is true when a diff touched any other path. `dev-build.yml` gates on it
-// and diffs against the commit whose dev build artifacts are the newest ones, so a push that changed
-// only these keeps that build's binaries and its `dev` image. Unlike a lane, this list names what
+// at each push and diffs against the commit of the newest green dev build that still has its
+// artifacts, so a push that changed only these keeps that build's binaries and its `dev` image. Unlike a lane, this list names what
 // the build skips. A path added to the tree tomorrow is then built, which is the safe direction.
 // `docs/reference/` is missing from the list on purpose: `nvs-stdlib`'s build script embeds it.
 export const UNBUILT = [

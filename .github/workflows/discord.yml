@@ -5,7 +5,8 @@
 # its notes. The dev build (`dev-build.yml`) calls this once it has pushed the `dev`
 # image, and the message lists the commits since the dev build before it. That commit is kept as a
 # cache entry keyed by commit: the newest entry is the previous dev build. With none, or one evicted,
-# the message names the one commit.
+# the message names the one commit. The message links the run that built the binaries, which is the
+# push's own run of `dev-build.yml`.
 #
 # The webhook URL is the repository secret `DISCORD_WEBHOOK_URL`. It can post to one channel and do
 # nothing else, and it reaches the shell through `env:` only. Without the secret (a fork) the job
@@ -20,6 +21,10 @@ on:
     inputs:
       sha:
         description: 'The commit the dev build published.'
+        type: string
+        required: true
+      binaries-run:
+        description: 'The id of the run whose artifacts are the binaries.'
         type: string
         required: true
     secrets:
@@ -89,7 +94,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SHA: ${{ inputs.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.binaries-run }}
         run: |
           set -euo pipefail
           since=()

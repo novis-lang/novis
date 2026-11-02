@@ -1,10 +1,10 @@
 # The release binaries and the VS Code extension, built one way for two callers.
 #
-# `release.yml` calls this with the version it is about to release. The dev build calls it with no
-# version once a push's CI run on `main` has finished, so a tester can take that commit's binaries
-# from the dev build's artifacts. The dev build is `dev-build.yml`. One file builds both, so a push's archives
-# come from the same targets, profile and packaging as a release's, and the two cannot drift apart
-# (`rule:testing/ci-lanes` says why a job is never defined twice).
+# `release.yml` calls this with the version it is about to release. The dev build (`dev-build.yml`)
+# calls it with no version at each push to `main`, beside that push's CI run, so a tester can take
+# the commit's binaries from the push's dev build artifacts. One file builds both, so a push's
+# archives come from the same targets, profile and packaging as a release's, and the two cannot drift
+# apart (`rule:testing/ci-lanes` says why a job is never defined twice).
 #
 # Without a version, the build is the commit as it is:
 #

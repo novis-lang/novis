@@ -238,7 +238,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # 3. The binaries and the VS Code extension, at the version about to be released.
   #
-  # `build.yml` holds both jobs, because the dev build after each push to `main` builds the same
+  # `build.yml` holds both jobs, because the dev build at each push to `main` builds the same
   # binaries through it with no version. Its header says what a release build does that a dev
   # build does not.
   # ---------------------------------------------------------------------------
