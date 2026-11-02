@@ -78,8 +78,8 @@ concurrency:
 # - `docker` saves an entry of its own and reads no other. It runs on Ubuntu 22.04, and an entry
 #   built on a newer image has build scripts that need a newer glibc than 22.04 has.
 #
-# The organization's Team plan gives 60 concurrent jobs, and a full run has about 57, so every job
-# but the macOS ones starts at once. macOS has 5 concurrent jobs on any plan below Enterprise, and
+# The organization's Team plan gives 60 concurrent jobs, and a full run has 59, so every job but
+# the macOS ones starts at once. A job added to the run past that waits for a free one. macOS has 5 concurrent jobs on any plan below Enterprise, and
 # the run has 6 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
 # `ext-templates` and `extension` start once `lint` has finished, about ten minutes in, and the
 # four long macOS legs take the 5 slots first. Their `if` starts with `!cancelled()`, so a red
@@ -142,7 +142,7 @@ jobs:
   # at all — a goal's handoff, a playbook bullet. `rule:testing/lane-table`.
   # ---------------------------------------------------------------------------
   test:
-    name: test / ${{ matrix.name }}${{ matrix.part && format(' ({0}{1})', matrix.part, matrix.half && format(' {0}/2', matrix.half) || '') || '' }}
+    name: test / ${{ matrix.name }}${{ matrix.part && format(' ({0}{1})', matrix.part, matrix.half && format(' {0}/2', matrix.half) || matrix.shard && format(' {0}/3', matrix.shard) || '') || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -164,6 +164,12 @@ jobs:
     # the CLI and about 10 per pass. Each half builds the CLI on its own, so the split spends one more
     # debug build of runner time to take about 20 minutes off the run. The other two platforms keep
     # one leg: Linux aarch64's took 25 minutes, and macOS has 5 concurrent jobs for the whole run.
+    #
+    # Windows's `tests` part is three legs, `shard` 1 to 3, each building the workspace and running
+    # a third of the tests (nextest's `--partition slice:<n>/3`). One leg took 53 minutes warm: 18 to
+    # build and 32 of tests, the longest in the run. The split spends two more Windows builds of
+    # runner time to bring the leg to about 30 minutes. The first shard alone saves the cache entry
+    # and runs the doc tests and the benches, which take seconds.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -193,6 +199,19 @@ jobs:
           - name: windows-x86_64
             os: windows-latest
             part: tests
+            shard: 1
+            nextest: x86_64-pc-windows-msvc
+            nextest-sha256: bef17504bed9d4994cf860c122e84a90d613b92e6d89584fa9e28bd53ad42e15
+          - name: windows-x86_64
+            os: windows-latest
+            part: tests
+            shard: 2
+            nextest: x86_64-pc-windows-msvc
+            nextest-sha256: bef17504bed9d4994cf860c122e84a90d613b92e6d89584fa9e28bd53ad42e15
+          - name: windows-x86_64
+            os: windows-latest
+            part: tests
+            shard: 3
             nextest: x86_64-pc-windows-msvc
             nextest-sha256: bef17504bed9d4994cf860c122e84a90d613b92e6d89584fa9e28bd53ad42e15
           - name: windows-x86_64
@@ -230,7 +249,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: ${{ matrix.name }}-${{ matrix.part == 'conformance' && 'conformance' || 'test' }}
-          save-if: ${{ matrix.half != 2 }}
+          save-if: ${{ matrix.half != 2 && (matrix.shard || 1) == 1 }}
 
       # Some Rust tests check the tree through `bun nv` (`nvs-ir`'s refusal roster reads
       # `bun nv holes`), so the test job needs Bun and the tools' dependencies too.
@@ -332,12 +351,14 @@ jobs:
       # every failure. nextest cannot list a bench that sets `harness = false`, so `cargo test` runs
       # the benches.
       - if: matrix.part != 'conformance'
-        run: cargo nextest run --profile ci --workspace --lib --bins --tests --examples
-      - if: matrix.part != 'conformance'
+        run: >-
+          cargo nextest run --profile ci --workspace --lib --bins --tests --examples
+          ${{ matrix.shard && format('--partition slice:{0}/3', matrix.shard) || '' }}
+      - if: matrix.part != 'conformance' && (matrix.shard || 1) == 1
         run: cargo test --workspace --benches
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
-      - if: matrix.part != 'conformance'
+      - if: matrix.part != 'conformance' && (matrix.shard || 1) == 1
         run: cargo test --workspace --doc
 
       # The `.nvst` conformance suite, on every platform for the reason the
