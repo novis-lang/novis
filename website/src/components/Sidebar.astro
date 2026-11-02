@@ -11,6 +11,9 @@
  * restores the default view, including each group's original open state.
  * This filters the *navigation tree* only — full-text search is the search
  * button in the header.
+ *
+ * On load the current page's entry is always in view: an inline script after
+ * the tree scrolls the pane before the first paint (see the script there).
  */
 import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter'
 import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro'
@@ -38,6 +41,39 @@ const { sidebar } = Astro.locals.starlightRoute
   <SidebarPersister>
     <SidebarSublist sublist={sidebar} />
   </SidebarPersister>
+  <script is:inline aria-hidden="true">
+    // Brings the current page's entry into view. The script is inline, so it
+    // runs while the page is parsed, after Starlight restores the saved scroll
+    // position and before the first paint: the user never sees it scroll. A
+    // saved position that already shows the entry is kept, so a click in the
+    // sidebar leaves it where it was. Otherwise the entry is centred.
+    ;(() => {
+      try {
+        const scroller = document.getElementById('starlight__sidebar')
+        const current = scroller && scroller.querySelector('a[aria-current="page"]')
+        if (!current) return
+        const reveal = () => {
+          for (let group = current.closest('details'); group; group = group.parentElement.closest('details')) {
+            group.open = true
+          }
+          const view = scroller.getBoundingClientRect()
+          const filter = scroller.querySelector('.nv-sidebar-filter')
+          // The filter box is sticky and covers the top of the pane.
+          const top = view.top + (filter ? filter.offsetHeight : 0)
+          const link = current.getBoundingClientRect()
+          if (link.height === 0 || (link.top >= top && link.bottom <= view.bottom)) return
+          const centred = top + (view.bottom - top - link.height) / 2
+          scroller.scrollTo({ top: scroller.scrollTop + link.top - centred, behavior: 'instant' })
+        }
+        if (matchMedia('(min-width: 50em)').matches) reveal()
+        // Below 50em the sidebar is a menu that is closed on load. It is
+        // revealed when it opens, in the frame before it is first drawn.
+        scroller.addEventListener('beforetoggle', (event) => {
+          if (event.newState === 'open') requestAnimationFrame(reveal)
+        })
+      } catch {}
+    })()
+  </script>
 </div>
 
 <div class="md:sl-hidden">
