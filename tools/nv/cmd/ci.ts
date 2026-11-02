@@ -837,24 +837,34 @@ export function judgeRun(f: RunFacts): Verdict {
 }
 
 /** One leg of `build.yml`'s matrix: its name, its archive's extension, and whether the release needs it. */
-interface Leg {
+export interface Leg {
   name?: string;
   archive?: string;
   optional?: boolean;
 }
 
-function buildLegs(root: string): Leg[] {
-  const wf = Bun.YAML.parse(readFileSync(join(root, ".github", "workflows", "build.yml"), "utf8")) as {
-    jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } };
-  };
+const BUILD_YML = ".github/workflows/build.yml";
+
+function parseLegs(text: string): Leg[] {
+  const wf = (Bun.YAML.parse(text) ?? {}) as { jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } } };
   return wf.jobs?.build?.strategy?.matrix?.include ?? [];
 }
 
+function buildLegs(root: string): Leg[] {
+  return parseLegs(readFileSync(join(root, BUILD_YML), "utf8"));
+}
+
+/**
+ * The legs of `build.yml` at commit `sha`, which are the legs a run of that commit built. A judge of a
+ * finished run reads these and not the tree's, since a later commit may add, drop or demote a leg.
+ */
+async function legsAt(s: CiSeams, sha: string): Promise<Leg[]> {
+  return parseLegs(await gitOut(s, ["show", `${sha}:${BUILD_YML}`]));
+}
+
 /** The job names of `build.yml`'s optional legs, as a run of `release.yml` shows them. */
-export function optionalLegs(root: string): string[] {
-  return buildLegs(root)
-    .filter((l) => l.optional === true && l.name !== undefined)
-    .map((l) => `build / build ${l.name}`);
+export function optionalLegs(root: string, legs: Leg[] = buildLegs(root)): string[] {
+  return legs.filter((l) => l.optional === true && l.name !== undefined).map((l) => `build / build ${l.name}`);
 }
 
 /**
@@ -862,8 +872,8 @@ export function optionalLegs(root: string): string[] {
  * checksums. They are the files `publish`'s *Every required archive arrived* step checks, and the names
  * `bun nv release --package` gives them.
  */
-export function draftAssets(root: string, version: string): string[] {
-  const legs = buildLegs(root).filter((l) => l.optional !== true && l.name !== undefined && l.archive !== undefined);
+export function draftAssets(root: string, version: string, all: Leg[] = buildLegs(root)): string[] {
+  const legs = all.filter((l) => l.optional !== true && l.name !== undefined && l.archive !== undefined);
   return [...legs.map((l) => `nvs-${version}-${l.name}.${l.archive}`), `nvs-${version}.vsix`, "SHA256SUMS"];
 }
 
@@ -939,7 +949,8 @@ async function releaseVerdict(s: CiSeams): Promise<Verdict & { run?: Run }> {
     else changed = (await gitOut(s, ["diff", "--name-only", base, BRANCH])).split(/\r?\n/).filter((l) => l !== "");
   }
   const jobs = await listJobs(s, run.id);
-  const v = judgeRun({ run, jobs, stage, ciRuns: await ciRunsFor(s, run, jobs), changed, optional: optionalLegs(ROOT) });
+  const optional = optionalLegs(ROOT, await legsAt(s, run.head_sha));
+  const v = judgeRun({ run, jobs, stage, ciRuns: await ciRunsFor(s, run, jobs), changed, optional });
   return { green: v.green, lines: [...lines, ...v.lines], run };
 }
 
@@ -985,7 +996,8 @@ async function approveRelease(s: CiSeams): Promise<number> {
     return 1;
   }
   const jobs = await listJobs(s, run.id);
-  const v = judgeRun({ run, jobs, stage: "approve", ciRuns: await ciRunsFor(s, run, jobs), optional: optionalLegs(ROOT) });
+  const optional = optionalLegs(ROOT, await legsAt(s, run.head_sha));
+  const v = judgeRun({ run, jobs, stage: "approve", ciRuns: await ciRunsFor(s, run, jobs), optional });
   for (const l of v.lines) s.say(l);
   if (!v.green) return 1;
   const notes = await readNotes(s, run.id);
@@ -1029,9 +1041,9 @@ async function readNotes(s: CiSeams, id: number): Promise<string | null> {
 }
 
 /** The assets of `draftAssets` that release `rel` lacks. */
-export function missingAssets(root: string, rel: GhRelease): string[] {
+export function missingAssets(root: string, rel: GhRelease, legs: Leg[] = buildLegs(root)): string[] {
   const version = rel.tag_name.replace(/^v/, "");
-  return draftAssets(root, version).filter((a) => !rel.assets.includes(a));
+  return draftAssets(root, version, legs).filter((a) => !rel.assets.includes(a));
 }
 
 /**
@@ -1046,7 +1058,8 @@ async function publishRelease(s: CiSeams): Promise<number> {
     return 1;
   }
   const jobs = await listJobs(s, run.id);
-  const v = judgeRun({ run, jobs, stage: "real", ciRuns: await ciRunsFor(s, run, jobs), optional: optionalLegs(ROOT) });
+  const legs = await legsAt(s, run.head_sha);
+  const v = judgeRun({ run, jobs, stage: "real", ciRuns: await ciRunsFor(s, run, jobs), optional: optionalLegs(ROOT, legs) });
   for (const l of v.lines) s.say(l);
   if (!v.green) return 1;
   const rel = await releaseOf(s, run);
@@ -1058,7 +1071,7 @@ async function publishRelease(s: CiSeams): Promise<number> {
     s.say(`the release ${rel.tag_name} is published already: ${rel.html_url}`);
     return 0;
   }
-  const missing = missingAssets(ROOT, rel);
+  const missing = missingAssets(ROOT, rel, legs);
   if (missing.length > 0) {
     s.say(`REFUSED the draft ${rel.tag_name} lacks ${missing.join(", ")}  ${rel.html_url}`);
     return 1;

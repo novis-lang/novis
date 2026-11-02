@@ -391,6 +391,7 @@ function releaseSeams(name: string, world: (poll: number) => ReleaseWorld, git: 
   const w = seams("release-" + name, () => ({ runs: [], jobs: {} }), (args) => {
     const g = git(args);
     if (g !== undefined) return g;
+    if (args[0] === "show") return ok(readFileSync(join(ROOT, ".github", "workflows", "build.yml"), "utf8"));
     if (args[0] === "rev-parse") return ok("tip\n");
     if (args[0] === "rev-list") return ok("0\n");
     return ok("");
@@ -596,6 +597,21 @@ describe("bun nv ci: the release", () => {
     expect(w.said).toContain(`  WARNING ${leg} / step "cargo build"  https://example.com/jobs/3: an optional leg, so the release ships without it`);
     const onlyOptional = releaseSeams("optional", () => ({ release: [dryRun(28, "completed", "success")], jobs: { 28: [...dryJobs(), jobOf(3, leg, "completed", "failure", "cargo build")] } }));
     expect(await ci(["--release-status"], onlyOptional.s)).toBe(0);
+  });
+
+  test("release-status reads the optional legs from build.yml at the run's commit, not from the tree", async () => {
+    const atRun = "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n          - name: retired-leg\n            optional: true\n";
+    const leg = "build / build retired-leg";
+    const shown: string[][] = [];
+    const w = releaseSeams(
+      "legs-at-run",
+      () => ({ release: [dryRun(28, "completed", "success")], jobs: { 28: [...dryJobs(), jobOf(3, leg, "completed", "failure", "cargo build")] } }),
+      (args) => (args[0] === "show" ? (shown.push(args), ok(atRun)) : undefined),
+    );
+    expect(optionalLegs(ROOT)).not.toContain(leg);
+    expect(await ci(["--release-status"], w.s)).toBe(0);
+    expect(shown).toEqual([["show", "tip:.github/workflows/build.yml"]]);
+    expect(w.said).toContain(`  WARNING ${leg} / step "cargo build"  https://example.com/jobs/3: an optional leg, so the release ships without it`);
   });
 
   test("watch release passes over a failed optional build leg, and ends green", async () => {
