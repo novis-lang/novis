@@ -682,6 +682,9 @@ fn code_hits(needle: &str) -> Vec<(String, usize)> {
             ));
         }
     }
+    // A directory lists its entries in the filesystem's order, which is sorted on NTFS and not on
+    // ext4, so the result is sorted by file name.
+    found.sort();
     found
 }
 
