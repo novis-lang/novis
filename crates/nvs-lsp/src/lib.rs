@@ -107,6 +107,7 @@ pub mod coverage;
 pub mod definition;
 pub mod diagnostics;
 pub mod directives;
+mod disk_index;
 mod document;
 pub mod extract;
 pub mod file_kinds;

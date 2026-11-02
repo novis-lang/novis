@@ -150,6 +150,15 @@ impl Folder {
         self.root.join("cache")
     }
 
+    /// `cache/lsp-index/`: the language server's on-disk symbol index, one file per workspace
+    /// root. The compiled-code cache under `cache/` sweeps only its own shard directories and
+    /// `.nvsc` files, so it never deletes a file here. Deleting the directory costs the next
+    /// editor start one analysis of the whole workspace.
+    #[must_use]
+    pub fn lsp_index(&self) -> PathBuf {
+        self.cache().join("lsp-index")
+    }
+
     /// `tmp/`: the temporary-directory root when `[io] temp_root` names none.
     #[must_use]
     pub fn tmp(&self) -> PathBuf {

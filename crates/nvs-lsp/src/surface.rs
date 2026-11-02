@@ -85,7 +85,11 @@ impl<'a> Surface<'a> {
     fn write_cut(&mut self, span: Span, cuts: &[Span]) {
         let mut at = span.start;
         for cut in cuts {
-            let before = Span { end: cut.start, start: at, ..span };
+            let before = Span {
+                end: cut.start,
+                start: at,
+                ..span
+            };
             self.out.extend_from_slice(self.slice(before).as_bytes());
             self.out.push(1);
             at = cut.end;
@@ -191,7 +195,8 @@ impl<'a> Surface<'a> {
     /// Adds a function body to `cuts`, unless it has the word `require`, and
     /// writes whether it yields.
     fn body(&mut self, body: &Block, cuts: &mut Vec<Span>) {
-        self.out.push(if is_generator_body(body) { b'g' } else { b'f' });
+        self.out
+            .push(if is_generator_body(body) { b'g' } else { b'f' });
         if !self.slice(body.span).contains("require") {
             cuts.push(body.span);
         }

@@ -229,7 +229,12 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // `rule:ide/check-scope-defaults-to-the-workspace`'s `Workspace`, which is
     // the default, every `.nvs` file under the root the client named is
     // waiting in it, and the loop below settles them while no message waits.
-    let mut index = SymbolIndex::planned(&documents, settings.scope, settings.root.as_deref());
+    // A start on a workspace this server saw before takes the index it wrote
+    // then, and only its stale entries wait ([`start_index`]).
+    let mut index = start_index(&documents, &settings);
+    // What the index file says, as `SymbolIndex::generation` counts it. The
+    // loop writes the file when the server is at rest and the two differ.
+    let mut saved = index.generation();
 
     // The values the compiler does not derive, read from the same root the
     // index walks. No root, at open scope, is no workspace and no files.
@@ -310,10 +315,17 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     }
                     Err(_) => return Ok(()),
                 },
-                None => match connection.receiver.recv() {
-                    Ok(message) => message,
-                    Err(_) => return Ok(()),
-                },
+                // At rest: nothing waits, so this is the idle period's one
+                // write of the index file, when the index changed.
+                None => {
+                    if index.generation() != saved && save_index(&index, &settings) {
+                        saved = index.generation();
+                    }
+                    match connection.receiver.recv() {
+                        Ok(message) => message,
+                        Err(_) => return Ok(()),
+                    }
+                }
             }
         };
 
@@ -591,6 +603,40 @@ fn needs_every_file(method: &str) -> bool {
     )
 }
 
+/// The index file of the workspace the client named, under the data folder's
+/// `cache/lsp-index/`. `None` without a root or a data folder, and at a scope
+/// other than `Workspace`, whose tree is the open documents.
+fn index_file(settings: &Settings) -> Option<PathBuf> {
+    if settings.scope != CheckScope::Workspace {
+        return None;
+    }
+    let root = settings.root.as_deref()?;
+    let folder = nvs_config::data::current()?;
+    Some(crate::disk_index::file_for(&folder.lsp_index(), root))
+}
+
+/// The session's index at start: the one [`index_file`] kept, with only its
+/// stale entries waiting, or a planned one where there is no valid file.
+fn start_index(documents: &Documents, settings: &Settings) -> SymbolIndex {
+    let root = settings.root.as_deref();
+    match index_file(settings) {
+        Some(file) => SymbolIndex::load_from(documents, settings.scope, root, &file),
+        None => SymbolIndex::planned(documents, settings.scope, root),
+    }
+}
+
+/// Writes `index` to [`index_file`], and returns whether it did. A failure
+/// writes nothing, and the next idle period tries again.
+fn save_index(index: &SymbolIndex, settings: &Settings) -> bool {
+    let (Some(file), Some(root)) = (index_file(settings), settings.root.as_deref()) else {
+        return false;
+    };
+    let Some(dir) = file.parent() else {
+        return false;
+    };
+    nvs_config::data::create_private_root(dir).is_ok() && index.save_to(&file, root).is_ok()
+}
+
 /// What follows once the index has no entry waiting: the completion files are
 /// checked against the whole index, and the client is asked for its lenses
 /// again, because a count may have changed while entries waited.
@@ -701,9 +747,8 @@ fn configure(
     };
     let changed = settings.change(&params.settings);
     if changed.scope {
-        let root = settings.root.as_deref();
-        documents.survey(settings.scope, root);
-        *index = SymbolIndex::planned(documents, settings.scope, root);
+        documents.survey(settings.scope, settings.root.as_deref());
+        *index = start_index(documents, settings);
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;
         }

@@ -140,12 +140,12 @@ fn code_hits(needle: &str) -> Vec<(String, usize)> {
 #[test]
 fn the_crate_has_exactly_one_symbol_index_construction_site() {
     let built = code_hits("Indexed {");
-    // The declaration and the one literal, both in `index.rs`, and nothing
-    // anywhere else: the type is private to that module, so a second site has
-    // to be written there where this test can see it.
+    // The declaration and the one literal, both in `index.rs`, and the
+    // decoder of the on-disk index, which restores what that literal built
+    // and walks no front end. Nothing anywhere else.
     assert_eq!(
         built,
-        vec![("index.rs".to_owned(), 2)],
+        vec![("disk_index.rs".to_owned(), 1), ("index.rs".to_owned(), 2)],
         "an indexed file is built somewhere other than index.rs, or more than \
          once inside it: {built:?}"
     );
@@ -201,14 +201,16 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 
 /// The index's read-only methods that answer nobody's feature: how much it
 /// holds, whether it holds one file, how many of its files had errors, which
-/// entry points read one file, which entry points wait to be settled, and how
-/// much work its analyses did.
+/// entry points read one file, which entry points wait to be settled, how
+/// much work its analyses did, whether it changed since it was written to disk,
+/// and the write itself.
 ///
 /// The refresh path, the server's loop, `nvs code`, a file move's `require`
 /// rewrite and this suite ask these; a feature asks the queries beside them,
 /// which is what [`every_reader_queries_the_one_index`] counts. `work` is
-/// asked by `tests/incremental.rs` alone. None of them looks a name up.
-const BOOKKEEPING: [&str; 8] = [
+/// asked by `tests/incremental.rs` alone, and `generation` and `save_to` by the
+/// server's idle write and that suite. None of them looks a name up.
+const BOOKKEEPING: [&str; 10] = [
     "files",
     "holds",
     "len",
@@ -217,6 +219,8 @@ const BOOKKEEPING: [&str; 8] = [
     "readers",
     "pending",
     "work",
+    "generation",
+    "save_to",
 ];
 
 /// Eight readers, and each one of them is a query against the one index.

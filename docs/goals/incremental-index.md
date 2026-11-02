@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/ty.rs, crates/nvs-diagnostics/src/source.rs]
   - id: 6
     title: "the index is written to disk and loaded at start, and only stale entries are analysed"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/settings.rs, crates/nvs-config/src/data.rs, crates/nvs-config/src/cache.rs, docs/rules/ide/dependencies-are-allowlisted.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -324,6 +324,19 @@ It also updates `rule:ide/a-full-reanalysis-stays-under-a-bound` (a full analysi
 invalidated path, and a keystroke's cost is the counted one) and
 `rule:ide/five-features-are-one-reference-index` where it describes what a refresh re-indexes.
 
+**What stage 6 settled on top of decision 6.** The index file is read and written only at the
+`Workspace` scope, because the `Open` scope's tree is the open documents and a file of the workspace
+would hold more than that tree selects. An entry's stamp (size and modification time) is recorded only
+for a file that is not an open buffer, whose length is the text's, and whose modification time is more
+than two seconds before the analysis started. Otherwise a write inside one tick of a coarse clock would
+be trusted at the next start. Such an entry is hashed at the load instead. A loaded entry whose file had
+an error queues its entry point, because a class a use there could not find may exist now, and a file
+created under the root is not in the index's reads. The decoder in `disk_index.rs` builds `Indexed`, so
+`the_crate_has_exactly_one_symbol_index_construction_site` names it beside `index.rs`. It restores what
+`absorb` built and walks no front end. `SymbolIndex::generation` counts every change to `files`. The
+server writes the file in the loop's at-rest arm when it differs from the last write, and a failed write
+keeps the old number, so the next idle period tries again.
+
 **Lanes.** Stages 1, 2, 4, 5 and 6 share `crates/nvs-lsp/src/document.rs` or `index.rs` and run in
 order. Stage 3 touches only `crates/nvs-types/` and `crates/nvs-diagnostics/src/source.rs`, which no
 other stage touches. So it may run beside stage 2 or 4. Stage 5 needs stages 2, 3 and 4.
@@ -452,16 +465,16 @@ whose key changed. The acceptance's keystroke count holds.
 **Does:** decision 6. The server loads the index file at start, queues only the stale entries, and
 writes the file once per idle period after `pending` empties.
 
-- [ ] `Folder::lsp_index()`, and `build_stamp` made `pub`. Check that the compiled-code cache leaves
+- [x] `Folder::lsp_index()`, and `build_stamp` made `pub`. Check that the compiled-code cache leaves
   `lsp-index/` alone. `crates/nvs-config/src/data.rs:149`, `crates/nvs-config/src/cache.rs:271`
-- [ ] `crates/nvs-lsp/src/disk_index.rs`: encode and decode over `Indexed` and `reads`, with the
+- [x] `crates/nvs-lsp/src/disk_index.rs`: encode and decode over `Indexed` and `reads`, with the
   bounded, checksummed decoder. `crates/nvs-lsp/src/disk_index.rs:1`
-- [ ] `SymbolIndex::load_from(documents, scope, root, path)` validates each entry and queues only the
+- [x] `SymbolIndex::load_from(documents, scope, root, path)` validates each entry and queues only the
   stale ones. `SymbolIndex::save_to(path)` writes atomically and deletes its temporary file on every
   failure. `crates/nvs-lsp/src/index.rs:453`
-- [ ] The server loads the file at start in place of `planned`, and writes it once per idle period
+- [x] The server loads the file at start in place of `planned`, and writes it once per idle period
   after `settled`. `crates/nvs-lsp/src/server.rs:261`, `crates/nvs-lsp/src/server.rs:601`
-- [ ] The tests of the `lsp-disk-index` check. The second-server test runs two `save_to` calls on
+- [x] The tests of the `lsp-disk-index` check. The second-server test runs two `save_to` calls on
   one path from two threads, waits on both and reads one whole file. It never waits on time. A
   change to paths runs its tests in WSL once with `bun nv linux-test`. Run once by name:
   `cargo test --test incremental`. `crates/nvs-lsp/tests/incremental.rs:1`
@@ -483,34 +496,36 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 is `crates/nvs-lsp/src/session.rs`: `Session` holds the
-`ParseCache`, the `CheckCache`, each output's key and one `Rc<TypeInterner>`, and lives in
-`Documents::session`. `analyse_over` (`crates/nvs-lsp/src/document.rs:733`) keys each file by
-`graph_key` (`:918`) plus its text hash, and checks only the files whose key moved.
-`refresh` now also queues readers when the open entry's read set moved
-(`crates/nvs-lsp/src/index.rs:503`). The bytes per file are measured and written into
-`session.rs`, `parse_cache.rs` and `CheckCache`'s doc comment.
+Stages 1 to 6 are done. Stage 6 is `crates/nvs-lsp/src/disk_index.rs` (format, `Stamp`, `encode`,
+`decode`, `write`), `SymbolIndex::load_from`, `save_to` and `generation`
+(`crates/nvs-lsp/src/index.rs:514`), and the server's `index_file`, `start_index` and `save_index`
+(`crates/nvs-lsp/src/server.rs:609`). The loop writes in its at-rest arm.
+`Folder::lsp_index`, `Digest::from_bytes` and a `pub` `build_stamp` are in `nvs-config`. The
+compiled-code cache sweeps only `.nvsc` files in its shard directories, so it never deletes an
+`.idx` file.
 
-All twelve `cargo test --test incremental` tests ran once, green: the four `lsp-incremental` tests
-among them. The rest of the suite has not run since stage 1. Expect a possible red in
-`crates/nvs-lsp/tests/latency.rs` from the interner's copy-on-write (Standing decisions), and in any
-test that read `Analysed::interner` as an owned `TypeInterner`.
+All twenty `cargo test --test incremental` tests ran once, green on Windows and in WSL. The eight
+`lsp-disk-index` tests are among them. `tests/index.rs`'s construction-site and bookkeeping tests were
+updated (`disk_index.rs` decodes `Indexed`; `generation` and `save_to` are bookkeeping) and ran green.
+The rest of the suite has not run since stage 1. Expect a possible red in
+`crates/nvs-lsp/tests/latency.rs` from the interner's copy-on-write (Standing decisions). An in-process
+server test now writes an index file under the data folder beside the test binary when the session
+changed its index. A test that counts the files there would see it.
 
-The sweep's reds are stale: no `env-secret-proofs` check is defined and its log does not exist, and
-nightly `41428598621` was cancelled by a later push.
+The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
+cancelled by a later push.
 
 ### Next
 
-**Stage 6, one group.** `crates/nvs-config/src/{data,cache}.rs`, a new `crates/nvs-lsp/src/disk_index.rs`,
-`index.rs` and `server.rs`.
+**Stage 7, the gate.**
 
-- [ ] `Folder::lsp_index()` beside `Folder::lsp_root` (`crates/nvs-config/src/data.rs:177`), and
-  `build_stamp` made `pub` (`crates/nvs-config/src/cache.rs:271`).
-- [ ] The encoder and checksummed decoder over `Indexed`, in a new `disk_index.rs` next to `crates/nvs-lsp/src/index.rs:1`.
-- [ ] `SymbolIndex::load_from` and `save_to` beside `planned` (`crates/nvs-lsp/src/index.rs:463`).
-- [ ] The server loads at start in place of `planned` (`crates/nvs-lsp/src/server.rs:232`, `:706`)
-  and writes once per idle period after `settled` (`:601`).
-- [ ] The `lsp-disk-index` tests in `crates/nvs-lsp/tests/incremental.rs:1`, and `bun nv linux-test` once.
+- [ ] The rule fragment, written beside `docs/rules/ide/five-features-are-one-reference-index.md:1`
+  from the Standing decisions, stage 6's settlement included: `the-index-is-incremental-and-persistent.md`.
+  Update that rule and `docs/rules/ide/a-full-reanalysis-stays-under-a-bound.md:1`, then `bun nv rules --check`.
+- [ ] `looper verify` in the background over `crates/nvs-lsp/src/index.rs:514` and the rest of the goal,
+  fix every failure in one pass, and run it once more.
+- [ ] The goal-end gates for `docs/goals/incremental-index.md:1`: `bun nv verify --doc`,
+  `bun nv owners --closes incremental-index` and `bun nv ci --check`.
 
 ### Backlog
 

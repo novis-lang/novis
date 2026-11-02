@@ -18,9 +18,15 @@
 //! says that what it skipped was right to skip: after each kind of edit, the
 //! analysis and the index that kept everything report what a store built from
 //! nothing reports.
+//!
+//! The last tests are about the index file on disk: a start on an unchanged
+//! tree takes every entry from it, a changed or deleted file queues only the
+//! entries it touches, and a file from another build, of another format or
+//! damaged in any way is discarded whole.
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use nvs_lsp::{Analysed, CheckScope, Documents, SymbolIndex, Work, surface, uri_of};
 
@@ -375,7 +381,11 @@ fn a_signature_constant_attribute_or_require_edit_changes_the_surface_hash() {
     );
     let base = surface::of_source(&text);
     let edits: [(&str, &str, &str); 6] = [
-        ("signature", "value(int $n): int", "value(int $n, int $m = 0): int"),
+        (
+            "signature",
+            "value(int $n): int",
+            "value(int $n, int $m = 0): int",
+        ),
         ("constant value", "LIMIT = 3;", "LIMIT = 4;"),
         ("attribute", "path: '/parts/{id}'", "path: '/part/{id}'"),
         ("require", "'./Other.nvs'", "'./Another.nvs'"),
@@ -427,11 +437,11 @@ fn a_surface_edit_re_queues_the_entries_that_read_the_file() {
     open(&mut index, &mut documents, &path);
 
     let uri = uri_of(&path).expect("a temp path is UTF-8");
-    let text = documents
-        .get(&uri)
-        .expect("open")
-        .text()
-        .replacen("value(int $n): int", "value(int $n, int $m = 0): int", 1);
+    let text = documents.get(&uri).expect("open").text().replacen(
+        "value(int $n): int",
+        "value(int $n, int $m = 0): int",
+        1,
+    );
     assert!(documents.change(&uri, 2, text));
     documents.resurvey(&path);
     index.refresh(&documents, &path);
@@ -651,7 +661,9 @@ fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
     fs::remove_file(&extra).expect("the added file is there");
     index.refresh(&documents, &extra);
     index.settle(&documents);
-    keystroke(&mut index, &mut documents, &path, |text: &str| format!("{text}\n"));
+    keystroke(&mut index, &mut documents, &path, |text: &str| {
+        format!("{text}\n")
+    });
     agrees_with_a_fresh_store(&dir, &documents, &index, &path, "file deleted");
 }
 
@@ -707,4 +719,324 @@ fn the_session_interner_is_rebuilt_once_it_doubles() {
         (1, 1),
         "the rebuild checked every file once, and the next keystroke checks one"
     );
+}
+
+/// Sets the modification time of every file under `dir` an hour back, so the
+/// index records each file's size and time and a load trusts them. A file
+/// written just before its analysis gets no stamp, and is hashed at the load.
+fn age(dir: &TempDir) {
+    let past = SystemTime::now() - Duration::from_secs(3600);
+    let mut stack = vec![dir.root().to_path_buf()];
+    while let Some(at) = stack.pop() {
+        for entry in fs::read_dir(&at).expect("a scratch directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                fs::File::options()
+                    .write(true)
+                    .open(&path)
+                    .and_then(|file| file.set_modified(past))
+                    .expect("a scratch file takes a modification time");
+            }
+        }
+    }
+}
+
+/// The settled workspace index of `dir`, written to a file under it, and the
+/// file's path. The file is not a `.nvs` file, so the tree does not hold it.
+fn saved(dir: &TempDir) -> (SymbolIndex, PathBuf) {
+    let (_, index) = index_of(dir);
+    let file = dir.at("index/root.idx");
+    fs::create_dir_all(dir.at("index")).expect("a scratch directory");
+    index
+        .save_to(&file, dir.root())
+        .expect("the index is written");
+    (index, file)
+}
+
+/// What a server's start does: a new store over `dir`, surveyed, and the
+/// index loaded from `file`.
+fn started(dir: &TempDir, file: &Path) -> (Documents, SymbolIndex) {
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(dir.root()));
+    let index = SymbolIndex::load_from(&documents, CheckScope::Workspace, Some(dir.root()), file);
+    (documents, index)
+}
+
+/// Whether `index` is a planned one: nothing taken from a file, and every
+/// `.nvs` file of the tree waiting.
+fn is_discarded(index: &SymbolIndex, files: usize) -> bool {
+    index.is_empty() && index.pending().len() == files
+}
+
+/// `bytes` with its checksum computed again, so a change to it is read past
+/// the checksum and judged by the check that the change is about.
+fn resealed(mut bytes: Vec<u8>) -> Vec<u8> {
+    let body = bytes.len() - 32;
+    let checksum = nvs_config::cache::content_hash(&bytes[..body]);
+    bytes[body..].copy_from_slice(checksum.as_bytes());
+    bytes
+}
+
+/// The entry points waiting in `index`, each with `/` between its parts.
+fn waiting(index: &SymbolIndex) -> Vec<String> {
+    index
+        .pending()
+        .iter()
+        .map(|entry| entry.to_string_lossy().replace('\\', "/"))
+        .collect()
+}
+
+/// A start with an index file of an unchanged tree takes every entry from it
+/// and analyses nothing. Opening a document then analyses that document's
+/// graph once, and queues no other entry.
+#[test]
+fn a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry() {
+    let dir = tree(2, 40);
+    age(&dir);
+    let (built, file) = saved(&dir);
+    let (mut documents, mut index) = started(&dir, &file);
+    assert!(
+        index.pending().is_empty(),
+        "an unchanged tree queues nothing: {:?}",
+        waiting(&index)
+    );
+    assert_eq!(
+        indexed(&index),
+        indexed(&built),
+        "the loaded index is the index that was written"
+    );
+    assert_eq!(
+        index.take_work(),
+        Work::default(),
+        "the load analysed nothing"
+    );
+
+    let home = dir.at("Blog/src/Home.nvs");
+    let text = fs::read_to_string(&home).expect("a fixture file");
+    documents.open(uri_of(&home).expect("a temp path is UTF-8"), 1, text);
+    documents.resurvey(&home);
+    let refreshed = index.refresh(&documents, &home);
+    let graph = refreshed
+        .analysed
+        .first()
+        .expect("the open document is analysed")
+        .1
+        .loaded
+        .len();
+    assert!(
+        index.pending().is_empty(),
+        "opening a document queued other entries: {:?}",
+        waiting(&index)
+    );
+    assert_eq!(
+        index.take_work(),
+        Work {
+            parsed: graph,
+            checked: graph,
+        },
+        "one analysis of the open document's graph, and no other"
+    );
+}
+
+/// A file whose text changed since the index was written sends the entry
+/// that indexed it back to the queue, and no other entry, while its surface
+/// is the same.
+#[test]
+fn a_file_changed_on_disk_queues_its_entry_again() {
+    let dir = tree(2, 40);
+    age(&dir);
+    let (_, file) = saved(&dir);
+    let path = dir.at(&part(5));
+    let text = fs::read_to_string(&path).expect("a fixture file");
+    fs::write(&path, body_edit(5, 1)(&text)).expect("a writable scratch file");
+
+    let (documents, mut index) = started(&dir, &file);
+    let queued = waiting(&index);
+    assert!(
+        queued.len() == 1 && queued[0].ends_with("Blog/main.nvs"),
+        "only the entry that indexed the file waits: {queued:?}"
+    );
+    index.settle(&documents);
+    assert!(index.holds(&path), "the settled index has the file again");
+}
+
+/// A file whose surface changed since the index was written sends every
+/// entry that read it back to the queue.
+#[test]
+fn a_surface_changed_on_disk_queues_every_entry_that_read_it() {
+    let dir = tree(2, 40);
+    let (built, file) = saved(&dir);
+    let path = dir.at(&part(5));
+    let text = fs::read_to_string(&path).expect("a fixture file");
+    let added = text.replacen(
+        "    public function next(",
+        "    public function fresh(): int\n    {\n        return 5;\n    }\n\n    public function next(",
+        1,
+    );
+    assert_ne!(added, text, "the class still has its `next` method");
+    fs::write(&path, added).expect("a writable scratch file");
+
+    let (_, index) = started(&dir, &file);
+    let readers: Vec<PathBuf> = built.readers(&path);
+    assert!(readers.len() >= 2, "both programs read the library file");
+    assert_eq!(
+        index.pending().iter().cloned().collect::<Vec<_>>(),
+        readers,
+        "every entry that read the file waits, and no other"
+    );
+}
+
+/// An index file written by another build of the server is discarded whole.
+#[test]
+fn a_build_stamp_mismatch_discards_the_index_file() {
+    let dir = tree(2, 8);
+    let (built, file) = saved(&dir);
+    let mut bytes = fs::read(&file).expect("the index file");
+    // The magic is six bytes and the format version four, so the build stamp
+    // starts at byte 10.
+    bytes[10] ^= 1;
+    fs::write(&file, resealed(bytes)).expect("a writable scratch file");
+
+    let (_, index) = started(&dir, &file);
+    assert!(
+        is_discarded(&index, built.len()),
+        "an index from another build was used: {} files, {:?}",
+        index.len(),
+        waiting(&index)
+    );
+}
+
+/// An index file of another format version is discarded whole.
+#[test]
+fn a_format_version_mismatch_discards_the_index_file() {
+    let dir = tree(2, 8);
+    let (built, file) = saved(&dir);
+    let mut bytes = fs::read(&file).expect("the index file");
+    let version = u32::from_le_bytes(bytes[6..10].try_into().expect("four bytes"));
+    bytes[6..10].copy_from_slice(&(version + 1).to_le_bytes());
+    fs::write(&file, resealed(bytes)).expect("a writable scratch file");
+
+    let (_, index) = started(&dir, &file);
+    assert!(
+        is_discarded(&index, built.len()),
+        "an index of another format was used: {} files",
+        index.len()
+    );
+}
+
+/// A file deleted since the index was written leaves the loaded index, and
+/// the entries that read it wait.
+#[test]
+fn a_deleted_file_leaves_the_loaded_index() {
+    let dir = tree(2, 8);
+    age(&dir);
+    let (built, file) = saved(&dir);
+    let helper = dir.at("Shop/src/Helper.nvs");
+    let readers = built.readers(&helper);
+    assert!(!readers.is_empty(), "the program reads its helper");
+    fs::remove_file(&helper).expect("the helper is there");
+
+    let (_, index) = started(&dir, &file);
+    assert!(!index.holds(&helper), "the deleted file is still indexed");
+    assert_eq!(index.len(), built.len() - 1, "only the deleted file left");
+    for reader in &readers {
+        assert!(
+            index.pending().contains(reader),
+            "{} read the deleted file and does not wait: {:?}",
+            reader.display(),
+            waiting(&index)
+        );
+    }
+}
+
+/// A torn or damaged index file is discarded whole, and a damaged one whose
+/// checksum was written again never stops the load.
+#[test]
+fn a_truncated_or_corrupt_index_file_is_discarded() {
+    let dir = tree(2, 8);
+    let (built, file) = saved(&dir);
+    let bytes = fs::read(&file).expect("the index file");
+
+    let damaged: Vec<(&str, Vec<u8>)> = vec![
+        ("empty", Vec::new()),
+        ("truncated", bytes[..bytes.len() / 2].to_vec()),
+        ("without its checksum", bytes[..bytes.len() - 32].to_vec()),
+        ("with a byte changed", {
+            let mut changed = bytes.clone();
+            changed[bytes.len() / 2] ^= 0x40;
+            changed
+        }),
+        ("with a byte added", {
+            let mut longer = bytes.clone();
+            longer.push(0);
+            longer
+        }),
+    ];
+    for (how, damaged) in damaged {
+        fs::write(&file, damaged).expect("a writable scratch file");
+        let (_, index) = started(&dir, &file);
+        assert!(
+            is_discarded(&index, built.len()),
+            "an index file {how} was used: {} files",
+            index.len()
+        );
+    }
+
+    // A changed byte with a valid checksum reaches the decoder. Each one is
+    // discarded or read, and none of them panics or allocates past the file.
+    for at in (0..bytes.len() - 32).step_by(53) {
+        let mut changed = bytes.clone();
+        changed[at] ^= 0xff;
+        fs::write(&file, resealed(changed)).expect("a writable scratch file");
+        let (_, index) = started(&dir, &file);
+        assert!(
+            index.len() <= built.len() + 1,
+            "a changed byte at {at} made {} files out of {}",
+            index.len(),
+            built.len()
+        );
+    }
+}
+
+/// Two servers on one root write one index file at once. Each writes a whole
+/// file and renames it into place, so what is left is one whole file, and no
+/// temporary file stays behind.
+#[test]
+fn two_servers_writing_one_root_leave_one_whole_index_file() {
+    let dir = tree(2, 8);
+    let (built, file) = saved(&dir);
+    let (_, first) = started(&dir, &file);
+    let (_, second) = started(&dir, &file);
+    fs::remove_file(&file).expect("the index file");
+
+    let root = dir.root();
+    let (one, two) = std::thread::scope(|scope| {
+        let one = scope.spawn(|| first.save_to(&file, root));
+        let two = scope.spawn(|| second.save_to(&file, root));
+        (
+            one.join().expect("the first writer ends"),
+            two.join().expect("the second writer ends"),
+        )
+    });
+    assert!(
+        one.is_ok() || two.is_ok(),
+        "neither write landed: {one:?}, {two:?}"
+    );
+
+    let (_, index) = started(&dir, &file);
+    assert!(index.pending().is_empty(), "the file left is not whole");
+    assert_eq!(indexed(&index), indexed(&built));
+    let left: Vec<String> = fs::read_dir(dir.at("index"))
+        .expect("the index directory")
+        .map(|entry| {
+            entry
+                .expect("a directory entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(left, ["root.idx"], "a temporary file was left behind");
 }

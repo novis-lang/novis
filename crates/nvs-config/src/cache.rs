@@ -101,6 +101,14 @@ impl Digest {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// The digest whose bytes are `bytes`, as a file that stored [`Self::as_bytes`] gives them
+    /// back. The language server's on-disk index is the reader: it compares a stored digest with
+    /// one computed now, and a stored digest says nothing about the bytes it was taken over.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 impl fmt::Display for Digest {
@@ -268,7 +276,10 @@ pub fn build_is_identified() -> bool {
 /// Held for the life of the process, so the `metadata` call happens once however many snapshots are
 /// published. [`None`] when the binary cannot be named or examined — the module header says why
 /// that keys apart from every build that can name itself rather than falling back to the version.
-fn build_stamp() -> Option<Digest> {
+///
+/// Public for the language server's on-disk index, which a different build never reads, for the
+/// reason the compiled-code cache keys on it.
+pub fn build_stamp() -> Option<Digest> {
     static STAMP: OnceLock<Option<Digest>> = OnceLock::new();
     *STAMP.get_or_init(|| {
         let exe = std::env::current_exe().ok()?;

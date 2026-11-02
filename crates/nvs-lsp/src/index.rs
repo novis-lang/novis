@@ -92,9 +92,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use lsp_types::Uri;
-use nvs_config::cache::Digest;
+use nvs_config::cache::{Digest, content_hash};
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
@@ -110,6 +111,7 @@ use crate::definition::{
     FileScope, Target, body_of, covers, named_at, paired, supertype_names, target_of, text_of,
     written_types_in,
 };
+use crate::disk_index::{self, Stamp};
 use crate::document::{Analysed, Documents, Work, analyse_file};
 
 /// The three visibility levels a [`Declaration`] carries.
@@ -333,43 +335,54 @@ pub struct Import {
 }
 
 /// One file, as the analysis that reached it read it.
+///
+/// Built by [`SymbolIndex::absorb`], and read back from disk by
+/// [`crate::disk_index::decode`], which restores what an earlier `absorb`
+/// built and analyses nothing.
 #[derive(Debug)]
-struct Indexed {
+pub(crate) struct Indexed {
     /// Every name declared here, in source order.
-    decls: Vec<Declaration>,
+    pub(crate) decls: Vec<Declaration>,
     /// Every resolved use written here, in source order.
-    occurrences: Vec<Occurrence>,
+    pub(crate) occurrences: Vec<Occurrence>,
     /// Every `use` import written here, in source order.
-    imports: Vec<Import>,
+    pub(crate) imports: Vec<Import>,
     /// Every `Core\Test::request` written here with a literal method and path
     /// that the route table matched, in source order: the symbol is the
     /// handler of the route it matched, and the site is the path's literal.
-    requests: Vec<Occurrence>,
+    pub(crate) requests: Vec<Occurrence>,
     /// Every call the call graph does not follow, in source order: a method
     /// taken as a callable value, by its symbol, and a call by name that the
     /// checker did not resolve to one method, as `::` and the name.
-    unfollowed: Vec<String>,
+    pub(crate) unfollowed: Vec<String>,
     /// Every `Core\Db` call that sends a statement, as the start and end of
     /// the call expression, in source order: the sites the query lens reads
     /// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
-    queries: Vec<(BytePos, BytePos)>,
+    pub(crate) queries: Vec<(BytePos, BytePos)>,
     /// The kind of the one type this file declares, when the file has the
     /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
-    sole: Option<DeclKind>,
+    pub(crate) sole: Option<DeclKind>,
     /// Whether the analysis that indexed this file reported an error inside
     /// it, in which case a use written there may be missing from the index.
-    errors: bool,
+    pub(crate) errors: bool,
     /// Whether one of those errors is the lexer's or the parser's, so this
     /// file's text did not parse and its declarations may be missing.
-    broken: bool,
+    pub(crate) broken: bool,
     /// The hash of what other files can see of this file ([`crate::surface`]).
     /// [`SymbolIndex::refresh`] queues the readers of an edited open file only
     /// when its new analysis gives a different hash.
-    surface: Digest,
+    pub(crate) surface: Digest,
+    /// The BLAKE3 hash of the text the analysis read. A load from disk
+    /// compares it with the file's text now.
+    pub(crate) content: Digest,
+    /// The file's size and modification time, where they identify that text.
+    /// `None` for an open buffer, whose text is not the file's, and for a
+    /// file that changed too close to the analysis to tell.
+    pub(crate) stamp: Option<Stamp>,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::refresh`] follows.
-    entry: PathBuf,
+    pub(crate) entry: PathBuf,
 }
 
 /// What one [`SymbolIndex::refresh`] did.
@@ -426,6 +439,10 @@ pub struct SymbolIndex {
     /// and of [`settle_one`](Self::settle_one) alike, because queued work is
     /// still work a keystroke caused.
     work: Work,
+    /// How many times `files` gained or lost an entry or an entry's stamp
+    /// moved. The server writes the index to disk when this differs from
+    /// what it was at the last write ([`generation`](Self::generation)).
+    generation: u64,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -468,6 +485,148 @@ impl SymbolIndex {
                 .collect(),
             ..Self::default()
         }
+    }
+
+    /// [`planned`](Self::planned), with every entry of the index file at
+    /// `path` that is still right taken from it. Only the stale entry points
+    /// wait in [`pending`](Self::pending), so a start on a tree the server saw
+    /// before analyses the files that changed, and nothing more.
+    ///
+    /// The whole file is discarded, and the index is the planned one, for a
+    /// wrong magic, format version, build stamp, root or checksum, for any
+    /// error in its bytes, for a build that cannot identify itself, and for a
+    /// `scope` other than `Workspace` or no `root`. Then each entry is checked
+    /// against its file:
+    ///
+    /// - a size and modification time that match are trusted;
+    /// - otherwise the file is hashed, and a hash that matches is trusted and
+    ///   gets the file's time;
+    /// - otherwise the file is parsed for its surface, and the entry point that
+    ///   indexed it waits. If the surface differs, every entry point that read
+    ///   the file waits too;
+    /// - a file that is gone leaves the index, and every entry point that read
+    ///   it waits.
+    ///
+    /// An entry point that indexed a file with an error waits as well: the
+    /// class a use there could not find may exist now. Every file of the tree
+    /// that the index does not hold waits, as it would in a planned index.
+    #[must_use]
+    pub fn load_from(
+        documents: &Documents,
+        scope: CheckScope,
+        root: Option<&Path>,
+        path: &Path,
+    ) -> Self {
+        Self::loaded(documents, scope, root, path)
+            .unwrap_or_else(|| Self::planned(documents, scope, root))
+    }
+
+    /// [`load_from`](Self::load_from), and `None` where it discards the file.
+    fn loaded(
+        documents: &Documents,
+        scope: CheckScope,
+        root: Option<&Path>,
+        path: &Path,
+    ) -> Option<Self> {
+        let root = root.filter(|_| scope == CheckScope::Workspace)?;
+        let stamp = nvs_config::cache::build_stamp()?;
+        let bytes = std::fs::read(path).ok()?;
+        let saved = disk_index::decode(&bytes, stamp, &canonical_key(root))?;
+        drop(bytes);
+
+        let started = SystemTime::now();
+        let mut index = Self {
+            reads: saved.reads.into_iter().collect(),
+            ..Self::default()
+        };
+        let mut stale = BTreeSet::new();
+        let mut moved = Vec::new();
+        let mut gone = Vec::new();
+        let mut restamped = false;
+        for (key, mut indexed) in saved.files {
+            match freshness(&key, &indexed, started) {
+                Freshness::Same => {}
+                Freshness::Restamped(stamp) => {
+                    indexed.stamp = stamp;
+                    restamped = true;
+                }
+                Freshness::Changed(surface) => {
+                    stale.insert(indexed.entry.clone());
+                    if surface != Some(indexed.surface) {
+                        moved.push(key.clone());
+                    }
+                }
+                Freshness::Gone => {
+                    gone.push(key);
+                    continue;
+                }
+            }
+            if indexed.errors || open_document(documents, &key).is_some() {
+                stale.insert(indexed.entry.clone());
+            }
+            index.post(&key, &indexed);
+            index.files.insert(key, indexed);
+        }
+        for key in moved.iter().chain(&gone) {
+            stale.extend(index.readers_of(key));
+        }
+        // An entry point that is gone re-indexes nothing, so the files it
+        // indexed leave with it, and the tree below queues those that remain.
+        let gone_entries: Vec<PathBuf> = gone
+            .iter()
+            .filter(|key| index.reads.contains_key(*key))
+            .cloned()
+            .collect();
+        index.drop_owned(&gone_entries);
+        for key in &gone {
+            stale.remove(key);
+        }
+        index.pending = stale;
+        for (entry, _) in tree(documents, scope, Some(root)) {
+            if !index.files.contains_key(&entry) {
+                index.pending.insert(entry);
+            }
+        }
+        // The index now says what the file says, except where a stamp moved
+        // or a file left.
+        index.generation = u64::from(restamped || !gone.is_empty());
+        Some(index)
+    }
+
+    /// Writes the index to `path`, as the index of the workspace `root`.
+    ///
+    /// The bytes go to `<name>.<pid>.<n>.tmp` beside `path`, which is then
+    /// renamed over it, so a reader sees the old file or the new one and never
+    /// part of one. Two servers on one root each write a whole file, and the
+    /// last rename wins. Nothing is synced: a file torn by a crash fails its
+    /// checksum and is discarded at the next load.
+    ///
+    /// # Errors
+    ///
+    /// When this build cannot identify itself, when a path is not UTF-8, and
+    /// when the write or the rename fails, as on Windows while another process
+    /// has the file open. Every error deletes the temporary file and leaves
+    /// `path` as it was.
+    pub fn save_to(&self, path: &Path, root: &Path) -> std::io::Result<()> {
+        let refused = |why: &str| std::io::Error::new(std::io::ErrorKind::Unsupported, why);
+        let stamp = nvs_config::cache::build_stamp()
+            .ok_or_else(|| refused("this build cannot identify itself"))?;
+        let bytes = disk_index::encode(
+            self.files.iter(),
+            self.reads.iter(),
+            stamp,
+            &canonical_key(root),
+        )
+        .ok_or_else(|| refused("a path is not UTF-8"))?;
+        disk_index::write(path, &bytes)
+    }
+
+    /// A number that changes whenever what [`save_to`](Self::save_to) writes
+    /// changes. The server writes the index when it differs from the number
+    /// at its last write.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Re-indexes `changed` and every file whose analysis read it. The open
@@ -971,6 +1130,7 @@ impl SymbolIndex {
     /// Returns the analysis it indexed, for [`refresh`](Self::refresh) to hand
     /// on.
     fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) -> Option<Analysed> {
+        let started = SystemTime::now();
         let analysed = analyse_file(documents, entry, version)?;
         self.work += analysed.work;
         let entry = canonical_key(entry);
@@ -984,6 +1144,14 @@ impl SymbolIndex {
             if self.files.contains_key(&key) {
                 continue;
             }
+            let text = analysed.map.file(loaded.id).text();
+            let stamp = if open_document(documents, &key).is_some() {
+                None
+            } else {
+                std::fs::metadata(&key)
+                    .ok()
+                    .and_then(|metadata| Stamp::of(&metadata, text.len(), started))
+            };
             let scope = FileScope::of(&analysed, loaded.id);
             let uses = occurrences(&analysed, &scope, loaded, &key);
             let indexed = Indexed {
@@ -1007,7 +1175,9 @@ impl SymbolIndex {
                             .primary_span()
                             .is_some_and(|span| span.file == loaded.id)
                 }),
-                surface: crate::surface::of(&loaded.stmts, analysed.map.file(loaded.id).text()),
+                surface: crate::surface::of(&loaded.stmts, text),
+                content: content_hash(text.as_bytes()),
+                stamp,
                 entry: entry.clone(),
             };
             self.post(&key, &indexed);
@@ -1025,6 +1195,7 @@ impl SymbolIndex {
 
     /// Adds what `indexed` declares and uses to the three maps, under `key`.
     fn post(&mut self, key: &Path, indexed: &Indexed) {
+        self.generation += 1;
         let key: Arc<Path> = Arc::from(key);
         for (at, declared) in indexed.decls.iter().enumerate() {
             let posting = (Arc::clone(&key), at);
@@ -1047,6 +1218,7 @@ impl SymbolIndex {
     /// Removes from the three maps what [`SymbolIndex::post`] added for
     /// `indexed` under `key`.
     fn unpost(&mut self, key: &Path, indexed: &Indexed) {
+        self.generation += 1;
         let key: Arc<Path> = Arc::from(key);
         for (at, declared) in indexed.decls.iter().enumerate() {
             let posting = (Arc::clone(&key), at);
@@ -1152,6 +1324,48 @@ pub(crate) fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<(Strin
 /// none. Nothing compares this one: `Documents::is_current` is asked about
 /// documents, and the index publishes nothing.
 const NO_BUFFER: i32 = 0;
+
+/// What a loaded entry's file says about the entry.
+enum Freshness {
+    /// The file has the text the entry was indexed from.
+    Same,
+    /// The same, found by hashing the file, and this is its stamp now.
+    Restamped(Option<Stamp>),
+    /// The text changed, and this is its surface hash, where it is UTF-8.
+    Changed(Option<Digest>),
+    /// The file is gone or cannot be read.
+    Gone,
+}
+
+/// Whether the file at `key` still has the text `indexed` was built from.
+/// `started` is when the load began, which [`Stamp::of`] needs.
+fn freshness(key: &Path, indexed: &Indexed, started: SystemTime) -> Freshness {
+    let Ok(metadata) = std::fs::metadata(key) else {
+        return Freshness::Gone;
+    };
+    if !metadata.is_file() {
+        return Freshness::Gone;
+    }
+    if indexed.stamp.is_some_and(|stamp| stamp.matches(&metadata)) {
+        return Freshness::Same;
+    }
+    let Ok(bytes) = std::fs::read(key) else {
+        return Freshness::Gone;
+    };
+    if content_hash(&bytes) == indexed.content {
+        let stamp = Stamp::of(&metadata, bytes.len(), started);
+        return if stamp == indexed.stamp {
+            Freshness::Same
+        } else {
+            Freshness::Restamped(stamp)
+        };
+    }
+    Freshness::Changed(
+        std::str::from_utf8(&bytes)
+            .ok()
+            .map(crate::surface::of_source),
+    )
+}
 
 /// The entry points `scope` selects, in path order, each with the version to
 /// record for it.
