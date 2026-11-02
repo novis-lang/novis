@@ -22,7 +22,9 @@
  * browser first paints, so the second rule picks a reader's light theme.
  *
  * The script marks the animated regions that are on screen, so their loops
- * run only while a reader can see them (src/scripts/on-screen.ts).
+ * run only while a reader can see them (src/scripts/on-screen.ts). It also
+ * sends the page view to the visitor statistics, which stats.ts skips for a
+ * reader who turned them off (src/scripts/stats.ts).
  */
 import Default from '@astrojs/starlight/components/Head.astro'
 import sansLatin from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url'
@@ -45,4 +47,7 @@ import { withBase } from '~/lib/base'
 <link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />
 <script>
   import '~/scripts/on-screen'
+  import { trackPageView } from '~/scripts/stats'
+
+  trackPageView()
 </script>

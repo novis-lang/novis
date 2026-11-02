@@ -1,0 +1,77 @@
+---
+/**
+ * The reader's switch for the visitor statistics, on the privacy page.
+ * Turning it off stores `nv-stats-opt-out` in local storage, and
+ * src/scripts/stats.ts then sends nothing from this browser. A browser that
+ * sends Global Privacy Control or Do Not Track is never counted, and the
+ * switch shows that and cannot be turned on. Without JavaScript nothing is
+ * counted, and the <noscript> text says so.
+ */
+---
+
+<div class="nv-stats-opt-out not-content">
+  <label>
+    <input type="checkbox" disabled />
+    <span>Count my visits on this website</span>
+  </label>
+  <p class="nv-stats-status" aria-live="polite"></p>
+  <noscript>
+    <p>JavaScript is turned off in your browser. This website does not count your visits.</p>
+  </noscript>
+</div>
+
+<script>
+  import { browserDeclines, optedOut, setOptedOut } from '~/scripts/stats'
+
+  for (const root of document.querySelectorAll<HTMLElement>('.nv-stats-opt-out')) {
+    const box = root.querySelector('input')!
+    const status = root.querySelector<HTMLElement>('.nv-stats-status')!
+
+    const show = () => {
+      if (browserDeclines()) {
+        box.checked = false
+        box.disabled = true
+        status.textContent =
+          'Your browser asks websites not to track you. This website does not count your visits.'
+        return
+      }
+      box.disabled = false
+      box.checked = !optedOut()
+      status.textContent = box.checked
+        ? 'This website counts your visits.'
+        : 'This website does not count your visits. Your choice is stored in this browser only.'
+    }
+
+    box.addEventListener('change', () => {
+      setOptedOut(!box.checked)
+      show()
+    })
+    show()
+  }
+</script>
+
+<style>
+  .nv-stats-opt-out {
+    margin-block: var(--nv-space-4);
+    padding: var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+  }
+  .nv-stats-opt-out label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .nv-stats-opt-out input {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--sl-color-accent);
+  }
+  .nv-stats-opt-out p {
+    margin: var(--nv-space-2) 0 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+</style>

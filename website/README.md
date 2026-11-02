@@ -42,7 +42,7 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `guides/markdown-extension/**` | human | the Rust extension project *Write an extension in Rust* builds, shown in place by `src/lib/extension-example.ts`. `bun nv ext-templates --example` builds, tests and calls a copy of it, and CI's `ext-templates` job runs that on three platforms |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
-| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from, and `SPONSOR_CHANNELS`, the ways to give money |
+| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from, and `SPONSOR_CHANNELS`, the ways to give money, and `STATS`, the Matomo server § *Visitor statistics* describes |
 | `src/data/sponsors.json` | human | the sponsor tiers, the sponsors who asked to be named (`name`, `tier`, optional `url` and `logo` under `public/`, and `amount` with `per` — `month` or `once` — only when they asked for that too), the count of those who did not (`unnamed`), and the quarterly reports (`period`, `donors`, `income` after fees, `costs`). Nothing about a sponsor is published without their request: `src/content/docs/datenschutz.mdx` § *Donations and sponsors* is the promise. `src/components/Sponsors.astro` renders it |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
 
@@ -203,7 +203,32 @@ and white is the ground the mark's own disc already carries under its lower half
 4. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host. No
    `CNAME` file: GitHub writes one only when publishing from a branch, and ignores any that exists
    when a workflow publishes — one in `public/` would ship as a dead file at `/CNAME`.
-5. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
+5. Set up the Matomo server as § *Visitor statistics* below says, before the domain goes live.
+6. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
+
+## Visitor statistics
+
+`src/scripts/stats.ts` sends one page view per page load to the Matomo server in `STATS`
+(`config/site.mjs`), and its header says what is sent and when nothing is. It sends only from
+`SITE_URL`'s host in a production build, so a preview, a fork or `npm run dev` counts nothing.
+`src/components/StatsOptOut.astro` is the reader's switch on the privacy page.
+
+`src/content/docs/datenschutz.mdx` § *Visitor statistics* promises the reader what the server
+does, and the client cannot enforce it. The Matomo instance at `stats.novis-lang.org` keeps it
+true only with these settings:
+
+| Where | Setting |
+| --- | --- |
+| Administration → Privacy → Anonymize data | IP anonymization on, **2 bytes**; *also use the anonymized IP when enriching visits* on; force tracking without cookies on |
+| Administration → Privacy → Anonymize data | *Regularly delete old raw data* on, **90 days**; reports kept |
+| Administration → Privacy → Users opt-out | *Support Do Not Track preference* on, a second guard behind the client's |
+| Administration → System → General settings, or per site under Websites → Manage | visits log and visitor profile disabled, so no one can browse single visits |
+| Websites → Manage → this site | URL `https://novis-lang.org`, *only track visits on these URLs* on; the site ID is `STATS.siteId` |
+| `config/config.ini.php` `[Tracker]` | `enable_fingerprinting_across_websites = 0` and `use_third_party_id_cookie = 0`, both Matomo's defaults |
+| Archiving | a cron job runs `core:archive`, and browser-triggered archiving is off, so totals exist before raw data is deleted |
+| The web server in front | **no access log**, or one that drops the client address: a log of full IPs breaks the promise that none is stored |
+
+The server must be in the EU, or the privacy page's sentence saying so changes with it.
 
 ## How it is published
 

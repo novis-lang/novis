@@ -23,6 +23,15 @@ export const DISCORD_URL = 'https://discord.gg/8ftMjPeH8h'
  */
 export const CONTACT_EMAIL = 'novis-lang@proton.me'
 
+/**
+ * The Matomo server that counts page views, and this site's ID in it. An empty
+ * `url` turns the statistics off. src/scripts/stats.ts sends the page view, and
+ * src/content/docs/datenschutz.mdx § *Visitor statistics* is the promise to
+ * the reader: README.md § *Visitor statistics* lists the Matomo settings that
+ * keep it true.
+ */
+export const STATS = { url: 'https://stats.novis-lang.org/', siteId: 8 }
+
 /** Branch the GitHub links point into. */
 export const GITHUB_BRANCH = 'main'
 

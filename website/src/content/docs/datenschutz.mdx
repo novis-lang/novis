@@ -13,6 +13,7 @@ head:
 ---
 
 import ProtectedEmail from '@components/ProtectedEmail.astro'
+import StatsOptOut from '@components/StatsOptOut.astro'
 
 ## Controller (Verantwortlicher)
 
@@ -22,12 +23,58 @@ E-mail: <ProtectedEmail />
 
 ## What this website does with your data
 
-This website is a static documentation website. It sets **no cookies**. It uses **no
-tracking or analytics services**. It has **no user accounts**. The search and the filters
-run completely in your browser. They send no data to us.
+This website is a static documentation website. It sets **no cookies**. It has **no user
+accounts**. The search and the filters run completely in your browser. They send no data to
+us.
+
+We count visits with Matomo, on a server that we run ourselves. The section [Visitor statistics](#visitor-statistics) explains what we count, and
+how you can turn it off.
 
 Your choice of a light or a dark theme is stored only in your browser (local storage). It
 is not sent to us.
+
+## Visitor statistics
+
+We want to know which pages people read, so we can improve the documentation. For this, we
+use [Matomo](https://matomo.org/), an open-source analytics program. Matomo runs on our own
+server at `stats.novis-lang.org`.
+
+We rent this server from Contabo GmbH, Welfenstraße 22, 81541 München, Germany. The server
+is in the European Union. Contabo stores the data for us and processes it only on our
+instructions. We have a data processing agreement with Contabo (Art. 28 GDPR). No data goes
+to Matomo the company or to any other third party.
+
+**What we count.** When you open a page, your browser sends us one request with:
+
+- the address of the page, without anything after a `?` or a `#`,
+- the title of the page,
+- the website you came from, only its address (for example `https://www.google.com`).
+
+The server also receives what every web server receives: your IP address, your browser and
+operating system (the user agent), your preferred language and the time. Matomo removes the
+last two parts of your IP address (for example `192.0.2.17` becomes `192.0.0.0`) before it
+stores anything. From the shortened address, Matomo finds your country. Your full IP
+address is never stored.
+
+**What we do not do.** We set no cookies, and we store nothing in your browser for the
+statistics. We do not create a profile of you. We do not combine this data with other data.
+Matomo groups the requests of one visit with a value calculated from the shortened IP
+address and the browser data. This value changes every day, so we cannot recognize you
+on the next day. We cannot see who you are, and we do not try to find out.
+
+**How long we keep it.** Matomo deletes the data of single visits after 90 days. After
+that, we keep only totals, for example "this page had 300 views in May". Totals do not
+contain any data about you.
+
+**Legal basis.** Our legitimate interest in improving this website (Art. 6(1)(f) GDPR).
+
+**How to turn it off.** You can object at any time with the switch below. If you turn it
+off, your browser stores `nv-stats-opt-out` in its local storage, and sends no more
+requests to the statistics server. If your browser sends a "Do Not Track" or "Global
+Privacy Control" signal, this website never counts your visits. If JavaScript is turned
+off, this website never counts your visits.
+
+<StatsOptOut />
 
 ## Hosting and server logs
 
@@ -87,4 +134,4 @@ to the Austrian Data Protection Authority:
 [Österreichische Datenschutzbehörde](https://www.dsb.gv.at/), Barichgasse 40–42,
 1030 Wien.
 
-*Last updated: October 2026*
+*Last updated: November 2026*
