@@ -1,0 +1,17 @@
+{
+  "title": "The language server keeps a persistent incremental index, so a keystroke costs what changed and not the project",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/five-features-are-one-reference-index",
+    "ide/a-full-reanalysis-stays-under-a-bound",
+    "ide/the-server-is-synchronous",
+    "ide/one-grammar-one-tree",
+    "ide/check-scope-defaults-to-the-workspace",
+    "ide/dependencies-are-allowlisted"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/incremental.rs",
+    "crates/nvs-lsp/tests/index.rs",
+    "crates/nvs-types/tests/partial_check.rs"
+  ]
+}

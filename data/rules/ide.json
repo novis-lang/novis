@@ -38,6 +38,7 @@
     "ide/semantic-tokens-carry-the-qualifiers",
     "ide/novis-ships-names-not-colours",
     "ide/five-features-are-one-reference-index",
+    "ide/the-index-is-incremental-and-persistent",
     "ide/used-by-counts-the-routes-and-tests-that-reach-a-method",
     "ide/a-route-hover-shows-the-programs-grants",
     "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",

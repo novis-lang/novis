@@ -54,13 +54,19 @@ call `query`. A caller outside the server, such as `nvs code`, gets a `Workspace
 builds the index for one question and drops it with the answer.
 
 The structure is one constructor, `SymbolIndex::build` in `crates/nvs-lsp/src/index.rs`, and all seven
-readers read what it built. The server keeps one warm index; a `.lspt` case and `nvs code` call the
-same constructor for one question each. Five features that would each walk the workspace cost one walk between them, and the
-warm index is what keeps references and highlight inside `rule:ide/a-full-reanalysis-stays-under-a-bound`.
+readers read what it built. The index file's decoder in `crates/nvs-lsp/src/disk_index.rs` restores
+entries that constructor built, and walks no front end. The server keeps one warm index; a `.lspt` case
+and `nvs code` call the same constructor for one question each. Five features that would each walk the
+workspace cost one walk between them, and the warm index is what keeps references and highlight inside
+`rule:ide/a-full-reanalysis-stays-under-a-bound`.
+
+A refresh re-indexes the file that changed through the open analysis that read it. Only an edit to the
+file's declaration surface queues the other entries that read it; a body-only edit queues none
+(`rule:ide/the-index-is-incremental-and-persistent`).
 
 - **Memory:** the index holds one entry per file the workspace's analyses reached, for the life of the
-  server process. It is bounded by the tree `nvs.check.scope` selects and released by the invalidation a
-  keystroke triggers. It is spent in the editor process and never on the request path.
+  server process. It is bounded by the tree `nvs.check.scope` selects and released when a file leaves
+  that tree. It is spent in the editor process and never on the request path.
 
 **Declined:**
 - **An index scoped to one `require` graph.** Four readers would work, but unused-member dimming is only
