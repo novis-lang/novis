@@ -394,25 +394,23 @@ Actions tab. It ended green, with the optional `windows-aarch64` warning. `publi
 images` run `41404740907` and the Website run `41404814796` are green. `bun nv ci
 --release-published` exits 0, and the image pulls with no login, so no visibility click is needed.
 
-`60bf5449f` makes the three judges read `build.yml` at the run's commit, so a leg dropped after a
-run does not refuse that run. `f9cfab1e7` merges `origin/main` into local `main`, which had 7 commits
-from other work made during the run.
+`28e998746` puts `incremental-index` on the chain, and in `roadmap.json`'s `internal` list. Dry
+runs `41405424660` and `41417319307` ended green, and each time other work then committed code to
+`main`, the last being `e94c935a1` in `ci.yml`. **The new tip `e94c935a1` is pushed, and its dry run `41428888824` is going** under a
+`bun nv ci --watch --release`. That push cancelled the nightly full run `41428598621` on
+`a3f6f6c96`, so full run `41428806069` was dispatched on `e94c935a1` in its place. This handoff's
+commit is notes only and is not pushed.
 
-`28e998746` puts `incremental-index` on the chain after `release-run`, and in `roadmap.json`'s
-`internal` list. Its dry run `41405424660` ended green in every job. During it, six commits of other
-work (`a581a0fed` to `a3f6f6c96`: CI legs, the release's suite skip, the website) changed code, so
-`--release-status` was red for `main`.
-
-**The new tip is pushed, and its dry run is going.** `bun nv ci --push` pushed `a3f6f6c96` with
-every pre-push check green. Dry run `41417319307` runs on it, and a `bun nv ci --watch --release`
-waits on it. This handoff's commit is notes only and is not pushed.
+Each dry run takes about an hour, and other work has committed code to `main` during each of the
+last two. If a third does too, the next session asks the user to hold commits to `main` until the
+dry run ends.
 
 The sweep's reds are stale: `env-secret-proofs` has no log and no goal names it, and nightly
 `41295327777` predates `lint`'s fix.
 
 ### Next
 
-- [ ] Dry run `41417319307` ends green, and `bun nv ci --release-status` exits 0. A red job is fixed at its cause, pushed, and dry-run again. `tools/nv/cmd/ci.ts:917`
+- [ ] Dry run `41428888824` ends green, and `bun nv ci --release-status` exits 0. A red job is fixed at its cause, pushed, and dry-run again. `tools/nv/cmd/ci.ts:917`
 - [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`. Then `DONE` with https://github.com/novis-lang/novis/releases/tag/v0.0.1. `tools/nv/cmd/ci.ts:537`
 
 No test is expected to go red.
