@@ -1768,12 +1768,11 @@ impl ExprTypeTable {
     /// An empty table for one file's walk, which records provenance where
     /// this one does. [`crate::check::check_program_partial`] checks each file
     /// into one of these and folds it into the program's table with
-    /// [`Self::absorb`], in file order.
+    /// [`Self::absorb`], in file order. The part inherits the editor's switch
+    /// and never turns it on itself.
     pub(crate) fn part(&self) -> Self {
         let mut part = Self::new();
-        if self.records_provenance() {
-            part.record_provenance();
-        }
+        part.provenance = self.provenance.as_ref().map(|_| Box::default());
         part
     }
 
