@@ -316,7 +316,7 @@ dispatch again. If the fix changed what the suites test, the new commit has no g
 dry run's `verify` job runs the full suite itself, and its reds are read the same way.
 
 - [x] The first dry run is dispatched. It runs on `df536b806`, since another session's CI cache commit `9d94ca78a` had to be pushed first, so its `verify` job runs the full suite itself. `.github/workflows/release.yml:210`
-- [ ] The fixtures of the `ci-release-tests` check are compared with the job names the first dry run shows, and corrected in the same slice if they differ. `tools/nv/test/ci.test.ts:314`
+- [x] The fixtures of the `ci-release-tests` check are compared with the job names the first dry run shows, and corrected in the same slice if they differ. `tools/nv/test/ci.test.ts:314`
 - [ ] Every red of `plan`, `build`, the `.vsix` and `docker` is fixed at its cause, one commit per cause. `.github/workflows/build.yml:1`, `.github/workflows/image.yml:1`, `tools/nv/cmd/release.ts:821`
 - [ ] `bun nv ci --release-status` exits 0. `tools/nv/cmd/ci.ts:537`
 
@@ -364,23 +364,22 @@ Stages 1 and 2 are done. Full run `41346116301` on `ec40af25e` is green in all 5
 `bun nv release --tested` printed `tested=true` for it. The macOS CPU-stop cause is fixed in
 `01ac9f143` (`wake_on_time`, `crates/nvs-host/src/watchdog.rs:1461`).
 
-Stage 3's first round: `df536b806` makes `bun nv ci --dispatch` refuse only when the unpushed
-commits change a file outside `NOTES_ONLY` (`tools/nv/cmd/ci.ts:621`), the paths
-`--release-status` also passes over. The push of `9d94ca78a` (CI caches, another session's) and
-`df536b806` went out through `bun nv ci --push`, every pre-push check green. Dry run
-`41352454403` on `df536b806` is going, and `bun nv ci --watch --release --max-min 110` watches it.
-Its `verify` job runs the full `ci.yml` suite, since `df536b806` has no green full run.
+Stage 3: dry run `41352454403` on `df536b806` passed every job, its `verify` job running the full
+suite. Only the optional `build / build windows-aarch64` failed, in its `Build` step. It does not
+stand for `main`, since `613573f75` (the registry key) is code.
 
-The acceptance sweep's reds were stale. Nightly `41295327777` ran on `ef0d5cd3b`, older than
-`ec40af25e`, and its one real red, `lint`'s broken `Shared::sweep` doc link, is already
-`Shared::sweep_and_wait` at `crates/nvs-host/src/watchdog.rs:120`. Its other jobs were cancelled
-behind it. `env-secret-proofs` has no definition in the tree and no log.
+`eb9358fdb` fixes `--watch --release`: GitHub sets a run's `name` from `run-name`, so the watch
+looked for `Release` and never saw `Release (dry run)`. Runs are now named from their `path`
+(`workflowOf`, `tools/nv/cmd/ci.ts`). The test fixture's image jobs are `(debian)`, as on GitHub.
+
+Dry run `41371737071` on `eb9358fdb` is going, with `verify` running the full suite again.
+`bun nv ci --watch --release --max-min 110` watches it, and it reads the run's jobs.
 
 ### Next
 
-- [ ] Read the watch's report. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
-- [ ] Compare the job names the dry run shows with `dryJobs` in `tools/nv/test/ci.test.ts:346`, and correct the fixture if they differ.
+- [ ] Read the watch's report. A watch that exits 3 is started again. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] On green: `bun nv ci --release-status` exits 0, then stage 4. `tools/nv/cmd/ci.ts:537`
+- [ ] Read why the optional `build / build windows-aarch64` fails, `.github/workflows/build.yml:89`. It does not hold the verdict.
 
 No test is expected to go red.
 
