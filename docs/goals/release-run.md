@@ -18,7 +18,7 @@ stages:
     context: [.github/workflows/release.yml, .github/workflows/build.yml, .github/workflows/image.yml, docker/README.md]
   - id: 4
     title: "bun nv ci cuts a real release: dispatch, approve, publish, and the published verdict"
-    status: open
+    status: done
     context: [tools/nv/cmd/ci.ts, tools/nv/test/ci.test.ts, docs/release.md, .github/workflows/release.yml, .github/workflows/release-promote.yml]
   - id: 5
     title: "the goal is verified once, a dry run on the final tip is green, and the real release is published"
@@ -28,7 +28,7 @@ stages:
 checks:
   - id: ci-release-tests
     stage: 1
-    name: bun nv ci dispatches only a dry-run Release, watches a Release run without cancelling it, and judges a dry run as release.yml does
+    name: bun nv ci dispatches a dry-run Release that no argument makes real, watches a Release run without cancelling it, and judges a dry run as release.yml does
     run: [bun, test, tools/nv/test/ci.test.ts]
     tests:
       - dispatch dry-run starts release.yml on main with dry_run true, and no argument starts a real release
@@ -38,7 +38,7 @@ checks:
       - release-status is green for a dry run on main whose every job passed and whose publish was skipped
       - release-status counts a skipped verify job only beside a green full ci.yml run of that commit
       - release-status is red when a commit after the dry run changes a file outside docs/goals and the playbook
-      - release-status reads only dry runs, and the newest completed one decides
+      - release-status reads dry and real runs, and the newest completed one decides
       - release-status names a failed or cancelled job and its step, and passes over a failed optional build leg
   - id: release-dry-run-green
     stage: 3
@@ -328,12 +328,27 @@ the real release under a live goal that says so. Nothing in this stage dispatche
 
 **Split:** one writing session. `ci.ts` and its test file are one file set.
 
-- [ ] `--dispatch release`: the third constant argv, and its refusals, which reuse `--release-status`'s pure judge and the `NOTES_ONLY` check. `tools/nv/cmd/ci.ts:472`, `tools/nv/cmd/ci.ts:621`
-- [ ] `--release-status` reads real runs. The newest completed run decides, `publish` and `docker` must pass in a real run, and the path rule starts from the tagged commit. `tools/nv/cmd/ci.ts:537`
-- [ ] `--approve-release` and `--publish-release`: a pure judge each, fed by a thin `gh` wrapper. The job names and the draft's asset names are read once with `gh api` from the first dry run for the fixtures. `tools/nv/cmd/ci.ts:507`, `.github/workflows/build.yml:89`
-- [ ] `--release-published`: the release, its tag on `origin/main`, the promote run, and the anonymous GHCR manifest read through a `fetch` seam the test replaces. `tools/nv/cmd/ci.ts:537`
-- [ ] `docs/release.md:8` and `.github/workflows/release.yml:3` allow an agent's real run under a live goal that says so. § *Cutting a release* names the command for each step and keeps the visibility click as the person's. The module doc, `summary`, `USAGE` and `docs/agent/commands.md:631` name the new modes. `docs/release.md:139`
-- [ ] The tests the `ci-real-release-tests` check names, beside the stage 1 ones. Run once by name: `bun test tools/nv/test/ci.test.ts`. `tools/nv/test/ci.test.ts:314`
+- [x] `--dispatch release`: the third constant argv, and its refusals, which reuse `--release-status`'s pure judge and the `NOTES_ONLY` check. `tools/nv/cmd/ci.ts:472`, `tools/nv/cmd/ci.ts:621`
+  - [x] `DISPATCH.release` carries `dry_run=false`, and the parser takes `release`
+  - [x] it refuses unless the newest completed run is a green dry run of `main`'s tip
+  - [x] it refuses while any `release.yml` run is going
+- [x] `--release-status` reads real runs. The newest completed run decides, `publish` and `docker` must pass in a real run, and the path rule starts from the tagged commit. `tools/nv/cmd/ci.ts:537`
+  - [x] `judgeRun` judges a dry, a real and an awaiting-approval run
+  - [x] a real run's path rule starts at its tag's commit, read with `gh api`
+- [x] `--approve-release` and `--publish-release`: a pure judge each, fed by a thin `gh` wrapper. The job names and the draft's asset names are read once with `gh api` from the first dry run for the fixtures. `tools/nv/cmd/ci.ts:507`, `.github/workflows/build.yml:89`
+  - [x] `--approve-release` refuses a dry run, a run not waiting, and a red job before `publish`
+  - [x] it prints the notes artifact, then approves the `release` environment
+  - [x] `--publish-release` checks every job and the draft's assets, then edits the draft
+- [x] `--release-published`: the release, its tag on `origin/main`, the promote run, and the anonymous GHCR manifest read through a `fetch` seam the test replaces. `tools/nv/cmd/ci.ts:537`
+  - [x] the release, its tag on `main`, and the promote run, through `gh`
+  - [x] the anonymous GHCR manifest, through the `fetch` seam, and the visibility click
+- [x] `docs/release.md:8` and `.github/workflows/release.yml:3` allow an agent's real run under a live goal that says so. § *Cutting a release* names the command for each step and keeps the visibility click as the person's. The module doc, `summary`, `USAGE` and `docs/agent/commands.md:631` name the new modes. `docs/release.md:139`
+  - [x] `docs/release.md` and `release.yml`'s header
+  - [x] the module doc, `summary`, `USAGE` and `commands.md`
+- [x] The tests the `ci-real-release-tests` check names, beside the stage 1 ones. Run once by name: `bun test tools/nv/test/ci.test.ts`. `tools/nv/test/ci.test.ts:314`
+  - [x] the eight tests, and the stage 1 ones the change reaches
+  - [x] `--watch --release` passes over a failed optional leg, with a test
+  - [x] one run by name is green
 
 ### 5. the goal is verified once, a dry run on the final tip is green, and the real release is published
 
@@ -360,25 +375,31 @@ are one session's, one step per turn, each waiting on its watch.
 
 ### State
 
-Stages 1 to 3 are done. Dry run `41371737071` on `eb9358fdb` passed every job, its `verify` job
-running the full suite, and `bun nv ci --release-status` printed `GREEN`. Every commit since is
-under `docs/goals/`.
+Stages 1 to 4 are done. `57f88b718` adds the real-run modes to `bun nv ci`: `--dispatch release`,
+`--approve-release`, `--publish-release` and `--release-published`. `--release-status` now reads
+real runs, and `--watch --release` passes over a failed optional build leg. `bun test
+tools/nv/test/ci.test.ts` ran once: 43 pass. `docs/release.md` § *Cutting a release* names the
+command for each step.
 
-Its one red is the optional `build / build windows-aarch64` leg: `corosensei` 0.3.4, the newest
-release, has no `aarch64` backend on Windows (its `src/arch/mod.rs:160`, then `compile_error!` at
-177). `Cargo.toml:122` pulls it. The release ships without that leg.
+The sweep's reds were stale. `env-secret-proofs` has no definition and no log in the tree. Nightly
+`41295327777` ran on `ef0d5cd3b`, 46 commits back, and its one real red, `lint`'s unresolved
+`Shared::sweep` link, is fixed on `main` (`crates/nvs-host/src/watchdog.rs:120`).
 
-`--watch --release` stops at any failed job, so the first watch exited 1 on that leg. A second
-watch with `--past "build / build windows-aarch64"` read the run to its green end.
+Dry run `41371737071` on `eb9358fdb` is green, but `57f88b718` changes code, so `--release-status`
+is red until a dry run of the new tip ends green. That is stage 5's fourth item.
 
-Stage 4 is code in `tools/nv/cmd/ci.ts` alone, with its tests. It changes `main`, so stage 5's dry
-run on the final tip is the one the real run stands on.
+The real-run modes have run only against fixtures. Their `gh` calls are: `pending_deployments`
+GET and POST with `-F environment_ids[]=<id>`, `gh run download -n release-notes-preview`,
+`releases?per_page=20`, `commits/<tag>`, `compare/<sha>...main`, and `release-promote.yml/runs?
+event=release`, matched to the tag by `head_branch`. A real run that disagrees with a fixture is
+fixed in `ci.ts` before the next step, never by hand through `gh`.
 
 ### Next
 
-- [ ] Stage 4's items, in order, with checkpoints written under each first. The judge to reuse is `judgeDryRun` (`tools/nv/cmd/ci.ts:707`), fed by `releaseStatus` (`tools/nv/cmd/ci.ts:754`). The argvs are `DISPATCH` (`tools/nv/cmd/ci.ts:115`), and the notes rule is `NOTES_ONLY` (`tools/nv/cmd/ci.ts:131`).
-- [ ] With them, `watch` (`tools/nv/cmd/ci.ts:431`) passes over a failed optional `build` leg under `--release`, as the backlog bullet says.
-- [ ] Run once by name: `bun test tools/nv/test/ci.test.ts`. No Rust changes, so no `cargo build`. `tools/nv/test/ci.test.ts:314`
+- [ ] Stage 5, the gate: `bun nv affected --run` with `run_in_background`, then end the turn. The change reaches `tools/nv/` and docs alone. `tools/nv/test/ci.test.ts:383`
+- [ ] Fix every failure in one pass, then `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and `bun nv ci --watch --release` in the background. `tools/nv/cmd/ci.ts:702`
+- [ ] Then the real run's order from the standing decisions, one step per turn. The approve judge is `judgeRun` with stage `approve`, called from `approveRelease` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
+- [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
 
 No test is expected to go red.
 
