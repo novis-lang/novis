@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
-import { LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
+import { EMBEDDED_TEXT, LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
 import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -30,13 +30,21 @@ function named(glob: string, pattern: RegExp): string[] {
 
 const embedded = () => named("crates/**/*.rs", /include_(?:str|bytes)!\(\s*"([^"]+)"/g);
 
-// A path crate or an embedded file outside the `code` lane would let a push change the binary and
-// run none of its tests.
-test("the code lane covers every file a crate embeds and every path crate", () => {
+const inCode = (path: string) => lanesFor({ code: LANES.code! }, [path])[0]![1];
+
+// A path crate outside the `code` lane would let a push change compiled code and run none of its tests.
+test("the code lane covers every path crate", () => {
   const pathCrates = ["Cargo.toml", "crates/*/Cargo.toml"].flatMap((glob) => named(glob, /\bpath\s*=\s*"([^"]+)"/g));
-  const inputs = [...embedded(), ...pathCrates.map((dir) => `${dir}/Cargo.toml`)];
   expect(pathCrates.some((dir) => dir.startsWith("vendor/"))).toBe(true);
-  expect(inputs.filter((path) => !lanesFor({ code: LANES.code! }, [path])[0]![1])).toEqual([]);
+  expect(pathCrates.map((dir) => `${dir}/Cargo.toml`).filter((path) => !inCode(path))).toEqual([]);
+});
+
+// Each file a crate embeds is code, or text a push may change without the platform matrix. A new
+// embed outside both is a choice somebody has to make, so it fails here until it is made.
+test("every file a crate embeds is in the code lane or on the embedded text list", () => {
+  const files = embedded();
+  expect(files.filter((path) => !inCode(path) && !EMBEDDED_TEXT.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p)))).toEqual([]);
+  expect(EMBEDDED_TEXT.filter((path) => inCode(path))).toEqual([]);
 });
 
 // A file the binary embeds under a path `UNBUILT` names would leave the dev build stale after a push

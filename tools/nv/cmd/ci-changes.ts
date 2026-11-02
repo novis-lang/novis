@@ -42,12 +42,18 @@ export const LOCKFILE_DIRS = [
   "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/markdown-extension",
 ];
 
-// What the binary is built from outside `crates/`: the patched crates under `vendor/`, the extension
-// components `nvs-ext`'s build script compiles and the WIT they implement, and the files the crates
-// embed. `ci-changes.test.ts` fails when a crate embeds a file, or `Cargo.toml` names a path crate,
-// that this list and `code` do not cover.
-const BINARY_INPUTS = [
-  "vendor/", "wit/", "extensions/", "viewer/dist/", "apps/telemetry/", "docs/reference/",
+// The code the binary is compiled from outside `crates/`: the patched crates under `vendor/`, and the
+// extension components `nvs-ext`'s build script compiles with the WIT they implement.
+// `ci-changes.test.ts` fails when `Cargo.toml` names a path crate that `code` does not cover.
+const COMPILED_INPUTS = ["vendor/", "wit/", "extensions/"];
+
+// The files the crates embed as text. A change to one changes the binary's bytes and not its code, so
+// it runs no platform matrix: the dev build rebuilds for it, the lanes that read it run (`refdoc`,
+// `proofs`, `browser`, `deps`), and the few unit tests that read one run on the next push that changes
+// code, and nightly. `ci-changes.test.ts` fails when a crate embeds a file that neither this list nor
+// `code` covers.
+export const EMBEDDED_TEXT = [
+  "docs/reference/", "viewer/dist/", "apps/telemetry/",
   "LICENSE", "README.md", "CHANGELOG.md", "THIRD-PARTY-LICENSES.txt",
 ];
 
@@ -61,7 +67,7 @@ export const LANES: Record<string, string[]> = {
   code: [
     "crates/", "benches/", "tests/", "examples/", "fuzz/", "tools/",
     "Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml", "deny.toml",
-    ...BINARY_INPUTS, ".github/workflows/",
+    ...COMPILED_INPUTS, ".github/workflows/",
   ],
   // The crates that emit or execute machine code, plus the probes that measure them. These are where
   // a use-after-free lives, and they are the only inputs a cost baseline has, so this gates ASAN and
@@ -87,7 +93,7 @@ export const LANES: Record<string, string[]> = {
   // host suite points a throwaway profile at the binary the same run built
   // (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in the
   // workspace can change what either of them answers. Gates `extension` and `extension-host`.
-  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ...BINARY_INPUTS, ".github/workflows/"],
+  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ...COMPILED_INPUTS, ".github/workflows/"],
   // What `cargo deny` and the attribution diff read, the other lockfiles' manifests among them. Their
   // answer cannot differ in a run that changed none of these
   // (`rule:packaging/a-dependency-move-proves-two-things`).
@@ -111,8 +117,8 @@ export const LANES: Record<string, string[]> = {
   // Gates `proofs`.
   proofs: [
     "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-    "docs/examples/", "data/perf/", "data/proofs/", "data/gaps/",
-    "website/", ...BINARY_INPUTS, ".github/workflows/",
+    "docs/examples/", "docs/reference/", "data/perf/", "data/proofs/", "data/gaps/",
+    "website/", ...COMPILED_INPUTS, ".github/workflows/",
   ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package
