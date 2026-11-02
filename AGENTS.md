@@ -121,8 +121,9 @@ in a `.nvs` file the website publishes — under `docs/examples/`, `tests/hostil
 and `website/snippets/` — the help text `nvs` prints for a command or a flag, and the message of every
 diagnostic. Help text and diagnostics are held to it when they are written or changed. The docs only
 agents read stay out of it: the rules, the goals, the files under `docs/agent/`
-and this file. Everything it covers is read by somebody who looked a feature up and has never seen this
-repository. **A beginner and an expert should both read it once and come away with the same picture.**
+and this file. Each `<Opinion>` on `/in-depth/personal-opinions/` stays out too: it is its author's
+own words, published as they wrote them, and no session rewrites it to fit this section. Everything it
+covers is read by somebody who looked a feature up and has never seen this repository. **A beginner and an expert should both read it once and come away with the same picture.**
 
 **Write it the way a good manual does, not the way this file does.** This file, the orientation pack,
 the rules and the goals are written in a dense essay voice, and an agent that has just read them writes

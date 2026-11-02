@@ -1,0 +1,100 @@
+---
+title: Personal opinions
+covers: []
+description: Honest personal views on Novis, good and bad, each written by the person who holds it.
+---
+
+import Opinion from '~/components/Opinion.astro'
+
+Each section on this page is one person's view of Novis. They say what they think, good and bad, in
+their own words. Their text does not follow the writing rules of the rest of this website.
+
+## Roland (BrainFooLong)
+
+<Opinion author="Roland (BrainFooLong)" role="initial creator of Novis" date="November 2026">
+
+### Why now
+
+At some point I realized: now is the time to actually do it. A compiler, a runtime, a web server, a
+big standard library, editor support. In the past it was impossible to create software that big and
+with that depth alone, without a second developer. Now it is possible, thanks to AI.
+
+### Where I come from
+
+I liked PHP and I still like it. I like its syntax, and for web projects it is the way to go. The
+biggest companies use PHP.
+
+But PHP's problem lies deep in its core. It has a long legacy. It can't improve greatly without
+destroying its user base. It is slow in some cases, and some advanced stuff it straight out cannot do
+out of the box.
+
+PHP has gone a different way than I would have taken. It always put simplicity over security, more
+heavily in the past than today. That had a cost, and that cost cannot be undone easily anymore.
+
+### The one thing the others don't have
+
+Every other language I know of doesn't have the one thing that makes PHP great, out of the box. Update
+your source code, reload the page, done. No build, no server restart, nothing. And request isolation,
+straight out of the box.
+
+That's the best part. No real competing language has this, and it fits this exact case. Novis has it.
+
+### Security first
+
+Security is today's biggest problem for all software. Fast software is cool, but if it is insecure,
+it will cost you serious money, nerves and reputation once you get breached.
+
+So in Novis security comes first, before speed. Some mistakes are simply impossible. Unescaped output
+cannot go out in the first place. Input from outside is tainted, passwords and keys are secret, and the
+compiler checks what you do with them.
+
+### Who it is for
+
+Everybody who creates a website or a web application of any kind. No matter how small or how big. A
+single page, a single API, a billion dollar API. Every one of these can be served with Novis.
+
+### What I am proud of
+
+The big feature set of Novis as a whole. One single binary, and so much comes with it. Very advanced,
+modern features like Slots, multicore parallel async processing, doing work after the response has
+been sent, the tainted and secret system, and the impossibility to send unescaped output at all.
+
+### What it is bad at
+
+Nothing that I know of today. Maybe the "empty" ecosystem can be a problem for some. But AI can
+mitigate most of that anyway.
+
+### A language, not a framework
+
+Novis is a programming language, not a framework. Frameworks are written on top of a language. The
+cut isn't always clear, but it's the cut we make.
+
+Something becomes a Novis feature when there is a large need for it, or when it's a security thing
+people can mess up when they do it by hand. A streamlined, secure way for such stuff, that's a Novis
+thing.
+
+### Fast and simple
+
+Fast means comparable to other top tier languages.
+
+Simple means the API and the code a developer writes must speak for itself. Weird syntax ninjas,
+hidden features, magic behind the scenes, all that is not simple.
+
+### How it is built
+
+Novis is written with AI agents. I make the decisions, the agents write the code, and every decision
+is a written rule that anyone can read. [How Novis is written](/in-depth/how-novis-is-written/) shows
+how that works. Without AI, Novis would not exist.
+
+I created Novis. But the community will take over someday, and that's how it should be.
+
+### To the skeptics
+
+"The world doesn't need another programming language." Sure. I would be exactly the kind of person
+who says that in the first place. It's a valid opinion, and if you don't want to bother looking into
+Novis, that's perfectly fine.
+
+But if you already have a single pain point with other languages, give it a try. You will be
+surprised.
+
+</Opinion>

@@ -723,7 +723,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "ae48ca2306616b3e",
+    "hash": "f2e2f63f85cb3e34",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -896,6 +896,17 @@
       "Does Novis have third-party packages?",
       "Where can I find packages for Novis?",
       "Why does Novis need more checks than other languages?"
+    ]
+  },
+  "/in-depth/personal-opinions/": {
+    "feature": "in-depth/personal-opinions.mdx",
+    "hash": "a0e722d49a89e275",
+    "questions": [
+      "Why was Novis created?",
+      "Who created Novis, and what were the reasons?",
+      "Why not use PHP, Go or Node for a new web app?",
+      "What do people think Novis is good and bad for?",
+      "Why is Novis a language and not a framework?"
     ]
   },
   "/in-depth/questions/": {

@@ -277,7 +277,8 @@
 // countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
 // joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
-// since their wording is the law's.
+// since their wording is the law's, and so is the text inside an `<Opinion>`, since its wording is its
+// author's.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -820,6 +821,7 @@ export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
   ["design-principles", 0],
   ["concepts", 5],
   ["new", 0],
+  ["personal-opinions", 0],
   ["questions", 0],
   ["roadmap", 0],
   ["what-changed", 0],
@@ -1606,24 +1608,38 @@ async function shoot(nvs: string, named: string[]): Promise<number> {
   return failed ? 1 : 0;
 }
 
-/** The paragraphs of a page's prose: no front matter, code, imports, components, comments, tables or headings. */
+/**
+ * The paragraphs of a page's prose: no front matter, code, imports, components, comments, tables or
+ * headings, and nothing inside an `<Opinion>`, whose wording is its author's (AGENTS.md § *Text an end
+ * user reads*).
+ */
 export function paragraphs(body: string): { line: number; text: string }[] {
   const out: { line: number; text: string }[] = [];
   let current: { line: number; text: string } | null = null;
   let fence = "";
   let comment = false;
+  let opinion = false;
   const end = () => {
     if (current) out.push(current);
     current = null;
   };
   body.split("\n").forEach((raw, i) => {
     const line = raw.trim();
+    if (opinion) {
+      if (line.startsWith("</Opinion>")) opinion = false;
+      return;
+    }
     if (fence) {
       if (line.startsWith(fence)) fence = "";
       return;
     }
     if (comment) {
       if (line.includes("*/}")) comment = false;
+      return;
+    }
+    if (/^<Opinion[\s>]/.test(line)) {
+      end();
+      opinion = true;
       return;
     }
     if (line.startsWith("```") || line.startsWith("~~~")) {

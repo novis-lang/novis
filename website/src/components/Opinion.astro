@@ -1,0 +1,34 @@
+---
+/**
+ * One person's opinion on `/in-depth/personal-opinions/`: the byline, then the text exactly as its
+ * author wrote it. `nv site --check prose` skips everything between `<Opinion` and `</Opinion>`,
+ * because the wording is the author's and not the website's.
+ */
+interface Props {
+  author: string
+  role: string
+  date: string
+}
+
+const { author, role, date } = Astro.props
+---
+
+<article class="opinion">
+  <p class="opinion-byline">
+    <strong>{author}</strong>, {role} · <span class="opinion-date">{date}</span>
+  </p>
+  <slot />
+</article>
+
+<style>
+  .opinion {
+    border-inline-start: 3px solid var(--sl-color-accent);
+    padding-inline-start: 1.25rem;
+  }
+  .opinion-byline {
+    color: var(--sl-color-gray-2);
+  }
+  .opinion-date {
+    white-space: nowrap;
+  }
+</style>

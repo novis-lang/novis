@@ -353,7 +353,7 @@ describe("nv site --check in-depth", () => {
 
   test("a missing page, a short directory and a sidebar out of order are named", () => {
     const root = inDepth(["in-depth/roadmap.mdx", "in-depth/concepts/5.mdx"]).root;
-    s.put("website/astro.config.ts", sidebar(["never", "what-for", "how-we-decide", "how-novis-is-written", "how-novis-is-tested", "design-principles", "concepts", "new", "questions", "what-changed"]));
+    s.put("website/astro.config.ts", sidebar(["never", "what-for", "how-we-decide", "how-novis-is-written", "how-novis-is-tested", "design-principles", "concepts", "new", "personal-opinions", "questions", "what-changed"]));
     expect(inDepthProblems(root)).toEqual([
       `${DOCS}/in-depth/concepts/: 4 page(s) beside its index, and the goal names 5 at least`,
       `${DOCS}/in-depth/roadmap.mdx: no page`,
@@ -389,6 +389,15 @@ describe("nv site --check prose", () => {
       "1: a 26-word sentence opening `word word word word word ...`; 25 is the bound",
       "3: a dash joins two sentences; write two",
       "5: a paragraph of 7 sentences; 6 is the bound",
+    ]);
+  });
+
+  test("the text inside an Opinion is its author's and not judged", () => {
+    const long = `${"word ".repeat(30).trim()}.`;
+    const body = ["Before.", "", '<Opinion author="A" role="b" date="c">', "", long, "", "One — two.", "", "</Opinion>", "", "After."].join("\n");
+    expect(paragraphs(body)).toEqual([
+      { line: 1, text: "Before." },
+      { line: 11, text: "After." },
     ]);
   });
 
