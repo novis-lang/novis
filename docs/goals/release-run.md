@@ -394,29 +394,23 @@ Actions tab. It ended green, with the optional `windows-aarch64` warning. `publi
 images` run `41404740907` and the Website run `41404814796` are green. `bun nv ci
 --release-published` exits 0, and the image pulls with no login, so no visibility click is needed.
 
-`--publish-release` first refused the green run. It read the optional legs from the tree's
-`build.yml`, and `a81ceee52`, committed during the run, dropped the `windows-aarch64` leg. Fixed in
-`60bf5449f`: the three judges read `build.yml` at the run's commit through `git show`, with a test.
-`--publish-release` still prints the draft's old `untagged-…` address after it publishes.
+`60bf5449f` makes the three judges read `build.yml` at the run's commit, so a leg dropped after a
+run does not refuse that run. `f9cfab1e7` merges `origin/main` into local `main`, which had 7 commits
+from other work made during the run.
 
-During the run, somebody committed 7 commits to local `main` (`881e616c8` to `a81ceee52`, LSP work
-and `build.yml`). So `main` could not fast-forward, and `f9cfab1e7` merges `origin/main` into it.
-Nothing was paused, so nothing needs a resume. `9e162473f` fixes their rustfmt red.
+**The tip is pushed, and its dry run is going.** `28e998746` commits the chain edit that puts
+`incremental-index` after `release-run`, with `incremental-index` in `roadmap.json`'s `internal`
+list. `bun nv ci --push` passed every pre-push check and pushed it. Dry run `41405424660` runs on
+`28e998746`, and a `bun nv ci --watch --release` waits on it. This handoff's commit is notes only
+and is not pushed, so `--release-status` passes over it.
 
-**`--release-status` is red** because 17 code files changed since the tag. A new dry run of the
-pushed tip turns it green. **The push is refused by one pre-push check:** the uncommitted edit in
-`docs/goals/README.md` puts `incremental-index` on the chain, and `website/src/data/roadmap.json`
-does not list it. This session did not write that edit and left it alone. `roadmap.json` alone
-cannot fix it: an `internal` goal off the committed chain is red too. `main` is 11 commits ahead of
-`origin/main`.
-
-The sweep's reds are stale: `env-secret-proofs` has no log, and nightly `41295327777` predates `lint`'s fix.
+The sweep's reds are stale: `env-secret-proofs` has no log and no goal names it, and nightly
+`41295327777` predates `lint`'s fix.
 
 ### Next
 
-- [ ] If `docs/goals/README.md` is still uncommitted, commit the chain edit together with `incremental-index` in `roadmap.json`'s `internal` list. It is editor performance work with no user-facing feature yet. Then `bun nv ci --push`. `tools/nv/lib/site-roadmap.ts:161`
-- [ ] `bun nv ci --dispatch dry-run`, then `bun nv ci --watch --release` in the background. The dry run computes `0.0.2` and writes nothing. `tools/nv/cmd/ci.ts:702`
-- [ ] `bun nv ci --release-status` exits 0, then the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`) and `DONE` with the release's address. `tools/nv/cmd/ci.ts:917`
+- [ ] Dry run `41405424660` ends green, and `bun nv ci --release-status` exits 0. A red job is fixed at its cause, pushed, and dry-run again. `tools/nv/cmd/ci.ts:917`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`. Then `DONE` with https://github.com/novis-lang/novis/releases/tag/v0.0.1. `tools/nv/cmd/ci.ts:537`
 
 No test is expected to go red.
 
