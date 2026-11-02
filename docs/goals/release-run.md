@@ -372,18 +372,32 @@ stand for `main`, since `613573f75` (the registry key) is code.
 looked for `Release` and never saw `Release (dry run)`. Runs are now named from their `path`
 (`workflowOf`, `tools/nv/cmd/ci.ts`). The test fixture's image jobs are `(debian)`, as on GitHub.
 
-Dry run `41371737071` on `eb9358fdb` is going, with `verify` running the full suite again.
-`bun nv ci --watch --release --max-min 110` watches it, and it reads the run's jobs.
+Dry run `41371737071` on `eb9358fdb` is going, with `verify` running the full suite again. Its
+`plan`, `lint`, `docs`, `asan`, `tsan` and `container images` jobs had passed when this session
+started its watch, `bun nv ci --watch --release --max-min 110`, in the background.
+
+The acceptance sweep's reds were the stale ones the last handoff named: nightly `41295327777` on
+`ef0d5cd3b`, and `env-secret-proofs`, which has no definition and no log.
+
+`build / build windows-aarch64` cannot build: `corosensei` 0.3.4, the newest release, has no
+context-switch backend for `aarch64` on Windows (its `src/arch/mod.rs:160` excludes it, and line 177 is
+`compile_error!("Unsupported target")`). `Cargo.toml:122` and `crates/nvs-host/Cargo.toml:44` pull it.
+The leg is `optional: true`, so the release ships without it. No change was made while the dry run is
+going, since a `build.yml` edit would stop it standing for `main`.
 
 ### Next
 
 - [ ] Read the watch's report. A watch that exits 3 is started again. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] On green: `bun nv ci --release-status` exits 0, then stage 4. `tools/nv/cmd/ci.ts:537`
-- [ ] Read why the optional `build / build windows-aarch64` fails, `.github/workflows/build.yml:89`. It does not hold the verdict.
 
 No test is expected to go red.
 
 ### Backlog
+
+- `build / build windows-aarch64` fails at every run until `corosensei` gains a Windows `aarch64`
+  backend, or the leg is dropped from `.github/workflows/build.yml:90`. An in-tree backend is unsafe
+  stack-switching code with Windows ARM64 unwinding, which security outranks, so it waits for upstream.
+  Decide after the release: drop the leg, or keep it as a known red warning.
 
 - `cargo clippy` on macOS warns `chunks_exact` with a constant chunk size at
   `crates/nvs-runtime/src/child_watch.rs:845`. CI's `lint` job runs on Linux, so the macOS-only code
