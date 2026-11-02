@@ -497,8 +497,7 @@ fn a_reader_that_is_not_open_waits_and_keeps_its_files() {
     let mut documents = Documents::new();
     dir.open(&mut documents, "lib.nvs", LIB);
 
-    let mut index =
-        SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
+    let mut index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
     assert!(index.pending().is_empty(), "`build` settles every entry");
     let calls = |index: &SymbolIndex| {
         index
