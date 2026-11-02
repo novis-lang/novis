@@ -385,9 +385,13 @@ context-switch backend for `aarch64` on Windows (its `src/arch/mod.rs:160` exclu
 The leg is `optional: true`, so the release ships without it. No change was made while the dry run is
 going, since a `build.yml` edit would stop it standing for `main`.
 
+The first watch exited 1 on that optional leg: `--watch --release` stops at any failed job, while
+`--release-status` passes over an optional one. The watch runs again with `--past "build / build
+windows-aarch64"`, and exits 4 when that leg is the run's only red.
+
 ### Next
 
-- [ ] Read the watch's report. A watch that exits 3 is started again. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
+- [ ] Read the watch's report. Exit 4 with only the arm64 leg red is the green case. A watch that exits 3 is started again with the same `--past`. On a red: one `reader` per red job, fix every cause in one pass, one commit each, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, the watch in the background. `tools/nv/cmd/ci.ts:621`
 - [ ] On green: `bun nv ci --release-status` exits 0, then stage 4. `tools/nv/cmd/ci.ts:537`
 
 No test is expected to go red.
@@ -398,6 +402,9 @@ No test is expected to go red.
   backend, or the leg is dropped from `.github/workflows/build.yml:90`. An in-tree backend is unsafe
   stack-switching code with Windows ARM64 unwinding, which security outranks, so it waits for upstream.
   Decide after the release: drop the leg, or keep it as a known red warning.
+- With stage 4's `ci.ts` changes, `--watch --release` passes over a failed optional `build` leg the
+  way `--release-status` does, reading the legs from `build.yml`'s matrix, with a test beside the
+  stage 1 ones. Not now: a `ci.ts` commit would stop the running dry run standing for `main`.
 
 - `cargo clippy` on macOS warns `chunks_exact` with a constant chunk size at
   `crates/nvs-runtime/src/child_watch.rs:845`. CI's `lint` job runs on Linux, so the macOS-only code
