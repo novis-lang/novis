@@ -100,6 +100,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **When most proof programs judge red with `exit 5` and correct output, a native teardown crashed
+  at exit on Windows.** `5` is the low byte of `0xC0000005`. Git Bash shows it as `Segmentation
+  fault`, exit 139, once you run the proof binary on one example with its output in a file. The
+  debug binary may not crash, so a green `cargo test` proves nothing here. Run
+  `bun nv proofs --id '<feature>' --run --show` on one red feature, then compare a run with the
+  root `nvs.toml`'s `[queue] workers` at `0`. See `crates/nvs-cli/src/worker.rs`. `until: gone crates/nvs-cli/src/worker.rs:CONNECT_DEADLINE`
 - **A PDF layout step that measures a box's content widths, then lays it out, is exponential in
   nesting unless each measurement is kept, and a by-name run of the stage's own test never shows
   it.** Auto-width tables measured each cell twice per level, so 20 nested tables spun the

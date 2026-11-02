@@ -510,10 +510,15 @@ The whole verify (`bun tools/looper/main.ts verify`) is green, as are the latenc
 user's uncommitted edit to that page, which no session touches. It clears once the user runs
 `bun nv site --questions --stamp /in-depth/personal-opinions/` with their edit.
 
-The seven checks that name tests run `cargo test` over the binary that holds them, since
-`bun nv verify` prints no test names. `bun tools/looper/main.ts check --name` is green for all seven.
-The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
-cancelled by a later push.
+The seven named-test checks are green under `bun tools/looper/main.ts check --name`. The sweep's reds
+are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was cancelled.
+
+The floor check `floor-debt` was red with 1153 proof programs. Each printed its output and then
+crashed at exit on the Windows proof binary. `63a6861d4` made `nvs run`'s stop cancel a queue worker
+still opening its connection, and the root `nvs.toml` sets `[queue] workers = 1` with no database
+running, so every program run from the repository tore a connecting worker down. `cb931f1ef` reverts
+it, and `Core\Db\Column::name` and `Core\Compress::compress` judge green again. No test is expected
+to go red.
 
 ### Next
 
@@ -522,6 +527,16 @@ Nothing in this goal. The loop retires it, and its `after_retire` hook rebuilds 
 ### Backlog
 
 Carried from `release-run`, which ended with `v0.0.1` published. None of these is this goal's work.
+
+- A forced unwind of a parked native task crashes on Windows in the optimized profiles (`proof`,
+  `release`) with an access violation, and the debug profile unwinds cleanly. The unwind runs every
+  cleanup up to the task's entry closure in `Scheduler::spawn` (`crates/nvs-host/src/scheduler.rs`,
+  `let entry = move |yielder`), and it crashes once it leaves that closure's first cleanup. It
+  crashed with the context kept out of the unwind too. To reproduce it, apply `63a6861d4` again and
+  run any example from the repository root with its output in a file. `Drop for Scheduler` and
+  `tear_down` take the same path for every unwindable task, so a server worker retiring with such a
+  task parked may crash the same way. The fix belongs in a goal of its own, with a test that runs
+  on the `proof` profile.
 
 - `bun nv ci --publish-release` prints the draft's `html_url`, an `untagged-…` address, after the
   publish. It should print `releases/tag/<tag>`. `tools/nv/cmd/ci.ts:1071`
