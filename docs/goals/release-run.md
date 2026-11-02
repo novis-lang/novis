@@ -40,12 +40,6 @@ checks:
       - release-status is red when a commit after the dry run changes a file outside docs/goals and the playbook
       - release-status reads dry and real runs, and the newest completed one decides
       - release-status names a failed or cancelled job and its step, and passes over a failed optional build leg
-  - id: release-dry-run-green
-    stage: 3
-    name: the newest completed Release run on main, dry or real, is main's tip or the commit it tagged, and every job in it passed
-    run: [bun, nv, ci, --release-status]
-    reach: false
-    floor: false
   - id: ci-real-release-tests
     stage: 4
     name: bun nv ci starts a real release only after a green dry run of main's tip, approves only green builds, and publishes only a whole draft
@@ -101,10 +95,10 @@ gets a dry run green on the final tip, and runs the real release.
 **The goal ends with `v0.0.1` published, and no dry run of the final tip (`d11`).** The user
 committed code to `main` during each of the last three dry runs. Asked to hold commits, they
 answered: "Just mark this goal as done. The release is out already". So the last item of stage 5
-is waived. `release-dry-run-green` is stage 3's check, and it was green when that stage ended. It
-no longer counts toward reaching the goal (`reach: false`), since the user's commits after the
-release keep `main`'s tip ahead of every dry run. `release-published` and `owners-closes` still
-decide. The next release runs its own dry run of its tip first, as `docs/release.md` says.
+is waived. Stage 3's check `release-dry-run-green` (`bun nv ci --release-status`) was green when
+that stage ended, and it is removed from the goal's checks. Acceptance runs every staged check,
+whatever its `reach`, and the user's commits after the release keep `main`'s tip ahead of every
+dry run. `release-published` and `owners-closes` still decide. The next release runs its own dry run of its tip first, as `docs/release.md` says.
 
 **The loop cuts the real release, once, in the gate stage.** Stages 1 to 4 dispatch dry runs only,
 which write nothing, tag nothing and push no image. The gate stage starts the one real run, after
@@ -415,6 +409,10 @@ from the next push until its dry run ends, built on option 1 (hold).
 
 The sweep's reds are stale. `env-secret-proofs` has no log and no goal names it. Nightly
 `41428598621` was cancelled by the push of `e94c935a1`, and `41428806069` replaces it.
+
+The first DONE was refused because acceptance runs every staged check, and `reach: false` does not
+exempt one. `release-dry-run-green` is removed from the checks, as `d11` waived it.
+`bun nv ci --release-published` exits 0 and `bun nv owners --closes release-run` names no gap.
 
 ### Next
 
