@@ -108,6 +108,14 @@ the loop approves the run and publishes the draft through `gh` with no click. St
 `bun nv release --preview patch` prints it before the dispatch. Any other version is a bug, fixed
 before the run.
 
+**The user dispatches the real run (`d10`).** The permission check refused `bun nv ci --dispatch
+release`, and the user chose to start the real run from the Actions tab: `release.yml`, branch
+`main`, `bump=patch`, `dry_run` unchecked. The loop does not ask again for that mode. It pushes its
+handoff before the dispatch, starts `bun nv ci --watch --release --next` in the background to catch
+the user's run, and then approves, publishes and reads the verdict as steps 3 to 6 below say. A
+refused `--approve-release` or `--publish-release` is parked the same way, with the Actions-tab
+review or the draft's *Publish release* button as the user's step.
+
 **The real run's order, in the gate stage.** Each step waits for the one before it to be green.
 
 1. Every other loop of this tree is held, so no session commits to `main` between the dispatch
@@ -389,9 +397,10 @@ known optional `windows-aarch64` warning. `bun nv release --preview patch` print
 `mwl/side-ci-green`, the tree's one other loop, has no worker, so its pause was refused and it
 cannot commit. `c9b9acd43` is pushed, notes only past the dry run's commit.
 
-**The permission check refused `bun nv ci --dispatch release`.** No real run started, and nothing was
-written. Decision `d10` is parked with the user, recommending the dispatch, approve and publish modes
-on `.claude/settings.json`'s allowlist. The loop holds on it.
+**`d10` is answered and closed: the user dispatches the real run from the Actions tab** (Standing
+decisions). On 2026-11-02 no real `Release` run existed yet; the three newest are green dry runs. The
+handoff is pushed, so the user's run builds `origin/main`'s tip, notes only past `5933df46e`. A
+`bun nv ci --watch --release --next` runs in the background and waits for that run.
 
 The sweep's reds are stale. `env-secret-proofs` is named nowhere but this file and has no log. Nightly
 `41295327777` ran on `ef0d5cd3b`, and its one real red, `lint`, is fixed on `main`.
@@ -404,7 +413,7 @@ fixed in `ci.ts` before the next step, never by hand through `gh`.
 
 ### Next
 
-- [ ] Read `d10`'s answer. If the modes are allowed, run `bun nv ci --release-status` (it must still exit 0), then `bun nv ci --dispatch release` and `bun nv ci --watch --release` in the background, and commit nothing until `publish` has pushed. If the user dispatched it, watch it. `tools/nv/cmd/ci.ts:702`
+- [ ] Find the user's real run with `gh run list --workflow release.yml --branch main --limit 3`: its title is `Release`, not `Release (dry run)`. With none yet, start `bun nv ci --watch --release --next` in the background and end the turn. With one, `bun nv ci --watch --release` in the background, and commit nothing until `publish` has pushed. `tools/nv/cmd/ci.ts:1207`
 - [ ] The real run waits on `release`: read its notes in the run summary, then `bun nv ci --approve-release`, and the watch again in the background. A watch that exits 3 is started again. The approve judge is `judgeRun` with stage `approve` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
 - [ ] A run that fails before `publish` wrote nothing: fix the cause, push, dry-run again, and dispatch again. Never cancel it. `docs/release.md:166`
 - [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
