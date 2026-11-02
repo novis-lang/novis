@@ -59,8 +59,8 @@ export const INSTALL = { label: 'Install', href: '/install/' }
 export const SPONSOR_CHANNELS = [
   {
     label: 'GitHub Sponsors',
-    url: '',
-    text: 'For developers and teams. Give monthly or once, with your GitHub account. GitHub takes no fee when you give from a personal account.',
+    url: 'https://github.com/sponsors/novis-lang',
+    text: 'For developers and teams. Give monthly or once, with your GitHub account. GitHub takes no fee when you give from a personal account. GitHub shows the tiers in US dollars, with the same numbers.',
   },
   {
     label: 'Polar',

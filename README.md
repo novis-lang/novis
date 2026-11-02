@@ -152,9 +152,10 @@ kind of work.
 Novis is open source and free to use. It is under the MIT license, and it always will be. A solid
 language needs time, and infrastructure that costs money every month. Sponsors pay for this work.
 
-You can give through GitHub Sponsors, Polar or a bank transfer. You can give once or every month. All
-money, after the fees of the platforms, goes into development, infrastructure and the ecosystem. Every
-quarter, we publish a short report with the number of donors, the total and what we spent it on.
+You can give through [GitHub Sponsors](https://github.com/sponsors/novis-lang), Polar or a bank
+transfer. You can give once or every month. All money, after the fees of the platforms, goes into
+development, infrastructure and the ecosystem. Every quarter, we publish a short report with the number
+of donors, the total and what we spent it on.
 
 By default, we publish nothing about you: not your name, not your logo and not your amount. These
 promises stay the same:
