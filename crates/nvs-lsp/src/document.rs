@@ -821,8 +821,12 @@ fn analyse_over(
     })
 }
 
-/// The manifests of the extension set the tree beside `path` resolves to, read and never
-/// instantiated (`rule:packaging/extension-calls-are-statically-typed`).
+/// The built-in components' manifests, then the manifests of the extension set the tree beside
+/// `path` resolves to, read and never instantiated
+/// (`rule:packaging/extension-calls-are-statically-typed`). Every program is typed against the
+/// built-in components whether or not a tree is found
+/// (`rule:packaging/the-first-party-components-are-built-in`), as `nvs check` types it. Their
+/// manifests come from bytes the binary carries, so they are read once per process.
 ///
 /// The tree is the one `nvs check` reads when it is run in the document's directory: its
 /// `nvs.toml`, else the data folder's, through the same reader with no ownership check, with the
@@ -836,12 +840,18 @@ fn analyse_over(
 /// each `.nvsx` it pins, because a cached set would be a second answer that outlives an edit to
 /// `nvs.toml`.
 fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
+    static BUILT_IN: std::sync::OnceLock<Vec<nvs_ext::manifest::Manifest>> =
+        std::sync::OnceLock::new();
+    // A built-in component that does not read is a broken build, which every `nvs check`
+    // reports. The editor types against the rest rather than stopping.
+    let built_in = BUILT_IN.get_or_init(|| nvs_ext::load::builtin_manifests().unwrap_or_default());
+    let mut set = built_in.clone();
     let data = nvs_config::data::config_file();
     let Tree::Read {
         resolved, snapshot, ..
     } = program_tree(path, data.as_deref())
     else {
-        return Vec::new();
+        return set;
     };
     let entries: Vec<nvs_ext::load::Entry> = snapshot
         .config
@@ -859,7 +869,8 @@ fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
             grants: nvs_config::extension::Granted::default(),
         })
         .collect();
-    nvs_ext::load::read_manifests(&entries).unwrap_or_default()
+    set.extend(nvs_ext::load::read_manifests(&entries).unwrap_or_default());
+    set
 }
 
 /// What [`program_tree`] found for a document.

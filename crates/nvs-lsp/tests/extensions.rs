@@ -114,6 +114,17 @@ fn hover_on_an_extension_method_shows_its_manifest_signature_and_help() {
     );
 }
 
+/// A built-in component's Novis class resolves with no `nvs.toml` at all, as it does under `nvs
+/// check` (`rule:packaging/the-first-party-components-are-built-in`).
+#[test]
+fn a_built_in_component_class_resolves_without_a_configuration() {
+    let dir = nvs_repo::scratch("lsp-ext-built-in");
+    let source = "<?nvs\nuse Novis\\Intl\\NumberFormat;\n\
+                  echo NumberFormat::decimal([1234.5], 'en-US')[0];\n";
+    let (_, analysis) = opened(&dir, source);
+    assert!(!analysis.diags.has_errors(), "{:?}", analysis.diags);
+}
+
 /// A call into the extension types and publishes nothing, though the component behind it cannot
 /// be instantiated, and a wrong argument is the `E0401` `nvs check` reports.
 #[test]
