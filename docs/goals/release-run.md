@@ -376,51 +376,54 @@ are one session's, one step per turn, each waiting on its watch.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [x] Run `looper verify` once more, and it is green.
 - [x] `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and the dry run ends green: `bun nv ci --release-status` exits 0 on `main`'s tip. `tools/nv/cmd/ci.ts:537`
-- [ ] `bun nv release --preview patch` prints `0.0.1`. `looper loop pause`, the handoff committed and pushed, then `bun nv ci --dispatch release` and the watch in the background. `tools/nv/cmd/release.ts:1030`
-- [ ] The run waits on `release`: the notes are read, then `bun nv ci --approve-release`. `.github/workflows/release.yml:263`
-- [ ] The run ends green: `bun nv ci --publish-release`, then the `Promote release images` and `pages.yml` runs end green. `.github/workflows/release-promote.yml:37`
-- [ ] Local `main` fast-forwards to `origin/main`, and `looper loop resume`.
-- [ ] `bun nv ci --release-published` exits 0, or names the visibility click and the session writes the one `BLOCKED` the standing decisions allow. `tools/nv/cmd/ci.ts:537`
+- [x] `bun nv release --preview patch` prints `0.0.1`. `looper loop pause`, the handoff committed and pushed, then `bun nv ci --dispatch release` and the watch in the background. `tools/nv/cmd/release.ts:1030`
+- [x] The run waits on `release`: the notes are read, then `bun nv ci --approve-release`. `.github/workflows/release.yml:263`
+- [x] The run ends green: `bun nv ci --publish-release`, then the `Promote release images` and `pages.yml` runs end green. `.github/workflows/release-promote.yml:37`
+- [x] Local `main` fast-forwards to `origin/main`, and `looper loop resume`.
+- [x] `bun nv ci --release-published` exits 0, or names the visibility click and the session writes the one `BLOCKED` the standing decisions allow. `tools/nv/cmd/ci.ts:537`
+- [ ] `main`'s tip is pushed, a dry run of it is green, and `bun nv ci --release-status` exits 0 again. `tools/nv/cmd/ci.ts:917`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. In stage 5, verify is green on `5933df46e`: 23 of 23 steps, 8375 tests,
-2438 conformance cases, clippy clean. Its one failure was `nv selftest`'s tsc on the approve fixture
-(`notes: undefined` under `exactOptionalPropertyTypes`), fixed in `5933df46e`. One rerun stopped at
-`build` on a Windows lock of `target/covws/.../nvs.exe` that no live process held; the next run passed.
-`bun nv ci --check`, `bun nv verify --doc` and `bun nv owners --closes release-run` are green.
+**`v0.0.1` is published: https://github.com/novis-lang/novis/releases/tag/v0.0.1.** The user
+dispatched real run `41394057783` on `f9059baa1` and approved its `release` environment in the
+Actions tab. It ended green, with the optional `windows-aarch64` warning. `publish` pushed
+`1d0ad8590` and the tag. `bun nv ci --publish-release` published the draft. The `Promote release
+images` run `41404740907` and the Website run `41404814796` are green. `bun nv ci
+--release-published` exits 0, and the image pulls with no login, so no visibility click is needed.
 
-Dry run `41382605630` on `5933df46e` is green in every job, its full `verify` included, with the
-known optional `windows-aarch64` warning. `bun nv release --preview patch` prints `0.0.1`.
-`mwl/side-ci-green`, the tree's one other loop, has no worker, so its pause was refused and it
-cannot commit. `c9b9acd43` is pushed, notes only past the dry run's commit.
+`--publish-release` first refused the green run. It read the optional legs from the tree's
+`build.yml`, and `a81ceee52`, committed during the run, dropped the `windows-aarch64` leg. Fixed in
+`60bf5449f`: the three judges read `build.yml` at the run's commit through `git show`, with a test.
+`--publish-release` still prints the draft's old `untagged-…` address after it publishes.
 
-**`d10` is answered and closed: the user dispatches the real run from the Actions tab** (Standing
-decisions). On 2026-11-02 no real `Release` run existed yet; the three newest are green dry runs. The
-handoff is pushed, so the user's run builds `origin/main`'s tip, notes only past `5933df46e`. A
-`bun nv ci --watch --release --next` runs in the background and waits for that run.
+During the run, somebody committed 7 commits to local `main` (`881e616c8` to `a81ceee52`, LSP work
+and `build.yml`). So `main` could not fast-forward, and `f9cfab1e7` merges `origin/main` into it.
+Nothing was paused, so nothing needs a resume. `9e162473f` fixes their rustfmt red.
 
-The sweep's reds are stale. `env-secret-proofs` is named nowhere but this file and has no log. Nightly
-`41295327777` ran on `ef0d5cd3b`, and its one real red, `lint`, is fixed on `main`.
+**`--release-status` is red** because 17 code files changed since the tag. A new dry run of the
+pushed tip turns it green. **The push is refused by one pre-push check:** the uncommitted edit in
+`docs/goals/README.md` puts `incremental-index` on the chain, and `website/src/data/roadmap.json`
+does not list it. This session did not write that edit and left it alone. `roadmap.json` alone
+cannot fix it: an `internal` goal off the committed chain is red too. `main` is 11 commits ahead of
+`origin/main`.
 
-The real-run modes have run only against fixtures. Their `gh` calls are: `pending_deployments`
-GET and POST with `-F environment_ids[]=<id>`, `gh run download -n release-notes-preview`,
-`releases?per_page=20`, `commits/<tag>`, `compare/<sha>...main`, and `release-promote.yml/runs?
-event=release`, matched to the tag by `head_branch`. A real run that disagrees with a fixture is
-fixed in `ci.ts` before the next step, never by hand through `gh`.
+The sweep's reds are stale: `env-secret-proofs` has no log, and nightly `41295327777` predates `lint`'s fix.
 
 ### Next
 
-- [ ] Find the user's real run with `gh run list --workflow release.yml --branch main --limit 3`: its title is `Release`, not `Release (dry run)`. With none yet, start `bun nv ci --watch --release --next` in the background and end the turn. With one, `bun nv ci --watch --release` in the background, and commit nothing until `publish` has pushed. `tools/nv/cmd/ci.ts:1207`
-- [ ] The real run waits on `release`: read its notes in the run summary, then `bun nv ci --approve-release`, and the watch again in the background. A watch that exits 3 is started again. The approve judge is `judgeRun` with stage `approve` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
-- [ ] A run that fails before `publish` wrote nothing: fix the cause, push, dry-run again, and dispatch again. Never cancel it. `docs/release.md:166`
-- [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
+- [ ] If `docs/goals/README.md` is still uncommitted, commit the chain edit together with `incremental-index` in `roadmap.json`'s `internal` list. It is editor performance work with no user-facing feature yet. Then `bun nv ci --push`. `tools/nv/lib/site-roadmap.ts:161`
+- [ ] `bun nv ci --dispatch dry-run`, then `bun nv ci --watch --release` in the background. The dry run computes `0.0.2` and writes nothing. `tools/nv/cmd/ci.ts:702`
+- [ ] `bun nv ci --release-status` exits 0, then the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`) and `DONE` with the release's address. `tools/nv/cmd/ci.ts:917`
 
 No test is expected to go red.
 
 ### Backlog
+
+- `bun nv ci --publish-release` prints the draft's `html_url`, an `untagged-…` address, after the
+  publish. It should print `releases/tag/<tag>`. `tools/nv/cmd/ci.ts:1071`
 
 - With stage 4's `ci.ts` changes, `--watch --release` passes over a failed optional `build` leg the
   way `--release-status` does, reading the legs from `build.yml`'s matrix, with a test beside the
