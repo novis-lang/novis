@@ -397,9 +397,9 @@ redacted:
     editors/vscode
 
 The reference client, and what a person installs to write Novis in VS Code. It colours a `.nvs` file
-the moment the file opens, starts `nvs lsp` behind it, and shows what that server answers. It is
-built into an installable `.vsix` and is on no marketplace, so installing it means being handed that
-file rather than searching for a listing.
+the moment the file opens, starts `nvs lsp` behind it, and shows what that server answers. You
+install it from the VS Code Marketplace, where its id is `novis-lang.nvs`. Each release also has it
+as a `.vsix` file, for an editor that does not use the Marketplace.
 
 It holds no knowledge of the language. Every diagnostic, completion, hover, definition and semantic
 colour it shows arrived over the protocol from the server described above; its own source starts a

@@ -107,19 +107,34 @@ The other grants have their default values:
 
 ## Install the extension
 
-The extension is not in the VS Code Marketplace. Each release has it as a file, and you install that
-file.
+The extension is in the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=novis-lang.nvs). Its id is
+`novis-lang.nvs`.
+
+<Steps>
+
+1. In VS Code, open the Extensions view and search for `Novis`. Install **Novis-Lang**. You can also
+   install it from a terminal:
+
+   <Code lang="sh" code="code --install-extension novis-lang.nvs" />
+
+2. Open a `.nvs` file. The status bar shows the version of `nvs` that the extension uses.
+
+</Steps>
+
+### Install the extension from a file
+
+VSCodium, Cursor and some other editors do not use the VS Code Marketplace. Each release also has the
+extension as a file, and these editors install that file.
 
 <Steps>
 
 1. Download <a href={vsix.url}><code>{vsix.file}</code></a> from the current release.
 
-2. Install it. In VS Code, open the command palette and run **Extensions: Install from VSIX...**.
+2. Install it. In the editor, open the command palette and run **Extensions: Install from VSIX...**.
    Then choose the file. You can also install it from a terminal:
 
    <Code lang="sh" code={`code --install-extension ${vsix.file}`} />
-
-3. Open a `.nvs` file. The status bar shows the version of `nvs` that the extension uses.
 
 </Steps>
 
