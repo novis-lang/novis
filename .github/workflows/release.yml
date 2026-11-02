@@ -16,13 +16,19 @@
 # both have to be reverted by hand on `main`. So nothing is written to the repository
 # until every test and every binary is green:
 #
-#     plan → test → build → publish → docker
+#     plan → test ┐
+#     plan → build ┴→ publish → docker
+#
+# `test` and `build` run side by side, because neither writes anything: the build takes about 20
+# minutes and the suite about an hour, so the binaries are ready when the suite ends. `publish` waits
+# for both. A red `test` therefore costs one build's runner time, and never a write.
 #
 # `test` is skipped when the commit being released already has a green full run of `ci.yml` on
-# `main`: the nightly, or a `workflow_dispatch`. That run is the same commit and the same definition
-# `test` would call, so the release keeps its proof and loses its longest step. `plan` looks it up
-# with `bun nv release --tested`, and `build` and `publish` read a skipped `test` as passed and a
-# failed or cancelled one as the end of the release.
+# `main` (the nightly, or a `workflow_dispatch`), or a green `release.yml` run, such as the dry run a
+# real release follows. That run is the same commit and the same definition `test` would call, so
+# the release keeps its proof and loses its longest step. `plan` looks it up with
+# `bun nv release --tested`, and `publish` reads a skipped `test` as passed and a failed or cancelled
+# one as the end of the release.
 #
 # `build` also packages the VS Code extension, and it runs both from `build.yml`, which the dev
 # build after each push to `main` calls too.
@@ -208,9 +214,10 @@ jobs:
   # 2. The full suite, as the definition every push already runs a slice of. Not a copy of it.
   #
   # Skipped when `plan` found a green `schedule` or `workflow_dispatch` run of ci.yml on
-  # `github.sha`. Those two events run every job, as `full: true` does here, so that run proved the
-  # same commit against the same definition, and running it again proves nothing new. It saves the
-  # release's longest step whenever the nightly already covered the commit. A green push run does
+  # `github.sha`, or a green run of this file on it. Those run every job, as `full: true` does here,
+  # so that run proved the same commit against the same definition, and running it again proves
+  # nothing new. It saves the release's longest step whenever the nightly or the dry run before a
+  # real release already covered the commit. A green push run does
   # not count: it ran only the lanes its diff reaches. The release never tests a commit it creates,
   # since `build` bumps the version in a throwaway copy, so `github.sha` is the commit to look up.
   # ---------------------------------------------------------------------------
@@ -237,10 +244,8 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: build
-    needs: [plan, test]
-    # A skipped need skips this job too unless the `if` says otherwise. `test` skipped means the
-    # commit was already proved, so it counts as passed. Failed or cancelled still stops the release.
-    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    # Beside `test`, not after it: the header says why. `publish` is what waits for both.
+    needs: plan
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.plan.outputs.version }}

@@ -359,4 +359,11 @@ describe("greenFullRun", () => {
   test("no runs at all is untested", () => {
     expect(greenFullRun([], SHA)).toBeNull();
   });
+
+  test("a green release run counts, because its verify job is the full suite", () => {
+    const release = ciRun({ event: "workflow_dispatch", path: ".github/workflows/release.yml" });
+    expect(greenFullRun([release], SHA)).toBe(release);
+    expect(greenFullRun([ciRun({ event: "workflow_dispatch", path: ".github/workflows/release.yml", conclusion: "failure" })], SHA)).toBeNull();
+    expect(greenFullRun([ciRun({ event: "workflow_dispatch", path: ".github/workflows/release.yml", head_branch: "topic" })], SHA)).toBeNull();
+  });
 });

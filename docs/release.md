@@ -22,9 +22,9 @@ command cancels a `Release` run.
 | | | Writes |
 |---|---|---|
 | 1 | `plan` — the next version, and the notes rendered from the commit log, or for the first release the written [release-notes/first.md](release-notes/first.md) | nothing |
-| 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied; skipped when the commit already passed a full CI run on `main`, the nightly or a `workflow_dispatch` | nothing |
-| 3 | `build` — six targets and the VS Code extension as `nvs-<version>.vsix`, each at the version being released, from [build.yml](../.github/workflows/build.yml) | nothing |
-| 4 | `publish` — bump, changelog, commit, tag, push, draft release with the archives and the `.vsix` | **everything, at once** |
+| 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied; skipped when the commit already passed a full CI run on `main` (the nightly or a `workflow_dispatch`) or a green `Release` run, such as the dry run before a real one | nothing |
+| 3 | `build` — the release targets and the VS Code extension as `nvs-<version>.vsix`, each at the version being released, from [build.yml](../.github/workflows/build.yml); it runs beside `test`, not after it | nothing |
+| 4 | `publish` — once `test` and `build` both passed: bump, changelog, commit, tag, push, draft release with the archives and the `.vsix` | **everything, at once** |
 | 5 | `docker` — two image variants, from the binaries step 3 built, each smoke-tested by `tests/docker/smoke.sh` before it is pushed, from [image.yml](../.github/workflows/image.yml) | the immutable image tags; in a dry run, nothing |
 
 Then, on the click that publishes the draft, [release-promote.yml](../.github/workflows/release-promote.yml)

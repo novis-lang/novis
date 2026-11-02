@@ -79,7 +79,8 @@
 // run `Release (dry run)`. `judgeRun` is the judgement. The commit the run stands for is local `main`, or
 // one that only `NOTES_ONLY` paths changed since: a dry run's own commit, and a real run's tagged commit,
 // which `publish` pushed onto `main`. Every job passed, except a `publish` a dry run skips, a `verify`
-// skipped beside a green full `ci.yml` run of the commit (`greenFullRun`, the lookup `plan` makes), and
+// skipped beside a green full `ci.yml` run or another green `release.yml` run of the commit
+// (`greenFullRun`, the lookup `plan` makes), and
 // a failed leg `build.yml` marks optional, which is a warning. It only reads: it never fetches, pushes,
 // dispatches or cancels. `--watch --release` passes over a failed optional leg in the same way.
 //
@@ -823,8 +824,8 @@ export function judgeRun(f: RunFacts): Verdict {
       lines.push(`  after publish ${j.name}: ${j.conclusion ?? j.status}`);
     } else if (j.name === VERIFY_JOB && j.conclusion === "skipped") {
       const full = greenFullRun(f.ciRuns, f.run.head_sha);
-      if (full !== null) lines.push(`  ok ${j.name}: skipped beside the green full ci.yml run ${full.html_url}`);
-      else fail(`RED ${j.name} was skipped, and no full ci.yml run of ${short(f.run.head_sha)} on ${BRANCH} is green`);
+      if (full !== null) lines.push(`  ok ${j.name}: skipped beside the green full run ${full.html_url}`);
+      else fail(`RED ${j.name} was skipped, and no full ci.yml run or other release.yml run of ${short(f.run.head_sha)} on ${BRANCH} is green`);
     } else if (j.conclusion === "success") lines.push(`  ok ${j.name}`);
     else if (f.optional.includes(j.name) && (j.conclusion === "failure" || j.conclusion === "timed_out")) {
       lines.push(`  WARNING ${where}: an optional leg, so the release ships without it`);
@@ -908,10 +909,14 @@ function tagCommit(s: CiSeams, tag: string): Promise<string> {
   return ghJson<string>(s, ["api", `repos/{owner}/{repo}/commits/${tag}`, "--jq", ".sha | tojson"]);
 }
 
-/** The `ci.yml` runs of `run`'s commit, read only when its `verify` job was skipped. */
-function ciRunsFor(s: CiSeams, run: Run, jobs: Job[]): Promise<WorkflowRun[]> {
+/** The `ci.yml` and `release.yml` runs of `run`'s commit, read only when its `verify` job was skipped.
+ * `run` itself is left out, so a run is never its own proof. */
+async function ciRunsFor(s: CiSeams, run: Run, jobs: Job[]): Promise<WorkflowRun[]> {
   const skipped = jobs.some((j) => j.name === VERIFY_JOB && j.conclusion === "skipped");
-  return skipped ? workflowRuns(s, "ci.yml", `&head_sha=${run.head_sha}`) : Promise.resolve([]);
+  if (!skipped) return [];
+  const query = `&head_sha=${run.head_sha}`;
+  const [ci, release] = await Promise.all([workflowRuns(s, "ci.yml", query), workflowRuns(s, "release.yml", query)]);
+  return [...ci, ...release].filter((r) => r.id !== run.id);
 }
 
 /** The newest run of `release.yml` on `main`, dry or real, with every run before it, newest first. */

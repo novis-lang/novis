@@ -33,8 +33,10 @@
 // **`--tested SHA` decides whether the release runs the full suite.** It is the release's longest
 // step, and the nightly has often already run it on the very commit being released. So `--tested`
 // looks for a run of `ci.yml` on `SHA` that finished green and was a `schedule` or a
-// `workflow_dispatch`, the two events ci.yml's `FULL` runs every job for. A green `push` or
-// `pull_request` run does not count: it ran only the lanes its own diff reaches. Skipping is safe
+// `workflow_dispatch`, the two events ci.yml's `FULL` runs every job for. A green `release.yml` run of
+// `SHA` counts too, because its `verify` job is that full run: a real release after its green dry run
+// skips the suite the dry run passed an hour before. A green `push` or `pull_request` run does not
+// count: it ran only the lanes its own diff reaches. Skipping is safe
 // because the run proved the same commit against the same definition the release would call. When
 // `gh` cannot answer, the commit counts as untested, because running the suite is the safe side.
 //
@@ -665,7 +667,8 @@ function repoSlug(): string {
 // Whether the commit already passed the full suite
 // ---------------------------------------------------------------------------------------------------
 
-/** One entry of `actions/workflows/{id}/runs`, with only the fields `--tested` reads. */
+/** One entry of `actions/workflows/{id}/runs`, with only the fields `--tested` reads. `path` is the
+ * workflow file the run is of; a run without one is a run of `ci.yml`. */
 export interface WorkflowRun {
   id: number;
   head_sha: string;
@@ -674,14 +677,30 @@ export interface WorkflowRun {
   status: string;
   conclusion: string | null;
   html_url: string;
+  path?: string;
 }
 
 /** The events ci.yml's `FULL` runs every job for. Every other event runs the lanes its diff reaches. */
 export const FULL_CI_EVENTS = ["schedule", "workflow_dispatch"];
 
+/** The release workflow's file, as a run's `path` names it. */
+export const RELEASE_WORKFLOW = ".github/workflows/release.yml";
+
 /**
- * The first run of `ci.yml` in `runs` that ran every job on `sha` and finished green, or null. The sha is
- * compared whole: a prefix could name another commit.
+ * Whether `r` ran every job of `ci.yml`. A `ci.yml` run did when its event is one of `FULL_CI_EVENTS`. A
+ * `release.yml` run, dry or real, did too: its `verify` job calls `ci.yml` with `full: true`, and a green
+ * run either passed that job or skipped it beside an earlier proof of the same commit.
+ */
+function ranEveryJob(r: WorkflowRun): boolean {
+  if (r.path === RELEASE_WORKFLOW) return r.event === "workflow_dispatch";
+  return FULL_CI_EVENTS.includes(r.event);
+}
+
+/**
+ * The first run in `runs` that ran every job of `ci.yml` on `sha` and finished green, or null: a full
+ * `ci.yml` run, or a `release.yml` run (`ranEveryJob`). The sha is compared whole: a prefix could name
+ * another commit. A real release after its dry run finds the dry run here, and skips the suite the dry
+ * run already passed.
  *
  * Only a run on `main` counts. A `workflow_dispatch` on another branch tested that branch's
  * workflow file, which is not the definition the release calls.
@@ -693,14 +712,15 @@ export function greenFullRun(runs: WorkflowRun[], sha: string): WorkflowRun | nu
       (r) =>
         r.head_sha.toLowerCase() === want &&
         r.head_branch === "main" &&
-        FULL_CI_EVENTS.includes(r.event) &&
+        ranEveryJob(r) &&
         r.status === "completed" &&
         r.conclusion === "success",
     ) ?? null
   );
 }
 
-/** `greenFullRun` over what GitHub lists for `sha`. A `gh` failure is a warning and null. */
+/** `greenFullRun` over the `ci.yml` and `release.yml` runs GitHub lists for `sha`. A `gh` failure is a
+ * warning and null. */
 async function lookUpFullRun(sha: string): Promise<WorkflowRun | null> {
   // The API matches `head_sha` whole, so a short sha typed locally is resolved first.
   const full = /^[0-9a-f]{40}$/i.test(sha) ? sha : (await git(["rev-parse", "--verify", `${sha}^{commit}`])).trim();
@@ -710,21 +730,25 @@ async function lookUpFullRun(sha: string): Promise<WorkflowRun | null> {
     return null;
   };
   if (!slug) return warn("no repository: set GITHUB_REPOSITORY or `repository` in Cargo.toml");
-  let r: Awaited<ReturnType<typeof runProc>>;
-  try {
-    r = await runProc(["gh", "api", `repos/${slug}/actions/workflows/ci.yml/runs?head_sha=${full}&per_page=100`], { timeoutMs: 60_000 });
-  } catch (e) {
-    return warn(`gh did not start: ${(e as Error).message}`);
+  const all: WorkflowRun[] = [];
+  for (const file of ["ci.yml", "release.yml"]) {
+    let r: Awaited<ReturnType<typeof runProc>>;
+    try {
+      r = await runProc(["gh", "api", `repos/${slug}/actions/workflows/${file}/runs?head_sha=${full}&per_page=100`], { timeoutMs: 60_000 });
+    } catch (e) {
+      return warn(`gh did not start: ${(e as Error).message}`);
+    }
+    if (r.code !== 0) return warn(`gh api exited ${r.code}: ${r.stderr.trim()}`);
+    let runs: unknown;
+    try {
+      runs = (JSON.parse(r.stdout) as { workflow_runs?: unknown }).workflow_runs;
+    } catch {
+      return warn("gh api printed no JSON");
+    }
+    if (!Array.isArray(runs)) return warn("the reply has no workflow_runs list");
+    all.push(...(runs as WorkflowRun[]));
   }
-  if (r.code !== 0) return warn(`gh api exited ${r.code}: ${r.stderr.trim()}`);
-  let runs: unknown;
-  try {
-    runs = (JSON.parse(r.stdout) as { workflow_runs?: unknown }).workflow_runs;
-  } catch {
-    return warn("gh api printed no JSON");
-  }
-  if (!Array.isArray(runs)) return warn("the reply has no workflow_runs list");
-  return greenFullRun(runs as WorkflowRun[], full);
+  return greenFullRun(all, full);
 }
 
 /** The first release's notes, written by hand: the whole history is no release note. */
@@ -899,7 +923,7 @@ function help(): string {
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
     "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
-    "  --tested SHA                   tested=true if SHA has a green schedule or workflow_dispatch run of ci.yml",
+    "  --tested SHA                   tested=true if SHA has a green full run of ci.yml, or a green release.yml run",
     "",
     "options:",
     "  -h, --help             show this help message and exit",

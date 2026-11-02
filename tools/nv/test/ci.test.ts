@@ -545,7 +545,17 @@ describe("bun nv ci: the release", () => {
     expect(pushOnly.said.some((l) => l.startsWith("RED verify was skipped"))).toBe(true);
     const full = releaseSeams("full-green", () => ({ release: [dryRun(28, "completed", "success")], jobs, ci: [runOf(4, "CI", "completed", "success", "schedule", "tip")] }));
     expect(await ci(["--release-status"], full.s)).toBe(0);
-    expect(full.said).toContain("  ok verify: skipped beside the green full ci.yml run https://example.com/runs/4");
+    expect(full.said).toContain("  ok verify: skipped beside the green full run https://example.com/runs/4");
+  });
+
+  test("release-status counts a skipped verify job beside an earlier green release run of that commit, never beside itself", async () => {
+    const jobs = { 29: dryJobs({ "verify / lint": jobOf(1, "verify", "completed", "skipped") }) };
+    const alone = releaseSeams("release-alone", () => ({ release: [dryRun(29, "completed", "success")], jobs }));
+    expect(await ci(["--release-status"], alone.s)).toBe(1);
+    expect(alone.said.some((l) => l.startsWith("RED verify was skipped"))).toBe(true);
+    const earlier = releaseSeams("release-earlier", () => ({ release: [dryRun(29, "completed", "success"), dryRun(27, "completed", "success")], jobs }));
+    expect(await ci(["--release-status"], earlier.s)).toBe(0);
+    expect(earlier.said.some((l) => l.startsWith("  ok verify: skipped beside the green full run") && l.endsWith("/runs/27"))).toBe(true);
   });
 
   test("release-status is red when a commit after the dry run changes a file outside docs/goals and the playbook", async () => {
