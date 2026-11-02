@@ -387,9 +387,11 @@ Stages 1 to 4 are done. In stage 5, verify is green on `5933df46e`: 23 of 23 ste
 Dry run `41382605630` on `5933df46e` is green in every job, its full `verify` included, with the
 known optional `windows-aarch64` warning. `bun nv release --preview patch` prints `0.0.1`.
 `mwl/side-ci-green`, the tree's one other loop, has no worker, so its pause was refused and it
-cannot commit. This handoff is committed and pushed, then `bun nv ci --dispatch release` starts the
-real run, and `bun nv ci --watch --release` watches it in the background. **Commit nothing to
-`main` until `publish` has pushed.** The run's address is in the session's status line.
+cannot commit. `c9b9acd43` is pushed, notes only past the dry run's commit.
+
+**The permission check refused `bun nv ci --dispatch release`.** No real run started, and nothing was
+written. Decision `d10` is parked with the user, recommending the dispatch, approve and publish modes
+on `.claude/settings.json`'s allowlist. The loop holds on it.
 
 The sweep's reds are stale. `env-secret-proofs` is named nowhere but this file and has no log. Nightly
 `41295327777` ran on `ef0d5cd3b`, and its one real red, `lint`, is fixed on `main`.
@@ -402,6 +404,7 @@ fixed in `ci.ts` before the next step, never by hand through `gh`.
 
 ### Next
 
+- [ ] Read `d10`'s answer. If the modes are allowed, run `bun nv ci --release-status` (it must still exit 0), then `bun nv ci --dispatch release` and `bun nv ci --watch --release` in the background, and commit nothing until `publish` has pushed. If the user dispatched it, watch it. `tools/nv/cmd/ci.ts:702`
 - [ ] The real run waits on `release`: read its notes in the run summary, then `bun nv ci --approve-release`, and the watch again in the background. A watch that exits 3 is started again. The approve judge is `judgeRun` with stage `approve` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
 - [ ] A run that fails before `publish` wrote nothing: fix the cause, push, dry-run again, and dispatch again. Never cancel it. `docs/release.md:166`
 - [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
