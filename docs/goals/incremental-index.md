@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/settings.rs, crates/nvs-config/src/data.rs, crates/nvs-config/src/cache.rs, docs/rules/ide/dependencies-are-allowlisted.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
     context: [docs/rules/ide/a-full-reanalysis-stays-under-a-bound.md, docs/agent/doc-style.md]
 checks:
@@ -481,51 +481,46 @@ writes the file once per idle period after `pending` empties.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Write `docs/rules/ide/the-index-is-incremental-and-persistent.md` with the standing decisions,
+- [x] Write `docs/rules/ide/the-index-is-incremental-and-persistent.md` with the standing decisions,
   the memory figures and the Declined list. Update `rule:ide/a-full-reanalysis-stays-under-a-bound`
   and `rule:ide/five-features-are-one-reference-index`. `bun nv rules --check` is green.
   `docs/rules/ide/a-full-reanalysis-stays-under-a-bound.md:1`,
   `docs/rules/ide/five-features-are-one-reference-index.md:1`
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes incremental-index` and
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes incremental-index` and
   `bun nv ci --check`, each red fixed.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 is `crates/nvs-lsp/src/disk_index.rs` (format, `Stamp`, `encode`,
-`decode`, `write`), `SymbolIndex::load_from`, `save_to` and `generation`
-(`crates/nvs-lsp/src/index.rs:514`), and the server's `index_file`, `start_index` and `save_index`
-(`crates/nvs-lsp/src/server.rs:609`). The loop writes in its at-rest arm.
-`Folder::lsp_index`, `Digest::from_bytes` and a `pub` `build_stamp` are in `nvs-config`. The
-compiled-code cache sweeps only `.nvsc` files in its shard directories, so it never deletes an
-`.idx` file.
+Every stage is done, and the goal is reached. The rule is
+`docs/rules/ide/the-index-is-incremental-and-persistent.md:1`, with its record in
+`data/rules/ide/`, and `rule:ide/a-full-reanalysis-stays-under-a-bound` and
+`rule:ide/five-features-are-one-reference-index` describe the cold path and what a refresh re-indexes.
+The Standing decisions are all in that fragment or in the module docs of `parse_cache.rs`,
+`session.rs`, `surface.rs`, `disk_index.rs` and `nvs_types::partial`.
 
-All twenty `cargo test --test incremental` tests ran once, green on Windows and in WSL. The eight
-`lsp-disk-index` tests are among them. `tests/index.rs`'s construction-site and bookkeeping tests were
-updated (`disk_index.rs` decodes `Indexed`; `generation` and `save_to` are bookkeeping) and ran green.
-The rest of the suite has not run since stage 1. Expect a possible red in
-`crates/nvs-lsp/tests/latency.rs` from the interner's copy-on-write (Standing decisions). An in-process
-server test now writes an index file under the data folder beside the test binary when the session
-changed its index. A test that counts the files there would see it.
+The gate: the first whole verify had one red, `only_the_language_server_switches_the_recording_on`
+in `crates/nvs-types/tests/provenance.rs`. `ExprTypeTable::part` called `record_provenance`,
+which only `nvs-lsp` may call, and now copies the field. The second verify was green. The latency
+guard was green, so the interner's copy-on-write did not show. `bun nv verify --doc` and
+`bun nv owners --closes incremental-index` are green.
 
-The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
-cancelled by a later push.
+`bun nv ci --check` is green except `site questions` for `/in-depth/personal-opinions/`. The red comes
+from the user's uncommitted edit to `website/src/content/docs/in-depth/personal-opinions.mdx`, made
+after their commit `ad8b83e75` stamped the page. The session did not touch it. It clears once the user
+runs `bun nv site --questions --stamp /in-depth/personal-opinions/` with their edit.
+
+The installed `looper` binary has no `verify` subcommand, so the gate ran
+`bun tools/looper/main.ts verify`. The sweep's reds were stale: no `env-secret-proofs` check is
+defined, and nightly `41428598621` was cancelled by a later push.
 
 ### Next
 
-**Stage 7, the gate.**
-
-- [ ] The rule fragment, written beside `docs/rules/ide/five-features-are-one-reference-index.md:1`
-  from the Standing decisions, stage 6's settlement included: `the-index-is-incremental-and-persistent.md`.
-  Update that rule and `docs/rules/ide/a-full-reanalysis-stays-under-a-bound.md:1`, then `bun nv rules --check`.
-- [ ] `looper verify` in the background over `crates/nvs-lsp/src/index.rs:514` and the rest of the goal,
-  fix every failure in one pass, and run it once more.
-- [ ] The goal-end gates for `docs/goals/incremental-index.md:1`: `bun nv verify --doc`,
-  `bun nv owners --closes incremental-index` and `bun nv ci --check`.
+Nothing in this goal. The loop retires it, and its `after_retire` hook rebuilds `target/release/nvs`.
 
 ### Backlog
 
