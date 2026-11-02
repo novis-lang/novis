@@ -12,10 +12,11 @@
   },
   "/datenschutz/": {
     "feature": "datenschutz.mdx",
-    "hash": "275d6c10954ebdb9",
+    "hash": "8948d89f910de335",
     "questions": [
       "Does the Novis website use cookies or tracking?",
       "What data does the Novis website collect about visitors?",
+      "How do I turn off the visitor statistics on the Novis website?",
       "What happens with my data when I donate to Novis?",
       "How do I get my personal data deleted?"
     ]
@@ -900,7 +901,7 @@
   },
   "/in-depth/personal-opinions/": {
     "feature": "in-depth/personal-opinions.mdx",
-    "hash": "a0e722d49a89e275",
+    "hash": "14be297cd2b4d72e",
     "questions": [
       "Why was Novis created?",
       "Who created Novis, and what were the reasons?",
