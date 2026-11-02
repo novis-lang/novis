@@ -405,8 +405,34 @@ jobs:
       # in release, because the baselines they compare against are release figures
       # — a full compile of the workspace beside the debug one `test` does, and why a
       # diff that cannot move a baseline does not pay for it (`rule:testing/lane-table`, `rule:testing/perf-two-mechanisms`).
+      #
+      # Every cargo call in this job names the same two packages, `nvs-abi-probe` and `nvs-cli`, and
+      # each builds a test target, so each resolves the same features and the release build of the
+      # workspace is compiled once. With one package per call, the three calls resolved three feature
+      # sets, from the two packages' different dev-dependencies, and each compiled the `nvs-codegen`
+      # chain again: about 12 minutes a time on Windows. What runs is narrowed by target instead: the
+      # probe's library and integration tests, and `nvs-cli`'s `nvs` binary. `nvs-cli`'s 70 integration
+      # tests are never built here. The timed binary therefore carries the dev-dependencies' features
+      # (`jsonschema`, `wat`, `region` and the crates they turn on), which nothing on the start-up path reads.
+      - name: The probe's test names, and the binary, in one feature set
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=""
+          for f in benches/abi-probe/tests/*.rs; do
+            name="$(basename "$f" .rs)"
+            if [ -f "crates/nvs-cli/tests/$name.rs" ]; then
+              echo "::error::nvs-cli has a test named $name too, so --test $name would build it in release"
+              exit 1
+            fi
+            tests="$tests --test $name"
+          done
+          echo "ABI_TESTS=$tests" >> "$GITHUB_ENV"
+          cargo build --release -p nvs-abi-probe -p nvs-cli --bin nvs $tests
+
       - name: Architecture invariants and cost guards
-        run: cargo test --release -p nvs-abi-probe
+        shell: bash
+        run: cargo test --release -p nvs-abi-probe -p nvs-cli --lib $ABI_TESTS
 
       # The binary's own cost guards, in release for the reason the probe's are, and on the same lane:
       # its inputs are the code generator and the runtime, and the nightly turns every lane on, so a
@@ -417,9 +443,7 @@ jobs:
       # logical CPUs.
       - name: Warm-start and core-scaling margins
         shell: bash
-        run: |
-          cargo build --release -p nvs-cli
-          cargo test --release -p nvs-cli --bin nvs -- by_the_margin_this_test_names
+        run: cargo test --release -p nvs-abi-probe -p nvs-cli --bin nvs -- by_the_margin_this_test_names
 
       # The serve soak, nightly only: one core serves thousands of requests over the loopback, and the
       # test fails when the bytes its thread holds grow with the count (`rule:programs/memory-priority`'s
@@ -427,7 +451,8 @@ jobs:
       # this job's release build. On every platform, because each has its own socket and allocator path.
       - name: Serve soak
         if: needs.changes.outputs.deep == 'true'
-        run: cargo test --release -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests
+        shell: bash
+        run: cargo test --release -p nvs-abi-probe -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests
 
       # The warm-start figure is absolute where the margins above are ratios, so it has the two bounds
       # `rule:testing/perf-two-mechanisms` gives a timing (`tools/nv/cmd/bench.ts` § *The warm-start
