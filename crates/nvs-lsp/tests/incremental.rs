@@ -13,15 +13,15 @@
 //! autoload one shared library, which is the shape where a keystroke in a
 //! library file has the most readers.
 //!
-//! Three of these tests name what later stages of the incremental index make
-//! true, and fail with the counts they find until then: a body-only edit
-//! re-queues no reader, and so a body-only keystroke in a library file parses
-//! one file and checks one file's bodies, whatever the number of programs.
+//! Two of these tests name what a later stage of the incremental index makes
+//! true, and fail with the counts they find until then: a body-only keystroke
+//! in a library file parses one file and checks one file's bodies, whatever
+//! the number of programs.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nvs_lsp::{CheckScope, Documents, SymbolIndex, Work, uri_of};
+use nvs_lsp::{CheckScope, Documents, SymbolIndex, Work, surface, uri_of};
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
@@ -342,8 +342,60 @@ fn a_file_whose_text_changed_on_disk_is_parsed_again() {
     );
 }
 
-/// Red until a file has a declaration-surface hash: a body-only edit in a
-/// library file changes nothing another file can see, so no reader waits.
+/// A body-only edit changes nothing another file can see, so the hash stays.
+/// So does an edit inside a property hook's body.
+#[test]
+fn a_body_only_edit_keeps_the_surface_hash() {
+    let text = library_class(5, 40);
+    let edited = body_edit(5, 1)(&text);
+    assert_ne!(edited, text);
+    assert_eq!(surface::of_source(&edited), surface::of_source(&text));
+
+    let hooked = "<?nvs\nclass Box\n{\n    public int $size {\n        get => 1;\n    }\n}\n";
+    assert_eq!(
+        surface::of_source(hooked),
+        surface::of_source(&hooked.replace("get => 1;", "get => 2;")),
+        "a hook's body is not on the surface"
+    );
+}
+
+/// An edit another file can see changes the hash: a signature, a constant's
+/// value, an attribute, a `require`, a new method and a doc comment.
+#[test]
+fn a_signature_constant_attribute_or_require_edit_changes_the_surface_hash() {
+    let text = format!(
+        "{}\nrequire './Other.nvs';\n",
+        library_class(0, 40).replacen(
+            "    public function value(",
+            "    public const int LIMIT = 3;\n\n    public function value(",
+            1
+        )
+    );
+    let base = surface::of_source(&text);
+    let edits: [(&str, &str, &str); 6] = [
+        ("signature", "value(int $n): int", "value(int $n, int $m = 0): int"),
+        ("constant value", "LIMIT = 3;", "LIMIT = 4;"),
+        ("attribute", "path: '/parts/{id}'", "path: '/part/{id}'"),
+        ("require", "'./Other.nvs'", "'./Another.nvs'"),
+        (
+            "new method",
+            "    public function next(",
+            "    public function fresh(): int\n    {\n        return 5;\n    }\n\n    public function next(",
+        ),
+        ("doc comment", "class Part0", "/// A part.\nclass Part0"),
+    ];
+    for (kind, from, to) in edits {
+        assert!(text.contains(from), "the {kind} edit finds its text");
+        assert_ne!(
+            surface::of_source(&text.replacen(from, to, 1)),
+            base,
+            "a {kind} edit keeps the surface hash"
+        );
+    }
+}
+
+/// A body-only edit in a library file changes nothing another file can see,
+/// so no reader waits.
 #[test]
 fn a_body_only_keystroke_re_queues_no_reader() {
     let dir = tree(2, 40);
@@ -361,6 +413,37 @@ fn a_body_only_keystroke_re_queues_no_reader() {
         "a body-only edit queued readers: {:?}",
         index.pending()
     );
+}
+
+/// An edit to what other files can see of a library file queues every entry
+/// that read it.
+#[test]
+fn a_surface_edit_re_queues_the_entries_that_read_the_file() {
+    let dir = tree(2, 40);
+    let (mut documents, mut index) = index_of(&dir);
+    let path = dir.at(&part(5));
+    open(&mut index, &mut documents, &path);
+
+    let uri = uri_of(&path).expect("a temp path is UTF-8");
+    let text = documents
+        .get(&uri)
+        .expect("open")
+        .text()
+        .replacen("value(int $n): int", "value(int $n, int $m = 0): int", 1);
+    assert!(documents.change(&uri, 2, text));
+    documents.resurvey(&path);
+    index.refresh(&documents, &path);
+    let queued: Vec<String> = index
+        .pending()
+        .iter()
+        .map(|entry| entry.to_string_lossy().replace('\\', "/"))
+        .collect();
+    for program in ["Blog/main.nvs", "Shop/main.nvs"] {
+        assert!(
+            queued.iter().any(|entry| entry.ends_with(program)),
+            "{program} read the file and was not queued: {queued:?}"
+        );
+    }
 }
 
 /// Red until the editor checks only the bodies whose inputs changed: a

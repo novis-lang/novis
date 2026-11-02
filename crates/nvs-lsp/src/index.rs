@@ -94,6 +94,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use lsp_types::Uri;
+use nvs_config::cache::Digest;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
@@ -361,6 +362,10 @@ struct Indexed {
     /// Whether one of those errors is the lexer's or the parser's, so this
     /// file's text did not parse and its declarations may be missing.
     broken: bool,
+    /// The hash of what other files can see of this file ([`crate::surface`]).
+    /// [`SymbolIndex::refresh`] queues the readers of an edited open file only
+    /// when its new analysis gives a different hash.
+    surface: Digest,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::refresh`] follows.
@@ -470,6 +475,11 @@ impl SymbolIndex {
     /// to [`pending`](Self::pending). Returns the files dropped now and the
     /// analyses of the open entries.
     ///
+    /// When `changed` is open and its new analysis gives the same
+    /// declaration-surface hash ([`crate::surface`]) as before, no reader is
+    /// added to `pending`: the edit was inside a body, and nothing another file
+    /// resolves against moved. The open document's own analysis re-indexes it.
+    ///
     /// The dropped set is the answer the test asks for and the one a caller
     /// wants anyway: it is exactly the files whose declarations and
     /// occurrences have just been replaced, so a reader holding an answer
@@ -504,16 +514,22 @@ impl SymbolIndex {
         }
         now.sort();
         now.dedup();
-        for entry in readers {
-            if !now.contains(&entry) {
-                self.pending.insert(entry);
-            }
+        let held: Vec<PathBuf> = readers
+            .into_iter()
+            .filter(|entry| !now.contains(entry))
+            .collect();
+        // A file nobody has open is re-indexed only by its readers' analyses,
+        // so they all wait. An open one is re-indexed below, and its readers
+        // wait only if what they can see of it changed.
+        if !reindexed {
+            self.pending.extend(held.iter().cloned());
         }
+        let before = self.files.get(&key).map(|indexed| indexed.surface);
 
         let mut dropped = self.drop_owned(&now);
         if reindexed && let Some(indexed) = self.files.remove(&key) {
             self.unpost(&key, &indexed);
-            dropped.push(key);
+            dropped.push(key.clone());
         }
         dropped.sort();
         dropped.dedup();
@@ -528,6 +544,12 @@ impl SymbolIndex {
             };
             if let Some(analysis) = self.absorb(documents, path, document.version()) {
                 analysed.push((document.uri().clone(), analysis));
+            }
+        }
+        if reindexed {
+            let after = self.files.get(&key).map(|indexed| indexed.surface);
+            if before.is_none() || before != after {
+                self.pending.extend(held);
             }
         }
         Refreshed { dropped, analysed }
@@ -968,6 +990,7 @@ impl SymbolIndex {
                             .primary_span()
                             .is_some_and(|span| span.file == loaded.id)
                 }),
+                surface: crate::surface::of(&loaded.stmts, analysed.map.file(loaded.id).text()),
                 entry: entry.clone(),
             };
             self.post(&key, &indexed);

@@ -140,6 +140,7 @@ pub mod settings;
 pub mod split_join;
 pub mod stubs;
 pub mod suite;
+pub mod surface;
 pub mod symbols;
 mod taint;
 

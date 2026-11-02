@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-diagnostics/src/source.rs, crates/nvs-types/tests/common/mod.rs]
   - id: 4
     title: "each file has a declaration-surface hash, and a body-only edit re-queues no reader"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs]
   - id: 5
     title: "the editor checks only the bodies whose inputs changed, against one session interner"
@@ -409,11 +409,11 @@ shared across files. Its scope is `Env`'s fields at `crates/nvs-types/src/check.
 **Does:** decision 4. `surface.rs` hashes a parsed file. `Indexed` stores the hash, and `refresh`
 queues readers only when the hash changed.
 
-- [ ] `crates/nvs-lsp/src/surface.rs`: the hash over the parse that `ParseCache` holds, with what
+- [x] `crates/nvs-lsp/src/surface.rs`: the hash over the parse that `ParseCache` holds, with what
   it includes and leaves out written in its module doc. `crates/nvs-lsp/src/surface.rs:1`
-- [ ] `Indexed` gains `surface`. `refresh` compares the old and new hash of `changed`, and queues
+- [x] `Indexed` gains `surface`. `refresh` compares the old and new hash of `changed`, and queues
   readers only when they differ. `crates/nvs-lsp/src/index.rs:336`, `crates/nvs-lsp/src/index.rs:484`
-- [ ] The tests of the `lsp-surface` check. Run once by name: `cargo test --test incremental`.
+- [x] The tests of the `lsp-surface` check. Run once by name: `cargo test --test incremental`.
   `crates/nvs-lsp/tests/incremental.rs:1`
 
 ### 5. the editor checks only the bodies whose inputs changed, against one session interner
@@ -470,38 +470,30 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Stages 1, 2 and 3 are done. `nvs_types::check_program_partial` (`crates/nvs-types/src/check.rs:209`)
-walks each file into its own `FileOutput` (`crates/nvs-types/src/partial.rs`), folds it in file
-order with `ExprTypeTable::absorb`, and runs `after_walk` over the result. A partial check stores
-each walked file in `CheckCache` and folds a clone of a cached output whose `anon_fn_start`
-matches. The walk reads no record another file made. Measured in release on 41 files: the passes
-after the walk take about 45 µs, and a one-body partial check about 0.2 ms against 0.7 ms whole.
-Stage 2's `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs`) and `SourceMap::pinned`
-(`crates/nvs-diagnostics/src/source.rs:426`) keep a file's parse and id across analyses.
+Stages 1 to 4 are done. `nvs_lsp::surface::of` (`crates/nvs-lsp/src/surface.rs`) hashes each
+declaration's text with its bodies cut out. `Indexed::surface` holds it, and `refresh`
+(`crates/nvs-lsp/src/index.rs:499`) queues an open changed file's readers only when its new hash
+differs. A changed file nobody has open still queues every reader: stage 6 may parse it for its
+surface instead. `surface::of_source` parses a text alone, for tests and stage 6.
+`check_program_partial` (`crates/nvs-types/src/check.rs:209`) and `CheckCache`
+(`crates/nvs-types/src/partial.rs:118`) are stage 3's; a one-body partial check takes about 0.2 ms
+against 0.7 ms whole on 41 files.
 
 The sweep's reds were stale: no `env-secret-proofs` check exists, and nightly `41428598621` was
 cancelled by a later push. The untracked `probe-out.txt` at the root is another process's.
 
-**Red until their stage lands** (so `bun nv verify --fast -p nvs-lsp` is red until stage 5):
-
-- `a_body_only_keystroke_re_queues_no_reader`: queues `Blog/main.nvs` and `Shop/main.nvs`. Stage 4.
-- `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`: parsed
-  is 1, and checked is still every body of every analysis. Stage 5.
-- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: checked grows with
-  the programs. Stage 5.
+**Red until stage 5:** `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`
+(checked is 42, the open file's whole graph), so `bun nv verify --fast -p nvs-lsp` is red. The other
+nine `cargo test --test incremental` tests ran once, green. The rest of the suite did not run.
 
 ### Next
 
-**Stage 4, one group.** `crates/nvs-lsp/src/surface.rs` is new, then `index.rs`. The hash reads the
-statements `ParseCache` holds (`crates/nvs-lsp/src/parse_cache.rs:49`).
+**Stage 5, one group.** `crates/nvs-lsp/src/document.rs` and `server.rs`.
 
-- [ ] `surface.rs`: the declaration-surface hash of decision 4, its module doc saying what it includes and leaves out. `crates/nvs-lsp/src/surface.rs:1`
-- [ ] `Indexed` gains `surface`, and `refresh` queues readers only when the hash of `changed` differs. `crates/nvs-lsp/src/index.rs:336`, `crates/nvs-lsp/src/index.rs:489`
-- [ ] The `lsp-surface` tests, run once by name: `cargo test --test incremental`. `crates/nvs-lsp/tests/incremental.rs:1`
-
-Stage 5 then calls `check_program_partial` from `analyse_over` with a session interner, the session
-`Pins` and one `CheckCache`, and removes a file's output when the file leaves the tree
-(`CheckCache::remove`/`retain`).
+- [ ] A `Session` with the interner, `Pins`, `ParseCache` and `CheckCache`, owned by the server loop. `crates/nvs-lsp/src/document.rs:690`
+- [ ] `analyse_over` calls `check_program_partial` in place of `check_program_loaded`, keyed by decision 5 with `surface::of`; `Work::checked` counts `bodies`. `crates/nvs-lsp/src/document.rs:817`
+- [ ] A file's output is removed when it leaves the tree, beside `retain_parses` in `settle_one`. `crates/nvs-lsp/src/index.rs:554`
+- [ ] The interner rebuild at twice its size, the bytes-per-file figure, and the `lsp-incremental` tests with the oracle. `crates/nvs-lsp/tests/incremental.rs:1`
 
 ### Backlog
 
