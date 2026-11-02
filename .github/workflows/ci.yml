@@ -56,9 +56,9 @@ concurrency:
 # bill; they are not a performance budget. A job that starts timing out is a regression to
 # investigate, never a number to raise here without one.
 #
-# The repository's Actions cache holds 30 GB, and GitHub evicts the least recently used entry past
+# The repository's Actions cache holds 50 GB, and GitHub evicts the least recently used entry past
 # that. GitHub's first 10 GB are free, and the organization pays $0.07 per GiB a month for the
-# rest, under the `actions` budget that `organizations/novis-lang/settings/billing/budgets` sets.
+# rest, measured as each hour's peak of what the cache actually holds, not the limit, under the `actions` budget that `organizations/novis-lang/settings/billing/budgets` sets.
 # A budget that runs out makes the cache read-only. The limit is set on the organization and on
 # the repository with `gh api -X PUT <owner>/actions/cache/storage-limit -F max_cache_size_gb=<n>`,
 # where `<owner>` is `orgs/novis-lang` or `repos/novis-lang/novis`.
