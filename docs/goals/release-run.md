@@ -110,9 +110,12 @@ before the run.
 
 **The real run's order, in the gate stage.** Each step waits for the one before it to be green.
 
-1. `looper loop pause` holds every other loop, so no session commits to `main` between the dispatch
-   and `publish`'s push (`docs/release.md` § *Cutting a release*, step 3). The session commits and
-   pushes its own handoff first, then commits nothing until `publish` has pushed.
+1. Every other loop of this tree is held, so no session commits to `main` between the dispatch
+   and `publish`'s push (`docs/release.md` § *Cutting a release*, step 3). A bare `looper loop pause`
+   names `main`, the loop driving the release, so the session runs `bun tools/looper/main.ts loop
+   --loop <name> pause` for each other loop `looper status` lists under `mwl/`. A loop with no worker
+   cannot commit, and its pause is refused, which is the same hold. The session commits and pushes
+   its own handoff first, then commits nothing until `publish` has pushed.
 2. `bun nv ci --dispatch release`, and `bun nv ci --watch --release` in the background.
 3. When the run waits on `release`, the session reads the notes in the run summary, then runs `bun nv
    ci --approve-release`.
@@ -364,7 +367,7 @@ are one session's, one step per turn, each waiting on its watch.
 - [x] Run `looper verify` over the whole goal.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [x] Run `looper verify` once more, and it is green.
-- [ ] `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and the dry run ends green: `bun nv ci --release-status` exits 0 on `main`'s tip. `tools/nv/cmd/ci.ts:537`
+- [x] `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and the dry run ends green: `bun nv ci --release-status` exits 0 on `main`'s tip. `tools/nv/cmd/ci.ts:537`
 - [ ] `bun nv release --preview patch` prints `0.0.1`. `looper loop pause`, the handoff committed and pushed, then `bun nv ci --dispatch release` and the watch in the background. `tools/nv/cmd/release.ts:1030`
 - [ ] The run waits on `release`: the notes are read, then `bun nv ci --approve-release`. `.github/workflows/release.yml:263`
 - [ ] The run ends green: `bun nv ci --publish-release`, then the `Promote release images` and `pages.yml` runs end green. `.github/workflows/release-promote.yml:37`
@@ -381,9 +384,12 @@ Stages 1 to 4 are done. In stage 5, verify is green on `5933df46e`: 23 of 23 ste
 `build` on a Windows lock of `target/covws/.../nvs.exe` that no live process held; the next run passed.
 `bun nv ci --check`, `bun nv verify --doc` and `bun nv owners --closes release-run` are green.
 
-`5933df46e` is pushed, and dry run `41382605630` runs on it. No full `ci.yml` run has passed on that
-commit, so its `verify` job runs the whole suite. `bun nv ci --watch --release --max-min 110` watches
-it in the background; its report starts the next turn.
+Dry run `41382605630` on `5933df46e` is green in every job, its full `verify` included, with the
+known optional `windows-aarch64` warning. `bun nv release --preview patch` prints `0.0.1`.
+`mwl/side-ci-green`, the tree's one other loop, has no worker, so its pause was refused and it
+cannot commit. This handoff is committed and pushed, then `bun nv ci --dispatch release` starts the
+real run, and `bun nv ci --watch --release` watches it in the background. **Commit nothing to
+`main` until `publish` has pushed.** The run's address is in the session's status line.
 
 The sweep's reds are stale. `env-secret-proofs` is named nowhere but this file and has no log. Nightly
 `41295327777` ran on `ef0d5cd3b`, and its one real red, `lint`, is fixed on `main`.
@@ -396,8 +402,8 @@ fixed in `ci.ts` before the next step, never by hand through `gh`.
 
 ### Next
 
-- [ ] Dry run `41382605630` ends green: `bun nv ci --release-status` exits 0. A red is fixed at its cause, pushed, and dry-run again. A watch that exits 3 is started again. `tools/nv/cmd/ci.ts:537`
-- [ ] Then the real run's order from the standing decisions, one step per turn. The approve judge is `judgeRun` with stage `approve`, called from `approveRelease` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
+- [ ] The real run waits on `release`: read its notes in the run summary, then `bun nv ci --approve-release`, and the watch again in the background. A watch that exits 3 is started again. The approve judge is `judgeRun` with stage `approve` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
+- [ ] A run that fails before `publish` wrote nothing: fix the cause, push, dry-run again, and dispatch again. Never cancel it. `docs/release.md:166`
 - [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
 
 No test is expected to go red.
