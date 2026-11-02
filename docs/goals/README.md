@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [release-run, incremental-index]
+chain: [incremental-index]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,12 +37,11 @@ floor:
 
 # Goals
 
-The chain holds 2 goal(s). `release-run` is live.
+The chain holds 1 goal(s). `incremental-index` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`release-run`](release-run.md) **live** | a real Release run on main ends green in every job, its draft is published and promoted, and a check reads all of it from GitHub. | 1 ✓ bun nv ci dispatches a full CI run and a dry-run Release, watches it, and reads its verdict · 2 ✓ the full ci.yml run on main's tip is green in every job · 3 ✓ a dry-run Release run on main's tip is green in every job · 4 ✓ bun nv ci cuts a real release: dispatch, approve, publish, and the published verdict · 5 ✓ the goal is verified once, a dry run on the final tip is green, and the real release is published |
-| 2 | [`incremental-index`](incremental-index.md) | a body-only keystroke in a library file of a tree with many programs parses one file and checks one file's bodies, a cold start with a valid on-disk index analyses only the open document's entry, and the editor reports what nvs check reports for the open file. | **1 a generated perf fixture and tests that count the files parsed and the bodies checked** · 2 a file is parsed again only when its text changed: the loader takes a cached parse · 3 the checker checks the bodies of a chosen set of files and folds every other file's cached output · 4 each file has a declaration-surface hash, and a body-only edit re-queues no reader · 5 the editor checks only the bodies whose inputs changed, against one session interner · 6 the index is written to disk and loaded at start, and only stale entries are analysed · 7 the goal is verified once, and every failure is fixed |
+| 1 | [`incremental-index`](incremental-index.md) **live** | a body-only keystroke in a library file of a tree with many programs parses one file and checks one file's bodies, a cold start with a valid on-disk index analyses only the open document's entry, and the editor reports what nvs check reports for the open file. | **1 a generated perf fixture and tests that count the files parsed and the bodies checked** · 2 a file is parsed again only when its text changed: the loader takes a cached parse · 3 the checker checks the bodies of a chosen set of files and folds every other file's cached output · 4 each file has a declaration-surface hash, and a body-only edit re-queues no reader · 5 the editor checks only the bodies whose inputs changed, against one session interner · 6 the index is written to disk and loaded at start, and only stale entries are analysed · 7 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
