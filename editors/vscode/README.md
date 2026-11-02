@@ -17,7 +17,8 @@ This extension adds support for the Novis language to VS Code. It works with `.n
 ## Getting started
 
 The extension needs the `nvs` program. If `nvs` is on your `PATH`, the extension uses it. If not, run
-**Novis: Download nvs** from the Command Palette. You can also set the path in the `nvs.path` setting.
+**Novis: Download nvs** from the Command Palette. The `nvs.path` setting has the same **Download nvs**
+link. You can also set the path to `nvs` in that setting.
 
 The extension starts when you open a `.nvs` file, or a folder that contains an `nvs.toml` file.
 

@@ -136,7 +136,7 @@
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "description": "Absolute path to the nvs binary. Empty, or a path with no file, means look it up on PATH, then use the copy Novis: Download nvs installed."
+          "markdownDescription": "The full path to the `nvs` program. If this is empty, or no file is at this path, the extension uses `nvs` from your `PATH`. If that is not found either, it uses the copy that **Novis: Download nvs** installed.\n\nIf you do not have `nvs` yet, click [Download nvs](command:nvs.downloadBinary). The extension downloads the newest release for your computer, checks it, and starts it. You do not need to change this setting afterwards. To download `nvs` yourself, open the [release page](command:nvs.openReleases)."
         },
         "nvs.lsp.enable": {
           "type": "boolean",

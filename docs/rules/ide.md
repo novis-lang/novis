@@ -3005,7 +3005,9 @@ because [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide
 `initialize`, and a fetch that ends in a refusal is a worse first run than no offer at all.
 `nvs.openReleases` opens the release page, which is where a user who would rather check the bytes
 themselves goes — `gh attestation verify` against the Sigstore provenance every archive carries is a
-stronger proof than the extension is willing to build a second trust store to reach.
+stronger proof than the extension is willing to build a second trust store to reach. The `nvs.path`
+setting links both commands from its description, because the Settings page is where a user without
+`nvs` looks for one, and a link there runs only when it is clicked.
 
 **The fetch is verified and it is never automatic.** The archive and the release's own `SHA256SUMS`
 are taken from the same release, the archive is hashed before anything is unpacked, and a mismatch

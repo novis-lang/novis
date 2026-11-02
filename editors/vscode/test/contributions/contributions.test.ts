@@ -591,6 +591,17 @@ describe("the colour the extension contributes only when the user picks it", () 
               "the setting does not say where it writes");
   });
 
+  it("offers the download and the release page in the nvs.path setting", () => {
+    // A user without `nvs` looks for it in the Settings page first, so both ways to get one are links
+    // there (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`).
+    const setting = manifest.contributes.configuration.properties["nvs.path"] as
+      ConfigProperty & { markdownDescription?: string };
+    assert.ok(setting.markdownDescription?.includes("(command:nvs.downloadBinary)"),
+              "the setting has no link to the download command");
+    assert.ok(setting.markdownDescription?.includes("(command:nvs.openReleases)"),
+              "the setting has no link to the release page");
+  });
+
   it("maps the two Novis modifiers to scopes a theme already styles", () => {
     // `tainted` and `secret` are not in LSP's legend, so no theme has a rule for them. Each is mapped
     // to a standard scope that sets a font style and no colour, and VS Code takes each style property
