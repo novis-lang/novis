@@ -102,11 +102,11 @@ release commit from starting a fresh CI run, and it is deliberate.
 
 ### 5. Public repository, or two build legs and the attestation stop working
 
-Two matrix legs use GitHub's ARM runners (`ubuntu-22.04-arm`, `windows-11-arm`), which are free on
+The `linux-aarch64` matrix leg uses GitHub's ARM runner (`ubuntu-22.04-arm`), which is free on
 public repositories and unavailable on private ones. Build provenance attestation is likewise a
 public-repository feature at the free tier.
 
-If the repository is private at first release, delete the two `aarch64` legs and the
+If the repository is private at first release, delete the `linux-aarch64` leg and the
 `attest-build-provenance` step, or expect them to fail. Everything else is unaffected.
 
 ### 6. After the *first* release: make the container package public
@@ -294,7 +294,7 @@ has to be done again on the next release.
 | | |
 |---|---|
 | `plan` refuses: *crosses into the version contract* | Working as intended. Read § *The version scheme*; tick `allow_contract` only if you mean it. |
-| An `optional` build leg failed | `linux-x86_64-musl` and `windows-aarch64` are marked optional because `wasmtime` and `corosensei` carry assembly and neither lists Windows on ARM64 as supported. The release still ships; drop `optional:` from that leg once a run has proved it. |
+| An `optional` build leg failed | `linux-x86_64-musl` is marked optional because it has to build `ring` and `libsqlite3-sys`'s C with `musl-gcc`. The release still ships; drop `optional:` from that leg once a run has proved it. Windows on ARM64 has no leg at all: `corosensei` does not compile for it. |
 | A **required** leg failed | `publish` refuses by name rather than shipping a quietly incomplete release. Fix and re-run; nothing was written. |
 | The push in `publish` was rejected | `main` moved (see step 3 of § *Cutting a release*) or is protected (see setup § 4). Nothing was written — re-run. |
 | A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo, and § *Recalling a published image* above is that procedure. Do it in that order: deleting the git tag is what unblocks moving `latest` back. |

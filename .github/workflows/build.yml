@@ -46,11 +46,14 @@ jobs:
   # ---------------------------------------------------------------------------
   # The binaries.
   #
-  # `optional: true` marks a target whose dependency tree is not yet proven to build for it —
-  # `wasmtime` and `corosensei` both carry assembly and neither lists Windows on ARM64 as a
-  # supported platform, and the musl leg has to satisfy `ring` and `libsqlite3-sys`'s C with `musl-gcc`.
-  # Those legs may fail without failing the release; `publish` reports which arrived. Promote one
-  # to required (drop its `optional`) once a run has proved it.
+  # `optional: true` marks a target whose dependency tree is not yet proven to build for it: the
+  # musl leg has to satisfy `ring` and `libsqlite3-sys`'s C with `musl-gcc`. Such a leg may fail
+  # without failing the release; `publish` reports which arrived. Promote one to required (drop its
+  # `optional`) once a run has proved it.
+  #
+  # Windows on ARM64 has no leg. `corosensei` 0.3 has no `aarch64-pc-windows-msvc` backend and does
+  # not compile for it, so the leg failed at every run. An in-tree backend would be unsafe
+  # stack-switching code with Windows ARM64 unwinding. Add the leg back once `corosensei` ships one.
   # ---------------------------------------------------------------------------
   build:
     name: build ${{ matrix.name }}
@@ -87,11 +90,6 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
-          - name: windows-aarch64
-            os: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            archive: zip
-            optional: true
           - name: macos-aarch64
             os: macos-latest
             target: aarch64-apple-darwin

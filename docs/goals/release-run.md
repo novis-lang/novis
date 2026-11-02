@@ -204,7 +204,7 @@ and each job either way:
   `publish` is `skipped`, as every dry run's is. The `verify` job (`test`) may be `skipped` only when
   `greenFullRun` (`tools/nv/cmd/release.ts:689`) finds a green full `ci.yml` run of that sha, the
   lookup `plan` makes with `--tested`. A failed leg that `build.yml` marks `optional: true`
-  (`linux-x86_64-musl`, `windows-aarch64`) is named as a warning and does not hold the verdict, since
+  (`linux-x86_64-musl`) is named as a warning and does not hold the verdict, since
   `release.yml` ships without it and `publish` checks the required legs by name. Any other `skipped`,
   `cancelled` or unexpanded `${{ matrix.* }}` job is red.
 - Exit 0 green, 1 red, 2 when `gh` or `git` cannot answer.
@@ -422,10 +422,6 @@ No test is expected to go red.
 
 ### Backlog
 
-- `build / build windows-aarch64` fails at every run until `corosensei` gains a Windows `aarch64`
-  backend, or the leg is dropped from `.github/workflows/build.yml:90`. An in-tree backend is unsafe
-  stack-switching code with Windows ARM64 unwinding, which security outranks, so it waits for upstream.
-  Decide after the release: drop the leg, or keep it as a known red warning.
 - With stage 4's `ci.ts` changes, `--watch --release` passes over a failed optional `build` leg the
   way `--release-status` does, reading the legs from `build.yml`'s matrix, with a test beside the
   stage 1 ones. Not now: a `ci.ts` commit would stop the running dry run standing for `main`.

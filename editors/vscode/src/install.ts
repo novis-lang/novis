@@ -50,14 +50,14 @@ export interface Target {
  * The names are `.github/workflows/build.yml`'s and are not this file's to choose. What is
  * missing is as deliberate as what is here: there is no musl row for `arm64`, because the workflow
  * builds no such archive, so an Alpine machine on ARM resolves to nothing — the same answer as any
- * other unsupported pair, and the same one command reports it.
+ * other unsupported pair, and the same one command reports it. Windows on ARM64 has no row for the
+ * same reason.
  */
 export const TARGETS: readonly Target[] = [
   { name: "linux-x86_64", platform: "linux", arch: "x64", archive: "tar.gz", libc: "gnu" },
   { name: "linux-aarch64", platform: "linux", arch: "arm64", archive: "tar.gz", libc: "gnu" },
   { name: "linux-x86_64-musl", platform: "linux", arch: "x64", archive: "tar.gz", libc: "musl" },
   { name: "windows-x86_64", platform: "win32", arch: "x64", archive: "zip" },
-  { name: "windows-aarch64", platform: "win32", arch: "arm64", archive: "zip" },
   { name: "macos-aarch64", platform: "darwin", arch: "arm64", archive: "tar.gz" }
 ];
 
