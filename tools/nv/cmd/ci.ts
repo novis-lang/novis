@@ -100,6 +100,11 @@ export const WORKFLOWS = ["CI", "Website"];
 export const RELEASE = "Release";
 /** The title `release.yml`'s `run-name` gives a dry run. */
 export const DRY_RUN_TITLE = "Release (dry run)";
+/**
+ * Each watched workflow's `name:`, by its file. The runs API gives a run's `run-name` title as its
+ * `name`, so a dry run's `name` is `Release (dry run)`, and `workflowOf` reads the workflow from `path`.
+ */
+const WORKFLOW_FILES: Record<string, string> = { "ci.yml": "CI", "pages.yml": "Website", "release.yml": RELEASE };
 const BRANCH = "main";
 
 /**
@@ -232,6 +237,14 @@ export interface Run {
   html_url: string;
   /** The run's title: its `run-name`, such as `Release (dry run)`, or the workflow's name. */
   display_title: string;
+  /** The workflow's file, such as `.github/workflows/release.yml`. */
+  path?: string;
+}
+
+/** `r` with `name` set to its workflow's `name:`, which GitHub replaces with the run's `run-name` title. */
+function workflowOf<R extends Run>(r: R): R {
+  const named = WORKFLOW_FILES[(r.path ?? "").split("/").pop() ?? ""];
+  return named === undefined ? r : { ...r, name: named };
 }
 
 /** A job of a run, with its steps. */
@@ -256,14 +269,15 @@ async function ghJson<T>(s: CiSeams, args: string[]): Promise<T> {
   return JSON.parse(r.stdout) as T;
 }
 
-/** The newest runs on `main`, newest first. */
-export function listRuns(s: CiSeams): Promise<Run[]> {
-  return ghJson<Run[]>(s, [
+/** The newest runs on `main`, newest first, each named by its workflow. */
+export async function listRuns(s: CiSeams): Promise<Run[]> {
+  const runs = await ghJson<Run[]>(s, [
     "api",
     `repos/{owner}/{repo}/actions/runs?branch=${BRANCH}&per_page=40`,
     "--jq",
-    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, html_url, display_title}]",
+    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, html_url, display_title, path}]",
   ]);
+  return runs.map(workflowOf);
 }
 
 /** The jobs of run `id`, their latest attempt. */
@@ -602,13 +616,14 @@ async function rerun(s: CiSeams): Promise<number> {
 // ---- --dispatch --------------------------------------------------------------------------------------
 
 /** The newest runs of one workflow file on `main`, newest first, with their branch and title. */
-export function workflowRuns(s: CiSeams, file: string, query = ""): Promise<(Run & WorkflowRun)[]> {
-  return ghJson<(Run & WorkflowRun)[]>(s, [
+export async function workflowRuns(s: CiSeams, file: string, query = ""): Promise<(Run & WorkflowRun)[]> {
+  const runs = await ghJson<(Run & WorkflowRun)[]>(s, [
     "api",
     `repos/{owner}/{repo}/actions/workflows/${file}/runs?branch=${BRANCH}&per_page=30${query}`,
     "--jq",
-    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title}]",
+    "[.workflow_runs[] | {id, name, event, status, conclusion, head_sha, head_branch, html_url, display_title, path}]",
   ]);
+  return runs.map(workflowOf);
 }
 
 /** The runs `--dispatch` may have started: a `workflow_dispatch` one, and of a release, a dry run. */

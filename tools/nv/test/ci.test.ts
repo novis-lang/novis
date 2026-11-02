@@ -340,12 +340,15 @@ interface ReleaseWorld {
 
 /** A run of one workflow file on `main`, as `workflowRuns` lists it. */
 const onMain = (r: Run) => ({ ...r, head_branch: "main" });
-const dryRun = (id: number, status: string, conclusion: string | null, sha = "tip") =>
-  runOf(id, "Release", status, conclusion, "workflow_dispatch", sha, DRY_RUN_TITLE);
+/** A dry run as GitHub lists it: `run-name` replaces the workflow's name, so only `path` says `Release`. */
+const dryRun = (id: number, status: string, conclusion: string | null, sha = "tip") => ({
+  ...runOf(id, DRY_RUN_TITLE, status, conclusion, "workflow_dispatch", sha, DRY_RUN_TITLE),
+  path: ".github/workflows/release.yml",
+});
 
 /** The job names a dry run shows, every one green and `publish` skipped. */
 function dryJobs(over: Record<string, Job> = {}): Job[] {
-  const names = ["plan", "verify / lint", "build / build linux-x86_64", "build / build the VS Code extension", PUBLISH_JOB, "docker / container images (slim)"];
+  const names = ["plan", "verify / lint", "build / build linux-x86_64", "build / build the VS Code extension", PUBLISH_JOB, "docker / container images (debian)"];
   return names.map((n, i) => over[n] ?? jobOf(100 + i, n, "completed", n === PUBLISH_JOB ? "skipped" : "success"));
 }
 
@@ -493,12 +496,12 @@ describe("bun nv ci: the release", () => {
     const leg = optional[0]!;
     const jobs = dryJobs({
       "build / build linux-x86_64": jobOf(1, "build / build linux-x86_64", "completed", "failure", "cargo build"),
-      "docker / container images (slim)": jobOf(2, "docker / container images (slim)", "completed", "cancelled"),
+      "docker / container images (debian)": jobOf(2, "docker / container images (debian)", "completed", "cancelled"),
     });
     const w = releaseSeams("failed", () => ({ release: [dryRun(28, "completed", "failure")], jobs: { 28: [...jobs, jobOf(3, leg, "completed", "failure", "cargo build")] } }));
     expect(await ci(["--release-status"], w.s)).toBe(1);
     expect(w.said).toContain('FAILED build / build linux-x86_64 / step "cargo build"  https://example.com/jobs/1 (failure)');
-    expect(w.said).toContain("FAILED docker / container images (slim)  https://example.com/jobs/2 (cancelled)");
+    expect(w.said).toContain("FAILED docker / container images (debian)  https://example.com/jobs/2 (cancelled)");
     expect(w.said).toContain(`  WARNING ${leg} / step "cargo build"  https://example.com/jobs/3: an optional leg, so the release ships without it`);
     const onlyOptional = releaseSeams("optional", () => ({ release: [dryRun(28, "completed", "success")], jobs: { 28: [...dryJobs(), jobOf(3, leg, "completed", "failure", "cargo build")] } }));
     expect(await ci(["--release-status"], onlyOptional.s)).toBe(0);
