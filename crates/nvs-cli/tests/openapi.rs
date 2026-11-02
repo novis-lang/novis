@@ -700,15 +700,18 @@ fn fixture(stem: &str) -> String {
 /// `base`, `cargo test` runs them on their own threads, and a reader that
 /// catches another thread's `fs::write` half-done gets a truncated document and
 /// a diff that reports nothing — which is a flake in exactly the cases the
-/// goal files under `docs/goals/` name as acceptance checks. The counter is what stops two
-/// calls sharing a path at all; the documents are byte-identical either way, so
-/// nothing about what is compared changes.
+/// goal files under `docs/goals/` name as acceptance checks. The process id and
+/// the counter together stop two calls sharing a path at all: a runner that
+/// starts each test in a process of its own, such as nextest, starts every
+/// counter at 0. The documents are byte-identical either way, so nothing about
+/// what is compared changes.
 fn document(stem: &str) -> std::path::PathBuf {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let (doc, err, ok) = build(&fixture(stem));
     assert!(ok, "the `{stem}` fixture compiles: {err}");
     let nth = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("{stem}.{nth}.json"));
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("{stem}.{}.{nth}.json", std::process::id()));
     std::fs::write(&path, doc).expect("the target directory is writable");
     path
 }

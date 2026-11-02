@@ -1912,11 +1912,13 @@ fn refingerprint(text: &str) -> String {
 }
 
 /// The texts a fresh `init --all` writes, as `(path, text)`, each call in a
-/// directory of its own because tests run in parallel.
+/// directory of its own because tests run in parallel. The name carries the
+/// process id as well as the call count, because a runner that starts each test
+/// in a process of its own, such as nextest, starts every count at 0.
 fn fresh() -> Vec<(String, String)> {
     static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let name = format!("fresh-{call}");
+    let name = format!("fresh-{}-{call}", std::process::id());
     let out = pointers(&name);
     let _ = std::fs::remove_dir_all(
         Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("nvs-agent-init-{name}")),
