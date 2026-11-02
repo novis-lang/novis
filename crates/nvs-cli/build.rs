@@ -230,8 +230,10 @@ fn rustc_version() -> String {
 
 /// The short commit hash, with `-dirty` appended if the tree was modified.
 ///
-/// `NVS_BUILD_COMMIT` wins if set, so a distribution packaging Novis from a
-/// tarball can supply the revision it built from without a `.git` present.
+/// `NVS_BUILD_COMMIT` wins if set. A distribution packaging Novis from a
+/// tarball supplies the revision it built from without a `.git` present, and
+/// the release workflow supplies the commit it checked out, because it builds
+/// over a version bump it has not committed yet.
 fn commit(workspace: &Path) -> String {
     if let Ok(supplied) = std::env::var("NVS_BUILD_COMMIT")
         && !supplied.trim().is_empty()

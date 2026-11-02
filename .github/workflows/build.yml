@@ -164,16 +164,26 @@ jobs:
       # `NVS_RELEASE` tells crates/nvs-cli/build.rs that this build is the release. The tag
       # `v<version>` does not exist yet, and without it `nvs --version` would print `+dev`. A dev
       # build leaves it empty, which names no version.
+      #
+      # A release build also names its commit through `NVS_BUILD_COMMIT`. The step above left the
+      # bump uncommitted, so build.rs would read the tree as modified and print `-dirty`. The
+      # commit named is the one checked out; the tag's commit is it plus that bump.
       - name: Build
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
           NVS_RELEASE: ${{ inputs.version }}
           CC_x86_64_unknown_linux_musl: musl-gcc
-        run: cargo auditable build --release --locked --offline -p nvs-cli --target "$TARGET"
+        run: |
+          set -euo pipefail
+          if [ -n "$NVS_RELEASE" ]; then
+            NVS_BUILD_COMMIT="$(git rev-parse --short=9 HEAD)"
+            export NVS_BUILD_COMMIT
+          fi
+          cargo auditable build --release --locked --offline -p nvs-cli --target "$TARGET"
 
-      # A release's binary prints its version alone, and a dev build's prints `+dev`: a binary from
-      # a push must never claim to be a release.
+      # A release's binary prints its version alone and a commit that is not `-dirty`, and a dev
+      # build's prints `+dev`: a binary from a push must never claim to be a release.
       - name: The binary prints the version it is
         shell: bash
         env:
@@ -187,6 +197,7 @@ jobs:
           echo "$out"
           if [ -n "$VERSION" ]; then
             case "$out" in
+              *"-dirty"*) echo "::error::a release's nvs --version names a -dirty commit: $out"; exit 1 ;;
               "nvs $VERSION (commit "*) ;;
               *) echo "::error::nvs --version does not print $VERSION alone: $out"; exit 1 ;;
             esac

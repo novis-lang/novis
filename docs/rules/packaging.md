@@ -606,7 +606,11 @@ version: 0.0.1 · commit: 9c62ae176 · 2026-09-07
 Line one is the identity, and it is `README.md`'s H1 verbatim rather than a second
 phrasing of it, and a test in `crates/nvs-cli/src/main.rs` asserts the two agree. Line two is which build is answering, which is the first thing a bug report needs and the
 last thing a reporter thinks to look up. `-dirty` is appended to the hash when the tree was modified at
-build time, so a binary built over uncommitted work says so in its own banner.
+build time, so a binary built over uncommitted work says so in its own banner. A release binary is
+the exception: the release workflow builds it over the version bump it has not committed yet, and sets
+`NVS_BUILD_COMMIT` to the commit it checked out, so the banner names that commit without `-dirty`. The
+tag's commit is that commit plus the bump, and `.github/workflows/build.yml` fails a release binary
+whose banner says `-dirty`.
 
 **A build that is not a release says so in its version.** `nvs --version`, this banner and `nvs info`
 print `0.0.1+dev` for every build but a release, and `0.0.1` for the release alone. `+dev` is SemVer
