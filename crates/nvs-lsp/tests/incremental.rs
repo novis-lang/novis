@@ -13,15 +13,16 @@
 //! autoload one shared library, which is the shape where a keystroke in a
 //! library file has the most readers.
 //!
-//! Two of these tests name what a later stage of the incremental index makes
-//! true, and fail with the counts they find until then: a body-only keystroke
-//! in a library file parses one file and checks one file's bodies, whatever
-//! the number of programs.
+//! A count says what a keystroke costs, and
+//! [`a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`]
+//! says that what it skipped was right to skip: after each kind of edit, the
+//! analysis and the index that kept everything report what a store built from
+//! nothing reports.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nvs_lsp::{CheckScope, Documents, SymbolIndex, Work, surface, uri_of};
+use nvs_lsp::{Analysed, CheckScope, Documents, SymbolIndex, Work, surface, uri_of};
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
@@ -243,8 +244,9 @@ fn the_generated_tree_has_the_programs_and_the_library_it_was_asked_for() {
     );
 }
 
-/// A keystroke's work is every analysis it caused. One analysis checks every
-/// file of its graph, and parses only the file the keystroke changed.
+/// A keystroke's work is every analysis it caused. An edit to a program's
+/// script reaches no other file, so its one analysis parses and checks the
+/// file the keystroke changed.
 #[test]
 fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
     let dir = tree(1, 4);
@@ -265,9 +267,9 @@ fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
         work,
         Work {
             parsed: 1,
-            checked: graph,
+            checked: 1,
         },
-        "a keystroke in a program nothing else reads is one analysis of its graph"
+        "a keystroke in a program nothing else reads is one analysis of its own file"
     );
     assert!(
         index.pending().is_empty(),
@@ -446,9 +448,8 @@ fn a_surface_edit_re_queues_the_entries_that_read_the_file() {
     }
 }
 
-/// Red until the editor checks only the bodies whose inputs changed: a
-/// body-only keystroke in a library file that both programs read parses that
-/// file and checks that file's bodies.
+/// A body-only keystroke in a library file that both programs read parses
+/// that file and checks that file's bodies.
 #[test]
 fn a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies() {
     let dir = tree(2, 40);
@@ -466,8 +467,8 @@ fn a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_
     );
 }
 
-/// Red until the same: the keystroke's cost does not grow with the programs
-/// that read the library.
+/// The keystroke's cost does not grow with the programs that read the
+/// library.
 #[test]
 fn a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty() {
     let cost = |programs: usize| {
@@ -478,4 +479,232 @@ fn a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty() {
         keystroke(&mut index, &mut documents, &path, body_edit(5, 1))
     };
     assert_eq!(cost(2), cost(20));
+}
+
+/// Each diagnostic of `analysed` as one line that names its file by name, so
+/// two stores whose files have other ids give the same lines.
+fn reported(analysed: &Analysed) -> Vec<String> {
+    let mut lines: Vec<String> = analysed
+        .diags
+        .iter()
+        .map(|diag| {
+            let at = diag.primary_span().map_or_else(String::new, |span| {
+                let name = analysed.map.file(span.file).name().replace('\\', "/");
+                format!("{name}:{}..{}", span.start, span.end)
+            });
+            format!(
+                "{:?} {:?} {at} {} {:?}",
+                diag.severity, diag.code, diag.message, diag.notes
+            )
+        })
+        .collect();
+    lines.sort();
+    lines
+}
+
+/// Every field the index holds for each file, in path order.
+fn indexed(index: &SymbolIndex) -> Vec<String> {
+    let mut files: Vec<&Path> = index.files().collect();
+    files.sort();
+    let mut lines: Vec<String> = files
+        .into_iter()
+        .map(|file| {
+            format!(
+                "{}\n  declarations {:?}\n  occurrences {:?}\n  queries {:?}\n  requests {:?}\n  \
+                 parses {} readers {:?}",
+                file.display(),
+                index.declarations_in(file),
+                index.occurrences_in(file),
+                index.queries_in(file),
+                index.requests_in(file),
+                index.parses(file),
+                index.readers(file),
+            )
+        })
+        .collect();
+    lines.extend(
+        index
+            .sole_kinds()
+            .map(|(file, kind)| format!("{} is {kind:?}", file.display())),
+    );
+    lines.sort();
+    lines.push(format!("{} with errors", index.files_with_errors()));
+    lines
+}
+
+/// What `documents` and `index` report about the open document at `path` and
+/// about every program's entry, against a store built from nothing with the
+/// same document open.
+fn agrees_with_a_fresh_store(
+    dir: &TempDir,
+    documents: &Documents,
+    index: &SymbolIndex,
+    path: &Path,
+    kind: &str,
+) {
+    let uri = uri_of(path).expect("a temp path is UTF-8");
+    let text = documents.get(&uri).expect("open").text().to_owned();
+    let mut fresh = Documents::new();
+    fresh.survey(CheckScope::Workspace, Some(dir.root()));
+    let mut fresh_index = SymbolIndex::build(&fresh, CheckScope::Workspace, Some(dir.root()));
+    fresh.open(uri, 1, text);
+    fresh.resurvey(path);
+    fresh_index.refresh(&fresh, path);
+    fresh_index.settle(&fresh);
+
+    let mut entries = vec![path.to_path_buf()];
+    entries.extend((0..2).map(|p| dir.at(&format!("{}/main.nvs", program(p)))));
+    for entry in entries {
+        let cached = nvs_lsp::analyse_file(documents, &entry, 1).expect("the entry analyses");
+        let again = nvs_lsp::analyse_file(&fresh, &entry, 1).expect("the entry analyses");
+        assert_eq!(
+            reported(&cached),
+            reported(&again),
+            "after the {kind} edit, {} reports what a fresh analysis does not",
+            entry.display()
+        );
+    }
+    assert_eq!(
+        indexed(index),
+        indexed(&fresh_index),
+        "after the {kind} edit, the index differs from a fresh one"
+    );
+}
+
+/// One edit of the open document's text.
+type Edit = Box<dyn FnOnce(&str) -> String>;
+
+/// An edit that replaces the first `from` with `to`.
+fn replace(from: &'static str, to: &'static str) -> Edit {
+    Box::new(move |text: &str| {
+        assert!(text.contains(from), "the edit finds `{from}`");
+        text.replacen(from, to, 1)
+    })
+}
+
+/// A cached parse and a cached check give what a store with neither gives,
+/// after every kind of edit that changes what a file's bodies may read.
+#[test]
+fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
+    let dir = tree(2, 8);
+    let (mut documents, mut index) = index_of(&dir);
+    let path = dir.at(&part(5));
+    open(&mut index, &mut documents, &path);
+    let extra = dir.at("lib/Framework/Extra.nvs");
+
+    let edits: Vec<(&str, Edit)> = vec![
+        ("body", Box::new(body_edit(5, 1))),
+        (
+            "signature",
+            replace("value(int $n): int", "value(int $n, int $m = 0): int"),
+        ),
+        (
+            "constant added",
+            replace(
+                "class Part5\n{\n",
+                "class Part5\n{\n    public const int LIMIT = 3;\n\n",
+            ),
+        ),
+        ("constant value", replace("LIMIT = 3;", "LIMIT = 4;")),
+        (
+            "route added",
+            replace(
+                "    public function next(",
+                "    #[Core\\Route(path: '/five', method: Core\\Http\\Method::Get)]\n    \
+                 #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+                 public function five(): string\n    {\n        return 'five';\n    }\n\n    \
+                 public function next(",
+            ),
+        ),
+        ("attribute", replace("path: '/five'", "path: '/parts'")),
+        (
+            "closure at file scope",
+            Box::new(|text: &str| {
+                format!("{text}\n$twice = function (int $x): int {{\n    return $x * 2;\n}};\n")
+            }),
+        ),
+        ("class renamed", replace("class Part5\n", "class Part5b\n")),
+    ];
+    for (kind, edit) in edits {
+        keystroke(&mut index, &mut documents, &path, edit);
+        agrees_with_a_fresh_store(&dir, &documents, &index, &path, kind);
+    }
+
+    fs::write(
+        &extra,
+        "<?nvs\nnamespace Framework;\n\nclass Extra\n{\n    public function one(): int\n    {\n        return 1;\n    }\n}\n",
+    )
+    .expect("a writable scratch file");
+    index.refresh(&documents, &extra);
+    index.settle(&documents);
+    keystroke(
+        &mut index,
+        &mut documents,
+        &path,
+        replace(
+            "return $n + 5 + 1;",
+            "Extra $extra = new Extra();\n        return $n + 5 + $extra->one();",
+        ),
+    );
+    agrees_with_a_fresh_store(&dir, &documents, &index, &path, "file added");
+
+    fs::remove_file(&extra).expect("the added file is there");
+    index.refresh(&documents, &extra);
+    index.settle(&documents);
+    keystroke(&mut index, &mut documents, &path, |text: &str| format!("{text}\n"));
+    agrees_with_a_fresh_store(&dir, &documents, &index, &path, "file deleted");
+}
+
+/// The session's interner grows with every new type an edit writes. Once it
+/// has twice the types it had when the tree was last settled, the session
+/// drops it with every checked output, and the next analysis checks every
+/// file of its graph again.
+#[test]
+fn the_session_interner_is_rebuilt_once_it_doubles() {
+    let dir = tree(1, 4);
+    let (mut documents, mut index) = index_of(&dir);
+    let main = dir.at("Blog/main.nvs");
+    open(&mut index, &mut documents, &main);
+    let settled = documents.interner_len();
+    assert!(settled > 0, "the tree interned its own classes");
+
+    let graph = 1 + 2 + 4;
+    let mut n: usize = 0;
+    let rebuilt = loop {
+        n += 1;
+        assert!(
+            n < 256,
+            "the interner went from {settled} to {} types and was never rebuilt",
+            documents.interner_len()
+        );
+        // Each keystroke declares an array type nine levels deep. Which of
+        // its inner levels may be `null` spells `n` in binary, so no
+        // keystroke before it wrote the type, and the interner gains one.
+        let ty = (0..8).fold("int".to_owned(), |inner, bit| {
+            let null = if n >> bit & 1 == 1 { "?" } else { "" };
+            format!("{null}array<{inner}>")
+        });
+        let work = keystroke(&mut index, &mut documents, &main, move |text: &str| {
+            format!("{text}?array<{ty}> $deep{n} = null;\n")
+        });
+        if documents.interner_rebuilds() == 1 {
+            break work;
+        }
+        assert_eq!(
+            work.checked, 1,
+            "a keystroke before the rebuild checks one file"
+        );
+    };
+    assert_eq!(
+        rebuilt.checked, graph,
+        "the analysis after the rebuild checks every file of its graph"
+    );
+    let after = keystroke(&mut index, &mut documents, &main, |text: &str| {
+        text.replacen("total(3)", "total(4)", 1)
+    });
+    assert_eq!(
+        (after.checked, documents.interner_rebuilds()),
+        (1, 1),
+        "the rebuild checked every file once, and the next keystroke checks one"
+    );
 }

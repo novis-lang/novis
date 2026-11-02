@@ -69,7 +69,7 @@ use nvs_syntax::{SyntaxIndex, Trivia};
 use nvs_types::deprecated::Notices;
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
-use crate::parse_cache::ParseCache;
+use crate::session::Session;
 use crate::stubs::Stubs;
 
 /// One open buffer: what the editor holds, which is not what is on disk.
@@ -135,9 +135,11 @@ pub struct Documents {
     /// [`Analysed`] per open document. Every change to the store empties it,
     /// because an open buffer is overlaid on every other document's graph.
     kept: RefCell<HashMap<Uri, Kept>>,
-    /// The last parse of every file an analysis loaded, so a file whose text
-    /// did not change is not parsed again. [`ParseCache`] says what it spends.
-    parses: RefCell<ParseCache>,
+    /// The last parse and checked output of every file an analysis loaded,
+    /// and the interner they name types against, so a file whose inputs did
+    /// not change is neither parsed nor checked again. [`Session`] says what
+    /// it spends.
+    session: RefCell<Session>,
 }
 
 /// One kept analysis, and the modification time of each file it read when it
@@ -170,9 +172,25 @@ impl Documents {
         Self::default()
     }
 
-    /// Frees the kept parse of every file `keep` says has left the tree.
-    pub(crate) fn retain_parses(&self, keep: impl Fn(&Path) -> bool) {
-        self.parses.borrow_mut().retain(keep);
+    /// Frees the kept parse and checked output of every file `keep` says has
+    /// left the tree. The index calls it once every waiting entry is settled.
+    pub(crate) fn settled(&self, keep: impl Fn(&Path) -> bool) {
+        self.session.borrow_mut().settled(keep);
+    }
+
+    /// How many types the session's interner has interned, not counting the
+    /// ones every check shares.
+    #[must_use]
+    pub fn interner_len(&self) -> usize {
+        self.session.borrow().interner_len()
+    }
+
+    /// How many times the session dropped its interner, and every checked
+    /// output with it, because the interner had doubled since the tree was
+    /// last settled.
+    #[must_use]
+    pub fn interner_rebuilds(&self) -> usize {
+        self.session.borrow().rebuilds()
     }
 
     /// Names the stub tree every analysis out of this store answers `Core`
@@ -566,7 +584,10 @@ pub struct Analysed {
     /// Kept beside the table because a type id read against any other interner
     /// is a different type, or none: an id is an index into exactly this run's
     /// table, so the two travel together or neither is readable.
-    pub interner: TypeInterner,
+    ///
+    /// It is the session's interner as the check left it (`crate::session`),
+    /// shared until the next check interns a type.
+    pub interner: Rc<TypeInterner>,
     /// Every declaration in the graph that carries `#[Core\Deprecated]`, with
     /// what its payload wrote — the whole graph's, for
     /// [`exprs`](Self::exprs)' reason. A completion item is tagged from it, and
@@ -715,7 +736,9 @@ fn analyse_over(
     version: i32,
     entry_text: Option<String>,
 ) -> Option<Analysed> {
-    let mut parses = documents.parses.borrow_mut();
+    let mut session = documents.session.borrow_mut();
+    let session = &mut *session;
+    let parses = &mut session.parses;
     let misses = parses.misses();
     let mut map = parses.map();
     documents.overlay(&mut map);
@@ -773,7 +796,6 @@ fn analyse_over(
     );
     parses.keep_pins(&mut map);
     let parsed = parses.misses() - misses;
-    drop(parses);
     let autoloads: Vec<nvs_hir::autoload::Site> = autoload
         .sites()
         .iter()
@@ -781,7 +803,6 @@ fn analyse_over(
         .cloned()
         .collect();
 
-    let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
     // The editor is the one reader of a tainted value's path, so it is the
     // one caller that asks the checker to record it.
@@ -810,11 +831,27 @@ fn analyse_over(
                 stmts: &file.stmts,
             })
             .collect();
-        work.checked = files.len();
+        // Each file's bodies are checked only where its key moved
+        // (`crate::session`).
+        let keys = session.keys(
+            &graph_key(&session.parses, &files, &lent, &extensions),
+            &files
+                .iter()
+                .map(|file| {
+                    let text = session.parses.hashes(file.src).map_or_else(
+                        || *blake3::hash(file.src.text().as_bytes()).as_bytes(),
+                        |(text, _)| *text.as_bytes(),
+                    );
+                    (file.src.id(), text)
+                })
+                .collect::<Vec<_>>(),
+        );
+        let walked = session.checks.walked();
         // The enum table is dropped and the expression table is not: nothing
         // here lowers, so a case's constant value has no reader, while what
         // each expression resolved to is what a cursor request asks about.
-        let _ = nvs_types::check::check_program_loaded(
+        let (checks, interner) = session.check_parts();
+        let _ = nvs_types::check::check_program_partial(
             &files,
             &module,
             None,
@@ -826,12 +863,17 @@ fn analyse_over(
             &nvs_types::Grants::default(),
             None,
             &extensions,
-            &mut interner,
+            &keys.bodies,
+            checks,
+            interner,
             &mut exprs,
             &mut diags,
         );
+        work.checked = session.checks.walked() - walked;
+        session.store(keys);
         deprecated = nvs_types::deprecated::notices(&files);
     }
+    let interner = session.shared_interner();
     // The entry's alone: a diagnostic is published for the document it points
     // into, and every other file of the graph is published as its own entry.
     diags.extend(crate::diagnostics::unused_uses(
@@ -865,6 +907,37 @@ fn analyse_over(
         extensions,
         work,
     })
+}
+
+/// The key every file of one analysis's graph shares (`crate::session`): the
+/// extension set, the files the walk borrowed `autoload` declarations from,
+/// and each file's path, id and declaration surface, in graph order.
+///
+/// A file the parse cache does not hold, which no walk leaves behind, hashes
+/// its whole text in place of its surface, so any edit to it moves the key.
+fn graph_key(
+    parses: &crate::parse_cache::ParseCache,
+    files: &[nvs_types::ProgramFile<'_>],
+    lent: &[PathBuf],
+    extensions: &[nvs_ext::manifest::Manifest],
+) -> blake3::Hash {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(format!("{extensions:?}").as_bytes());
+    for path in lent {
+        hasher.update(path.as_os_str().as_encoded_bytes());
+        hasher.update(&[0]);
+    }
+    for file in files {
+        let src = file.src;
+        hasher.update(src.name().as_bytes());
+        hasher.update(&[0]);
+        hasher.update(&src.id().index().to_le_bytes());
+        match parses.hashes(src) {
+            Some((_, surface)) => hasher.update(surface.as_bytes()),
+            None => hasher.update(blake3::hash(src.text().as_bytes()).as_bytes()),
+        };
+    }
+    hasher.finalize()
 }
 
 /// The built-in components' manifests, then the manifests of the extension set the tree beside

@@ -503,7 +503,10 @@ pub struct CoreShapeField {
 /// types after them. [`crate::core_lib::base`] is the one base, so the types
 /// `Core`'s signatures name are interned once per process rather than once per
 /// check.
-#[derive(Debug, Default)]
+///
+/// It is `Clone` for a caller that keeps one interner across checks and hands
+/// a reader a copy: every id the copy holds names the same type in both.
+#[derive(Clone, Debug, Default)]
 pub struct TypeInterner {
     base: Option<&'static TypeInterner>,
     types: Vec<Ty>,
@@ -539,6 +542,18 @@ impl TypeInterner {
 
     fn base_len(&self) -> usize {
         self.base.map_or(0, |base| base.types.len())
+    }
+
+    /// Whether this interner sits on a frozen base, which is then the one
+    /// [`crate::core_lib::base`] gives.
+    pub(crate) const fn is_layered(&self) -> bool {
+        self.base.is_some()
+    }
+
+    /// How many types this interner has interned, not counting its base's.
+    #[must_use]
+    pub fn own_len(&self) -> usize {
+        self.types.len()
     }
 
     /// Interns `ty`, returning its `TypeId` — the same one a structurally

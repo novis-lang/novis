@@ -85,7 +85,8 @@ pub fn at(
     let shrunk = ty.span.end - ty.span.start - BytePos::try_from(INFERRED.len()).ok()?;
     let at = Span::new(probe.entry, literal.start - shrunk, literal.end - shrunk);
     let synthesized = probe.exprs.literal_type(at)?;
-    let narrowed = nvs_types::narrow::narrowest(&mut probe.interner, synthesized)?;
+    let narrowed =
+        nvs_types::narrow::narrowest(std::rc::Rc::make_mut(&mut probe.interner), synthesized)?;
     let written = written_at(
         analysed,
         &nvs_types::narrow::written(&probe.interner, narrowed),

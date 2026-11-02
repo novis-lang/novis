@@ -136,6 +136,7 @@ pub mod reports;
 pub mod selection;
 pub mod semantic;
 mod server;
+mod session;
 pub mod settings;
 pub mod split_join;
 pub mod stubs;

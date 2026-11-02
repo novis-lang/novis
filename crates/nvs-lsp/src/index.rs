@@ -476,9 +476,13 @@ impl SymbolIndex {
     /// analyses of the open entries.
     ///
     /// When `changed` is open and its new analysis gives the same
-    /// declaration-surface hash ([`crate::surface`]) as before, no reader is
-    /// added to `pending`: the edit was inside a body, and nothing another file
-    /// resolves against moved. The open document's own analysis re-indexes it.
+    /// declaration-surface hash ([`crate::surface`]) as before, and read the
+    /// same files as its last analysis, no reader is added to `pending`: the
+    /// edit was inside a body, and nothing another file resolves against
+    /// moved. The open document's own analysis re-indexes it. A body that
+    /// names a class no file of the graph named before loads that class's
+    /// file, which every reader's graph then reads too, so that edit queues
+    /// the readers.
     ///
     /// The dropped set is the answer the test asks for and the one a caller
     /// wants anyway: it is exactly the files whose declarations and
@@ -525,6 +529,7 @@ impl SymbolIndex {
             self.pending.extend(held.iter().cloned());
         }
         let before = self.files.get(&key).map(|indexed| indexed.surface);
+        let read_before = self.read_set(&key);
 
         let mut dropped = self.drop_owned(&now);
         if reindexed && let Some(indexed) = self.files.remove(&key) {
@@ -548,11 +553,23 @@ impl SymbolIndex {
         }
         if reindexed {
             let after = self.files.get(&key).map(|indexed| indexed.surface);
-            if before.is_none() || before != after {
+            // An entry that owned no file kept no reads, so a graph it did not
+            // record is taken to be the same. The `didOpen` before every edit
+            // records one.
+            let graph_moved = read_before.is_some() && read_before != self.read_set(&key);
+            if before.is_none() || before != after || graph_moved {
                 self.pending.extend(held);
             }
         }
         Refreshed { dropped, analysed }
+    }
+
+    /// The files the last analysis of `entry` read, as a set, where it kept
+    /// them.
+    fn read_set(&self, entry: &Path) -> Option<BTreeSet<PathBuf>> {
+        self.reads
+            .get(entry)
+            .map(|reads| reads.iter().cloned().collect())
     }
 
     /// Analyses the first entry point in [`pending`](Self::pending) in path
@@ -576,7 +593,7 @@ impl SymbolIndex {
         if self.pending.is_empty() {
             // The tree is settled, so a parse kept for a file no entry indexed
             // is a file that left it.
-            documents.retain_parses(|path| self.files.contains_key(path));
+            documents.settled(|path| self.files.contains_key(path));
             return false;
         }
         true

@@ -359,6 +359,7 @@ fn check_files(
                 output.end_seq = end_seq;
                 output.diags = file_diags.take();
                 if let Some((_, cache)) = partial.as_mut() {
+                    cache.walked += 1;
                     cache.outputs.insert(id, output.clone());
                 }
                 output

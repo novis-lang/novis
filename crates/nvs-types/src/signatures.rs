@@ -946,11 +946,15 @@ pub fn build_signatures(
     let (symbols, aliases, graph) = (&module.symbols, &module.aliases, &module.graph);
     // `Core` first, so a user declaration can never be collected under a name
     // the stdlib already owns without the later insertion being visible. A
-    // fresh interner reads the process's frozen copy. One that already has
-    // types in it would give the native types other ids, so it seeds its own.
-    let mut table = if interner.is_empty() {
+    // fresh interner reads the process's frozen copy, and so does one an
+    // earlier check layered over it, which an editor keeps across checks. One
+    // that already has types in it and no base would give the native types
+    // other ids, so it seeds its own.
+    let mut table = if interner.is_empty() || interner.is_layered() {
         let base = crate::core_lib::base();
-        interner.layer_over(&base.interner);
+        if interner.is_empty() {
+            interner.layer_over(&base.interner);
+        }
         SignatureTable::over(&base.classes)
     } else {
         let mut table = SignatureTable::default();

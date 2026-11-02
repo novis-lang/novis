@@ -117,6 +117,9 @@ impl FileOutput {
 #[derive(Clone, Debug, Default)]
 pub struct CheckCache {
     pub(crate) outputs: FxHashMap<SourceId, FileOutput>,
+    /// How many files' bodies were walked into this cache since it was made,
+    /// so a caller can count a check's work.
+    pub(crate) walked: usize,
 }
 
 impl CheckCache {
@@ -124,6 +127,13 @@ impl CheckCache {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// How many files' bodies were walked into this cache since it was made.
+    /// [`clear`](Self::clear) does not reset it.
+    #[must_use]
+    pub const fn walked(&self) -> usize {
+        self.walked
     }
 
     /// How many files have an output.
