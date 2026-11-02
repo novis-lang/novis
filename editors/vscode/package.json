@@ -6,6 +6,7 @@
   "publisher": "novis-lang",
   "license": "MIT",
   "icon": "media/novis-logo.png",
+  "preview": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/novis-lang/novis.git",

@@ -12,6 +12,7 @@ import {
   firstReleaseNotes,
   fixesIn,
   greenFullRun,
+  newerTag,
   nextVersion,
   notesFor,
   parseLog,
@@ -238,6 +239,13 @@ describe("nv release docker tags", () => {
   test("a push's dev image claims `dev` alone, floating or not", () => {
     expect(dockerTags("dev", "img", "distroless", true, "abc1234", known)).toEqual({ tags: ["img:dev"], behind: null });
     expect(dockerTags("dev", "img", "debian", false, "abc1234", known).tags).toEqual(["img:dev-debian"]);
+  });
+
+  test("--newest's comparison: only a tag ahead of the version counts, and no tag at all is newest", () => {
+    expect(newerTag("0.4.0", known)).toBeNull();
+    expect(newerTag("0.5.0", known)).toBeNull();
+    expect(newerTag("0.3.9", known)).toBe("v0.4.0");
+    expect(newerTag("0.0.1", [])).toBeNull();
   });
 
   test("an older release gets no moving tags", () => {

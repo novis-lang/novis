@@ -26,13 +26,30 @@
 #     cannot walk `latest` backwards. That check is in the script rather than here, with the rest
 #     of the release arithmetic.
 #
-# Nothing in this file interpolates a `${{ }}` into a shell, and the only credential is the
-# per-run `GITHUB_TOKEN` — the same posture release.yml's header sets out in full.
+# Nothing in this file interpolates a `${{ }}` into a shell — the same posture release.yml's header
+# sets out in full. `promote`'s only credential is the per-run `GITHUB_TOKEN`; `marketplace`'s is
+# below.
 #
 # ## The website is deployed again
 #
-# The last step dispatches `pages.yml` on `main`, so the site shows the version just published.
-# That is the one use of `actions: write`.
+# The last step of `promote` dispatches `pages.yml` on `main`, so the site shows the version just
+# published. That is the one use of `actions: write`.
+#
+# ## The VS Code extension goes to the Marketplace
+#
+# `marketplace` publishes the `nvs-<version>.vsix` the release already carries, after
+# `gh attestation verify` has checked it was built by this repository's release run. Nothing is
+# rebuilt, so the Marketplace lists the bytes `SHA256SUMS` names. It holds no stored secret: the job
+# exchanges its GitHub OIDC token for a Microsoft Entra ID token (`azure/login`), and `vsce
+# --azure-credential` publishes with that. Entra trusts only the subject
+# `repo:novis-lang/novis:environment:marketplace`, so the job runs in the `marketplace` environment,
+# which admits `v*` tags and `main` (a manual dispatch runs on `main`) and waits for a reviewer's
+# approval. `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` name the identity and are not secret. The identity
+# is a member of the `novis-lang` publisher and of nothing else.
+#
+# `bun nv release --newest` skips a version that is not the newest tag, as `--floating` does for
+# `latest`. `--skip-duplicate` makes a rerun after a published upload a success, so a manual dispatch
+# repairs a failed upload without a new release.
 
 name: Promote release images
 
@@ -153,3 +170,82 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: gh workflow run pages.yml --repo "$REPO" --ref main
+
+  # The header's last section says what this job trusts and why.
+  marketplace:
+    name: publish the VS Code extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    environment: marketplace
+    permissions:
+      contents: read
+      # `gh attestation verify` reads the release run's attestation.
+      attestations: read
+      # The OIDC token `azure/login` exchanges for the Entra ID token.
+      id-token: write
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # This workflow's own commit, not the tag's: the tag's commit for a release event, and `main`
+      # for a dispatch, so `--newest` and the vsce pin exist even for a tag cut before they did.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The whole tag list, for `--newest`.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Is this the newest release?
+        id: newest
+        run: bun nv release --newest "${TAG#v}" --github-output
+
+      - name: Download the release's extension and check its attestation
+        if: steps.newest.outputs.newest == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          file="nvs-${TAG#v}.vsix"
+          mkdir -p "$RUNNER_TEMP/vsix"
+          gh release download "$TAG" --repo "$REPO" --pattern "$file" --dir "$RUNNER_TEMP/vsix"
+          gh attestation verify "$RUNNER_TEMP/vsix/$file" --repo "$REPO"
+
+      # `vsce` at the version the tag's lockfile pins. `--ignore-scripts`, because no install script
+      # should run in a job that is about to hold a publish credential, and `vsce publish` loads none
+      # of the packages that have one.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.newest.outputs.newest == 'true'
+        with:
+          node-version-file: editors/vscode/.nvmrc
+      - name: Install vsce
+        if: steps.newest.outputs.newest == 'true'
+        working-directory: editors/vscode
+        run: npm ci --ignore-scripts
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        if: steps.newest.outputs.newest == 'true'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          # The identity has no Azure role. It is a Marketplace publisher member and nothing more.
+          allow-no-subscriptions: true
+
+      - name: Publish to the Marketplace
+        if: steps.newest.outputs.newest == 'true'
+        working-directory: editors/vscode
+        run: |
+          set -euo pipefail
+          node_modules/.bin/vsce publish --azure-credential --skip-duplicate \
+            --packagePath "$RUNNER_TEMP/vsix/nvs-${TAG#v}.vsix"
+          {
+            echo "### The VS Code extension \`${TAG#v}\` is on the Marketplace"
+            echo
+            echo "https://marketplace.visualstudio.com/items?itemName=novis-lang.nvs"
+          } >> "$GITHUB_STEP_SUMMARY"

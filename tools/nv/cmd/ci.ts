@@ -160,6 +160,8 @@ const NOTES_ARTIFACT = "release-notes-preview";
 const NOTES_FILE = "release-notes.md";
 /** The workflow `release: published` starts, which moves `latest` and `MAJOR.MINOR`. */
 const PROMOTE_FILE = "release-promote.yml";
+/** The environment that workflow's Marketplace publish waits on, approved by a person in the Actions tab. */
+const MARKETPLACE_ENV = "marketplace";
 /** The container image a release pushes to `ghcr.io`, and the media types its manifest may have. */
 export const IMAGE = "novis-lang/novis";
 const MANIFEST_TYPES = [
@@ -1132,6 +1134,7 @@ export function judgePublished(f: PublishedFacts): Verdict {
   else fail(`RED its tag's commit is not on origin/${BRANCH}`);
   const p = f.promote;
   if (p === null) fail(`RED no ${PROMOTE_FILE} run for ${rel.tag_name}: it starts when the release is published`);
+  else if (p.status === "waiting") fail(`RED its promote run waits on the ${MARKETPLACE_ENV} environment: a reviewer approves it in the Actions tab  ${p.html_url}`);
   else if (!done(p)) fail(`RED its promote run has not ended: ${runLine(p)}`);
   else if (p.conclusion !== "success") fail(`RED its promote run ended ${p.conclusion}: ${p.html_url}`);
   else lines.push(`  ok its promote run passed  ${p.html_url}`);

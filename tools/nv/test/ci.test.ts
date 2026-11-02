@@ -775,6 +775,10 @@ describe("bun nv ci: the release", () => {
       const r = releaseSeams(name, world(over));
       expect(await ci(["--release-published"], r.s)).toBe(1);
     }
+    // The Marketplace publish waits on a person's approval, and the verdict names that step.
+    const waiting = releaseSeams("published-promote-waiting", world({ promote: [{ ...promote("success"), status: "waiting", conclusion: null }] }));
+    expect(await ci(["--release-published"], waiting.s)).toBe(1);
+    expect(waiting.said).toContain("RED its promote run waits on the marketplace environment: a reviewer approves it in the Actions tab  https://example.com/runs/50");
   });
 
   test("release-published names a private package as the one step left to the user", async () => {

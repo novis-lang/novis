@@ -834,7 +834,7 @@ jobs:
   # (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
   #
   # Here the `.vsix` is a build artifact. A release builds its own copy at the
-  # release's version and attaches it, and no Marketplace lists it
+  # release's version, attaches it, and lists it on the Marketplace
   # (`rule:ide/the-extension-runs-where-the-binary-is`). One leg uploads it,
   # since the package is the same bytes on all three.
   # ---------------------------------------------------------------------------

@@ -19,7 +19,9 @@
 //
 // `--check` is the gate: the workspace version, every `[workspace.dependencies]` path dependency's
 // version pin and the newest tag agree, and `CHANGELOG.md` has a section for a released version.
-// `--docker-tags` prints the registry tags one image variant claims.
+// `--docker-tags` prints the registry tags one image variant claims. `--newest VERSION` prints
+// `newest=true` when no release tag is ahead of `VERSION`, which is what lets the promote workflow
+// publish the VS Code extension to the Marketplace: an old draft published late moves no listing back.
 //
 // **`--fixes-built SHA` is the gate between the notes and the binaries.** The binaries are built from
 // the commit the release was dispatched at, and `publish` renders the notes and cuts the tag from the
@@ -82,11 +84,11 @@ import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyInt } from "../lib/py.ts";
 
-export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags|--fixes-built|--tested";
+export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags|--newest|--fixes-built|--tested";
 
 const USAGE =
   "usage: nv release [-h] (--plan {patch,minor,major} | --preview {patch,minor,major} | --notes VERSION | " +
-  "--apply VERSION | --package | --check | --docker-tags VERSION | --fixes-built SHA | --tested SHA) [options]";
+  "--apply VERSION | --package | --check | --docker-tags VERSION | --newest VERSION | --fixes-built SHA | --tested SHA) [options]";
 
 class Fatal extends Error {}
 
@@ -341,14 +343,24 @@ export function dockerTags(
   const chosen = [`${version}${suffix}`, `sha-${short}${suffix}`];
   let behind: string | null = null;
   if (floating) {
-    if (known.length > 0 && compareVersions(parseVersion(version), known[0]!.version) < 0) behind = known[0]!.name;
-    else {
+    behind = newerTag(version, known);
+    if (behind === null) {
       chosen.push(`${major}.${minor}${suffix}`);
       if (major >= 1) chosen.push(`${major}${suffix}`);
       chosen.push(`latest${suffix}`);
     }
   }
   return { tags: chosen.map((tag) => `${image}:${tag}`), behind };
+}
+
+/**
+ * The newest release tag when it is ahead of `version`, and `null` when `version` is the newest.
+ * `known` is `releaseTags`' list, newest first. Both things that move with a published release read
+ * this: the floating image tags, and the VS Code extension's Marketplace listing (`--newest`).
+ */
+export function newerTag(version: string, known: Tag[]): string | null {
+  const newest = known[0];
+  return newest !== undefined && compareVersions(parseVersion(version), newest.version) < 0 ? newest.name : null;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -922,6 +934,7 @@ function help(): string {
     "  --package                      archive a built binary",
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
+    "  --newest VERSION               newest=true if no release tag is ahead of VERSION",
     "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
     "  --tested SHA                   tested=true if SHA has a green full run of ci.yml, or a green release.yml run",
     "",
@@ -944,7 +957,7 @@ function help(): string {
   ].join("\n");
 }
 
-const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags", "--fixes-built", "--tested"];
+const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags", "--newest", "--fixes-built", "--tested"];
 
 function usageError(message: string): number {
   console.error(`${USAGE}\nnv release: error: ${message}`);
@@ -958,7 +971,7 @@ export async function run(args: string[]): Promise<number> {
     ({ flags, values } = parseArgs(args, {
       flags: ["--package", "--check", "--allow-contract", "--manifests-only", "--github-output", "--floating"],
       valued: [
-        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--fixes-built", "--tested", "--version", "--out", "--notes-file", "--since",
+        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--newest", "--fixes-built", "--tested", "--version", "--out", "--notes-file", "--since",
         "--target", "--name", "--archive", "--image", "--variant", "--max-per-section",
       ],
     }));
@@ -1003,6 +1016,16 @@ export async function run(args: string[]): Promise<number> {
         const out = dockerTags(version, image!.trim().toLowerCase(), variant, flags.has("--floating"), short, await tags());
         if (out.behind) console.error(`nv release: ${version} is behind ${out.behind}; not moving the floating tags.`);
         emitLines(toGithub, "tags", out.tags);
+        return 0;
+      }
+
+      case "--newest": {
+        const version = values.get("--newest")!;
+        // Before the comparison, so a malformed version fails with no tags as well.
+        parseVersion(version);
+        const ahead = newerTag(version, await tags());
+        if (ahead) console.error(`nv release: ${version} is behind ${ahead}.`);
+        emitOutput(toGithub, [["newest", String(ahead === null)]]);
         return 0;
       }
 

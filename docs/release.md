@@ -136,11 +136,28 @@ posted and nothing fails.
 To replace it: in Discord, **Edit Channel → Integrations → Webhooks → New Webhook** on
 `#github-feed`, copy its URL into the secret, and delete the old webhook.
 
-### 8. Nothing else
+### 8. The VS Code Marketplace
+
+`release-promote.yml`'s `marketplace` job lists each published release's `.vsix` on the VS Code
+Marketplace, and it signs in with no stored credential:
+
+- **The publisher** `novis-lang` on the Marketplace (registered as `Novis-Lang`; the lookup ignores
+  case), owned by the Microsoft account of the Azure DevOps organisation.
+- **A Microsoft Entra ID identity** (a user-assigned managed identity) with no Azure role, a member of
+  that publisher and of nothing else. Its **federated credential** trusts GitHub Actions with the
+  subject `repo:novis-lang/novis:environment:marketplace`, so only a job in that environment of this
+  repository can sign in as it.
+- **The repository secrets** `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`, the identity's two ids. They
+  name it and grant nothing on their own, so a leak of either costs nothing.
+- **Settings → Environments → New environment**, named exactly `marketplace`: **Required reviewers** →
+  add yourself, and **Deployment branches and tags** → *Selected branches and tags* → the tag rule
+  `v*` and the branch `main`. A release runs the job on its tag, and a repair dispatch on `main`.
+
+### 9. Nothing else
 
 There is no other secret to create, no PAT to store, no deploy key, no signing key and no registry
-token — the container registry included. If a future step asks you to add one, that step is the
-thing to question.
+token — the container registry and the Marketplace included. If a future step asks you to add one,
+that step is the thing to question.
 
 ## Cutting a release
 
@@ -197,6 +214,10 @@ person's click either way.
    `GITHUB_TOKEN`, and that push started no workflow. If the `docker` job had to be re-run by hand
    and the promotion was therefore missed, dispatch that workflow with the tag — it is idempotent.
 
+   Its `marketplace` job then waits on the `marketplace` environment. **Approve it** in the run's
+   page, and it lists the release's `.vsix` on the VS Code Marketplace. Until then `bun nv ci
+   --release-published` stays red and names that approval.
+
 8. **Resume the loop.** First `git fetch` and `git merge --ff-only origin/main`, so local `main`
    has `publish`'s version commit, then `looper loop resume`.
 
@@ -233,7 +254,8 @@ regime and declares the version contract — "the switch is thrown once, in the 
 The release's only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and
 revoked when it ends. `bun nv release` has no code path that reads a token at all, which is what
 makes the whole release reproducible on a laptop with no access to anything. The Discord webhook
-(§ 7) is the repository's one secret, and only `discord.yml` reads it.
+(§ 7) is the repository's one secret, and only `discord.yml` reads it. The Marketplace upload (§ 8)
+exchanges the run's OIDC token for a short-lived Entra ID token, so it adds none.
 
 Three habits in the workflow keep it that way, each load-bearing rather than decorative:
 `permissions: {}` at the top with per-job re-grants so only `publish` can write;
@@ -248,7 +270,9 @@ Each archive carries a keyless build provenance attestation, so there is no key 
 release carries `SHA256SUMS`. The release also attaches the VS Code extension as `nvs-<version>.vsix`,
 attested the same way and listed in `SHA256SUMS`; `publish` refuses a release without it. Its version
 is the release's, because `--apply` rewrites `editors/vscode/package.json` and its lockfile with the
-workspace. No Marketplace lists it. How a user checks both is the website's
+workspace. Publishing the release lists that same file on the VS Code Marketplace, once a reviewer
+approves `release-promote.yml`'s `marketplace` job
+(`rule:ide/the-extension-runs-where-the-binary-is`). How a user checks both is the website's
 [install page](../website/src/content/docs/install/index.mdx) § *Check a release archive*.
 
 Archives are deliberately **not** stripped. `[profile.release]` in [Cargo.toml](../Cargo.toml)
@@ -303,3 +327,4 @@ has to be done again on the next release.
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
 | The `docker` job failed *before* the release was tagged | Only a dry run gets there, and a dry run pushes nothing, so no image exists for a version the repository has no tag for. Its failure is the smoke test or the image build, and the step log names which check. `tests/docker/smoke.sh` runs the same checks locally — [docker/README.md](../docker/README.md) § *Building an image locally*. |
 | `latest` did not move | It moves on *publish*, not on draft (see step 7 of § *Cutting a release*), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
+| The Marketplace upload failed | Dispatch `release-promote.yml` on `main` with the tag, and approve its `marketplace` environment. `--skip-duplicate` makes it a success when the version is listed already. A sign-in failure names the Entra ID identity: its federated credential must have the subject `repo:novis-lang/novis:environment:marketplace`, and it must be a member of the `novis-lang` publisher. |
