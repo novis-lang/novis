@@ -22,7 +22,7 @@ stages:
     context: [tools/nv/cmd/ci.ts, tools/nv/test/ci.test.ts, docs/release.md, .github/workflows/release.yml, .github/workflows/release-promote.yml]
   - id: 5
     title: "the goal is verified once, a dry run on the final tip is green, and the real release is published"
-    status: open
+    status: done
     gate: true
     context: [docs/release.md, .github/workflows/release.yml, .github/workflows/release-promote.yml]
 checks:
@@ -44,7 +44,7 @@ checks:
     stage: 3
     name: the newest completed Release run on main, dry or real, is main's tip or the commit it tagged, and every job in it passed
     run: [bun, nv, ci, --release-status]
-    reach: true
+    reach: false
     floor: false
   - id: ci-real-release-tests
     stage: 4
@@ -97,6 +97,14 @@ real-run half: dispatch, approve, publish and the published verdict. Stage 5 ver
 gets a dry run green on the final tip, and runs the real release.
 
 ## Standing decisions
+
+**The goal ends with `v0.0.1` published, and no dry run of the final tip (`d11`).** The user
+committed code to `main` during each of the last three dry runs. Asked to hold commits, they
+answered: "Just mark this goal as done. The release is out already". So the last item of stage 5
+is waived. `release-dry-run-green` is stage 3's check, and it was green when that stage ended. It
+no longer counts toward reaching the goal (`reach: false`), since the user's commits after the
+release keep `main`'s tip ahead of every dry run. `release-published` and `owners-closes` still
+decide. The next release runs its own dry run of its tip first, as `docs/release.md` says.
 
 **The loop cuts the real release, once, in the gate stage.** Stages 1 to 4 dispatch dry runs only,
 which write nothing, tag nothing and push no image. The gate stage starts the one real run, after
@@ -381,7 +389,7 @@ are one session's, one step per turn, each waiting on its watch.
 - [x] The run ends green: `bun nv ci --publish-release`, then the `Promote release images` and `pages.yml` runs end green. `.github/workflows/release-promote.yml:37`
 - [x] Local `main` fast-forwards to `origin/main`, and `looper loop resume`.
 - [x] `bun nv ci --release-published` exits 0, or names the visibility click and the session writes the one `BLOCKED` the standing decisions allow. `tools/nv/cmd/ci.ts:537`
-- [ ] `main`'s tip is pushed, a dry run of it is green, and `bun nv ci --release-status` exits 0 again. `tools/nv/cmd/ci.ts:917`
+- [x] `main`'s tip is pushed, a dry run of it is green, and `bun nv ci --release-status` exits 0 again. Waived by the user in `d11`. `tools/nv/cmd/ci.ts:917`
 
 ## Handoff
 
@@ -410,9 +418,8 @@ The sweep's reds are stale. `env-secret-proofs` has no log and no goal names it.
 
 ### Next
 
-- [ ] When `41428888824` and full run `41428806069` end, read the dry run's verdict: a red job is fixed at its cause first. Then `bun nv ci --push` sends `d4e4e79a4`, `bun nv ci --dispatch dry-run`, and `bun nv ci --watch --release` in the background. Do not push while `41428806069` is going. `tools/nv/cmd/ci.ts:917`
-- [ ] That dry run ends green on `main`'s tip, and `bun nv ci --release-status` exits 0. If the user committed code again, read `d11`'s answer before dispatching again. `tools/nv/cmd/ci.ts:917`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`. Then `DONE` with https://github.com/novis-lang/novis/releases/tag/v0.0.1. `tools/nv/cmd/ci.ts:537`
+- [x] The user waived the final dry run in `d11`, and the goal is done.
+- [x] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes release-run`, `bun nv ci --check`, and `bun nv ci --release-published`. The backlog is carried to `incremental-index`. `tools/nv/cmd/ci.ts:537`
 
 No test is expected to go red.
 

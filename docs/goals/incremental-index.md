@@ -463,3 +463,19 @@ Nothing has landed yet. The goal is written and its decisions are settled.
 - [ ] The fixture, the `keystroke` helper and the tests the standing decisions name. `crates/nvs-lsp/tests/incremental.rs:1`
 
 ### Backlog
+
+Carried from `release-run`, which ended with `v0.0.1` published. None of these is this goal's work.
+
+- `bun nv ci --publish-release` prints the draft's `html_url`, an `untagged-…` address, after the
+  publish. It should print `releases/tag/<tag>`. `tools/nv/cmd/ci.ts:1071`
+- `--watch --release` should pass over a failed optional `build` leg the way `--release-status`
+  does, reading the legs from `build.yml`'s matrix, with a test in `tools/nv/test/ci.test.ts`.
+- `cargo clippy` on macOS warns `chunks_exact` with a constant chunk size at
+  `crates/nvs-runtime/src/child_watch.rs:845`. CI's `lint` job runs on Linux, so the macOS-only code
+  is linted nowhere.
+- `nvs info --licenses | head` panics with "failed printing to stdout" once the pipe closes. A CLI
+  command that prints should end quietly on a closed stdout.
+- `crates/nvs-server/src/serve.rs` is 14,400 lines, and `nvs-stdlib` is the largest crate: a split waits for a measured cost (`docs/agent/coding.md`).
+- The website builds twice per push, in `.github/workflows/pages.yml` and in `ci.yml`'s `proofs` job (`rule:testing/ci-lanes`).
+- `tools/nv/cmd/ci-changes.ts`'s `proofs` filter has no `extensions/`, so `bun nv pdf-validate` may not run on a change only to a component.
+- `main` has the user's unpushed code commits `2dfacf609` and `d4e4e79a4`. They go out with the next `bun nv ci --push`.
