@@ -408,3 +408,78 @@ fn run_count_starts_no_queue_worker() {
     assert!(!opened, "a counted run started a queue worker: {stderr}");
     assert!(!stderr.contains("queue worker"), "{stderr}");
 }
+
+/// `nvs run` ends when its script does, even while a queue worker is still opening its
+/// connection: the stop cancels the handshake instead of waiting for its deadline. The server
+/// here takes the connection and the first message and never answers. The program ends only once
+/// that server has seen the message, so the worker is mid-handshake when the script stops it. A
+/// worker that waited instead would end at its deadline and print that it did not open.
+#[test]
+fn run_ends_without_waiting_for_a_queue_worker_still_connecting() {
+    use std::io::Read;
+
+    let dir = scratch("queue-worker-connecting");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a local port to listen on");
+    let address = listener.local_addr().expect("the listener's address");
+    let marker = dir.join("handshake-seen");
+    let seen = marker.clone();
+    let server = std::thread::spawn(move || {
+        let Ok((mut conn, _)) = listener.accept() else {
+            return;
+        };
+        let mut first = [0_u8; 8];
+        if conn.read_exact(&mut first).is_ok() {
+            fs::write(&seen, b"").expect("the scratch directory is writable");
+            // Never answered: this read ends when the worker's side of the socket closes.
+            let _ = conn.read_to_end(&mut Vec::new());
+        }
+    });
+    fs::write(
+        dir.join("nvs.toml"),
+        format!(
+            "[db.main]\ndriver = \"postgres\"\nhost = \"127.0.0.1\"\nport = {}\n\
+             user = \"novis\"\npassword = \"unused\"\ndatabase = \"novis\"\n\n\
+             [queue]\nconnection = \"main\"\nworkers = 1\n",
+            address.port()
+        ),
+    )
+    .unwrap();
+    let path = marker.display().to_string().replace('\\', "/");
+    fs::write(
+        dir.join("main.nvs"),
+        format!(
+            "<?nvs\nint $tries = 0;\n\
+             while (!Core\\IO::exists('{path}') && $tries < 3000) {{\n\
+             \x20   Core\\Time::sleep(10ms);\n    $tries = $tries + 1;\n}}\n\
+             if (Core\\IO::exists('{path}')) {{\n    echo \"done\\n\";\n}} else {{\n\
+             \x20   echo \"no handshake\\n\";\n}}\n"
+        ),
+    )
+    .unwrap();
+
+    let data = nvs_repo::scratch_private("nvsdata");
+    let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .args(["run", "main.nvs"])
+        .current_dir(&dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    if !marker.exists() {
+        // The worker never connected, so the server is still waiting to accept.
+        let _ = std::net::TcpStream::connect(address);
+    }
+    server.join().expect("the server thread ends");
+
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(0), "{stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&run.stdout),
+        "done\n",
+        "the worker never sent its first message: {stderr}"
+    );
+    assert!(
+        !stderr.contains("queue worker"),
+        "the run waited for the worker's handshake instead of cancelling it: {stderr}"
+    );
+}
