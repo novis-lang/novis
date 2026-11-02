@@ -4,7 +4,9 @@ name: Dev build
 # extension, kept 30 days as this run's artifacts. When the run is green, it also publishes the `dev`
 # image, and then posts the build to Discord. CI itself builds neither: its cache and its job slots
 # stay its own. The work is `build.yml`, `image.yml` and `discord.yml`, called at the commit the CI
-# run tested. GitHub reads a `workflow_run` trigger only from the default branch, which is `main`.
+# run tested. A push that changed nothing the build reads since the newest dev build builds nothing,
+# and that build's artifacts and image stay current. GitHub reads a `workflow_run` trigger only from
+# the default branch, which is `main`.
 on:
   workflow_run:
     workflows: [CI]
@@ -33,9 +35,11 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     outputs:
       sha: ${{ steps.check.outputs.sha }}
       green: ${{ steps.check.outputs.green }}
+      build: ${{ steps.lanes.outputs.release }}
     steps:
       - id: check
         name: The commit is on main
@@ -58,9 +62,47 @@ jobs:
             echo "green=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The newest dev build that still has its artifacts is the base. A push that changed only paths
+      # the build does not read keeps that build's binaries and its `dev` image, and this run builds
+      # nothing (`UNBUILT` in `tools/nv/cmd/ci-changes.ts`). No such build, or one whose artifacts
+      # expired, gives an empty base, and an empty base builds. The base is not the push's `before`,
+      # because a push whose CI run was cancelled got no dev build, and its changes still count.
+      - id: base
+        name: The commit the newest dev build artifacts are from
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base=""
+          while read -r run sha; do
+            path="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .path </dev/null)"
+            if [ "$path" = .github/workflows/dev-build.yml ]; then base="$sha"; break; fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=dist-linux-x86_64&per_page=20" \
+            --jq '.artifacts | sort_by(.created_at) | reverse | .[] | select(.expired | not) | "\(.workflow_run.id) \(.workflow_run.head_sha)"')
+          echo "base=${base:-none}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.check.outputs.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - id: lanes
+        name: Whether the push changed anything the build reads
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: bun nv ci-changes
+
   binaries:
     name: release binaries
     needs: check
+    if: needs.check.outputs.build == 'true'
     uses: ./.github/workflows/build.yml
     with:
       ref: ${{ needs.check.outputs.sha }}

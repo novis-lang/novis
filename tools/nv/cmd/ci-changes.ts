@@ -8,7 +8,8 @@
 //
 // `.github/workflows/ci.yml`'s `changes` job runs this, and every other job in that file gates on one
 // of the booleans it emits. `LANES` below is that policy's only home -- `rule:testing/ci-lanes` is the
-// reasoning, and the workflow holds no `paths:` filter of its own.
+// reasoning, and the workflow holds no `paths:` filter of its own. `dev-build.yml` runs it too, and
+// reads only `release`: whether the dev build has anything new to build (`UNBUILT` below).
 //
 // Inside Actions it takes `BASE` and `FULL` from the environment and appends `name=value` lines to
 // `$GITHUB_OUTPUT`; run by hand it prints the same lines to stdout, so the two cannot disagree.
@@ -132,6 +133,24 @@ export const LANES: Record<string, string[]> = {
   // smoke-tests every variant before it pushes one. Gates `docker`.
   docker: ["docker/", "tests/docker/", ".github/workflows/"],
 };
+
+// The paths no part of the dev build reads: not the release binaries, the VS Code extension or the
+// container images. `release` is true when a diff touched any other path. `dev-build.yml` gates on it
+// and diffs against the commit whose dev build artifacts are the newest ones, so a push that changed
+// only these keeps that build's binaries and its `dev` image. Unlike a lane, this list names what
+// the build skips. A path added to the tree tomorrow is then built, which is the safe direction.
+// `docs/reference/` is missing from the list on purpose: `nvs-stdlib`'s build script embeds it.
+export const UNBUILT = [
+  "docs/agent/", "docs/rules/", "docs/goals/", "docs/examples/", "docs/release-notes/",
+  "docs/ground-rules.md", "docs/release.md", "docs/setup.md", "website/", "data/", ".claude/",
+  "AGENTS.md", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "SECURITY.md", "looper.toml",
+  ".config/", "clippy.toml", "rustfmt.toml", "deny.toml",
+];
+
+/** Whether a diff reaches what the dev build publishes. `paths` of `null` means "not known": it does. */
+export function releaseNeeded(paths: string[] | null): boolean {
+  return paths === null || paths.some((p) => !matches(p, UNBUILT));
+}
 
 const DB_HARNESS = "tools/nv/cmd/db-matrix.ts";
 
@@ -269,6 +288,7 @@ export async function run(args: string[]): Promise<number> {
   const lanes = { ...LANES, db: dbLane(LANES.db!) };
   if (flags.has("--lanes")) {
     for (const [name, pre] of Object.entries(lanes)) console.log(`"${name}": (${pre.map((p) => `"${p}"`).join(", ")})`);
+    console.log(`"release": every path but (${UNBUILT.map((p) => `"${p}"`).join(", ")})`);
     return 0;
   }
   const full = flags.has("--full") || truthy(process.env.FULL);
@@ -279,7 +299,11 @@ export async function run(args: string[]): Promise<number> {
     paths = nonEmpty(file === "-" ? await Bun.stdin.text() : readFileSync(file, "utf8"));
   } else paths = await changedPaths(values.get("--base") ?? process.env.BASE ?? "");
 
-  const lines = [...lanesFor(lanes, paths), ["deep", full] as [string, boolean]].map(([n, v]) => `${n}=${v}`);
+  const lines = [
+    ...lanesFor(lanes, paths),
+    ["release", releaseNeeded(paths)] as [string, boolean],
+    ["deep", full] as [string, boolean],
+  ].map(([n, v]) => `${n}=${v}`);
   const sink = process.env.GITHUB_OUTPUT;
   if (sink) appendFileSync(sink, lines.join("\n") + "\n");
   for (const line of lines) console.log(line);

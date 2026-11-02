@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 
 interface Job {
+  needs?: string | string[];
   uses?: string;
   with?: Record<string, unknown>;
   permissions?: Record<string, string>;
@@ -37,6 +38,15 @@ test("ci.yml builds no release binaries and pushes no image", () => {
   expect(called).toEqual([]);
   const writes = Object.entries(ci).filter(([, job]) => Object.values(job.permissions ?? {}).includes("write"));
   expect(writes.map(([name]) => name)).toEqual([]);
+});
+
+test("the dev build builds only when the push changed a path the build reads", () => {
+  const dev = workflow("dev-build.yml").jobs as Record<string, Job & { if?: string; outputs?: Record<string, string> }>;
+  expect(dev.check!.outputs?.build).toBe("${{ steps.lanes.outputs.release }}");
+  expect(dev.binaries!.if).toBe("needs.check.outputs.build == 'true'");
+  // The image and the Discord post need the binaries, so they are skipped with them.
+  expect(dev.image!.needs).toContain("binaries");
+  expect(dev.discord!.needs).toContain("image");
 });
 
 test("build.yml and image.yml check out the commit the dev build names, in every job", () => {
