@@ -1547,7 +1547,7 @@ pub(crate) type CtorAccesses = FxHashMap<String, CtorAccess>;
 
 /// One property's entry in [`CtorAccesses`], joined over every access to it
 /// the constructor makes, the parameter promotions first.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct CtorAccess {
     /// The class's own slots that start unset and that some path has not
     /// written yet at one of the accesses.
@@ -1601,7 +1601,7 @@ pub struct CallArg {
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ExprTypeTable {
     entries: Vec<ExprInfo>,
     /// The span each of [`Self::entries`] was recorded at, by the same index.
@@ -1763,6 +1763,228 @@ impl ExprTypeTable {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An empty table for one file's walk, which records provenance where
+    /// this one does. [`crate::check::check_program_partial`] checks each file
+    /// into one of these and folds it into the program's table with
+    /// [`Self::absorb`], in file order.
+    pub(crate) fn part(&self) -> Self {
+        let mut part = Self::new();
+        if self.records_provenance() {
+            part.record_provenance();
+        }
+        part
+    }
+
+    /// Moves every record of `part` into this table, after this table's own.
+    ///
+    /// An entry keeps its place in file order: its [`ExprId`] is moved past
+    /// every entry this table already has. A map keyed by a span takes the
+    /// part's records as they are, since no two files share a span. A map
+    /// keyed by a class label takes the part's record over its own, which is
+    /// what one walk over both files did: the later file's write won.
+    ///
+    /// Every field is named, so a field added to the table does not compile
+    /// until it is folded here too.
+    pub(crate) fn absorb(&mut self, part: Self) {
+        let Self {
+            entries,
+            spans,
+            by_span,
+            methods,
+            unresolved_calls,
+            types,
+            float_widened,
+            guarded_target_reads,
+            covariant_writes,
+            never_stmts,
+            foreach,
+            codecs,
+            db_codecs,
+            shape_codecs,
+            tests,
+            fixtures,
+            properties,
+            test_hooks,
+            test_code,
+            test_lineages,
+            inline_snapshots,
+            property_defaults,
+            property_default_types,
+            property_types,
+            property_keys,
+            lateinit_properties,
+            pipeline_armed,
+            pipeline_guarded,
+            ctor_accesses,
+            static_properties,
+            to_string,
+            require_targets,
+            written_paths,
+            setting_names,
+            prepared,
+            formats,
+            delegations,
+            locals,
+            routes,
+            commands,
+            callable_values,
+            callable_markers,
+            callable_conformance,
+            attribute_names,
+            deprecation_checks,
+            deprecated_entries,
+            capability_guards,
+            promoted_pipelines,
+            literal_types,
+            provenance,
+        } = part;
+        let offset = u32::try_from(self.entries.len())
+            .expect("far fewer than u32::MAX expressions are ever checked in one compilation");
+        self.entries.extend(entries);
+        self.spans.extend(spans);
+        self.by_span.extend(
+            by_span
+                .into_iter()
+                .map(|(span, id)| (span, ExprId(id.0 + offset))),
+        );
+        self.methods.extend(methods);
+        self.unresolved_calls.extend(unresolved_calls);
+        self.types.extend(types);
+        self.float_widened.extend(float_widened);
+        self.guarded_target_reads.extend(guarded_target_reads);
+        self.covariant_writes.extend(covariant_writes);
+        self.never_stmts.extend(never_stmts);
+        self.foreach.extend(foreach);
+        self.codecs.extend(codecs);
+        self.db_codecs.extend(db_codecs);
+        self.shape_codecs.extend(shape_codecs);
+        self.tests.extend(tests);
+        self.fixtures.extend(fixtures);
+        self.properties.extend(properties);
+        self.test_hooks.extend(test_hooks);
+        self.test_code.extend(test_code);
+        self.test_lineages.extend(test_lineages);
+        self.inline_snapshots.extend(inline_snapshots);
+        self.property_defaults.extend(property_defaults);
+        self.property_default_types.extend(property_default_types);
+        self.property_types.extend(property_types);
+        self.property_keys.extend(property_keys);
+        self.lateinit_properties.extend(lateinit_properties);
+        self.pipeline_armed.extend(pipeline_armed);
+        self.pipeline_guarded.extend(pipeline_guarded);
+        self.ctor_accesses.extend(ctor_accesses);
+        self.static_properties.extend(static_properties);
+        self.to_string.extend(to_string);
+        self.require_targets.extend(require_targets);
+        self.written_paths.extend(written_paths);
+        self.setting_names.absorb(setting_names);
+        self.prepared.extend(prepared);
+        self.formats.extend(formats);
+        self.delegations.extend(delegations);
+        self.locals.extend(locals);
+        self.routes.absorb(routes);
+        self.commands.absorb(commands);
+        self.callable_values.extend(callable_values);
+        self.callable_markers.extend(callable_markers);
+        self.callable_conformance.extend(callable_conformance);
+        self.attribute_names.extend(attribute_names);
+        self.deprecation_checks.extend(deprecation_checks);
+        self.deprecated_entries.extend(deprecated_entries);
+        self.capability_guards.extend(capability_guards);
+        self.promoted_pipelines.extend(promoted_pipelines);
+        self.literal_types.extend(literal_types);
+        if let (Some(own), Some(part)) = (self.provenance.as_mut(), provenance) {
+            own.absorb(*part);
+        }
+    }
+
+    /// Every record of this table as text, in an order that does not depend
+    /// on the order the records were made in.
+    ///
+    /// Two tables with the same records give the same text. A test compares
+    /// a partial check with a whole one this way. Each map is listed sorted,
+    /// and an entry is listed under its span, so an [`ExprId`] is not part
+    /// of the text.
+    #[must_use]
+    pub fn canonical_text(&self) -> String {
+        fn sorted<T: std::fmt::Debug>(items: impl IntoIterator<Item = T>) -> Vec<String> {
+            let mut lines: Vec<String> =
+                items.into_iter().map(|item| format!("{item:?}")).collect();
+            lines.sort();
+            lines
+        }
+        let entries = sorted(
+            self.by_span
+                .iter()
+                .map(|(span, id)| (span, &self.entries[id.0 as usize])),
+        );
+        let mut text = String::new();
+        let mut section = |name: &str, lines: Vec<String>| {
+            text.push_str(name);
+            text.push('\n');
+            for line in lines {
+                text.push_str("  ");
+                text.push_str(&line);
+                text.push('\n');
+            }
+        };
+        section("entries", entries);
+        section("methods", sorted(&self.methods));
+        section("unresolved_calls", sorted(&self.unresolved_calls));
+        section("types", sorted(&self.types));
+        section("float_widened", sorted(&self.float_widened));
+        section("guarded_target_reads", sorted(&self.guarded_target_reads));
+        section("covariant_writes", sorted(&self.covariant_writes));
+        section("never_stmts", sorted(&self.never_stmts));
+        section("foreach", sorted(&self.foreach));
+        section("codecs", sorted(&self.codecs));
+        section("db_codecs", sorted(&self.db_codecs));
+        section("shape_codecs", sorted(&self.shape_codecs));
+        section("tests", sorted(&self.tests));
+        section("fixtures", sorted(&self.fixtures));
+        section("properties", sorted(&self.properties));
+        section("test_hooks", sorted(&self.test_hooks));
+        section("test_code", sorted(&self.test_code));
+        section("test_lineages", sorted(&self.test_lineages));
+        section("inline_snapshots", sorted(&self.inline_snapshots));
+        section("property_defaults", sorted(&self.property_defaults));
+        section(
+            "property_default_types",
+            sorted(&self.property_default_types),
+        );
+        section("property_types", sorted(&self.property_types));
+        section("property_keys", sorted(&self.property_keys));
+        section("lateinit_properties", sorted(&self.lateinit_properties));
+        section("pipeline_armed", sorted(&self.pipeline_armed));
+        section("pipeline_guarded", sorted(&self.pipeline_guarded));
+        section("ctor_accesses", sorted(&self.ctor_accesses));
+        section("static_properties", sorted(&self.static_properties));
+        section("to_string", sorted(&self.to_string));
+        section("require_targets", sorted(&self.require_targets));
+        section("written_paths", sorted(&self.written_paths));
+        section("setting_names", vec![format!("{:?}", self.setting_names)]);
+        section("prepared", sorted(&self.prepared));
+        section("formats", sorted(&self.formats));
+        section("delegations", sorted(&self.delegations));
+        section("locals", sorted(&self.locals));
+        section("routes", vec![format!("{:?}", self.routes)]);
+        section("commands", vec![format!("{:?}", self.commands)]);
+        section("callable_values", sorted(&self.callable_values));
+        section("callable_markers", sorted(&self.callable_markers));
+        section("callable_conformance", sorted(&self.callable_conformance));
+        section("attribute_names", sorted(&self.attribute_names));
+        section("deprecation_checks", sorted(&self.deprecation_checks));
+        section("deprecated_entries", sorted(&self.deprecated_entries));
+        section("capability_guards", sorted(&self.capability_guards));
+        section("promoted_pipelines", sorted(&self.promoted_pipelines));
+        section("literal_types", sorted(&self.literal_types));
+        section(
+            "provenance",
+            vec![format!("{:?}", self.provenance.is_some())],
+        );
+        text
     }
 
     /// Makes the checker record where each `tainted` or `secret` value came

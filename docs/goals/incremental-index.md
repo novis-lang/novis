@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-hir/src/requires.rs, docs/rules/ide/one-grammar-one-tree.md]
   - id: 3
     title: "the checker checks the bodies of a chosen set of files and folds every other file's cached output"
-    status: open
+    status: done
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-diagnostics/src/source.rs, crates/nvs-types/tests/common/mod.rs]
   - id: 4
     title: "each file has a declaration-surface hash, and a body-only edit re-queues no reader"
@@ -383,17 +383,25 @@ shared across files. Its scope is `Env`'s fields at `crates/nvs-types/src/check.
 - [x] `Pins` and `SourceMap::pinned`, with placeholder files for ids not loaded. Stage 2 built it,
   because a cached parse's spans are only right where the file keeps its id.
   `crates/nvs-diagnostics/src/source.rs:283`, `crates/nvs-diagnostics/src/source.rs:407`
-- [ ] `FileOutput` and `CheckCache`, and `ExprTypeTable` split per file and merged in file order.
+- [x] `FileOutput` and `CheckCache`, and `ExprTypeTable` split per file and merged in file order.
   `crates/nvs-types/src/expr_table.rs:1605`
-- [ ] `check_program_partial`, with `check_program_loaded` as its whole-program call. The per-file
+  - [x] the Explore list of cross-file writes and reads, checked against the walk
+  - [x] `ExprTypeTable::part`/`absorb`, and the row tables' `absorb`
+  - [x] `FileOutput` and `CheckCache` in `crates/nvs-types/src/partial.rs`
+- [x] `check_program_partial`, with `check_program_loaded` as its whole-program call. The per-file
   walk writes into a `FileOutput`. A file outside `bodies` takes its cached one, or is checked when
   its starting `anon_fn_seq` moved. Every pass after the walk runs over the folded result.
   `crates/nvs-types/src/check.rs:158`, `crates/nvs-types/src/check.rs:224`,
   `crates/nvs-types/src/check.rs:289`
-- [ ] The tests of the `types-partial-check` check, in `crates/nvs-types/tests/partial_check.rs`,
+  - [x] the walk writes each file into a fresh part, folded in file order
+  - [x] a cached output is folded where its file is outside `bodies` and its start count matches
+  - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green
+- [x] The tests of the `types-partial-check` check, in `crates/nvs-types/tests/partial_check.rs`,
   through the helper at `crates/nvs-types/tests/common/mod.rs:315`. Run once by name:
   `cargo test --test partial_check`. `crates/nvs-types/tests/partial_check.rs:1`
-- [ ] The measured cost of the passes after the walk on a 40-class library, in the doc comment.
+  - [x] a canonical dump of a table, so two tables compare
+  - [x] the five tests, run once by name
+- [x] The measured cost of the passes after the walk on a 40-class library, in the doc comment.
   `crates/nvs-types/src/check.rs:158`
 
 ### 4. each file has a declaration-surface hash, and a body-only edit re-queues no reader
@@ -462,41 +470,38 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Stages 1 and 2 are done. `nvs_hir::Parses` is the walk's parse hook (`parse_fresh` in
-`crates/nvs-hir/src/requires.rs`), `Loaded::stmts` is `Arc<Vec<Stmt>>`, and `nvs check` passes
-`None`. `crates/nvs-lsp/src/parse_cache.rs` keeps one lossless parse per canonical path with its text
-hash, trivia, index and diagnostics, so it also serves a file as an open document's entry.
-`Documents::parses` holds it in a `RefCell`, `analyse_over` borrows it for the walk, and
-`Work::parsed` is its misses. `settle_one` prunes it once `pending` empties.
-
-**Pins landed in stage 2, not stage 3.** A cached parse's spans name its `SourceId`, and every
-analysis builds a new `SourceMap`, so the cache was wrong without them. `nvs_diagnostics::Pins` and
-`SourceMap::pinned`/`take_pins` are in `crates/nvs-diagnostics/src/source.rs:426`. `ParseCache::map`
-builds each analysis's map from the cache's pins, and an entry is used only where the file's id
-matches. Stage 3's `Pins` item is ticked.
+Stages 1, 2 and 3 are done. `nvs_types::check_program_partial` (`crates/nvs-types/src/check.rs:209`)
+walks each file into its own `FileOutput` (`crates/nvs-types/src/partial.rs`), folds it in file
+order with `ExprTypeTable::absorb`, and runs `after_walk` over the result. A partial check stores
+each walked file in `CheckCache` and folds a clone of a cached output whose `anon_fn_start`
+matches. The walk reads no record another file made. Measured in release on 41 files: the passes
+after the walk take about 45 µs, and a one-body partial check about 0.2 ms against 0.7 ms whole.
+Stage 2's `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs`) and `SourceMap::pinned`
+(`crates/nvs-diagnostics/src/source.rs:426`) keep a file's parse and id across analyses.
 
 The sweep's reds were stale: no `env-secret-proofs` check exists, and nightly `41428598621` was
 cancelled by a later push. The untracked `probe-out.txt` at the root is another process's.
 
-**Red until their stage lands, with the counts they find today** (so `bun nv verify --fast -p
-nvs-lsp` is red until stage 5):
+**Red until their stage lands** (so `bun nv verify --fast -p nvs-lsp` is red until stage 5):
 
 - `a_body_only_keystroke_re_queues_no_reader`: queues `Blog/main.nvs` and `Shop/main.nvs`. Stage 4.
 - `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`: parsed
-  is now 1, and checked is still every body of every analysis. Stage 5.
-- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: the checked count still
-  grows with the programs. Stage 5.
+  is 1, and checked is still every body of every analysis. Stage 5.
+- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: checked grows with
+  the programs. Stage 5.
 
 ### Next
 
-**Stage 3, one group.** `crates/nvs-types/src/check.rs`, then `expr_table.rs`. Start with the
-stage's `**Split:**` line: an `Explore` subagent lists every write the per-file walk makes into a
-table shared across files.
+**Stage 4, one group.** `crates/nvs-lsp/src/surface.rs` is new, then `index.rs`. The hash reads the
+statements `ParseCache` holds (`crates/nvs-lsp/src/parse_cache.rs:49`).
 
-- [ ] `FileOutput` and `CheckCache`, and `ExprTypeTable` split per file and merged in file order. `crates/nvs-types/src/expr_table.rs:1605`
-- [ ] `check_program_partial`, with `check_program_loaded` as its whole-program call. `crates/nvs-types/src/check.rs:158`, `crates/nvs-types/src/check.rs:190`, `crates/nvs-types/src/check.rs:287`
-- [ ] The `types-partial-check` tests in `crates/nvs-types/tests/partial_check.rs`. Pin the ids with `SourceMap::pinned` for `a_cached_output_is_valid_in_a_second_source_map_with_the_same_pins`. `crates/nvs-diagnostics/src/source.rs:426`
-- [ ] The measured cost of the passes after the walk, in the doc comment. `crates/nvs-types/src/check.rs:158`
+- [ ] `surface.rs`: the declaration-surface hash of decision 4, its module doc saying what it includes and leaves out. `crates/nvs-lsp/src/surface.rs:1`
+- [ ] `Indexed` gains `surface`, and `refresh` queues readers only when the hash of `changed` differs. `crates/nvs-lsp/src/index.rs:336`, `crates/nvs-lsp/src/index.rs:489`
+- [ ] The `lsp-surface` tests, run once by name: `cargo test --test incremental`. `crates/nvs-lsp/tests/incremental.rs:1`
+
+Stage 5 then calls `check_program_partial` from `analyse_over` with a session interner, the session
+`Pins` and one `CheckCache`, and removes a file's output when the file leaves the tree
+(`CheckCache::remove`/`retain`).
 
 ### Backlog
 

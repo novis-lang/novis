@@ -31,6 +31,13 @@ pub struct SettingNames {
 }
 
 impl SettingNames {
+    /// Adds every name `part` records, as one walk over both files would have.
+    pub(crate) fn absorb(&mut self, part: Self) {
+        self.settings.extend(part.settings);
+        self.secrets.extend(part.secrets);
+        self.computed |= part.computed;
+    }
+
     /// Whether some call passed a name that is not written in the source, so no key can be judged.
     #[must_use]
     pub fn computed(&self) -> bool {

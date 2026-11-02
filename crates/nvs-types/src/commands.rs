@@ -362,7 +362,7 @@ fn subset_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
 /// crosses into `nvs-ir`, and what rides across is a decision with no
 /// resolution left in it, so the consumer holds strings rather than a second
 /// copy of this crate's tables.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Command {
     /// `rule:tooling/commands-are-compiled`'s `name:` — the word a command line selects this command by, and
     /// the key [`CommandTable::named`] answers.
@@ -395,12 +395,17 @@ pub struct Command {
 /// against. Order is what makes the pair deterministic — the collision is
 /// always reported at the row that arrives second, and the load order does not
 /// depend on filesystem enumeration (`rule:programs/implementing`).
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CommandTable {
     rows: Vec<Command>,
 }
 
 impl CommandTable {
+    /// Moves every row of `part` after this table's own, in load order.
+    pub(crate) fn absorb(&mut self, part: Self) {
+        self.rows.extend(part.rows);
+    }
+
     /// Every row, in load order.
     #[must_use]
     pub fn rows(&self) -> &[Command] {

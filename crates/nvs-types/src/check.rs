@@ -167,6 +167,105 @@ pub fn check_program_loaded(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) -> crate::EnumTable {
+    let inputs = Inputs {
+        files,
+        module,
+        grants,
+        backtracking,
+        namespace_grants,
+        packages,
+        extensions,
+    };
+    check_files(&inputs, None, interner, exprs, diags)
+}
+
+/// [`check_program_loaded`] that walks the bodies of the files in `bodies`
+/// alone, and folds the cached [`crate::FileOutput`] of every other file.
+///
+/// Signatures and the whole-program tables are built from every file, and
+/// every pass after the walk runs over the folded result. So the diagnostics
+/// and the table are the ones a whole check gives, where each cached output
+/// is still valid. The caller decides that: [`crate::partial`] lists the
+/// inputs a cached output depends on. A file outside `bodies` is walked too
+/// where `cache` has no output for it, or where the count of anonymous
+/// functions before it moved.
+///
+/// Every file walked is stored in `cache`, before any pass after the walk
+/// runs. `cache` keeps the output of a file that is not in `files`, and the
+/// caller removes it.
+///
+/// `interner` must be the one every cached output was checked with, because
+/// an output names its types by id.
+///
+/// The passes after the walk are paid on every call, walked bodies or not.
+/// On a 40-class library and one entry, 41 files in a release build, they
+/// took about 45 µs, against about 0.7 ms for the walk of every file. A call
+/// that walks one file's bodies took about 0.2 ms for the walk and the fold,
+/// most of it the copy of the 40 cached outputs.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "check_program_loaded's inputs, and the two that choose what is walked"
+)]
+pub fn check_program_partial(
+    files: &[crate::ProgramFile<'_>],
+    module: &Module,
+    grants: Option<&nvs_config::tree::Capabilities>,
+    backtracking: nvs_config::regex::Backtracking,
+    namespace_grants: &nvs_config::grants::Grants,
+    packages: Option<&crate::package::Packages>,
+    extensions: &[nvs_ext::manifest::Manifest],
+    bodies: &FxHashSet<nvs_diagnostics::SourceId>,
+    cache: &mut crate::CheckCache,
+    interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
+    diags: &mut Diagnostics,
+) -> crate::EnumTable {
+    let inputs = Inputs {
+        files,
+        module,
+        grants,
+        backtracking,
+        namespace_grants,
+        packages,
+        extensions,
+    };
+    check_files(&inputs, Some((bodies, cache)), interner, exprs, diags)
+}
+
+/// The inputs [`check_program_loaded`] and [`check_program_partial`] share,
+/// gathered once so [`check_files`] takes them as one argument.
+struct Inputs<'i, 'f> {
+    files: &'i [crate::ProgramFile<'f>],
+    module: &'i Module,
+    grants: Option<&'i nvs_config::tree::Capabilities>,
+    backtracking: nvs_config::regex::Backtracking,
+    namespace_grants: &'i nvs_config::grants::Grants,
+    packages: Option<&'i crate::package::Packages>,
+    extensions: &'i [nvs_ext::manifest::Manifest],
+}
+
+/// The one body of [`check_program_loaded`] and [`check_program_partial`].
+/// `partial` is `None` for a whole check, which walks every file and stores
+/// nothing.
+fn check_files(
+    inputs: &Inputs<'_, '_>,
+    mut partial: Option<(
+        &FxHashSet<nvs_diagnostics::SourceId>,
+        &mut crate::CheckCache,
+    )>,
+    interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
+    diags: &mut Diagnostics,
+) -> crate::EnumTable {
+    let Inputs {
+        files,
+        module,
+        grants,
+        backtracking,
+        namespace_grants,
+        packages,
+        extensions,
+    } = *inputs;
     // `rule:enums/one-backing-type`'s backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
@@ -222,70 +321,205 @@ pub fn check_program_loaded(
     // decoder fills a `secret` property. See `crate::derive::check_encode_sites`.
     let mut encode_sites = Vec::new();
     for file in files {
-        let mut env = Env {
-            symbols: &module.symbols,
-            aliases: &module.aliases,
-            graph: &module.graph,
-            signatures: &signatures,
-            enums: &enums,
-            consts: &consts,
-            attributes: &attributes,
-            deprecations: &deprecations,
-            test_code: &test_code,
-            grants,
-            backtracking,
-            namespace_grants,
-            packages,
-            src: file.src,
-            stmts: file.stmts,
-            files,
-            interner: &mut *interner,
-            exprs: &mut *exprs,
-            routes: &mut routes,
-            commands: &mut commands,
-            links: &mut links,
-            codec_sites: &mut codec_sites,
-            row_sites: &mut row_sites,
-            json_sites: &mut json_sites,
-            decode_sites: &mut decode_sites,
-            encode_sites: &mut encode_sites,
-            diags: &mut *diags,
-            anon_fn_seq,
-            refused_exprs: 0,
-            fn_self: None,
-            exit_targets: Vec::new(),
-            write_target_levels: FxHashMap::default(),
-            unset_target: false,
-            coalesce_guarded: FxHashSet::default(),
-            method_name_args: FxHashSet::default(),
-            method_ref_args: FxHashSet::default(),
-            link_target_args: FxHashSet::default(),
-            spawn_entry_args: FxHashSet::default(),
-            body_writers: crate::response::BodyWriters::default(),
-            in_call_argument: false,
-            deprecated_uses: None,
+        let id = file.src.id();
+        // A file outside the body set takes its cached output where the
+        // output starts at the same anonymous-function count.
+        let cached = partial.as_ref().and_then(|(bodies, cache)| {
+            (!bodies.contains(&id))
+                .then(|| cache.outputs.get(&id))
+                .flatten()
+                .filter(|output| output.start_seq == anon_fn_seq)
+                .cloned()
+        });
+        let output = match cached {
+            Some(output) => output,
+            None => {
+                let mut output = crate::FileOutput::empty(anon_fn_seq, exprs.part());
+                let mut file_diags = Diagnostics::new();
+                let end_seq = walk_file(
+                    file,
+                    &Shared {
+                        module,
+                        signatures: &signatures,
+                        enums: &enums,
+                        consts: &consts,
+                        attributes: &attributes,
+                        deprecations: &deprecations,
+                        test_code: &test_code,
+                        grants,
+                        backtracking,
+                        namespace_grants,
+                        packages,
+                        files,
+                    },
+                    &mut output,
+                    interner,
+                    &mut file_diags,
+                );
+                output.end_seq = end_seq;
+                output.diags = file_diags.take();
+                if let Some((_, cache)) = partial.as_mut() {
+                    cache.outputs.insert(id, output.clone());
+                }
+                output
+            }
         };
-        let mut frame = ScriptFrame {
-            scope: LocalScope::new(),
-            live: Live::default(),
-            // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
-            // file hands back, typed `mixed` at the boundary — so the
-            // synthesized frame's return type is `mixed`, not `void`.
-            return_ty: env.interner.mixed(),
-        };
-        check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
-        // The whole file, because the synthesized frame is the whole file's:
-        // `rule:statements/storage-that-outlives-a-call` makes the script body
-        // a function, and a `namespace { ... }` block's statements land in this
-        // same frame rather than in one of their own.
-        let script = Span::new(
-            file.src.id(),
-            0,
-            BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
-        );
-        record_locals(script, &mut frame.scope, &mut env);
-        anon_fn_seq = env.anon_fn_seq;
+        anon_fn_seq = output.end_seq;
+        exprs.absorb(output.exprs);
+        diags.extend(output.diags);
+        routes.absorb(output.routes);
+        commands.absorb(output.commands);
+        links.extend(output.links);
+        codec_sites.extend(output.codec_sites);
+        row_sites.extend(output.row_sites);
+        json_sites.extend(output.json_sites);
+        decode_sites.extend(output.decode_sites);
+        encode_sites.extend(output.encode_sites);
     }
+    after_walk(
+        module,
+        &signatures,
+        routes,
+        commands,
+        &links,
+        &Sites {
+            codec: &codec_sites,
+            row: &row_sites,
+            json: &json_sites,
+            decode: &decode_sites,
+            encode: &encode_sites,
+        },
+        interner,
+        exprs,
+        diags,
+    );
+    enums
+}
+
+/// The whole-program tables every file's walk reads, built once before the
+/// walk.
+struct Shared<'s, 'f> {
+    module: &'s Module,
+    signatures: &'s crate::SignatureTable,
+    enums: &'s crate::EnumTable,
+    consts: &'s crate::consts::ConstTable,
+    attributes: &'s crate::retrieval::AttributeTable<'s>,
+    deprecations: &'s crate::deprecated::Deprecations,
+    test_code: &'s crate::test_code::TestCode,
+    grants: Option<&'s nvs_config::tree::Capabilities>,
+    backtracking: nvs_config::regex::Backtracking,
+    namespace_grants: &'s nvs_config::grants::Grants,
+    packages: Option<&'s crate::package::Packages>,
+    files: &'s [crate::ProgramFile<'f>],
+}
+
+/// The call sites the walk collected for the passes after it.
+struct Sites<'s> {
+    codec: &'s [crate::derive::CodecFieldSite],
+    row: &'s [crate::derive::RowSite],
+    json: &'s [crate::derive::JsonSite],
+    decode: &'s [crate::derive::DecodeSite],
+    encode: &'s [crate::derive::EncodeSite],
+}
+
+/// Walks one file's bodies into `output` and `diags`, and returns the count
+/// of anonymous functions at file scope after it.
+fn walk_file(
+    file: &crate::ProgramFile<'_>,
+    shared: &Shared<'_, '_>,
+    output: &mut crate::FileOutput,
+    interner: &mut TypeInterner,
+    diags: &mut Diagnostics,
+) -> u32 {
+    let module = shared.module;
+    let mut env = Env {
+        symbols: &module.symbols,
+        aliases: &module.aliases,
+        graph: &module.graph,
+        signatures: shared.signatures,
+        enums: shared.enums,
+        consts: shared.consts,
+        attributes: shared.attributes,
+        deprecations: shared.deprecations,
+        test_code: shared.test_code,
+        grants: shared.grants,
+        backtracking: shared.backtracking,
+        namespace_grants: shared.namespace_grants,
+        packages: shared.packages,
+        src: file.src,
+        stmts: file.stmts,
+        files: shared.files,
+        interner,
+        exprs: &mut output.exprs,
+        routes: &mut output.routes,
+        commands: &mut output.commands,
+        links: &mut output.links,
+        codec_sites: &mut output.codec_sites,
+        row_sites: &mut output.row_sites,
+        json_sites: &mut output.json_sites,
+        decode_sites: &mut output.decode_sites,
+        encode_sites: &mut output.encode_sites,
+        diags,
+        anon_fn_seq: output.start_seq,
+        refused_exprs: 0,
+        fn_self: None,
+        exit_targets: Vec::new(),
+        write_target_levels: FxHashMap::default(),
+        unset_target: false,
+        coalesce_guarded: FxHashSet::default(),
+        method_name_args: FxHashSet::default(),
+        method_ref_args: FxHashSet::default(),
+        link_target_args: FxHashSet::default(),
+        spawn_entry_args: FxHashSet::default(),
+        body_writers: crate::response::BodyWriters::default(),
+        in_call_argument: false,
+        deprecated_uses: None,
+    };
+    let mut frame = ScriptFrame {
+        scope: LocalScope::new(),
+        live: Live::default(),
+        // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
+        // file hands back, typed `mixed` at the boundary — so the
+        // synthesized frame's return type is `mixed`, not `void`.
+        return_ty: env.interner.mixed(),
+    };
+    check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+    // The whole file, because the synthesized frame is the whole file's:
+    // `rule:statements/storage-that-outlives-a-call` makes the script body
+    // a function, and a `namespace { ... }` block's statements land in this
+    // same frame rather than in one of their own.
+    let script = Span::new(
+        file.src.id(),
+        0,
+        BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
+    );
+    record_locals(script, &mut frame.scope, &mut env);
+    env.anon_fn_seq
+}
+
+/// Every pass that reads the whole program's walk, over the folded result.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each table is a separate result of the walk, and the passes read them apart"
+)]
+fn after_walk(
+    module: &Module,
+    signatures: &crate::SignatureTable,
+    routes: crate::routes::RouteTable,
+    commands: crate::commands::CommandTable,
+    links: &[crate::links::LinkSite],
+    sites: &Sites<'_>,
+    interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
+    diags: &mut Diagnostics,
+) {
+    let Sites {
+        codec: codec_sites,
+        row: row_sites,
+        json: json_sites,
+        decode: decode_sites,
+        encode: encode_sites,
+    } = *sites;
     crate::routes::check_table(&routes, diags);
     crate::routes::check_responders(&routes, diags);
     crate::routes::check_helper_reads(&routes, diags);
@@ -298,35 +532,35 @@ pub fn check_program_loaded(
     // The slots a constructor may leave unset while a hook or an observer
     // runs, for the same reason: they combine each class's constructor with
     // every constructor its ancestors declare.
-    record_pipeline_slots(&signatures, &module.graph, interner, exprs);
+    record_pipeline_slots(signatures, &module.graph, interner, exprs);
     // The links' fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
-    crate::links::resolve(&routes, &links, exprs, diags);
+    crate::links::resolve(&routes, links, exprs, diags);
     // `rule:core-classes/derive-property-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.
-    crate::derive::resolve_field_types(&codec_sites, &signatures, interner, exprs, diags);
+    crate::derive::resolve_field_types(codec_sites, signatures, interner, exprs, diags);
     // The call-site half of the same deferral: `rule:core-classes/db-column-types`'s
     // map asked of the class a `queryAs<T>` wrote, after every deriving class
     // has recorded its mapping.
-    crate::derive::check_row_sites(&row_sites, &signatures, exprs, diags);
+    crate::derive::check_row_sites(row_sites, signatures, exprs, diags);
     // The same deferral at the document door: whether the written class
     // participates in the format at all, and a constructor the contract fills
     // less than all of, asked of it and of every deriving class its fields
     // reach.
-    crate::derive::check_json_sites(&json_sites, &signatures, exprs, diags);
+    crate::derive::check_json_sites(json_sites, signatures, exprs, diags);
     // The same deferral for the other member that writes a class: the body a
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.
-    crate::derive::check_decode_sites(&decode_sites, &codec_sites, interner, diags);
+    crate::derive::check_decode_sites(decode_sites, codec_sites, interner, diags);
     // And the call that writes such a class back out, which does not compile
     // once its decoder fills a `secret` property.
-    crate::derive::check_encode_sites(&encode_sites, &codec_sites, &signatures, interner, diags);
+    crate::derive::check_encode_sites(encode_sites, codec_sites, signatures, interner, diags);
     // `rule:types/type-test`'s `is callable(int): string` asks which of the
     // program's anonymous functions satisfy a written signature, which is the same
     // deferral one more time: the `is` and the literal it answers about need
     // not be in the same file. See `crate::callables`.
-    crate::callables::resolve(exprs, interner, &module.graph, &signatures);
+    crate::callables::resolve(exprs, interner, &module.graph, signatures);
     // The route table crosses to `nvs-ir` here rather than being dropped:
     // `rule:routing/api-document-is-generated-from-the-route-table` emits the
     // OpenAPI document from it, and it is what `nvs-ir` reads a handler's
@@ -335,14 +569,13 @@ pub fn check_program_loaded(
     // The command table crosses the same way and at the same point: `Core\Command`'s
     // dispatch, its usage text and its completions are all generated from it.
     exprs.record_commands(commands);
-    record_property_types(&signatures, exprs);
+    record_property_types(signatures, exprs);
     // Declaration-side property types, for the one consumer that asks at a
     // declaration rather than at an access — see
     // `ExprTypeTable::property_default_ty`.
     for (span, ty) in signatures.property_default_types() {
         exprs.record_property_default_ty(*span, *ty);
     }
-    enums
 }
 
 /// Hands one finished body's locals to the expression table, keyed by the span

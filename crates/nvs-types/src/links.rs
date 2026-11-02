@@ -100,6 +100,7 @@ const IS: &str = "is";
 /// Holds strings rather than borrowing the AST because the walk that recorded
 /// it has moved on to the next file by the time [`resolve`] runs, and the
 /// `Env` it borrowed through does not outlive that file.
+#[derive(Clone, Debug)]
 pub(crate) struct LinkSite {
     /// The call's own span — the key [`ExprInfo::RouteLink`] is recorded
     /// against, so it lands on the entry [`crate::expr::calls`] already wrote.
@@ -129,6 +130,7 @@ pub(crate) struct LinkSite {
 }
 
 /// One entry of a link's `$params` whose key folded to a literal.
+#[derive(Clone, Debug)]
 struct LinkArg {
     /// The key as written, which is what a capture and a `#[Query]` name are
     /// both compared against.
@@ -150,6 +152,7 @@ struct LinkArg {
 
 /// An enum case written as a `$params` value: the case, and both texts the rule
 /// above could spell it as.
+#[derive(Clone, Debug)]
 struct CaseArg {
     /// The enum's declared name, fully qualified. Quoted in the refusal, so it
     /// names the case the call wrote rather than the integer it folds to.

@@ -386,7 +386,7 @@ pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'
 /// arrangement [`crate::expr_table::Delegation`] has, and for its reason: what
 /// rides across is a decision with no resolution left in it, so the consumer
 /// holds strings rather than a second copy of this crate's tables.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Route {
     /// The `Core\Http\Method` case by its own name — `Get`, `Post`. Kept as
     /// the case rather than as `rule:enums/no-class-machinery`'s backing integer because every
@@ -621,7 +621,7 @@ pub enum ParamIn {
 /// rather than a `TypeId` because the interner that would answer it is dropped
 /// with the checking pass, and because the emitter's whole use of a type is to
 /// choose a JSON Schema for it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RouteParam {
     /// The parameter's own name, sigil-less — the capture's name
     /// (`rule:security/route-capture-is-laundered-by-its-type`) or the query key,
@@ -764,7 +764,7 @@ pub struct EnumCapture {
 /// Each call is kept with its span and whether its gate can be a
 /// `Core\Router\Responder`, because [`check_responders`] warns at the call
 /// only once every row is collected, and the call may be checked first.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RouteTable {
     rows: Vec<Route>,
     dispatches: Vec<DispatchSite>,
@@ -789,7 +789,7 @@ pub struct RouteTable {
 
 /// The resolved calls one method's body makes, and whether it reads the whole
 /// request body, as [`check_helper_reads`] follows them.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct MethodCalls {
     /// The label of each method the body calls, sorted, each once. A `Core`
     /// method is not listed, because it reads no body through a program's
@@ -875,7 +875,7 @@ pub struct OAuthFlow {
 }
 
 /// One `Core\Router::dispatch` call, as [`check_responders`] reads it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct DispatchSite {
     /// The gate argument, or the whole call where none is written.
     span: Span,
@@ -908,6 +908,27 @@ impl Route {
 }
 
 impl RouteTable {
+    /// Moves every row and record of `part` after this table's own, which
+    /// is the load order one walk over both files gives.
+    pub(crate) fn absorb(&mut self, part: Self) {
+        let Self {
+            rows,
+            dispatches,
+            schemes,
+            scheme_names,
+            security_uses,
+            bodies,
+            calls,
+        } = part;
+        self.rows.extend(rows);
+        self.dispatches.extend(dispatches);
+        self.schemes.extend(schemes);
+        self.scheme_names.extend(scheme_names);
+        self.security_uses.extend(security_uses);
+        self.bodies.extend(bodies);
+        self.calls.extend(calls);
+    }
+
     /// Whether the program calls `Core\Router::dispatch`. Only such a program
     /// has its gate called for a request the server refused, because a program
     /// that dispatches by hand would read that request as one with no route.

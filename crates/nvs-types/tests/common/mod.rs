@@ -394,6 +394,147 @@ pub(crate) fn check_program_module(
     (diags, exprs, module)
 }
 
+/// A program written to a temporary directory, which a test checks more than
+/// once and edits between the checks.
+///
+/// Every check loads the files into a new map pinned with [`Self::pins`], so
+/// a file keeps its id from one check to the next, as it does in the editor.
+pub(crate) struct Program {
+    dir: TempDir,
+    pins: nvs_diagnostics::Pins,
+}
+
+/// What one check of a [`Program`] reported and recorded.
+pub(crate) struct Checked {
+    /// Every diagnostic, parsing and resolving included, as debug text.
+    pub(crate) diags: Vec<String>,
+    /// [`ExprTypeTable::canonical_text`] of the table.
+    pub(crate) table: String,
+    /// The table itself.
+    pub(crate) exprs: ExprTypeTable,
+    /// The id of each file the check loaded, by its file name.
+    pub(crate) ids: Vec<(String, nvs_diagnostics::SourceId)>,
+}
+
+impl Checked {
+    /// The id of the loaded file named `name`.
+    pub(crate) fn id(&self, name: &str) -> nvs_diagnostics::SourceId {
+        self.ids
+            .iter()
+            .find(|(file, _)| file == name)
+            .map(|(_, id)| *id)
+            .unwrap_or_else(|| panic!("{name} was not loaded: {:?}", self.ids))
+    }
+}
+
+impl Program {
+    /// Writes `files`, each `(name, source)`, into a new directory named
+    /// after `name`.
+    pub(crate) fn new(name: &str, files: &[(&str, &str)]) -> Self {
+        let dir = TempDir::new(name);
+        for (file, src) in files {
+            dir.write(file, src);
+        }
+        Self {
+            dir,
+            pins: nvs_diagnostics::Pins::new(),
+        }
+    }
+
+    /// Writes `src` over the file `name`, or adds it.
+    pub(crate) fn write(&self, name: &str, src: &str) {
+        self.dir.write(name, src);
+    }
+
+    /// Checks the program whose entry is `entry`.
+    ///
+    /// With `partial`, the check walks the bodies of the files it names and
+    /// folds every other file's output from the cache. Without it, the check
+    /// is a whole one.
+    pub(crate) fn check(
+        &mut self,
+        entry: &str,
+        interner: &mut TypeInterner,
+        partial: Option<(&[&str], &mut nvs_types::CheckCache)>,
+    ) -> Checked {
+        let mut map = SourceMap::pinned(std::mem::take(&mut self.pins));
+        let entry = map
+            .load(self.dir.path.join(entry))
+            .expect("load the entry fixture");
+        let mut diags = Diagnostics::new();
+        let stmts = nvs_syntax::parse_file(map.file(entry), &mut diags);
+        let core = nvs_stdlib::registry::link_targets();
+        let closed = nvs_stdlib::registry::closed_interfaces();
+        let sealed = nvs_stdlib::registry::sealed_classes();
+        let imports = nvs_types::core_lib::importable();
+        let (module, loaded, _autoload) = nvs_hir::resolve_program(
+            entry,
+            stmts,
+            &mut map,
+            nvs_hir::CoreRoster::Names {
+                links: &core,
+                closed: &closed,
+                sealed: &sealed,
+                imports: &imports,
+            },
+            &mut diags,
+        );
+        let name_of = |id: nvs_diagnostics::SourceId| -> String {
+            map.file(id)
+                .path()
+                .and_then(|path| path.file_name())
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        };
+        let ids: Vec<(String, nvs_diagnostics::SourceId)> = loaded
+            .iter()
+            .map(|file| (name_of(file.id), file.id))
+            .collect();
+        let program: Vec<nvs_types::ProgramFile<'_>> = loaded
+            .iter()
+            .map(|file| nvs_types::ProgramFile {
+                src: map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect();
+        let mut exprs = ExprTypeTable::new();
+        match partial {
+            None => {
+                check_program(&program, &module, interner, &mut exprs, &mut diags);
+            }
+            Some((names, cache)) => {
+                let bodies = ids
+                    .iter()
+                    .filter(|(name, _)| names.contains(&name.as_str()))
+                    .map(|(_, id)| *id)
+                    .collect();
+                nvs_types::check_program_partial(
+                    &program,
+                    &module,
+                    None,
+                    nvs_types::Backtracking::Allow,
+                    &nvs_types::Grants::default(),
+                    None,
+                    &[],
+                    &bodies,
+                    cache,
+                    interner,
+                    &mut exprs,
+                    &mut diags,
+                );
+            }
+        }
+        drop(program);
+        self.pins = map.take_pins();
+        Checked {
+            diags: diags.iter().map(|d| format!("{d:?}")).collect(),
+            table: exprs.canonical_text(),
+            exprs,
+            ids,
+        }
+    }
+}
+
 /// A directory of fixture files under `target/` that is deleted when it drops,
 /// the shape `nvs_hir::requires`' own tests use — copied rather than shared
 /// because that one lives inside a `#[cfg(test)]` module of another crate.

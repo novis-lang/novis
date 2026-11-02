@@ -195,6 +195,7 @@ pub(crate) mod match_attribute;
 pub mod moved;
 pub mod narrow;
 pub mod package;
+pub mod partial;
 pub mod paths;
 pub(crate) mod program;
 pub mod provenance;
@@ -219,7 +220,7 @@ mod test_inherit;
 pub mod testing;
 pub mod ty;
 
-pub use check::{HOOK_VALUE_PARAM, check_program, check_program_granted};
+pub use check::{HOOK_VALUE_PARAM, check_program, check_program_granted, check_program_partial};
 pub use core_lib::interface_implementors as core_interface_implementors;
 pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
@@ -290,6 +291,7 @@ pub use nvs_stdlib::script::{
     AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, FINISH_SYMBOL as CORE_SCRIPT_FINISH,
     SPAWN_METHOD_SYMBOL as CORE_SCRIPT_SPAWN_METHOD, SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
 };
+pub use partial::{CheckCache, FileOutput};
 
 pub use nvs_stdlib::format::PIECE_SYMBOL as CORE_STR_FORMAT_PIECE;
 pub use nvs_stdlib::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};

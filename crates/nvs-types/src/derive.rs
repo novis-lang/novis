@@ -1389,7 +1389,7 @@ fn enum_cases(
 /// exactly when `T` is, and the property's own span, because `rule:core-classes/derive-property-list`'s refusal is
 /// at the declaration that wrote the field rather than at the `decodeAs<T>`
 /// that would later fail on it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CodecFieldSite {
     /// The deriving class, for the message alone.
     class: String,
@@ -1456,7 +1456,7 @@ pub(crate) fn resolve_field_types(
 /// [`CodecFieldSite`]'s reason, one layer out: the row class a call names is
 /// routinely declared in a file the walk has not reached, so answering where
 /// the call is written would make the refusal depend on file order.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RowSite {
     /// `Class::method` as the message spells it — both of `rule:core-classes/db-transactions`'s
     /// spellings reach here, and a reader needs to see the one they wrote.
@@ -1673,7 +1673,7 @@ pub(crate) fn stands_in_for_a_class(owner: &str) -> bool {
 /// [`RowSite`]'s reason at the other door: the class a call names is routinely
 /// declared in a file the walk has not reached, so answering where the call is
 /// written would make the refusal depend on file order.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct JsonSite {
     /// The member that asked, as `Class::member` — every door that runs
     /// `nvs_stdlib::json`'s decoder reaches here, and a reader needs to see the
@@ -1845,7 +1845,7 @@ fn check_json_participation(
 /// [`crate::expr::args::written_class_of`]'s roster: the class a call names is
 /// routinely declared in a file the walk has not reached, so answering where
 /// the call is written would make the refusal depend on file order.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DecodeSite {
     /// The member that asked, as `Class::member`, so the report says whose
     /// octets they are — a request body under `Core\Request`, an issuer's
@@ -1958,7 +1958,7 @@ pub(crate) fn check_decode_sites(
 ///
 /// [`DecodeSite`]'s reason: the class the argument's type names may be declared
 /// in a file the walk has not reached yet.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EncodeSite {
     /// The member that encodes, as `Class::member`.
     member: String,

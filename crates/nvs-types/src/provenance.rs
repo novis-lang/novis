@@ -91,13 +91,20 @@ impl TaintStep {
 }
 
 /// Every path the checker recorded, by the span of the expression it ends at.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Provenance {
     paths: FxHashMap<Span, Vec<TaintStep>>,
     bindings: FxHashMap<Span, Vec<TaintStep>>,
 }
 
 impl Provenance {
+    /// Adds every path `part` records. Both maps are keyed by span, and no
+    /// two files share a span.
+    pub(crate) fn absorb(&mut self, part: Self) {
+        self.paths.extend(part.paths);
+        self.bindings.extend(part.bindings);
+    }
+
     /// The path recorded for the expression at `span`.
     #[must_use]
     pub fn path(&self, span: Span) -> Option<&[TaintStep]> {
