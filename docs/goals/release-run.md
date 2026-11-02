@@ -361,9 +361,9 @@ the failures by cause. A group whose fix touches files no other group touches ma
 subagent. Such subagents run side by side, and none of them builds. The release steps after verify
 are one session's, one step per turn, each waiting on its watch.
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 - [ ] `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and the dry run ends green: `bun nv ci --release-status` exits 0 on `main`'s tip. `tools/nv/cmd/ci.ts:537`
 - [ ] `bun nv release --preview patch` prints `0.0.1`. `looper loop pause`, the handoff committed and pushed, then `bun nv ci --dispatch release` and the watch in the background. `tools/nv/cmd/release.ts:1030`
 - [ ] The run waits on `release`: the notes are read, then `bun nv ci --approve-release`. `.github/workflows/release.yml:263`
@@ -375,18 +375,18 @@ are one session's, one step per turn, each waiting on its watch.
 
 ### State
 
-Stages 1 to 4 are done. `57f88b718` adds the real-run modes to `bun nv ci`: `--dispatch release`,
-`--approve-release`, `--publish-release` and `--release-published`. `--release-status` now reads
-real runs, and `--watch --release` passes over a failed optional build leg. `bun test
-tools/nv/test/ci.test.ts` ran once: 43 pass. `docs/release.md` § *Cutting a release* names the
-command for each step.
+Stages 1 to 4 are done. In stage 5, verify is green on `5933df46e`: 23 of 23 steps, 8375 tests,
+2438 conformance cases, clippy clean. Its one failure was `nv selftest`'s tsc on the approve fixture
+(`notes: undefined` under `exactOptionalPropertyTypes`), fixed in `5933df46e`. One rerun stopped at
+`build` on a Windows lock of `target/covws/.../nvs.exe` that no live process held; the next run passed.
+`bun nv ci --check`, `bun nv verify --doc` and `bun nv owners --closes release-run` are green.
 
-The sweep's reds were stale. `env-secret-proofs` has no definition and no log in the tree. Nightly
-`41295327777` ran on `ef0d5cd3b`, 46 commits back, and its one real red, `lint`'s unresolved
-`Shared::sweep` link, is fixed on `main` (`crates/nvs-host/src/watchdog.rs:120`).
+`5933df46e` is pushed, and dry run `41382605630` runs on it. No full `ci.yml` run has passed on that
+commit, so its `verify` job runs the whole suite. `bun nv ci --watch --release --max-min 110` watches
+it in the background; its report starts the next turn.
 
-Dry run `41371737071` on `eb9358fdb` is green, but `57f88b718` changes code, so `--release-status`
-is red until a dry run of the new tip ends green. That is stage 5's fourth item.
+The sweep's reds are stale. `env-secret-proofs` is named nowhere but this file and has no log. Nightly
+`41295327777` ran on `ef0d5cd3b`, and its one real red, `lint`, is fixed on `main`.
 
 The real-run modes have run only against fixtures. Their `gh` calls are: `pending_deployments`
 GET and POST with `-F environment_ids[]=<id>`, `gh run download -n release-notes-preview`,
@@ -396,8 +396,7 @@ fixed in `ci.ts` before the next step, never by hand through `gh`.
 
 ### Next
 
-- [ ] Stage 5, the gate: `bun nv affected --run` with `run_in_background`, then end the turn. The change reaches `tools/nv/` and docs alone. `tools/nv/test/ci.test.ts:383`
-- [ ] Fix every failure in one pass, then `bun nv ci --check`, `bun nv ci --push`, `bun nv ci --dispatch dry-run`, and `bun nv ci --watch --release` in the background. `tools/nv/cmd/ci.ts:702`
+- [ ] Dry run `41382605630` ends green: `bun nv ci --release-status` exits 0. A red is fixed at its cause, pushed, and dry-run again. A watch that exits 3 is started again. `tools/nv/cmd/ci.ts:537`
 - [ ] Then the real run's order from the standing decisions, one step per turn. The approve judge is `judgeRun` with stage `approve`, called from `approveRelease` (`tools/nv/cmd/ci.ts:969`). `tools/nv/cmd/ci.ts:797`
 - [ ] `--publish-release` checks the draft against `draftAssets`, read from `build.yml`'s matrix. `tools/nv/cmd/ci.ts:865`
 
