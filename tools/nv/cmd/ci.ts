@@ -184,9 +184,11 @@ const MAX_MIN = 110;
 /** How many lines of a failed job's log are printed, and how many logs `.agent-tmp/ci/` keeps. */
 const TAIL_LINES = 40;
 const LOGS_KEPT = 20;
-/** How many earlier lines that name a failure are printed above the tail, and how one is told. */
+/** How many earlier lines that name a failure are printed above the tail, and how one is told. nextest
+ * indents its status lines, such as `        FAIL [   0.193s] nvs-cli::run_command <test>`. */
 const MARKED_LINES = 20;
-const FAILURE_LINE = /^(FAIL\b|FAILED\b|error(\[E\d+\])?:|test .* \.\.\. FAILED|thread '.*' panicked|failures:|---- )|##\[error\]/;
+const FAILURE_LINE =
+  /^(FAIL\b|FAILED\b|error(\[E\d+\])?:|test .* \.\.\. FAILED|thread '.*' panicked|failures:|---- )|^\s+(FAIL|TIMEOUT|SIGSEGV|SIGABRT|SIGKILL|ABORT) \[|##\[error\]/;
 /** A job conclusion that is a failure. A job that passes its `timeout-minutes` ends `cancelled`. */
 const RED = new Set(["failure", "timed_out", "startup_failure", "cancelled"]);
 

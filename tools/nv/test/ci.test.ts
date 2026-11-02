@@ -345,6 +345,14 @@ describe("bun nv ci: the log and the arguments", () => {
     expect(t.at(-1)).toBe("##[error]exit 1");
   });
 
+  test("the tail keeps nextest's indented FAIL and TIMEOUT lines and no PASS line", () => {
+    const fail = "        FAIL [  60.012s] nvs-cli::run_command a_test";
+    const timeout = "     TIMEOUT [ 300.001s] nvs-stdlib session::tests::b_test";
+    const pass = "        PASS [   0.193s] nvs-cli::run_command c_test";
+    const lines = [fail, pass, timeout, ...Array.from({ length: 100 }, (_, i) => `line ${i}`), "##[error]exit 100"];
+    expect(tail(lines).slice(0, 3)).toEqual([fail, timeout, "..."]);
+  });
+
   test("no mode, or a stray argument, is a usage error", async () => {
     const w = seams("usage", () => ({ runs: [], jobs: {} }));
     expect(await ci([], w.s)).toBe(2);

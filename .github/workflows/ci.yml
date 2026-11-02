@@ -155,7 +155,7 @@ jobs:
     # Every platform is two legs, because one leg set the whole run's length. A cold Windows leg
     # took 110 minutes: a 43-minute build, 35 of tests and 28 of the two conformance runs. Linux
     # x86_64 took 74 minutes cold, Linux aarch64 68 warm and macOS 53. The `tests` leg builds the
-    # workspace and runs `cargo test`, the `conformance` leg runs the two suites, and the two run
+    # workspace and runs its tests, the `conformance` leg runs the two suites, and the two run
     # side by side. They share one cache entry, which the `tests` leg alone saves: its workspace
     # build covers everything the `conformance` leg compiles.
     #
@@ -172,6 +172,8 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-latest
             part: tests
+            nextest: x86_64-unknown-linux-gnu
+            nextest-sha256: 223ba936714cc861a9cdedad5a8eb664dfdd69d6fbdf6cea6aa8184f523290dc
           - name: linux-x86_64
             os: ubuntu-latest
             part: conformance
@@ -183,12 +185,16 @@ jobs:
           - name: linux-aarch64
             os: ubuntu-24.04-arm
             part: tests
+            nextest: aarch64-unknown-linux-gnu
+            nextest-sha256: 81469eb963ef883fd590e60189e77d6aba3d91b418591d3391f50fe3e9480d2b
           - name: linux-aarch64
             os: ubuntu-24.04-arm
             part: conformance
           - name: windows-x86_64
             os: windows-latest
             part: tests
+            nextest: x86_64-pc-windows-msvc
+            nextest-sha256: bef17504bed9d4994cf860c122e84a90d613b92e6d89584fa9e28bd53ad42e15
           - name: windows-x86_64
             os: windows-latest
             part: conformance
@@ -200,9 +206,13 @@ jobs:
           - name: macos-aarch64
             os: macos-latest
             part: tests
+            nextest: universal-apple-darwin
+            nextest-sha256: 6c23b7fb4ca82c571fc8dfedbab45bfa773d45918f933170c85d21cd7f4b852b
           - name: macos-aarch64
             os: macos-latest
             part: conformance
+    env:
+      NEXTEST_VERSION: '0.9.148'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -286,6 +296,25 @@ jobs:
           -subj "/CN=Novis CI placeholder CA"
           -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
 
+      # cargo-nextest runs the `tests` leg's tests. It is nextest's own prebuilt binary for the runner's
+      # platform, because building it from crates.io took 4 to 7 minutes. tar runs inside the folder
+      # because GNU tar reads `D:` in a Windows path as a remote host. Each leg's tarball is checked
+      # against the SHA256 its matrix row pins, so a replaced asset fails the step before it runs.
+      # Raising `NEXTEST_VERSION` raises the four digests and the `miri-units` job's version with it.
+      - name: cargo-nextest
+        if: matrix.part != 'conformance'
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          mkdir nextest
+          cd nextest
+          curl -fsSL --retry 4 -o nextest.tar.gz \
+            "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-${{ matrix.nextest }}.tar.gz"
+          if command -v sha256sum > /dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+          echo "${{ matrix.nextest-sha256 }}  nextest.tar.gz" | $sum -c -
+          tar -xzf nextest.tar.gz
+          echo "$RUNNER_TEMP/nextest" >> "$GITHUB_PATH"
+
       - if: matrix.part != 'conformance'
         run: cargo build --workspace --all-targets
 
@@ -297,8 +326,15 @@ jobs:
           docker compose -f tests/db/compose.yaml up -d --wait redis samba-ad
           echo "NVS_LDAP_SAMBA=1" >> "$GITHUB_ENV"
 
+      # nextest runs each test in a process of its own, and every core runs a test from any binary.
+      # `cargo test` ran the binaries one after another, and nextest took 7 to 9 minutes off the
+      # Windows leg and 4 to 6 off Linux x86_64. Its `ci` profile in `.config/nextest.toml` lists
+      # every failure. nextest cannot list a bench that sets `harness = false`, so `cargo test` runs
+      # the benches.
       - if: matrix.part != 'conformance'
-        run: cargo test --workspace --all-targets
+        run: cargo nextest run --profile ci --workspace --lib --bins --tests --examples
+      - if: matrix.part != 'conformance'
+        run: cargo test --workspace --benches
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
       - if: matrix.part != 'conformance'
@@ -1576,8 +1612,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: miri-units-${{ matrix.crate }}
-      # Built from crates.io at a pinned version with its own lock file, and kept by the cache
-      # above, so a warm run installs nothing.
+      # Built from crates.io at the `test` job's `NEXTEST_VERSION` with its own lock file, and kept
+      # by the cache above, so a warm run installs nothing.
       - name: install cargo-nextest
         run: cargo install cargo-nextest@0.9.148 --locked
       - name: miri nextest (${{ matrix.crate }})
