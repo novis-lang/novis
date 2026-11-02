@@ -12,11 +12,12 @@ use Core\Test;
 // Tests for the limit of ten reports an hour from one address.
 // All tests share the memory of the server, and they can run at the same time.
 // So each test uses its own address and its own day, and gets a salt of its own.
+// The days are in 2001. A test with no `at:` runs on today's date, so it never uses one of them.
 final class LimitTest
 {
     // A request from `Test::request` has no address, so all of these requests count as one sender.
     // Each report is refused with 400, so the file `telemetry.sqlite` is not changed.
-    #[Test(at: '2026-11-01T12:00:00Z')]
+    #[Test(at: '2001-01-01T12:00:00Z')]
     public function theEleventhReportInAnHourGets429(): void
     {
         uint $sent = 0;
@@ -30,7 +31,7 @@ final class LimitTest
         Test::assertSame($response->header('retry-after'), '360');
     }
 
-    #[Test(at: '2026-11-02T12:00:00Z')]
+    #[Test(at: '2001-01-02T12:00:00Z')]
     public function aNewHourAcceptsAgain(): void
     {
         LimitTest::useAll('192.0.2.10');
@@ -40,7 +41,7 @@ final class LimitTest
     }
 
     // The salt changes at midnight UTC, so the same address gets a new key.
-    #[Test(at: '2026-11-03T23:30:00Z')]
+    #[Test(at: '2001-01-03T23:30:00Z')]
     public function aNewDayUsesANewKey(): void
     {
         var $today = Limit::key('192.0.2.20');
@@ -51,7 +52,7 @@ final class LimitTest
 
     // The limit and the totals are given a known address. Then every row of every table is
     // read, and none of them contains the address or the key made from it.
-    #[Test(at: '2026-11-05T12:00:00Z')]
+    #[Test(at: '2001-01-05T12:00:00Z')]
     public function theAddressIsInNoTable(): void
     {
         string $address = '198.51.100.77';
