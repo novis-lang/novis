@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
-import { manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
+import { LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
 import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -15,19 +15,36 @@ test("a diff of docs alone needs no dev build, and anything else or an unknown d
   expect(releaseNeeded(null)).toBe(true);
 });
 
+/** Every path, from the repository's root, that a file matching `glob` names through `pattern`'s first
+ * group, resolved against that file's directory. */
+function named(glob: string, pattern: RegExp): string[] {
+  const out: string[] = [];
+  for (const file of new Bun.Glob(glob).scanSync({ cwd: ROOT })) {
+    const rel = file.replaceAll("\\", "/");
+    for (const m of readFileSync(posix.join(ROOT, rel), "utf8").matchAll(pattern)) {
+      out.push(posix.normalize(posix.join(posix.dirname(rel), m[1]!)));
+    }
+  }
+  return out;
+}
+
+const embedded = () => named("crates/**/*.rs", /include_(?:str|bytes)!\(\s*"([^"]+)"/g);
+
+// A path crate or an embedded file outside the `code` lane would let a push change the binary and
+// run none of its tests.
+test("the code lane covers every file a crate embeds and every path crate", () => {
+  const pathCrates = ["Cargo.toml", "crates/*/Cargo.toml"].flatMap((glob) => named(glob, /\bpath\s*=\s*"([^"]+)"/g));
+  const inputs = [...embedded(), ...pathCrates.map((dir) => `${dir}/Cargo.toml`)];
+  expect(pathCrates.some((dir) => dir.startsWith("vendor/"))).toBe(true);
+  expect(inputs.filter((path) => !lanesFor({ code: LANES.code! }, [path])[0]![1])).toEqual([]);
+});
+
 // A file the binary embeds under a path `UNBUILT` names would leave the dev build stale after a push
 // that changed it.
 test("no file a crate embeds is on the list the dev build skips", () => {
-  const embedded: string[] = [];
-  for (const file of new Bun.Glob("crates/**/*.rs").scanSync({ cwd: ROOT })) {
-    const rel = file.replaceAll("\\", "/");
-    const text = readFileSync(posix.join(ROOT, rel), "utf8");
-    for (const m of text.matchAll(/include_(?:str|bytes)!\(\s*"([^"]+)"/g)) {
-      embedded.push(posix.normalize(posix.join(posix.dirname(rel), m[1]!)));
-    }
-  }
-  expect(embedded.length).toBeGreaterThan(0);
-  expect(embedded.filter((path) => !releaseNeeded([path]))).toEqual([]);
+  const files = embedded();
+  expect(files.length).toBeGreaterThan(0);
+  expect(files.filter((path) => !releaseNeeded([path]))).toEqual([]);
   expect(UNBUILT.filter((p) => p.startsWith("crates/") || p === "Cargo.toml" || p === "Cargo.lock")).toEqual([]);
 });
 

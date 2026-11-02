@@ -42,6 +42,15 @@ export const LOCKFILE_DIRS = [
   "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/markdown-extension",
 ];
 
+// What the binary is built from outside `crates/`: the patched crates under `vendor/`, the extension
+// components `nvs-ext`'s build script compiles and the WIT they implement, and the files the crates
+// embed. `ci-changes.test.ts` fails when a crate embeds a file, or `Cargo.toml` names a path crate,
+// that this list and `code` do not cover.
+const BINARY_INPUTS = [
+  "vendor/", "wit/", "extensions/", "viewer/dist/", "apps/telemetry/", "docs/reference/",
+  "LICENSE", "README.md", "CHANGELOG.md", "THIRD-PARTY-LICENSES.txt",
+];
+
 // One entry per gate a job in ci.yml spells as `needs.changes.outputs.<name> == 'true'`. A prefix
 // ending in `/` matches everything beneath it; anything else matches that one path exactly.
 //
@@ -52,7 +61,7 @@ export const LANES: Record<string, string[]> = {
   code: [
     "crates/", "benches/", "tests/", "examples/", "fuzz/", "tools/",
     "Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml", "deny.toml",
-    ".github/workflows/",
+    ...BINARY_INPUTS, ".github/workflows/",
   ],
   // The crates that emit or execute machine code, plus the probes that measure them. These are where
   // a use-after-free lives, and they are the only inputs a cost baseline has, so this gates ASAN and
@@ -78,7 +87,7 @@ export const LANES: Record<string, string[]> = {
   // host suite points a throwaway profile at the binary the same run built
   // (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in the
   // workspace can change what either of them answers. Gates `extension` and `extension-host`.
-  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ".github/workflows/"],
+  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ...BINARY_INPUTS, ".github/workflows/"],
   // What `cargo deny` and the attribution diff read, the other lockfiles' manifests among them. Their
   // answer cannot differ in a run that changed none of these
   // (`rule:packaging/a-dependency-move-proves-two-things`).
@@ -102,8 +111,8 @@ export const LANES: Record<string, string[]> = {
   // Gates `proofs`.
   proofs: [
     "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-    "docs/examples/", "docs/reference/", "data/perf/", "data/proofs/", "data/gaps/",
-    "website/", ".github/workflows/",
+    "docs/examples/", "data/perf/", "data/proofs/", "data/gaps/",
+    "website/", ...BINARY_INPUTS, ".github/workflows/",
   ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package
