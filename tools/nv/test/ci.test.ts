@@ -647,11 +647,11 @@ describe("bun nv ci: the release", () => {
 
   test("approve-release approves the release environment of the newest real run only when every job before publish passed", async () => {
     const leg = optionalLegs(ROOT)[0]!;
-    const world = (jobs: Job[], notes: string | null = "## Novis 0.0.1\n\nThe first release.") => () => ({
+    const world = (jobs: Job[], notes: string | null = "## Novis 0.0.1\n\nThe first release.") => (): ReleaseWorld => ({
       release: [realRun(40, "waiting", null), dryRun(28, "completed", "success")],
       jobs: { 40: jobs },
       pending: [{ id: 7, name: "release" }],
-      notes: notes ?? undefined,
+      ...(notes === null ? {} : { notes }),
     });
     const w = releaseSeams("approve", world([...waitingJobs(), jobOf(9, leg, "completed", "failure", "cargo build")]));
     expect(await ci(["--approve-release"], w.s)).toBe(0);
