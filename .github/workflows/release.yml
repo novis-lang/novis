@@ -353,8 +353,7 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Named files, never `git add -A`: a runner's working tree also holds dist/ and
-          # whatever a build script dropped. The first release changes CHANGELOG.md alone, and an
-          # unchanged file named here adds nothing.
+          # whatever a build script dropped.
           git add Cargo.toml Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json
           # Written to a file and passed with -F. The subject follows
           # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.

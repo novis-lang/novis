@@ -1,15 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { join } from "node:path";
 import { gunzipSync, inflateRawSync } from "node:zlib";
-import { ROOT } from "../lib/paths.ts";
 import {
   bumpManifest,
   bumpPackageJson,
-  CHANGELOG_HEADER,
   classify,
   dockerTags,
-  FIRST_NOTES,
-  firstReleaseNotes,
   fixesIn,
   greenFullRun,
   newerTag,
@@ -59,16 +54,16 @@ describe("nv release versions", () => {
     expect(releaseTags("v0.9.0\nv0.10.0\npre-overhaul\nv1.0.0-rc1\n").map((t) => t.name)).toEqual(["v0.10.0", "v0.9.0"]);
   });
 
-  test("with no tag, patch and minor release the current version, and major alone needs the contract", () => {
-    expect(planVersion("0.0.1", "patch", "", [], false)).toBe("0.0.1");
-    expect(planVersion("0.0.1", "minor", "", [], false)).toBe("0.0.1");
-    expect(() => planVersion("0.0.1", "major", "", [], false)).toThrow(/version contract/);
-    expect(planVersion("0.0.1", "major", "", [], true)).toBe("0.1.0");
+  test("a clone with no tag stops the plan and names the fetch", () => {
+    expect(() => planVersion("0.0.2", "patch", "", [], false)).toThrow(/git fetch --tags/);
   });
 
-  test("once a tag exists, a release advances past it", () => {
+  test("a release advances past the newest tag, and major alone needs the contract", () => {
     const known = releaseTags("v0.0.1");
     expect(planVersion("0.0.1", "patch", "", known, false)).toBe("0.0.2");
+    expect(planVersion("0.0.1", "minor", "", known, false)).toBe("0.0.2");
+    expect(() => planVersion("0.0.1", "major", "", known, false)).toThrow(/version contract/);
+    expect(planVersion("0.0.1", "major", "", known, true)).toBe("0.1.0");
     expect(() => planVersion("0.0.1", "patch", "0.0.1", known, false)).toThrow(/does not advance/);
     expect(() => planVersion("0.0.1", "patch", "", releaseTags("v0.0.2"), false)).toThrow(/ahead of/);
   });
@@ -174,7 +169,7 @@ describe("nv release notes", () => {
         .map((c) => c.join("\x1f") + "\x1e\n")
         .join(""),
     ).map(classify);
-    const notes = renderNotes("0.1.0", null, fmt, "", "2026-01-02");
+    const notes = renderNotes("0.1.0", "v0.0.1", fmt, "", "2026-01-02");
     expect(notes).toContain("### Breaking changes");
     expect(notes).toContain("- **fmt**: braces on their own line (`s4`)\n");
     expect(notes).toContain(
@@ -187,7 +182,7 @@ describe("nv release notes", () => {
 
   test("a section past the cap lists the first entries and counts the rest", () => {
     const feats = parseLog("b\x1ffeat: second\x1f\x1ea\x1ffeat: first\x1f\x1e").map(classify);
-    const notes = renderNotes("0.1.0", null, feats, "", "2026-01-02", 1);
+    const notes = renderNotes("0.1.0", "v0.0.1", feats, "", "2026-01-02", 1);
     expect(notes).toContain("### Features\n\n- first (`a`)\n- …and 1 more, in the full changes below.\n");
     expect(notes).not.toContain("Full changes](");
   });
@@ -198,24 +193,17 @@ describe("nv release notes", () => {
     expect(fixesIn(more).map((e) => e.sha)).toEqual(["g7"]);
   });
 
-  test("the first release's notes are the written file under the version heading", async () => {
-    expect(firstReleaseNotes("0.0.1", "\nNovis is here.\n\n", "2026-01-02")).toBe("## [0.0.1] - 2026-01-02\n\nNovis is here.\n");
-    const written = (await Bun.file(join(ROOT, FIRST_NOTES)).text()).trim();
-    const first = await notesFor("0.0.1", null, 10);
-    expect(first).toMatch(/^## \[0\.0\.1\] - \d{4}-\d{2}-\d{2}\n\n/);
-    expect(first).toContain(written);
-  });
 
-  test("a release after a tag renders the commit log, not the written notes", async () => {
+  test("a release renders the commit log since the previous tag", async () => {
     // `HEAD..HEAD` is empty, so this needs no history and runs on a shallow clone.
     const later = await notesFor("0.0.2", "HEAD", 10);
+    expect(later).toMatch(/^## \[0\.0\.2\] - \d{4}-\d{2}-\d{2}\n\n/);
     expect(later).toContain("No commits since the previous release.");
-    expect(later).not.toContain((await Bun.file(join(ROOT, FIRST_NOTES)).text()).trim().split("\n")[0]!);
   });
 
-  test("a section is prepended above the newest release, and a first release starts the file", () => {
+  test("a section is prepended above the newest release, below the header", () => {
     expect(prependChangelog("# Changelog\n\n## [0.1.0] - x\n", "## [0.2.0] - y\n")).toBe("# Changelog\n\n## [0.2.0] - y\n\n## [0.1.0] - x\n");
-    expect(prependChangelog(null, "## [0.1.0] - x\n")).toBe(`${CHANGELOG_HEADER}\n## [0.1.0] - x\n`);
+    expect(prependChangelog("# Changelog\n", "## [0.1.0] - x\n")).toBe("# Changelog\n\n## [0.1.0] - x\n");
   });
 });
 

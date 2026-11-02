@@ -59,10 +59,10 @@
 // `docs/agent/dependency-update.md`. The editor extension ships the same version, so `--apply` also
 // rewrites `editors/vscode/package.json` and the two versions in its `package-lock.json`.
 //
-// **The first release is the version the tree already says.** With no `v*` tag, `patch` and `minor`
-// release `Cargo.toml`'s version as it is, and the notes are the written `docs/release-notes/first.md`,
-// because a changelog of the whole history is no release note. `--apply` then bumps nothing, and the
-// release commit carries the changelog alone.
+// **Every release starts from the previous tag.** The notes are the commit log since it, and the
+// version advances past it. A clone with no `v*` tag is one fetched without its tags, so every step
+// that needs the tag stops there and says to fetch them. It never renders the whole history as notes,
+// and it never names a version that is already released.
 //
 // **The notes are compacted.** `git log` here is written by an unattended loop and is largely
 // bookkeeping. So `feat`, `fix` and `perf` are listed in full and grouped by scope, anything breaking
@@ -100,21 +100,6 @@ const die = (message: string): never => {
 // `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` makes it the notice this
 // project owes at distribution, and an archive is distribution. A missing one fails the packaging step.
 export const ARCHIVE_EXTRAS = ["README.md", "LICENSE", "THIRD-PARTY-LICENSES.txt", "CHANGELOG.md"];
-
-export const CHANGELOG_HEADER = `# Changelog
-
-Every released version of Novis, newest first. Generated from the commit log by
-\`bun nv release\` and prepended by the release workflow -- edit a section only to correct it,
-never to add one by hand.
-
-What a version number promises is \`rule:packaging/the-versioned-surface-is-enumerated\` and \`rule:packaging/below-1-0-the-breaking-slot-moves-left\`
-: it covers the language, the \`Core\` library, \`nvs.toml\`, the CLI, diagnostic identity, the
-extension ABI and \`serialize()\` output -- and explicitly not the Rust APIs of the \`nvs-*\` crates.
-Before 1.0 the breaking slot moves left: \`0.MINOR\` carries breaking changes.
-
-A release is cut by [the release workflow](.github/workflows/release.yml), fired by hand from the
-Actions tab; [docs/release.md](docs/release.md) is the procedure and what it needs configured.
-`;
 
 // `feat(scope)!: subject` / `fix: subject`. The `!` and the scope are both optional. A subject that
 // does not match is listed under *Other*.
@@ -300,9 +285,8 @@ export function bumpPackageJson(text: string, version: string, file: string): st
   return out;
 }
 
-/** Insert `section` above the newest release, or start the file with the header on a first release. */
-export function prependChangelog(existing: string | null, section: string): string {
-  if (existing === null) return `${CHANGELOG_HEADER}\n${section}`;
+/** Insert `section` above the newest release, below the file's header. */
+export function prependChangelog(existing: string, section: string): string {
   const marker = /^## \[/m.exec(existing);
   if (marker) return existing.slice(0, marker.index) + section + "\n" + existing.slice(marker.index);
   return existing.replace(/\n+$/, "") + "\n\n" + section;
@@ -414,7 +398,7 @@ const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 /** One version's changelog section, dated `today`. */
 export function renderNotes(
   version: string,
-  previousTag: string | null,
+  previousTag: string,
   entries: Entry[],
   url: string,
   today: string,
@@ -467,10 +451,7 @@ export function renderNotes(
     lines.push("### Internal", "", `${rest.length} further commits: ${tally}.`, "");
   }
 
-  if (url) {
-    const span = previousTag ? `${previousTag}...v${version}` : `v${version}`;
-    lines.push(`[Full changes](${url}/compare/${span}) — ${entries.length} commits.`, "");
-  }
+  if (url) lines.push(`[Full changes](${url}/compare/${previousTag}...v${version}) — ${entries.length} commits.`, "");
   return lines.join("\n");
 }
 
@@ -763,25 +744,16 @@ async function lookUpFullRun(sha: string): Promise<WorkflowRun | null> {
   return greenFullRun(all, full);
 }
 
-/** The first release's notes, written by hand: the whole history is no release note. */
-export const FIRST_NOTES = "docs/release-notes/first.md";
+const NO_TAG = "this clone has no `v*` tag, so it was fetched without its tags. Run `git fetch --tags` and try again";
 
-/** The first release's section: the written notes under the version heading. */
-export function firstReleaseNotes(version: string, written: string, today: string): string {
-  return [`## [${version}] - ${today}`, "", written.replace(/^\s+|\s+$/g, ""), ""].join("\n");
+/** `--since`, or else the newest release tag on this clone. */
+async function previousTag(since: string | undefined): Promise<string> {
+  return since || ((await tags())[0]?.name ?? die(NO_TAG));
 }
 
-/**
- * The changelog section for `version`. With no previous tag this is the first release, and its notes
- * are `FIRST_NOTES`. Every later release renders the commit log since `previousTag`.
- */
-export async function notesFor(version: string, previousTag: string | null, cap: number): Promise<string> {
+/** The changelog section for `version`: the commit log since `previousTag`, dated today. */
+export async function notesFor(version: string, previousTag: string, cap: number): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
-  if (!previousTag) {
-    const path = join(ROOT, FIRST_NOTES);
-    if (!existsSync(path)) die(`the first release's notes are ${FIRST_NOTES}, and it is missing`);
-    return firstReleaseNotes(version, readFileSync(path, "utf8"), today);
-  }
   // Never through a shell: a subject in this history may contain backticks, `$(...)` or a quote.
   const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${previousTag}..HEAD`]);
   return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap);
@@ -793,27 +765,23 @@ export function fixesIn(entries: Entry[]): Entry[] {
 }
 
 /** Every `fix` commit since `previousTag` that `HEAD` has and `built` does not, oldest first. */
-async function fixesMissingFrom(built: string, previousTag: string | null): Promise<Entry[]> {
-  const range = [`${built}..HEAD`, ...(previousTag ? [`^${previousTag}`] : [])];
-  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", ...range]);
+async function fixesMissingFrom(built: string, previousTag: string): Promise<Entry[]> {
+  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${built}..HEAD`, `^${previousTag}`]);
   return fixesIn(parseLog(raw).map(classify));
 }
 
 /**
- * The version a release names, after every guard it clears before it writes. Once a `v*` tag exists, a
- * release advances the workspace version. Before the first tag, the version `Cargo.toml` already says
- * was never released, so `patch` and `minor` release it as it is, and `major` still moves to the next
- * breaking line, behind `allowContract`.
+ * The version a release names, after every guard it clears before it writes: the workspace version
+ * advanced by `bump`, or `exact`, past the newest tag in `known`.
  */
 export function planVersion(current: string, bump: string, exact: string, known: Tag[], allowContract: boolean): string {
-  if (known.length > 0 && compareVersions(known[0]!.version, parseVersion(current)) > 0) {
-    die(`tag ${known[0]!.name} is ahead of Cargo.toml's ${current}. The tree is behind a release that already happened -- reconcile before releasing again.`);
+  const newest = known[0] ?? die(NO_TAG);
+  if (compareVersions(newest.version, parseVersion(current)) > 0) {
+    die(`tag ${newest.name} is ahead of Cargo.toml's ${current}. The tree is behind a release that already happened -- reconcile before releasing again.`);
   }
-  const unreleased = known.length === 0;
-  const target = exact.trim() ? exact.trim() : unreleased && bump !== "major" ? current : nextVersion(current, bump);
+  const target = exact.trim() ? exact.trim() : nextVersion(current, bump);
   const want = parseVersion(target);
-  const order = compareVersions(want, parseVersion(current));
-  if (order < 0 || (order === 0 && !unreleased)) die(`${target} does not advance ${current}`);
+  if (compareVersions(want, parseVersion(current)) <= 0) die(`${target} does not advance ${current}`);
   if (known.some((t) => compareVersions(t.version, want) === 0)) die(`v${target} is already tagged`);
   if (compareVersions(want, [0, 1, 0]) >= 0 && compareVersions(parseVersion(current), [0, 1, 0]) < 0 && !allowContract) {
     die(
@@ -829,10 +797,10 @@ export function planVersion(current: string, bump: string, exact: string, known:
 }
 
 /** (current, next, previous tag), from the manifest and the tags on this clone. */
-async function resolveNext(bump: string, exact: string, allowContract: boolean): Promise<[string, string, string | null]> {
+async function resolveNext(bump: string, exact: string, allowContract: boolean): Promise<[string, string, string]> {
   const current = workspaceVersion(manifest());
   const known = await tags();
-  return [current, planVersion(current, bump, exact, known, allowContract), known[0]?.name ?? null];
+  return [current, planVersion(current, bump, exact, known, allowContract), known[0]!.name];
 }
 
 async function check(): Promise<number> {
@@ -859,10 +827,12 @@ async function apply(version: string, notesFile: string | undefined, manifestsOn
   let section: string | null = null;
   if (!manifestsOnly) {
     if (!notesFile || !existsSync(notesFile)) die("--apply needs --notes-file (render it with --notes first)");
+    if (!existsSync(changelogPath())) die("CHANGELOG.md is missing, and --apply adds the new section to it");
     section = readFileSync(notesFile!, "utf8").replace(/\n+$/, "") + "\n";
   }
   const before = manifest();
   const { text, changed } = bumpManifest(before, version);
+  if (text === before) die(`the manifests already say ${version}, and a release advances them`);
   // Every rewrite is computed before any is written, so a manifest of an unexpected shape stops the
   // release with the tree untouched.
   const extensions = EXTENSION_MANIFESTS.map((file) => {
@@ -871,31 +841,20 @@ async function apply(version: string, notesFile: string | undefined, manifestsOn
     const old = readFileSync(path, "utf8");
     return { path, old, next: bumpPackageJson(old, version, file) };
   });
-  // The first release names the version the tree already says, and then no manifest changes: the
-  // release commit carries the changelog alone.
-  const bumped = text !== before;
-  if (bumped) {
-    writeFileSync(cargoToml(), text);
-    for (const argv of [
-      ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"],
-      ["cargo", "update", "--workspace", "--offline"],
-    ]) {
-      const r = await runProc(argv);
-      if (r.code !== 0) {
-        writeFileSync(cargoToml(), before);
-        die(`${argv.join(" ")} failed, so Cargo.toml was put back:\n${r.stdout}\n${r.stderr}`);
-      }
+  writeFileSync(cargoToml(), text);
+  for (const argv of [
+    ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"],
+    ["cargo", "update", "--workspace", "--offline"],
+  ]) {
+    const r = await runProc(argv);
+    if (r.code !== 0) {
+      writeFileSync(cargoToml(), before);
+      die(`${argv.join(" ")} failed, so Cargo.toml was put back:\n${r.stdout}\n${r.stderr}`);
     }
   }
   for (const { path, old, next } of extensions) if (next !== old) writeFileSync(path, next);
-  if (section !== null) {
-    writeFileSync(changelogPath(), prependChangelog(existsSync(changelogPath()) ? readFileSync(changelogPath(), "utf8") : null, section));
-  }
-  console.log(
-    bumped
-      ? `nv release: ${changed} version fields at ${version}; Cargo.lock and the extension updated.`
-      : `nv release: the manifests already say ${version}; nothing to bump.`,
-  );
+  if (section !== null) writeFileSync(changelogPath(), prependChangelog(readFileSync(changelogPath(), "utf8"), section));
+  console.log(`nv release: ${changed} version fields at ${version}; Cargo.lock and the extension updated.`);
   return 0;
 }
 
@@ -1040,9 +999,9 @@ export async function run(args: string[]): Promise<number> {
       case "--preview": {
         const [current, target, previous] = await resolveNext(bump!, values.get("--version") ?? "", flags.has("--allow-contract"));
         if (modes[0] === "--plan") {
-          emitOutput(toGithub, [["current", current], ["version", target], ["tag", `v${target}`], ["previous_tag", previous ?? ""]]);
+          emitOutput(toGithub, [["current", current], ["version", target], ["tag", `v${target}`], ["previous_tag", previous]]);
         } else {
-          console.log(`# ${current} --${bump}--> ${target}   (previous tag: ${previous ?? "none"})\n`);
+          console.log(`# ${current} --${bump}--> ${target}   (previous tag: ${previous})\n`);
           console.log(await notesFor(target, previous, cap));
         }
         return 0;
@@ -1051,8 +1010,7 @@ export async function run(args: string[]): Promise<number> {
       case "--notes": {
         const version = values.get("--notes")!;
         parseVersion(version);
-        const previous = values.get("--since") || ((await tags())[0]?.name ?? null);
-        const rendered = await notesFor(version, previous, cap);
+        const rendered = await notesFor(version, await previousTag(values.get("--since")), cap);
         const out = values.get("--out");
         if (out) {
           writeFileSync(out, rendered);
@@ -1063,8 +1021,7 @@ export async function run(args: string[]): Promise<number> {
 
       case "--fixes-built": {
         const built = values.get("--fixes-built")!.trim();
-        const previous = values.get("--since") || ((await tags())[0]?.name ?? null);
-        const missing = await fixesMissingFrom(built, previous);
+        const missing = await fixesMissingFrom(built, await previousTag(values.get("--since")));
         for (const fix of missing) console.error(`nv release: in the notes, not in the binaries: ${fix.sha.slice(0, 8)} ${fix.subject}`);
         if (missing.length > 0) {
           console.error(`nv release: ${missing.length} fix(es) landed on main after ${built.slice(0, 8)} was built. Dispatch the release again.`);

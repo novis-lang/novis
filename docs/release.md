@@ -21,7 +21,7 @@ command cancels a `Release` run.
 
 | | | Writes |
 |---|---|---|
-| 1 | `plan` — the next version, and the notes rendered from the commit log, or for the first release the written [release-notes/first.md](release-notes/first.md) | nothing |
+| 1 | `plan` — the next version, and the notes rendered from the commit log since the newest `v*` tag | nothing |
 | 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied; skipped when the commit already passed a full CI run on `main` (the nightly or a `workflow_dispatch`) or a green `Release` run, such as the dry run before a real one | nothing |
 | 3 | `build` — the release targets and the VS Code extension as `nvs-<version>.vsix`, each at the version being released, from [build.yml](../.github/workflows/build.yml); it runs beside `test`, not after it | nothing |
 | 4 | `publish` — once `test` and `build` both passed: bump, changelog, commit, tag, push, draft release with the archives and the `.vsix` | **everything, at once** |
@@ -192,7 +192,7 @@ person's click either way.
 
    | Input | |
    |---|---|
-   | `bump` | `patch` for the first release; otherwise `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
+   | `bump` | `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
    | `version` | leave empty; an exact version here overrides the arithmetic |
    | `allow_contract` | only when deliberately reaching 0.1.0 |
    | `dry_run` | **leave it unticked** for a real run. A dry run does everything except the writing; `bun nv ci --dispatch dry-run` starts one, and `bun nv ci --release-status` reads it. A green dry run on `main`'s tip is the rehearsal |
@@ -236,14 +236,14 @@ person's click either way.
 
 `rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and the website's
 [What changed](../website/src/content/docs/in-depth/what-changed.mdx) page says it to users. What
-it means for `bump` is the table below. `Cargo.toml` says 0.0.1 and no `v*` tag exists, so the first release is the
-version the tree already says, and the release commit changes `CHANGELOG.md` alone:
+it means for `bump` is the table below, from `0.0.1`. A release always advances past the newest `v*`
+tag, and a clone without its tags stops at `plan` and says to run `git fetch --tags`:
 
-| `bump` | First release | Once `v0.0.1` exists | |
-|---|---|---|---|
-| `patch` | 0.0.1 | 0.0.2 | |
-| `minor` | 0.0.1 | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
-| `major` | 0.1.0 | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
+| `bump` | From 0.0.1 | |
+|---|---|---|
+| `patch` | 0.0.2 | |
+| `minor` | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
+| `major` | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
 
 That refusal is not a formality. `rule:packaging/the-version-contract-starts-at-0-1-0` makes 0.1.0 the release that ends the prototyping
 regime and declares the version contract — "the switch is thrown once, in the commit that tags
