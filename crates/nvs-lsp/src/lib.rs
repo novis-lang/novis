@@ -123,6 +123,7 @@ pub mod links;
 pub mod narrow;
 pub mod order;
 pub mod organize;
+mod parse_cache;
 mod position;
 pub mod query;
 pub mod reach;

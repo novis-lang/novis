@@ -551,7 +551,13 @@ impl SymbolIndex {
             let version = open_document(documents, &entry).map_or(NO_BUFFER, |open| open.version());
             self.absorb(documents, &entry, version);
         }
-        !self.pending.is_empty()
+        if self.pending.is_empty() {
+            // The tree is settled, so a parse kept for a file no entry indexed
+            // is a file that left it.
+            documents.retain_parses(|path| self.files.contains_key(path));
+            return false;
+        }
+        true
     }
 
     /// Analyses every entry in [`pending`](Self::pending), which is what a

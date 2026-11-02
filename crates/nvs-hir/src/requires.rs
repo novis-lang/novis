@@ -117,6 +117,7 @@
 //! from the `require`: the checker reports both, against the same expression.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use nvs_syntax::ast::{
@@ -151,8 +152,12 @@ use crate::symbol::ExtensionClass;
 pub struct Loaded {
     /// The file, as [`nvs_diagnostics::SourceMap`] knows it.
     pub id: SourceId,
-    /// Its whole parsed body, moved here once and never re-parsed.
-    pub stmts: Vec<Stmt>,
+    /// Its whole parsed body, parsed once and never re-parsed.
+    ///
+    /// Shared, because an editor keeps one parse of a file across analyses
+    /// ([`Parses`]). No pass after the walk changes a file's statements, so
+    /// nothing here calls `Arc::make_mut`.
+    pub stmts: Arc<Vec<Stmt>>,
     /// Every `require` written *in this file* whose literal path this walk
     /// resolved, as the span of the path expression paired with the file it
     /// named.
@@ -173,6 +178,39 @@ pub struct Loaded {
     /// naming a file some *other* file already required does contribute one:
     /// the file is loaded once, and both sites name it.
     pub requires: Vec<(Span, SourceId)>,
+}
+
+/// Where the walk gets each file it loads parsed.
+///
+/// [`parse`](Self::parse) parses `src`, runs `nvs_syntax::check_declarations`
+/// over it, and reports what both found into `diags`. A batch compile passes
+/// no `Parses`, and the walk then does exactly that itself. An editor passes a
+/// cache that returns its earlier parse of a file whose text did not change,
+/// and reports that parse's diagnostics again. The statements' spans must name
+/// `src`'s own id.
+pub trait Parses {
+    /// The statements of `src`, with its parse and declaration diagnostics
+    /// reported into `diags`.
+    fn parse(&mut self, src: &SourceFile, diags: &mut Diagnostics) -> Arc<Vec<Stmt>>;
+}
+
+/// One file waiting on the walk's stack: its id, its statements, its depth in
+/// the load tree and its canonical path.
+type Queued = (SourceId, Arc<Vec<Stmt>>, usize, Option<PathBuf>);
+
+/// `src` parsed through `parses`, or parsed and checked here when the caller
+/// handed in none.
+fn parse_fresh(
+    parses: &mut Option<&mut dyn Parses>,
+    src: &SourceFile,
+    diags: &mut Diagnostics,
+) -> Arc<Vec<Stmt>> {
+    if let Some(parses) = parses {
+        return parses.parse(src, diags);
+    }
+    let stmts = parse_file(src, diags);
+    check_declarations(&stmts, src, diags);
+    Arc::new(stmts)
 }
 
 /// Resolves the `require` graph reachable from one entry file into a single
@@ -214,7 +252,17 @@ pub fn resolve_program(
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    walk(entry_id, entry_stmts, map, core, diags, false, &[], &[])
+    walk(
+        entry_id,
+        Arc::new(entry_stmts),
+        map,
+        core,
+        diags,
+        false,
+        &[],
+        &[],
+        None,
+    )
 }
 
 /// [`resolve_program`] with `rule:tooling/strict-docs`'s lint in front of it —
@@ -234,6 +282,9 @@ pub fn resolve_program(
 /// the entry the way [`crate::resolve_file_with_extensions`] declares it, so a
 /// reference to one of its classes resolves like a class a file declares
 /// (`rule:packaging/extension-calls-are-statically-typed`).
+///
+/// `parses` is where every file after the entry is parsed. `nvs check` passes
+/// `None`, and an editor passes its cache ([`Parses`]).
 #[must_use]
 #[expect(
     clippy::too_many_arguments,
@@ -241,23 +292,25 @@ pub fn resolve_program(
 )]
 pub fn resolve_program_linted(
     entry_id: SourceId,
-    entry_stmts: Vec<Stmt>,
+    entry_stmts: impl Into<Arc<Vec<Stmt>>>,
     map: &mut SourceMap,
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
     strict_docs: bool,
     borrowed: &[Site],
     extensions: &[ExtensionClass],
+    parses: Option<&mut dyn Parses>,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     walk(
         entry_id,
-        entry_stmts,
+        entry_stmts.into(),
         map,
         core,
         diags,
         strict_docs,
         borrowed,
         extensions,
+        parses,
     )
 }
 
@@ -272,25 +325,28 @@ pub fn resolve_program_linted(
 /// the open file's names land on the files the real build lands them on.
 /// [`AutoloadMap::build_borrowing`] is what keeps a borrowed site from
 /// reporting anything. [`crate::lenders`] says which program lends, and
-/// [`resolve_program_linted`] takes the same input for `nvs check`.
+/// [`resolve_program_linted`] takes the same input for `nvs check`, and
+/// `parses` is its argument too.
 #[must_use]
 pub fn resolve_program_borrowing(
     entry_id: SourceId,
-    entry_stmts: Vec<Stmt>,
+    entry_stmts: impl Into<Arc<Vec<Stmt>>>,
     map: &mut SourceMap,
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
     borrowed: &[Site],
+    parses: Option<&mut dyn Parses>,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     walk(
         entry_id,
-        entry_stmts,
+        entry_stmts.into(),
         map,
         core,
         diags,
         false,
         borrowed,
         &[],
+        parses,
     )
 }
 
@@ -301,13 +357,14 @@ pub fn resolve_program_borrowing(
 )]
 fn walk(
     entry_id: SourceId,
-    entry_stmts: Vec<Stmt>,
+    entry_stmts: Arc<Vec<Stmt>>,
     map: &mut SourceMap,
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
     strict_docs: bool,
     borrowed: &[Site],
     extensions: &[ExtensionClass],
+    mut parses: Option<&mut dyn Parses>,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
     resolver.declare_extensions(extensions);
@@ -346,8 +403,7 @@ fn walk(
     // to make that true. `on_chain` is the same paths as a set, so a cycle
     // check costs one probe however deep the chain is. A root — the entry, a
     // scanned or an autoloaded file — is depth 0 and starts a chain of its own.
-    let mut work: Vec<(SourceId, Vec<Stmt>, usize, Option<PathBuf>)> =
-        vec![(entry_id, entry_stmts, 0, entry_path)];
+    let mut work: Vec<Queued> = vec![(entry_id, entry_stmts, 0, entry_path)];
     let mut chain: Vec<Option<PathBuf>> = Vec::new();
     let mut on_chain: FxHashSet<PathBuf> = FxHashSet::default();
 
@@ -497,8 +553,7 @@ fn walk(
                     };
                     by_path.insert(canonical.clone(), new_id);
                     file_requires.push((span, new_id));
-                    let new_stmts = parse_file(map.file(new_id), diags);
-                    check_declarations(&new_stmts, map.file(new_id), diags);
+                    let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
                     // Read here rather than when this file is popped off
                     // `work`, so the next target of the file being walked can
                     // name a constant this one just loaded.
@@ -546,8 +601,7 @@ fn walk(
                     continue;
                 };
                 by_path.insert(path.clone(), new_id);
-                let new_stmts = parse_file(map.file(new_id), diags);
-                check_declarations(&new_stmts, map.file(new_id), diags);
+                let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
                 autoload::check_file_shape(&new_stmts, map.file(new_id), &name, site, diags);
                 work.push((new_id, new_stmts, 0, Some(path)));
             }
@@ -568,8 +622,7 @@ fn walk(
             // pinned with the component, so no line a program writes moves it.
             if let Some((display, text)) = carried.remove(&name) {
                 let new_id = map.add(display, text);
-                let new_stmts = parse_file(map.file(new_id), diags);
-                check_declarations(&new_stmts, map.file(new_id), diags);
+                let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
                 autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
                 work.push((new_id, new_stmts, 0, None));
                 continue 'walk;
@@ -594,8 +647,7 @@ fn walk(
         // An autoloaded file is reachable by a written `require` too, and such
         // a site owns the same edge a first-loading one does.
         by_path.insert(path.clone(), new_id);
-        let new_stmts = parse_file(map.file(new_id), diags);
-        check_declarations(&new_stmts, map.file(new_id), diags);
+        let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
         autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
         work.push((new_id, new_stmts, 0, Some(path)));
     }
@@ -1973,6 +2025,140 @@ mod tests {
         (module, loaded, map, diags)
     }
 
+    /// A [`Parses`] that keeps every parse it made by path, with the
+    /// diagnostics it reported, and counts the files it parsed.
+    #[derive(Default)]
+    struct Recorder {
+        kept: FxHashMap<PathBuf, (Arc<Vec<Stmt>>, Vec<Diagnostic>)>,
+        parsed: usize,
+    }
+
+    impl Parses for Recorder {
+        fn parse(&mut self, src: &SourceFile, diags: &mut Diagnostics) -> Arc<Vec<Stmt>> {
+            let key = src.path().expect("a fixture is on disk").to_path_buf();
+            if let Some((stmts, reported)) = self.kept.get(&key) {
+                for diagnostic in reported {
+                    diags.report(diagnostic.clone());
+                }
+                return Arc::clone(stmts);
+            }
+            self.parsed += 1;
+            let mut own = Diagnostics::new();
+            let stmts = Arc::new(parse_file(src, &mut own));
+            check_declarations(&stmts, src, &mut own);
+            for diagnostic in own.iter() {
+                diags.report(diagnostic.clone());
+            }
+            self.kept
+                .insert(key, (Arc::clone(&stmts), own.iter().cloned().collect()));
+            stmts
+        }
+    }
+
+    /// The walk from `entry_name`, in a new map, with every file after the
+    /// entry parsed by `parses`.
+    fn walk_with(
+        dir: &TempDir,
+        entry_name: &str,
+        parses: &mut Recorder,
+    ) -> (Module, Vec<Loaded>, Diagnostics) {
+        let mut map = SourceMap::new();
+        let entry_id = map
+            .load(dir.path.join(entry_name))
+            .expect("load entry fixture");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(entry_id), &mut diags);
+        let (module, loaded, _autoload) = resolve_program_linted(
+            entry_id,
+            stmts,
+            &mut map,
+            CoreRoster::Trusted,
+            &mut diags,
+            false,
+            &[],
+            &[],
+            Some(parses),
+        );
+        (module, loaded, diags)
+    }
+
+    /// The editor's parse cache, as the walk sees it: a second walk over the
+    /// same graph takes every file after the entry from the cache, parses
+    /// none, and resolves the same program.
+    #[test]
+    fn a_walk_takes_a_cached_parse_and_parses_no_file_it_was_given() {
+        let dir = TempDir::new("cached-parse");
+        dir.write("shared.nvs", "<?nvs\nclass Shared {}\n");
+        dir.write(
+            "a.nvs",
+            "<?nvs\nrequire 'shared.nvs';\nclass A extends Shared {}\n",
+        );
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire 'a.nvs';\nrequire 'shared.nvs';\nA $a = new A();\n",
+        );
+        let mut parses = Recorder::default();
+
+        let (first, first_loaded, first_diags) = walk_with(&dir, "main.nvs", &mut parses);
+        assert!(!first_diags.has_errors(), "the fixture is clean");
+        assert_eq!(first_loaded.len(), 3, "main, a and shared");
+        assert_eq!(
+            parses.parsed, 2,
+            "the walk parsed the two files after the entry"
+        );
+
+        let (second, second_loaded, second_diags) = walk_with(&dir, "main.nvs", &mut parses);
+        assert_eq!(
+            parses.parsed, 2,
+            "the second walk parsed no file it was given"
+        );
+        assert!(!second_diags.has_errors());
+        for file in second_loaded.iter().skip(1) {
+            assert!(
+                parses
+                    .kept
+                    .values()
+                    .any(|(kept, _)| Arc::ptr_eq(kept, &file.stmts)),
+                "a loaded file's statements are the cached ones"
+            );
+        }
+        for name in ["A", "Shared"] {
+            let name = QName::parse(name);
+            assert_eq!(
+                first.symbols.contains(&name),
+                second.symbols.contains(&name),
+                "both walks resolve `{name:?}` the same way"
+            );
+            assert!(second.symbols.contains(&name));
+        }
+    }
+
+    /// A cached parse reports what its parse reported, so an editor shows a
+    /// required file's syntax error after a keystroke in another file.
+    #[test]
+    fn a_cached_parse_replays_its_parse_diagnostics() {
+        let dir = TempDir::new("cached-diagnostics");
+        dir.write("broken.nvs", "<?nvs\nclass Broken {\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'broken.nvs';\necho 1;\n");
+        let mut parses = Recorder::default();
+        let codes = |diags: &Diagnostics| -> Vec<String> {
+            diags
+                .iter()
+                .map(|diag| format!("{:?} {}", diag.code, diag.message))
+                .collect()
+        };
+
+        let (_, _, first) = walk_with(&dir, "main.nvs", &mut parses);
+        assert!(first.has_errors(), "the required file does not parse");
+        let (_, _, second) = walk_with(&dir, "main.nvs", &mut parses);
+        assert_eq!(parses.parsed, 1, "the second walk took the cached parse");
+        assert_eq!(
+            codes(&second),
+            codes(&first),
+            "the cached parse reports the same"
+        );
+    }
+
     /// The edge `nvs-ir` cannot re-derive: which file a written `require`
     /// actually named. Two files require the same target, so one of those
     /// edges is recorded from the already-loaded branch rather than
@@ -2447,6 +2633,7 @@ class Unreached {}
                 false,
                 &[],
                 &[class],
+                None,
             );
             (module, loaded.len(), diags)
         };
@@ -2503,6 +2690,7 @@ class Unreached {}
                     false,
                     &[],
                     std::slice::from_ref(&ledger),
+                    None,
                 ));
             });
             lines

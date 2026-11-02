@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-lsp/tests/latency.rs, crates/nvs-lsp/tests/autoload.rs, crates/nvs-lsp/src/server.rs]
   - id: 2
     title: "a file is parsed again only when its text changed: the loader takes a cached parse"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/requires.rs, docs/rules/ide/one-grammar-one-tree.md]
   - id: 3
     title: "the checker checks the bodies of a chosen set of files and folds every other file's cached output"
@@ -189,7 +189,10 @@ stage records the measured cost of that clone against a parse. `nvs check` passe
 walk is unchanged. The file is still read on every analysis, because `SourceMap::load` reads it to
 hash it. A read of 125 small files is not the measured cost, so a stat-based skip of the read is not
 built. This is not the incremental reparse `rule:ide/one-grammar-one-tree` gave up: an edited file is
-still parsed whole.
+still parsed whole. The cache parses every file with the lossless `nvs_syntax::parse` and keeps its
+trivia and syntax index too, because any file it holds may be the next analysis's entry, and a
+reader's entry parsed outside the cache would count a parse per queued reader. That spends the trivia
+and index of every file, which memory is last to pay for.
 
 **2. The checker checks a body set and folds cached outputs.** `nvs-types` gains `check_program_partial(files,
 ..., bodies: &FxHashSet<SourceId>, cache: &mut CheckCache)`. `check_program_loaded` stays the whole-program
@@ -348,18 +351,24 @@ fixture and the counted tests exist. The tests that need later stages fail with 
 **Does:** decision 1. The walk takes a `Parses`, and `Loaded::stmts` is shared. `analyse_over`
 passes the session's `ParseCache`, and `Work::parsed` counts its misses.
 
-- [ ] The `Parses` trait and the hook at the walk's four `parse_file` sites. `resolve_program_linted`
+- [x] The `Parses` trait and the hook at the walk's four `parse_file` sites. `resolve_program_linted`
   and `resolve_program_borrowing` gain a `parses` argument, which `nvs check` passes as `None`.
   `crates/nvs-hir/src/requires.rs:242`, `crates/nvs-hir/src/requires.rs:302`,
   `crates/nvs-hir/src/requires.rs:500`, `crates/nvs-hir/src/requires.rs:597`
-- [ ] `Loaded::stmts` becomes `Arc<Vec<Stmt>>`. List every site that changes a file's statements, and
+  - [x] `Parses::parse` parses and runs `check_declarations`, and `parse_fresh` is the `None` path.
+  - [x] The four sites call `parse_fresh`, and every caller passes `None` but the editor.
+- [x] `Loaded::stmts` becomes `Arc<Vec<Stmt>>`. List every site that changes a file's statements, and
   use `Arc::make_mut` there. `crates/nvs-hir/src/requires.rs:155`
-- [ ] The hir tests of the `hir-parse-cache` check, in the `requires.rs` test module.
+  - [x] No site changes a file's statements after the walk: the workspace built with only the type
+    changed, so no `Arc::make_mut` was needed.
+- [x] The hir tests of the `hir-parse-cache` check, in the `requires.rs` test module.
   `crates/nvs-hir/src/requires.rs:1968`
-- [ ] `ParseCache` in `crates/nvs-lsp/src/parse_cache.rs`, held by the session and passed through
+- [x] `ParseCache` in `crates/nvs-lsp/src/parse_cache.rs`, held by the session and passed through
   `analyse_over`. Its doc comment says what it spends per file. Files leave it when they leave the
   tree. `crates/nvs-lsp/src/parse_cache.rs:1`, `crates/nvs-lsp/src/document.rs:721`
-- [ ] The lsp tests of the `lsp-parse-cache` check go green. Run once by name:
+  - [x] `Documents::parses` holds it, and `analyse_over` parses the entry through it too.
+  - [x] `SymbolIndex::settle_one` calls `Documents::retain_parses` once `pending` empties.
+- [x] The lsp tests of the `lsp-parse-cache` check go green. Run once by name:
   `cargo test --test incremental`. `crates/nvs-lsp/tests/incremental.rs:1`
 
 ### 3. the checker checks the bodies of a chosen set of files and folds every other file's cached output
@@ -371,7 +380,8 @@ shared across files. Its scope is `Env`'s fields at `crates/nvs-types/src/check.
 `exprs` write inside `check_stmts` that is not keyed by the current file's span. The answer is
 `file.rs:NN` and one line each. The session writes the code itself.
 
-- [ ] `Pins` and `SourceMap::pinned`, with placeholder files for ids not loaded.
+- [x] `Pins` and `SourceMap::pinned`, with placeholder files for ids not loaded. Stage 2 built it,
+  because a cached parse's spans are only right where the file keeps its id.
   `crates/nvs-diagnostics/src/source.rs:283`, `crates/nvs-diagnostics/src/source.rs:407`
 - [ ] `FileOutput` and `CheckCache`, and `ExprTypeTable` split per file and merged in file order.
   `crates/nvs-types/src/expr_table.rs:1605`
@@ -452,37 +462,41 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Stage 1 is done. `nvs_lsp::Work { parsed, checked }` is in `Analysed::work`, counted in
-`analyse_over`, and `SymbolIndex::absorb` sums it into `work()` until `take_work()`. `work` is in
-`BOOKKEEPING` in `crates/nvs-lsp/tests/index.rs`. `crates/nvs-lsp/tests/incremental.rs` has `tree`,
-`index_of`, `open`, `keystroke` and `body_edit`. A local in a generated file needs its declared type
-(`Part1 $other = new Part1();`), or every file has `E0301`.
+Stages 1 and 2 are done. `nvs_hir::Parses` is the walk's parse hook (`parse_fresh` in
+`crates/nvs-hir/src/requires.rs`), `Loaded::stmts` is `Arc<Vec<Stmt>>`, and `nvs check` passes
+`None`. `crates/nvs-lsp/src/parse_cache.rs` keeps one lossless parse per canonical path with its text
+hash, trivia, index and diagnostics, so it also serves a file as an open document's entry.
+`Documents::parses` holds it in a `RefCell`, `analyse_over` borrows it for the walk, and
+`Work::parsed` is its misses. `settle_one` prunes it once `pending` empties.
 
-The acceptance sweep's reds were stale. `env-secret-proofs` has no log and no goal names it. Nightly
-`41428598621` was cancelled by the push that followed it, and no job in it failed.
+**Pins landed in stage 2, not stage 3.** A cached parse's spans name its `SourceId`, and every
+analysis builds a new `SourceMap`, so the cache was wrong without them. `nvs_diagnostics::Pins` and
+`SourceMap::pinned`/`take_pins` are in `crates/nvs-diagnostics/src/source.rs:426`. `ParseCache::map`
+builds each analysis's map from the cache's pins, and an entry is used only where the file's id
+matches. Stage 3's `Pins` item is ticked.
+
+The sweep's reds were stale: no `env-secret-proofs` check exists, and nightly `41428598621` was
+cancelled by a later push. The untracked `probe-out.txt` at the root is another process's.
 
 **Red until their stage lands, with the counts they find today** (so `bun nv verify --fast -p
 nvs-lsp` is red until stage 5):
 
-- `an_unchanged_file_is_parsed_once_across_keystrokes`: parsed `[85, 85, 85]`, wants `[1, 1, 1]`.
-  Stage 2 makes it green.
 - `a_body_only_keystroke_re_queues_no_reader`: queues `Blog/main.nvs` and `Shop/main.nvs`. Stage 4.
-- `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`:
-  `Work { parsed: 128, checked: 128 }`, wants `{ 1, 1 }`. Stage 5.
-- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: 128 against 902. Stage 5.
+- `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`: parsed
+  is now 1, and checked is still every body of every analysis. Stage 5.
+- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: the checked count still
+  grows with the programs. Stage 5.
 
 ### Next
 
-**Stage 2, one group.** `crates/nvs-hir/src/requires.rs`, then `parse_cache.rs` and `document.rs`.
+**Stage 3, one group.** `crates/nvs-types/src/check.rs`, then `expr_table.rs`. Start with the
+stage's `**Split:**` line: an `Explore` subagent lists every write the per-file walk makes into a
+table shared across files.
 
-- [ ] The `Parses` trait and the hook at the walk's four `parse_file` sites. `crates/nvs-hir/src/requires.rs:242`, `crates/nvs-hir/src/requires.rs:277`, `crates/nvs-hir/src/requires.rs:500`, `crates/nvs-hir/src/requires.rs:597`
-- [ ] `Loaded::stmts` as `Arc<Vec<Stmt>>`, with `Arc::make_mut` where a pass changes it. `crates/nvs-hir/src/requires.rs:155`
-- [ ] The `hir-parse-cache` tests. `crates/nvs-hir/src/requires.rs:1968`
-- [ ] `ParseCache`, passed through `analyse_over`, and `Work::parsed` counts its misses. `crates/nvs-lsp/src/parse_cache.rs:1`, `crates/nvs-lsp/src/document.rs:702`, `crates/nvs-lsp/src/document.rs:747`
-- [ ] `an_unchanged_file_is_parsed_once_across_keystrokes` goes green. `crates/nvs-lsp/tests/incremental.rs:283`
-
-Stage 3 touches only `crates/nvs-types/` and `crates/nvs-diagnostics/src/source.rs`, so it may run
-beside stage 2.
+- [ ] `FileOutput` and `CheckCache`, and `ExprTypeTable` split per file and merged in file order. `crates/nvs-types/src/expr_table.rs:1605`
+- [ ] `check_program_partial`, with `check_program_loaded` as its whole-program call. `crates/nvs-types/src/check.rs:158`, `crates/nvs-types/src/check.rs:190`, `crates/nvs-types/src/check.rs:287`
+- [ ] The `types-partial-check` tests in `crates/nvs-types/tests/partial_check.rs`. Pin the ids with `SourceMap::pinned` for `a_cached_output_is_valid_in_a_second_source_map_with_the_same_pins`. `crates/nvs-diagnostics/src/source.rs:426`
+- [ ] The measured cost of the passes after the walk, in the doc comment. `crates/nvs-types/src/check.rs:158`
 
 ### Backlog
 

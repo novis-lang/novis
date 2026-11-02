@@ -290,6 +290,61 @@ pub struct SourceMap {
     missed: Vec<PathBuf>,
     /// Bytes no snippet prints — see [`SourceMap::conceal`].
     concealed: Vec<Span>,
+    /// The ids a loaded path keeps across maps — see [`SourceMap::pinned`].
+    pins: Option<Pins>,
+}
+
+/// Which [`SourceId`] each file keeps from one [`SourceMap`] to the next.
+///
+/// An editor analyses the same files again on every keystroke, each time in a
+/// new map, and keeps what an earlier analysis parsed. A parsed statement's
+/// spans name its file by id, so a cached parse is only right in a map that
+/// gives the file the same id. [`SourceMap::pinned`] is that map: a path in
+/// this table loads at its pinned id, and a path that is not gets the next free
+/// id and is added.
+///
+/// It costs one path and one id per file, and each map built from it holds one
+/// empty file for every pinned id it does not load. A forgotten id is reused.
+#[derive(Debug, Default, Clone)]
+pub struct Pins {
+    ids: HashMap<PathBuf, SourceId>,
+    /// One past the highest id ever pinned.
+    next: u32,
+    /// Ids whose path was forgotten, and which a new path takes first.
+    free: Vec<SourceId>,
+}
+
+impl Pins {
+    /// An empty table.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The id `path` is pinned to, keyed by [`canonical_key`].
+    #[must_use]
+    pub fn get(&self, path: &Path) -> Option<SourceId> {
+        self.ids.get(&canonical_key(path)).copied()
+    }
+
+    /// Unpins `path`, so a later path may take its id.
+    pub fn forget(&mut self, path: &Path) {
+        if let Some(id) = self.ids.remove(&canonical_key(path)) {
+            self.free.push(id);
+        }
+    }
+
+    /// How many paths are pinned.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// Whether no path is pinned.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
 }
 
 /// What a snippet prints for each character of a concealed literal.
@@ -359,6 +414,66 @@ impl SourceMap {
         SourceId(u32::try_from(self.files.len()).expect("too many source files"))
     }
 
+    /// An empty map that loads each path in `pins` at its pinned id, and pins
+    /// every other path it loads to the next free id.
+    ///
+    /// Every pinned id starts as an empty file with no path, so an id a
+    /// [`load`](Self::load) never fills is still a valid lookup.
+    /// [`take_pins`](Self::take_pins) returns the table with the new paths in
+    /// it. [`add`](Self::add) pins nothing: a file with no path has nothing to
+    /// be pinned by.
+    #[must_use]
+    pub fn pinned(pins: Pins) -> Self {
+        let files = (0..pins.next)
+            .map(|at| SourceFile::new(SourceId(at), String::new(), None, String::new()))
+            .collect();
+        Self {
+            files,
+            pins: Some(pins),
+            ..Self::default()
+        }
+    }
+
+    /// The table [`pinned`](Self::pinned) was given, with every path this map
+    /// pinned since. The map loads like an unpinned one afterwards.
+    pub fn take_pins(&mut self) -> Pins {
+        self.pins.take().unwrap_or_default()
+    }
+
+    /// Adds the file `path` read as: at its pinned id when this map is pinned
+    /// and that slot is still empty, and at the next id otherwise.
+    fn place(&mut self, name: String, path: &Path, text: String) -> SourceId {
+        let len = u32::try_from(self.files.len()).expect("too many source files");
+        let pinned = self.pins.as_mut().map(|pins| {
+            let key = canonical_key(path);
+            if let Some(&id) = pins.ids.get(&key) {
+                return id;
+            }
+            let id = pins.free.pop().unwrap_or_else(|| {
+                let at = pins.next.max(len);
+                pins.next = at + 1;
+                SourceId(at)
+            });
+            pins.ids.insert(key, id);
+            id
+        });
+        if let Some(id) = pinned {
+            while self.files.len() <= id.index() {
+                let at = self.next_id();
+                self.files
+                    .push(SourceFile::new(at, String::new(), None, String::new()));
+            }
+            if self.files[id.index()].path().is_none() {
+                self.files[id.index()] = SourceFile::new(id, name, Some(path.to_path_buf()), text);
+                return id;
+            }
+        }
+        let id = self.next_id();
+        self.files
+            .push(SourceFile::new(id, name, Some(path.to_path_buf()), text));
+        id
+    }
+
     /// Overlays `text` on `path`, so every later [`load`](Self::load) of that
     /// file reads this text and never touches the disk.
     ///
@@ -412,27 +527,13 @@ impl SourceMap {
         if !self.overlays.is_empty()
             && let Some(text) = self.overlays.get(&canonical_key(path)).cloned()
         {
-            let id = self.next_id();
-            self.files.push(SourceFile::new(
-                id,
-                plain_path(path).display().to_string(),
-                Some(path.to_path_buf()),
-                text,
-            ));
-            return Ok(id);
+            return Ok(self.place(plain_path(path).display().to_string(), path, text));
         }
         // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`: inside a bundled executable the payload is the byte
         // source, and the name a diagnostic prints is the path the *build* saw
         // rather than the synthetic one this process resolves against.
         if let Some((name, text)) = crate::embedded::text(path) {
-            let id = self.next_id();
-            self.files.push(SourceFile::new(
-                id,
-                name.to_owned(),
-                Some(path.to_path_buf()),
-                text.to_owned(),
-            ));
-            return Ok(id);
+            return Ok(self.place(name.to_owned(), path, text.to_owned()));
         }
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
@@ -448,11 +549,8 @@ impl SourceMap {
                 "source file exceeds 4 GiB",
             ));
         }
-        let id = self.next_id();
         let name = plain_path(path).display().to_string();
-        self.files
-            .push(SourceFile::new(id, name, Some(path.to_path_buf()), text));
-        Ok(id)
+        Ok(self.place(name, path, text))
     }
 
     /// Looks up a file.
@@ -585,6 +683,54 @@ impl SourceMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A map overlaid with `files`, pinned to `pins`.
+    fn pinned_over(pins: Pins, files: &[(&str, &str)]) -> SourceMap {
+        let mut map = SourceMap::pinned(pins);
+        for (path, text) in files {
+            map.overlay(path, *text);
+        }
+        map
+    }
+
+    /// A path loads at the id it had in the last map, in whatever order it is
+    /// loaded, and a forgotten id goes to the next new path.
+    #[test]
+    fn a_pinned_map_loads_a_path_at_its_earlier_id() {
+        let files = [
+            ("/pins/a.nvs", "a"),
+            ("/pins/b.nvs", "b"),
+            ("/pins/c.nvs", "c"),
+        ];
+        let mut first = pinned_over(Pins::new(), &files);
+        let a = first.load("/pins/a.nvs").expect("an overlay loads");
+        let b = first.load("/pins/b.nvs").expect("an overlay loads");
+        let pins = first.take_pins();
+        assert_eq!(pins.len(), 2);
+
+        let mut second = pinned_over(pins, &files);
+        assert_eq!(second.load("/pins/b.nvs").ok(), Some(b));
+        let added = second.add("carried", "x");
+        assert_eq!(second.load("/pins/a.nvs").ok(), Some(a));
+        assert_eq!(second.file(a).text(), "a");
+        assert_eq!(second.file(b).text(), "b");
+        let c = second.load("/pins/c.nvs").expect("an overlay loads");
+        assert!(c != a && c != b && c != added, "a new path takes a free id");
+        let mut pins = second.take_pins();
+
+        pins.forget(Path::new("/pins/a.nvs"));
+        let mut third = pinned_over(pins, &[("/pins/d.nvs", "d")]);
+        assert_eq!(
+            third.load("/pins/d.nvs").ok(),
+            Some(a),
+            "a forgotten id is reused"
+        );
+        assert_eq!(
+            third.file(b).text(),
+            "",
+            "an id this map did not load is empty"
+        );
+    }
 
     /// A verbatim drive path is shown as the drive path, and a verbatim UNC
     /// path as the share it names.

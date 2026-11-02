@@ -1358,6 +1358,7 @@ fn resolve_entry(
         strict_docs,
         borrowed,
         extensions,
+        None,
     );
     (diags, module, loaded, autoload)
 }

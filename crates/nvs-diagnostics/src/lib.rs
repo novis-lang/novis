@@ -39,7 +39,7 @@ pub use diagnostic::{Code, Diagnostic, Diagnostics, Label, LabelStyle, Severity,
 pub use paths::lexical_normalize;
 pub use render::{AGENT_SHOW_LINE, Renderer};
 pub use source::{
-    MASK, MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key, plain_path,
+    MASK, MAX_SOURCE_LEN, Pins, PositionEncoding, SourceFile, SourceMap, canonical_key, plain_path,
     span_text,
 };
 pub use span::{BytePos, SourceId, Span, Spanned};

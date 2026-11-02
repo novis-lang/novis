@@ -65,10 +65,11 @@ use std::time::SystemTime;
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
 use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_linted};
-use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
+use nvs_syntax::{SyntaxIndex, Trivia};
 use nvs_types::deprecated::Notices;
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
+use crate::parse_cache::ParseCache;
 use crate::stubs::Stubs;
 
 /// One open buffer: what the editor holds, which is not what is on disk.
@@ -134,6 +135,9 @@ pub struct Documents {
     /// [`Analysed`] per open document. Every change to the store empties it,
     /// because an open buffer is overlaid on every other document's graph.
     kept: RefCell<HashMap<Uri, Kept>>,
+    /// The last parse of every file an analysis loaded, so a file whose text
+    /// did not change is not parsed again. [`ParseCache`] says what it spends.
+    parses: RefCell<ParseCache>,
 }
 
 /// One kept analysis, and the modification time of each file it read when it
@@ -164,6 +168,11 @@ impl Documents {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Frees the kept parse of every file `keep` says has left the tree.
+    pub(crate) fn retain_parses(&self, keep: impl Fn(&Path) -> bool) {
+        self.parses.borrow_mut().retain(keep);
     }
 
     /// Names the stub tree every analysis out of this store answers `Core`
@@ -581,7 +590,8 @@ pub struct Analysed {
     /// answer a cursor from, so completion and hover read its manifest.
     pub extensions: Vec<nvs_ext::manifest::Manifest>,
     /// The files this analysis parsed and the files whose bodies it checked.
-    /// Today both are every file of the graph.
+    /// It parsed only the files whose text the store's parse cache did not
+    /// hold, and it checked the bodies of every file of the graph.
     pub work: Work,
 }
 
@@ -651,12 +661,12 @@ impl Analysed {
 /// because a graph an editor resolves differently from the compiler is a server
 /// that disagrees with the build.
 ///
-/// Every call re-reads and re-parses the whole graph, which is the price
-/// `rule:ide/one-grammar-one-tree` paid for having one tree instead of a
-/// `rowan`-shaped second one. What says that price is still worth paying is a
-/// measurement rather than an assumption: `tests/latency.rs` names the bound a
-/// ~1,000-line document's analysis stays under, what it was measured on, and
-/// what to do first if it ever goes red.
+/// Every call re-reads the whole graph, and parses each file whose text the
+/// store's parse cache does not hold (`crate::parse_cache`). A file whose text
+/// changed is parsed whole, which is the price `rule:ide/one-grammar-one-tree`
+/// paid for having one tree instead of a `rowan`-shaped second one.
+/// `tests/latency.rs` names the bound a ~1,000-line document's analysis stays
+/// under, what it was measured on, and what to do first if it ever goes red.
 #[must_use]
 pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let document = documents.get(uri)?;
@@ -705,7 +715,9 @@ fn analyse_over(
     version: i32,
     entry_text: Option<String>,
 ) -> Option<Analysed> {
-    let mut map = SourceMap::new();
+    let mut parses = documents.parses.borrow_mut();
+    let misses = parses.misses();
+    let mut map = parses.map();
     documents.overlay(&mut map);
     if let Some(text) = entry_text {
         map.overlay(path, text);
@@ -714,24 +726,23 @@ fn analyse_over(
     // here: a `require` resolves against the requiring file's own directory,
     // and a file added by name has no path to take one from. The overlay
     // registered above is what makes that read reach the buffer.
-    let entry = map.load(path).ok()?;
+    let Ok(entry) = map.load(path) else {
+        parses.keep_pins(&mut map);
+        return None;
+    };
 
     let mut diags = Diagnostics::new();
-    // The entry takes the lossless entry point and every required file keeps
-    // the strict one: same grammar, same statements and same diagnostics either
-    // way (`rule:ide/one-grammar-one-tree`), so this costs the trivia and the
-    // index of one file and changes nothing else about the walk. Where each
-    // modifier was written is dropped here: `nvs fmt` is what reads it, and a
-    // server that reformats a document calls that. A cursor is only ever in the
-    // open document, so a required file has no question to answer that its
-    // statements do not already.
-    let nvs_syntax::Parsed {
+    // Every file is parsed with the lossless entry point, so a file kept from
+    // one analysis has the trivia and index it needs as the entry of another:
+    // same grammar, same statements and same diagnostics either way
+    // (`rule:ide/one-grammar-one-tree`). Where each modifier was written is
+    // dropped: `nvs fmt` is what reads it, and a server that reformats a
+    // document calls that.
+    let crate::parse_cache::Parsed {
         stmts,
         trivia,
-        modifiers: _,
         index,
-    } = parse(map.file(entry), &mut diags);
-    check_declarations(&stmts, map.file(entry), &mut diags);
+    } = parses.parse_entry(map.file(entry), &mut diags);
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
     let sealed = nvs_stdlib::registry::sealed_classes();
@@ -758,7 +769,11 @@ fn analyse_over(
         false,
         lender.map_or(&[], |lender| lender.sites()),
         &nvs_types::ext_lib::hir_classes(&extensions),
+        Some(&mut *parses),
     );
+    parses.keep_pins(&mut map);
+    let parsed = parses.misses() - misses;
+    drop(parses);
     let autoloads: Vec<nvs_hir::autoload::Site> = autoload
         .sites()
         .iter()
@@ -771,12 +786,9 @@ fn analyse_over(
     // The editor is the one reader of a tainted value's path, so it is the
     // one caller that asks the checker to record it.
     exprs.record_provenance();
-    // The entry was parsed above and every other file of the graph by the
-    // walk, so each loaded file is one parse.
-    let mut work = Work {
-        parsed: loaded.len(),
-        checked: 0,
-    };
+    // A file the cache held for its text was not parsed, so only the misses
+    // count.
+    let mut work = Work { parsed, checked: 0 };
     let deprecated;
     {
         // The type phase, continued into exactly the way `nvs-cli`'s

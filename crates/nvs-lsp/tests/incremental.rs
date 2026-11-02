@@ -13,11 +13,10 @@
 //! autoload one shared library, which is the shape where a keystroke in a
 //! library file has the most readers.
 //!
-//! Four of these tests name what later stages of the incremental index make
-//! true, and fail with the counts they find until then: a file is parsed again
-//! only when its text changed, a body-only edit re-queues no reader, and so a
-//! body-only keystroke in a library file parses one file and checks one
-//! file's bodies, whatever the number of programs.
+//! Three of these tests name what later stages of the incremental index make
+//! true, and fail with the counts they find until then: a body-only edit
+//! re-queues no reader, and so a body-only keystroke in a library file parses
+//! one file and checks one file's bodies, whatever the number of programs.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -244,8 +243,8 @@ fn the_generated_tree_has_the_programs_and_the_library_it_was_asked_for() {
     );
 }
 
-/// A keystroke's work is every analysis it caused, and one analysis parses
-/// and checks every file of its graph.
+/// A keystroke's work is every analysis it caused. One analysis checks every
+/// file of its graph, and parses only the file the keystroke changed.
 #[test]
 fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
     let dir = tree(1, 4);
@@ -265,7 +264,7 @@ fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
     assert_eq!(
         work,
         Work {
-            parsed: graph,
+            parsed: 1,
             checked: graph,
         },
         "a keystroke in a program nothing else reads is one analysis of its graph"
@@ -277,8 +276,8 @@ fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
     assert_eq!(index.work(), Work::default(), "the keystroke took its work");
 }
 
-/// Red until a file is parsed again only when its text changed: after the
-/// first analysis, a keystroke parses the one file it edited.
+/// A file is parsed again only when its text changed: after the first
+/// analysis, a keystroke parses the one file it edited.
 #[test]
 fn an_unchanged_file_is_parsed_once_across_keystrokes() {
     let dir = tree(2, 40);
@@ -302,6 +301,44 @@ fn an_unchanged_file_is_parsed_once_across_keystrokes() {
         parsed,
         [1, 1, 1],
         "each keystroke parses only the file it edited"
+    );
+}
+
+/// A file nobody has open is parsed again when its text on disk changed, once
+/// for every analysis that reads it, and the index then has what the new text
+/// declares.
+#[test]
+fn a_file_whose_text_changed_on_disk_is_parsed_again() {
+    let dir = tree(2, 40);
+    let (documents, mut index) = index_of(&dir);
+    let path = dir.at(&part(5));
+    let text = fs::read_to_string(&path).expect("a fixture file");
+    let added = text.replacen(
+        "    public function next(",
+        "    public function fresh(): int\n    {\n        return 5;\n    }\n\n    public function next(",
+        1,
+    );
+    assert_ne!(added, text, "the class still has its `next` method");
+    fs::write(&path, added).expect("a writable scratch file");
+
+    index.refresh(&documents, &path);
+    index.settle(&documents);
+    assert_eq!(
+        index.take_work().parsed,
+        1,
+        "the changed file is parsed once, and no other file is"
+    );
+    let declared: Vec<String> = index
+        .files()
+        .filter(|file| file.ends_with("Part5.nvs"))
+        .flat_map(|file| index.declarations_in(file))
+        .map(|declared| declared.symbol.clone())
+        .collect();
+    assert!(
+        declared
+            .iter()
+            .any(|symbol| symbol == "Framework\\Part5::fresh"),
+        "the index has the method the new text declares: {declared:?}"
     );
 }
 

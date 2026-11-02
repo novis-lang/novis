@@ -79,7 +79,9 @@ pub use imports::{ImportSite, candidates, import_site};
 pub use lenders::Lender;
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
-pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
+pub use requires::{
+    Loaded, Parses, resolve_program, resolve_program_borrowing, resolve_program_linted,
+};
 pub use resolve::{
     Import, Module, Resolver, owned_enum, owned_enum_in_scope, resolve_file,
     resolve_file_with_extensions,
