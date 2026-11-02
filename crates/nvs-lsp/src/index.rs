@@ -109,7 +109,7 @@ use crate::definition::{
     FileScope, Target, body_of, covers, named_at, paired, supertype_names, target_of, text_of,
     written_types_in,
 };
-use crate::document::{Analysed, Documents, analyse_file};
+use crate::document::{Analysed, Documents, Work, analyse_file};
 
 /// The three visibility levels a [`Declaration`] carries.
 ///
@@ -416,6 +416,11 @@ pub struct SymbolIndex {
     /// [`refresh`](Self::refresh) found reading the changed file and did not
     /// analyse at once. One path per entry, freed as it is settled.
     pending: BTreeSet<PathBuf>,
+    /// The work of every analysis [`absorb`](Self::absorb) ran since the last
+    /// [`take_work`](Self::take_work): those of [`refresh`](Self::refresh)
+    /// and of [`settle_one`](Self::settle_one) alike, because queued work is
+    /// still work a keystroke caused.
+    work: Work,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -560,6 +565,18 @@ impl SymbolIndex {
     #[must_use]
     pub fn pending(&self) -> &BTreeSet<PathBuf> {
         &self.pending
+    }
+
+    /// The files every analysis since the last [`take_work`](Self::take_work)
+    /// parsed, and the files whose bodies it checked, summed.
+    #[must_use]
+    pub fn work(&self) -> Work {
+        self.work
+    }
+
+    /// [`work`](Self::work), and the count starts again from zero.
+    pub fn take_work(&mut self) -> Work {
+        std::mem::take(&mut self.work)
     }
 
     /// Drops every file the entries in `entries` indexed, and their reads, and
@@ -910,6 +927,7 @@ impl SymbolIndex {
     /// on.
     fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) -> Option<Analysed> {
         let analysed = analyse_file(documents, entry, version)?;
+        self.work += analysed.work;
         let entry = canonical_key(entry);
         let mut owns_a_file = false;
 

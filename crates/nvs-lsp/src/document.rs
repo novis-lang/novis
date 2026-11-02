@@ -461,6 +461,29 @@ impl Documents {
     }
 }
 
+/// How much front-end work one or more analyses did, counted and never
+/// timed, so a test can say what a keystroke costs on any machine.
+///
+/// [`Analysed::work`] is one analysis's own, and [`crate::SymbolIndex::work`]
+/// sums every analysis the index ran since its last
+/// [`take_work`](crate::SymbolIndex::take_work). The counts live in the
+/// analysis and in the index and never in a global, so two analyses never
+/// share one.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Work {
+    /// The files whose text was lexed and parsed.
+    pub parsed: usize,
+    /// The files whose bodies the type phase checked.
+    pub checked: usize,
+}
+
+impl std::ops::AddAssign for Work {
+    fn add_assign(&mut self, other: Self) {
+        self.parsed += other.parsed;
+        self.checked += other.checked;
+    }
+}
+
 /// One open document, analysed as its own entry point.
 #[derive(Debug)]
 pub struct Analysed {
@@ -557,6 +580,9 @@ pub struct Analysed {
     /// walk and the type phase read. An extension class has no declaration to
     /// answer a cursor from, so completion and hover read its manifest.
     pub extensions: Vec<nvs_ext::manifest::Manifest>,
+    /// The files this analysis parsed and the files whose bodies it checked.
+    /// Today both are every file of the graph.
+    pub work: Work,
 }
 
 impl Analysed {
@@ -745,6 +771,12 @@ fn analyse_over(
     // The editor is the one reader of a tainted value's path, so it is the
     // one caller that asks the checker to record it.
     exprs.record_provenance();
+    // The entry was parsed above and every other file of the graph by the
+    // walk, so each loaded file is one parse.
+    let mut work = Work {
+        parsed: loaded.len(),
+        checked: 0,
+    };
     let deprecated;
     {
         // The type phase, continued into exactly the way `nvs-cli`'s
@@ -766,6 +798,7 @@ fn analyse_over(
                 stmts: &file.stmts,
             })
             .collect();
+        work.checked = files.len();
         // The enum table is dropped and the expression table is not: nothing
         // here lowers, so a case's constant value has no reader, while what
         // each expression resolved to is what a cursor request asks about.
@@ -818,6 +851,7 @@ fn analyse_over(
         diags,
         stubs: documents.stubs.clone(),
         extensions,
+        work,
     })
 }
 

@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/document.rs, docs/rule
 stages:
   - id: 1
     title: a generated perf fixture and tests that count the files parsed and the bodies checked
-    status: open
+    status: done
     context: [crates/nvs-lsp/tests/latency.rs, crates/nvs-lsp/tests/autoload.rs, crates/nvs-lsp/src/server.rs]
   - id: 2
     title: "a file is parsed again only when its text changed: the loader takes a cached parse"
@@ -330,16 +330,16 @@ lands, on this goal's own branch. Each later stage writes its own tests once its
 **Does:** `Work` exists and is counted in `analyse_over` and summed by `SymbolIndex`. The generated
 fixture and the counted tests exist. The tests that need later stages fail with the counts they found.
 
-- [ ] `Work { parsed, checked }` in `Analysed`. Today `parsed` is the files the walk loaded and
+- [x] `Work { parsed, checked }` in `Analysed`. Today `parsed` is the files the walk loaded and
   `checked` is `files.len()` passed to `check_program_loaded`. `rule:ide/the-server-is-synchronous`
   `crates/nvs-lsp/src/document.rs:676`, `crates/nvs-lsp/src/document.rs:772`
-- [ ] `SymbolIndex::work()` and `take_work()` sum the analyses of `refresh`, `settle_one` and
+- [x] `SymbolIndex::work()` and `take_work()` sum the analyses of `refresh`, `settle_one` and
   `absorb`. `crates/nvs-lsp/src/index.rs:484`, `crates/nvs-lsp/src/index.rs:539`,
   `crates/nvs-lsp/src/index.rs:911`
-- [ ] `crates/nvs-lsp/tests/incremental.rs`: the `TempDir`, `tree(programs, library)` and a
+- [x] `crates/nvs-lsp/tests/incremental.rs`: the `TempDir`, `tree(programs, library)` and a
   `keystroke(index, documents, path, edit) -> Work` helper that edits, refreshes and settles until
   `pending` is empty. `crates/nvs-lsp/tests/incremental.rs:1`
-- [ ] The tests of the `lsp-work-counted` check, and the four red tests the standing decisions name.
+- [x] The tests of the `lsp-work-counted` check, and the four red tests the standing decisions name.
   Run once by name: `cargo test --test incremental`. Write the red ones' counts in the handoff.
   `crates/nvs-lsp/tests/incremental.rs:1`
 
@@ -452,15 +452,37 @@ writes the file once per idle period after `pending` empties.
 
 ### State
 
-Nothing has landed yet. The goal is written and its decisions are settled.
+Stage 1 is done. `nvs_lsp::Work { parsed, checked }` is in `Analysed::work`, counted in
+`analyse_over`, and `SymbolIndex::absorb` sums it into `work()` until `take_work()`. `work` is in
+`BOOKKEEPING` in `crates/nvs-lsp/tests/index.rs`. `crates/nvs-lsp/tests/incremental.rs` has `tree`,
+`index_of`, `open`, `keystroke` and `body_edit`. A local in a generated file needs its declared type
+(`Part1 $other = new Part1();`), or every file has `E0301`.
+
+The acceptance sweep's reds were stale. `env-secret-proofs` has no log and no goal names it. Nightly
+`41428598621` was cancelled by the push that followed it, and no job in it failed.
+
+**Red until their stage lands, with the counts they find today** (so `bun nv verify --fast -p
+nvs-lsp` is red until stage 5):
+
+- `an_unchanged_file_is_parsed_once_across_keystrokes`: parsed `[85, 85, 85]`, wants `[1, 1, 1]`.
+  Stage 2 makes it green.
+- `a_body_only_keystroke_re_queues_no_reader`: queues `Blog/main.nvs` and `Shop/main.nvs`. Stage 4.
+- `a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_bodies`:
+  `Work { parsed: 128, checked: 128 }`, wants `{ 1, 1 }`. Stage 5.
+- `a_body_only_keystroke_costs_the_same_with_two_programs_and_with_twenty`: 128 against 902. Stage 5.
 
 ### Next
 
-**Stage 1, one group.** `document.rs`, `index.rs` and the new test file are one file set.
+**Stage 2, one group.** `crates/nvs-hir/src/requires.rs`, then `parse_cache.rs` and `document.rs`.
 
-- [ ] `Work` in `Analysed`, counted at the walk and the checker call. `crates/nvs-lsp/src/document.rs:676`, `crates/nvs-lsp/src/document.rs:772`
-- [ ] `SymbolIndex::work()` and `take_work()`. `crates/nvs-lsp/src/index.rs:386`
-- [ ] The fixture, the `keystroke` helper and the tests the standing decisions name. `crates/nvs-lsp/tests/incremental.rs:1`
+- [ ] The `Parses` trait and the hook at the walk's four `parse_file` sites. `crates/nvs-hir/src/requires.rs:242`, `crates/nvs-hir/src/requires.rs:277`, `crates/nvs-hir/src/requires.rs:500`, `crates/nvs-hir/src/requires.rs:597`
+- [ ] `Loaded::stmts` as `Arc<Vec<Stmt>>`, with `Arc::make_mut` where a pass changes it. `crates/nvs-hir/src/requires.rs:155`
+- [ ] The `hir-parse-cache` tests. `crates/nvs-hir/src/requires.rs:1968`
+- [ ] `ParseCache`, passed through `analyse_over`, and `Work::parsed` counts its misses. `crates/nvs-lsp/src/parse_cache.rs:1`, `crates/nvs-lsp/src/document.rs:702`, `crates/nvs-lsp/src/document.rs:747`
+- [ ] `an_unchanged_file_is_parsed_once_across_keystrokes` goes green. `crates/nvs-lsp/tests/incremental.rs:283`
+
+Stage 3 touches only `crates/nvs-types/` and `crates/nvs-diagnostics/src/source.rs`, so it may run
+beside stage 2.
 
 ### Backlog
 
