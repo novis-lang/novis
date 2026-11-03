@@ -703,6 +703,33 @@ impl Task {
     /// switch at all for a coroutine that has not started or has already
     /// finished, and announcing one would leave the sanitizer attributing the
     /// scheduler's own frames to the task.
+    ///
+    /// # Why the task's body runs in a frame of its own
+    ///
+    /// The unwind starts at the task's park, is caught by
+    /// [`nvs_runtime::run_task`] and raised again, and is caught for good by
+    /// `corosensei`'s entry, all on the task's stack. On x86_64 Windows that
+    /// entry is `extern "sysv64-unwind"`, and the optimized profiles inlined the
+    /// whole task body into it. LLVM compiles a cleanup funclet under its
+    /// parent's convention, so the funclet that dropped the body's locals saved
+    /// only SysV's callee-saved registers and clobbered `rsi` and `rdi`. The C++
+    /// runtime that called it expects both kept, and read through one of them
+    /// as address `0x4`: `STATUS_ACCESS_VIOLATION`, right after the first
+    /// cleanup of the body's frame and before `Drop for Ctx` started. Debug
+    /// builds did not inline, so they passed.
+    ///
+    /// Evidence: probes showed the fault between two drops of the entry's
+    /// locals, a diagnostic exception handler placed it in `__CxxFrameHandler3`
+    /// under `RtlUnwindEx`, reading `0x4`, and an `extern "sysv64-unwind"`
+    /// function compiled with `-O` emits a funclet that zeroes `rsi` and `rdi`
+    /// and returns without restoring them. `#[inline(never)]` on `run_task`
+    /// did not help, and the body kept out of line fixed it.
+    ///
+    /// The fix is [`crate::stack::native_frame`]: the body is a Rust function
+    /// of its own, under the Win64 convention, whose funclets save what Win64
+    /// requires. Unwinding keeps its semantics: every native `Drop` on the
+    /// stack runs once, and the stack goes back to the pool.
+    /// `tests/forced_unwind.rs` crashes on the `proof` profile without it.
     fn force_unwind(&mut self) {
         let Self { coro, fiber, .. } = self;
         if coro.started() && !coro.done() {
@@ -928,36 +955,40 @@ impl Scheduler {
         let carried = ctx;
         // The first resume's argument is ignored: a task that has not started
         // has an empty stack, so a cancelled one is torn down rather than told.
+        // The body runs in a frame of its own, or a forced unwind crashes on
+        // x86_64 Windows: `Task::force_unwind` owns why.
         let entry = move |yielder: &TaskYielder, _first: Resume| {
-            // Every helper reaches the context by pointer, so its staying on
-            // the heap costs a helper nothing. It leaves the box at the end, in
-            // the task's `Finished`.
-            let mut ctx = carried;
-            // The context's ceiling is armed on the stack it runs on, which
-            // `Task::resume` started under nothing.
-            ctx.arm_on_this_stack();
-            // Taking a pointer to the yielder is safe; only turning it back
-            // into a reference is not, and `suspend` below owns that `unsafe`.
-            // It is erased to `*const ()` so that `nvs-runtime` — the crate
-            // every compiled unit links — needs no coroutine dependency.
-            let raw = std::ptr::from_ref(yielder).cast::<()>();
-            ctx.set_yielder(raw);
-            // The same pointer, published a second time for code that was handed
-            // no `Ctx` at all — a `std::io::Read` on a socket. `RUNNING`'s docs
-            // own why the task maintains this rather than the scheduler.
-            RUNNING.set(Some(Running {
-                id,
-                yielder: raw,
-                tree: ctx.tree_key(),
-                role,
-            }));
-            let outcome = nvs_runtime::run_task(root, || body(&mut ctx));
-            // Cleared on both paths, the contained-panic one included, so no
-            // pointer to a stack that is about to go away can escape in the
-            // context.
-            ctx.set_yielder(std::ptr::null());
-            RUNNING.set(None);
-            Finished { id, ctx, outcome }
+            crate::stack::native_frame(move || {
+                // Every helper reaches the context by pointer, so its staying on
+                // the heap costs a helper nothing. It leaves the box at the end, in
+                // the task's `Finished`.
+                let mut ctx = carried;
+                // The context's ceiling is armed on the stack it runs on, which
+                // `Task::resume` started under nothing.
+                ctx.arm_on_this_stack();
+                // Taking a pointer to the yielder is safe; only turning it back
+                // into a reference is not, and `suspend` below owns that `unsafe`.
+                // It is erased to `*const ()` so that `nvs-runtime` — the crate
+                // every compiled unit links — needs no coroutine dependency.
+                let raw = std::ptr::from_ref(yielder).cast::<()>();
+                ctx.set_yielder(raw);
+                // The same pointer, published a second time for code that was handed
+                // no `Ctx` at all — a `std::io::Read` on a socket. `RUNNING`'s docs
+                // own why the task maintains this rather than the scheduler.
+                RUNNING.set(Some(Running {
+                    id,
+                    yielder: raw,
+                    tree: ctx.tree_key(),
+                    role,
+                }));
+                let outcome = nvs_runtime::run_task(root, || body(&mut ctx));
+                // Cleared on both paths, the contained-panic one included, so no
+                // pointer to a stack that is about to go away can escape in the
+                // context.
+                ctx.set_yielder(std::ptr::null());
+                RUNNING.set(None);
+                Finished { id, ctx, outcome }
+            })
         };
         assert!(
             std::mem::size_of_val(&entry) <= CORO_TRANSFER_LIMIT,

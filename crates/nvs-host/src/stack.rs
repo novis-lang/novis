@@ -233,7 +233,9 @@ pub fn on_spare_stack<R>(f: impl FnOnce() -> R) -> R {
         .unwrap_or_else(|| {
             DefaultStack::new(SPARE_STACK_SIZE).expect("a thread could not reserve its spare stack")
         });
-    let result = corosensei::on_stack(&mut stack, f);
+    // In its own frame, so a panic out of `f` runs its cleanups under the
+    // platform's convention: `native_frame` owns why.
+    let result = corosensei::on_stack(&mut stack, || native_frame(f));
     SPARE.with(|spare| {
         let mut slot = spare.borrow_mut();
         if slot.is_none() {
@@ -241,6 +243,30 @@ pub fn on_spare_stack<R>(f: impl FnOnce() -> R) -> R {
         }
     });
     result
+}
+
+/// Calls `f` in a frame of its own: the one wrapper every closure handed to
+/// `corosensei` runs inside.
+///
+/// On x86_64 Windows `corosensei` calls the closure from an
+/// `extern "sysv64-unwind"` entry, and LLVM compiles a cleanup funclet under
+/// its parent's convention. So a drop the optimizer inlines into that entry
+/// saves only SysV's callee-saved registers, and clobbers the `rsi`, `rdi` and
+/// `xmm6`–`xmm15` that the C++ runtime calling the funclet expects kept. The
+/// runtime then reads through a zeroed register (an access violation at
+/// address `0x4`) as soon as a panic unwinds out of `f`, which a forced unwind
+/// of every cancelled task does. Kept out of line, `f` is a Rust function
+/// under the Win64 convention, and its funclets save what Win64 requires.
+/// [`crate::scheduler`]'s `Task::force_unwind` records the evidence, and
+/// `tests/forced_unwind.rs` on the `proof` profile is the test that crashed
+/// without it.
+///
+/// **What it costs:** one call per task start and per spare-stack run, on
+/// x86_64 Windows alone. Every other target inlines it away.
+#[cfg_attr(all(windows, target_arch = "x86_64"), inline(never))]
+#[cfg_attr(not(all(windows, target_arch = "x86_64")), inline)]
+pub(crate) fn native_frame<R>(f: impl FnOnce() -> R) -> R {
+    f()
 }
 
 /// The `(base, ceiling)` pair `Ctx::arm_stack_limit` wants for a task running
