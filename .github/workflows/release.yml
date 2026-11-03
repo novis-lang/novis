@@ -123,7 +123,7 @@ jobs:
   # ---------------------------------------------------------------------------
   plan:
     name: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # A dispatch can name any ref, and a release built from a topic branch would be a release of
     # code that never passed review. The tag and the commit both land on `main`, so that is the
     # only branch a release may be cut from.
@@ -231,9 +231,11 @@ jobs:
     with:
       full: true
     # A called workflow's job may ask for no more than this grant, and GitHub checks that when the
-    # run starts, also for a job its `if` skips.
+    # run starts, also for a job its `if` skips. `actions: read` is for `ci.yml`'s `changes` job, which
+    # lists the green CI runs on `main` to pick a push's base; a full run never reads it.
     permissions:
       contents: read
+      actions: read
 
   # ---------------------------------------------------------------------------
   # 3. The binaries and the VS Code extension, at the version about to be released.
@@ -267,7 +269,7 @@ jobs:
     needs: [plan, test, build]
     # The same reading of a skipped `test` as `build`'s.
     if: ${{ !cancelled() && !inputs.dry_run && needs.plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.build.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: release
     # `contents` pushes the tag and drafts the release. The other two are for the attestation of
     # `SHA256SUMS`, as in `build`, and for nothing else.
@@ -327,11 +329,15 @@ jobs:
 
       # `--apply` runs `cargo metadata` and `cargo update --workspace --offline` once the version
       # moves, and offline cargo resolves only from what is already fetched. So the tip's committed
-      # lock is fetched here, after the reset, as `build.yml` does before its own `--apply`.
+      # lock is fetched here, after the reset, as `build.yml` does before its own `--apply`. The same
+      # update runs on `fuzz/Cargo.lock`, which locks workspace crates by path (`SEPARATE_LOCKS` in
+      # tools/nv/cmd/release.ts), so its committed lock is fetched too.
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
       - name: Fetch dependencies against the committed lock
         run: cargo fetch --locked
+      - name: Fetch the fuzz workspace's dependencies against its committed lock
+        run: cargo fetch --locked --manifest-path fuzz/Cargo.toml
 
       - name: Render the notes for what is actually being released
         env:
@@ -362,7 +368,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Named files, never `git add -A`: a runner's working tree also holds dist/ and
           # whatever a build script dropped.
-          git add Cargo.toml Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json
+          git add Cargo.toml Cargo.lock fuzz/Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json
           # Written to a file and passed with -F. The subject follows
           # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.
           printf '%s\n' \

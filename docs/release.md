@@ -39,6 +39,22 @@ would leave a version commit and a tag on `main` for a release that does not exi
 have to be undone by hand on `main`. Nothing is written until every test and every
 binary is green.
 
+### What the version commit changes
+
+`publish` runs `bun nv release --apply` and commits exactly the files it writes, by name:
+`Cargo.toml` (the workspace version and every path dependency's pin), `Cargo.lock`,
+`fuzz/Cargo.lock`, `CHANGELOG.md`, and `editors/vscode/package.json` with its `package-lock.json`.
+`fuzz/` is a separate cargo workspace that uses workspace crates by path, so its lockfile pins their
+version too. Each lockfile gets an offline update of the workspace crates alone, so a release moves no
+third-party dependency, and each job that runs `--apply` first fetches every committed lock it
+updates. The header of [release.ts](../tools/nv/cmd/release.ts) is the home of these rules, and
+`SEPARATE_LOCKS` there lists the lockfiles beside the root one.
+
+No rendered file carries the version, so a release leaves none behind: the website's
+`/llms-full.txt` prints `Core\Env::VERSION` the same for every build, as it prints the constants
+that differ per platform. After the version commit, `main` passes `bun nv ci --check` with no
+file rendered again.
+
 ## Setting up GitHub
 
 GitHub is set up for releases: § 1 to § 5 are done. They are here for a new fork or a moved

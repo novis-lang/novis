@@ -136,6 +136,12 @@ jobs:
       # reviewed; dependency moves are a human's pass, per docs/agent/dependency-update.md.
       - name: Fetch dependencies against the committed lock
         run: cargo fetch --locked
+      # `--apply` also updates the lockfiles of the separate workspaces that use workspace crates by
+      # path (`SEPARATE_LOCKS` in tools/nv/cmd/release.ts), offline, so each committed lock is
+      # fetched too. A dry run skips `publish`, so this is where a dry run proves that update works.
+      - name: Fetch the fuzz workspace's dependencies against its committed lock
+        if: inputs.version != ''
+        run: cargo fetch --locked --manifest-path fuzz/Cargo.toml
 
       # `cargo auditable` puts the dependency list, from `Cargo.lock`, into the binary as a
       # compressed `.dep-v0` section of a few kilobytes. `cargo audit bin` and other scanners read
@@ -244,7 +250,7 @@ jobs:
   # ---------------------------------------------------------------------------
   vsix:
     name: build the VS Code extension
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
       LABEL: ${{ inputs.version || 'dev' }}
@@ -267,6 +273,9 @@ jobs:
       - name: Fetch dependencies against the committed lock
         if: inputs.version != ''
         run: cargo fetch --locked
+      - name: Fetch the fuzz workspace's dependencies against its committed lock
+        if: inputs.version != ''
+        run: cargo fetch --locked --manifest-path fuzz/Cargo.toml
 
       # In this working copy only. Nothing is committed here — see `release.yml`'s header.
       - name: Set the version being released

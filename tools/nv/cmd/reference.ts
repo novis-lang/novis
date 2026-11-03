@@ -85,15 +85,23 @@ const RULE_PAREN_RE = / *\(`rule:.*?`\)/g;
 const CALLED_RE = /(Core\\[A-Za-z0-9_\\]*[A-Za-z0-9_]::[A-Za-z_][A-Za-z0-9_]*)\(/;
 
 /**
- * A constant whose value the binary answers per platform, and the one spelling the generated file uses
- * for it everywhere. Keyed by the constant rather than by the value: `Core\Env::OS` has several values
- * and `Core\Env::EOL`'s two differ only by a `\r` that is easy to miss in a diff.
+ * A constant whose value depends on the binary that answers it, and the one spelling the generated file
+ * uses for it on every build. Keyed by the constant rather than by the value: `Core\Env::OS` has several
+ * values and `Core\Env::EOL`'s two differ only by a `\r` that is easy to miss in a diff.
+ * `Core\Env::VERSION` is the binary's version, and a release moves it: printed as the binary gives it,
+ * `website/public/llms-full.txt` would be a version behind after every release until rendered again.
  */
-const PLATFORM_VALUES: Record<string, string> = {
+const BINARY_VALUES: Record<string, string> = {
   "Core\\Path::SEPARATOR": '"/" ("\\" on Windows)',
   "Core\\Env::EOL": '"\\n" ("\\r\\n" on Windows)',
   "Core\\Env::OS": "Core\\Env::Platform::Linux (Windows or Darwin per platform)",
+  "Core\\Env::VERSION": '"X.Y.Z" (the version of the nvs that runs the program)',
 };
+
+/** The value the reference prints for `cls::name`: the binary's, unless it depends on the binary. */
+export function constantValue(cls: string, name: string, value: string): string {
+  return BINARY_VALUES[`${cls}::${name}`] ?? value;
+}
 
 /** A refusal that stops the command: printed alone on stderr, exit 1. */
 class Fatal extends Error {}
@@ -308,8 +316,8 @@ function renderClass(cls: Json, lines: string[], index: string[]): void {
     lines.push(`| [\`${memberHeading(name, m)}\`](#${anchorId("core", memberHeading(name, m))}) | \`${esc(m.signature)}\` |`);
   }
   for (const k of cls.constants ?? []) {
-    // The binary answers the platform it was built on; the reference is read everywhere.
-    const value = PLATFORM_VALUES[`${name}::${k.name}`] ?? k.value;
+    // The binary answers its own platform and version; the reference is read everywhere, for every version.
+    const value = constantValue(name, k.name, k.value);
     lines.push(`| \`${name}::${k.name}\` | \`${k.type}\` = \`${esc(value)}\` — ${esc(k.doc ?? "")} |`);
   }
   lines.push("");

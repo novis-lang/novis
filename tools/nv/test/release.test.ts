@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync, inflateRawSync } from "node:zlib";
 import { ROOT } from "../lib/paths.ts";
+import { constantValue } from "../cmd/reference.ts";
 import {
   bumpManifest,
   bumpPackageJson,
@@ -14,12 +15,17 @@ import {
   nextVersion,
   notesFor,
   parseLog,
+  pathPackages,
   pinProblems,
   planVersion,
   prependChangelog,
+  releasedCrates,
   releaseTags,
   renderNotes,
+  SEPARATE_LOCKS,
+  staleLockPins,
   tarGz,
+  workspaceVersion,
   zip,
   type ArchiveFile,
   type WorkflowRun,
@@ -128,6 +134,34 @@ describe("nv release manifest", () => {
     const bumped = JSON.parse(bumpPackageJson(lock, "0.0.2", "package-lock.json"));
     expect([bumped.version, bumped.packages[""].version, bumped.packages["node_modules/x"].version]).toEqual(["0.0.2", "0.0.2", "1.0.0"]);
     expect(bumpPackageJson(lock, "0.0.1", "package-lock.json")).toBe(lock);
+  });
+
+  const lock = (packages: [string, string, string?][]) =>
+    "version = 4\n\n" +
+    packages.map(([name, version, source]) => `[[package]]\nname = "${name}"\nversion = "${version}"\n${source ? `source = "${source}"\n` : ""}`).join("\n");
+  const REGISTRY = "registry+https://github.com/rust-lang/crates.io-index";
+
+  test("the crates a release moves are the root lock's path packages at the workspace version", () => {
+    const root = lock([["nvs-a", "0.0.2"], ["nvs-b", "0.0.2"], ["html5ever", "0.40.1"], ["serde", "0.0.2", REGISTRY]]);
+    expect([...pathPackages(root).keys()]).toEqual(["nvs-a", "nvs-b", "html5ever"]);
+    expect([...releasedCrates(root, "0.0.2")]).toEqual(["nvs-a", "nvs-b"]);
+  });
+
+  test("a separate lock still pinning a moved crate is named, and its own crates and registry ones are not", () => {
+    const moved = new Set(["nvs-a", "nvs-b"]);
+    const fuzz = lock([["nvs-a", "0.0.1"], ["nvs-b", "0.0.2"], ["nvs-fuzz", "0.0.0"], ["html5ever", "0.40.1"], ["nvs-c", "0.0.1", REGISTRY]]);
+    expect(staleLockPins(fuzz, moved, "0.0.2")).toEqual(["nvs-a is locked at 0.0.1"]);
+    expect(staleLockPins(fuzz.replace('"nvs-a"\nversion = "0.0.1"', '"nvs-a"\nversion = "0.0.2"'), moved, "0.0.2")).toEqual([]);
+  });
+
+  test("every committed lockfile that lists a workspace crate by path is one --apply updates", () => {
+    const committed = Bun.spawnSync(["git", "ls-files", "--", "*Cargo.lock"], { cwd: ROOT }).stdout.toString().split("\n").filter(Boolean);
+    const moved = releasedCrates(readFileSync(join(ROOT, "Cargo.lock"), "utf8"), workspaceVersion(readFileSync(join(ROOT, "Cargo.toml"), "utf8")));
+    expect(moved.size).toBeGreaterThan(0);
+    const pinning = committed
+      .filter((file) => file !== "Cargo.lock")
+      .filter((file) => [...pathPackages(readFileSync(join(ROOT, file), "utf8")).keys()].some((name) => moved.has(name)));
+    expect(pinning.sort()).toEqual([...SEPARATE_LOCKS].sort());
   });
 
   test("an extension manifest with a version the edit cannot reach is an error", () => {
@@ -367,43 +401,104 @@ describe("greenFullRun", () => {
   });
 });
 
-/**
- * Each `workflow / job` whose step runs `nv release --apply` with no earlier `cargo fetch --locked` and
- * `rustup toolchain install` in the same job. `--apply` runs cargo `--offline` once the version moves,
- * which resolves only from what is fetched, and a dry run skips `publish`, so only a real release with a
- * new version would otherwise find the gap.
- */
-function applyWithoutFetch(workflows: Record<string, string>): string[] {
-  type Job = { steps?: { run?: string }[] };
-  const gaps: string[] = [];
+type Job = { steps?: { run?: string }[] };
+
+/** Each job of each workflow that runs `nv release --apply`, with its steps' `run` lines. */
+function applyJobs(workflows: Record<string, string>): { at: string; runs: string[]; apply: number }[] {
+  const found: { at: string; runs: string[]; apply: number }[] = [];
   for (const [file, text] of Object.entries(workflows)) {
     const jobs = (Bun.YAML.parse(text) as { jobs?: Record<string, Job> }).jobs ?? {};
     for (const [name, job] of Object.entries(jobs)) {
       const runs = (job.steps ?? []).map((s) => s.run ?? "");
       const apply = runs.findIndex((r) => r.includes("nv release --apply"));
-      if (apply < 0) continue;
-      const before = runs.slice(0, apply);
-      if (!before.some((r) => r.includes("cargo fetch --locked")) || !before.some((r) => r.includes("rustup toolchain install"))) {
-        gaps.push(`${file} / ${name}`);
-      }
+      if (apply >= 0) found.push({ at: `${file} / ${name}`, runs, apply });
     }
   }
-  return gaps;
+  return found;
+}
+
+/**
+ * Each `workflow / job` whose step runs `nv release --apply` with no earlier `rustup toolchain install`,
+ * `cargo fetch --locked` of the root lock, and `cargo fetch --locked --manifest-path` of each separate
+ * lock in the same job. `--apply` runs cargo `--offline` on each lock once the version moves, which
+ * resolves only from what is fetched, and a dry run skips `publish`, so only a real release with a new
+ * version would otherwise find the gap.
+ */
+function applyWithoutFetch(workflows: Record<string, string>, separate: string[] = SEPARATE_LOCKS): string[] {
+  return applyJobs(workflows)
+    .filter(({ runs, apply }) => {
+      const lines = runs.slice(0, apply).flatMap((r) => r.split("\n").map((l) => l.trim()));
+      const fetched = (manifest: string | null) =>
+        lines.some((l) => (manifest === null ? /^cargo fetch --locked$/.test(l) : l === `cargo fetch --locked --manifest-path ${manifest}`));
+      return (
+        !lines.some((l) => l.startsWith("rustup toolchain install")) ||
+        !fetched(null) ||
+        !separate.every((lock) => fetched(lock.replace(/Cargo\.lock$/, "Cargo.toml")))
+      );
+    })
+    .map(({ at }) => at);
+}
+
+/**
+ * Each `workflow / job` that runs `nv release --apply` and then `git commit`, whose `git add` does not
+ * name `Cargo.lock` and each separate lock. The release commit would otherwise leave a lock behind the
+ * version, and `main` would be red until someone committed it by hand.
+ */
+function commitWithoutLocks(workflows: Record<string, string>, separate: string[] = SEPARATE_LOCKS): string[] {
+  return applyJobs(workflows)
+    .filter(({ runs, apply }) => {
+      const after = runs.slice(apply + 1);
+      if (!after.some((r) => r.includes("git commit"))) return false;
+      const staged = after.flatMap((r) => r.split("\n").map((l) => l.trim()).filter((l) => l.startsWith("git add ")).flatMap((l) => l.split(/\s+/)));
+      return !["Cargo.lock", ...separate].every((lock) => staged.includes(lock));
+    })
+    .map(({ at }) => at);
 }
 
 describe("nv release --apply in a workflow", () => {
-  test("every job that bumps the version fetches the committed lock first", () => {
-    const dir = join(ROOT, ".github", "workflows");
-    const workflows: Record<string, string> = {};
-    for (const f of readdirSync(dir).filter((f) => f.endsWith(".yml"))) workflows[f] = readFileSync(join(dir, f), "utf8");
+  const dir = join(ROOT, ".github", "workflows");
+  const workflows: Record<string, string> = {};
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".yml"))) workflows[f] = readFileSync(join(dir, f), "utf8");
+  const yml = (steps: string[]) => `jobs:\n  publish:\n    steps:\n${steps.map((s) => `      - run: ${s}\n`).join("")}`;
+
+  test("every job that bumps the version fetches every committed lock it updates first", () => {
     expect(Object.values(workflows).some((t) => t.includes("nv release --apply"))).toBe(true);
     expect(applyWithoutFetch(workflows)).toEqual([]);
   });
 
   test("a job that bumps with no fetch before it is named", () => {
-    const yml = (steps: string[]) => `jobs:\n  publish:\n    steps:\n${steps.map((s) => `      - run: ${s}\n`).join("")}`;
-    expect(applyWithoutFetch({ "a.yml": yml(["bun nv release --apply 0.0.2"]) })).toEqual(["a.yml / publish"]);
-    expect(applyWithoutFetch({ "b.yml": yml(["bun nv release --apply 0.0.2", "cargo fetch --locked"]) })).toEqual(["b.yml / publish"]);
-    expect(applyWithoutFetch({ "c.yml": yml(["rustup toolchain install --no-self-update", "cargo fetch --locked", "bun nv release --apply 0.0.2"]) })).toEqual([]);
+    expect(applyWithoutFetch({ "a.yml": yml(["bun nv release --apply 0.0.2"]) }, [])).toEqual(["a.yml / publish"]);
+    expect(applyWithoutFetch({ "b.yml": yml(["bun nv release --apply 0.0.2", "cargo fetch --locked"]) }, [])).toEqual(["b.yml / publish"]);
+    const rootOnly = yml(["rustup toolchain install --no-self-update", "cargo fetch --locked", "bun nv release --apply 0.0.2"]);
+    expect(applyWithoutFetch({ "c.yml": rootOnly }, [])).toEqual([]);
+    expect(applyWithoutFetch({ "c.yml": rootOnly }, ["fuzz/Cargo.lock"])).toEqual(["c.yml / publish"]);
+    const both = yml(["rustup toolchain install --no-self-update", "cargo fetch --locked", "cargo fetch --locked --manifest-path fuzz/Cargo.toml", "bun nv release --apply 0.0.2"]);
+    expect(applyWithoutFetch({ "d.yml": both }, ["fuzz/Cargo.lock"])).toEqual([]);
+  });
+
+  test("the job that commits the bump stages every lock --apply updates", () => {
+    expect(commitWithoutLocks(workflows)).toEqual([]);
+  });
+
+  test("a job that commits the bump without a separate lock is named", () => {
+    const commit = (add: string) => yml(["bun nv release --apply 0.0.2", `|\n          ${add}\n          git commit -F msg`]);
+    expect(commitWithoutLocks({ "a.yml": commit("git add Cargo.toml Cargo.lock") }, ["fuzz/Cargo.lock"])).toEqual(["a.yml / publish"]);
+    expect(commitWithoutLocks({ "b.yml": commit("git add Cargo.toml Cargo.lock fuzz/Cargo.lock") }, ["fuzz/Cargo.lock"])).toEqual([]);
+    expect(commitWithoutLocks({ "c.yml": yml(["bun nv release --apply 0.0.2"]) }, ["fuzz/Cargo.lock"])).toEqual([]);
+  });
+});
+
+describe("a release leaves no rendered file behind", () => {
+  test("the reference prints Core\\Env::VERSION the same whatever version the binary is", () => {
+    const value = constantValue("Core\\Env", "VERSION", '"0.0.1"');
+    expect(value).toBe(constantValue("Core\\Env", "VERSION", '"0.4.2"'));
+    expect(value).not.toContain("0.0.1");
+    expect(constantValue("Core\\Math", "PI", "3.14")).toBe("3.14");
+  });
+
+  test("the committed llms-full.txt has no version of its own", () => {
+    const text = readFileSync(join(ROOT, "website", "public", "llms-full.txt"), "utf8");
+    const row = text.split("\n").find((l) => l.startsWith("| `Core\\Env::VERSION` |"));
+    expect(row).toContain(constantValue("Core\\Env", "VERSION", ""));
   });
 });

@@ -56,8 +56,18 @@
 // back and refuses a manifest where any pin still differs, and `cargo metadata` must read the workspace
 // or the manifest is put back. `cargo update --workspace --offline` rewrites `Cargo.lock` for workspace
 // members only, so a release cannot carry a dependency bump — that pass is a person's, per
-// `docs/agent/dependency-update.md`. The editor extension ships the same version, so `--apply` also
-// rewrites `editors/vscode/package.json` and the two versions in its `package-lock.json`.
+// `docs/agent/dependency-update.md`. A separate cargo workspace that depends on workspace crates by
+// path, such as `fuzz/`, locks their version too, so the same offline update runs on each lockfile in
+// `SEPARATE_LOCKS`, and each is read back: a workspace crate still locked at another version puts every
+// file back. Offline cargo resolves only from fetched crates, so a job that runs `--apply` first runs
+// `cargo fetch --locked` for the root and for each of those manifests. The editor extension ships the
+// same version, so `--apply` also rewrites `editors/vscode/package.json` and the two versions in its
+// `package-lock.json`.
+//
+// **No rendered file carries the version.** `website/public/llms-full.txt` prints each `Core` constant's
+// value from a built binary's registry, and a release would leave that file a version behind until it
+// was rendered again. So `bun nv reference` spells `Core\Env::VERSION` the same for every build, as it
+// spells the per-platform constants, and a release has no rendered file to regenerate.
 //
 // **Every release starts from the previous tag.** The notes are the commit log since it, and the
 // version advances past it. A clone with no `v*` tag is one fetched without its tags, so every step
@@ -282,6 +292,39 @@ export function bumpPackageJson(text: string, version: string, file: string): st
   const found = [parsed.version, ...(lock ? [parsed.packages?.[""]?.version] : [])];
   if (found.some((v) => v !== version)) die(`${file} still disagrees with ${version}; its shape changed (found ${found.map(String).join(", ")})`);
   return out;
+}
+
+/**
+ * The lockfiles of the separate cargo workspaces that depend on workspace crates by path, so each
+ * pins the workspace version too. `fuzz/` is one because `libfuzzer-sys` needs nightly, which the root
+ * workspace must never resolve. `--apply` updates each the way it updates the root `Cargo.lock`, and
+ * `release.yml`'s `publish` commits each. The release tests fail when a committed lockfile lists a
+ * workspace crate and is missing here, and when a job that runs `--apply` does not fetch each one first.
+ */
+export const SEPARATE_LOCKS = ["fuzz/Cargo.lock"];
+
+/** Each `[[package]]` with no `source` in a `Cargo.lock`: a path package, with its version. */
+export function pathPackages(lock: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const packages = table(parseToml(lock)).package;
+  for (const p of Array.isArray(packages) ? packages : []) {
+    const t = table(p);
+    if (t.source === undefined && typeof t.name === "string" && typeof t.version === "string") out.set(t.name, t.version);
+  }
+  return out;
+}
+
+/**
+ * The crates a release moves: the path packages of the root `Cargo.lock` at the workspace version.
+ * A path package with its own version, such as a patched crate under `vendor/`, keeps it.
+ */
+export function releasedCrates(rootLock: string, version: string): Set<string> {
+  return new Set([...pathPackages(rootLock)].filter(([, v]) => v === version).map(([name]) => name));
+}
+
+/** Each of `crates` that `lock` lists by path at a version other than `version`, one line each. */
+export function staleLockPins(lock: string, crates: Set<string>, version: string): string[] {
+  return [...pathPackages(lock)].filter(([name, v]) => crates.has(name) && v !== version).map(([name, v]) => `${name} is locked at ${v}`);
 }
 
 /** Insert `section` above the newest release, below the file's header. */
@@ -840,20 +883,42 @@ async function apply(version: string, notesFile: string | undefined, manifestsOn
     const old = readFileSync(path, "utf8");
     return { path, old, next: bumpPackageJson(old, version, file) };
   });
+  // The root lock and each separate one, read before cargo rewrites them, so a failure puts every
+  // file back and the tree is as it was.
+  const locks = ["Cargo.lock", ...SEPARATE_LOCKS].map((file) => {
+    const path = join(ROOT, file);
+    if (!existsSync(path)) die(`${file} is missing, and --apply updates the workspace crates it lists`);
+    return { file, path, old: readFileSync(path, "utf8") };
+  });
+  const putBack = () => {
+    writeFileSync(cargoToml(), before);
+    for (const { path, old } of locks) writeFileSync(path, old);
+  };
   writeFileSync(cargoToml(), text);
+  // Each separate workspace is updated the way the root is: `--workspace` moves no registry
+  // dependency, and cargo re-resolves a path dependency on every update, so the workspace crates it
+  // lists move to the new version. Offline, it resolves from what the job fetched before the bump.
+  const separate = SEPARATE_LOCKS.map((file) => ["--manifest-path", join(ROOT, file.replace(/Cargo\.lock$/, "Cargo.toml"))]);
   for (const argv of [
     ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"],
     ["cargo", "update", "--workspace", "--offline"],
+    ...separate.map((path) => ["cargo", "update", "--workspace", "--offline", ...path]),
   ]) {
     const r = await runProc(argv);
     if (r.code !== 0) {
-      writeFileSync(cargoToml(), before);
-      die(`${argv.join(" ")} failed, so Cargo.toml was put back:\n${r.stdout}\n${r.stderr}`);
+      putBack();
+      die(`${argv.join(" ")} failed, so Cargo.toml and the lockfiles were put back:\n${r.stdout}\n${r.stderr}`);
     }
+  }
+  const moved = releasedCrates(readFileSync(locks[0]!.path, "utf8"), version);
+  const stale = locks.flatMap(({ file, path }) => staleLockPins(readFileSync(path, "utf8"), moved, version).map((s) => `${file}: ${s}`));
+  if (moved.size === 0 || stale.length > 0) {
+    putBack();
+    die(`the lockfiles still disagree with ${version}, so Cargo.toml and the lockfiles were put back:\n  ${stale.join("\n  ") || "Cargo.lock lists no path package at it"}`);
   }
   for (const { path, old, next } of extensions) if (next !== old) writeFileSync(path, next);
   if (section !== null) writeFileSync(changelogPath(), prependChangelog(readFileSync(changelogPath(), "utf8"), section));
-  console.log(`nv release: ${changed} version fields at ${version}; Cargo.lock and the extension updated.`);
+  console.log(`nv release: ${changed} version fields at ${version}; ${locks.map((l) => l.file).join(", ")} and the extension updated.`);
   return 0;
 }
 
@@ -888,7 +953,7 @@ function help(): string {
     "  --plan {patch,minor,major}     compute the next version; write nothing",
     "  --preview {patch,minor,major}  --plan and the notes, to stdout",
     "  --notes VERSION                render that version's changelog section",
-    "  --apply VERSION                rewrite the manifests and prepend the changelog",
+    "  --apply VERSION                rewrite the manifests and the lockfiles, and prepend the changelog",
     "  --package                      archive a built binary",
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
