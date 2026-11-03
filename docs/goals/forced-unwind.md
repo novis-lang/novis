@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/tests/deferred.rs, crates/nvs-cli/src/worker.rs, tools/nv/proofs/run.ts]
   - id: 2
     title: "the crash's cause is named and fixed, and CI runs the teardown tests on the proof profile"
-    status: open
+    status: done
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/tsan.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-cli/tests/one_binary.rs, .github/workflows/ci.yml]
   - id: 3
     title: "nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary"
@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/worker.rs, crates/nvs-cli/tests/check_command.rs, docs/rules/concurrency.md, docs/rules/concurrency/one-process-serves-requests-schedules-and-jobs.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
     context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml]
 checks:
@@ -233,10 +233,10 @@ Windows and any fix in a later 0.3 release, as `file:line` and one line each.
 - [x] Write `a_server_stopped_with_a_request_still_parked_exits_cleanly` beside the server shutdown
   tests: a server with a request parked past the drain is stopped, and the process exits with its
   normal code. Run it on the proof profile. `crates/nvs-cli/tests/one_binary.rs:1`
-- [ ] Add the CI step after the proofs job's build, measure what it adds on Windows, and apply the
+- [x] Add the CI step after the proofs job's build, measure what it adds on Windows, and apply the
   3-minute decision. `.github/workflows/ci.yml:583`
   - [x] The step is in the proofs job, after the build (`23ff19f1d`).
-  - [ ] Its time on `proofs / windows-x86_64` is read from the next push's run, and the 3-minute
+  - [x] Its time on `proofs / windows-x86_64` is read from the next push's run, and the 3-minute
     decision applied.
 
 ### 3. nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary
@@ -265,12 +265,12 @@ binary and the whole proof corpus.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
-- [ ] Run `bun nv verify --doc`, `bun nv owners --closes forced-unwind` and `bun nv ci --check`, and
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] Run `bun nv verify --doc`, `bun nv owners --closes forced-unwind` and `bun nv ci --check`, and
   fix every red.
-- [ ] Push with `bun nv ci --push` and watch with `bun nv ci --watch` until every job is green,
+- [x] Push with `bun nv ci --push` and watch with `bun nv ci --watch` until every job is green,
   macOS and aarch64 included. Record `proofs / windows-x86_64`'s duration in the handoff.
   `tools/nv/cmd/ci.ts:1`
 
@@ -278,9 +278,12 @@ binary and the whole proof corpus.
 
 ### State
 
-Stages 1 and 3 are done. Stage 2's crash is named and fixed (`6b0bc591c`), its CI step is in
-(`23ff19f1d`), and the server test is in (`502d3e295`). Left in stage 2: the CI step's Windows timing,
-which is read at stage 4's push because nothing since `b88ffd667` is pushed yet.
+Every stage is done. The gate: `looper verify` green (626 s; its one change was rustfmt on
+`one_binary.rs`, `5b6c67314`), `verify --doc` green, `owners --closes` finds no gap, and `ci --check`
+green once `forced-unwind` was listed as `internal` on the roadmap (`971c7cb9a`). CI run
+`41594139300` and Website run `41594139244` on `971c7cb9a` are green, all 44 jobs, macOS and
+aarch64 included. `proofs / windows-x86_64` took 33m06s, and the teardown step 1m45s of it
+(Linux 51 s, macOS 58 s). That is under 3 minutes, so the step stays in the proofs job.
 
 **Stage 3** (`d6dd4e441`, `45e4ac4c7`): the cancel is back, and point 5's tests are
 `check_command.rs:417` (new), `worker.rs:2571`/`:2598` and `check_command.rs:377`, green in debug
@@ -299,16 +302,11 @@ and nightly `41428598621` was cancelled by a push.
 
 ### Next
 
-**Stage 4, the gate, from its first item.** Stage 2's one open item is read at this stage's push.
-
-- [ ] `tools/looper/main.ts:1` `looper verify` with `run_in_background`, every failure fixed in one
-  pass, then once more.
-- [ ] `tools/nv/cmd/ci.ts:1` `bun nv verify --doc`, `bun nv owners --closes forced-unwind`,
-  `bun nv ci --check`.
-- [ ] `tools/nv/cmd/ci.ts:1` Push with `bun nv ci --push`, watch with `bun nv ci --watch`. Read what
-  the `Teardown of a cancelled task (proof profile)` step adds on `proofs / windows-x86_64`
-  (`.github/workflows/ci.yml:591`); over 3 minutes, move the five cases as § *Standing decisions*
-  says. Tick stage 2's last item and set stage 2 `done`.
+Nothing: the goal is reached, and the driver's acceptance checks retire it. Every decision its prose
+held has a lasting home: the cause in `Task::force_unwind`'s doc
+(`crates/nvs-host/src/scheduler.rs:697`), the CI step's reason in its comment
+(`.github/workflows/ci.yml:585`), and why no server stop reaches the unwind in the server test's doc
+(`crates/nvs-cli/tests/one_binary.rs:183`).
 
 Red now: the seven `limits` tests on the proof profile, which are the baseline and not this goal's.
 Nothing else is expected red.
