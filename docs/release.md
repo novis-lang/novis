@@ -132,9 +132,14 @@ Marketplace, and it signs in with no stored credential:
 - **The publisher** `novis-lang` on the Marketplace (registered as `Novis-Lang`; the lookup ignores
   case), owned by the Microsoft account of the Azure DevOps organisation.
 - **A Microsoft Entra ID identity** (a user-assigned managed identity) with no Azure role, a member of
-  that publisher and of nothing else. Its **federated credential** trusts GitHub Actions with the
-  subject `repo:novis-lang/novis:environment:marketplace`, so only a job in that environment of this
-  repository can sign in as it.
+  that publisher and of nothing else. Its **federated credential** has the issuer
+  `https://token.actions.githubusercontent.com`, the audience `api://AzureADTokenExchange` and the
+  subject `repo:novis-lang@322243086/novis@1358571565:environment:marketplace`, so only a job in that
+  environment of this repository can sign in as it. The repository sends GitHub's *immutable*
+  subject, with the organisation's and the repository's numeric ids, and Entra compares it case for
+  case, so the portal's GitHub template (which writes `repo:novis-lang/novis:…`) does not match:
+  enter it under *Other issuer*. `gh api repos/novis-lang/novis/actions/oidc/customization/sub`
+  prints the prefix the repository sends.
 - **The repository secrets** `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`, the identity's two ids. They
   name it and grant nothing on their own, so a leak of either costs nothing.
 - **Settings → Environments → New environment**, named exactly `marketplace`: **Required reviewers** →
@@ -315,4 +320,4 @@ has to be done again on the next release.
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
 | The `docker` job failed *before* the release was tagged | Only a dry run gets there, and a dry run pushes nothing, so no image exists for a version the repository has no tag for. Its failure is the smoke test or the image build, and the step log names which check. `tests/docker/smoke.sh` runs the same checks locally — [docker/README.md](../docker/README.md) § *Building an image locally*. |
 | `latest` did not move | It moves on *publish*, not on draft (see step 7 of § *Cutting a release*), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
-| The Marketplace upload failed | Dispatch `release-promote.yml` on `main` with the tag, and approve its `marketplace` environment. `--skip-duplicate` makes it a success when the version is listed already. A sign-in failure names the Entra ID identity: its federated credential must have the subject `repo:novis-lang/novis:environment:marketplace`, and it must be a member of the `novis-lang` publisher. |
+| The Marketplace upload failed | Re-run the promote run's failed job (`gh run rerun <id> --failed`), or dispatch `release-promote.yml` on `main` with the tag, and approve its `marketplace` environment. Neither releases anything again. `--skip-duplicate` makes it a success when the version is listed already. `AADSTS7002138` at `azure/login` is a federated credential whose subject is not exactly the one the log's `subject claim` line prints (§ 8). A `401` or `403` at publish is an identity that is not a member of the `novis-lang` publisher. |

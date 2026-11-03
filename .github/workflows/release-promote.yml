@@ -42,7 +42,9 @@
 # rebuilt, so the Marketplace lists the bytes `SHA256SUMS` names. It holds no stored secret: the job
 # exchanges its GitHub OIDC token for a Microsoft Entra ID token (`azure/login`), and `vsce
 # --azure-credential` publishes with that. Entra trusts only the subject
-# `repo:novis-lang/novis:environment:marketplace`, so the job runs in the `marketplace` environment,
+# `repo:novis-lang@322243086/novis@1358571565:environment:marketplace`: the repository sends
+# GitHub's immutable subject, which carries the organisation's and the repository's numeric ids, and
+# Entra compares it case for case. So the job runs in the `marketplace` environment,
 # which admits `v*` tags and `main` (a manual dispatch runs on `main`) and waits for a reviewer's
 # approval. `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` name the identity and are not secret. The identity
 # is a member of the `novis-lang` publisher and of nothing else.
