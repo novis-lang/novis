@@ -922,6 +922,18 @@ struct Reader<'a> {
     resolve: &'a dyn Fn(&str) -> Option<*const ClassDesc>,
 }
 
+/// Every object the reader registered still holds the reference it was built
+/// with, and the graph holds whatever it needs, so those references are
+/// surplus. They are given up here, so a decode refused partway frees the
+/// objects it built just as an accepted one does.
+impl Drop for Reader<'_> {
+    fn drop(&mut self) {
+        for held in std::mem::take(&mut self.objects) {
+            release(held);
+        }
+    }
+}
+
 /// The refusal every short read makes, one place rather than at each `?`.
 fn truncated() -> GraphError {
     GraphError("the payload ends in the middle of a value".to_owned())
@@ -1143,11 +1155,6 @@ pub fn decode(
         .objects
         .iter()
         .try_for_each(|held| borrow_object(*held).check_fields());
-    // Every object the reader registered still holds the reference it was built
-    // with; the graph itself holds whatever it needs, so those are surplus.
-    for held in std::mem::take(&mut reader.objects) {
-        release(held);
-    }
     if let Err(refused) = fields {
         release(value);
         return Err(GraphError(refused));
@@ -1790,5 +1797,51 @@ mod tests {
             .expect("a `bytes` node is not text");
         assert_eq!(back.exact_tag(), Some(Tag::Bytes));
         release(back);
+    }
+
+    /// A payload refused while an object's fields are still being read frees
+    /// every object the reader built before it stopped. The first payload is
+    /// the fuzzer's: an array whose `Dog` ends before its `name`.
+    #[test]
+    fn a_payload_refused_partway_frees_every_object_it_built() {
+        let mut table = ClassTable::new();
+        table.define("Dog", &["name"], &[]);
+        let resolve = resolver(&table);
+        let mut ctx = crate::Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+
+        let fuzzed: &[u8] = &[
+            78, 86, 83, 27, 1, 8, 5, 1, 0, 0, 58, 0, 0, 2, 78, 0, 183, 86, 1, 0, 0, 0, 0, 0, 0, 4,
+            0, 0, 0, 0, 0, 0, 0, 90, 90, 83, 27, 1, 9, 3, 68, 111, 103, 1, 4, 110, 97, 109, 101,
+        ];
+        // A `Dog` node whose one field, `name`, is not written yet.
+        let dog = [&[node::OBJECT][..], b"\x03Dog\x01\x04name"].concat();
+        let mut cut = MAGIC.to_vec();
+        cut.push(VERSION);
+        cut.extend_from_slice(&dog);
+        let mut misshapen = cut.clone();
+        misshapen.push(0xff);
+        let mut nested = MAGIC.to_vec();
+        nested.push(VERSION);
+        nested.extend_from_slice(&dog);
+        nested.extend_from_slice(&dog);
+
+        for (what, payload) in [
+            ("the fuzzer's", fuzzed),
+            ("a cut-off object's", &cut[..]),
+            ("a field of no node shape's", &misshapen[..]),
+            ("a cut-off nested object's", &nested[..]),
+        ] {
+            assert!(
+                decode(payload, &resolve).is_err(),
+                "{what} payload was accepted"
+            );
+            assert_eq!(
+                ctx.live_objects(),
+                0,
+                "{what} payload left an object behind"
+            );
+        }
+        drop(current);
     }
 }
