@@ -1,5 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
-  "internal": [],
+  "internal": ["forced-unwind"],
   "themes": []
 }
