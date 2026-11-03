@@ -39,15 +39,12 @@
 #
 # `marketplace` publishes the `nvs-<version>.vsix` the release already carries, after
 # `gh attestation verify` has checked it was built by this repository's release run. Nothing is
-# rebuilt, so the Marketplace lists the bytes `SHA256SUMS` names. It holds no stored secret: the job
-# exchanges its GitHub OIDC token for a Microsoft Entra ID token (`azure/login`), and `vsce
-# --azure-credential` publishes with that. Entra trusts only the subject
-# `repo:novis-lang@322243086/novis@1358571565:environment:marketplace`: the repository sends
-# GitHub's immutable subject, which carries the organisation's and the repository's numeric ids, and
-# Entra compares it case for case. So the job runs in the `marketplace` environment,
-# which admits `v*` tags and `main` (a manual dispatch runs on `main`) and waits for a reviewer's
-# approval. `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` name the identity and are not secret. The identity
-# is a member of the `novis-lang` publisher and of nothing else.
+# rebuilt, so the Marketplace lists the bytes `SHA256SUMS` names. It holds no stored secret:
+# `vsce publish --oidc` exchanges the job's GitHub OIDC token, issued for the audience
+# `marketplace.visualstudio.com`, for a Marketplace token that lasts at most 15 minutes. The
+# `novis-lang` publisher's Trusted Publishing policy accepts that token only from this repository,
+# this workflow file and the `marketplace` environment. That environment admits `v*` tags and
+# `main` (a manual dispatch runs on `main`) and waits for a reviewer's approval.
 #
 # `bun nv release --newest` skips a version that is not the newest tag, as `--floating` does for
 # `latest`. `--skip-duplicate` makes a rerun after a published upload a success, so a manual dispatch
@@ -184,7 +181,7 @@ jobs:
       contents: read
       # `gh attestation verify` reads the release run's attestation.
       attestations: read
-      # The OIDC token `azure/login` exchanges for the Entra ID token.
+      # The OIDC token `vsce publish --oidc` exchanges for the Marketplace token.
       id-token: write
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -231,20 +228,12 @@ jobs:
         working-directory: editors/vscode
         run: npm ci --ignore-scripts
 
-      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
-        if: steps.newest.outputs.newest == 'true'
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          # The identity has no Azure role. It is a Marketplace publisher member and nothing more.
-          allow-no-subscriptions: true
-
       - name: Publish to the Marketplace
         if: steps.newest.outputs.newest == 'true'
         working-directory: editors/vscode
         run: |
           set -euo pipefail
-          node_modules/.bin/vsce publish --azure-credential --skip-duplicate \
+          node_modules/.bin/vsce publish --oidc --skip-duplicate \
             --packagePath "$RUNNER_TEMP/vsix/nvs-${TAG#v}.vsix"
           {
             echo "### The VS Code extension \`${TAG#v}\` is on the Marketplace"

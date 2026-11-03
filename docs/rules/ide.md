@@ -2959,8 +2959,9 @@ lists it as `novis-lang.nvs`, and the publisher ID was registered as `Novis-Lang
 publishers up without regard to case, as VS Code does extension ids, so the manifest keeps the lowercase
 spelling. `release-promote.yml`'s `marketplace` job downloads the release's `.vsix`, checks its build
 attestation, and uploads it, so the listing is the bytes `SHA256SUMS` names and nothing is built twice.
-It stores no secret: a Microsoft Entra ID identity that is a member of the publisher and of nothing else
-trusts GitHub's OIDC token for the `marketplace` environment alone, and that environment admits `v*`
+It stores no secret: `vsce publish --oidc` exchanges the job's GitHub OIDC token for a Marketplace
+token that lasts at most 15 minutes, and the publisher's Trusted Publishing policy accepts it only from
+this repository, `release-promote.yml` and the `marketplace` environment. That environment admits `v*`
 tags and `main` and waits for a reviewer. The reviewer is the gate because the Marketplace updates every
 installed copy without the user acting, so a listing written by anything with push access would reach
 every editor that has the extension. A version behind the newest tag is skipped
@@ -2980,8 +2981,13 @@ and why a copy the extension installed is tried after the user's own toolchain r
 
 **Declined:**
 - **A personal access token for the Marketplace.** It is one secret in the repository, valid for up to
-  a year across every Azure DevOps organisation of its owner, and it has to be renewed by hand. The Entra
-  ID identity has none of the three.
+  a year across every Azure DevOps organisation of its owner, and it has to be renewed by hand. The
+  Trusted Publishing token has none of the three.
+- **A Microsoft Entra ID identity signing in through `azure/login`.** It works without a secret too,
+  but it is a second account to keep: an Azure resource, a federated credential that must match
+  GitHub's immutable subject case for case, and a publisher membership added by a Marketplace profile
+  id that only a run signed in as the identity can read. Trusted Publishing is one policy on the
+  publisher.
 - **A listing on Open VSX**, the registry VSCodium, Cursor and other VS Code builds read. It has no OIDC
   exchange, so it needs a stored token in the release. Its users install the release's `.vsix`.
 - **No reviewer on the `marketplace` environment.** Publishing the draft would then be the only click,
