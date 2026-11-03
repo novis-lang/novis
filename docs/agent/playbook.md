@@ -100,6 +100,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **An access violation in a Windows optimized build is located without a debugger by a temporary
+  vectored exception handler, not by a backtrace.** The proof profile writes no PDB, so
+  `std::backtrace` names only system frames. Install one with `AddVectoredExceptionHandler` in the
+  test file. Print the record's address, its read or write target, `rsp`, and the TEB's stack bounds
+  (`gs:[0x8]`, `gs:[0x10]`), then return `0` to keep searching. Bracket the fault with `eprintln!`
+  probes in each `Drop`. Remove all of it before the commit. See `crates/nvs-host/src/stack.rs`.
+  `until: gone crates/nvs-host/src/stack.rs:fn native_frame`
 - **When most proof programs judge red with `exit 5` and correct output, a native teardown crashed
   at exit on Windows.** `5` is the low byte of `0xC0000005`. Git Bash shows it as `Segmentation
   fault`, exit 139, once you run the proof binary on one example with its output in a file. The

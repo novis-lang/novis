@@ -210,22 +210,25 @@ session runs each alone on the proof profile and records which crash. Nothing is
 goes to a `reader` subagent, which reports how a forced unwind crosses the stack switch on x86_64
 Windows and any fix in a later 0.3 release, as `file:line` and one line each.
 
-- [ ] Narrow the crash, one step at a time, each reverted after: `opt-level = 1` for the proof
+- [x] Narrow the crash, one step at a time, each reverted after: `opt-level = 1` for the proof
   profile, `-C force-frame-pointers=yes`, `#[inline(never)]` on `nvs_runtime::run_task`
   (`crates/nvs-runtime/src/abi.rs:962`) and on the entry closure's body, and an `eprintln!` in
   each `Drop` the unwind runs. Record in the handoff which step makes the crash go away.
   `crates/nvs-host/src/scheduler.rs:931`
-- [ ] Name the cause in the handoff, with the evidence for it, before changing code.
-- [ ] Fix it as § *Standing decisions* allows, and write the cause and the fix in `Task::force_unwind`'s
+- [x] Name the cause in the handoff, with the evidence for it, before changing code.
+- [x] Fix it as § *Standing decisions* allows, and write the cause and the fix in `Task::force_unwind`'s
   doc comment. `crates/nvs-host/src/scheduler.rs:697`
-- [ ] Run `cargo test --profile proof --test forced_unwind` five times: green every time. Then
+- [x] Run `cargo test --profile proof --test forced_unwind` five times: green every time. Then
   `cargo test --test forced_unwind`, and `bun nv linux-test` for the same test.
-- [ ] Run the stage-1 baseline's proof-profile tests again: no new red.
+- [x] Run the stage-1 baseline's proof-profile tests again: no new red.
 - [ ] Write `a_server_stopped_with_a_request_still_parked_exits_cleanly` beside the server shutdown
   tests: a server with a request parked past the drain is stopped, and the process exits with its
   normal code. Run it on the proof profile. `crates/nvs-cli/tests/one_binary.rs:1`
 - [ ] Add the CI step after the proofs job's build, measure what it adds on Windows, and apply the
   3-minute decision. `.github/workflows/ci.yml:583`
+  - [x] The step is in the proofs job, after the build (`23ff19f1d`).
+  - [ ] Its time on `proofs / windows-x86_64` is read from the next push's run, and the 3-minute
+    decision applied.
 
 ### 3. nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary
 
@@ -265,30 +268,46 @@ binary and the whole proof corpus.
 
 ### State
 
-Stage 1 is done: `crates/nvs-host/tests/forced_unwind.rs` has the five teardown tests, green in debug.
+Stage 1 is done. Stage 2's crash is named and fixed (`6b0bc591c`), and its CI step is in
+(`23ff19f1d`). Left in stage 2: the server test and the CI step's Windows timing.
 
-**Baseline, before any change.** Floor debt green (`floor-debt.log`, 2026-11-02 19:52). On the proof
-profile `deferred` passes 11 and `placed_path` 4. `limits` is **already red in 7 of 16**, by assertion
-and not by crash: `limits.rs:417`, `:484`, `:524`, `:564`, `:662`, `:819` and `:1116`. Those seven are
-not this goal's, and any other red is. cargo stops at `limits`, so run `placed_path` on its own.
+**Cause** (with its evidence in `Task::force_unwind`'s doc, `scheduler.rs:733`): on x86_64 Windows the
+optimized build inlined a task's body into `corosensei`'s `extern "sysv64-unwind"` entry. Its cleanup
+funclets saved only SysV's callee-saved registers and clobbered `rsi`/`rdi`, which the C++ runtime that
+calls them expects kept, so it read address `0x4`. Narrowing: `eprintln!` probes and a diagnostic
+vectored handler, then a scratch `-O` compile. `#[inline(never)]` on `run_task` did not help, the body
+kept out of line did, and `opt-level = 1` and frame pointers were not needed.
+**Fix:** `crate::stack::native_frame` (`stack.rs:268`) wraps both closures handed to `corosensei`
+(`scheduler.rs:961`, `stack.rs:238`). Proof profile green 5 of 5, debug and WSL green.
 
-**Red first.** Run alone on the proof profile, four tests exit `0xc0000005` (`STATUS_ACCESS_VIOLATION`):
-cancelled by the scheduler, cancelled from inside another task, the scheduler's drop, and the thousand.
-`a_task_cancelled_before_its_first_turn_drops_its_body_unrun` exits 0: an unstarted coroutine switches
-no stack, so nothing unwinds. A native body under `TaskRoot::Worker`, parked two `#[inline(never)]`
-frames deep with `nvs_host::suspend`, is enough to crash, so the fallback item was not needed.
+**Baseline**, unchanged after the fix: floor debt green (`floor-debt.log`, 2026-11-02 19:52). On the
+proof profile `deferred` passes 11 and `placed_path` 4, and `limits` is red in the same 7 of 16:
+`limits.rs:417`, `:484`, `:524`, `:564`, `:662`, `:819` and `:1116`. Those seven are not this goal's.
+cargo stops at `limits`, so run `placed_path` on its own.
+
+The sweep's reds were stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
+cancelled by a push 3 minutes in. The latest push run is green.
 
 ### Next
 
-**Stage 2**, its narrowing and naming in one session.
+**Stage 2's last two items, then stage 3.**
 
-- [ ] `crates/nvs-host/src/scheduler.rs:706` A `reader` subagent reads `corosensei` 0.3.4's Windows
-  unwind across the stack switch and its changelog (the stage's **Split:** line).
-- [ ] `crates/nvs-host/src/scheduler.rs:931` Narrow with the stage's steps, each reverted after,
-  rerunning the scheduler-cancel test alone on the proof profile.
-- [ ] `crates/nvs-host/src/scheduler.rs:697` Name the cause in the handoff before changing code.
+- [ ] `crates/nvs-cli/tests/one_binary.rs:1` Write
+  `a_server_stopped_with_a_request_still_parked_exits_cleanly` in `one_binary.rs`, because the
+  `server-retire-proof` check runs `--test one_binary`. An `Explore` agent first finds an existing
+  `nvs serve` start-and-stop helper to reuse (`live_config.rs:843` drains on a reload). Run the test
+  once on the proof profile.
+- [ ] `.github/workflows/ci.yml:585` The Windows timing is read at stage 4's push, and the
+  3-minute decision applied then. Tick the item once it is.
+- [ ] `crates/nvs-cli/src/worker.rs:208` Stage 3: the `Explore` split, then its first item.
 
-Red now and expected to stay red until stage 2's fix: the four crashing tests above on the proof
-profile (`teardown-proof`), and the seven `limits` tests on the proof profile, which are the baseline.
+Red now: the seven `limits` tests on the proof profile, which are the baseline. Nothing else is
+expected red: `teardown-proof` is green.
 
 ### Backlog
+
+- **To file upstream; the user files it, because it publishes outside the repository.** For rustc/LLVM:
+  on `x86_64-pc-windows-msvc`, a cleanup funclet of an `extern "sysv64-unwind"` function saves only
+  SysV's callee-saved registers. The MSVC runtime calls it as Win64, so `rsi`, `rdi` and
+  `xmm6`–`xmm15` are clobbered. For corosensei: `coroutine_func` inlines the user closure and exposes
+  it, and an out-of-line call fixes it there.
