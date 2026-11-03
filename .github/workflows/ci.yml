@@ -582,6 +582,15 @@ jobs:
 
       - run: cargo build --profile proof --bin nvs
 
+      # A cancelled task's forced unwind, in the profile that once crashed in it. On x86_64 Windows
+      # the optimized build inlined a task's body into `corosensei`'s `sysv64` entry, whose cleanup
+      # funclets then clobbered registers the C++ runtime keeps (`Task::force_unwind` in
+      # `crates/nvs-host/src/scheduler.rs` has the cause). A debug build never inlines it, so only
+      # this profile can catch the crash coming back. It runs on every leg, because the fault is
+      # one OS's and the test is the same everywhere.
+      - name: Teardown of a cancelled task (proof profile)
+        run: cargo test --profile proof --test forced_unwind
+
       # Two programs at a time on every leg. The default is half the runner's cores, and one image
       # comes with 3 or 5 cores, so the same commit was judged at a different load from run to run.
       - name: Feature proofs
