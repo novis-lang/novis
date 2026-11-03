@@ -105,8 +105,7 @@ export const ARCHIVE_EXTRAS = ["README.md", "LICENSE", "THIRD-PARTY-LICENSES.txt
 // does not match is listed under *Other*.
 const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<bang>!)?: (?<subject>.+)$/;
 
-// Listed in full, in this order. Every other type collapses into the Internal count. `nv discord
-// announce dev` groups a dev build's commits by the same table.
+// Listed in full, in this order. Every other type collapses into the Internal count.
 export const HEADLINE_SECTIONS: [string, string][] = [
   ["feat", "Features"],
   ["fix", "Fixes"],

@@ -41,9 +41,9 @@ binary is green.
 
 ## Setting up GitHub
 
-GitHub is set up for releases: § 1 to § 5 and § 7 are done. They are here for a new fork or a moved
-repository, and § 6 is the one step left, after the first release. **None of them but § 7 is a
-secret**, and the release itself reads none — see *Credentials* below.
+GitHub is set up for releases: § 1 to § 5 are done. They are here for a new fork or a moved
+repository, and § 6 is the one step left, after the first release. **None of them is a credential**,
+and the release itself reads none — see *Credentials* below.
 
 ### 1. `main` is the default branch
 
@@ -53,8 +53,7 @@ configuration, and the `schedule` and `workflow_run` triggers. So the nightly in
 `dev` image from [dev-build.yml](../.github/workflows/dev-build.yml) run only while `main` is the
 default. `dev-build.yml` starts at each push to `main` and builds that commit's binaries with
 `build.yml`, beside the push's CI run. When that CI run finishes green, a second run of the file
-publishes the `dev` image from those binaries with `image.yml`, and then posts the build to Discord
-with `discord.yml`.
+publishes the `dev` image from those binaries with `image.yml`.
 
 Set `main` in **Settings → General → Default branch**. Cut a release from the Actions tab on
 `main`. The `plan` job refuses to run on any other ref, so a release cut from a topic branch is
@@ -125,18 +124,7 @@ able to push to it without any credential of its own.
 
 This is once, ever. Subsequent releases push to the same package.
 
-### 7. The Discord webhook
-
-`discord.yml` posts each published release and each dev build to the Discord server's
-`#github-feed`. Its one credential is the repository secret `DISCORD_WEBHOOK_URL` (**Settings →
-Secrets and variables → Actions**), the URL of a webhook in that channel. A webhook can post to its
-own channel and do nothing else, and no release job can read the secret. Without it, nothing is
-posted and nothing fails.
-
-To replace it: in Discord, **Edit Channel → Integrations → Webhooks → New Webhook** on
-`#github-feed`, copy its URL into the secret, and delete the old webhook.
-
-### 8. The VS Code Marketplace
+### 7. The VS Code Marketplace
 
 `release-promote.yml`'s `marketplace` job lists each published release's `.vsix` on the VS Code
 Marketplace, and it signs in with no stored credential:
@@ -153,7 +141,7 @@ Marketplace, and it signs in with no stored credential:
   add yourself, and **Deployment branches and tags** → *Selected branches and tags* → the tag rule
   `v*` and the branch `main`. A release runs the job on its tag, and a repair dispatch on `main`.
 
-### 9. Nothing else
+### 8. Nothing else
 
 There is no other secret to create, no PAT to store, no deploy key, no signing key and no registry
 token — the container registry and the Marketplace included. If a future step asks you to add one,
@@ -253,9 +241,9 @@ regime and declares the version contract — "the switch is thrown once, in the 
 
 The release's only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and
 revoked when it ends. `bun nv release` has no code path that reads a token at all, which is what
-makes the whole release reproducible on a laptop with no access to anything. The Discord webhook
-(§ 7) is the repository's one secret, and only `discord.yml` reads it. The Marketplace upload (§ 8)
-exchanges the run's OIDC token for a short-lived Entra ID token, so it adds none.
+makes the whole release reproducible on a laptop with no access to anything. The Marketplace upload
+(§ 7) exchanges the run's OIDC token for a short-lived Entra ID token, so it adds no credential. Its
+two repository secrets name the identity and grant nothing on their own.
 
 Three habits in the workflow keep it that way, each load-bearing rather than decorative:
 `permissions: {}` at the top with per-job re-grants so only `publish` can write;

@@ -4,8 +4,8 @@ name: Dev build
 # CI run, and builds the commit's release binaries and the VS Code extension through `build.yml`,
 # kept 30 days as that run's artifacts. CI itself builds neither: its cache stays its own. When the
 # push's CI run finishes, a second run starts on `workflow_run`. It builds nothing. When CI is green,
-# it waits for the push's run, publishes the `dev` image from that run's Linux archives through
-# `image.yml`, and then posts the build to Discord through `discord.yml`. A push that changed nothing
+# it waits for the push's run and publishes the `dev` image from that run's Linux archives through
+# `image.yml`. A push that changed nothing
 # the build reads since the newest dev build builds nothing, and that build's artifacts and image
 # stay current. GitHub reads a `workflow_run` trigger only from the default branch, which is `main`.
 on:
@@ -179,16 +179,3 @@ jobs:
       packages: write
       # Reads the Linux archives from the push's run.
       actions: read
-
-  # Posts the dev build to Discord once its image is pushed: `discord.yml` says what.
-  discord:
-    name: discord message
-    needs: [ci, image]
-    uses: ./.github/workflows/discord.yml
-    with:
-      sha: ${{ needs.ci.outputs.sha }}
-      binaries-run: ${{ needs.ci.outputs.run }}
-    secrets:
-      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-    permissions:
-      contents: read

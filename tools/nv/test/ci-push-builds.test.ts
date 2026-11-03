@@ -53,12 +53,11 @@ test("the dev build builds at the push, only when the push changed a path the bu
 test("the dev image waits for a green CI run, and packages the binaries of the push's own run", () => {
   const dev = workflow("dev-build.yml").jobs as Record<string, DevJob>;
   expect(dev.ci!.if).toContain("github.event_name == 'workflow_run'");
-  // The image and the Discord post need the push's binaries, so they are skipped without them.
+  // The image needs the push's binaries, so it is skipped without them.
   expect(dev.image!.needs).toBe("ci");
   expect(dev.image!.if).toBe("needs.ci.outputs.image == 'true'");
   expect(dev.image!.with?.["binaries-run"]).toBe("${{ needs.ci.outputs.run }}");
   expect(dev.image!.permissions?.actions).toBe("read");
-  expect(dev.discord!.needs).toContain("image");
   expect(Object.keys(workflow("image.yml").on.workflow_call?.inputs ?? {})).toContain("binaries-run");
   // A release packages the archives of its own run, so it names no other one.
   expect(workflow("release.yml").jobs.docker!.with?.["binaries-run"]).toBeUndefined();
