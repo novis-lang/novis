@@ -25,12 +25,47 @@
  * run only while a reader can see them (src/scripts/on-screen.ts). It also
  * sends the page view to the visitor statistics, which stats.ts skips for a
  * reader who turned them off (src/scripts/stats.ts).
+ *
+ * The front page also carries schema.org structured data. Google reads the
+ * `WebSite` name as the site name it shows above a search result, and the
+ * `Organization` logo as the project's logo. Both say Novis-Lang, the name the
+ * header, the hero and the footer show, and give Novis as the other name.
  */
 import Default from '@astrojs/starlight/components/Head.astro'
 import sansLatin from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url'
 import monoLatin from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url'
 
+import { GITHUB_URL } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
+
+const isFrontPage = Astro.url.pathname === withBase('/')
+const home = new URL(withBase('/'), Astro.site).href
+const structuredData = isFrontPage
+  ? JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebSite',
+          '@id': `${home}#website`,
+          url: home,
+          name: 'Novis-Lang',
+          alternateName: ['Novis'],
+          description: Astro.locals.starlightRoute.entry.data.description,
+          inLanguage: 'en',
+          publisher: { '@id': `${home}#organization` },
+        },
+        {
+          '@type': 'Organization',
+          '@id': `${home}#organization`,
+          url: home,
+          name: 'Novis-Lang',
+          alternateName: 'Novis',
+          logo: new URL(withBase('/apple-touch-icon.png'), Astro.site).href,
+          sameAs: [GITHUB_URL],
+        },
+      ],
+    })
+  : undefined
 ---
 
 <Default><slot /></Default>
@@ -45,6 +80,7 @@ import { withBase } from '~/lib/base'
 <link rel="preload" href={sansLatin} as="font" type="font/woff2" crossorigin />
 <link rel="preload" href={monoLatin} as="font" type="font/woff2" crossorigin />
 <link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />
+{structuredData && <script is:inline type="application/ld+json" set:html={structuredData} />}
 <script>
   import '~/scripts/on-screen'
   import { trackPageView } from '~/scripts/stats'
