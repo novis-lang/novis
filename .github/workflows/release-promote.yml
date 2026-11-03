@@ -75,7 +75,7 @@ concurrency:
 jobs:
   promote:
     name: move latest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # A prerelease is not what `latest` means. `github.event.release` is absent on a manual
     # dispatch, so the `||` is what lets that path through rather than a defaulting accident.
     if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
@@ -173,7 +173,7 @@ jobs:
   # The header's last section says what this job trusts and why.
   marketplace:
     name: publish the VS Code extension
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     environment: marketplace

@@ -2,7 +2,8 @@
 // GitHub: when `--watch` exits and with which code, what it prints of a failed job, that `--push`
 // runs its pre-push checks, pushes only when they are green and starts no run, and that both cancel a
 // run a newer one replaces. The release half: `--dispatch` starts a full `ci.yml` run, a dry-run Release,
-// or a real one only after a green dry run of `main`'s tip; `--watch --release` cancels no run;
+// or a real one only after a green dry run of `main`'s tip, and a Release run cancels the push runs of
+// its own commit and no other run; `--watch --release` cancels no run;
 // `--release-status` judges a dry or a real run as `release.yml` does; `--approve-release` approves only
 // green builds; `--publish-release` publishes only a whole draft; and `--release-published` reads the
 // published release, its promote run and its image.
@@ -19,6 +20,7 @@ import {
   DRY_RUN_TITLE,
   type GhRelease,
   type Job,
+  newest,
   optionalLegs,
   POLL_BUSY_MS,
   POLL_IDLE_MS,
@@ -27,6 +29,7 @@ import {
   PUBLISH_JOB,
   type Ran,
   REFUSED,
+  replacedByRelease,
   type Run,
   tail,
   VISIBILITY_CLICK,
@@ -362,13 +365,14 @@ describe("bun nv ci: the log and the arguments", () => {
 });
 
 /**
- * What GitHub lists at one poll: each workflow file's runs, the 40 newest of all, each run's jobs, the
+ * What GitHub lists at one poll: each workflow file's runs (`dev` is `dev-build.yml`'s), the 40 newest of all, each run's jobs, the
  * releases, the commit each tag names, where a commit stands against `main`, the promote runs, the
  * environments a run waits on, the notes artifact, and the registry's answers.
  */
 interface ReleaseWorld {
   release?: Run[];
   ci?: Run[];
+  dev?: Run[];
   all?: Run[];
   jobs?: Record<number, Job[]>;
   releases?: GhRelease[];
@@ -413,6 +417,7 @@ function releaseSeams(name: string, world: (poll: number) => ReleaseWorld, git: 
     const path = args[1] ?? "";
     if (path.includes("actions/workflows/release.yml/runs")) return ok((now.release ?? []).map(onMain));
     if (path.includes("actions/workflows/ci.yml/runs")) return ok((now.ci ?? []).map(onMain));
+    if (path.includes("actions/workflows/dev-build.yml/runs")) return ok((now.dev ?? []).map(onMain));
     if (args[0] === "api" && path.includes("/actions/runs?")) return ok(now.all ?? []);
     const jobsOf = path.match(/actions\/runs\/(\d+)\/jobs/);
     if (jobsOf) return ok(now.jobs?.[Number(jobsOf[1])] ?? []);
@@ -516,6 +521,55 @@ describe("bun nv ci: the release", () => {
     const never = releaseSeams("never", () => ({ release: [dryRun(5, "completed", "failure")] }));
     expect(await ci(["--dispatch", "dry-run"], never.s)).toBe(2);
     expect(never.slept.length).toBe(20);
+  });
+
+  /** Every kind of `ci.yml` and `dev-build.yml` run beside a dry run on `tip`: only 21, 22 and 31 are push runs on `tip` still going. */
+  const beside = (): ReleaseWorld => ({
+    ci: [
+      runOf(19, "CI", "completed", "success", "push", "tip"),
+      runOf(20, "CI", "in_progress", null, "push", "old"),
+      runOf(21, "CI", "in_progress", null, "push", "tip"),
+      runOf(22, "CI", "queued", null, "push", "tip"),
+      runOf(23, "CI", "in_progress", null, "schedule", "tip"),
+      runOf(24, "CI", "in_progress", null, "workflow_dispatch", "tip"),
+      runOf(25, "CI", "in_progress", null, "pull_request", "tip"),
+    ],
+    dev: [
+      runOf(30, "Dev build", "in_progress", null, "push", "old"),
+      runOf(31, "Dev build", "in_progress", null, "push", "tip"),
+      runOf(32, "Dev build", "in_progress", null, "workflow_run", "tip"),
+    ],
+  });
+
+  test("dispatch dry-run cancels the push runs of ci.yml and dev-build.yml on its commit, and no other run", async () => {
+    const w = releaseSeams("replaced", (p) => ({ ...beside(), release: p === 0 ? [] : [dryRun(9, "queued", null)] }));
+    expect(await ci(["--dispatch", "dry-run"], w.s)).toBe(0);
+    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"], ["run", "cancel", "31"]]);
+    expect(w.said).toContain("cancelled CI (push) on tip: in_progress  https://example.com/runs/21: the Release run on tip runs every job it would");
+    expect(w.said).toContain("cancelled Dev build (push) on tip: in_progress  https://example.com/runs/31: the Release run on tip runs every job it would");
+    // A full ci.yml run replaces neither: it builds no binaries.
+    const full = releaseSeams("replaced-full", (p) => ({ ...beside(), ci: [...beside().ci!, ...(p === 0 ? [] : [runOf(40, "CI", "queued", null)])] }));
+    expect(await ci(["--dispatch", "full"], full.s)).toBe(0);
+    expect(full.cancels()).toEqual([]);
+  });
+
+  test("a Release run replaces only push runs still going on its own commit", () => {
+    const all = [...beside().ci!, ...beside().dev!, dryRun(41, "queued", null)];
+    expect(replacedByRelease(all, "tip").map((r) => r.id)).toEqual([21, 22, 31]);
+    expect(replacedByRelease(all, "old").map((r) => r.id)).toEqual([20, 30]);
+    expect(replacedByRelease(all, "other")).toEqual([]);
+    // A push run on another branch is not main's.
+    expect(replacedByRelease([{ ...runOf(50, "CI", "in_progress", null, "push", "tip"), head_branch: "next" }], "tip")).toEqual([]);
+  });
+
+  test("status passes over a cancelled push CI run on the tip that a newer Release run replaces", () => {
+    const cancelled = runOf(21, "CI", "completed", "cancelled", "push", "tip");
+    const older = runOf(19, "CI", "completed", "success", "push", "old");
+    const release = { ...dryRun(41, "in_progress", null), name: "Release" };
+    expect(newest([cancelled, older, release], "tip").map((r) => r.id)).toEqual([19]);
+    // Without the Release run, or with one that started before it, the cancelled run is the tip's verdict.
+    expect(newest([cancelled, older], "tip").map((r) => r.id)).toEqual([21]);
+    expect(newest([cancelled, older, { ...release, id: 20 }], "tip").map((r) => r.id)).toEqual([21]);
   });
 
   test("watch release follows the newest Release run job by job, and cancels no run", async () => {
@@ -650,11 +704,13 @@ describe("bun nv ci: the release", () => {
     const real = Object.entries(DISPATCH).filter(([, d]) => (d.argv as readonly string[]).includes("dry_run=false"));
     expect(real.map(([k]) => k)).toEqual(["release"]);
     const w = releaseSeams("real", (p) => ({
+      ...beside(),
       release: [...(p === 0 ? [] : [realRun(29, "queued", null, "tip")]), dryRun(28, "completed", "success")],
       jobs: { 28: dryJobs() },
     }));
     expect(await ci(["--dispatch", "release"], w.s)).toBe(0);
     expect(w.started()).toEqual([[...DISPATCH.release.argv]]);
+    expect(w.cancels()).toEqual([["run", "cancel", "21"], ["run", "cancel", "22"], ["run", "cancel", "31"]]);
     expect(w.said).toContain("started Release (workflow_dispatch) on tip: queued  https://example.com/runs/29");
     expect(w.said).toContain("watch it with `bun nv ci --watch --release`");
   });

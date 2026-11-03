@@ -13,6 +13,19 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
+A push to `main` diffs against the newest commit on `main` whose `ci.yml` run went green — a push,
+nightly or dispatched run, never a pull request's — and not against the push's `before`. That base is
+sound by induction: a full run checked every lane at its commit, and a green push run checked every
+lane its diff from a sound base touched, while each lane it did not touch has the same files as at
+that base. So a newer push may cancel an older push's run still going, and `bun nv ci --dispatch
+dry-run` may cancel the push runs of the commit its release run tests: the next run covers every
+commit a cancelled run would have. `bun nv ci-changes --since-green` makes the lookup. When GitHub
+cannot list the runs, or none is an ancestor of the commit, no base is known and every lane runs
+(`rule:testing/unknown-base-runs-everything`). The push's `before` is not a fallback: its run may have
+been cancelled, and a run green from it would become the next push's base without having proved the
+commits in between. What that spends: one `gh api` call per push run, and a commit whose run was
+cancelled has no verdict of its own, so a bisect between two green runs is local.
+
 CI builds no release binaries. The dev build does, beside CI: `dev-build.yml` starts at each push
 to `main` and builds that commit through the release's own files, so its binaries arrive while CI
 still runs. `build.yml` holds the release binaries and the VS Code extension, and `image.yml` the
@@ -22,7 +35,8 @@ going. When a push's CI run finishes green, a second run of `dev-build.yml` wait
 publishes the `dev` image from its Linux archives, so the image never names a commit CI failed. A
 push that changed only paths no part of the build reads, such as a goal's handoff or a rule, builds
 nothing: the dev build diffs the commit against the newest green dev build that still has its
-artifacts, and those artifacts and the `dev` image stay current. `UNBUILT` in
+artifacts, and those artifacts and the `dev` image stay current. A push whose `CI` run or dev build
+was cancelled gets no `dev` image: a newer push's green run publishes the next one. `UNBUILT` in
 `tools/nv/cmd/ci-changes.ts` names those paths, and a path it does not name is built. What that
 spends: six cold release builds per push that changed a build input, outside CI's cache but beside
 its jobs on the account's runners, macOS above all, so a busy hour can slow CI's verdict; a build

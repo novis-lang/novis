@@ -1,9 +1,35 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
-import { EMBEDDED_TEXT, LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
+import { type CiRun, EMBEDDED_TEXT, greenBase, LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
 import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
+
+const green = (head_sha: string, event = "push", conclusion: string | null = "success", head_branch: string | null = "main"): CiRun => ({ event, conclusion, head_sha, head_branch });
+
+test("a push diffs against the newest green CI run on main whose commit is an ancestor of HEAD", async () => {
+  const ancestors = new Set(["a1", "a2", "a3", "a4", "a5"]);
+  const asked: string[] = [];
+  const isAncestor = async (sha: string) => (asked.push(sha), ancestors.has(sha));
+  const runs = [
+    green("head"),
+    green("x1", "pull_request"),
+    green("a1", "push", "failure"),
+    green("a1", "push", "cancelled"),
+    green("a1", "push", "success", "next"),
+    green("gone"),
+    green("a2", "schedule"),
+    green("a3"),
+  ];
+  // The run on HEAD itself, a pull request's, a red, a cancelled, another branch's and a commit off HEAD's history are passed over.
+  expect(await greenBase(runs, "head", isAncestor)).toBe("a2");
+  expect(asked).toEqual(["gone", "a2"]);
+  expect(await greenBase([green("a3", "workflow_dispatch"), green("a4")], "head", isAncestor)).toBe("a3");
+  expect(await greenBase([green("a5"), green("a4", "schedule")], "head", isAncestor)).toBe("a5");
+  // No green ancestor: no base is known, and the caller turns every lane on.
+  expect(await greenBase([green("gone"), green("head"), green("a1", "pull_request")], "head", isAncestor)).toBe(null);
+  expect(await greenBase([], "head", isAncestor)).toBe(null);
+});
 
 test("a diff of docs alone needs no dev build, and anything else or an unknown diff does", () => {
   expect(releaseNeeded(["docs/goals/release-run.md", "AGENTS.md", "website/src/pages/index.astro"])).toBe(false);

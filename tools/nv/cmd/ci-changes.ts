@@ -2,6 +2,7 @@
 //
 //     bun nv ci-changes --base HEAD~1    what CI would run for the last commit
 //     bun nv ci-changes --base <sha>     ... for any range ending at HEAD
+//     bun nv ci-changes --since-green    ... since the newest commit on main whose CI went green
 //     bun nv ci-changes --full           every lane, as the nightly and the release run it
 //     bun nv ci-changes --files -        lanes for a path list on stdin, touching no git
 //     bun nv ci-changes --lanes          each lane and the prefixes it matches
@@ -11,8 +12,26 @@
 // reasoning, and the workflow holds no `paths:` filter of its own. `dev-build.yml` runs it too, and
 // reads only `release`: whether the dev build has anything new to build (`UNBUILT` below).
 //
-// Inside Actions it takes `BASE` and `FULL` from the environment and appends `name=value` lines to
-// `$GITHUB_OUTPUT`; run by hand it prints the same lines to stdout, so the two cannot disagree.
+// Inside Actions it takes `BASE`, `FULL` and `SINCE_GREEN` from the environment and appends
+// `name=value` lines to `$GITHUB_OUTPUT`; run by hand it prints the same lines to stdout, so the two
+// cannot disagree.
+//
+// **A push to `main` diffs against the newest green CI run, not against the push's `before`.**
+// `ci.yml` sets `SINCE_GREEN` for a push to `main`, and `greenBase` below picks the base: the commit of
+// the newest successful `ci.yml` run on `main` that is an ancestor of HEAD and not HEAD itself. That is
+// what lets `ci.yml`'s concurrency group cancel an older push's run when a newer push arrives: the
+// newer run's diff starts at the last commit CI proved, so it covers every commit whose run was
+// cancelled. A dry run that `bun nv ci --dispatch` started cancels the push runs of its own commit in
+// the same way. The base is sound by induction. A full run (the nightly or a dispatch) checked every
+// lane at its own commit. A push run that went green checked every lane its diff from a sound base
+// touched, and each lane it did not touch has the same files as at that base, where it was checked
+// already. So every lane at a green run's commit was checked on the same files, and a newer push that
+// diffs from it runs every lane whose files changed since. A pull request's run is never a base: it ran
+// on a merge commit `main` never had. When the lookup fails, or none of the newest
+// `GREEN_RUNS_LISTED` green runs is an ancestor of HEAD, no base is known and every lane runs. The
+// push's `before` is no fallback: its run may have been cancelled, and a run green from it would then
+// be a base for the next push without having proved the commits in between. What it spends: one `gh api` call per push run on `main`, and a commit whose
+// run a newer push cancelled has no verdict of its own: the next run verifies it.
 //
 // **An unknown base turns every lane on.** A first push to a branch, a force push and a shallow clone
 // all leave this command without a commit it can diff against, and the failure mode of guessing the
@@ -30,9 +49,9 @@ import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
 
-export const summary = "which CI lanes a diff needs: nv ci-changes --base <sha> | --full | --files <file> | --lanes";
+export const summary = "which CI lanes a diff needs: nv ci-changes --base <sha> [--since-green] | --full | --files <file> | --lanes";
 
-const USAGE = "usage: nv ci-changes [-h] [--base BASE] [--full] [--files FILE] [--lanes]";
+const USAGE = "usage: nv ci-changes [-h] [--base BASE] [--since-green] [--full] [--files FILE] [--lanes]";
 
 /** Each directory with a lockfile of its own beside the root's. `ci.yml`'s `supply-chain` job and `bun nv
  * ci --check` run `cargo deny check advisories` on each, under the root's `deny.toml`
@@ -238,17 +257,90 @@ function dbLane(base: string[]): string[] {
 
 const ZERO = "0".repeat(40);
 
+/** `git`'s stdout, or `null` when it exits non-zero or does not start. */
+async function git(...args: string[]): Promise<string | null> {
+  try {
+    const r = await runProc(["git", ...args]);
+    return r.code === 0 ? r.stdout : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The events whose green `ci.yml` run on `main` is a base. `schedule` and `workflow_dispatch` run every
+ * lane, and a `push` run ran every lane its diff from a base touched. A `pull_request` run is not one:
+ * it tested a merge commit, and a fork's pull request may name its branch `main`.
+ */
+export const GREEN_EVENTS = ["push", "schedule", "workflow_dispatch"];
+
+/** How many of the newest green `ci.yml` runs on `main` the lookup reads, in one `gh api` call. */
+export const GREEN_RUNS_LISTED = 50;
+
+/** A `ci.yml` run, as the runs API lists it. */
+export interface CiRun {
+  event: string;
+  conclusion: string | null;
+  head_sha: string;
+  head_branch: string | null;
+}
+
+/**
+ * The commit of the first run in `runs`, newest first, that went green on `main` under one of
+ * `GREEN_EVENTS` and whose commit `isAncestor` of HEAD, or `null` when there is none. A run on `head`
+ * itself is passed over, so a run started again on the same commit runs its lanes again. Any green
+ * ancestor is a sound base, and an older one only widens the diff.
+ */
+export async function greenBase(runs: CiRun[], head: string, isAncestor: (sha: string) => Promise<boolean>): Promise<string | null> {
+  const tried = new Set<string>([head]);
+  for (const r of runs) {
+    if (r.conclusion !== "success" || r.head_branch !== "main" || !GREEN_EVENTS.includes(r.event)) continue;
+    if (tried.has(r.head_sha)) continue;
+    tried.add(r.head_sha);
+    if (await isAncestor(r.head_sha)) return r.head_sha;
+  }
+  return null;
+}
+
+/**
+ * The base for a push to `main`: `greenBase` over the newest green `ci.yml` runs GitHub lists, or ""
+ * when `gh` cannot list them or none is an ancestor of HEAD, and "" turns every lane on. It prints the
+ * base it chose and why on stderr, which the run's log shows.
+ */
+async function sinceGreen(): Promise<string> {
+  const say = (line: string) => console.error(`nv ci-changes: ${line}`);
+  const back = (why: string) => {
+    say(`${why}: no base is known, so every lane runs`);
+    return "";
+  };
+  const slug = process.env.GITHUB_REPOSITORY || "{owner}/{repo}";
+  const query = `repos/${slug}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=${GREEN_RUNS_LISTED}`;
+  let listed: string;
+  try {
+    const r = await runProc(["gh", "api", query, "--jq", "[.workflow_runs[] | {event, conclusion, head_sha, head_branch}]"], { timeoutMs: 60_000 });
+    if (r.code !== 0) return back(`\`gh api\` exited ${r.code}: ${r.stderr.trim().split("\n")[0] ?? ""}`);
+    listed = r.stdout;
+  } catch (e) {
+    return back(`gh did not start: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  let runs: CiRun[];
+  try {
+    runs = JSON.parse(listed) as CiRun[];
+    if (!Array.isArray(runs)) return back("`gh api` printed no list of runs");
+  } catch {
+    return back("`gh api` printed no JSON");
+  }
+  const head = (await git("rev-parse", "HEAD"))?.trim();
+  if (!head) return back("HEAD has no commit");
+  const base = await greenBase(runs, head, async (sha) => (await git("merge-base", "--is-ancestor", sha, "HEAD")) !== null);
+  if (base === null) return back(`none of the ${runs.length} newest green CI runs on main is on an ancestor of HEAD`);
+  say(`diffing against ${base}, the newest commit on main whose CI run went green`);
+  return base;
+}
+
 /** The paths `base..HEAD` touched, or `null` if `base` is not a commit that can be reached. */
 async function changedPaths(base: string): Promise<string[] | null> {
   if (!base || base === ZERO) return null;
-  const git = async (...args: string[]) => {
-    try {
-      const r = await runProc(["git", ...args]);
-      return r.code === 0 ? r.stdout : null;
-    } catch {
-      return null;
-    }
-  };
   if ((await git("cat-file", "-e", `${base}^{commit}`)) === null) return null;
   const out = await git("diff", "--name-only", base, "HEAD");
   if (out === null) return null;
@@ -280,6 +372,8 @@ function help(): string {
     "options:",
     "  -h, --help    show this help message and exit",
     "  --base BASE   the commit HEAD is compared against; empty means every lane",
+    "  --since-green compare against the newest commit on main whose CI run went green; when `gh`",
+    "                finds none, every lane",
     "  --full        the deep lane: every gate true, every platform in the matrix",
     "  --files FILE  read the changed paths from a file (`-` for stdin) instead of from git",
     "  --lanes       print each lane and the prefixes it matches, and nothing else",
@@ -290,7 +384,7 @@ export async function run(args: string[]): Promise<number> {
   let flags: Set<string>;
   let values: Map<string, string>;
   try {
-    ({ flags, values } = parseArgs(args, { flags: ["--full", "--lanes"], valued: ["--base", "--files"], order: ["--base", "--full", "--files", "--lanes"] }));
+    ({ flags, values } = parseArgs(args, { flags: ["--full", "--lanes", "--since-green"], valued: ["--base", "--files"], order: ["--base", "--since-green", "--full", "--files", "--lanes"] }));
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv ci-changes: error: ${e.message}`);
@@ -312,7 +406,11 @@ export async function run(args: string[]): Promise<number> {
   else if (values.has("--files")) {
     const file = values.get("--files")!;
     paths = nonEmpty(file === "-" ? await Bun.stdin.text() : readFileSync(file, "utf8"));
-  } else paths = await changedPaths(values.get("--base") ?? process.env.BASE ?? "");
+  } else {
+    const given = values.get("--base") ?? process.env.BASE ?? "";
+    const green = flags.has("--since-green") || truthy(process.env.SINCE_GREEN);
+    paths = await changedPaths(green ? await sinceGreen() : given);
+  }
 
   const lines = [
     ...lanesFor(lanes, paths),

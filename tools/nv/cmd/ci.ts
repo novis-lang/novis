@@ -25,8 +25,9 @@
 // the same checks and pushes nothing, for a session before it claims a goal done. The push itself starts
 // `ci.yml`'s push lane and the `Website` run, so the command starts no run. It then
 // cancels every run of a workflow in `WORKFLOWS` still going on `main` for an older commit, so each
-// workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`). The push lane runs
-// every job the diff since the last push reaches, and the nightly deep lane runs the rest
+// workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own
+// concurrency group cancels an older push's `CI` run too. The push lane runs every job the diff since
+// the newest commit whose `CI` run went green reaches, and the nightly deep lane runs the rest
 // (`rule:testing/ci-lanes`).
 //
 // **`--watch`** reads the newest run of each workflow in `WORKFLOWS` on `main`, passing over a cancelled
@@ -68,7 +69,14 @@
 // dry run dispatched beside a handoff commit still lands on the commit a full run proved, and skips
 // its `verify` job. Both then wait until GitHub lists a run newer than every one before
 // the dispatch, and print its address, so a `--watch` started after reads the new run. Five minutes
-// with no new run exits 2.
+// with no new run exits 2. A dry run and a real release then cancel each push run of `ci.yml` and
+// `dev-build.yml` still queued or going on the commit the `Release` run tests (`REPLACED_BY_RELEASE`),
+// and print each: its `verify` job runs every `ci.yml` job and its `build` job runs `build.yml`, so
+// the two runs would only compete with it for the account's 5 macOS runners. They never cancel a run on
+// another commit, a scheduled, dispatched or pull request run, or a `Release` run. The cancelled commit
+// gets no `dev` image, and the next push's CI run still covers it: it diffs against the newest commit
+// whose `ci.yml` run went green (`bun nv ci-changes`), and a `Release` run is not one. `--watch` and `--status` pass over the cancelled `CI`
+// run.
 //
 // **`--watch --release`** watches the newest `Release` run on `main` in place of `CI` and `Website`,
 // with the same polling, report and exit codes. Neither it nor `--push` ever cancels a `Release` run: a
@@ -124,6 +132,12 @@ export const DRY_RUN_TITLE = "Release (dry run)";
  * `name`, so a dry run's `name` is `Release (dry run)`, and `workflowOf` reads the workflow from `path`.
  */
 const WORKFLOW_FILES: Record<string, string> = { "ci.yml": "CI", "pages.yml": "Website", "release.yml": RELEASE };
+/**
+ * The workflow files, with their `name:`, whose push run on a commit a `Release` run on the same commit
+ * replaces: its `verify` job is `ci.yml` with every job on, and its `build` job is `build.yml`, which
+ * the push's `dev-build.yml` run calls. `--dispatch dry-run` and `--dispatch release` cancel them.
+ */
+export const REPLACED_BY_RELEASE: Record<string, string> = { "ci.yml": "CI", "dev-build.yml": "Dev build" };
 const BRANCH = "main";
 
 /**
@@ -348,14 +362,25 @@ export function listJobs(s: CiSeams, id: number): Promise<Job[]> {
 }
 
 /**
+ * Whether `r` is a push run of a workflow in `REPLACED_BY_RELEASE` that a newer `Release` run in `runs`
+ * on the same commit replaces. `--dispatch dry-run` and `--dispatch release` cancel such runs.
+ */
+function releaseReplaced(runs: Run[], r: Run): boolean {
+  return r.event === "push" && Object.values(REPLACED_BY_RELEASE).includes(r.name)
+    && runs.some((x) => x.name === RELEASE && x.head_sha === r.head_sha && x.id > r.id);
+}
+
+/**
  * The newest run of each watched workflow, in `WORKFLOWS` order, passing over each cancelled run on a
  * commit other than `tip`, `origin/main`'s. A newer push cancels those, and its own runs may not be
- * listed yet. A cancelled run on `tip` stopped for another reason, such as a job's time limit.
+ * listed yet. A cancelled push run on `tip` that a newer `Release` run of `tip` replaces is passed over
+ * too: `--dispatch` cancelled it, and `--watch --release` watches that run. Any other cancelled run on
+ * `tip` stopped for another reason, such as a job's time limit.
  */
 export function newest(runs: Run[], tip: string, workflows: readonly string[] = WORKFLOWS): Run[] {
   const out: Run[] = [];
   for (const w of workflows) {
-    const kept = (x: Run) => x.conclusion !== "cancelled" || x.head_sha === tip;
+    const kept = (x: Run) => x.conclusion !== "cancelled" || (x.head_sha === tip && !releaseReplaced(runs, x));
     const r = runs.filter((x) => x.name === w && kept(x)).sort((a, b) => b.id - a.id)[0];
     if (r !== undefined) out.push(r);
   }
@@ -685,6 +710,37 @@ export async function workflowRuns(s: CiSeams, file: string, query = ""): Promis
   return runs.map(workflowOf);
 }
 
+/**
+ * The runs of `runs` that a `Release` run on `sha` replaces: each run a push to `main` started on `sha`
+ * that is still queued or going. It never names a run on another commit, a scheduled, dispatched or
+ * pull request run, or a `Release` run.
+ */
+export function replacedByRelease(runs: (Run & { head_branch?: string | null })[], sha: string): Run[] {
+  return runs.filter((r) => r.event === "push" && r.head_sha === sha && (r.head_branch ?? BRANCH) === BRANCH && !done(r) && r.name !== RELEASE);
+}
+
+/**
+ * Cancels each push run of a file in `REPLACED_BY_RELEASE` that `replacedByRelease` names for `sha`,
+ * and prints each one. The `Release` run has started either way, so a failed listing or cancel only
+ * warns.
+ */
+async function cancelReplaced(s: CiSeams, sha: string): Promise<void> {
+  for (const file of Object.keys(REPLACED_BY_RELEASE)) {
+    let runs: (Run & WorkflowRun)[];
+    try {
+      runs = await workflowRuns(s, file, `&event=push&head_sha=${sha}`);
+    } catch (e) {
+      if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;
+      s.say(`the push runs of ${file} could not be listed: ${e.message}`);
+      continue;
+    }
+    for (const r of replacedByRelease(runs, sha)) {
+      const c = await s.gh(["run", "cancel", String(r.id)]);
+      s.say(c.code === 0 ? `cancelled ${runLine(r)}: the Release run on ${short(sha)} runs every job it would` : `could not cancel ${r.id}: ${firstLine(c)}`);
+    }
+  }
+}
+
 /** Whether `r`, a run of `release.yml`, is a dry run: its `run-name` says so. */
 const isDry = (r: Run) => r.display_title === DRY_RUN_TITLE;
 
@@ -746,6 +802,7 @@ export async function dispatch(s: CiSeams, kind: DispatchKind): Promise<number> 
       const fresh = (await workflowRuns(s, d.file)).filter((r) => r.id > before && dispatched(kind, r)).sort((a, b) => a.id - b.id)[0];
       if (fresh !== undefined) {
         s.say(`started ${runLine(fresh)}`);
+        if (kind !== "full") await cancelReplaced(s, fresh.head_sha);
         s.say(`watch it with \`bun nv ci --watch${kind === "full" ? "" : " --release"}\``);
         return 0;
       }

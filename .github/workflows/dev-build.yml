@@ -30,7 +30,7 @@ jobs:
   check:
     name: whether the push changed anything the build reads
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -91,15 +91,17 @@ jobs:
   ci:
     name: whether CI passed, and the push's binaries
     # A push's CI run only. A pull request from a fork may name its branch `main`, and its run then
-    # matches the filter above; its event is `pull_request`, so this stops it. A cancelled run was
-    # replaced by a newer push, which gets its own image. A failed run that is run again and passes
-    # starts this again, and then gets its image.
+    # matches the filter above; its event is `pull_request`, so this stops it. A cancelled run gets
+    # no image. A newer push replaced it, and that push's run diffs against the newest green commit,
+    # so it tests this commit too and gets its own image. Or a release run of the same commit
+    # replaced it, which `bun nv ci --dispatch` started and which also cancelled this commit's
+    # build. A failed run that is run again and passes starts this again, and then gets its image.
     if: >-
       github.event_name == 'workflow_run'
       && github.event.workflow_run.event == 'push'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Most of this is the wait for the push's build, whose slowest leg may take up to `build.yml`'s
     # bound of 120 minutes.
     timeout-minutes: 150

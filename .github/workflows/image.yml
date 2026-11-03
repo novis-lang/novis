@@ -49,7 +49,7 @@ on:
 jobs:
   docker:
     name: container images (${{ matrix.variant }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       # The archives' version slot, the label's version and the tag: the release's version, or `dev`.
