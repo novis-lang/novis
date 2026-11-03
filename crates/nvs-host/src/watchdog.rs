@@ -1440,7 +1440,8 @@ fn wake_for_lowered_ceiling() {
     });
 }
 
-/// Makes the calling thread, the watchdog's, wake from a timed wait on time.
+/// Makes the calling thread, the watchdog's or the slice clock's
+/// ([`crate::slice`]), wake from a timed wait on time.
 ///
 /// macOS ends an ordinary thread's timed wait late by up to about three times
 /// its length, whatever the load and the thread's quality-of-service class.
@@ -1449,16 +1450,22 @@ fn wake_for_lowered_ceiling() {
 /// request ran up to 131 ms past its `[limits] cpu_time`. A time-constraint
 /// (real-time) thread's waits end about 0.1 ms late there, and 10 ms at worst.
 ///
-/// The policy asks for 0.25 ms of CPU in each millisecond, which a sweep stays
-/// under. A sweep that runs longer is preempted like any thread, so it delays
-/// its own stops and no other thread's work.
+/// Both threads need it. A task that never waits yields only when the slice
+/// clock ticks, and a group's `deadline` is read only at a yield. With late
+/// ticks and an on-time sweep, the 200 ms CPU stop in
+/// `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` came before its
+/// 50 ms deadline was read.
 ///
-/// What it spends: one system call per process, as the watchdog starts, and
-/// nothing on the request path. A refusal leaves the thread as it was. Linux
-/// and Windows end such a wait within their timer's resolution, so this does
-/// nothing there.
+/// The policy asks for 0.25 ms of CPU in each millisecond, which a sweep of
+/// either thread stays under. A sweep that runs longer is preempted like any
+/// thread, so it delays its own stops and no other thread's work.
+///
+/// What it spends: one system call per thread, as the watchdog and the slice
+/// clock start, and nothing on the request path. A refusal leaves the thread
+/// as it was. Linux and Windows end such a wait within their timer's
+/// resolution, so this does nothing there.
 #[cfg(target_os = "macos")]
-fn wake_on_time() {
+pub(crate) fn wake_on_time() {
     let mut base = Timebase { numer: 0, denom: 0 };
     #[expect(
         unsafe_code,
@@ -1520,7 +1527,7 @@ unsafe extern "C" {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn wake_on_time() {}
+pub(crate) fn wake_on_time() {}
 
 /// The shortest wait the watchdog thread makes, so a tree right at its ceiling
 /// does not keep the thread awake.

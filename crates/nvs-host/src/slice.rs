@@ -43,6 +43,14 @@
 //! at the slots: with relaxed ordering, each side could miss the other and the
 //! thread would sleep through a turn that never ends.
 //!
+//! # On time on macOS
+//!
+//! macOS ends an ordinary thread's timed wait up to about three times late,
+//! which would stretch a slice from 10 ms to tens of milliseconds and read a
+//! group's `deadline` that much later. The thread starts with
+//! [`crate::watchdog::wake_on_time`], as the watchdog's thread does, which
+//! owns the measurements and the cost.
+//!
 //! # What it costs
 //!
 //! One OS thread per process, parked while no core is in a turn. One slot per
@@ -177,6 +185,7 @@ impl SliceClock {
             .name("nvs-slice".to_owned())
             .spawn(move || {
                 let _ = ticking.thread.set(std::thread::current());
+                crate::watchdog::wake_on_time();
                 tick_until_stopped(&ticking);
             })
             .ok();
