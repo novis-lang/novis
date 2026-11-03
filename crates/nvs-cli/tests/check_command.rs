@@ -408,3 +408,63 @@ fn run_count_starts_no_queue_worker() {
     assert!(!opened, "a counted run started a queue worker: {stderr}");
     assert!(!stderr.contains("queue worker"), "{stderr}");
 }
+
+/// A job `nvs run`'s worker claimed before the script ended runs to its end and is written back:
+/// the script's exit stops the worker between jobs, never inside one. The script ends only once
+/// the job is claimed, so the stop always lands while the job runs. The job throws, and the
+/// worker's report of that throw on standard error is what shows the job reached its end.
+#[test]
+fn run_writes_back_a_job_its_worker_claimed_before_the_script_ended() {
+    let dir = scratch("queue-claimed-at-stop");
+    fs::write(
+        dir.join("nvs.toml"),
+        "[capabilities.script]\nspawn = [\"jobs/\"]\n\n[db.jobs]\ndriver = \"sqlite\"\n\
+         path = \"jobs.db\"\n\n[queue]\nconnection = \"jobs\"\nworkers = 1\nmax_attempts = 1\n",
+    )
+    .unwrap();
+    fs::create_dir_all(dir.join("jobs")).unwrap();
+    fs::write(
+        dir.join("jobs/slow.nvs"),
+        "<?nvs\nCore\\Time::sleep(300ms);\nthrow new RuntimeError(\"finished\");\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nvar $job = Core\\Queue::push(\"jobs/slow.nvs\");\nint $tries = 0;\n\
+         while (Core\\Queue::status($job) == Core\\Queue::State::Pending && $tries < 3000) {\n\
+         \x20   Core\\Time::sleep(10ms);\n    $tries = $tries + 1;\n}\n\
+         if (Core\\Queue::status($job) == Core\\Queue::State::Claimed) {\n\
+         \x20   echo \"claimed\\n\";\n} else {\n    echo \"not claimed\\n\";\n}\n",
+    )
+    .unwrap();
+
+    let data = nvs_repo::scratch_private("nvsdata");
+    let nvs = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs")
+    };
+    let migrated = nvs(&["queue", "migrate"]);
+    assert!(
+        migrated.status.success(),
+        "`nvs queue migrate` failed: {}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    let run = nvs(&["run", "main.nvs"]);
+
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(0), "{stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&run.stdout),
+        "claimed\n",
+        "the worker never claimed the job: {stderr}"
+    );
+    assert!(
+        stderr.contains("slow.nvs` threw RuntimeError: finished"),
+        "the job the worker held when the script ended did not run to its end: {stderr}"
+    );
+}
