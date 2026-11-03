@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { gunzipSync, inflateRawSync } from "node:zlib";
+import { ROOT } from "../lib/paths.ts";
 import {
   bumpManifest,
   bumpPackageJson,
@@ -361,5 +364,46 @@ describe("greenFullRun", () => {
     expect(greenFullRun([release], SHA)).toBe(release);
     expect(greenFullRun([ciRun({ event: "workflow_dispatch", path: ".github/workflows/release.yml", conclusion: "failure" })], SHA)).toBeNull();
     expect(greenFullRun([ciRun({ event: "workflow_dispatch", path: ".github/workflows/release.yml", head_branch: "topic" })], SHA)).toBeNull();
+  });
+});
+
+/**
+ * Each `workflow / job` whose step runs `nv release --apply` with no earlier `cargo fetch --locked` and
+ * `rustup toolchain install` in the same job. `--apply` runs cargo `--offline` once the version moves,
+ * which resolves only from what is fetched, and a dry run skips `publish`, so only a real release with a
+ * new version would otherwise find the gap.
+ */
+function applyWithoutFetch(workflows: Record<string, string>): string[] {
+  type Job = { steps?: { run?: string }[] };
+  const gaps: string[] = [];
+  for (const [file, text] of Object.entries(workflows)) {
+    const jobs = (Bun.YAML.parse(text) as { jobs?: Record<string, Job> }).jobs ?? {};
+    for (const [name, job] of Object.entries(jobs)) {
+      const runs = (job.steps ?? []).map((s) => s.run ?? "");
+      const apply = runs.findIndex((r) => r.includes("nv release --apply"));
+      if (apply < 0) continue;
+      const before = runs.slice(0, apply);
+      if (!before.some((r) => r.includes("cargo fetch --locked")) || !before.some((r) => r.includes("rustup toolchain install"))) {
+        gaps.push(`${file} / ${name}`);
+      }
+    }
+  }
+  return gaps;
+}
+
+describe("nv release --apply in a workflow", () => {
+  test("every job that bumps the version fetches the committed lock first", () => {
+    const dir = join(ROOT, ".github", "workflows");
+    const workflows: Record<string, string> = {};
+    for (const f of readdirSync(dir).filter((f) => f.endsWith(".yml"))) workflows[f] = readFileSync(join(dir, f), "utf8");
+    expect(Object.values(workflows).some((t) => t.includes("nv release --apply"))).toBe(true);
+    expect(applyWithoutFetch(workflows)).toEqual([]);
+  });
+
+  test("a job that bumps with no fetch before it is named", () => {
+    const yml = (steps: string[]) => `jobs:\n  publish:\n    steps:\n${steps.map((s) => `      - run: ${s}\n`).join("")}`;
+    expect(applyWithoutFetch({ "a.yml": yml(["bun nv release --apply 0.0.2"]) })).toEqual(["a.yml / publish"]);
+    expect(applyWithoutFetch({ "b.yml": yml(["bun nv release --apply 0.0.2", "cargo fetch --locked"]) })).toEqual(["b.yml / publish"]);
+    expect(applyWithoutFetch({ "c.yml": yml(["rustup toolchain install --no-self-update", "cargo fetch --locked", "bun nv release --apply 0.0.2"]) })).toEqual([]);
   });
 });

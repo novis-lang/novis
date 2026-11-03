@@ -325,6 +325,14 @@ jobs:
           git fetch origin main --tags
           git reset --hard origin/main
 
+      # `--apply` runs `cargo metadata` and `cargo update --workspace --offline` once the version
+      # moves, and offline cargo resolves only from what is already fetched. So the tip's committed
+      # lock is fetched here, after the reset, as `build.yml` does before its own `--apply`.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+
       - name: Render the notes for what is actually being released
         env:
           VERSION: ${{ needs.plan.outputs.version }}
