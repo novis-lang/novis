@@ -244,7 +244,11 @@ fn a_server_stopped_with_a_request_still_parked_exits_cleanly() {
             .expect("the `nvs` binary this test was built beside starts"),
         dir: dir.clone(),
     };
-    let out = running.child.stdout.take().expect("standard output is piped");
+    let out = running
+        .child
+        .stdout
+        .take()
+        .expect("standard output is piped");
     let (sent, bound) = mpsc::channel();
     std::thread::spawn(move || {
         for line in BufReader::new(out).lines().map_while(Result::ok) {
@@ -287,10 +291,17 @@ fn a_server_stopped_with_a_request_still_parked_exits_cleanly() {
     stop(running.child.id());
     let until = stopped + PATIENCE;
     let status = loop {
-        if let Some(status) = running.child.try_wait().expect("the server's status is read") {
+        if let Some(status) = running
+            .child
+            .try_wait()
+            .expect("the server's status is read")
+        {
             break status;
         }
-        assert!(Instant::now() < until, "`nvs serve` did not exit after the stop");
+        assert!(
+            Instant::now() < until,
+            "`nvs serve` did not exit after the stop"
+        );
         std::thread::park_timeout(Duration::from_millis(50));
     };
     let said = std::fs::read_to_string(dir.join("stderr.txt")).unwrap_or_default();
