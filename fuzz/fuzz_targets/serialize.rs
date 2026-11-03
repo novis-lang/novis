@@ -16,7 +16,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use nvs_runtime::{ClassDesc, ClassTable, SlotCheck, Tag, decode, encode};
+use nvs_runtime::{ClassDesc, ClassTable, Ctx, OutputSink, SlotCheck, Tag, decode, encode};
 
 /// `Dog`, `Cat` and a typed `Owner`.
 fn classes() -> ClassTable {
@@ -49,16 +49,23 @@ fn encoded(value: nvs_runtime::Value) -> Vec<u8> {
     encode(value).expect("a value `decode` built encodes again")
 }
 
+// Inside a context, as a request decodes: a payload whose objects form a cycle
+// keeps them alive past the last release, and the context's teardown frees
+// them, as the end of a request does. With no context they would outlive the
+// run and be reported as a leak that no request has.
 fuzz_target!(|data: &[u8]| {
     let table = classes();
     let resolve = |name: &str| -> Option<*const ClassDesc> {
         table.id_of(name).map(|id| table.desc(id))
     };
-    let Ok(once) = decode(data, &resolve) else {
-        return;
-    };
-    let first = encoded(once);
-    let twice = decode(&first, &resolve).expect("a payload `encode` wrote decodes again");
-    let second = encoded(twice);
-    assert_eq!(first, second, "one round trip settles the payload");
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.enter(|| {
+        let Ok(once) = decode(data, &resolve) else {
+            return;
+        };
+        let first = encoded(once);
+        let twice = decode(&first, &resolve).expect("a payload `encode` wrote decodes again");
+        let second = encoded(twice);
+        assert_eq!(first, second, "one round trip settles the payload");
+    });
 });

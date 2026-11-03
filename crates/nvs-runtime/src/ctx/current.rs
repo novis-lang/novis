@@ -75,6 +75,22 @@ impl Drop for CurrentCtx {
     }
 }
 
+impl Ctx {
+    /// Runs `body` with this context as the thread's current one, as
+    /// [`crate::call`] does around a compiled function.
+    ///
+    /// An object built inside `body` links onto this context's live list, so
+    /// dropping the context frees whatever `body` left behind, a cycle
+    /// included, as the end of a request does. It is for Rust code that builds
+    /// values with no function to [`crate::call`]: the `serialize` fuzz target
+    /// decodes inside it, so a payload whose objects form a cycle is torn down
+    /// with the context and not reported as a leak.
+    pub fn enter<R>(&mut self, body: impl FnOnce() -> R) -> R {
+        let _current = CurrentCtx::install(self);
+        body()
+    }
+}
+
 /// The two words [`CurrentCtx`] installs, taken off the thread for the length
 /// of a stack switch.
 ///
