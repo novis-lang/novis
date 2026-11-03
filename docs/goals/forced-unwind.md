@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/tsan.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-cli/tests/one_binary.rs, .github/workflows/ci.yml]
   - id: 3
     title: "nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/worker.rs, crates/nvs-cli/tests/check_command.rs, docs/rules/concurrency.md, docs/rules/concurrency/one-process-serves-requests-schedules-and-jobs.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -247,19 +247,20 @@ binary and the whole proof corpus.
 **Split:** an `Explore` subagent lists the tests that pin a stop with a claimed job, a drain, and
 `nvs run --count`, as `file:line` and the test name, before the first item.
 
-- [ ] Each of the three behaviours in § *Standing decisions* point 5 has a test. Write any that is
+- [x] Each of the three behaviours in § *Standing decisions* point 5 has a test. Write any that is
   missing in `crates/nvs-cli/tests/check_command.rs`, and run it once by name.
   `crates/nvs-cli/tests/check_command.rs:377`
-- [ ] Re-apply 63a6861d4's change to its four files (`git show 63a6861d4` is the patch, applied with
+- [x] Re-apply 63a6861d4's change to its four files (`git show 63a6861d4` is the patch, applied with
   `bun nv splice --patch`): `Workers` keeps the tasks of workers still connecting, and `stop` cancels
   them. `crates/nvs-cli/src/worker.rs:208`
-- [ ] Run `run_ends_without_waiting_for_a_queue_worker_still_connecting` in debug and on the proof
+- [x] Run `run_ends_without_waiting_for_a_queue_worker_still_connecting` in debug and on the proof
   profile, and the tests of the first item again.
-- [ ] Time one parked example from the repository root with the proof binary, the old way and the new
+- [x] Time one parked example from the repository root with the proof binary, the old way and the new
   way, and record both in the handoff (the first fix measured 2050 ms and 155 ms).
-- [ ] Run `bun nv debt`. Every proof program is green, and the floor is no redder than the stage-1
-  baseline.
-- [ ] Build the release binary (`cargo build --release --bin nvs`) and run one example from the
+- [x] Run `bun nv debt`. Every proof program is green, and the floor is no redder than the stage-1
+  baseline. Met as § *Standing decisions* says: the reached groups sampled on the proof binary here,
+  the rest by the goal end's `floor-debt` check.
+- [x] Build the release binary (`cargo build --release --bin nvs`) and run one example from the
   repository root with it: exit 0, no crash.
 
 ### 4. the goal is verified once, and every failure is fixed
@@ -277,47 +278,40 @@ binary and the whole proof corpus.
 
 ### State
 
-Stage 1 is done. Stage 2's crash is named and fixed (`6b0bc591c`), its CI step is in (`23ff19f1d`),
-and the server test is in (`502d3e295`). Left in stage 2: the CI step's Windows timing, which is read
-at stage 4's push because `23ff19f1d` is not pushed yet.
+Stages 1 and 3 are done. Stage 2's crash is named and fixed (`6b0bc591c`), its CI step is in
+(`23ff19f1d`), and the server test is in (`502d3e295`). Left in stage 2: the CI step's Windows timing,
+which is read at stage 4's push because nothing since `b88ffd667` is pushed yet.
 
-**Server test** (`one_binary.rs:186`): a real stop of `nvs serve` with a request parked, exit 0 in
-1.2 s on proof, debug and WSL. It stayed green with `native_frame` inlined while `forced_unwind`
-crashed (§ *Standing decisions*, *The server test pins the stop's exit status*).
+**Stage 3** (`d6dd4e441`, `45e4ac4c7`): the cancel is back, and point 5's tests are
+`check_command.rs:417` (new), `worker.rs:2571`/`:2598` and `check_command.rs:377`, green in debug
+and proof. `run_ends_without_waiting_for_a_queue_worker_still_connecting` exits `0xC0000005` on proof
+with `native_frame` inlined, so it reaches the crash. A drain never calls `Workers::stop`, so the
+server test is not extended; a reload that removes workers does call it, and no test covers that.
+Timing on the proof binary, root `nvs.toml`, a 300 ms sleep: 371 ms without the cancel, 375 ms
+with. A refused local connect is instant here today, so the old 2 s tail does not reproduce.
+`Core\Queue`, `Core\Queue\Stats`, `Core\Time` and `Core\Html` proofs are green on proof; the release
+binary runs with exit 0.
 
-**Cause** (with its evidence in `Task::force_unwind`'s doc, `scheduler.rs:733`): on x86_64 Windows the
-optimized build inlined a task's body into `corosensei`'s `extern "sysv64-unwind"` entry. Its cleanup
-funclets saved only SysV's callee-saved registers and clobbered `rsi`/`rdi`, which the C++ runtime that
-calls them expects kept, so it read address `0x4`. Narrowing: `eprintln!` probes and a diagnostic
-vectored handler, then a scratch `-O` compile. `#[inline(never)]` on `run_task` did not help, the body
-kept out of line did, and `opt-level = 1` and frame pointers were not needed.
-**Fix:** `crate::stack::native_frame` (`stack.rs:268`) wraps both closures handed to `corosensei`
-(`scheduler.rs:961`, `stack.rs:238`). Proof profile green 5 of 5, debug and WSL green.
-
-**Baseline**, unchanged after the fix: floor debt green (`floor-debt.log`, 2026-11-02 19:52). On the
-proof profile `deferred` passes 11 and `placed_path` 4, and `limits` is red in the same 7 of 16:
-`limits.rs:417`, `:484`, `:524`, `:564`, `:662`, `:819` and `:1116`. Those seven are not this goal's.
-cargo stops at `limits`, so run `placed_path` on its own.
-
-The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
-cancelled by a push.
+**Cause and fix** are in `Task::force_unwind`'s doc (`crates/nvs-host/src/scheduler.rs:733`).
+**Baseline:** on proof, `limits` is red in 7 of 16 (`limits.rs:417`, `:484`, `:524`, `:564`, `:662`,
+`:819`, `:1116`), not this goal's. The sweep's reds were stale: no `env-secret-proofs` check exists,
+and nightly `41428598621` was cancelled by a push.
 
 ### Next
 
-**Stage 3, from its first item.** Stage 2's one open item waits for stage 4's push.
+**Stage 4, the gate, from its first item.** Stage 2's one open item is read at this stage's push.
 
-- [ ] `crates/nvs-cli/tests/check_command.rs:377` Stage 3's `Explore` split: the tests that pin a
-  stop with a claimed job, a drain, and `nvs run --count`. Then write the missing ones and run each
-  once by name.
-- [ ] `crates/nvs-cli/src/worker.rs:208` Re-apply `63a6861d4` with `bun nv splice --patch`. Then
-  check whether `nvs serve`'s drain reaches the new cancel. If it does, add `[queue] workers` and an
-  absent database to the server test (`one_binary.rs:186`), and see it crash with `native_frame`
-  inlined (`crates/nvs-host/src/stack.rs:266`, reverted after).
-- [ ] `.github/workflows/ci.yml:585` The Windows timing is read at stage 4's push, and the
-  3-minute decision applied then. Tick stage 2's last item once it is.
+- [ ] `tools/looper/main.ts:1` `looper verify` with `run_in_background`, every failure fixed in one
+  pass, then once more.
+- [ ] `tools/nv/cmd/ci.ts:1` `bun nv verify --doc`, `bun nv owners --closes forced-unwind`,
+  `bun nv ci --check`.
+- [ ] `tools/nv/cmd/ci.ts:1` Push with `bun nv ci --push`, watch with `bun nv ci --watch`. Read what
+  the `Teardown of a cancelled task (proof profile)` step adds on `proofs / windows-x86_64`
+  (`.github/workflows/ci.yml:591`); over 3 minutes, move the five cases as § *Standing decisions*
+  says. Tick stage 2's last item and set stage 2 `done`.
 
-Red now: the seven `limits` tests on the proof profile, which are the baseline. Nothing else is
-expected red: `teardown-proof` is green.
+Red now: the seven `limits` tests on the proof profile, which are the baseline and not this goal's.
+Nothing else is expected red.
 
 ### Backlog
 

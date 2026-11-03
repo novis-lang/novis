@@ -41,7 +41,7 @@ The chain holds 1 goal(s). `forced-unwind` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`forced-unwind`](forced-unwind.md) **live** | a parked task cancelled by the scheduler, by another task or by the scheduler's drop unwinds without a crash on Windows in the debug, proof and release profiles, and nvs run cancels a queue worker still connecting, so a Windows run with an absent database ends without the 2 s wait | 1 ✓ a baseline is recorded, and a test of every teardown path crashes on the proof profile · **2 the crash's cause is named and fixed, and CI runs the teardown tests on the proof profile** · 3 nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary · 4 the goal is verified once, and every failure is fixed |
+| 1 | [`forced-unwind`](forced-unwind.md) **live** | a parked task cancelled by the scheduler, by another task or by the scheduler's drop unwinds without a crash on Windows in the debug, proof and release profiles, and nvs run cancels a queue worker still connecting, so a Windows run with an absent database ends without the 2 s wait | 1 ✓ a baseline is recorded, and a test of every teardown path crashes on the proof profile · **2 the crash's cause is named and fixed, and CI runs the teardown tests on the proof profile** · 3 ✓ nvs run's stop cancels a queue worker still connecting, and every proof program is green on the proof binary · 4 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
