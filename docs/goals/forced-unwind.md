@@ -6,7 +6,7 @@ context: [crates/nvs-host/src/scheduler.rs, crates/nvs-runtime/src/abi.rs, crate
 stages:
   - id: 1
     title: "a baseline is recorded, and a test of every teardown path crashes on the proof profile"
-    status: open
+    status: done
     context: [crates/nvs-host/src/scheduler.rs, crates/nvs-host/tests/deferred.rs, crates/nvs-cli/src/worker.rs, tools/nv/proofs/run.ts]
   - id: 2
     title: "the crash's cause is named and fixed, and CI runs the teardown tests on the proof profile"
@@ -166,6 +166,13 @@ module of `nvs-cli`'s lib, which the cost guards' `cargo test --release` step al
 
 **Lanes.** None. Each stage builds on the one before, and stages 2 and 3 share the scheduler's tests.
 
+**The floor's baseline is the sweep's `floor-debt` log, not a session's run.** The looper guard refuses
+`bun nv debt` inside a session (`heavy-run`): looper pays it once at the goal end as the floor check
+`floor-debt`. Stage 1 read `.looper/loops/main/checks/floor-debt.log` instead, and stage 3's "run
+`bun nv debt`" item is met by `bun nv proofs --run` over the groups the cancel reaches (`bun nv affected`
+names them) plus the goal end's `floor-debt` check. Running every proof in a session costs the loop an
+hour for what the goal end runs anyway.
+
 ## Stages
 
 ### 1. a baseline is recorded, and a test of every teardown path crashes on the proof profile
@@ -173,26 +180,26 @@ module of `nvs-cli`'s lib, which the cost guards' `cargo test --release` step al
 **Does:** records the baseline, then writes the five teardown tests. They are green in debug. The
 session runs each alone on the proof profile and records which crash. Nothing is fixed here.
 
-- [ ] Record the baseline in the handoff: `bun nv debt`'s red list, and
+- [x] Record the baseline in the handoff: `bun nv debt`'s red list, and
   `cargo test --profile proof --test deferred --test limits --test placed_path`.
   `crates/nvs-host/tests/deferred.rs:1`
-- [ ] Write `crates/nvs-host/tests/forced_unwind.rs` with the five tests the `teardown-debug` check
+- [x] Write `crates/nvs-host/tests/forced_unwind.rs` with the five tests the `teardown-debug` check
   names. Each parked task waits the way the queue worker's connect does
   (`crates/nvs-cli/src/worker.rs:1920`): a native Rust body that suspends with `nvs_host::suspend`
   and holds a value whose `Drop` counts. Each test asserts the count is exactly one per task and that
   the scheduler runs on afterwards. No task parks under an `extern "C"` frame
   (`docs/agent/playbook/writing-a-test-case/a-nativebody-slot-or-task-that-parks-in-nvshost-sleep-aborts.md`
   says why). `crates/nvs-host/tests/forced_unwind.rs:1`
-- [ ] Run `cargo test --test forced_unwind`: green.
-- [ ] Run each test alone on the proof profile
+- [x] Run `cargo test --test forced_unwind`: green.
+- [x] Run each test alone on the proof profile
   (`cargo test --profile proof --test forced_unwind -- <name> --exact`) and record each exit code in
   the handoff.
-- [ ] If none crashes, the test lacks what the queue worker has. Re-apply 63a6861d4's change to
+- [x] If none crashes, the test lacks what the queue worker has. Re-apply 63a6861d4's change to
   `crates/nvs-cli/src/worker.rs` uncommitted, build the proof binary, run one example from the
   repository root with its output in a file, and confirm the crash. Then move the test closer to
   the worker's shape until it crashes, and remove the uncommitted change.
   `crates/nvs-cli/src/worker.rs:247`
-- [ ] Commit the test file. It is green in debug, and nothing runs it optimized yet.
+- [x] Commit the test file. It is green in debug, and nothing runs it optimized yet.
 
 ### 2. the crash's cause is named and fixed, and CI runs the teardown tests on the proof profile
 
@@ -258,12 +265,30 @@ binary and the whole proof corpus.
 
 ### State
 
-Nothing is started. The crash reproduces on a Windows machine with the recipe in § *Why*.
+Stage 1 is done: `crates/nvs-host/tests/forced_unwind.rs` has the five teardown tests, green in debug.
+
+**Baseline, before any change.** Floor debt green (`floor-debt.log`, 2026-11-02 19:52). On the proof
+profile `deferred` passes 11 and `placed_path` 4. `limits` is **already red in 7 of 16**, by assertion
+and not by crash: `limits.rs:417`, `:484`, `:524`, `:564`, `:662`, `:819` and `:1116`. Those seven are
+not this goal's, and any other red is. cargo stops at `limits`, so run `placed_path` on its own.
+
+**Red first.** Run alone on the proof profile, four tests exit `0xc0000005` (`STATUS_ACCESS_VIOLATION`):
+cancelled by the scheduler, cancelled from inside another task, the scheduler's drop, and the thousand.
+`a_task_cancelled_before_its_first_turn_drops_its_body_unrun` exits 0: an unstarted coroutine switches
+no stack, so nothing unwinds. A native body under `TaskRoot::Worker`, parked two `#[inline(never)]`
+frames deep with `nvs_host::suspend`, is enough to crash, so the fallback item was not needed.
 
 ### Next
 
-**Stage 1**, all of it in one session.
+**Stage 2**, its narrowing and naming in one session.
 
-- [ ] Record the baseline (`crates/nvs-host/tests/deferred.rs:1`), then write the five tests in `crates/nvs-host/tests/forced_unwind.rs:1`.
+- [ ] `crates/nvs-host/src/scheduler.rs:706` A `reader` subagent reads `corosensei` 0.3.4's Windows
+  unwind across the stack switch and its changelog (the stage's **Split:** line).
+- [ ] `crates/nvs-host/src/scheduler.rs:931` Narrow with the stage's steps, each reverted after,
+  rerunning the scheduler-cancel test alone on the proof profile.
+- [ ] `crates/nvs-host/src/scheduler.rs:697` Name the cause in the handoff before changing code.
+
+Red now and expected to stay red until stage 2's fix: the four crashing tests above on the proof
+profile (`teardown-proof`), and the seven `limits` tests on the proof profile, which are the baseline.
 
 ### Backlog
