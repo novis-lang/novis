@@ -164,6 +164,15 @@ step adds on the Windows leg. If it adds more than 3 minutes, the five cases mov
 module of `nvs-cli`'s lib, which the cost guards' `cargo test --release` step already compiles
 (`.github/workflows/ci.yml:490`), and the check's `run` moves with them.
 
+**The server test pins the stop's exit status, and it cannot go red on the crash.** Point 2 is not
+met by it, and that is accepted. A stopped server's core turns until nothing is parked
+(`crates/nvs-cli/src/serve.rs:1653`), and a task parked in a script is forgotten at the scheduler's
+drop, not unwound (`crates/nvs-host/src/scheduler.rs:841`). So no stop of a server reaches
+`Task::force_unwind`, and the test stayed green with `native_frame` inlined while `forced_unwind`
+crashed with `0xC0000005`. A server path into the unwind comes only from a cancel of a task with no
+script on its stack. Stage 3's queue-worker cancel is the first one, and if `nvs serve`'s drain uses it
+too, stage 3 extends the server test to reach it and sees it red with the fix undone.
+
 **Lanes.** None. Each stage builds on the one before, and stages 2 and 3 share the scheduler's tests.
 
 **The floor's baseline is the sweep's `floor-debt` log, not a session's run.** The looper guard refuses
@@ -221,7 +230,7 @@ Windows and any fix in a later 0.3 release, as `file:line` and one line each.
 - [x] Run `cargo test --profile proof --test forced_unwind` five times: green every time. Then
   `cargo test --test forced_unwind`, and `bun nv linux-test` for the same test.
 - [x] Run the stage-1 baseline's proof-profile tests again: no new red.
-- [ ] Write `a_server_stopped_with_a_request_still_parked_exits_cleanly` beside the server shutdown
+- [x] Write `a_server_stopped_with_a_request_still_parked_exits_cleanly` beside the server shutdown
   tests: a server with a request parked past the drain is stopped, and the process exits with its
   normal code. Run it on the proof profile. `crates/nvs-cli/tests/one_binary.rs:1`
 - [ ] Add the CI step after the proofs job's build, measure what it adds on Windows, and apply the
@@ -268,8 +277,13 @@ binary and the whole proof corpus.
 
 ### State
 
-Stage 1 is done. Stage 2's crash is named and fixed (`6b0bc591c`), and its CI step is in
-(`23ff19f1d`). Left in stage 2: the server test and the CI step's Windows timing.
+Stage 1 is done. Stage 2's crash is named and fixed (`6b0bc591c`), its CI step is in (`23ff19f1d`),
+and the server test is in (`502d3e295`). Left in stage 2: the CI step's Windows timing, which is read
+at stage 4's push because `23ff19f1d` is not pushed yet.
+
+**Server test** (`one_binary.rs:186`): a real stop of `nvs serve` with a request parked, exit 0 in
+1.2 s on proof, debug and WSL. It stayed green with `native_frame` inlined while `forced_unwind`
+crashed (§ *Standing decisions*, *The server test pins the stop's exit status*).
 
 **Cause** (with its evidence in `Task::force_unwind`'s doc, `scheduler.rs:733`): on x86_64 Windows the
 optimized build inlined a task's body into `corosensei`'s `extern "sysv64-unwind"` entry. Its cleanup
@@ -285,21 +299,22 @@ proof profile `deferred` passes 11 and `placed_path` 4, and `limits` is red in t
 `limits.rs:417`, `:484`, `:524`, `:564`, `:662`, `:819` and `:1116`. Those seven are not this goal's.
 cargo stops at `limits`, so run `placed_path` on its own.
 
-The sweep's reds were stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
-cancelled by a push 3 minutes in. The latest push run is green.
+The sweep's reds are stale: no `env-secret-proofs` check is defined, and nightly `41428598621` was
+cancelled by a push.
 
 ### Next
 
-**Stage 2's last two items, then stage 3.**
+**Stage 3, from its first item.** Stage 2's one open item waits for stage 4's push.
 
-- [ ] `crates/nvs-cli/tests/one_binary.rs:1` Write
-  `a_server_stopped_with_a_request_still_parked_exits_cleanly` in `one_binary.rs`, because the
-  `server-retire-proof` check runs `--test one_binary`. An `Explore` agent first finds an existing
-  `nvs serve` start-and-stop helper to reuse (`live_config.rs:843` drains on a reload). Run the test
-  once on the proof profile.
+- [ ] `crates/nvs-cli/tests/check_command.rs:377` Stage 3's `Explore` split: the tests that pin a
+  stop with a claimed job, a drain, and `nvs run --count`. Then write the missing ones and run each
+  once by name.
+- [ ] `crates/nvs-cli/src/worker.rs:208` Re-apply `63a6861d4` with `bun nv splice --patch`. Then
+  check whether `nvs serve`'s drain reaches the new cancel. If it does, add `[queue] workers` and an
+  absent database to the server test (`one_binary.rs:186`), and see it crash with `native_frame`
+  inlined (`crates/nvs-host/src/stack.rs:266`, reverted after).
 - [ ] `.github/workflows/ci.yml:585` The Windows timing is read at stage 4's push, and the
-  3-minute decision applied then. Tick the item once it is.
-- [ ] `crates/nvs-cli/src/worker.rs:208` Stage 3: the `Explore` split, then its first item.
+  3-minute decision applied then. Tick stage 2's last item once it is.
 
 Red now: the seven `limits` tests on the proof profile, which are the baseline. Nothing else is
 expected red: `teardown-proof` is green.

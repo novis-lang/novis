@@ -214,6 +214,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A stopped `nvs serve` never force-unwinds a parked task, so a server test cannot reach a
+  teardown crash in `Task::force_unwind`.** A core's serving loop turns until nothing is parked, and
+  a task parked inside a script stands on a helper frame and is forgotten at the scheduler's drop.
+  Such a test stays green with the fix undone. Reach the unwind through `nvs-host`'s
+  `tests/forced_unwind.rs`, or a cancel of a task with no script on its stack, and see it red first
+  with `native_frame` set to `inline(always)`. See `crates/nvs-cli/src/serve.rs`.
+  `until: gone crates/nvs-cli/src/serve.rs:Ok(report) if report.parked > 0 => {}`
 - **`bun nv proofs --bless` rewrites an example's `.out` and not a `.nvst`'s `--EXPECT--`.** Handed a
   case, it runs the case as a program and fails with `'--events <FILE>' cannot be used with '--peer
   <FILE>'`, which reads like a CLI bug. When a message changes, bless the examples with it, edit each
