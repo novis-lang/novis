@@ -37,7 +37,7 @@ exclude = ["benches/members", "benches/serve", "benches/proxied",
 # member manifest that does not write `publish.workspace = true`.
 # ---------------------------------------------------------------------------
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -54,31 +54,31 @@ categories = ["compilers", "development-tools"]
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # --- internal ---
-nvs-diagnostics = { path = "crates/nvs-diagnostics", version = "0.0.1" }
-nvs-syntax = { path = "crates/nvs-syntax", version = "0.0.1" }
-nvs-hir = { path = "crates/nvs-hir", version = "0.0.1" }
-nvs-types = { path = "crates/nvs-types", version = "0.0.1" }
-nvs-ir = { path = "crates/nvs-ir", version = "0.0.1" }
-nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
-nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
-nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
-nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
+nvs-diagnostics = { path = "crates/nvs-diagnostics", version = "0.0.2" }
+nvs-syntax = { path = "crates/nvs-syntax", version = "0.0.2" }
+nvs-hir = { path = "crates/nvs-hir", version = "0.0.2" }
+nvs-types = { path = "crates/nvs-types", version = "0.0.2" }
+nvs-ir = { path = "crates/nvs-ir", version = "0.0.2" }
+nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.2" }
+nvs-render = { path = "crates/nvs-render", version = "0.0.2" }
+nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.2" }
+nvs-host = { path = "crates/nvs-host", version = "0.0.2" }
 # The one internal entry that turns a member's defaults off. `nvs-server`'s
 # `exporter` is the workspace's only feature, and turning it off here is what makes
 # the dependent's own feature the single switch for it: `nvs-cli` is the only
 # dependent, its `exporter` — on by default — forwards to this one, and
 # `cargo tree -p nvs-cli --no-default-features -f "{p} feats={f}"` is what shows
 # the crate then reached with no features at all.
-nvs-server = { path = "crates/nvs-server", version = "0.0.1", default-features = false }
-nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
+nvs-server = { path = "crates/nvs-server", version = "0.0.2", default-features = false }
+nvs-config = { path = "crates/nvs-config", version = "0.0.2" }
 # The defaults are the wasmtime host and the packer; a dependent names what it takes.
-nvs-ext = { path = "crates/nvs-ext", version = "0.0.1", default-features = false }
-nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
-nvs-ldap = { path = "crates/nvs-ldap", version = "0.0.1" }
-nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
-nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
+nvs-ext = { path = "crates/nvs-ext", version = "0.0.2", default-features = false }
+nvs-db = { path = "crates/nvs-db", version = "0.0.2" }
+nvs-ldap = { path = "crates/nvs-ldap", version = "0.0.2" }
+nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.2" }
+nvs-test = { path = "crates/nvs-test", version = "0.0.2" }
 # Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.
-nvs-repo = { path = "crates/nvs-repo", version = "0.0.1" }
+nvs-repo = { path = "crates/nvs-repo", version = "0.0.2" }
 # Dev-only: the image component's codec core built for the host, the native arm `nvs-ext`'s
 # `image_guest` test and bench hold the guest against. It is outside the workspace (`exclude`
 # above) and keeps its own version, which `bun nv release` leaves alone; `cargo deny` needs it named.
@@ -98,9 +98,9 @@ hayro-syntax = { version = "0.8", default-features = false, features = ["std"] }
 lopdf = { version = "0.46", default-features = false }
 aes = { version = "0.9", default-features = false }
 # What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
-nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
-nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
-nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
+nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.2" }
+nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.2" }
+nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.2" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
 cranelift = "0.137.1"
