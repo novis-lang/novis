@@ -955,7 +955,7 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "37066f8dc2ee4555",
+    "hash": "4ecf044c142a732a",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",

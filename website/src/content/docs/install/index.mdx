@@ -60,14 +60,20 @@ The file <a href={sums.url}><code>{sums.file}</code></a> has the checksum of eac
 
 ## Install the VS Code extension
 
-Each release also has the VS Code extension as a file:
-<a href={vsix.url}><code>{vsix.file}</code></a>. The extension adds colours, errors and
-completion for `.nvs` files. This command installs the file you downloaded:
+The extension adds colours, errors and completion for `.nvs` files. It is in the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=novis-lang.nvs). In VS Code,
+open the Extensions view, search for `Novis` and install **Novis-Lang**. This command does the same
+from a terminal:
+
+<Code lang="sh" code="code --install-extension novis-lang.nvs" />
+
+VSCodium, Cursor and some other editors do not use the VS Code Marketplace. Each release also has the
+extension as a file: <a href={vsix.url}><code>{vsix.file}</code></a>. This command installs the file
+you downloaded:
 
 <Code lang="sh" code={`code --install-extension ${vsix.file}`} />
 
-[Install the extension](/tools/editor/#install-the-extension) shows how to install it from the
-command palette in VS Code.
+[Install the extension](/tools/editor/#install-the-extension) shows both ways step by step.
 
 ## Run Novis with Docker
 
