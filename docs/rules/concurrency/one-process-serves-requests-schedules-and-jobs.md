@@ -28,7 +28,8 @@ and one process is where that pays.
 that serves, while there is no request beneath a worker to charge a panic to
 (`rule:http-server/containment-does-not-end-at-the-helper`). `nvs run` arms the same workers and
 stops them when the script's task exits, because a run with a worker that ignored that would never
-end. The two commands differ in that one predicate, which is what keeps moving work between them an
+end. A worker still opening its connection holds no job, so that stop cancels it, and a run never
+waits out a handshake with a database that is down. The two commands differ in that one predicate, which is what keeps moving work between them an
 operational decision (`rule:concurrency/who-runs-a-job-is-configuration`).
 
 **The command is still `serve`, and its help names all three subsystems.** The operator's picture of
