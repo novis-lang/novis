@@ -285,6 +285,13 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 - [ ] Work through the list, one file group per slice. Each entry names its pattern and, for a
   removed bound, its bench or count. `docs/goals/speed-independent-tests.md:1`
+  - [x] The files the first sweep did not read are swept, and their hits join the list.
+  - [x] The tight bounds follow the rule: `html_later.rs`, `time.rs`, `io.rs`, `transport.rs`,
+    `sqlite_contention.rs`, `telemetry.rs`, `otlp.rs` and the bounded-wait conformance case.
+  - [ ] The hang guards under the hostile timeout are raised to it.
+  - [ ] The sleep-ordered conformance cases and Rust tests wait for an event.
+  - [ ] The growth properties (`spreadsheet_read.rs:874`, the case-insensitive `indexOf` case)
+    have a bench with its growth or a count.
 - [ ] Every bench or cost guard added for a removed bound is listed in the handoff with its path.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -299,37 +306,35 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stages 1, 2 and 3 are done. Every stage-3 check ran green here by name, the new `stale-cpu-raise`
-included. Build and `clippy --all-targets -D warnings` are green.
+Stages 1, 2 and 3 are done. In stage 4 the tight bounds and the sweep of the unread files are done.
+Clippy over all targets is green, and each rewritten test passed once by name.
 
-- **Serve test: cause found and fixed (`f7f40eb16`).** The watchdog's stop walk reads a tree's
-  ceiling (`crates/nvs-host/src/watchdog.rs:1398`) and then raises `CPU_LIMIT` (`:1425`). When the
-  handler widens the ceiling and lowers the flag between those two steps, the raise lands inside the
-  handler. Its first poll ran the ladder again, found no handler, and ended the request with no
-  output. The poll now lowers a CPU raise inside the handler's slice while the sampler's reading is
-  under the widened ceiling (`Ctx::in_cpu_slice`, `crates/nvs-runtime/src/ctx/limits.rs`). The new
-  test `crates/nvs-host/tests/limits.rs` (`a_raise_that_read_the_ceiling_from_before_the_handler_
-  does_not_stop_it`) is red without the poll change and green with it. `rule:errors/on-limit`
-  records the fix and its cost.
-- **The evidence is that test, not a CI reproduction.** 192 runs of the serve test, 48 at once
-  beside one CPU burner per core, all passed here. Every server in `serve_isolation.rs` now sets
-  `NVS_PROOF_SWEEPS` (`c3a803617`), so a recurrence on CI prints its sweep lines. The other
-  candidate, the handler's first file write spending more than 50 ms of CPU on Windows, stays
-  open. If the serve test fails again with no second sweep line, that is the cause, and the
-  reserve's accounting is the fix.
-- The sweep's reds are stale: `env-secret-proofs` is defined nowhere, nightly 41618735447 ran
-  `98845d92` (older than `488791366`), and `supply chain` is the `ci-green` loop's. No test is
-  expected to go red.
+- **The tight bounds follow the rule (`84028a2b9`, `2fc0617f0`, `0181e463a`, `13e8b4a98`):**
+  - `html_later.rs`: the two slots record the order they began and ended in, so the test checks the
+    order (pattern 1). The deadline test's bound is now 10 s.
+  - `time.rs`: a zero or negative sleep is judged by a count of waits entered on a test host
+    (`CountsWaits`). The bound is dropped, and `benches/members/core/Time/sleep.nvs` covers the path.
+  - `io.rs`: the aliases are refused under a context with no `fs.read`, so a refusal after the path
+    was resolved would name that grant (pattern 1). The bound is now a 10 s hang guard.
+  - `transport.rs`: the call throws before a 10 s deadline passes, which a call that slept cannot do.
+    The backoff's jitter draws under 10 s about once in three million runs.
+  - `sqlite_contention.rs`: the charge is read on the thread's own CPU clock (pattern 2). Its bound
+    is a reference statement plus three clock steps, both measured in the run (pattern 4).
+  - `telemetry.rs`: the test reads the request the collector received (pattern 1), and the bound is
+    a 10 s hang guard.
+  - `otlp.rs`: the spans queued and dropped are counted, with a 10 s hang guard.
+  - The bounded-wait case: the map's children wait on a channel the fifth closes (pattern 1).
+- **No bench or cost guard was added.** Only `time.rs`'s bound is dropped, and a bench covers it.
+- The run's reds are stale (nightly 41618735447 ran `98845d92`). No test is expected to go red.
 
 ### Next
 
-Stage 4: work through the list below, one file group per slice, as its `**Split:**` line says. First
-sweep the files the list did not read (the paragraph after the list). Then hand each file group to a
-writing subagent on the session's model, side by side, none of which builds, and build once they end.
-Start with the tight bounds, since they fail in CI: `html_later.rs:353`, `sqlite_contention.rs:181`,
-`telemetry.rs:1494`, `time.rs:5716`, `io.rs:5274`, `transport.rs:4351`, `otlp.rs:1620`, and the
-`task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst` case. A removed bound needs a bench or
-a counted cost guard first, and the handoff names its path.
+Stage 4 goes on through the list below, one file group per slice, as its `**Split:**` line says.
+Hand each file group to a writing subagent on the session's model, side by side, and build once they
+end. Take next the sleep-ordered conformance cases and Rust tests (pattern 1), then the hang guards
+under the hostile timeout (raise to 10 s), then the growth properties, which need a bench with its
+growth or a count. A removed bound needs a bench or a counted cost guard first, and the handoff names
+its path.
 
 **Stage 4's list.** From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
@@ -337,11 +342,6 @@ at any speed and stays unless the clock's resolution can undercut it. A **hang g
 stays if it is at least the hostile timeout's size. A **tight** bound fails on a slow machine and is
 fixed by the named pattern; where it is removed, its path needs a bench or a count first.
 
-- `crates/nvs-db/tests/sqlite_contention.rs`: `:145` lower, stays. `:177` lower, stays. `:181` `< 6 s`
-  for a 300 ms budget: pattern 4, judge it by the CPU time the request had left, read in the run.
-- `crates/nvs-stdlib/tests/html_later.rs`: `:353` two 150 ms slots `< 280 ms`, tight: pattern 1, each
-  slot records when it started, and the second starts before the first ends. `:404` `< 2 s` for a
-  50 ms deadline: hang guard, raise to the hostile timeout.
 - `crates/nvs-stdlib/tests/db_stream.rs`: `:684`, `:712` `< 10 s` against a 30 s statement: hang
   guards, stay.
 - `crates/nvs-cli/tests/one_binary.rs:311` `< 50 s` against a 60 s sleep: hang guard, stays.
@@ -368,8 +368,6 @@ fixed by the named pattern; where it is removed, its path needs a bench or a cou
   own clock reading. `:2543` charged `>= 20 ms` lower: check against the thread's own reading
   (pattern 2), since stage 3 changes its neighbour at `:2636`.
 - `crates/nvs-runtime/src/ctx/safepoint.rs:1702` lower, stays.
-- `crates/nvs-stdlib/src/time.rs`: `:5716` zero sleeps `< 100 ms`: tight, pattern 2 against a
-  reading of a no-op span, or a count that no wait was entered. `:5722`, `:5798` lower, stay.
 - `crates/nvs-stdlib/src/cache.rs:3975` lower, stays.
 - `crates/nvs-stdlib/src/cli.rs:4703` 20 ms wait `< 5 s`: hang guard, stays.
 - `crates/nvs-stdlib/src/db/execute.rs`: `:1767` lower, stays. `:1828` `< 5 s` for 200 ms: hang guard,
@@ -380,18 +378,11 @@ fixed by the named pattern; where it is removed, its path needs a bench or a cou
   `:1275` `> 1 s` with 50 ms pings: pattern 1, count the pings the peer answered. `:1532` `< 5 s`:
   hang guard, stays.
 - `crates/nvs-stdlib/src/http/transport.rs`: `:4324` `< 5 s` budget and `:5243`, `:5379`: hang guards,
-  stay. `:4351` backoff past a 500 ms deadline `< 1 s`: pattern 1, assert no sleep was entered (a
-  count), then drop the bound.
-- `crates/nvs-stdlib/src/io.rs:5274` ten refusals `< 500 ms`: the property is "before any network
-  attempt", so pattern 1: count network attempts (zero), then drop the bound.
+  stay.
 - `crates/nvs-db/src/sqlite.rs:2248` `< 10 s` for 100 ms: hang guard, stays.
-- `crates/nvs-server/src/otlp.rs:1620` 1000 hand-overs `< 1 s`: "never delays a response" is a count
-  property: count blocking sends (zero); the timing goes to a bench.
 - `crates/nvs-server/src/serve.rs`: `:5657`, `:5686`, `:5858`, `:12063`, `:12137`, `:12247`, `:12345`
   `< 5 s`: hang guards; raise each to the hostile timeout where 5 s is under it.
 - `crates/nvs-test/src/run.rs`: `:1093` `< 20 s`, `:1157` `< 8 s`: hang guards, stay.
-- `crates/nvs-cli/src/telemetry.rs:1494` `< 2.5 s` for 500 ms + 2 s: tight, pattern 4: the bound is
-  the budget plus a measured connect attempt, or pattern 1 on the give-up event.
 - `crates/nvs-cli/src/script.rs:3857` revalidate wait `<= 300 ms`: pattern 3 if the settle wait reads
   a seam; else pattern 1.
 - `crates/nvs-cli/src/runner.rs:6763` compares two children's elapsed: pattern 1, order of events.
@@ -405,9 +396,6 @@ fixed by the named pattern; where it is removed, its path needs a bench or a cou
 - `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst:22`,
   `task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst:37`: a 20 ms
   sleep gives survivors a turn: pattern 1, wait for an event the survivors would cause.
-- `tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst:19,32`: five 150 ms
-  children under a 700 ms deadline, both ways: tight. Pattern 1: the unlimited map's children block on
-  a channel the test releases, so the margin is not a time.
 - `tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst:33`,
   `task/close-wakes-a-waiting-receiver-and-what-was-queued-still-arrives.nvst:26`,
   `core/late-init-a-second-task-waits-for-the-first.nvst:17`: ordering by sleep lengths: pattern 1.
@@ -417,10 +405,20 @@ fixed by the named pattern; where it is removed, its path needs a bench or a cou
   `core/a-cancelled-task-dies-where-it-sleeps.nvst:24`, `core/late-init-a-failed-init-is-retried-by-
   the-next-read.nvst:70`, `task/a-task-tree-dies-with-its-parent.nvst:41` (20 ms against 2 s): stay.
 
-The sweep did not read `nvs-stdlib/tests/queue.rs`, `nvs-db/tests/pool_reuse.rs`,
-`nvs-db/tests/handshake.rs`, `nvs-cli/src/service.rs`, `nvs-server/src/slotted`, `nvs-ext/src` or
-benches other than `abi-probe`, and matched no assert that compares across lines. Stage 4 sweeps those
-first.
+From the second sweep, of the files the first did not read. `nvs-stdlib/tests/queue.rs`,
+`nvs-db/tests/pool_reuse.rs`, `nvs-ext/src` and the benches other than `abi-probe` have no hits.
+
+- `crates/nvs-db/tests/handshake.rs`: `:1493`, `:1516`, `:1536`, `:1559` sleep 2 s past a 2 s
+  handshake budget, then the statement must still reach the server: pattern 1, wait for an event that
+  shows the budget is over. `:706`, `:949` sleep 10 ms per turn, up to 400 turns, until a read is in
+  flight: a polling wait, check that its turn count is a hang guard and the assert reads an event.
+- `crates/nvs-cli/src/service.rs`: `:6155`, `:6177` 10 s patience against a 5 ms ping: hang guards,
+  stay. `:6164`, `:6166`, `:6184` sleep 100 ms, then assert no new ping: an absence judged after a
+  sleep, so pattern 1 needs an event that ends the window, such as a later ping the test controls.
+- `crates/nvs-server/src/slotted/tests.rs`: `:121` and `:152` a 300 ms slot must still run when the
+  shell arrives; `:165-177` a 30 ms slot ends before a 300 ms one; `:38`, `:484-509` a 60 ms slot
+  ends after two others: all sleep-ordered, pattern 1, each slot waits on a gate the test opens.
+  `:518` not read yet.
 
 ### Backlog
 
