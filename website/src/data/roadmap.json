@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Spreadsheet edge cases",
-      "text": "`Novis\\Spreadsheet` gets a test for each kind of file that other spreadsheet libraries read or write wrong. Each case it does not support is listed with its reason.",
-      "goals": [
-        "spreadsheet-edge-cases"
-      ]
-    },
-    {
       "title": "A faster start in large projects",
       "text": "The editor and the compiler read a large project faster. Reading a whole project costs about the same time as compiling it.",
       "goals": [
