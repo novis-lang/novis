@@ -45,6 +45,27 @@ pub struct RawRow {
     pub cells: Vec<RawCell>,
 }
 
+/// A row of a sheet read whole, kept once however many rows repeat it: `again` rows after it,
+/// numbered on from `row.number`, have the same cells. A cursor gives each copy as it reaches it,
+/// so an ods row repeated to the last row of the grid costs the memory of one row.
+#[derive(Debug, Clone)]
+pub struct Kept {
+    pub row: RawRow,
+    pub again: u64,
+}
+
+impl Kept {
+    /// The row `row`, not repeated.
+    pub fn once(row: RawRow) -> Self {
+        Self { row, again: 0 }
+    }
+
+    /// The number of the last row this one covers.
+    pub fn last(&self) -> u64 {
+        self.row.number + self.again
+    }
+}
+
 /// A worksheet being read.
 #[derive(Debug)]
 pub struct Cursor {

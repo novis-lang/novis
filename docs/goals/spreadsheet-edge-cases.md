@@ -305,9 +305,12 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 `crates/nvs-ext/tests/spreadsheet_hostile.rs`, driven through the component as that file's other cases
 are, one conformance case and one attack.
 
-- [ ] SEC-04, RO-01: an ods valued cell with `number-columns-repeated` near 16,384 inside
+- [x] SEC-04, RO-01: an ods valued cell with `number-columns-repeated` near 16,384 inside
   `number-rows-repeated` near 1,048,576 clones every repeated row. Yield the row again and never store
   the copies (decision 2). `extensions/spreadsheet/src/read/ods.rs:656`
+  - [x] a whole-format row is a `sheet::Kept` with its repeat count, and `Cursor::Whole` gives each copy
+  - [x] the rule and the ods module doc say a repeated row costs one row
+  - [x] `an_ods_row_repeated_to_the_last_row_costs_one_row_to_read` passes
 - [ ] RX-21, ST-01: a single huge token is rescanned from its start on every 64 KiB refill. Resume the
   scan where the last refill stopped (decision 3). `extensions/spreadsheet/src/read/xml.rs:44`,
   `extensions/spreadsheet/src/read/sheet.rs:339`, `extensions/spreadsheet/src/read/mod.rs:283`

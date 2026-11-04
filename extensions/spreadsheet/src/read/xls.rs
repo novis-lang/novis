@@ -28,7 +28,7 @@ use super::binary::{error_text, f64_at, number, rk, typed, u8_at, u16_at, u32_at
 use super::extras::{Link, Name, Note};
 use super::format::Style;
 use super::merge::Merge;
-use super::sheet::{RawCell, RawRow};
+use super::sheet::{Kept, RawCell, RawRow};
 use super::tokens::{self, Biff, Linked, Place};
 use super::{Listed, SheetKind, cfb, xls_extras};
 use crate::{Error, Visibility};
@@ -497,7 +497,8 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
                 .into_iter()
                 .filter_map(|(index, column, row)| xls_extras::image(&store, index, column, row));
             extras.images.extend(images.map(on));
-            (Some(Arc::new(read.rows)), read.merged)
+            let rows = read.rows.into_iter().map(Kept::once).collect();
+            (Some(Arc::new(rows)), read.merged)
         } else {
             (None, Vec::new())
         };

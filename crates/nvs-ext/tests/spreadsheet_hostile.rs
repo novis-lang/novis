@@ -310,25 +310,7 @@ fn read_filling(file: &[u8], fill: bool) -> (Option<String>, usize) {
         .expect("`readerOpen` returns a reader");
         let mut from = Value::Null;
         loop {
-            let options = Value::Array(
-                [
-                    ("sheet", Value::String("Orders".to_owned())),
-                    ("headerRow", Value::Null),
-                    ("from", from.clone()),
-                    ("limit", Value::Null),
-                    ("columns", Value::Array(Vec::new())),
-                    ("text", Value::Array(Vec::new())),
-                    ("textAll", Value::Bool(false)),
-                    ("formulas", Value::Bool(false)),
-                    ("keepEmptyRows", Value::Bool(false)),
-                    ("fillMerged", Value::Bool(fill)),
-                    ("skipHidden", Value::Bool(false)),
-                    ("locale", Value::String("en".to_owned())),
-                ]
-                .into_iter()
-                .map(|(key, value)| (Key::String(key.to_owned()), value))
-                .collect(),
-            );
+            let options = rows_options(from.clone(), Value::Null, fill);
             let batch = block_on(request.call_values(
                 &extension,
                 "readerRows",
@@ -368,6 +350,83 @@ fn read_filling(file: &[u8], fill: bool) -> (Option<String>, usize) {
     .err();
     drop(block_on(request.end()));
     (failure, budget.sent.load(Ordering::Acquire))
+}
+
+/// The `readerRows` options that read `Orders` from the row `from`, at most `limit` rows, with
+/// `fillMerged` set to `fill`.
+fn rows_options(from: Value, limit: Value, fill: bool) -> Value {
+    Value::Array(
+        [
+            ("sheet", Value::String("Orders".to_owned())),
+            ("headerRow", Value::Null),
+            ("from", from),
+            ("limit", limit),
+            ("columns", Value::Array(Vec::new())),
+            ("text", Value::Array(Vec::new())),
+            ("textAll", Value::Bool(false)),
+            ("formulas", Value::Bool(false)),
+            ("keepEmptyRows", Value::Bool(false)),
+            ("fillMerged", Value::Bool(fill)),
+            ("skipHidden", Value::Bool(false)),
+            ("locale", Value::String("en".to_owned())),
+        ]
+        .into_iter()
+        .map(|(key, value)| (Key::String(key.to_owned()), value))
+        .collect(),
+    )
+}
+
+/// `file` opened under [`CAP`] and the first `limit` rows of `Orders` read: each row's number and
+/// count of cells, or the first failure's text.
+fn first_rows(file: &[u8], limit: u64) -> Result<Vec<(u64, usize)>, String> {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
+    let source = Value::Bytes(file.to_vec());
+    let read = (|| {
+        let reader = block_on(request.call_values(
+            &extension,
+            "readerOpen",
+            vec![source.clone(), bound(None, None)],
+        ))
+        .map_err(|err| err.to_string())?
+        .expect("`readerOpen` returns a reader");
+        let options = rows_options(Value::Null, Value::Uint(limit), false);
+        let batch = block_on(request.call_values(
+            &extension,
+            "readerRows",
+            vec![reader, source.clone(), options, Value::Uint(limit)],
+        ))
+        .map_err(|err| err.to_string())?
+        .expect("`readerRows` returns a batch");
+        let field = |of: &Value, name: &str| {
+            let Value::Array(fields) = of else {
+                panic!("{of:?} is not a shape");
+            };
+            fields
+                .iter()
+                .find(|(key, _)| *key == Key::String(name.to_owned()))
+                .map(|(_, value)| value.clone())
+                .unwrap_or_else(|| panic!("{of:?} has no `{name}`"))
+        };
+        let Value::Array(rows) = field(&batch, "rows") else {
+            panic!("a batch's rows are a list");
+        };
+        Ok(rows
+            .iter()
+            .map(|(_, row)| {
+                let Value::Uint(number) = field(row, "number") else {
+                    panic!("a row has its number");
+                };
+                let Value::Array(cells) = field(row, "cells") else {
+                    panic!("a row has its cells");
+                };
+                (number, cells.len())
+            })
+            .collect())
+    })();
+    drop(block_on(request.end()));
+    read
 }
 
 /// A failure that is the reader's throw or the request's memory limit, never a crash.
@@ -1019,4 +1078,28 @@ fn an_export_string_beginning_with_equals_is_a_text_cell() {
         "{part}"
     );
     assert!(part.contains("HYPERLINK("), "{part}");
+}
+
+/// One valued cell repeated over all 16,384 columns, in a row repeated to the grid's last row,
+/// is 2^34 cells in a few hundred bytes. Kept once and given again by the cursor, it opens and
+/// reads under [`CAP`]. Cloned into a stored row per repeat, it ran out of memory at the open.
+#[test]
+fn an_ods_row_repeated_to_the_last_row_costs_one_row_to_read() {
+    let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+<office:body><office:spreadsheet><table:table table:name="Orders">
+<table:table-row table:number-rows-repeated="1048575"><table:table-cell office:value-type="float" office:value="1" table:number-columns-repeated="16384"/></table:table-row>
+<table:table-row><table:table-cell office:value-type="float" office:value="2"/></table:table-row>
+</table:table></office:spreadsheet></office:body></office:document-content>"#;
+    let file = zip(&[
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".as_slice(),
+        ),
+        ("content.xml", content.as_bytes()),
+    ]);
+    assert_eq!(
+        first_rows(&file, 3),
+        Ok(vec![(1, 16_384), (2, 16_384), (3, 16_384)])
+    );
 }

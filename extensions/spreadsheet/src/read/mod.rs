@@ -321,7 +321,7 @@ struct Listed {
     visibility: Visibility,
     part: Option<String>,
     kind: SheetKind,
-    rows: Option<Arc<Vec<sheet::RawRow>>>,
+    rows: Option<Arc<Vec<sheet::Kept>>>,
     merged: Vec<Merge>,
 }
 
@@ -410,9 +410,11 @@ struct Open {
 enum Cursor {
     Xml(sheet::Cursor),
     Binary(binary::Cursor),
+    /// `at` is the kept row the cursor is on, and `copy` the copies of it already given.
     Whole {
-        rows: Arc<Vec<sheet::RawRow>>,
+        rows: Arc<Vec<sheet::Kept>>,
         at: usize,
+        copy: u64,
     },
 }
 
@@ -424,11 +426,11 @@ impl Cursor {
             Self::Whole { rows, .. } => Ok(rows.last().map(|last| {
                 let columns = rows
                     .iter()
-                    .flat_map(|row| row.cells.last())
+                    .flat_map(|kept| kept.row.cells.last())
                     .map(|cell| cell.column)
                     .max()
                     .unwrap_or(0);
-                (last.number, columns)
+                (last.last(), columns)
             })),
         }
     }
@@ -454,10 +456,18 @@ impl Cursor {
         match self {
             Self::Xml(cursor) => cursor.next(source),
             Self::Binary(cursor) => cursor.next(source),
-            Self::Whole { rows, at } => {
-                let row = rows.get(*at).cloned();
-                *at += 1;
-                Ok(row)
+            Self::Whole { rows, at, copy } => {
+                let Some(kept) = rows.get(*at) else {
+                    return Ok(None);
+                };
+                let mut row = kept.row.clone();
+                row.number += *copy;
+                if *copy < kept.again {
+                    *copy += 1;
+                } else {
+                    (*at, *copy) = (*at + 1, 0);
+                }
+                Ok(Some(row))
             }
         }
     }
@@ -820,6 +830,7 @@ impl Reader {
             return Ok(Cursor::Whole {
                 rows: rows.clone(),
                 at: 0,
+                copy: 0,
             });
         }
         let entry = self.part(listed)?;

@@ -18,7 +18,9 @@
 //! `__Anonymous_Sheet_DB__0`, is not a table.
 //!
 //! A row or a cell written once with a repeat count is that many rows or cells. An empty one only
-//! moves the count on, so the million empty rows a file ends with cost nothing. A repeated cell
+//! moves the count on, so the million empty rows a file ends with cost nothing. A repeated row
+//! with a value is kept once with its count ([`super::sheet::Kept`]), and the cursor gives each
+//! copy as it reaches it, so it costs the memory of one row however far it repeats. A repeated cell
 //! with a value is held once per column it covers, up to the grid's 1,048,576 rows and 16,384
 //! columns, and a repeat past the grid is [`Error::Parse`]. A formula is OpenFormula text, which
 //! `crate::openformula` translates to A1 text, so a cell read with `formulas: true` gives a
@@ -32,7 +34,7 @@ use std::sync::Arc;
 use super::extras::{Link, Name, Note, Table as DataRange};
 use super::format::{Kind, Style};
 use super::merge::Merge;
-use super::sheet::{RawCell, RawRow};
+use super::sheet::{Kept, RawCell, RawRow};
 use super::xml::{self, Token};
 use super::{
     Listed, MOST_COLUMNS, MOST_ROWS, SheetKind, Source, days_from_civil, letters, ods_styles, zip,
@@ -205,7 +207,7 @@ fn value_cell(attrs: &[u8]) -> Result<Option<RawCell>, Error> {
 struct Table {
     name: String,
     style: Option<String>,
-    rows: Vec<RawRow>,
+    rows: Vec<Kept>,
     next_row: u64,
     merged: Vec<Merge>,
     /// The last column of each run of columns, and the cell style it gives a cell with none.
@@ -682,8 +684,8 @@ fn close_cell(row: &mut Option<(RawRow, u64, u64)>, open: Open) -> Result<(), Er
     Ok(())
 }
 
-/// Adds the row `raw` to `table`, once per row it repeats over. A row with no value only moves
-/// the count on.
+/// Adds the row `raw` to `table`, kept once with the count of rows that repeat it. A row with no
+/// value only moves the count on.
 fn close_row(table: &mut Table, raw: RawRow, count: u64) -> Result<(), Error> {
     let first = table.next_row;
     table.next_row = table.next_row.saturating_add(count);
@@ -693,12 +695,12 @@ fn close_row(table: &mut Table, raw: RawRow, count: u64) -> Result<(), Error> {
     if table.next_row - 1 > MOST_ROWS {
         return Err(broken("a row is past the last row of the sheet"));
     }
-    for number in first..table.next_row {
-        table.rows.push(RawRow {
-            number,
-            hidden: raw.hidden,
-            cells: raw.cells.clone(),
-        });
-    }
+    table.rows.push(Kept {
+        row: RawRow {
+            number: first,
+            ..raw
+        },
+        again: count - 1,
+    });
     Ok(())
 }

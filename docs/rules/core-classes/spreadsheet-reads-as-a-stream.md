@@ -45,7 +45,9 @@ reader translates to A1 text (`extensions/spreadsheet/src/openformula.rs`), so i
 `Formula` as an xlsx cell does; a formula the translator cannot read gives none. An ods cell carries its
 type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
 `Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
-nothing, and a repeat past the grid throws. An ods cell's `text` is rendered under the file's own
+nothing, and a repeat past the grid throws. A repeated row with a value is kept once with its
+count, and the cursor gives each copy as it reaches it, so it costs one row of memory however far it
+repeats. An ods cell's `text` is rendered under the file's own
 `number:*-style`, which the reader translates to a format code
 (`extensions/spreadsheet/src/read/ods_styles.rs`), found through the cell's style, its row's or
 its column's default style, and each style's parents.
@@ -120,7 +122,7 @@ spent on the shared strings, which a file may make large, and bounded by the req
 
 - **Memory:** per reading request, the read-ahead buffer, the inflater's window, one batch of rows,
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and
-  ods, the whole file; with `merged: 'fill'`, the sheet's ranges. All of it is inside the request's
+  ods, the whole file, with a repeated ods row held once; with `merged: 'fill'`, the sheet's ranges. All of it is inside the request's
   cap and freed when the request ends.
 
 **The Novis half** asks for 1,000 rows a call, with `from` one past the last row it was given.
