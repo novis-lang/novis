@@ -3102,8 +3102,18 @@ mod tests {
         })
         .join()
         .expect("the thread that reads its policy panicked");
-        assert_eq!(read, libc::KERN_SUCCESS, "the thread's policy could not be read");
-        assert_eq!(default, 0, "the watchdog thread still runs under the default policy");
-        assert!(constraint > 0, "the watchdog thread's policy has no constraint");
+        assert_eq!(
+            read,
+            libc::KERN_SUCCESS,
+            "the thread's policy could not be read"
+        );
+        assert_eq!(
+            default, 0,
+            "the watchdog thread still runs under the default policy"
+        );
+        assert!(
+            constraint > 0,
+            "the watchdog thread's policy has no constraint"
+        );
     }
 }
