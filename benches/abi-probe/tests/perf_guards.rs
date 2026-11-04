@@ -2857,10 +2857,19 @@ fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
     // allocation and on the release — against a round trip to the platform
     // heap, which is an allocation with no counting in front of it. The mark is
     // inside the measured figure, so a bound on the whole is a bound on the
-    // mark. The soft bound is a quarter: the update is meant to be a small part
-    // of what it fronts. The hard bound is the heap's own cost, because an
-    // update as dear as the allocation is no longer "a few instructions" on any
-    // platform, and the argument in that module doc is reopened.
+    // mark.
+    //
+    // The figure is a time ratio because no count sees what it guards. The
+    // update cannot allocate, since it runs inside the allocator. What it can
+    // gain is instructions and calls, and no portable counter reads those.
+    //
+    // The soft bound is a quarter: inlined, the update is a few loads, compares
+    // and stores. The hard bound is the heap's own cost. On glibc that round
+    // trip is a thread-cache hit of under 3 ns, so an update that is a call
+    // instead of inlined code reaches it: an out-of-line `budget::carry` reads
+    // about 1.05x there on a steady run. That is why `carry` is `#[inline]`. A
+    // hard miss on a run the yardstick calls steady is a change in the code
+    // this caller gets, not load.
     const UPDATE_PER_PLATFORM: Bound = Bound::ratio_under(0.25, 1.0);
 
     let layout = Layout::from_size_align(32, 8).expect("a valid layout");
@@ -2870,8 +2879,10 @@ fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
         "memory balance and high-water mark update, against a platform heap round trip",
         UPDATE_PER_PLATFORM,
         "Keeping the memory mark and balance now costs as much as the allocation it fronts. \
-         `nvs_runtime::budget`'s § What it spends argues it is a few instructions, and that \
-         argument is reopened.",
+         On glibc that is the cost of an out-of-line `nvs_runtime::budget::carry`, so check \
+         first that it is still `#[inline]` and inlined into this caller. If it is, the update \
+         itself grew: `nvs_runtime::budget`'s § What it spends argues it is a few \
+         instructions, and that argument is reopened.",
         |yard| {
             let update = ns_per_op(500_000, 5, || balance_round_trip(bytes));
             let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
