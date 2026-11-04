@@ -337,12 +337,12 @@ pub fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
     Ok(styles)
 }
 
-/// Reads `xl/sharedStrings.bin` a block at a time, so only the arena is held.
-pub fn strings(source: &dyn Source, entry: &Entry) -> Result<Strings, Error> {
+/// Reads `xl/sharedStrings.bin` a block at a time into `strings`, an empty arena, so only the
+/// arena is held.
+pub fn strings(source: &dyn Source, entry: &Entry, mut strings: Strings) -> Result<Strings, Error> {
     let mut part = Part::open(source, entry)?;
     let mut buf = Vec::new();
     let mut at = 0;
-    let mut strings = Strings::default();
     loop {
         match record(&buf[at..])? {
             Some((kind, body, length)) => {

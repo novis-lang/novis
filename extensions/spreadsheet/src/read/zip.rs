@@ -11,7 +11,8 @@
 //! the request's `[limits]`. A [`Part`] streamed and never held stops past its compressed size
 //! times the ratio. A part read [`Directory::whole`] stops past the smaller of that and what the
 //! archive has left of the byte ceiling, and is then charged against it, so the archive's total
-//! counts held parts only. Each is a [`Error::Parse`] naming the part and the half that stopped it.
+//! counts held parts only. The shared strings' arena is held too, and counts the same way
+//! ([`Directory::left`], [`Directory::charge`]). Each is a [`Error::Parse`] naming the part and the half that stopped it.
 //! An entry that inflates past the size its directory line declares is refused too, though that
 //! size is the file's own claim and bounds nothing. The central directory is read whole, and one
 //! larger than [`DIRECTORY_MOST`] is refused. Zip64 is not read: Excel writes it only past 4 GiB.
@@ -84,7 +85,7 @@ fn over_ratio(name: &str, ratio: u64) -> Error {
     ))
 }
 
-fn over_bytes(name: &str, bytes: u64) -> Error {
+pub(super) fn over_bytes(name: &str, bytes: u64) -> Error {
     Error::Parse(format!(
         "The workbook part `{name}` makes the decompressed parts larger than {bytes} bytes. \
          To allow more, raise `[limits] max_decompressed` in the server's configuration."
@@ -174,6 +175,20 @@ impl Directory {
         }
         self.held.set(self.held.get() + out.len() as u64);
         Ok(out)
+    }
+
+    /// What the archive has left of the bound's bytes, and the bound's bytes, for a part the
+    /// reader keeps in another form than its bytes, such as the shared strings' arena.
+    pub fn left(&self) -> (u64, u64) {
+        (
+            self.bound.bytes.saturating_sub(self.held.get()),
+            self.bound.bytes,
+        )
+    }
+
+    /// Charges `bytes` a part kept in another form holds against the archive's ceiling.
+    pub fn charge(&self, bytes: u64) {
+        self.held.set(self.held.get().saturating_add(bytes));
     }
 
     /// The entry named `name`. Names in a workbook are compared without case, as Excel does.

@@ -227,14 +227,44 @@ impl Default for ReadOptions {
     }
 }
 
-/// The shared strings, in one arena: string `i` is `text[ends[i - 1]..ends[i]]`.
+/// The shared strings, in one arena: string `i` is `text[ends[i - 1]..ends[i]]`. The arena counts
+/// against the archive's byte ceiling as the parts read whole do: [`Strings::within`] stops it
+/// past what the archive has left, and [`Reader::strings`] charges it once read.
 #[derive(Debug, Default)]
 pub struct Strings {
     text: String,
     ends: Vec<u32>,
+    ceiling: Option<Ceiling>,
+}
+
+/// What the arena may grow to: the archive's bytes left, its whole ceiling and the part's name,
+/// for the error.
+#[derive(Debug)]
+struct Ceiling {
+    left: u64,
+    bytes: u64,
+    part: String,
 }
 
 impl Strings {
+    /// An empty arena for the part `entry`, stopped past what `directory` has left.
+    pub fn within(directory: &zip::Directory, entry: &zip::Entry) -> Self {
+        let (left, bytes) = directory.left();
+        Self {
+            ceiling: Some(Ceiling {
+                left,
+                bytes,
+                part: entry.name.clone(),
+            }),
+            ..Self::default()
+        }
+    }
+
+    /// The bytes the arena holds: its text and four per string.
+    pub fn held(&self) -> u64 {
+        (self.text.len() + self.ends.len() * 4) as u64
+    }
+
     /// The number of strings.
     pub fn len(&self) -> usize {
         self.ends.len()
@@ -268,19 +298,25 @@ impl Strings {
             Error::Parse("The workbook's shared strings are larger than 4 GiB.".to_owned())
         })?;
         self.ends.push(end);
+        if let Some(ceiling) = &self.ceiling
+            && self.held() > ceiling.left
+        {
+            return Err(zip::over_bytes(&ceiling.part, ceiling.bytes));
+        }
         Ok(())
     }
 
     /// Reads the shared strings part `entry` a block at a time, so only the arena is held.
-    fn parse(source: &dyn Source, entry: &zip::Entry) -> Result<Self, Error> {
+    /// Reads the shared strings part `entry` into `strings`, an empty arena.
+    fn parse(source: &dyn Source, entry: &zip::Entry, mut strings: Self) -> Result<Self, Error> {
         let mut part = zip::Part::open(source, entry)?;
         let mut buf = Vec::new();
         let mut eof = false;
-        let mut strings = Self::default();
         let mut at = 0;
         let (mut item, mut inside_t, mut phonetic) = (String::new(), false, false);
+        let mut resume = xml::Resume::default();
         loop {
-            let Some((token, size)) = xml::next(&buf[at..])? else {
+            let Some((token, size)) = xml::next_from(&buf[at..], &mut resume)? else {
                 if eof {
                     break;
                 }
@@ -801,10 +837,17 @@ impl Reader {
                 .as_deref()
                 .and_then(|part| self.directory.find(part))
             {
-                Some(entry) if self.binary => binary::strings(source, entry)?,
-                Some(entry) => Strings::parse(source, entry)?,
+                Some(entry) => {
+                    let empty = Strings::within(&self.directory, entry);
+                    if self.binary {
+                        binary::strings(source, entry, empty)?
+                    } else {
+                        Strings::parse(source, entry, empty)?
+                    }
+                }
                 None => Strings::default(),
             };
+            self.directory.charge(strings.held());
             self.strings = Some(strings);
         }
         Ok(self.strings.get_or_insert_default())

@@ -2,7 +2,9 @@
 //! token.
 //!
 //! [`next`] returns the token at the start of a buffer and its length, or `None` when the buffer
-//! ends before the token does, so the caller reads more and asks again. Names are compared by
+//! ends before the token does, so the caller reads more and asks again. A caller that reads a
+//! part a block at a time asks with [`next_from`] and a [`Resume`], so the scan goes on where the
+//! last block ended and one token longer than many blocks is scanned once. Names are compared by
 //! their local part ([`local`]), so a prefix a file chose does not matter. Text and attribute
 //! values are decoded by [`decode`]: the five predefined entities and character references, and
 //! nothing else.
@@ -38,30 +40,74 @@ fn find(buf: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
         .map(|at| at + from)
 }
 
+/// Where the scan of a token that `buf` ended inside stopped, so the call after a refill resumes
+/// there and a token longer than many read blocks is scanned once. It belongs to the token at
+/// the start of the buffer it was scanned in: the caller passes the same token's start again, with
+/// more bytes after it, or a fresh `Resume` for another token. [`next_from`] resets it when it
+/// returns a token.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Resume {
+    /// The bytes of the token already known not to end it.
+    at: usize,
+    /// The quote a start tag's scan is inside.
+    quote: Option<u8>,
+}
+
 /// The token at the start of `buf` and its length, or `None` when `buf` ends inside it.
 pub fn next(buf: &[u8]) -> Result<Option<(Token<'_>, usize)>, Error> {
+    next_from(buf, &mut Resume::default())
+}
+
+/// [`next`], resuming the scan where `resume` says the last call on the same token stopped.
+pub fn next_from<'a>(
+    buf: &'a [u8],
+    resume: &mut Resume,
+) -> Result<Option<(Token<'a>, usize)>, Error> {
+    let found = scan(buf, resume)?;
+    if found.is_some() {
+        *resume = Resume::default();
+    }
+    Ok(found)
+}
+
+/// `needle` in `buf` from `from`, or from where `resume` stopped when that is later. When it is
+/// not there, `resume` keeps the bytes that cannot start it.
+fn find_from(buf: &[u8], from: usize, needle: &[u8], resume: &mut Resume) -> Option<usize> {
+    let found = find(buf, from.max(resume.at), needle);
+    if found.is_none() {
+        resume.at = from.max(buf.len().saturating_sub(needle.len() - 1));
+    }
+    found
+}
+
+fn scan<'a>(buf: &'a [u8], resume: &mut Resume) -> Result<Option<(Token<'a>, usize)>, Error> {
     let Some(&first) = buf.first() else {
         return Ok(None);
     };
     if first != b'<' {
-        return Ok(buf
-            .iter()
-            .position(|&b| b == b'<')
-            .map(|end| (Token::Text(&buf[..end]), end)));
+        let found = buf[resume.at..].iter().position(|&b| b == b'<');
+        let Some(end) = found.map(|end| end + resume.at) else {
+            resume.at = buf.len();
+            return Ok(None);
+        };
+        return Ok(Some((Token::Text(&buf[..end]), end)));
     }
     if buf.len() < 2 {
         return Ok(None);
     }
     match buf[1] {
-        b'?' => Ok(find(buf, 2, b"?>").map(|end| (Token::Skip, end + 2))),
+        b'?' => Ok(find_from(buf, 2, b"?>", resume).map(|end| (Token::Skip, end + 2))),
         b'!' => {
             if buf.len() < 9 {
                 return Ok(None);
             }
             if buf.starts_with(b"<!--") {
-                Ok(find(buf, 4, b"-->").map(|end| (Token::Skip, end + 3)))
+                Ok(find_from(buf, 4, b"-->", resume).map(|end| (Token::Skip, end + 3)))
             } else if buf.starts_with(b"<![CDATA[") {
-                Ok(find(buf, 9, b"]]>").map(|end| (Token::Raw(&buf[9..end]), end + 3)))
+                Ok(
+                    find_from(buf, 9, b"]]>", resume)
+                        .map(|end| (Token::Raw(&buf[9..end]), end + 3)),
+                )
             } else {
                 Err(Error::Parse(
                     "A part of the workbook has a document type declaration. Novis does not read these."
@@ -69,13 +115,18 @@ pub fn next(buf: &[u8]) -> Result<Option<(Token<'_>, usize)>, Error> {
                 ))
             }
         }
-        b'/' => Ok(buf
-            .iter()
-            .position(|&b| b == b'>')
-            .map(|end| (Token::Close(trim(&buf[2..end])), end + 1))),
+        b'/' => {
+            let from = resume.at.max(2);
+            let Some(end) = buf[from..].iter().position(|&b| b == b'>') else {
+                resume.at = buf.len();
+                return Ok(None);
+            };
+            let end = end + from;
+            Ok(Some((Token::Close(trim(&buf[2..end])), end + 1)))
+        }
         _ => {
-            let mut quote = None;
-            for (at, &b) in buf.iter().enumerate().skip(1) {
+            let mut quote = resume.quote;
+            for (at, &b) in buf.iter().enumerate().skip(resume.at.max(1)) {
                 match (quote, b) {
                     (Some(q), _) if b == q => quote = None,
                     (Some(_), _) => {}
@@ -99,6 +150,7 @@ pub fn next(buf: &[u8]) -> Result<Option<(Token<'_>, usize)>, Error> {
                     (None, _) => {}
                 }
             }
+            (resume.at, resume.quote) = (buf.len(), quote);
             Ok(None)
         }
     }

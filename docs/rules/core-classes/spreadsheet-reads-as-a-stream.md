@@ -112,13 +112,19 @@ excepted. Its properties are `meta.xml`'s, with the initial creator as the autho
 **Shared strings are kept in one arena** with `u32` offsets, never one allocation per entry, and the
 reader reads `styles.xml`'s number formats and each cell's style index, which the read table's date
 rule and the `text` option need. **A part streamed and never held** — a sheet read row by row — is
-bounded by the decompression ratio alone; a part held whole, such as the shared strings, keeps both
-bounds (`rule:core-classes/decompression-bound`).
+bounded by the decompression ratio alone; a part held whole keeps both bounds
+(`rule:core-classes/decompression-bound`). The shared strings are read a block at a time, and their
+arena, its text and four bytes per string, counts against the archive's byte ceiling as a part held
+whole does: past what the archive has left, the read throws naming the part and
+`[limits] max_decompressed`. **A part is scanned once:** a token the read-ahead block ends inside is
+scanned on from where the last block stopped, and so is a sheet's row, so a token or a row longer
+than many blocks costs its own length.
 
 The tradeoffs. **Performance:** one host call per read-ahead block, one guest call per batch of rows,
 and no Novis code between blocks. **Usability:** typed values, the header's keys on every row, and row
 numbers to report errors by. **Simplicity:** one `Reader` for every format, CSV included. **Memory:**
-spent on the shared strings, which a file may make large, and bounded by the request's cap.
+spent on the shared strings, which a file may make large, and bounded by the archive's byte ceiling
+and the request's cap.
 
 - **Memory:** per reading request, the read-ahead buffer, the inflater's window, one batch of rows,
   the number formats, and the shared strings of the file being read in one arena; for xlsm, xls and

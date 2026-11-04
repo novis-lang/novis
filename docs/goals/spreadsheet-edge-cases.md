@@ -311,13 +311,21 @@ are, one conformance case and one attack.
   - [x] a whole-format row is a `sheet::Kept` with its repeat count, and `Cursor::Whole` gives each copy
   - [x] the rule and the ods module doc say a repeated row costs one row
   - [x] `an_ods_row_repeated_to_the_last_row_costs_one_row_to_read` passes
-- [ ] RX-21, ST-01: a single huge token is rescanned from its start on every 64 KiB refill. Resume the
+- [x] RX-21, ST-01: a single huge token is rescanned from its start on every 64 KiB refill. Resume the
   scan where the last refill stopped (decision 3). `extensions/spreadsheet/src/read/xml.rs:44`,
   `extensions/spreadsheet/src/read/sheet.rs:339`, `extensions/spreadsheet/src/read/mod.rs:283`
-- [ ] ST-03: the shared-string arena is bounded only by the ratio and the memory cap. Charge it to the
+  - [x] `xml::next_from` with a `Resume`, used by the sheet cursor, `sheet::scan` and the shared strings
+  - [x] a row the block ends inside is a `sheet::Partial` the cursor parses on, never again from its start
+  - [x] `one_token_longer_than_many_read_blocks_is_scanned_once` passes
+- [x] ST-03: the shared-string arena is bounded only by the ratio and the memory cap. Charge it to the
   archive-wide ceiling (decision 4). `extensions/spreadsheet/src/read/mod.rs:231`
-- [ ] `share` finds a shared-formula group by a linear search per cell; index groups by `si`.
+  - [x] `Strings::within` stops the arena past `Directory::left`, and `Reader::strings` charges it
+  - [x] `the_shared_string_table_counts_against_the_archive_ceiling` passes
+- [x] `share` finds a shared-formula group by a linear search per cell; index groups by `si`.
   `extensions/spreadsheet/src/read/sheet.rs:210`
+  - [x] a row's groups name each cell by its index, so `share` searches nothing (xlsx; xlsb's
+    `binary.rs:812` search is over the groups still open, not the row, and is left)
+  - [x] `many_shared_formula_groups_in_a_row_read_in_linear_time` passes
 - [ ] A custom format code is found by a linear search per xf; use a map.
   `extensions/spreadsheet/src/read/mod.rs:553`
 - [ ] `rest()` allocates for each `g` and `a` in a format code, quadratic over a long code; slice

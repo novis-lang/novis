@@ -78,6 +78,10 @@ pub struct Cursor {
     last: u64,
     /// Each shared formula's row, column and text, by its `si`.
     shared: std::collections::HashMap<u32, (u64, u64, String)>,
+    /// Where the scan of the token at `pos` stopped, when the buffer ended inside it.
+    resume: xml::Resume,
+    /// The row at `pos`, when the buffer ended inside it, so a refill goes on where it stopped.
+    partial: Option<Partial>,
 }
 
 fn broken(what: &str) -> Error {
@@ -128,6 +132,8 @@ impl Cursor {
             over: false,
             last: 0,
             shared: std::collections::HashMap::new(),
+            resume: xml::Resume::default(),
+            partial: None,
         })
     }
 
@@ -157,7 +163,7 @@ impl Cursor {
     /// when the sheet has none.
     pub fn dimension(&mut self, source: &dyn Source) -> Result<Option<(u64, u64)>, Error> {
         loop {
-            match xml::next(&self.buf[self.pos..])? {
+            match xml::next_from(&self.buf[self.pos..], &mut self.resume)? {
                 None if self.eof => return Ok(None),
                 None => self.more(source)?,
                 Some((Token::Open { name, attrs, .. }, _)) if xml::local(name) == b"dimension" => {
@@ -177,7 +183,24 @@ impl Cursor {
             if self.over {
                 return Ok(None);
             }
-            let token = xml::next(&self.buf[self.pos..])?;
+            if let Some(partial) = self.partial.as_mut() {
+                let Some(consumed) = partial.go(&self.buf[self.pos..])? else {
+                    // `more` keeps the bytes from `pos`, the row's start, so `partial`'s place
+                    // in them still holds.
+                    self.more(source)?;
+                    continue;
+                };
+                let Partial { row, groups, .. } = self.partial.take().expect("a row is parsed");
+                let mut row = within(row)?;
+                self.pos += consumed;
+                if row.number <= self.last {
+                    return Err(broken("a worksheet's rows are out of order"));
+                }
+                self.last = row.number;
+                self.share(&mut row, &groups);
+                return Ok(Some(row));
+            }
+            let token = xml::next_from(&self.buf[self.pos..], &mut self.resume)?;
             match token {
                 None if self.eof && self.pos == self.buf.len() => return Ok(None),
                 None => self.more(source)?,
@@ -188,27 +211,7 @@ impl Cursor {
                         self.over = empty;
                         self.pos += length;
                     } else if name == b"row" && self.in_data {
-                        let mut groups = Vec::new();
-                        let parsed = parse_row(
-                            &self.buf[self.pos..],
-                            attrs,
-                            empty,
-                            length,
-                            self.last,
-                            &mut groups,
-                        )?;
-                        match parsed {
-                            Some((mut row, consumed)) => {
-                                self.pos += consumed;
-                                if row.number <= self.last {
-                                    return Err(broken("a worksheet's rows are out of order"));
-                                }
-                                self.last = row.number;
-                                self.share(&mut row, &groups);
-                                return Ok(Some(row));
-                            }
-                            None => self.more(source)?,
-                        }
+                        self.partial = Some(Partial::open(attrs, empty, length, self.last)?);
                     } else {
                         self.pos += length;
                     }
@@ -227,12 +230,14 @@ impl Cursor {
 
 impl Cursor {
     /// Keeps the text of each shared formula `row` starts, and gives each other cell of a group
-    /// its text moved to it. `groups` is each shared cell's column and `si`.
-    fn share(&mut self, row: &mut RawRow, groups: &[(u64, u32)]) {
-        for &(column, si) in groups {
-            let Some(cell) = row.cells.iter_mut().find(|cell| cell.column == column) else {
+    /// its text moved to it. `groups` is each shared cell's index in `row.cells` and its `si`, so
+    /// a row of many groups costs one map lookup per cell.
+    fn share(&mut self, row: &mut RawRow, groups: &[(usize, u32)]) {
+        for &(index, si) in groups {
+            let Some(cell) = row.cells.get_mut(index) else {
                 continue;
             };
+            let column = cell.column;
             match cell.formula.as_deref() {
                 Some(text) if !text.is_empty() => {
                     self.shared
@@ -276,8 +281,9 @@ pub fn scan(
     let mut buf = Vec::new();
     let mut at = 0;
     let mut eof = false;
+    let mut resume = xml::Resume::default();
     loop {
-        let Some((token, size)) = xml::next(&buf[at..])? else {
+        let Some((token, size)) = xml::next_from(&buf[at..], &mut resume)? else {
             if eof {
                 return Ok(());
             }
@@ -294,7 +300,7 @@ pub fn scan(
 }
 
 /// Where the text of a row's element goes.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum In {
     Nothing,
     Value,
@@ -328,113 +334,136 @@ pub(super) fn past_cell(column: u64, row: u64) -> Error {
     ))
 }
 
-/// Parses the `<row>` that starts `buf`, whose start tag is `length` bytes and has `attrs`.
-/// Returns `None` when `buf` ends inside the row.
-fn parse_row(
-    buf: &[u8],
-    attrs: &[u8],
+/// A `<row>` being parsed, kept by the cursor across refills so each byte of it is read once:
+/// the cells so far, each shared formula cell's index and `si`, how far past the row's start it
+/// is parsed, and the text of the element it is inside.
+#[derive(Debug)]
+struct Partial {
+    row: RawRow,
+    groups: Vec<(usize, u32)>,
+    at: usize,
+    into: In,
+    text: Vec<u8>,
+    resume: xml::Resume,
     empty: bool,
-    length: usize,
-    last: u64,
-    groups: &mut Vec<(u64, u32)>,
-) -> Result<Option<(RawRow, usize)>, Error> {
-    let mut row = RawRow {
-        number: match xml::attr(attrs, b"r") {
-            Some(r) => std::str::from_utf8(r)
-                .ok()
-                .and_then(|r| r.parse().ok())
-                .filter(|&r| r > 0)
-                .ok_or_else(|| broken("a row has no valid number"))?,
-            None => last + 1,
-        },
-        hidden: matches!(xml::attr(attrs, b"hidden"), Some(b"1" | b"true")),
-        cells: Vec::new(),
-    };
-    if empty {
-        return within(row).map(|row| Some((row, length)));
-    }
-    let mut at = length;
-    let mut into = In::Nothing;
-    let mut text = Vec::new();
-    loop {
-        let Some((token, size)) = xml::next(&buf[at..])? else {
-            return Ok(None);
+}
+
+impl Partial {
+    /// The row whose start tag is `length` bytes and has `attrs`, after the row numbered `last`.
+    fn open(attrs: &[u8], empty: bool, length: usize, last: u64) -> Result<Self, Error> {
+        let row = RawRow {
+            number: match xml::attr(attrs, b"r") {
+                Some(r) => std::str::from_utf8(r)
+                    .ok()
+                    .and_then(|r| r.parse().ok())
+                    .filter(|&r| r > 0)
+                    .ok_or_else(|| broken("a row has no valid number"))?,
+                None => last + 1,
+            },
+            hidden: matches!(xml::attr(attrs, b"hidden"), Some(b"1" | b"true")),
+            cells: Vec::new(),
         };
-        at += size;
-        match token {
-            Token::Open { name, attrs, empty } => match xml::local(name) {
-                b"c" => {
-                    let column = match xml::attr(attrs, b"r") {
-                        Some(r) => {
-                            column_of(r).ok_or_else(|| broken("a cell has no valid reference"))?
+        Ok(Self {
+            row,
+            groups: Vec::new(),
+            at: length,
+            into: In::Nothing,
+            text: Vec::new(),
+            resume: xml::Resume::default(),
+            empty,
+        })
+    }
+
+    /// Parses on through `buf`, which starts at the row's start tag: the row's length once its
+    /// end is read, or `None` when `buf` ends inside it.
+    fn go(&mut self, buf: &[u8]) -> Result<Option<usize>, Error> {
+        if self.empty {
+            return Ok(Some(self.at));
+        }
+        let (mut at, mut into) = (self.at, self.into);
+        let (row, groups, text) = (&mut self.row, &mut self.groups, &mut self.text);
+        loop {
+            let Some((token, size)) = xml::next_from(&buf[at..], &mut self.resume)? else {
+                (self.at, self.into) = (at, into);
+                return Ok(None);
+            };
+            at += size;
+            match token {
+                Token::Open { name, attrs, empty } => match xml::local(name) {
+                    b"c" => {
+                        let column = match xml::attr(attrs, b"r") {
+                            Some(r) => column_of(r)
+                                .ok_or_else(|| broken("a cell has no valid reference"))?,
+                            None => row.cells.last().map_or(1, |cell| cell.column + 1),
+                        };
+                        if column > MOST_COLUMNS || row.number > MOST_ROWS {
+                            return Err(past_cell(column, row.number));
                         }
-                        None => row.cells.last().map_or(1, |cell| cell.column + 1),
-                    };
-                    if column > MOST_COLUMNS || row.number > MOST_ROWS {
-                        return Err(past_cell(column, row.number));
+                        let style = xml::attr(attrs, b"s")
+                            .and_then(|s| std::str::from_utf8(s).ok()?.parse().ok())
+                            .unwrap_or(0);
+                        row.cells.push(RawCell {
+                            column,
+                            kind: xml::attr(attrs, b"t").unwrap_or(b"n").to_vec(),
+                            style,
+                            ..RawCell::default()
+                        });
                     }
-                    let style = xml::attr(attrs, b"s")
-                        .and_then(|s| std::str::from_utf8(s).ok()?.parse().ok())
-                        .unwrap_or(0);
-                    row.cells.push(RawCell {
-                        column,
-                        kind: xml::attr(attrs, b"t").unwrap_or(b"n").to_vec(),
-                        style,
-                        ..RawCell::default()
-                    });
-                }
-                b"v" if !empty => into = In::Value,
-                b"f" => {
-                    let si = (xml::attr(attrs, b"t") == Some(b"shared"))
-                        .then(|| xml::attr(attrs, b"si"))
-                        .flatten()
-                        .and_then(|si| std::str::from_utf8(si).ok()?.parse().ok());
-                    if let (Some(si), Some(cell)) = (si, row.cells.last()) {
-                        groups.push((cell.column, si));
+                    b"v" if !empty => into = In::Value,
+                    b"f" => {
+                        let si = (xml::attr(attrs, b"t") == Some(b"shared"))
+                            .then(|| xml::attr(attrs, b"si"))
+                            .flatten()
+                            .and_then(|si| std::str::from_utf8(si).ok()?.parse().ok());
+                        if let (Some(si), Some(index)) = (si, row.cells.len().checked_sub(1)) {
+                            groups.push((index, si));
+                        }
+                        if !empty {
+                            into = In::Formula;
+                        }
                     }
-                    if !empty {
-                        into = In::Formula;
+                    b"is" => {
+                        if let Some(cell) = row.cells.last_mut() {
+                            cell.inline.get_or_insert_with(String::new);
+                        }
+                    }
+                    b"t" if into != In::Phonetic && !empty => into = In::Inline,
+                    b"rPh" if !empty => into = In::Phonetic,
+                    _ => {}
+                },
+                Token::Text(raw) | Token::Raw(raw)
+                    if into != In::Nothing && into != In::Phonetic =>
+                {
+                    if matches!(token, Token::Raw(_)) {
+                        text.extend_from_slice(raw);
+                    } else {
+                        let mut decoded = String::new();
+                        xml::decode(raw, &mut decoded)?;
+                        text.extend_from_slice(decoded.as_bytes());
                     }
                 }
-                b"is" => {
-                    if let Some(cell) = row.cells.last_mut() {
-                        cell.inline.get_or_insert_with(String::new);
-                    }
-                }
-                b"t" if into != In::Phonetic && !empty => into = In::Inline,
-                b"rPh" if !empty => into = In::Phonetic,
-                _ => {}
-            },
-            Token::Text(raw) | Token::Raw(raw) if into != In::Nothing && into != In::Phonetic => {
-                if matches!(token, Token::Raw(_)) {
-                    text.extend_from_slice(raw);
-                } else {
-                    let mut decoded = String::new();
-                    xml::decode(raw, &mut decoded)?;
-                    text.extend_from_slice(decoded.as_bytes());
-                }
-            }
-            Token::Close(name) => match xml::local(name) {
-                b"row" => return within(row).map(|row| Some((row, at))),
-                b"v" | b"f" | b"t" if into != In::Phonetic => {
-                    let done = String::from_utf8_lossy(&text).into_owned();
-                    text.clear();
-                    if let Some(cell) = row.cells.last_mut() {
-                        match into {
-                            In::Value => cell.value = Some(done),
-                            In::Formula => cell.formula = Some(done),
-                            In::Inline => {
-                                cell.inline.get_or_insert_with(String::new).push_str(&done)
+                Token::Close(name) => match xml::local(name) {
+                    b"row" => return Ok(Some(at)),
+                    b"v" | b"f" | b"t" if into != In::Phonetic => {
+                        let done = String::from_utf8_lossy(text).into_owned();
+                        text.clear();
+                        if let Some(cell) = row.cells.last_mut() {
+                            match into {
+                                In::Value => cell.value = Some(done),
+                                In::Formula => cell.formula = Some(done),
+                                In::Inline => {
+                                    cell.inline.get_or_insert_with(String::new).push_str(&done)
+                                }
+                                In::Nothing | In::Phonetic => {}
                             }
-                            In::Nothing | In::Phonetic => {}
                         }
+                        into = In::Nothing;
                     }
-                    into = In::Nothing;
-                }
-                b"rPh" => into = In::Nothing,
+                    b"rPh" => into = In::Nothing,
+                    _ => {}
+                },
                 _ => {}
-            },
-            _ => {}
+            }
         }
     }
 }

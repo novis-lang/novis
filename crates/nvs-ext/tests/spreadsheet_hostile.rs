@@ -292,8 +292,38 @@ fn read(file: &[u8]) -> (Option<String>, usize) {
 
 /// [`read`] with `fillMerged` set to `fill`.
 fn read_filling(file: &[u8], fill: bool) -> (Option<String>, usize) {
+    let (failure, sent, _) = read_in(file, fill);
+    (failure, sent)
+}
+
+/// The time [`read`] takes over `file`, from the open to the last batch. The host and the
+/// component are made before the clock starts, so the time is the reader's alone.
+fn read_time(file: &[u8]) -> Duration {
+    let (failure, _, took) = read_in(file, false);
+    assert_eq!(failure, None, "the workbook reads");
+    took
+}
+
+/// Asserts that reading `large`, eight times `small`, costs at most four times as much per unit:
+/// the fastest of three reads of each, taken in turn so both see the same load
+/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run).
+fn linear(small: &[u8], large: &[u8], what: &str) {
+    let (mut fastest_small, mut fastest_large) = (Duration::MAX, Duration::MAX);
+    for _ in 0..3 {
+        fastest_small = fastest_small.min(read_time(small));
+        fastest_large = fastest_large.min(read_time(large));
+    }
+    assert!(
+        fastest_large < fastest_small * 32,
+        "{what}: N took {fastest_small:?} and 8N {fastest_large:?}"
+    );
+}
+
+/// [`read_filling`], with the time the reads took.
+fn read_in(file: &[u8], fill: bool) -> (Option<String>, usize, Duration) {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
+    let started = std::time::Instant::now();
     let budget = Arc::new(Watched {
         meter: Meter::new(Duration::from_secs(120), Some(CAP)),
         sent: AtomicUsize::new(0),
@@ -348,8 +378,9 @@ fn read_filling(file: &[u8], fill: bool) -> (Option<String>, usize) {
         }
     })()
     .err();
+    let took = started.elapsed();
     drop(block_on(request.end()));
-    (failure, budget.sent.load(Ordering::Acquire))
+    (failure, budget.sent.load(Ordering::Acquire), took)
 }
 
 /// The `readerRows` options that read `Orders` from the row `from`, at most `limit` rows, with
@@ -379,16 +410,42 @@ fn rows_options(from: Value, limit: Value, fill: bool) -> Value {
 /// `file` opened under [`CAP`] and the first `limit` rows of `Orders` read: each row's number and
 /// count of cells, or the first failure's text.
 fn first_rows(file: &[u8], limit: u64) -> Result<Vec<(u64, usize)>, String> {
+    first_rows_under(file, limit, SHIPPED)
+}
+
+/// The shipped `[limits] max_decompressed` and `max_decompression_ratio`.
+const SHIPPED: Decompression = Decompression {
+    bytes: 64 << 20,
+    ratio: 1000,
+};
+
+/// `bytes` letters that deflate poorly, so a part of them stays under any decompression ratio.
+fn noise(bytes: usize, seed: u32) -> String {
+    let mut state = seed | 1;
+    (0..bytes)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            char::from(b'a' + u8::try_from(state % 26).expect("under 26"))
+        })
+        .collect()
+}
+
+/// [`first_rows`] with the server's bound `in_force`.
+fn first_rows_under(
+    file: &[u8],
+    limit: u64,
+    in_force: Decompression,
+) -> Result<Vec<(u64, usize)>, String> {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
     let source = Value::Bytes(file.to_vec());
     let read = (|| {
-        let reader = block_on(request.call_values(
-            &extension,
-            "readerOpen",
-            vec![source.clone(), bound(None, None)],
-        ))
+        let mut args = vec![source.clone(), bound(None, None)];
+        cap_decompression(SPREADSHEET_CLASS, "readerOpen", &mut args, in_force);
+        let reader = block_on(request.call_values(&extension, "readerOpen", args))
         .map_err(|err| err.to_string())?
         .expect("`readerOpen` returns a reader");
         let options = rows_options(Value::Null, Value::Uint(limit), false);
@@ -1102,4 +1159,88 @@ fn an_ods_row_repeated_to_the_last_row_costs_one_row_to_read() {
         first_rows(&file, 3),
         Ok(vec![(1, 16_384), (2, 16_384), (3, 16_384)])
     );
+}
+
+/// The letters of the column `column`, from 1.
+fn letters(mut column: u32) -> String {
+    let mut out = Vec::new();
+    while column > 0 {
+        column -= 1;
+        out.push(b'A' + u8::try_from(column % 26).expect("under 26"));
+        column /= 26;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("letters are ASCII")
+}
+
+/// A text of 2 MiB and one of 16 MiB, each one token across many 64 KiB read blocks, read at most
+/// four times as slowly per byte. Rescanned from its start at every refill, the larger one took
+/// about 64 times as long.
+#[test]
+fn one_token_longer_than_many_read_blocks_is_scanned_once() {
+    let book = |bytes: usize| {
+        let text = noise(bytes, 7);
+        xlsx(
+            &sheet(&format!(
+                r#"<row r="1"><c r="A1" t="inlineStr"><is><t>{text}</t></is></c></row>"#
+            )),
+            &shared(&[]),
+        )
+    };
+    linear(&book(2 << 20), &book(16 << 20), "one long text");
+}
+
+/// A shared-strings table of 2 MB, read under a server bound of 1 MiB, throws naming the part
+/// and the setting, as a part read whole does. Under 4 MiB, it reads.
+#[test]
+fn the_shared_string_table_counts_against_the_archive_ceiling() {
+    let items: Vec<String> = (0..2000)
+        .map(|at| format!("<t>{}</t>", noise(1000, at + 1)))
+        .collect();
+    let items: Vec<&str> = items.iter().map(String::as_str).collect();
+    let file = xlsx(
+        &sheet(r#"<row r="1"><c r="A1" t="s"><v>0</v></c></row>"#),
+        &shared(&items),
+    );
+    let under = |bytes: u64| {
+        first_rows_under(
+            &file,
+            1,
+            Decompression {
+                bytes,
+                ..SHIPPED
+            },
+        )
+    };
+    let failure = under(1 << 20).expect_err("2 MB of strings is past a 1 MiB ceiling");
+    assert!(failure.contains("xl/sharedStrings.xml"), "{failure}");
+    assert!(failure.contains("max_decompressed"), "{failure}");
+    assert_eq!(under(4 << 20), Ok(vec![(1, 1)]));
+}
+
+/// A row of 2,048 and one of 16,384 shared-formula masters, each its own group, with a row of
+/// their followers below, read at most four times as slowly per cell. Found by a search of the
+/// row per group, the larger one took about 64 times as long.
+#[test]
+fn many_shared_formula_groups_in_a_row_read_in_linear_time() {
+    let book = |columns: u32| {
+        let (mut first, mut second) = (String::new(), String::new());
+        for at in 1..=columns {
+            let column = letters(at);
+            let si = at - 1;
+            first.push_str(&format!(
+                r#"<c r="{column}1"><f t="shared" ref="{column}1:{column}2" si="{si}">{column}3+1</f><v>1</v></c>"#
+            ));
+            second.push_str(&format!(
+                r#"<c r="{column}2"><f t="shared" si="{si}"/><v>1</v></c>"#
+            ));
+        }
+        xlsx(
+            &sheet(&format!(
+                r#"<row r="1">{first}</row><row r="2">{second}</row>"#
+            )),
+            &shared(&[]),
+        )
+    };
+    linear(&book(2048), &book(16_384), "shared-formula groups");
 }
