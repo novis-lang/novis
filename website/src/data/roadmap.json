@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "A faster start in large projects",
-      "text": "The editor and the compiler read a large project faster. Reading a whole project costs about the same time as compiling it.",
-      "goals": [
-        "whole-project-speed"
-      ]
-    },
-    {
       "title": "A calmer editor",
       "text": "The Novis themes for VS Code draw brackets in the text colour and use quieter colours for methods and variables. A new setting turns off the parameter-name hints.",
       "goals": [
