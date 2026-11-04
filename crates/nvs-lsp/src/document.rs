@@ -140,6 +140,10 @@ pub struct Documents {
     /// not change is neither parsed nor checked again. [`Session`] says what
     /// it spends.
     session: RefCell<Session>,
+    /// The configuration tree of each directory an analysis ran in, and each
+    /// extension set, kept until a file they were read from changes.
+    /// [`crate::tree_cache`] says what it spends.
+    trees: RefCell<crate::tree_cache::TreeCache>,
 }
 
 /// One kept analysis, and the modification time of each file it read when it
@@ -623,7 +627,7 @@ pub struct Analysed {
     /// The manifests of the extension set the document's tree pins, which the
     /// walk and the type phase read. An extension class has no declaration to
     /// answer a cursor from, so completion and hover read its manifest.
-    pub extensions: Vec<nvs_ext::manifest::Manifest>,
+    pub extensions: std::sync::Arc<Vec<nvs_ext::manifest::Manifest>>,
     /// The files this analysis parsed and the files whose bodies it checked.
     /// It parsed only the files whose text the store's parse cache did not
     /// hold, and it checked the bodies of every file of the graph.
@@ -792,7 +796,7 @@ fn analyse_over(
     let lender = documents.lender_for(path);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring().to_vec());
     let program = lender.map(|lender| lender.entry().to_path_buf());
-    let extensions = extension_set(path);
+    let extensions = extension_set(documents, path);
     let (module, loaded, autoload) = resolve_program_linted(
         entry,
         stmts,
@@ -806,7 +810,7 @@ fn analyse_over(
         &mut diags,
         false,
         lender.map_or(&[], |lender| lender.sites()),
-        &nvs_types::ext_lib::hir_classes(&extensions),
+        &nvs_types::ext_lib::hir_classes(&extensions.manifests),
         Some(&mut *parses),
     );
     parses.keep_pins(&mut map);
@@ -852,7 +856,7 @@ fn analyse_over(
         // Each file's bodies are checked only where its key moved
         // (`crate::session`).
         let keys = session.keys(
-            &graph_key(&session.parses, &files, &lent, &extensions),
+            &graph_key(&session.parses, &files, &lent, &extensions.digest),
             &files
                 .iter()
                 .map(|file| {
@@ -880,7 +884,7 @@ fn analyse_over(
             // no `E0658`. `nvs check` and every run still refuse the call.
             &nvs_types::Grants::default(),
             None,
-            &extensions,
+            &extensions.manifests,
             &keys.bodies,
             checks,
             interner,
@@ -923,13 +927,13 @@ fn analyse_over(
         deprecated,
         diags,
         stubs: documents.stubs.clone(),
-        extensions,
+        extensions: extensions.manifests,
         work,
     })
 }
 
 /// The key every file of one analysis's graph shares (`crate::session`): the
-/// extension set, the files the walk borrowed `autoload` declarations from,
+/// extension set's digest, the files the walk borrowed `autoload` declarations from,
 /// and each file's path, id and declaration surface, in graph order.
 ///
 /// A file the parse cache does not hold, which no walk leaves behind, hashes
@@ -938,10 +942,10 @@ fn graph_key(
     parses: &crate::parse_cache::ParseCache,
     files: &[nvs_types::ProgramFile<'_>],
     lent: &[PathBuf],
-    extensions: &[nvs_ext::manifest::Manifest],
+    extensions: &blake3::Hash,
 ) -> blake3::Hash {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(format!("{extensions:?}").as_bytes());
+    hasher.update(extensions.as_bytes());
     for path in lent {
         hasher.update(path.as_os_str().as_encoded_bytes());
         hasher.update(&[0]);
@@ -961,54 +965,27 @@ fn graph_key(
 
 /// The built-in components' manifests, then the manifests of the extension set the tree beside
 /// `path` resolves to, read and never instantiated
-/// (`rule:packaging/extension-calls-are-statically-typed`). Every program is typed against the
-/// built-in components whether or not a tree is found
-/// (`rule:packaging/the-first-party-components-are-built-in`), as `nvs check` types it. Their
-/// manifests come from bytes the binary carries, so they are read once per process.
+/// (`rule:packaging/extension-calls-are-statically-typed`), with the digest the graph key hashes.
+/// Every program is typed against the built-in components whether or not a tree is found
+/// (`rule:packaging/the-first-party-components-are-built-in`), as `nvs check` types it.
 ///
 /// The tree is the one `nvs check` reads when it is run in the document's directory: its
 /// `nvs.toml`, else the data folder's, through the same reader with no ownership check, with the
-/// `[[app]]` blocks that match the document folded in. A document that is not on disk yet takes
-/// the host's tree. A directory with no `nvs.toml` and a data folder with none is no set and
-/// costs two file tests. The server never writes a configuration file.
+/// `[[app]]` blocks that match the document folded in. A tree that does not resolve, and an entry
+/// that does not read, are no set here. `nvs check` reports both against the configuration file,
+/// and a diagnostic in the open document would put the configuration's mistake on a line of code.
+/// The server never writes a configuration file.
 ///
-/// A tree that does not resolve, and an entry that does not read, are no set here. `nvs check`
-/// reports both against the configuration file, and a diagnostic in the open document would put
-/// the configuration's mistake on a line of code. Every analysis reads the tree again and hashes
-/// each `.nvsx` it pins, because a cached set would be a second answer that outlives an edit to
-/// `nvs.toml`.
-fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
-    static BUILT_IN: std::sync::OnceLock<Vec<nvs_ext::manifest::Manifest>> =
-        std::sync::OnceLock::new();
-    // A built-in component that does not read is a broken build, which every `nvs check`
-    // reports. The editor types against the rest rather than stopping.
-    let built_in = BUILT_IN.get_or_init(|| nvs_ext::load::builtin_manifests().unwrap_or_default());
-    let mut set = built_in.clone();
+/// The root files are found again on every call. The store keeps the tree read from them and the
+/// set per list of entries ([`crate::tree_cache`]), each with the size and modification time of
+/// every file it was read from. A kept answer is used only while every one of those still matches, so an edit to
+/// `nvs.toml` or a `.nvsx` reaches the next analysis with no edit to the source.
+fn extension_set(documents: &Documents, path: &Path) -> crate::tree_cache::Extensions {
     let data = nvs_config::data::config_file();
-    let Tree::Read {
-        resolved, snapshot, ..
-    } = program_tree(path, data.as_deref())
-    else {
-        return set;
-    };
-    let entries: Vec<nvs_ext::load::Entry> = snapshot
-        .config
-        .extension
-        .iter()
-        .enumerate()
-        .map(|(index, written)| nvs_ext::load::Entry {
-            path: nvs_config::extension::file(
-                index,
-                written.path.as_deref().unwrap_or_default(),
-                &resolved.origins,
-            ),
-            sha256: written.sha256.clone().unwrap_or_default(),
-            memory: None,
-            grants: nvs_config::extension::Granted::default(),
-        })
-        .collect();
-    set.extend(nvs_ext::load::read_manifests(&entries).unwrap_or_default());
-    set
+    documents
+        .trees
+        .borrow_mut()
+        .extensions(path, data.as_deref())
 }
 
 /// What [`program_tree`] found for a document.
@@ -1028,9 +1005,10 @@ pub(crate) enum Tree {
 /// The configuration snapshot for `path`, as `nvs check` resolves it when run in `path`'s
 /// directory, with `data` as the data folder's `nvs.toml`.
 ///
-/// The one reader behind [`extension_set`] and the grants a route's hover lists
-/// (`rule:ide/a-route-hover-shows-the-programs-grants`), so the two never read two trees. It
-/// reads the files again on every call and caches nothing: an edit to `nvs.toml` changes the
+/// The reader behind the grants a route's hover lists
+/// (`rule:ide/a-route-hover-shows-the-programs-grants`). [`extension_set`] finds and resolves its
+/// tree with the same two calls, so the two never read two trees. This one reads the files again
+/// on every call and caches nothing: an edit to `nvs.toml` changes the
 /// next answer with no edit to the source. A document that is not on disk yet takes the host's
 /// snapshot. No ownership check is made, because the server only reads.
 pub(crate) fn program_tree(path: &Path, data: Option<&Path>) -> Tree {

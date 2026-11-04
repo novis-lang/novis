@@ -12,7 +12,20 @@ because queued work is deferred work. The counters live in the analysis and the 
 The counted tests run on a tree that `tests/incremental.rs` generates (`Blog`, `Shop`, then more programs
 over one library `lib/Framework/`), because a kept fixture's only property is its shape.
 
-**Four caches, each with one key.**
+**Five caches, each with one key.**
+
+- **A configuration tree** (`crates/nvs-lsp/src/tree_cache.rs`) is kept per list of root files, which every
+  analysis finds again as `nvs check` does: the `nvs.toml` beside the document, else the data folder's. It
+  is kept with the size and modification time of every path its reader touched: each file it read, each
+  file it looked for and did not find, and each directory it listed. An extension set is
+  kept per list of `.nvsx` paths and their `sha256`, with each `.nvsx` file's size and time, and with the
+  BLAKE3 digest the graph key hashes in place of the set. A lookup reads the metadata of those paths and
+  uses the kept answer only when all of them match, so an edit to `nvs.toml` reaches the next analysis. The
+  snapshot for the document is built from the kept tree each time, because an `[[app]]` block matches one
+  file. It costs one kept tree per distinct list of root files and one kept set per distinct list of entries,
+  for the session, and one or two existence tests per analysis. A cold index parses each settings file once, where it parsed it once per file
+  of the tree. A file written twice within the file system's time resolution with the same size is the one
+  edit a lookup misses, the trade the index file's stamp makes too.
 
 - **A parse** (`crates/nvs-lsp/src/parse_cache.rs`) is kept per canonical path with the BLAKE3 hash of its
   text, and replays the diagnostics its parse and `check_declarations` reported. The `nvs_hir` walk takes it

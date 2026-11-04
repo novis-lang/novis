@@ -796,3 +796,126 @@ fn a_planned_entry_is_its_files_canonical_key() {
         );
     }
 }
+
+/// The file-system work of a cold index, counted per file of the tree
+/// (`rule:ide/the-index-is-incremental-and-persistent`). Every tree is one
+/// directory of small class files that share one `nvs.toml`, so the data
+/// folder's file is never read.
+mod work_per_file {
+    use super::*;
+
+    /// How many class files each tree holds.
+    const FILES: usize = 40;
+
+    /// A directory of [`FILES`] class files and an `nvs.toml` with `settings` in it.
+    fn tree(name: &str, settings: &str) -> TempDir {
+        let dir = TempDir::new(name);
+        dir.write("nvs.toml", settings);
+        for n in 0..FILES {
+            dir.write(
+                &format!("C{n}.nvs"),
+                &format!("<?nvs\nclass C{n} {{\n    public function n(): int {{\n        return {n};\n    }}\n}}\n"),
+            );
+        }
+        dir
+    }
+
+    fn workspace(documents: &Documents, dir: &TempDir) -> SymbolIndex {
+        SymbolIndex::build(documents, CheckScope::Workspace, Some(dir.path.path()))
+    }
+
+    /// Each analysis resolves its own file's path a fixed number of times, and
+    /// the shared `nvs.toml` is resolved once for the index. Fourteen is
+    /// today's figure: the entry's own path is made canonical again at each
+    /// step of the walk and of the merge into the index, which the goal's
+    /// stage 4 cuts. Before the tree was kept it was fifteen, and the settings
+    /// file was parsed once per file.
+    #[test]
+    fn an_index_resolves_each_files_path_a_bounded_number_of_times_per_file() {
+        let dir = tree("work-resolved", "");
+        let index = workspace(&Documents::new(), &dir);
+        let files = index.work().files;
+        let shared = 2;
+        assert!(
+            files.resolved <= 14 * FILES as u64 + shared,
+            "{} paths resolved for {FILES} files",
+            files.resolved
+        );
+        assert!(
+            files.read <= FILES as u64 + shared,
+            "{} files read for {FILES} files",
+            files.read
+        );
+    }
+
+    /// The shared `nvs.toml` is parsed once for the whole index, not once per
+    /// file, and again only after it is written.
+    #[test]
+    fn an_index_parses_each_settings_file_once_until_it_changes() {
+        let dir = tree("work-settings", "");
+        let documents = Documents::new();
+        assert_eq!(
+            workspace(&documents, &dir).work().files.settings,
+            1,
+            "one `nvs.toml` for {FILES} files"
+        );
+        assert_eq!(
+            workspace(&documents, &dir).work().files.settings,
+            0,
+            "a second index reads no settings file that did not change"
+        );
+        dir.write("nvs.toml", "# The tree has no settings.\n");
+        assert_eq!(
+            workspace(&documents, &dir).work().files.settings,
+            1,
+            "a written `nvs.toml` is parsed again, once"
+        );
+    }
+
+    /// The `ledger` fixture as `shop.nvsx` in `dir`, and the `nvs.toml` text
+    /// that pins it (`tests/extensions.rs` reads the same fixture).
+    fn ledger(dir: &TempDir) -> String {
+        let fixture = nvs_repo::path("tests/conformance/ext/fixtures/ledger");
+        let manifest = fs::read(fixture.join("manifest.json")).expect("the fixture's manifest");
+        let receipt = fs::read_to_string(fixture.join("source/Ledger/Receipt.nvs.src"))
+            .expect("the fixture's source file");
+        let source = format!(
+            "{{\"source\": 1, \"files\": [{{\"path\": \"Ledger/Receipt.nvs\", \"text\": {receipt:?}}}]}}"
+        );
+        let component =
+            wat::parse_str("(component (import \"missing\" (func)))").expect("the component parses");
+        let nvsx = nvs_ext::pack::append_section(component, nvs_ext::section::MANIFEST, &manifest);
+        let nvsx = nvs_ext::pack::append_section(nvsx, nvs_ext::section::SOURCE, source.as_bytes());
+        fs::write(dir.at("shop.nvsx"), &nvsx).expect("a writable scratch file");
+        format!(
+            "[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{}\"\n",
+            nvs_ext::load::pin(&nvsx)
+        )
+    }
+
+    /// A kept tree is checked against its files, so the analysis after an
+    /// edit to `nvs.toml` types against the set the new text pins.
+    #[test]
+    fn an_edit_to_nvs_toml_reaches_the_next_analysis() {
+        let dir = TempDir::new("work-edit");
+        dir.write("nvs.toml", "");
+        let pinned = ledger(&dir);
+        let source = "<?nvs\nShop\\Ledger::echoInt(7);\n";
+        dir.write("shop.nvs", source);
+        let mut documents = Documents::new();
+        dir.open(&mut documents, "shop.nvs", source);
+        let uri = uri_of(&dir.at("shop.nvs")).expect("a temp path is UTF-8");
+        let pins = |documents: &Documents| {
+            nvs_lsp::analyse(documents, &uri)
+                .expect("an open document analyses")
+                .extension("Shop\\Ledger")
+                .is_some()
+        };
+
+        assert!(!pins(&documents), "an empty `nvs.toml` pins no extension");
+        dir.write("nvs.toml", &pinned);
+        assert!(pins(&documents), "the next analysis reads the pinned set");
+        dir.write("nvs.toml", "# No extension is pinned now.\n");
+        assert!(!pins(&documents), "and the one after reads it unpinned");
+    }
+}
