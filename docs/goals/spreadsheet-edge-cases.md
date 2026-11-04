@@ -620,34 +620,52 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 1's first four items are done and committed (9597f6440, f0c22cade): a repeated ods row is a
-`sheet::Kept` given again by `Cursor::Whole`; `xml::next_from` and `sheet::Partial` scan a part once;
-the shared-string arena counts against the archive ceiling (`Strings::within`, `Directory::left`
-and `charge`); a row's shared-formula groups name cells by index. Four of the ten `hostile-input`
-tests exist and pass, each run once by name. The rule `spreadsheet-reads-as-a-stream` says all of it.
+Stage 1 has seven of its fourteen items done and committed. 9597f6440 and f0c22cade landed the
+repeated ods row, the one-pass XML scan, the shared-string ceiling and the shared-formula index.
+4e38a9cc1 landed the custom-format map (`read/mod.rs`'s `styles`), the in-place keyword test in
+`format::lex` (`starts`), and the evaluator's `Grid<V>` (`eval/mod.rs`). Each sheet's cells and
+formulas now carry a by-column row list, and a rect taller than it is wide walks only its
+columns (`Stored`), in `Ctx::entries`, `Ctx::cells` and `precedents` alike. b47fe3941 makes
+`xls::read` throw decision 7's message for a compound file with `EncryptedPackage`
+(`cfb::File::has`) and at an xls `FILEPASS` record. Seven of the ten `hostile-input` tests exist
+and pass, each run once by name. `spreadsheet_hostile.rs` gained `xlsx_with` and `styles`, a styles
+part of custom codes; `linear_by`, timing with any function; `evaluate_time`, which runs
+`readerEvaluate`; and `compound_of`, a compound file with a named stream and its content.
 
-The sweep's reds at this session's start: `env-secret-proofs` is stale (defined nowhere, no log, as
-the speed-independent-tests handoff already found). The nightly run 41813182715 was on f3150b922;
-its macOS `live_edit` timing failure is what a8bdf37fb fixes, and its Miri `openat` failure in
-`nvs-stdlib` `io::tests::a_windows_alias_is_refused_by_its_text_before_any_network_attempt` is what
-a2f451fad skips. Neither was rerun; the next nightly confirms both.
+The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as two handoffs found
+already. The nightly reds on run 41813182715 (f3150b922) are fixed by a8bdf37fb (macOS `live_edit`)
+and a2f451fad (the Miri `openat` skip); the next nightly confirms both.
 
-While this session ran, the tree held another session's uncommitted edits in `crates/nvs-lsp/` and
-`crates/nvs-diagnostics/` (timing probes, `probe_timing.rs`), which fail workspace
-`cargo clippy --all-targets` on a `u128 as u64` cast. They were left unstaged; the spreadsheet
-crate's own clippy is clean.
+The tree still holds another session's uncommitted edits in `crates/nvs-lsp/`,
+`crates/nvs-diagnostics/` and now `crates/nvs-hir/`. They fail workspace `cargo clippy
+--all-targets` on a `u128 as u64` cast at `crates/nvs-diagnostics/src/source.rs:374`. They were
+left unstaged, and the spreadsheet crate's own clippy is clean.
 
 ### Next
 
-Stage 1 from `A custom format code is found by a linear search per xf`: `codes.iter().find` at
-`extensions/spreadsheet/src/read/mod.rs:599`, then `rest()` at
-`extensions/spreadsheet/src/format/mod.rs:244`, then the whole-column read at
-`extensions/spreadsheet/src/eval/mod.rs:109` and `:601`. Their tests use the helpers already in
-`crates/nvs-ext/tests/spreadsheet_hostile.rs`: `linear` (`:310`, N against 8N within 4× per unit,
-decision 41), `read_time` (`:301`), `noise` (`:423`), `letters` (`:1165`), `first_rows_under`
-(`:436`) with `SHIPPED` (`:417`). A format-renderer or evaluator test may sit better in the
-extension's own `tests/format.rs` or `tests/evaluate.rs`, but the `hostile-input` check runs
-`--test spreadsheet_hostile`, so each of the ten names lives there. Then the encryption item
-(`extensions/spreadsheet/src/read/xls.rs:330`). No existing test is expected to go red.
+The template item (decision 8), `extensions/spreadsheet/src/template/mod.rs`. Dropping the parts
+is not enough, because three other parts name them:
+- `dropped` (`:216`) adds `xl/macrosheets/`, `xl/vbadata.xml`, `xl/activex/`, `customui/` and
+  `oleobject` (`xl/embeddings/oleObject*.bin`), with each `_rels` of a dropped part.
+- `rewritten` (`:1050`) drops their relationships and content types through `without` (`:471`):
+  `[Content_Types].xml` (`macrosheet`, `vbadata`, `activex`, `oleobject`, `customui`),
+  `xl/_rels/workbook.xml.rels` (`macrosheet`), and the root `_rels/.rels`, which names
+  `customUI` (`ui/extensibility`). A sheet's own `.rels` names its `control` and `oleObject`
+  relationships, and today `.rels` parts return `Ok(None)` (copied unchanged), so add an arm for
+  `xl/worksheets/_rels/`.
+- `xl/workbook.xml` keeps a `<sheet r:id>` for each macro sheet. `Template::open` (`:557`) skips
+  them already. The fill removes that `<sheet>` element, removes each `definedName` whose
+  `localSheetId` is that sheet, lowers each higher `localSheetId` by one, and clamps
+  `workbookView`'s `activeTab` and `firstSheet`.
+- A worksheet's XML names its ActiveX controls in `<controls>` and its OLE objects in
+  `<oleObjects>`, each inside `mc:AlternateContent`. Remove both elements where the sheet is
+  written (`head`, `:1103`, and the path that copies a sheet without blocks), or the file does
+  not open.
+
+Its test is `a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keeps_images`
+in `crates/nvs-ext/tests/spreadsheet_hostile.rs`. Build the template with `zip` (`:44`), fill it
+as `filling` (`:968`) does, and read the archive's parts with `entry` (`:1066`). Then the
+encodings item (decision 9, `extensions/spreadsheet/src/read/xml.rs:1`) and RC-03 (decision 10,
+`extensions/spreadsheet/nvs/Reader.nvs:486`). No existing test is expected to go red.
 
 ### Backlog
