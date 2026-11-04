@@ -41,7 +41,8 @@ read `DateTime` is placed in, and the clock time in the file is kept exactly; no
 | a number with an elapsed-time format (`[h]`, `[mm]`, `[ss]`) | `Duration` |
 | an ISO 8601 date cell (`t="d"`) | `Date`, `TimeOfDay` or `DateTime` in `zone`, by what its text has |
 | an error value | a `CellError` case |
-| empty, or a value that is empty or blank | `null` |
+| empty, a value that is empty or blank, or an ods `void` cell | `null` |
+| an ods date with a UTC offset | its written clock time, as a `DateTime` in `zone`; the offset is dropped |
 | a formula | its stored result, read by this table; `{formulas: true}` gives the `Formula` with that result as its `cached` |
 
 A format is a date format when its code has a date or time token outside quotes and brackets, or it is

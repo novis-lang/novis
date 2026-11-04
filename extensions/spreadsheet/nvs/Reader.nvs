@@ -38,6 +38,7 @@ final class Reader
 
     /// `Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
     /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `encoding`, or it throws a `ParseError`.
+    /// A first CSV line such as `sep=;` sets the separator, and it is not a row. When you set the `separator` option, that line is a normal row.
     public static function open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
     {
         var $csv = $options?->csv ?? null;
@@ -49,10 +50,10 @@ final class Reader
             if ($asked == null && (Core\Str::startsWith($head, 'fffe0000') || Core\Str::startsWith($head, '0000feff'))) {
                 throw new ParseError('The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.');
             }
+            bool $chosen = ($csv?->separator ?? null) != null;
             ?Core\Charset $charset = self::charsetOf($head, $asked);
             if ($charset != null) {
-                self::checkDialect($dialect);
-                return new Reader(null, $source, self::decoded($source, $charset), 0, $dialect);
+                return self::csvReader($source, self::decoded($source, $charset), 0, $dialect, $chosen);
             }
             if (!self::isText($start)) {
                 throw new ParseError('The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.');
@@ -63,14 +64,12 @@ final class Reader
             if ($source is Core\IO\File) {
                 ?uint $skip = self::csvFile($source);
                 if ($skip != null) {
-                    self::checkDialect($dialect);
-                    return new Reader(null, $source, null, $skip, $dialect);
+                    return self::csvReader($source, null, $skip, $dialect, $chosen, self::startText($start, $skip));
                 }
             } elseif ($source is bytes) {
                 ?tainted string $text = self::csvText($source);
                 if ($text != null) {
-                    self::checkDialect($dialect);
-                    return new Reader(null, $source, $text, 0, $dialect);
+                    return self::csvReader($source, $text, 0, $dialect, $chosen);
                 }
             }
         }
@@ -548,6 +547,60 @@ final class Reader
             return Core\Str::slice($text, 1);
         }
         return $text;
+    }
+
+    // A reader of CSV `$text`, or of a file from byte `$skip`, whose first characters are `$start`.
+    // When `$chosen` is false, a first line that is `sep=` and one character sets the separator and is not a row.
+    private static function csvReader(tainted bytes|Core\IO\File $source, ?tainted string $text, uint $skip, Dialect $dialect, bool $chosen, tainted string $start = ''): Reader
+    {
+        ?tainted string $line = $chosen ? null : self::sepLine($text ?? $start, $dialect->quote);
+        if ($line == null) {
+            self::checkDialect($dialect);
+            return new Reader(null, $source, $text, $skip, $dialect);
+        }
+        string $separator = Core\Taint::assertTrusted(Core\Str::slice($line, 4, 1), 'the separator only splits the same file into fields');
+        Dialect $found = { separator: $separator, quote: $dialect->quote, escape: $dialect->escape };
+        self::checkDialect($found);
+        if ($text != null) {
+            return new Reader(null, $source, Core\Str::slice($text, Core\Str::length($line) as int), $skip, $found);
+        }
+        uint $length = Core\Bytes::length(Core\Encoding::encodeText($line, Core\Charset::Utf8));
+        return new Reader(null, $source, null, $skip + $length, $found);
+    }
+
+    // The first line of CSV text, with its line end, when it is `sep=` and one character. It is `null` for any other first line.
+    // A line end or the quote `$quote` is no separator, so such a line is a row.
+    private static function sepLine(tainted string $text, string $quote): ?tainted string
+    {
+        if (!Core\Str::startsWith($text, 'sep=') || Core\Str::length($text) < 5) {
+            return null;
+        }
+        tainted string $separator = Core\Str::slice($text, 4, 1);
+        if ($separator == "\r\n" || $separator == "\n" || $separator == "\r" || $separator == $quote) {
+            return null;
+        }
+        tainted string $end = Core\Str::slice($text, 5, 1);
+        if ($end != '' && $end != "\r\n" && $end != "\n" && $end != "\r") {
+            return null;
+        }
+        return Core\Str::slice($text, 0, 6);
+    }
+
+    // The text of the first bytes of a CSV file after its byte order mark, enough for a `sep=` line.
+    // A character cut at the end is left out.
+    private static function startText(tainted bytes $start, uint $skip): tainted string
+    {
+        tainted bytes $part = Core\Bytes::slice($start, $skip as int, 12);
+        int $length = Core\Bytes::length($part) as int;
+        int $cut = 0;
+        while ($cut < 4 && $cut <= $length) {
+            try {
+                return Core\Encoding::decodeText(Core\Bytes::slice($part, 0, $length - $cut), Core\Charset::Utf8);
+            } catch (RuntimeError $e) {
+            }
+            $cut = $cut + 1;
+        }
+        return '';
     }
 
     // `Core\Csv` checks the dialect here, so a wrong `separator`, `quote` or `escape` throws at `open`.

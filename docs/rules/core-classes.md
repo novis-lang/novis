@@ -4814,7 +4814,8 @@ surfaced as data and nothing resolved.
   `123`; a program converts the `string` it expects with `as ?int`.
 - **Guessing a CSV's charset or separator.** Every Windows-1252 text is also valid Latin-1 and
   Windows-1250 text, so a guess turns `€` into another character in silence; the program knows where
-  its files come from and names the charset.
+  its files come from and names the charset. A first line `sep=;` is not a guess: the file names
+  its separator, and a `separator` the program gives still wins.
 - **A `Core\IO\File` member that reads `bytes`, for a CSV file in another charset.** It is new `Core`
   surface for one reader, and the engine already reads the file's ranges through the call it is lent.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
@@ -5090,7 +5091,8 @@ read `DateTime` is placed in, and the clock time in the file is kept exactly; no
 | a number with an elapsed-time format (`[h]`, `[mm]`, `[ss]`) | `Duration` |
 | an ISO 8601 date cell (`t="d"`) | `Date`, `TimeOfDay` or `DateTime` in `zone`, by what its text has |
 | an error value | a `CellError` case |
-| empty, or a value that is empty or blank | `null` |
+| empty, a value that is empty or blank, or an ods `void` cell | `null` |
+| an ods date with a UTC offset | its written clock time, as a `DateTime` in `zone`; the offset is dropped |
 | a formula | its stored result, read by this table; `{formulas: true}` gives the `Formula` with that result as its `cached` |
 
 A format is a date format when its code has a date or time token outside quotes and brackets, or it is
@@ -5525,7 +5527,10 @@ character but tab, line feed, form feed and carriage return. Anything else throw
 naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark throw
 `ParseError` when no `encoding` is given, and CSV bytes that are not valid UTF-8 throw `ParseError`
 naming the `encoding` option; the first 4 KiB are judged at the open and the rest as the text is
-decoded. An encrypted file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
+decoded. When no `separator` is given, a first CSV line that is exactly `sep=` and one character,
+which Excel writes and reads, sets the separator and is not a row; a line end or the quote is no
+separator, so such a line is a row. Cost: one check of the first line per CSV open. An encrypted
+file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
 files are not supported."): an xlsx saved with a password, which is a compound file with an
 `EncryptedPackage` stream, and an xls with a `FILEPASS` record. No cipher text is decoded. Every XML
 part of a zip package is UTF-8: a part whose first bytes are a UTF-16 or UTF-32 byte order mark or a
@@ -5543,7 +5548,12 @@ sheet's rows with it. An xls's formulas are decoded from their tokens when the f
 reader translates to A1 text (`extensions/spreadsheet/src/openformula.rs`), so its cell gives a
 `Formula` as an xlsx cell does; a formula the translator cannot read gives none. An ods cell carries its
 type in its own attributes, and a time value in it reads as a `TimeOfDay` under 24 hours and a
-`Duration` from 24 hours on. A row or a cell with a repeat count is that many, an empty one costs
+`Duration` from 24 hours on. A date with a UTC offset reads as the clock time it was written with,
+in `zone`; the offset is dropped, as an xlsx `t="d"` cell's `Z` is. A `void` cell reads as `null`,
+and a string cell's `office:string-value`, when it has one, is its text. Otherwise the text is its
+paragraphs, one line each, an empty `<text:p/>` included; white space follows ODF 1.2 part 1
+§ 6.1.2: a run of it inside a paragraph is one space, none starts a paragraph, and white space
+between the elements of a cell is layout and not text. A row or a cell with a repeat count is that many, an empty one costs
 nothing, and a repeat past the grid throws. A repeated row with a value is kept once with its
 count, and the cursor gives each copy as it reaches it, so it costs one row of memory however far it
 repeats. An ods cell's `text` is rendered under the file's own
@@ -5666,13 +5676,21 @@ drawing and the relationships are XML, as in an xlsx (`extensions/spreadsheet/sr
 defined name is a `NAME` of the globals, whose formula the token decoder turns into its text. A
 picture is a shape of the sheet's `MSODRAWING` records, its bytes in the picture store of the
 globals' `MSODRAWINGGROUP` and its cell its client anchor's. The properties are the
-`\x05SummaryInformation` and `\x05DocumentSummaryInformation` streams. BIFF8 has no table part, so
+`\x05SummaryInformation` and `\x05DocumentSummaryInformation` streams, and a narrow text property is
+decoded by its property set's `CODEPAGE`: UTF-8, UTF-16, ASCII, Latin-1 and the single-byte Windows
+code pages 874 and 1250 to 1258 (`extensions/spreadsheet/src/read/codepage.rs`, ten tables of 256
+bytes). A property in another code page, such as a multi-byte one, is `null`, so it is never read as
+the wrong characters. A `LABEL` cell or a formula's `STRING` result longer than one record goes on in
+`CONTINUE` records and is read across them, as the shared strings are. BIFF8 has no table part, so
 `tables` gives an empty list for an xls (`extensions/spreadsheet/src/read/xls_extras.rs`). What it
 spends: every extra and each picture's bytes, held with the rows until the reader is freed.
 
 **Declined:**
 - **A pull loop in the Novis half.** It costs a guest return and a Novis call per block on the request
   path, and rewrites every parser as a resumable machine (the paragraph above).
+- **The multi-byte code pages (932, 936, 949, 950) for xls properties.** Their tables are hundreds of
+  KiB in a component every reader instantiates, for metadata that is not a cell; such a property is
+  `null`.
 - **The whole file copied into the guest.** A 100 MB upload would cost 100 MB of guest memory beside
   the program's own copy.
 - **A preopen for the uploaded file.** It is a grant to a parser of hostile bytes, and a range import

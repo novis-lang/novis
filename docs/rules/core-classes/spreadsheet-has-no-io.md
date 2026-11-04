@@ -105,7 +105,8 @@ surfaced as data and nothing resolved.
   `123`; a program converts the `string` it expects with `as ?int`.
 - **Guessing a CSV's charset or separator.** Every Windows-1252 text is also valid Latin-1 and
   Windows-1250 text, so a guess turns `€` into another character in silence; the program knows where
-  its files come from and names the charset.
+  its files come from and names the charset. A first line `sep=;` is not a guess: the file names
+  its separator, and a `separator` the program gives still wins.
 - **A `Core\IO\File` member that reads `bytes`, for a CSV file in another charset.** It is new `Core`
   surface for one reader, and the engine already reads the file's ranges through the call it is lent.
 - **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already

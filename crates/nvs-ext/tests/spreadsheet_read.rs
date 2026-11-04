@@ -3524,7 +3524,13 @@ fn xls_links_notes_names_and_images_are_read() {
 /// A property set stream of one set with `properties`, each an id and its typed value, and the
 /// code page 1252.
 fn property_stream(properties: &[(u32, Vec<u8>)]) -> Vec<u8> {
-    let mut values: Vec<(u32, Vec<u8>)> = vec![(1, vec![2, 0, 0, 0, 0xE4, 0x04, 0, 0])];
+    property_stream_in(1252, properties)
+}
+
+/// A property set stream of one set with `properties` and the code page `codepage`.
+fn property_stream_in(codepage: u16, properties: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let [low, high] = codepage.to_le_bytes();
+    let mut values: Vec<(u32, Vec<u8>)> = vec![(1, vec![2, 0, 0, 0, low, high, 0, 0])];
     values.extend(properties.iter().cloned());
     let mut pairs = Vec::new();
     let mut data = Vec::new();
@@ -4271,7 +4277,9 @@ fn bare_book(sheets: &[(&str, &str)], strings_rel: bool, parts: &[(&str, Vec<u8>
     let mut book_rels = vec![("rIdS", "styles", "styles.xml", false)];
     let ids: Vec<String> = (1..=sheets.len()).map(|n| format!("rId{n}")).collect();
     for ((name, target), id) in sheets.iter().zip(&ids) {
-        book.push_str(&format!(r#"<sheet name="{name}" sheetId="1" r:id="{id}"/>"#));
+        book.push_str(&format!(
+            r#"<sheet name="{name}" sheetId="1" r:id="{id}"/>"#
+        ));
         book_rels.push((id, "worksheet", target, false));
     }
     book.push_str("</sheets></workbook>");
@@ -4396,7 +4404,10 @@ fn an_empty_value_reads_as_null_and_a_date_cell_reads_as_its_date_type() {
 fn a_number_cell_with_text_throws_naming_the_cell() {
     let read = Read::open(xlsx(
         &[
-            sheet("Shop", row(2, &[("", 0, "<v>7</v>"), ("", 0, "<v>many</v>")])),
+            sheet(
+                "Shop",
+                row(2, &[("", 0, "<v>7</v>"), ("", 0, "<v>many</v>")]),
+            ),
             sheet("Blog", row(3, &[("d", 0, "<v>soon</v>")])),
         ],
         &[],
@@ -4421,10 +4432,7 @@ fn an_escaped_surrogate_pair_reads_as_one_character() {
             ("inlineStr", 0, "<is><t>_xD83D_ alone</t></is>"),
         ],
     );
-    let read = Read::open(xlsx(
-        &[sheet("Shop", data)],
-        &["Blog _xD83D__xDE00_"],
-    ));
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &["Blog _xD83D__xDE00_"]));
     assert_eq!(
         read.all(&options("Shop"), 10),
         vec![(
@@ -4517,7 +4525,13 @@ fn a_sheet_whose_part_is_missing_is_listed_with_no_size_and_throws_when_read() {
     let sheets = read.call("readerSheets", vec![]);
     let sizes: Vec<(&Value, &Value, &Value)> = entries(&sheets)
         .into_iter()
-        .map(|sheet| (field(sheet, "name"), field(sheet, "rows"), field(sheet, "columns")))
+        .map(|sheet| {
+            (
+                field(sheet, "name"),
+                field(sheet, "rows"),
+                field(sheet, "columns"),
+            )
+        })
         .collect();
     assert_eq!(
         sizes,
@@ -4575,11 +4589,186 @@ fn a_duration_serial_past_the_range_of_a_time_reads_as_its_number() {
                 1,
                 shape(vec![(
                     "duration",
-                    core("Core\\Time\\Duration", &[("nanos", 100_000 * 86_400_000_000_000)]),
+                    core(
+                        "Core\\Time\\Duration",
+                        &[("nanos", 100_000 * 86_400_000_000_000)]
+                    ),
                 )])
             ),
             (2, integer(200_000)),
         ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A record of `kind` whose text starts in one-byte characters and goes on in a `CONTINUE`
+/// record in two-byte ones: `head` is the record's fields before the string, and the string is
+/// `first` then `rest`.
+fn biff_continued(kind: u16, head: &[u8], first: &str, rest: &str) -> Vec<u8> {
+    let count = u16::try_from(first.len() + rest.encode_utf16().count()).unwrap();
+    let mut body = head.to_vec();
+    body.extend(count.to_le_bytes());
+    body.push(0);
+    body.extend(first.as_bytes());
+    let mut more = vec![1u8];
+    for unit in rest.encode_utf16() {
+        more.extend(unit.to_le_bytes());
+    }
+    [biff(kind, &body), biff(0x003C, &more)].concat()
+}
+
+#[test]
+fn an_xls_text_cell_continued_across_records_reads_whole() {
+    // A `LABEL` in `A4` and the `STRING` result of a formula in `B4`, each 8,000 one-byte
+    // characters and then more in a `CONTINUE` record.
+    let first = "x".repeat(8000);
+    let label = biff_continued(
+        0x0204,
+        &[3u16, 0, 0].map(u16::to_le_bytes).concat(),
+        &first,
+        "Crème",
+    );
+    let formula = biff(
+        0x0006,
+        &[
+            &[3u16, 1, 0].map(u16::to_le_bytes).concat()[..],
+            &[0, 0, 0, 0, 0, 0, 0xFF, 0xFF],
+            &[0; 8],
+        ]
+        .concat(),
+    );
+    let string = biff_continued(0x0207, &[], &first, "Tea");
+    let read = Read::open(xls_of(&[], &[label, formula, string].concat()));
+    let rows = read.all(&options("Shop"), 10);
+    let row = rows.iter().find(|(number, _)| *number == 4).expect("row 4");
+    assert_eq!(
+        row.1,
+        vec![
+            (1, text(&format!("{first}Crème"))),
+            (2, text(&format!("{first}Tea"))),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn xls_properties_decode_by_their_code_page() {
+    // 0xD6 0xE5 0xED 0xFB is `Цены` in Windows-1251, and 0xA3 0xF3 0x64 0x9F is `Łódź` in
+    // Windows-1250.
+    let summary = property_stream_in(1251, &[(2, narrow_property(b"\xD6\xE5\xED\xFB"))]);
+    let document = property_stream_in(1250, &[(15, narrow_property(b"\xA3\xF3d\x9F"))]);
+    let read = Read::open(compound(&[
+        ("Workbook", xls_stream(&[], &[])),
+        ("\u{5}SummaryInformation", summary),
+        ("\u{5}DocumentSummaryInformation", document),
+    ]));
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &string("Цены"));
+    assert_eq!(field(&properties, "company"), &string("Łódź"));
+    block_on(read.request.end()).expect("the request ends");
+
+    // UTF-8 reads as UTF-8. Shift JIS (932) has no table here, so its text is not read.
+    let summary = property_stream_in(65001, &[(2, narrow_property("Цены".as_bytes()))]);
+    let document = property_stream_in(932, &[(15, narrow_property(b"\x83\x56"))]);
+    let read = Read::open(compound(&[
+        ("Workbook", xls_stream(&[], &[])),
+        ("\u{5}SummaryInformation", summary),
+        ("\u{5}DocumentSummaryInformation", document),
+    ]));
+    let properties = read.call("readerProperties", vec![]);
+    assert_eq!(field(&properties, "title"), &string("Цены"));
+    assert_eq!(field(&properties, "company"), &Value::Null);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An ods of one sheet, `Shop`, whose table holds `rows`.
+fn ods_shop(rows: &str) -> Vec<u8> {
+    ods_of(
+        &format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:body><office:spreadsheet><table:table table:name="Shop">{rows}</table:table></office:spreadsheet></office:body></office:document-content>"#
+        ),
+        &[],
+    )
+}
+
+#[test]
+fn an_ods_date_with_an_offset_reads_as_the_wall_clock_in_the_zone() {
+    let read = Read::open(ods_shop(
+        r#"<table:table-row><table:table-cell office:value-type="date" office:date-value="2024-01-15T18:00:30+02:00"/><table:table-cell office:value-type="date" office:date-value="2024-01-15T07:45:10-05:00"/><table:table-cell office:value-type="date" office:date-value="2024-01-15T18:00:30Z"/></table:table-row>"#,
+    ));
+    let clock = |hour, minute, second| {
+        shape(vec![
+            ("day", date(2024, 1, 15)),
+            ("clock", time(hour, minute, second)),
+        ])
+    };
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![
+                (1, clock(18, 0, 30)),
+                (2, clock(7, 45, 10)),
+                (3, clock(18, 0, 30))
+            ]
+        )]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_ods_void_cell_reads_as_null_and_a_string_value_is_its_text() {
+    // `A1` is void, whatever its paragraph says. `B1` has a `string-value` and no paragraph, and
+    // `C1` has both, where the `string-value` is the value.
+    let read = Read::open(ods_shop(
+        r#"<table:table-row><table:table-cell office:value-type="void"><text:p>x</text:p></table:table-cell><table:table-cell office:value-type="string" office:string-value="Shop"/><table:table-cell office:value-type="string" office:string-value="Tea"><text:p>Tea…</text:p></table:table-cell></table:table-row>"#,
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(2, text("Shop")), (3, text("Tea"))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn pretty_printed_ods_cells_read_without_the_layout_whitespace() {
+    // White space between elements is layout. Inside a paragraph, a run of white space is one
+    // space and none starts it. `text:s` is a space that stays.
+    let read = Read::open(ods_shop(
+        "<table:table-row>
+          <table:table-cell office:value-type=\"string\">
+            <text:p>  Tea   and
+               cake </text:p>
+          </table:table-cell>
+          <table:table-cell office:value-type=\"string\">
+            <text:p>Tea <text:span>and</text:span>  cake</text:p>
+          </table:table-cell>
+          <table:table-cell office:value-type=\"string\"><text:p>a<text:s text:c=\"2\"/>b</text:p></table:table-cell>
+        </table:table-row>",
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![
+                (1, text("Tea and cake ")),
+                (2, text("Tea and cake")),
+                (3, text("a  b")),
+            ]
+        )]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_empty_ods_paragraph_is_a_line_of_the_cell() {
+    let read = Read::open(ods_shop(
+        r#"<table:table-row><table:table-cell office:value-type="string"><text:p>Tea</text:p><text:p/><text:p>cake</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p/><text:p>cake</text:p></table:table-cell></table:table-row>"#,
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Tea\n\ncake")), (2, text("\ncake"))])]
     );
     block_on(read.request.end()).expect("the request ends");
 }

@@ -1,0 +1,51 @@
+--TEST--
+`Reader::open` reads a first CSV line `sep=;` as the separator and not as a row, from bytes, from a file and after a byte order mark; a `separator` option keeps the line as a row: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+
+// The first line sets the separator, so the header is the second line.
+bytes $semicolons = Core\Encoding::encodeText("sep=;\r\nName;City\r\nBo;Shopville\r\n", Core\Charset::Utf8);
+foreach (Reader::open($semicolons)->rows(0, { header: true }) as var $row) {
+    echo $row->values['Name'] as string, " in ", $row->values['City'] as string, "\n";
+}
+
+// A byte order mark comes before the line, and the line ends with `\n`.
+bytes $marked = Core\Bytes::join([Core\Encoding::fromHex("efbbbf"), Core\Encoding::encodeText("sep=|\nName|City\nAl|Example\n", Core\Charset::Utf8)]);
+foreach (Reader::open($marked)->rows(0, { header: true }) as var $row) {
+    echo $row->values['Name'] as string, " in ", $row->values['City'] as string, "\n";
+}
+
+// The same file read from disk. `sheets` counts the rows without the line.
+Core\IO\File $out = Core\IO::open("shop.csv", Core\IO::FileMode::Write);
+$out->write($semicolons);
+$out->close();
+Core\IO\File $file = Core\IO::open("shop.csv", Core\IO::FileMode::Read);
+Reader $reader = Reader::open($file);
+foreach ($reader->sheets() as var $sheet) {
+    echo $sheet->rows ?? 0, " rows\n";
+}
+foreach ($reader->rows(0, { header: true }) as var $row) {
+    echo $row->values['Name'] as string, " in ", $row->values['City'] as string, "\n";
+}
+$file->close();
+
+// With a `separator` option, the line is a row of its own.
+foreach (Reader::open($semicolons, { csv: { separator: ';' } })->rows(0) as var $row) {
+    foreach ($row->values as var $value) {
+        echo "[", $value as string, "]";
+    }
+    echo "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+Bo in Shopville
+Al in Example
+2 rows
+Bo in Shopville
+[sep=]
+[Name][City]
+[Bo][Shopville]

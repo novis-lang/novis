@@ -4,11 +4,15 @@
 //! [`RawRow`]s the xlsx cursor gives, so `super::Reader::value` reads every format the same way.
 //! A cell carries its type and its value in attributes: a date, a clock time, a time of day and
 //! a duration are each given a serial and one of the kinds [`KINDS`] lists. A time value under 24
-//! hours is a time of day, and a longer one a duration. A cell's text is rendered under the
-//! file's own number style, which `super::ods_styles` reads from `styles.xml` and `content.xml`
-//! as a format code, so a cell's style index names its kind and that code. A sheet is hidden when
-//! its table style says `table:display="false"`, and a row when its `visibility` is not
-//! `visible`.
+//! hours is a time of day, and a longer one a duration. A date's offset from UTC is dropped, so
+//! it reads as the clock time it was written with. A `void` cell has no value, and a string
+//! cell's `string-value` is its text before its paragraphs are. Paragraph text follows ODF 1.2
+//! part 1 § 6.1.2: a run of white space is one space and none starts a paragraph, white space
+//! between a cell's elements is not text, and an empty `<text:p/>` is a line. A cell's text is
+//! rendered under the file's own number style, which `super::ods_styles` reads from `styles.xml`
+//! and `content.xml` as a format code, so a cell's style index names its kind and that code. A
+//! sheet is hidden when its table style says `table:display="false"`, and a row when its
+//! `visibility` is not `visible`.
 //!
 //! **The extras are read with the cells**, into [`Extras`]: a `text:a` in a cell is a link, an
 //! `office:annotation` a note, and a `draw:frame` with a `draw:image` a picture at its cell. The
@@ -82,7 +86,9 @@ fn date_serial(text: &str) -> Option<(f64, bool)> {
     let seconds = if time.is_empty() {
         0.0
     } else {
+        // An offset from UTC is dropped, so the date reads as the clock time it was written with.
         let time = time.trim_end_matches('Z');
+        let time = time.find(['+', '-']).map_or(time, |at| &time[..at]);
         let mut parts = time.splitn(3, ':').map(|part| part.parse::<f64>().ok());
         parts.next()?? * 3600.0 + parts.next()?? * 60.0 + parts.next().flatten().unwrap_or(0.0)
     };
@@ -195,9 +201,13 @@ fn value_cell(attrs: &[u8]) -> Result<Option<RawCell>, Error> {
                 ..RawCell::default()
             }
         }
-        // A string's text is its paragraphs, which the caller adds when the cell closes.
+        // A void cell has no value, whatever its paragraphs say.
+        "void" => return Ok(None),
+        // A string's text is its `string-value`, or else its paragraphs, which the caller adds
+        // when the cell closes.
         _ => RawCell {
             kind: b"text".to_vec(),
+            value: value(b"string-value")?,
             ..RawCell::default()
         },
     }))
@@ -395,6 +405,10 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Book, Err
     let mut here = String::new();
     let mut link: Option<(Link, usize)> = None;
     let mut aside: Option<Aside> = None;
+    // Whether a paragraph is open, and whether the next white space in it is skipped: at its
+    // start and after white space, as ODF 1.2 part 1 § 6.1.2 says.
+    let mut paragraph = false;
+    let mut skip = false;
     let mut at = 0;
     while let Some((token, size)) = xml::next(&content[at..])? {
         at += size;
@@ -541,26 +555,36 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Book, Err
                     extras.names.extend(defined_name(attrs, table.as_ref())?);
                 }
                 b"database-range" => extras.tables.extend(database_range(attrs)?),
-                b"p" if !empty => {
+                // An empty paragraph is a line of its own.
+                b"p" => {
                     if let Some((text, paragraphs)) = target(&mut cell, &mut aside) {
                         if *paragraphs > 0 {
                             text.push('\n');
                         }
                         *paragraphs += 1;
                     }
+                    paragraph = !empty;
+                    skip = true;
                 }
                 b"s" => {
                     if let Some((text, _)) = target(&mut cell, &mut aside) {
                         let count = repeat(attrs, b"c")?.min(1024);
                         text.extend(std::iter::repeat_n(' ', count as usize));
                     }
+                    skip = false;
                 }
-                b"tab" => target(&mut cell, &mut aside)
-                    .into_iter()
-                    .for_each(|(text, _)| text.push('\t')),
-                b"line-break" => target(&mut cell, &mut aside)
-                    .into_iter()
-                    .for_each(|(text, _)| text.push('\n')),
+                b"tab" => {
+                    target(&mut cell, &mut aside)
+                        .into_iter()
+                        .for_each(|(text, _)| text.push('\t'));
+                    skip = false;
+                }
+                b"line-break" => {
+                    target(&mut cell, &mut aside)
+                        .into_iter()
+                        .for_each(|(text, _)| text.push('\n'));
+                    skip = false;
+                }
                 _ => {}
             },
             Token::Text(raw) => match aside.as_mut() {
@@ -571,7 +595,14 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Book, Err
                 }) => xml::decode(raw, author.get_or_insert_default())?,
                 _ => {
                     if let Some((text, _)) = target(&mut cell, &mut aside) {
+                        let start = text.len();
                         xml::decode(raw, text)?;
+                        if paragraph {
+                            collapse(text, start, &mut skip);
+                        } else if text[start..].chars().all(is_space) {
+                            // White space between the elements of a cell is layout.
+                            text.truncate(start);
+                        }
                     }
                 }
             },
@@ -581,6 +612,7 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Book, Err
                 }
             }
             Token::Close(name) => match xml::local(name) {
+                b"p" => paragraph = false,
                 b"creator" | b"date" | b"date-string" => {
                     if let Some(Aside::Note { field, .. }) = aside.as_mut() {
                         *field = None;
@@ -655,6 +687,34 @@ pub fn read(source: &dyn Source, directory: &zip::Directory) -> Result<Book, Err
     })
 }
 
+/// Whether `c` is white space in XML: a space, a tab, a line feed or a carriage return.
+fn is_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\r')
+}
+
+/// Collapses the white space of the paragraph text `text` from `start`, as ODF 1.2 part 1
+/// § 6.1.2 says: each run of white space is one space, and none is kept while `skip` is set.
+/// Text with no white space is not copied.
+fn collapse(text: &mut String, start: usize, skip: &mut bool) {
+    let tail = &text[start..];
+    if !tail.contains(is_space) {
+        *skip &= tail.is_empty();
+        return;
+    }
+    let mut out = String::with_capacity(tail.len());
+    for c in tail.chars() {
+        if !is_space(c) {
+            out.push(c);
+            *skip = false;
+        } else if !*skip {
+            out.push(' ');
+            *skip = true;
+        }
+    }
+    text.truncate(start);
+    text.push_str(&out);
+}
+
 /// Adds the cell `open` to the row being read, once per column it repeats over.
 fn close_cell(row: &mut Option<(RawRow, u64, u64)>, open: Open) -> Result<(), Error> {
     let Some((raw, _, column)) = row.as_mut() else {
@@ -665,7 +725,7 @@ fn close_cell(row: &mut Option<(RawRow, u64, u64)>, open: Open) -> Result<(), Er
     let Some(mut cell) = open.cell else {
         return Ok(());
     };
-    if cell.kind == b"text" || cell.kind == b"e" {
+    if (cell.kind == b"text" && cell.value.is_none()) || cell.kind == b"e" {
         cell.value = Some(open.text);
     }
     if *column - 1 > MOST_COLUMNS {

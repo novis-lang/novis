@@ -5,7 +5,9 @@ file can be xlsx, xlsm, xlsb, xls, ods or CSV. `Reader::open` finds the type fro
 from a file name. Then `sheets` lists the sheets, and `rows` reads one of them.
 
 A CSV file is UTF-8 text by default. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
-A file that starts with a UTF-16 byte order mark needs no option. A CSV file in UTF-32 throws a
+A file that starts with a UTF-16 byte order mark needs no option. Excel can write a first line such
+as `sep=;`. That line sets the separator, and it is not a row. When you set `separator`, that line
+is a normal row. A CSV file in UTF-32 throws a
 `ParseError`. A CSV file that is not UTF-8 also throws a `ParseError`, and the message names the
 `encoding` option.
 

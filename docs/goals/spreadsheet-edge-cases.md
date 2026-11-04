@@ -14,7 +14,7 @@ stages:
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/zip.rs, extensions/spreadsheet/src/read/xml.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/src/read/merge.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 3
     title: "xls reads continued text and code pages, ods reads offsets, void cells and whitespace as ODF says, and a CSV sep= line sets the separator"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/read/xls_extras.rs, extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/nvs/Reader.nvs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 4
     title: "the writer prefixes new functions, keeps line breaks in attributes, counts lengths as Excel does, stores an image once, and a CSV export opens cleanly in Excel"
@@ -270,7 +270,7 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 15. **A `$` in a merge reference is stripped; phonetic `<rPh>` text is not part of a note.**
 16. **An external link's `location` replaces any fragment its `Target` already has**, so the link has one `#`.
 17. **A sheet whose part is missing is listed by `sheets()` with a `null` size** (`rows` and `columns` become `?uint`), and `rows()` on it throws naming the sheet.
-18. **An xls STRING or LABEL record continued by CONTINUE is read across the CONTINUE**, as the SST path does; xls document properties decode by their property set's code page.
+18. **An xls STRING or LABEL record continued by CONTINUE is read across the CONTINUE**, as the SST path does; xls document properties decode by their property set's code page. The guest decodes UTF-8, UTF-16 (1200), ASCII, Latin-1 and the single-byte Windows pages 874 and 1250 to 1258 from ten 256-byte tables (`read/codepage.rs`); a property in any other code page, the multi-byte ones included, is `null`, because their tables would add hundreds of KiB to a component instantiated per reader, for metadata that is not a cell. Recorded in the rule's Declined list.
 19. **An ods date with a UTC offset reads as the wall clock in the read's zone; `office:value-type="void"` reads as `null`; `office:string-value` is the cell's value.**
 20. **ods cell text follows ODF 1.2 part 1 § 6.1.2**: whitespace collapses inside `text:p`, whitespace-only nodes outside it are ignored, and an empty `<text:p/>` is a line.
 21. **A serial that names no real day (0 and 60 in the 1900 system) reads as its plain number**, as a negative serial does.
@@ -428,26 +428,26 @@ are, one conformance case and one attack.
 to `crates/nvs-ext/tests/spreadsheet_read.rs` (its `xls_of` at `:2320` and `ods` at `:2326` build the
 files) and one conformance case.
 
-- [ ] RL-01: a STRING or LABEL record longer than 8,224 bytes and continued by CONTINUE throws
+- [x] RL-01: a STRING or LABEL record longer than 8,224 bytes and continued by CONTINUE throws
   (decision 18). `extensions/spreadsheet/src/read/xls.rs:724`, `extensions/spreadsheet/src/read/xls.rs:113`
-- [ ] RL-02: xls property strings decode as Windows-1252 whatever the property set's `CODEPAGE` says
+- [x] RL-02: xls property strings decode as Windows-1252 whatever the property set's `CODEPAGE` says
   (decision 18). `extensions/spreadsheet/src/read/xls_extras.rs:389`
-- [ ] RO-02: an ods date with a UTC offset parses its seconds as 0; `void` reads as empty text; a
+- [x] RO-02: an ods date with a UTC offset parses its seconds as 0; `void` reads as empty text; a
   `string-value` with no `text:p` is ignored (decision 19). `extensions/spreadsheet/src/read/ods.rs:86`
-- [ ] RO-03: whitespace between the elements of a pretty-printed `content.xml` lands in cell text, and
+- [x] RO-03: whitespace between the elements of a pretty-printed `content.xml` lands in cell text, and
   an empty `<text:p/>` is not counted (decision 20). `extensions/spreadsheet/src/read/ods.rs:564`,
   `extensions/spreadsheet/src/read/ods.rs:535`
-- [ ] RC-04: a first line `sep=;` is returned as a data row (decision 23).
+- [x] RC-04: a first line `sep=;` is returned as a data row (decision 23).
   `extensions/spreadsheet/nvs/Reader.nvs:44`
-- [ ] The pages a user reads say it: `void` reads as `null` and an offset date as the zone's wall clock
+- [x] The pages a user reads say it: `void` reads as `null` and an offset date as the zone's wall clock
   (`docs/rules/core-classes/spreadsheet-value-types.md:1`); a `sep=` line sets the separator
   (`docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:1`,
   `docs/examples/novis/Spreadsheet-Reader/open/about.md:1`, the doc comment at
   `extensions/spreadsheet/nvs/Reader.nvs:40`). Then `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Write the six tests the `xls-ods-reading` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:4251`
-- [ ] Write the conformance case the `csv-separator-line` check names.
+- [x] Write the six tests the `xls-ods-reading` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:4251`
+- [x] Write the conformance case the `csv-separator-line` check names.
   `tests/conformance/novis/spreadsheet-a-csv-that-starts-with-sep-uses-that-separator.nvst:1`
-- [ ] Run the `xls-ods-reading` and `csv-separator-line` checks' commands once: green.
+- [x] Run the `xls-ods-reading` and `csv-separator-line` checks' commands once: green.
 
 ### 4. the writer prefixes new functions, keeps line breaks in attributes, counts lengths as Excel does, stores an image once, and a CSV export opens cleanly in Excel
 
@@ -637,38 +637,42 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 2 is done: every item is ticked, and the `xlsx-reading` check is green. Its one code commit
-(495ad3f55) carries decisions 11 to 17, 21 and 22, the eleven tests and the manifest help; the docs
-commit carries the read table, the sheet list rule and the `sheets` page. `rows` and `columns` of
-`SheetInfo` are `?uint` in the WIT, the manifest's `readerSheets` return type and `Reader.nvs`; the
-typed list in `crates/nvs-ext/src/typed/spreadsheet.rs` names fields only and needed no edit. The two
-conformance cases that print sheet sizes still pass.
+Stage 3 is done: every item is ticked, and the `xls-ods-reading` and `csv-separator-line` checks'
+commands are green (the suite ran all 56 spreadsheet cases green). One code commit carries
+decisions 18 to 20 and 23, the six tests, the conformance case and the docs; a separate style commit
+formats `template/mod.rs`'s `without_inert`, which stage 1 left unformatted.
 
-What else changed, so stage 8 knows it: `Reader::value` takes the row number, so a bad number
-cell throws "the cell B2 holds `x`, which is not a number". A `t="d"` cell is parsed by `iso` in
-`read/mod.rs`: a trailing `Z` is dropped, and any other offset throws. `resolve` decodes `%XX` by
-`percent_decoded`.
+What changed, so stage 8 knows it: `xls.rs`'s `continued_string` reads a `LABEL` or `STRING` with
+the `CONTINUE`s that follow it (the sheet loop's iterator is `Peekable`); a record with none is read
+in place. `read/codepage.rs` is new (decision 18's refinement). In `ods.rs`, `date_serial` drops an
+offset, `value_cell` gives `void` no value and takes `string-value`, and `read` tracks `paragraph`
+and `skip` for `collapse`. `Reader.nvs`'s CSV opens go through `csvReader`, `sepLine` and
+`startText`. Test helper `property_stream_in` takes a code page, and `ods_shop` builds a one-sheet
+ods.
 
-The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as five handoffs have
+The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as six handoffs have
 found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad, and the next
 nightly confirms both.
 
 ### Next
 
-Stage 3, from its first item.
+Stage 4, from its first item. The writer files are not loaded yet.
 
-1. Decision 18 (RL-01): an xls STRING or LABEL record continued by CONTINUE reads across it, as
-   the SST path does. `extensions/spreadsheet/src/read/xls.rs:724`, `:113`.
-2. Decision 18 (RL-02): xls property strings decode by the property set's `CODEPAGE`.
-   `extensions/spreadsheet/src/read/xls_extras.rs:389`.
-3. Decisions 19 and 20 (RO-02, RO-03): ods offset dates, `void`, `string-value`, and ODF
-   whitespace. `extensions/spreadsheet/src/read/ods.rs:86`, `:535`, `:564`.
-4. Decision 23 (RC-04): a first CSV line `sep=;` sets the separator when no `separator` is given.
-   `extensions/spreadsheet/nvs/Reader.nvs:44`.
-5. The six tests go into `crates/nvs-ext/tests/spreadsheet_read.rs` (append at its end; `xls_of`
-   and `ods` build the files), and the conformance case at
-   `tests/conformance/novis/spreadsheet-a-csv-that-starts-with-sep-uses-that-separator.nvst`.
+1. Decision 24 (WX-11): `_xlfn.` and `_xlws.` prefixes, outside string literals, from a sorted
+   table. `extensions/spreadsheet/src/cells.rs:384`.
+2. Decision 25 (WX-01): `xml::attr` writes LF, CR and TAB as character references.
+   `extensions/spreadsheet/src/xml.rs:24`.
+3. Decision 26 (WX-06, WX-07): UTF-16 lengths and upper-case name folding.
+   `extensions/spreadsheet/src/cells.rs:162`, `extensions/spreadsheet/src/writer.rs:176`.
+4. Decisions 27 to 29 (WX-15, WX-16, WX-20): `extensions/spreadsheet/src/table.rs:164`,
+   `extensions/spreadsheet/src/tail.rs:111`, `extensions/spreadsheet/src/writer.rs:631`.
+5. Decisions 30 to 33 (WX-27, WC-01, WC-03): `extensions/spreadsheet/nvs/Workbook.nvs:77`, `:656`,
+   `crates/nvs-stdlib/src/csv.rs:983`, `:397`. `lineEnd` is a `Core\Csv::format` option, so its
+   help text and `docs/examples/core/Csv/format/about.md` change too.
+6. Tests: `extensions/spreadsheet/tests/write.rs` (eight) and four conformance cases, as the stage
+   lists.
 
-No existing test is expected to go red.
+No existing test is expected to go red, except the renamed
+`csv-format-quotes-exactly-the-separator-the-quote-cr-and-lf.nvst`, which WC-01 extends.
 
 ### Backlog

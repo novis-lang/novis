@@ -19,11 +19,13 @@
 //! once the sheet's records are read. An array formula's text is given in its first cell. What
 //! it spends: the text of each formula, held with the rows.
 //!
-//! A record longer than 8,224 bytes goes on in `CONTINUE` records. The shared strings are the one
-//! table this reader needs that crosses them, and [`Continued`] reads across the seams, where a
-//! string's characters start again with a byte that says whether they are one byte or two.
+//! A record longer than 8,224 bytes goes on in `CONTINUE` records. The shared strings, and the
+//! text of a `LABEL` cell or of the `STRING` result of a formula, cross them, and [`Continued`]
+//! reads across the seams, where a string's characters start again with a byte that says whether
+//! they are one byte or two.
 
 use std::collections::BTreeMap;
+use std::iter::Peekable;
 use std::sync::Arc;
 
 use super::binary::{error_text, f64_at, number, rk, typed, u8_at, u16_at, u32_at};
@@ -138,7 +140,32 @@ fn string_at(body: &[u8], at: usize, count_bytes: usize) -> Result<(String, usiz
     Ok((characters(bytes, wide), start + length + runs + extra - at))
 }
 
-/// The shared strings record and its `CONTINUE` records, read as one run of bytes.
+/// The string of a cell record `body` at `at`, with a two-byte count. When `CONTINUE` records
+/// follow it in `records`, they are taken from it, and the characters go on across them as the
+/// shared strings do. A record with no `CONTINUE` is read in place, with no copy of its parts.
+fn continued_string<'a>(
+    body: &'a [u8],
+    at: usize,
+    records: &mut Peekable<impl Iterator<Item = Result<(u16, &'a [u8]), Error>>>,
+) -> Result<String, Error> {
+    if !matches!(records.peek(), Some(Ok((CONTINUE, _)))) {
+        return string_at(body, at, 2).map(|(text, _)| text);
+    }
+    let mut parts = vec![body];
+    while let Some(&Ok((CONTINUE, more))) = records.peek() {
+        parts.push(more);
+        records.next();
+    }
+    let mut run = Continued {
+        parts,
+        part: 0,
+        at: 0,
+    };
+    run.skip(at)?;
+    run.string()
+}
+
+/// A record and its `CONTINUE` records, read as one run of bytes.
 struct Continued<'a> {
     parts: Vec<&'a [u8]>,
     part: usize,
@@ -151,7 +178,7 @@ impl Continued<'_> {
             let part = self
                 .parts
                 .get(self.part)
-                .ok_or_else(|| broken("the shared strings end early"))?;
+                .ok_or_else(|| broken("a record's text ends early"))?;
             if self.at == part.len() {
                 self.part += 1;
                 self.at = 0;
@@ -199,7 +226,7 @@ impl Continued<'_> {
             let part = self
                 .parts
                 .get(self.part)
-                .ok_or_else(|| broken("the shared strings end early"))?;
+                .ok_or_else(|| broken("a record's text ends early"))?;
             if self.at == part.len() {
                 self.part += 1;
                 self.at = 0;
@@ -583,12 +610,12 @@ fn sheet(
             .push(cell);
         Ok(())
     };
-    let mut records = records(stream, offset);
+    let mut records = records(stream, offset).peekable();
     match records.next() {
         Some(Ok((BOF, _))) => {}
         _ => return Err(broken("a sheet does not start where the workbook says")),
     }
-    for record in records {
+    while let Some(record) = records.next() {
         let (kind, body) = record?;
         let after = last;
         if kind != CONTINUE {
@@ -674,7 +701,7 @@ fn sheet(
             }
             LABEL | RICH_LABEL => {
                 let (row, at) = cell(body)?;
-                let (text, _) = string_at(body, 6, 2)?;
+                let text = continued_string(body, 6, &mut records)?;
                 put(&mut rows, row, typed(at, b"text", Some(text)))?;
             }
             BOOL_ERROR => {
@@ -741,7 +768,7 @@ fn sheet(
             }
             STRING => {
                 if let Some((row, at)) = pending.take() {
-                    let (text, _) = string_at(body, 0, 2)?;
+                    let text = continued_string(body, 0, &mut records)?;
                     put(&mut rows, row, typed(at, b"text", Some(text)))?;
                 }
             }

@@ -19,7 +19,7 @@
 
 use super::binary::{u8_at, u16_at, u32_at};
 use super::extras::{Image, Link, Name, Note};
-use super::{cfb, civil, days_from_civil, letters};
+use super::{cfb, civil, codepage, days_from_civil, letters};
 use crate::{Clock, Error, Properties, TimeOfDay};
 
 /// The extras of an xls, each sheet's entries with its sheet's name.
@@ -378,26 +378,15 @@ enum Value {
     Ticks(u64),
 }
 
-/// The characters Windows-1252 gives 0x80 to 0x9F, where Latin-1 has control characters.
-const WINDOWS_1252: [char; 32] = [
-    '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž', '\u{8F}',
-    '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}', 'ž', 'Ÿ',
-];
-
-/// The text of a narrow property in `codepage`: UTF-8 for 65001, and Windows-1252 otherwise, the
-/// code page Excel writes. It ends at its first NUL.
-fn narrow_text(bytes: &[u8], codepage: u16) -> String {
-    let bytes: Vec<u8> = bytes.iter().copied().take_while(|&b| b != 0).collect();
-    if codepage == 65001 {
-        return String::from_utf8_lossy(&bytes).into_owned();
+/// The text of a narrow property in the property set's `codepage` ([MS-OLEPS] 2.5): UTF-16 for
+/// 1200, and [`codepage::text`] for the others. It ends at its first NUL. A code page this reader
+/// has no table for gives `None`, so the property is not read.
+fn narrow_text(bytes: &[u8], codepage: u16) -> Option<String> {
+    if codepage == 1200 {
+        return Some(wide_text(bytes));
     }
-    bytes
-        .iter()
-        .map(|&b| match b {
-            0x80..=0x9F => WINDOWS_1252[usize::from(b - 0x80)],
-            _ => char::from(b),
-        })
-        .collect()
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    codepage::text(&bytes[..end], codepage)
 }
 
 /// The first property set of a property set stream ([MS-OLEPS] 2.21): a header of 28 bytes, the
@@ -430,7 +419,7 @@ fn property_set(stream: &[u8]) -> Vec<(u32, Value)> {
             let value = match kind {
                 TEXT => u32_at(set, at + 4).ok().and_then(|length| {
                     let bytes = set.get(at + 8..(at + 8).checked_add(length as usize)?)?;
-                    Some(Value::Text(narrow_text(bytes, codepage)))
+                    narrow_text(bytes, codepage).map(Value::Text)
                 }),
                 WIDE_TEXT => u32_at(set, at + 4).ok().and_then(|units| {
                     let end = (at + 8).checked_add((units as usize).checked_mul(2)?)?;

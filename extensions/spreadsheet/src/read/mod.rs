@@ -48,6 +48,7 @@
 
 pub mod binary;
 mod cfb;
+mod codepage;
 mod evaluate;
 pub mod extras;
 pub mod format;
@@ -796,7 +797,11 @@ impl Reader {
             // path, as Excel does.
             strings_part: part_of("sharedStrings")
                 .or_else(|| {
-                    let usual = if binary { "xl/sharedStrings.bin" } else { "xl/sharedStrings.xml" };
+                    let usual = if binary {
+                        "xl/sharedStrings.bin"
+                    } else {
+                        "xl/sharedStrings.xml"
+                    };
                     Some(usual.to_owned())
                 })
                 .filter(|part| directory.find(part).is_some()),
