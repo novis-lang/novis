@@ -12,8 +12,9 @@
 //! (`rule:ide/the-rendering-has-one-home`), so a `.lspt` case under
 //! `tests/lsp/redactions/` and a test here freeze the same text.
 
+use lsp_types::{ClientCapabilities, InitializeParams};
 use nvs_diagnostics::PositionEncoding;
-use nvs_lsp::{Documents, Response, analyse, redactions, uri_of};
+use nvs_lsp::{Documents, Response, Settings, analyse, redactions, uri_of};
 
 /// What the server would answer for `source`, rendered as a case freezes it.
 ///
@@ -21,12 +22,80 @@ use nvs_lsp::{Documents, Response, analyse, redactions, uri_of};
 /// negotiation is `rule:ide/positions-have-one-home`'s business and has nothing
 /// to say about which ranges are answered.
 fn concealed(source: &str) -> String {
+    answered(source, false)
+}
+
+/// [`concealed`], for a client that did or did not declare `docComment`.
+fn answered(source: &str, doc_comments: bool) -> String {
     let dir = nvs_repo::scratch("lsp-redactions");
     let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     let analysed = analyse(&documents, &uri).expect("an open document analyses");
-    Response::Redactions(redactions::for_document(&analysed, PositionEncoding::Utf8)).render()
+    Response::Redactions(redactions::for_document(
+        &analysed,
+        PositionEncoding::Utf8,
+        doc_comments,
+    ))
+    .render()
+}
+
+/// Whether a client whose `experimental` capability is `experimental` is
+/// answered `docComment` ranges.
+fn declared(experimental: serde_json::Value) -> bool {
+    let capabilities: ClientCapabilities =
+        serde_json::from_value(serde_json::json!({ "experimental": experimental }))
+            .expect("the capabilities are the protocol's own shape");
+    Settings::from_initialize(&InitializeParams {
+        capabilities,
+        ..InitializeParams::default()
+    })
+    .client
+    .doc_comments
+}
+
+/// One range per `///` line, from the first slash to the last character of
+/// the text. The trailing spaces and the `\r` of a CRLF line are not in it,
+/// and an ordinary `//` comment has no range.
+#[test]
+fn a_doc_comment_line_is_answered_from_its_slashes_to_the_end_of_its_text() {
+    assert_eq!(
+        answered(
+            "<?nvs\n/// Adds two numbers.   \r\n    /// Returns the sum.\n// not a doc comment\nclass Calc {}\n",
+            true
+        ),
+        "2:1-2:22 docComment\n3:5-3:25 docComment\n"
+    );
+}
+
+/// `rule:ide/redaction-ranges-come-from-the-server`: a client built before the
+/// kind conceals every kind it does not know, so the kind is answered only to a
+/// client that listed it in `experimental.redactionKinds`.
+#[test]
+fn a_doc_comment_is_answered_only_to_a_client_that_declared_the_kind() {
+    let source = "<?nvs\n/// A calculator.\nclass Calc {}\n";
+    assert_eq!(answered(source, false), "none\n");
+    assert_eq!(answered(source, true), "2:1-2:18 docComment\n");
+    assert!(declared(
+        serde_json::json!({ "redactionKinds": [redactions::DOC_COMMENT] })
+    ));
+    assert!(!declared(
+        serde_json::json!({ "redactionKinds": ["somethingElse"] })
+    ));
+    assert!(!declared(serde_json::json!({ "commands": [] })));
+}
+
+/// The ranges are the lexer's doc comments, so three slashes inside a string
+/// or in inline HTML are text, and have no range.
+#[test]
+fn slashes_inside_a_string_or_inline_html_are_no_doc_comment() {
+    assert_eq!(
+        answered(
+            "<?nvs\nvar $path = \"/// not a comment\nstill the string\";\necho $path;\n?>\n<p>/// plain text</p>\n",
+            true
+        ),
+        "none\n"
+    );
 }
 
 /// The two shapes `rule:ide/redaction-covers-bytes-only` names: a literal

@@ -569,6 +569,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             refresh_hints: false,
             rename_files: false,
             work_done_progress: false,
+            doc_comments: false,
         }
     );
     assert_eq!(

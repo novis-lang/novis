@@ -157,6 +157,10 @@ pub struct Client {
     /// itself, so the index build at start shows in its status bar
     /// (`crate::progress`).
     pub work_done_progress: bool,
+    /// `experimental.redactionKinds` lists [`crate::redactions::DOC_COMMENT`],
+    /// so `nvs/redactions` answers a range per `///` line. A client that did
+    /// not list it would conceal one as an unknown kind.
+    pub doc_comments: bool,
 }
 
 impl Client {
@@ -227,6 +231,13 @@ impl Client {
                 .as_ref()
                 .and_then(|window| window.work_done_progress)
                 .unwrap_or(false),
+            doc_comments: at(capabilities.experimental.as_ref(), &["redactionKinds"])
+                .and_then(Value::as_array)
+                .is_some_and(|kinds| {
+                    kinds
+                        .iter()
+                        .any(|kind| kind.as_str() == Some(crate::redactions::DOC_COMMENT))
+                }),
         }
     }
 }

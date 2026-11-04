@@ -704,7 +704,7 @@ fn workspace_symbol(documents: &Documents, files: &Materialised, case: &Case) ->
 /// asked of the whole document, and the same
 /// [`crate::redactions::for_document`] call the server makes answers it.
 fn redactions(analysed: &Analysed) -> Response {
-    Response::Redactions(crate::redactions::for_document(analysed, COLUMNS))
+    Response::Redactions(crate::redactions::for_document(analysed, COLUMNS, false))
 }
 
 /// `nvs/regions` — where the entry document stops being Novis.
