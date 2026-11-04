@@ -220,6 +220,11 @@ calls a step closure that the shipped path passes as a no-op, and a test counts 
 and its unit tests run in no CI job, so its test compares the cost per item at two sizes in the same
 run (pattern 4), the fastest of three reads each.
 
+**That an operating-system setting took effect is checked by reading it back, never by timing.**
+The watchdog thread's macOS real-time policy is read back with `thread_policy_get`. A sweep's
+lateness is measured in every run and explains a stop's overshoot, so a timed wait proves nothing
+the attacks do not. Linux and Windows set nothing, so they have no such test.
+
 **Lanes.** Stages 2 and 3 both edit `crates/nvs-host/src/watchdog.rs`, so the stages run in order.
 Within stage 3 the four fixes touch disjoint files.
 
@@ -313,9 +318,9 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 - [ ] Push with `bun nv ci --push` and watch with `bun nv ci --watch` until CI is green on every
   platform.
 
@@ -323,8 +328,16 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stages 1 to 4 are done. Stage 5, the gate, is next. Clippy over all targets is green, and each
-rewritten test passed once by name.
+Stages 1 to 4 are done. In stage 5, `looper verify` is green on its third run, and `bun nv verify
+--doc`, `bun nv owners --closes speed-independent-tests` and `bun nv ci --check` are green. The push
+and the CI watch are what is left.
+
+- **What the gate fixed.** `d7c2dd011` renders `docs/rules/errors.md` after stage 3's rule edit.
+  `853951fca` replaces `the_watchdog_threads_timed_waits_end_on_time`, which held a wait's median
+  lateness under 30 ms and was 31 ms late here under load, with
+  `the_watchdog_thread_runs_under_the_time_constraint_policy` (macOS only), which reads the policy
+  `wake_on_time` sets back from the thread. `eadc9441d` puts the chain's three goals on the
+  roadmap. `8df6864d1` measures `Core\Str` again, since `find_counted` changed `str.rs`.
 
 - **What guards each removed bound.** `time.rs`'s bound: `benches/members/core/Time/sleep.nvs`.
   The spreadsheet header's `< 10 s` (`5e3d0cba4`): the same test now compares the cost per column
@@ -334,25 +347,18 @@ rewritten test passed once by name.
   `crates/nvs-stdlib/src/str.rs` counts the KMP steps through `find_counted`. Its conformance case
   keeps the case timeout as a hang guard. No `.scale.nvs` was added: a ramp reads native growth as
   `flat` (see the standing decision).
-- `crates/nvs-lsp/tests/latency.rs`'s `judge` retries a hard miss up to `ATTEMPTS` = 3, so it stays.
-- **Earlier slices** (`23b798bca`, `c372bb2a6`, `923c46311`, `56e9c5d7f`, `b97fd3c02`,
-  `84028a2b9`..`13e8b4a98`): sleep-ordered tests wait on events, guards are 10 s, `watchdog.rs`
-  reads the thread's own clock, `a-wait-parks-only-...` has the new line `short ran while long
-  slept: yes`.
-- The run's reds are stale: `env-secret-proofs` is defined nowhere and has no log, nightly
-  41618735447 ran `98845d92`, and `supply chain` belongs to `ci-green`.
+- The sweep's reds were stale: `env-secret-proofs` is defined nowhere, nightly 41618735447 ran
+  `98845d92`, and `supply chain` belongs to `ci-green`.
 
 ### Next
 
-Stage 5 runs the gate, as its items say.
+1. `bun nv ci --watch` until CI is green on the pushed tip, macOS and Windows included. Fix each red
+   in one pass, then `bun nv ci --push` again. With CI green, tick stage 5's last item and set the
+   goal done.
 
-1. Start `looper verify` with `run_in_background`, end the turn, and fix every failure it names in
-   one pass. Then run it once more.
-2. The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes speed-independent-tests`,
-   `bun nv ci --check`.
-3. `bun nv ci --push` and `bun nv ci --watch` until CI is green, macOS and Windows included.
-
-**Tests that may go red.** The handshake cases in `crates/nvs-db/tests/handshake.rs` returned at
+**Tests that may go red.** `the_watchdog_thread_runs_under_the_time_constraint_policy` was never
+compiled here: no machine of ours builds `aarch64-apple-darwin`. Its types were checked by hand
+against libc 0.2.191's `thread_policy_get`, so macOS CI is its first compile. The handshake cases in `crates/nvs-db/tests/handshake.rs` returned at
 once here, most likely with no database server, so CI is their first real run.
 `crates/nvs-server/src/slotted/tests.rs` searches raw chunked bytes, so a needle split across a
 chunk boundary would fail at the 10 s guard. The spreadsheet header ratio has had one local run
