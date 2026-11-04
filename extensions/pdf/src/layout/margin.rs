@@ -37,12 +37,16 @@
 //! the margin boxes along that side. The page's other items do not move.
 //!
 //! Cost: one layout of a short paragraph for each margin box with text on each page, and a copy
-//! of a running element's items for each page that draws it. Memory: its items on its page, one
+//! of a running element's items for each page that draws it. The named strings, counter changes
+//! and running elements are indexed by name and page once ([`Index`]), so each lookup reads its
+//! own page's entries and the last one before it. Memory: its items on its page, one
 //! text style for each, and each running element's items, each named string's value and each
 //! change of a counter a margin box reads until the render ends.
 
 use parley::VerticalAlign;
 
+use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use super::block::geometry;
@@ -81,39 +85,143 @@ pub(super) struct Set {
     pub(super) fact: Fact,
 }
 
-/// The value of the named string `name` that `which` takes on the page at `page`.
-fn string(strings: &[Set], name: &str, page: usize, which: Which) -> Option<String> {
-    let mut on = strings
-        .iter()
-        .filter(|s| s.fact == Fact::String && s.name == name && s.page == page);
-    let entry = || {
-        strings
-            .iter()
-            .rfind(|s| s.fact == Fact::String && s.name == name && s.page < page)
-    };
-    let one = match which {
-        Which::First => on.next().or_else(entry),
-        Which::Last => on.next_back().or_else(entry),
-        Which::Start => on.next().filter(|s| s.top).or_else(entry),
-        Which::FirstExcept => match on.next() {
-            Some(_) => None,
-            None => entry(),
-        },
-    };
-    one.map(|s| s.value.clone())
+/// The entries of one name in a list of named strings, counter changes or running elements, by
+/// page: each page with an entry, from the first, with its entries' indices in the list in list
+/// order, and the latest index in the list of an entry on that page or an earlier one.
+struct ByPage(Vec<(usize, Vec<usize>, usize)>);
+
+impl ByPage {
+    /// The pages of `entries`, each an index in the list and the page of that entry.
+    fn new(entries: impl Iterator<Item = (usize, usize)>) -> Self {
+        let mut all: Vec<(usize, usize)> = entries.map(|(i, page)| (page, i)).collect();
+        all.sort_unstable();
+        let mut pages: Vec<(usize, Vec<usize>, usize)> = Vec::new();
+        for (page, i) in all {
+            match pages.last_mut() {
+                Some(last) if last.0 == page => {
+                    last.1.push(i);
+                    last.2 = last.2.max(i);
+                }
+                last => {
+                    let latest = last.map_or(i, |last| last.2.max(i));
+                    pages.push((page, vec![i], latest));
+                }
+            }
+        }
+        Self(pages)
+    }
+
+    /// The entries on the page at `page`, in list order.
+    fn on(&self, page: usize) -> &[usize] {
+        match self.0.binary_search_by_key(&page, |p| p.0) {
+            Ok(k) => &self.0[k].1,
+            Err(_) => &[],
+        }
+    }
+
+    /// The latest entry in the list on a page before `page`, or up to it when `with` is true.
+    fn before(&self, page: usize, with: bool) -> Option<usize> {
+        let k = self
+            .0
+            .partition_point(|p| p.0 < page || (with && p.0 == page));
+        k.checked_sub(1).map(|k| self.0[k].2)
+    }
 }
 
-/// The value of the counter `name` a margin box reads on the page at `page`: the value after
-/// its first change on the page, else the value in force when the page starts, else 0.
-fn counter(strings: &[Set], name: &str, page: usize) -> i64 {
-    let mut on = strings
-        .iter()
-        .filter(|s| s.fact == Fact::Counter && s.name == name && s.page <= page);
-    let first = on.clone().find(|s| s.page == page);
-    first
-        .or_else(|| on.next_back())
-        .and_then(|s| s.value.parse().ok())
-        .unwrap_or(0)
+/// The named strings, counter changes and running elements of a document, indexed by name and
+/// page once every page is laid out, so a margin box reads the entries of its own page and the
+/// last one before it, and never the whole list. `reads` counts each lookup and each entry
+/// indexed ([`super::Work::margin_reads`]). Memory: three numbers for each entry, until the
+/// margin boxes are drawn.
+pub(super) struct Index<'a> {
+    strings: &'a [Set],
+    running: &'a [Running],
+    named: BTreeMap<&'a str, ByPage>,
+    counters: BTreeMap<&'a str, ByPage>,
+    elements: BTreeMap<&'a str, ByPage>,
+    pub(super) reads: Cell<usize>,
+}
+
+impl<'a> Index<'a> {
+    pub(super) fn new(running: &'a [Running], strings: &'a [Set]) -> Self {
+        let by = |fact: Fact| {
+            let mut names: BTreeMap<&'a str, Vec<(usize, usize)>> = BTreeMap::new();
+            for (i, set) in strings.iter().enumerate().filter(|(_, s)| s.fact == fact) {
+                names.entry(&set.name).or_default().push((i, set.page));
+            }
+            names
+                .into_iter()
+                .map(|(name, entries)| (name, ByPage::new(entries.into_iter())))
+                .collect()
+        };
+        let mut elements: BTreeMap<&'a str, Vec<(usize, usize)>> = BTreeMap::new();
+        for (i, one) in running.iter().enumerate() {
+            elements.entry(&one.name).or_default().push((i, one.page));
+        }
+        Self {
+            strings,
+            running,
+            named: by(Fact::String),
+            counters: by(Fact::Counter),
+            elements: elements
+                .into_iter()
+                .map(|(name, entries)| (name, ByPage::new(entries.into_iter())))
+                .collect(),
+            reads: Cell::new(strings.len() + running.len()),
+        }
+    }
+
+    /// The entry of `list` that `which` takes on the page at `page`, from the entries `by`
+    /// indexes. `top` says whether an entry is at its page's top.
+    fn take<T>(
+        &self,
+        list: &'a [T],
+        by: Option<&ByPage>,
+        page: usize,
+        which: Which,
+        top: fn(&T) -> bool,
+    ) -> Option<&'a T> {
+        self.reads.set(self.reads.get() + 1);
+        let by = by?;
+        let on = by.on(page);
+        let entry = || by.before(page, false).map(|i| &list[i]);
+        let one = match which {
+            Which::First => on.first(),
+            Which::Last => on.last(),
+            Which::Start => on.first().filter(|i| top(&list[**i])),
+            Which::FirstExcept => return if on.is_empty() { entry() } else { None },
+        };
+        one.map(|i| &list[*i]).or_else(entry)
+    }
+
+    /// The value of the named string `name` that `which` takes on the page at `page`.
+    fn string(&self, name: &str, page: usize, which: Which) -> Option<String> {
+        let by = self.named.get(name);
+        let one = self.take(self.strings, by, page, which, |s| s.top)?;
+        Some(one.value.clone())
+    }
+
+    /// The value of the counter `name` a margin box reads on the page at `page`: the value after
+    /// its first change on the page, else the value in force when the page starts, else 0.
+    fn counter(&self, name: &str, page: usize) -> i64 {
+        self.reads.set(self.reads.get() + 1);
+        let Some(by) = self.counters.get(name) else {
+            return 0;
+        };
+        by.on(page)
+            .first()
+            .copied()
+            .or_else(|| by.before(page, true))
+            .and_then(|i| self.strings[i].value.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// The running element named `name` that `which` takes on the page at `page`, as
+    /// [`Index::string`] takes a named string.
+    fn pick(&self, name: &str, page: usize, which: Which) -> Option<&'a Running> {
+        let by = self.elements.get(name);
+        self.take(self.running, by, page, which, |r| r.top)
+    }
 }
 
 /// What a margin box draws: its blocks, or a copy of a running element's items with their
@@ -144,44 +252,28 @@ enum Fill<'r> {
     Element(&'r Running),
 }
 
-/// The running element named `name` that `which` takes on the page at `page`, as [`string`]
-/// takes a named string.
-fn pick<'r>(running: &'r [Running], name: &str, page: usize, which: Which) -> Option<&'r Running> {
-    let mut on = running.iter().filter(|r| r.name == name && r.page == page);
-    let entry = || running.iter().rfind(|r| r.name == name && r.page < page);
-    match which {
-        Which::First => on.next().or_else(entry),
-        Which::Last => on.next_back().or_else(entry),
-        Which::Start => on.next().filter(|r| r.top).or_else(entry),
-        Which::FirstExcept => match on.next() {
-            Some(_) => None,
-            None => entry(),
-        },
-    }
-}
-
 /// Every margin box of `pages`, with the text style of each pushed onto `spans`.
-pub(super) fn collect(
+pub(super) fn collect<'a>(
     pages: &[Page],
     sheet: &Sheet,
     root: &Style,
     fonts: &Fonts,
-    (running, strings): (&[Running], &[Set]),
+    found: &Index<'a>,
     spans: &mut Vec<Span>,
 ) -> Vec<MarginBox> {
     let count = pages.len() as i64;
     let mut out = Vec::new();
     for (index, page) in pages.iter().enumerate() {
         let matched = sheet.matched(index, page.blank, page.name.as_deref());
-        let named = |name: &str, which| string(strings, name, index, which);
-        let counted = |name: &str| counter(strings, name, index);
+        let named = |name: &str, which| found.string(name, index, which);
+        let counted = |name: &str| found.counter(name, index);
         let fills: Vec<(&'static str, Fill)> = MARGIN_BOXES
             .iter()
             .filter_map(|name| {
                 let values = matched.boxes.get(*name)?;
                 let content = values.get("content").copied();
                 if let Some((element, which)) = paginate::element(content) {
-                    let one = pick(running, &element, index, which)?;
+                    let one = found.pick(&element, index, which)?;
                     return Some((*name, Fill::Element(one)));
                 }
                 let number = index as i64 + 1;
@@ -352,29 +444,32 @@ pub(super) fn backgrounds(
     Ok(())
 }
 
-/// Sets each of `pages`' named strings and marks from `strings`, which holds both. A mark set
-/// past the last page is on the last page.
-pub(super) fn facts(pages: &mut [Page], strings: &[Set]) {
+/// Sets each of `pages`' named strings and marks from `found`'s list, which holds both. A mark
+/// set past the last page is on the last page.
+pub(super) fn facts(pages: &mut [Page], found: &Index<'_>) {
     let mut names: Vec<&str> = Vec::new();
-    for set in strings.iter().filter(|s| s.fact == Fact::String) {
-        if !names.contains(&set.name.as_str()) {
+    let mut seen = BTreeSet::new();
+    for set in found.strings.iter().filter(|s| s.fact == Fact::String) {
+        if seen.insert(set.name.as_str()) {
             names.push(&set.name);
         }
     }
     let last = pages.len().saturating_sub(1);
-    for (index, page) in pages.iter_mut().enumerate() {
+    let mut marks: Vec<Vec<(String, String)>> = vec![Vec::new(); pages.len()];
+    for set in found.strings.iter().filter(|s| s.fact == Fact::Mark) {
+        if let Some(on) = marks.get_mut(set.page.min(last)) {
+            on.push((set.name.clone(), set.value.clone()));
+        }
+    }
+    for ((index, page), marks) in pages.iter_mut().enumerate().zip(marks) {
         page.strings = names
             .iter()
             .filter_map(|name| {
-                let value = string(strings, name, index, Which::First)?;
+                let value = found.string(name, index, Which::First)?;
                 Some(((*name).to_owned(), value))
             })
             .collect();
-        page.marks = strings
-            .iter()
-            .filter(|s| s.fact == Fact::Mark && s.page.min(last) == index)
-            .map(|s| (s.name.clone(), s.value.clone()))
-            .collect();
+        page.marks = marks;
     }
 }
 

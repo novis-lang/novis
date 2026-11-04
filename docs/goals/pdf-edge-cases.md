@@ -322,9 +322,12 @@ handled but untested.
   - [x] `layout::Work` on `Laid`, carried through both `Cx` passes
   - [x] Suffix sums of height and row count, every piece read counted in `table_reads`
   - [x] `cost.rs` `a_table_ten_times_longer_costs_ten_times_the_work`, run once: green
-- [ ] Named strings, counters, running elements and marks are indexed by page once, after layout, so
+- [x] Named strings, counters, running elements and marks are indexed by page once, after layout, so
   each margin box reads its page's entries directly. `extensions/pdf/src/layout/margin.rs:85`,
   `extensions/pdf/src/layout/margin.rs:149`, `extensions/pdf/src/layout/margin.rs:357`
+  - [x] `margin::Index` by name and page, `string`, `counter` and `pick` read through it
+  - [x] `facts` sorts marks onto pages in one pass
+  - [x] `cost.rs` `a_string_set_on_every_page_…`, run once: green
 - [ ] Images are cached by asset reference for the render: one resolve and one decode per distinct
   asset. `extensions/pdf/src/layout/image.rs:70`, `extensions/pdf/src/layout/image.rs:192`
 - [ ] Rules are bucketed by the rightmost compound's id, class or tag (decision 11).

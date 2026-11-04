@@ -212,14 +212,8 @@ fn pass(
         ..
     } = cx;
     let mut spans = spans;
-    let boxes = margin::collect(
-        &flow.pages,
-        &sheet,
-        &root,
-        &fonts,
-        (&running, &strings),
-        &mut spans,
-    );
+    let found = margin::Index::new(&running, &strings);
+    let boxes = margin::collect(&flow.pages, &sheet, &root, &fonts, &found, &mut spans);
     let mut cx = Cx {
         lcx,
         fonts,
@@ -240,7 +234,8 @@ fn pass(
     if cx.deep {
         return Err(too_deep());
     }
-    margin::facts(&mut flow.pages, &strings);
+    margin::facts(&mut flow.pages, &found);
+    cx.work.margin_reads += found.reads.get();
     let laid = Laid {
         pages: flow.pages,
         images,

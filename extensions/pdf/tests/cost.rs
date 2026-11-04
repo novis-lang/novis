@@ -43,3 +43,32 @@ fn a_table_ten_times_longer_costs_ten_times_the_work() {
         "{small} reads for 100 rows, {big} for 1000"
     );
 }
+
+#[test]
+fn a_string_set_on_every_page_costs_the_same_per_page_at_ten_times_the_pages() {
+    let pages = |count: usize| {
+        let body: String = (0..count)
+            .map(|n| format!("<h2>Blog{n}</h2><p data-mark=\"post\">Lorem ipsum.</p>"))
+            .collect();
+        lay(&format!(
+            "<style>@page {{ size: A6; margin: 20mm;
+               @top-center {{ content: string(title) }}
+               @top-right {{ content: element(head) }}
+               @bottom-center {{ content: counter(section) }} }}
+             h2 {{ break-before: page; string-set: title content(); counter-increment: section }}
+             .head {{ position: running(head) }}</style>\
+             <div class=\"head\">Shop</div>{body}"
+        ))
+    };
+    let (small, big) = (pages(20), pages(200));
+    assert!(small.pages.len() >= 20 && big.pages.len() >= 200);
+    assert_eq!(
+        big.pages[150].strings,
+        [("title".to_owned(), "Blog150".to_owned())]
+    );
+    let (small, big) = (small.work.margin_reads, big.work.margin_reads);
+    assert!(
+        linear(small, big),
+        "{small} reads for 20 pages, {big} for 200"
+    );
+}
