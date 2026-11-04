@@ -178,6 +178,11 @@ fn xlsx(sheet: &[u8], shared: &[u8]) -> Vec<u8> {
 
 /// [`xlsx`] whose workbook has the `<definedName>` elements `names`.
 fn xlsx_named(sheet: &[u8], shared: &[u8], names: &str) -> Vec<u8> {
+    xlsx_with(sheet, shared, names, None)
+}
+
+/// [`xlsx_named`] with the styles part `styles`, when there is one.
+fn xlsx_with(sheet: &[u8], shared: &[u8], names: &str, styles: Option<&[u8]>) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let package = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -187,17 +192,43 @@ fn xlsx_named(sheet: &[u8], shared: &[u8], names: &str) -> Vec<u8> {
     let book = format!(
         r#"<workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets><definedNames>{names}</definedNames></workbook>"#
     );
+    let styled = if styles.is_some() {
+        format!(r#"<Relationship Id="rId3" Type="{rel}/styles" Target="styles.xml"/>"#)
+    } else {
+        String::new()
+    };
     let rels = format!(
-        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/></Relationships>"#
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/>{styled}</Relationships>"#
     );
-    zip(&[
+    let mut parts: Vec<(&str, &[u8])> = vec![
         ("[Content_Types].xml", b"<Types/>"),
         ("_rels/.rels", root.as_bytes()),
         ("xl/workbook.xml", book.as_bytes()),
         ("xl/_rels/workbook.xml.rels", rels.as_bytes()),
         ("xl/sharedStrings.xml", shared),
         ("xl/worksheets/sheet1.xml", sheet),
-    ])
+    ];
+    if let Some(styles) = styles {
+        parts.push(("xl/styles.xml", styles));
+    }
+    zip(&parts)
+}
+
+/// A styles part whose custom number formats are `codes`, from id 164 up, each the format of
+/// one cell style in the same order.
+fn styles(codes: &[String]) -> Vec<u8> {
+    let (mut formats, mut xfs) = (String::new(), String::new());
+    for (at, code) in codes.iter().enumerate() {
+        let id = 164 + at;
+        formats.push_str(&format!(r#"<numFmt numFmtId="{id}" formatCode="{code}"/>"#));
+        xfs.push_str(&format!(r#"<xf numFmtId="{id}"/>"#));
+    }
+    format!(
+        r#"<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="{}">{formats}</numFmts><cellXfs count="{}">{xfs}</cellXfs></styleSheet>"#,
+        codes.len(),
+        codes.len()
+    )
+    .into_bytes()
 }
 
 /// A sheet part whose `<sheetData>` is `data`.
@@ -308,10 +339,15 @@ fn read_time(file: &[u8]) -> Duration {
 /// the fastest of three reads of each, taken in turn so both see the same load
 /// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run).
 fn linear(small: &[u8], large: &[u8], what: &str) {
+    linear_by(small, large, what, read_time);
+}
+
+/// [`linear`], with the time of one run of `small` or `large` taken by `time`.
+fn linear_by(small: &[u8], large: &[u8], what: &str, time: fn(&[u8]) -> Duration) {
     let (mut fastest_small, mut fastest_large) = (Duration::MAX, Duration::MAX);
     for _ in 0..3 {
-        fastest_small = fastest_small.min(read_time(small));
-        fastest_large = fastest_large.min(read_time(large));
+        fastest_small = fastest_small.min(time(small));
+        fastest_large = fastest_large.min(time(large));
     }
     assert!(
         fastest_large < fastest_small * 32,
@@ -446,8 +482,8 @@ fn first_rows_under(
         let mut args = vec![source.clone(), bound(None, None)];
         cap_decompression(SPREADSHEET_CLASS, "readerOpen", &mut args, in_force);
         let reader = block_on(request.call_values(&extension, "readerOpen", args))
-        .map_err(|err| err.to_string())?
-        .expect("`readerOpen` returns a reader");
+            .map_err(|err| err.to_string())?
+            .expect("`readerOpen` returns a reader");
         let options = rows_options(Value::Null, Value::Uint(limit), false);
         let batch = block_on(request.call_values(
             &extension,
@@ -1202,16 +1238,7 @@ fn the_shared_string_table_counts_against_the_archive_ceiling() {
         &sheet(r#"<row r="1"><c r="A1" t="s"><v>0</v></c></row>"#),
         &shared(&items),
     );
-    let under = |bytes: u64| {
-        first_rows_under(
-            &file,
-            1,
-            Decompression {
-                bytes,
-                ..SHIPPED
-            },
-        )
-    };
+    let under = |bytes: u64| first_rows_under(&file, 1, Decompression { bytes, ..SHIPPED });
     let failure = under(1 << 20).expect_err("2 MB of strings is past a 1 MiB ceiling");
     assert!(failure.contains("xl/sharedStrings.xml"), "{failure}");
     assert!(failure.contains("max_decompressed"), "{failure}");
@@ -1243,4 +1270,93 @@ fn many_shared_formula_groups_in_a_row_read_in_linear_time() {
         )
     };
     linear(&book(2048), &book(16_384), "shared-formula groups");
+}
+
+/// A styles part of 2,048 and one of 16,384 custom number formats, each the format of one cell
+/// style, opened and read at most four times as slowly per format. Found by a search of every
+/// code per style, the work grew with the square of the size.
+#[test]
+fn many_custom_number_formats_read_in_linear_time() {
+    let book = |count: usize| {
+        let codes = vec!["0.00".to_owned(); count];
+        let last = count - 1;
+        xlsx_with(
+            &sheet(&format!(
+                r#"<row r="1"><c r="A1" s="{last}"><v>1.5</v></c></row>"#
+            )),
+            &shared(&[]),
+            "",
+            Some(&styles(&codes)),
+        )
+    };
+    linear(&book(2048), &book(16_384), "custom number formats");
+}
+
+/// A format code of 32 KiB and one of 256 KiB, made of the letters `g` and `a`, read at most
+/// four times as slowly per byte. The format is read when the file opens. Copied from each
+/// letter to the end of the code, the work grew with the square of the size.
+#[test]
+fn a_long_format_code_with_many_g_and_a_letters_renders_in_linear_time() {
+    let book = |bytes: usize| {
+        let code = "ga".repeat(bytes / 2);
+        xlsx_with(
+            &sheet(r#"<row r="1"><c r="A1" s="0"><v>1.5</v></c></row>"#),
+            &shared(&[]),
+            "",
+            Some(&styles(&[code])),
+        )
+    };
+    linear(&book(32 << 10), &book(256 << 10), "a long format code");
+}
+
+/// The time `readerEvaluate` takes over `file`, from the open to its result, under [`CAP`].
+/// Every formula is computed.
+fn evaluate_time(file: &[u8]) -> Duration {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let started = std::time::Instant::now();
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
+    let source = Value::Bytes(file.to_vec());
+    let missed = (|| {
+        let reader = block_on(request.call_values(
+            &extension,
+            "readerOpen",
+            vec![source.clone(), bound(None, None)],
+        ))
+        .map_err(|err| err.to_string())?
+        .expect("`readerOpen` returns a reader");
+        block_on(request.call_values(&extension, "readerEvaluate", vec![reader, source.clone()]))
+            .map_err(|err| err.to_string())
+    })();
+    let took = started.elapsed();
+    drop(block_on(request.end()));
+    match missed {
+        Ok(Some(Value::Array(missed))) => assert!(missed.is_empty(), "missed {missed:?}"),
+        other => panic!("the workbook evaluates: {other:?}"),
+    }
+    took
+}
+
+/// 1,000 and 8,000 rows, each a value in `B` and a formula in `C` that adds up column `A`, which
+/// has one cell. Evaluated at most four times as slowly per row. When each `A:A` walked every
+/// stored cell of the sheet, the work grew with the square of the size.
+#[test]
+fn a_whole_column_reference_visits_only_that_column() {
+    let book = |rows: u32| {
+        let mut data = String::from(
+            r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>1</v></c><c r="C1"><f>SUM(A:A)</f><v>0</v></c></row>"#,
+        );
+        for row in 2..=rows {
+            data.push_str(&format!(
+                r#"<row r="{row}"><c r="B{row}"><v>1</v></c><c r="C{row}"><f>SUM(A:A)</f><v>0</v></c></row>"#
+            ));
+        }
+        xlsx(&sheet(&data), &shared(&[]))
+    };
+    linear_by(
+        &book(1000),
+        &book(8000),
+        "whole-column references",
+        evaluate_time,
+    );
 }

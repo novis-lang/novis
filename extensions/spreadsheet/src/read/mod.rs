@@ -574,9 +574,11 @@ fn relationships(
     Ok(out)
 }
 
-/// The number format of each cell style index in `styles.xml`.
+/// The number format of each cell style index in `styles.xml`. The custom codes are found by a
+/// map, so a part with many custom formats reads in linear time. A code id written twice keeps
+/// its first code.
 fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
-    let mut codes: Vec<(u32, Arc<str>)> = Vec::new();
+    let mut codes: HashMap<u32, Arc<str>> = HashMap::new();
     let mut styles = Vec::new();
     let mut in_xfs = false;
     let mut at = 0;
@@ -588,7 +590,7 @@ fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
                     let id = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok());
                     if let (Some(id), Some(code)) = (id, xml::attr_text(attrs, b"formatCode")?) {
-                        codes.push((id, Arc::from(code)));
+                        codes.entry(id).or_insert_with(|| Arc::from(code));
                     }
                 }
                 b"cellXfs" => in_xfs = !empty,
@@ -596,8 +598,7 @@ fn styles(part: &[u8]) -> Result<Vec<Style>, Error> {
                     let id: u32 = xml::attr(attrs, b"numFmtId")
                         .and_then(|id| std::str::from_utf8(id).ok()?.parse().ok())
                         .unwrap_or(0);
-                    let custom = codes.iter().find(|(code, _)| *code == id);
-                    styles.push(Style::of(id, custom.map(|(_, code)| code)));
+                    styles.push(Style::of(id, codes.get(&id)));
                 }
                 _ => {}
             },

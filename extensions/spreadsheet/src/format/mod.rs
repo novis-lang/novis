@@ -241,7 +241,16 @@ pub fn lex(text: &str) -> Section {
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
-        let rest = || chars[i..].iter().collect::<String>();
+        // Whether the code goes on with `word` at `i`, in any case. It reads only as many
+        // characters as `word` has, so a long code with many `g` and `a` letters lexes in
+        // linear time.
+        let starts = |word: &str| {
+            chars.len() - i >= word.len()
+                && chars[i..]
+                    .iter()
+                    .zip(word.chars())
+                    .all(|(c, w)| c.eq_ignore_ascii_case(&w))
+        };
         match c {
             '"' => {
                 let end = chars[i + 1..]
@@ -290,17 +299,17 @@ pub fn lex(text: &str) -> Section {
                 i += 2;
                 continue;
             }
-            'G' | 'g' if rest().to_ascii_lowercase().starts_with("general") => {
+            'G' | 'g' if starts("general") => {
                 tokens.push(Token::General);
                 i += 7;
                 continue;
             }
-            'A' | 'a' if rest().to_ascii_uppercase().starts_with("AM/PM") => {
+            'A' | 'a' if starts("AM/PM") => {
                 tokens.push(Token::Meridiem(None));
                 i += 5;
                 continue;
             }
-            'A' | 'a' if rest().to_ascii_uppercase().starts_with("A/P") => {
+            'A' | 'a' if starts("A/P") => {
                 tokens.push(Token::Meridiem(Some((c, chars[i + 2]))));
                 i += 3;
                 continue;

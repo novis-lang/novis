@@ -2,7 +2,8 @@
 //! (`rule:core-classes/spreadsheet-evaluation-and-roster`).
 //!
 //! A [`Book`] is a sparse grid per sheet: one [`Value`] per non-empty cell in a `BTreeMap` by
-//! row and column, so a whole-column reference (`A:A`) walks only the cells that exist. Each
+//! row and column, with the rows of each column listed beside it, so a whole-column reference
+//! (`A:A`) walks only the cells that exist in its columns. Each
 //! formula cell also has its text, and the value it had in the file until it is computed. The
 //! workbook's defined names and tables are kept as given.
 //!
@@ -35,7 +36,8 @@ pub mod parse;
 mod text;
 pub mod value;
 
-use std::collections::BTreeMap;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, btree_map, btree_set};
 
 use crate::read::CellError;
 use parse::{Area, Expr, Item, Rect, Structured, Unreadable};
@@ -103,12 +105,131 @@ pub struct Table {
     pub columns: Vec<String>,
 }
 
+/// One sheet: its cells, its formula cells, and the rows the file hides.
 #[derive(Debug, Default)]
 struct Sheet {
     name: String,
-    cells: BTreeMap<(u32, u32), Value>,
-    formulas: BTreeMap<(u32, u32), usize>,
-    hidden: std::collections::BTreeSet<u32>,
+    cells: Grid<Value>,
+    formulas: Grid<usize>,
+    hidden: BTreeSet<u32>,
+}
+
+/// Values by row and then column, with the rows of each column listed beside them, so a tall
+/// reference such as `A:A` walks only its own columns ([`Stored`]). The list costs one entry per
+/// stored cell, per evaluation, and is freed with the book.
+#[derive(Debug)]
+struct Grid<V> {
+    by_row: BTreeMap<(u32, u32), V>,
+    columns: BTreeMap<u32, BTreeSet<u32>>,
+}
+
+impl<V> Default for Grid<V> {
+    fn default() -> Self {
+        Self {
+            by_row: BTreeMap::new(),
+            columns: BTreeMap::new(),
+        }
+    }
+}
+
+impl<V> Grid<V> {
+    fn get(&self, row: u32, col: u32) -> Option<&V> {
+        self.by_row.get(&(row, col))
+    }
+
+    fn insert(&mut self, row: u32, col: u32, value: V) {
+        self.by_row.insert((row, col), value);
+        self.columns.entry(col).or_default().insert(row);
+    }
+
+    fn remove(&mut self, row: u32, col: u32) {
+        if self.by_row.remove(&(row, col)).is_some()
+            && let Some(rows) = self.columns.get_mut(&col)
+        {
+            rows.remove(&row);
+            if rows.is_empty() {
+                self.columns.remove(&col);
+            }
+        }
+    }
+
+    /// The values of `rect`, by row and then column.
+    fn walk(&self, rect: Rect) -> Stored<'_, V> {
+        let map = &self.by_row;
+        if rect.top > rect.bottom || rect.left > rect.right {
+            return Stored::Columns {
+                map,
+                columns: Vec::new(),
+                heap: BinaryHeap::new(),
+            };
+        }
+        if rect.bottom - rect.top > rect.right - rect.left {
+            let mut columns = Vec::new();
+            let mut heap = BinaryHeap::new();
+            for (&col, rows) in self.columns.range(rect.left..=rect.right) {
+                let mut rows = rows.range(rect.top..=rect.bottom);
+                if let Some(&row) = rows.next() {
+                    heap.push(Reverse((row, col, columns.len())));
+                    columns.push(rows);
+                }
+            }
+            Stored::Columns { map, columns, heap }
+        } else {
+            Stored::Rows {
+                map,
+                range: map.range((rect.top, rect.left)..=(rect.bottom, rect.right)),
+                rect,
+            }
+        }
+    }
+}
+
+/// The values of one rectangle, by row and then column. A rectangle taller than it is wide
+/// walks the columns it covers and merges their rows. Any other walks the rows it covers and
+/// skips from the end of each row's span to the start of the next. Neither reads a value
+/// outside the rectangle's columns.
+enum Stored<'a, V> {
+    Rows {
+        map: &'a BTreeMap<(u32, u32), V>,
+        range: btree_map::Range<'a, (u32, u32), V>,
+        rect: Rect,
+    },
+    Columns {
+        map: &'a BTreeMap<(u32, u32), V>,
+        columns: Vec<btree_set::Range<'a, u32>>,
+        heap: BinaryHeap<Reverse<(u32, u32, usize)>>,
+    },
+}
+
+impl<'a, V> Iterator for Stored<'a, V> {
+    type Item = (u32, u32, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Rows { map, range, rect } => loop {
+                let (&(row, col), value) = range.next()?;
+                if col < rect.left {
+                    *range = map.range((row, rect.left)..=(rect.bottom, rect.right));
+                } else if col > rect.right {
+                    if row >= rect.bottom {
+                        return None;
+                    }
+                    *range = map.range((row + 1, rect.left)..=(rect.bottom, rect.right));
+                } else {
+                    return Some((row, col, value));
+                }
+            },
+            Self::Columns { map, columns, heap } => loop {
+                let Reverse((row, col, at)) = heap.pop()?;
+                if let Some(&next) = columns[at].next() {
+                    heap.push(Reverse((next, col, at)));
+                }
+                if let Some(value) = map.get(&(row, col)) {
+                    return Some((row, col, value));
+                }
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -177,9 +298,9 @@ impl Book {
     pub fn set(&mut self, sheet: usize, row: u32, col: u32, value: Value) {
         let cells = &mut self.sheets[sheet].cells;
         if value == Value::Blank {
-            cells.remove(&(row, col));
+            cells.remove(row, col);
         } else {
-            cells.insert((row, col), value);
+            cells.insert(row, col, value);
         }
     }
 
@@ -194,12 +315,11 @@ impl Book {
             text: text.map(str::to_owned),
             computed: false,
         };
-        match self.sheets[sheet].formulas.get(&(row, col)) {
+        match self.sheets[sheet].formulas.get(row, col) {
             Some(&at) => self.formulas[at] = formula,
             None => {
-                self.sheets[sheet]
-                    .formulas
-                    .insert((row, col), self.formulas.len());
+                let at = self.formulas.len();
+                self.sheets[sheet].formulas.insert(row, col, at);
                 self.formulas.push(formula);
             }
         }
@@ -222,7 +342,7 @@ impl Book {
     pub fn value(&self, sheet: usize, row: u32, col: u32) -> &Value {
         self.sheets
             .get(sheet)
-            .and_then(|s| s.cells.get(&(row, col)))
+            .and_then(|s| s.cells.get(row, col))
             .unwrap_or(&BLANK)
     }
 
@@ -230,10 +350,10 @@ impl Book {
     /// was not computed.
     pub fn computed(&self, sheet: usize, row: u32, col: u32) -> Option<&Value> {
         let s = self.sheets.get(sheet)?;
-        let &at = s.formulas.get(&(row, col))?;
+        let &at = s.formulas.get(row, col)?;
         self.formulas[at]
             .computed
-            .then(|| s.cells.get(&(row, col)).unwrap_or(&BLANK))
+            .then(|| s.cells.get(row, col).unwrap_or(&BLANK))
     }
 
     /// The value at `reference`, `Sheet!A1` or `A1` on the first sheet.
@@ -301,7 +421,7 @@ impl Book {
                         .result(expr);
                         match result {
                             Ok(v) => {
-                                self.sheets[sheet].cells.insert((row, col), v);
+                                self.sheets[sheet].cells.insert(row, col, v);
                                 self.formulas[at].computed = true;
                                 None
                             }
@@ -337,12 +457,7 @@ impl Book {
         while let Some(node) = stack.pop() {
             let mut area = |sheet: usize, rect: Rect| {
                 if let Some(s) = self.sheets.get(sheet) {
-                    out.extend(
-                        s.formulas
-                            .range((rect.top, rect.left)..=(rect.bottom, rect.right))
-                            .filter(|((_, col), _)| (rect.left..=rect.right).contains(col))
-                            .map(|(_, &i)| i),
-                    );
+                    out.extend(s.formulas.walk(rect).map(|(_, _, &i)| i));
                 }
             };
             match node {
@@ -599,13 +714,7 @@ impl<'a> Ctx<'a> {
 
     /// The cells of `rect` on `sheet` that are not blank.
     pub fn cells(&self, sheet: usize, rect: Rect) -> impl Iterator<Item = &'a Value> + use<'a> {
-        let book = self.book;
-        book.sheets.get(sheet).into_iter().flat_map(move |s| {
-            s.cells
-                .range((rect.top, rect.left)..=(rect.bottom, rect.right))
-                .filter(move |((_, col), _)| (rect.left..=rect.right).contains(col))
-                .map(|(_, v)| v)
-        })
+        self.entries(sheet, rect).map(|(_, _, v)| v)
     }
 
     /// The non-blank cells of `rect` on `sheet` with their row and column, by row and then
@@ -616,12 +725,10 @@ impl<'a> Ctx<'a> {
         rect: Rect,
     ) -> impl Iterator<Item = (u32, u32, &'a Value)> + use<'a> {
         let book = self.book;
-        book.sheets.get(sheet).into_iter().flat_map(move |s| {
-            s.cells
-                .range((rect.top, rect.left)..=(rect.bottom, rect.right))
-                .filter(move |((_, col), _)| (rect.left..=rect.right).contains(col))
-                .map(|(&(row, col), v)| (row, col, v))
-        })
+        book.sheets
+            .get(sheet)
+            .into_iter()
+            .flat_map(move |s| s.cells.walk(rect))
     }
 
     /// The value of one cell, blank when it is empty.
@@ -650,7 +757,7 @@ impl<'a> Ctx<'a> {
         self.book
             .sheets
             .get(sheet)
-            .and_then(|s| s.formulas.get(&(row, col)))
+            .and_then(|s| s.formulas.get(row, col))
             .and_then(|&at| self.book.formulas[at].text.as_deref())
             .is_some_and(|text| text.to_ascii_uppercase().contains("SUBTOTAL("))
     }

@@ -326,12 +326,19 @@ are, one conformance case and one attack.
   - [x] a row's groups name each cell by its index, so `share` searches nothing (xlsx; xlsb's
     `binary.rs:812` search is over the groups still open, not the row, and is left)
   - [x] `many_shared_formula_groups_in_a_row_read_in_linear_time` passes
-- [ ] A custom format code is found by a linear search per xf; use a map.
+- [x] A custom format code is found by a linear search per xf; use a map.
   `extensions/spreadsheet/src/read/mod.rs:553`
-- [ ] `rest()` allocates for each `g` and `a` in a format code, quadratic over a long code; slice
+  - [x] `styles` keeps the custom codes in a `HashMap` by id, the first code of an id kept
+  - [x] `many_custom_number_formats_read_in_linear_time` passes
+- [x] `rest()` allocates for each `g` and `a` in a format code, quadratic over a long code; slice
   without a copy. `extensions/spreadsheet/src/format/mod.rs:244`
-- [ ] FE-07: a whole-column read scans every stored cell in the row span; walk only that column
+  - [x] `lex` compares the next characters in place (`starts`), with no copy
+  - [x] `a_long_format_code_with_many_g_and_a_letters_renders_in_linear_time` passes
+- [x] FE-07: a whole-column read scans every stored cell in the row span; walk only that column
   (decision 6). `extensions/spreadsheet/src/eval/mod.rs:109`, `extensions/spreadsheet/src/eval/mod.rs:601`
+  - [x] the evaluator's cells and formulas are each a `Grid` with a by-column row list, and a
+    rect taller than it is wide walks its columns (`Stored`); `precedents` walks it too
+  - [x] `a_whole_column_reference_visits_only_that_column` passes
 - [ ] SEC-13, RL-06: an encrypted xlsx says "it has no workbook stream", and an xls with FILEPASS is
   not detected and decodes cipher text. Both throw the message in decision 7.
   `extensions/spreadsheet/src/read/xls.rs:330`, `extensions/spreadsheet/src/read/xls.rs:344`
