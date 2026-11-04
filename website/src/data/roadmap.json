@@ -3,6 +3,13 @@
   "internal": ["speed-independent-tests"],
   "themes": [
     {
+      "title": "Spreadsheet edge cases",
+      "text": "`Novis\\Spreadsheet` gets a test for each kind of file that other spreadsheet libraries read or write wrong. Each case it does not support is listed with its reason.",
+      "goals": [
+        "spreadsheet-edge-cases"
+      ]
+    },
+    {
       "title": "A calmer editor",
       "text": "The Novis themes for VS Code draw brackets in the text colour and use quieter colours for methods and variables. A new setting turns off the parameter-name hints.",
       "goals": [
