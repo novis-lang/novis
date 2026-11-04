@@ -264,11 +264,17 @@ struct At {
 }
 
 impl At {
+    /// Outside a bundled executable the two forms are one system call's
+    /// answer, so the path is resolved once. A bundle resolves against its
+    /// payload, and there the claim is resolved on its own.
     fn of(path: &Path) -> Self {
-        Self {
-            key: canonical_key(path),
-            claimed: crate::autoload::resolved(path),
-        }
+        let key = canonical_key(path);
+        let claimed = if nvs_diagnostics::embedded::is_active() {
+            crate::autoload::resolved(path)
+        } else {
+            key.clone()
+        };
+        Self { key, claimed }
     }
 }
 
@@ -513,6 +519,19 @@ mod tests {
             .collect();
         found.sort();
         found
+    }
+
+    /// Asking which lender a file belongs to resolves its path once, for the
+    /// lenders' reads and their maps' roots alike (`rule:testing/bench-counters`).
+    /// It resolved the path twice, once for each.
+    #[test]
+    fn a_path_asked_about_is_resolved_once() {
+        let dir = tree("at-once", &[("src/Thing.nvs", "<?nvs\n")]);
+        let before = nvs_diagnostics::work::so_far();
+        let at = At::of(&dir.join("src/Thing.nvs"));
+        let after = nvs_diagnostics::work::so_far();
+        assert_eq!(after.resolved - before.resolved, 1);
+        assert_eq!(at.key, at.claimed);
     }
 
     #[test]

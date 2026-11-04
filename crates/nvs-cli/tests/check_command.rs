@@ -418,6 +418,40 @@ fn a_directory_check_resolves_only_what_a_file_requires() {
     );
 }
 
+/// A class the program names is found by one probe of its `autoload` root, and
+/// that probe is the one time its path is resolved (`rule:testing/bench-counters`).
+/// The walk resolved each autoloaded file's directory again, which made it two.
+#[test]
+fn an_autoloaded_file_is_resolved_once() {
+    let resolved = |classes: u64| -> u64 {
+        let dir = scratch(&format!("count-autoload-{classes}"));
+        fs::write(dir.join("nvs.toml"), "").unwrap();
+        fs::create_dir_all(dir.join("lib")).unwrap();
+        let mut main = String::from("<?nvs\nautoload 'App' from './lib';\n");
+        for at in 0..classes {
+            fs::write(
+                dir.join("lib").join(format!("C{at}.nvs")),
+                format!(
+                    "<?nvs\nnamespace App;\n\nfinal class C{at} {{\n    public int $v = {at};\n}}\n"
+                ),
+            )
+            .unwrap();
+            main.push_str(&format!("echo (new App\\C{at}())->v, \"\\n\";\n"));
+        }
+        fs::write(dir.join("main.nvs"), main).unwrap();
+        let out = check_in(&dir, &["--count", "main.nvs"]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{stderr}");
+        compile_counts(&stderr)
+            .iter()
+            .find(|(name, _)| name == "resolved")
+            .map(|(_, value)| *value)
+            .unwrap_or_else(|| panic!("`--count` counts `resolved`: {stderr}"))
+    };
+    let (four, eight) = (resolved(4), resolved(8));
+    assert_eq!(eight - four, 4, "{four} for 4 classes, {eight} for 8");
+}
+
 /// The require scan of a directory, its walk and the compile share one map, so
 /// a directory check reads each file once (`rule:testing/bench-counters`). It
 /// read each test file three times: once for the word `require`, once in the

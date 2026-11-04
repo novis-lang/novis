@@ -315,9 +315,16 @@ than the files). The session writes the items.
   The editor's warm-start figure is not measured again yet (stage 5's `lsp-start` item).
 - [x] Once a lender is found, the class file is loaded and checked a second time with a fresh map.
   Keep the first load. `crates/nvs-cli/src/main.rs:1260` *As built:* `SourceMap::adopt`.
-- [ ] An autoloaded file's path is resolved by the directory walk, again by the name probe, and a third
+- [x] An autoloaded file's path is resolved by the directory walk, again by the name probe, and a third
   time when claims are compared: about two resolutions per extra file on an uncached compile. Resolve
   it once and carry the result. `crates/nvs-hir/src/autoload.rs:871`, `:560`, `:880`
+  *As built:* the second resolution was the `require` walk resolving each popped file's directory,
+  which it now does only at the file's first `require` (`6c13c3390`). A name probe and a directory scan
+  each resolve a file once, and no compile runs both for one file. The claims comparison is the lender
+  search's alone: `At::of` (`crates/nvs-hir/src/lenders.rs`) resolved one path twice, and resolves it
+  once outside a bundle. Tests `an_autoloaded_file_is_resolved_once` (`check_command.rs`, one
+  resolution per extra class) and `a_path_asked_about_is_resolved_once` (`lenders.rs`).
+  `examples/program.nvs` went from 23 resolutions to 17.
 - [ ] The run's cache key resolves the entry path the compile already resolved, and again on each
   validation. `crates/nvs-cli/src/script.rs:1436`, `:1744`, `:1960`
 - [x] `nvs test <dir>` reads every file once only to look for `require` (`std::fs::read_to_string`,
