@@ -46,9 +46,16 @@
 # this workflow file and the `marketplace` environment. That environment admits `v*` tags and
 # `main` (a manual dispatch runs on `main`) and waits for a reviewer's approval.
 #
+# The same job then publishes the same file to Open VSX, the registry VSCodium, Cursor and the other
+# VS Code forks install from. `ovsx publish --trusted-publishing` exchanges a second OIDC token, issued
+# for the audience `https://open-vsx.org`, for an Open VSX token that lasts five minutes. The
+# `novis-lang` namespace's trusted publisher names the same repository, workflow file and
+# environment. One job holds both uploads, so a release waits for one approval and verifies the
+# file once.
+#
 # `bun nv release --newest` skips a version that is not the newest tag, as `--floating` does for
-# `latest`. `--skip-duplicate` makes a rerun after a published upload a success, so a manual dispatch
-# repairs a failed upload without a new release.
+# `latest`. `--skip-duplicate` on both uploads makes a rerun after a published upload a success, so
+# a manual dispatch repairs whichever upload failed without a new release.
 
 name: Promote release images
 
@@ -181,7 +188,8 @@ jobs:
       contents: read
       # `gh attestation verify` reads the release run's attestation.
       attestations: read
-      # The OIDC token `vsce publish --oidc` exchanges for the Marketplace token.
+      # The OIDC tokens `vsce publish --oidc` and `ovsx publish --trusted-publishing` exchange for
+      # the Marketplace and Open VSX tokens.
       id-token: write
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -216,14 +224,14 @@ jobs:
           gh release download "$TAG" --repo "$REPO" --pattern "$file" --dir "$RUNNER_TEMP/vsix"
           gh attestation verify "$RUNNER_TEMP/vsix/$file" --repo "$REPO"
 
-      # `vsce` at the version the tag's lockfile pins. `--ignore-scripts`, because no install script
-      # should run in a job that is about to hold a publish credential, and `vsce publish` loads none
-      # of the packages that have one.
+      # `vsce` and `ovsx` at the versions the checked-out lockfile pins. `--ignore-scripts`, because
+      # no install script should run in a job that is about to hold a publish credential, and
+      # neither publish loads a package that has one.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         if: steps.newest.outputs.newest == 'true'
         with:
           node-version-file: editors/vscode/.nvmrc
-      - name: Install vsce
+      - name: Install vsce and ovsx
         if: steps.newest.outputs.newest == 'true'
         working-directory: editors/vscode
         run: npm ci --ignore-scripts
@@ -239,4 +247,20 @@ jobs:
             echo "### The VS Code extension \`${TAG#v}\` is on the Marketplace"
             echo
             echo "https://marketplace.visualstudio.com/items?itemName=novis-lang.nvs"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # `--trusted-publishing` fails the step when no OIDC token can be had, so a missing
+      # `id-token` permission never falls back to a stored token. No `OVSX_PAT` is set anywhere: a
+      # token would take precedence over the trusted publisher.
+      - name: Publish to Open VSX
+        if: steps.newest.outputs.newest == 'true'
+        working-directory: editors/vscode
+        run: |
+          set -euo pipefail
+          node_modules/.bin/ovsx publish --trusted-publishing --skip-duplicate \
+            --packagePath "$RUNNER_TEMP/vsix/nvs-${TAG#v}.vsix"
+          {
+            echo "### The VS Code extension \`${TAG#v}\` is on Open VSX"
+            echo
+            echo "https://open-vsx.org/extension/novis-lang/nvs"
           } >> "$GITHUB_STEP_SUMMARY"

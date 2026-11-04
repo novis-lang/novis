@@ -67,9 +67,12 @@ from a terminal:
 
 <Code lang="sh" code="code --install-extension novis-lang.nvs" />
 
-VSCodium, Cursor and some other editors do not use the VS Code Marketplace. Each release also has the
-extension as a file: <a href={vsix.url}><code>{vsix.file}</code></a>. This command installs the file
-you downloaded:
+VSCodium, Cursor and some other editors install extensions from
+[Open VSX](https://open-vsx.org/extension/novis-lang/nvs). The extension is there too. Search for
+`Novis` in the Extensions view of your editor.
+
+Each release also has the extension as a file: <a href={vsix.url}><code>{vsix.file}</code></a>.
+This command installs the file you downloaded:
 
 <Code lang="sh" code={`code --install-extension ${vsix.file}`} />
 

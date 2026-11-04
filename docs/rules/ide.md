@@ -2994,6 +2994,15 @@ every editor that has the extension. A version behind the newest tag is skipped
 (`bun nv release --newest`), so publishing an old draft late moves no listing back. `"preview": true`
 marks the listing while Novis is before 1.0.
 
+**The same job lists that file on Open VSX**, the registry VSCodium, Cursor and other VS Code builds
+read, as `novis-lang.nvs` in the verified `novis-lang` namespace. `ovsx publish --trusted-publishing`
+exchanges a second OIDC token for an Open VSX token that lasts five minutes, and the namespace's trusted
+publisher accepts it only from the same repository, workflow file and environment. One job holds both
+uploads, so one approval releases both and the attestation is checked once; `--skip-duplicate` on each
+makes a rerun repair whichever upload failed. Open VSX registers a trusted publisher only for an
+extension that already has a version, so a new namespace's first version is uploaded by hand with an
+access token that is deleted straight after (`docs/release.md` § 7).
+
 The package carries the branding the listing shows. `media/novis-logo.png` is the extension's icon and both languages' file icon, copied from
 `website/media/` because a `.vsix` holds no path out of its own directory; `displayName` is the H1 of the
 repository's `README.md`, the same home `nvs --help`'s first line reads from
@@ -3014,8 +3023,11 @@ and why a copy the extension installed is tried after the user's own toolchain r
   GitHub's immutable subject case for case, and a publisher membership added by a Marketplace profile
   id that only a run signed in as the identity can read. Trusted Publishing is one policy on the
   publisher.
-- **A listing on Open VSX**, the registry VSCodium, Cursor and other VS Code builds read. It has no OIDC
-  exchange, so it needs a stored token in the release. Its users install the release's `.vsix`.
+- **An `OVSX_PAT` secret for Open VSX.** It lives until somebody deletes it, and `ovsx` uses a token in
+  preference to the trusted publisher, so one left in the repository would silently become the
+  credential.
+- **A separate Open VSX job.** It would wait for a second approval of the same release and download and
+  verify the same file again.
 - **No reviewer on the `marketplace` environment.** Publishing the draft would then be the only click,
   and any push to `main` or of a `v*` tag could publish a listing every installed copy updates to.
 

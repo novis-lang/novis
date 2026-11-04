@@ -65,10 +65,11 @@ which `rule:ide/novis-ships-names-not-colours` refuses. So the glyph is one BMP 
 emoji presentation, no colour font to be at the mercy of, drawn in the editor's own face and coloured by
 a theme reference (`rule:ide/tainted-has-no-default-decoration`).
 
-**Each release attaches the `.vsix`, and publishing the release lists it on the Marketplace.** CI
-builds an installable `.vsix` as an artifact, and every release attaches `nvs-<version>.vsix` at its own
-version beside the archives. When the draft is published, `release-promote.yml`'s `marketplace` job
-uploads that same file as `novis-lang.nvs`, once a reviewer approves the `marketplace` environment.
+**Each release attaches the `.vsix`, and publishing the release lists it on the Marketplace and Open
+VSX.** CI builds an installable `.vsix` as an artifact, and every release attaches `nvs-<version>.vsix`
+at its own version beside the archives. When the draft is published, `release-promote.yml`'s
+`marketplace` job uploads that same file as `novis-lang.nvs` to both, once a reviewer approves the
+`marketplace` environment.
 There is nothing to run by hand, and no token to renew; a failed upload is repaired with *Run workflow*
 on that workflow and the release's tag. `rule:ide/the-extension-runs-where-the-binary-is` says what it
 trusts and why.

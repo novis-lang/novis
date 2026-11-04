@@ -140,10 +140,10 @@ able to push to it without any credential of its own.
 
 This is once, ever. Subsequent releases push to the same package.
 
-### 7. The VS Code Marketplace
+### 7. The VS Code Marketplace and Open VSX
 
 `release-promote.yml`'s `marketplace` job lists each published release's `.vsix` on the VS Code
-Marketplace, and it signs in with no stored credential:
+Marketplace and on Open VSX, and it signs in to both with no stored credential:
 
 - **The publisher** `novis-lang` on the Marketplace (registered as `Novis-Lang`; the lookup ignores
   case), owned by the Microsoft account of the Azure DevOps organisation.
@@ -155,11 +155,20 @@ Marketplace, and it signs in with no stored credential:
 - **Settings → Environments → New environment**, named exactly `marketplace`: **Required reviewers** →
   add yourself, and **Deployment branches and tags** → *Selected branches and tags* → the tag rule
   `v*` and the branch `main`. A release runs the job on its tag, and a repair dispatch on `main`.
+- **The namespace** `novis-lang` on open-vsx.org, created with `ovsx create-namespace` and claimed as
+  verified. Its owner signed the Eclipse Publisher Agreement with an Eclipse account linked to their
+  GitHub account.
+- **A trusted publisher** on that namespace (open-vsx.org → *Settings → Trusted Publishers*): owner
+  `novis-lang`, repository `novis`, workflow `release-promote.yml`, environment `marketplace`.
+  `ovsx publish --trusted-publishing` exchanges the job's OIDC token for a token that lasts five
+  minutes. Open VSX registers a trusted publisher only for an extension that has a version already,
+  so a new namespace's first version is uploaded by hand with a token from *Settings → Access Tokens*
+  (`ovsx publish nvs-<version>.vsix` with `OVSX_PAT` set), and that token is deleted straight after.
 
 ### 8. Nothing else
 
 There is no other secret to create, no PAT to store, no deploy key, no signing key and no registry
-token — the container registry and the Marketplace included. If a future step asks you to add one,
+token — the container registry, the Marketplace and Open VSX included. If a future step asks you to add one,
 that step is the thing to question.
 
 ## Cutting a release
@@ -218,7 +227,7 @@ person's click either way.
    and the promotion was therefore missed, dispatch that workflow with the tag — it is idempotent.
 
    Its `marketplace` job then waits on the `marketplace` environment. **Approve it** in the run's
-   page, and it lists the release's `.vsix` on the VS Code Marketplace. Until then `bun nv ci
+   page, and it lists the release's `.vsix` on the VS Code Marketplace and Open VSX. Until then `bun nv ci
    --release-published` stays red and names that approval.
 
 8. **Resume the loop.** First `git fetch` and `git merge --ff-only origin/main`, so local `main`
@@ -256,8 +265,8 @@ regime and declares the version contract — "the switch is thrown once, in the 
 
 The release's only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and
 revoked when it ends. `bun nv release` has no code path that reads a token at all, which is what
-makes the whole release reproducible on a laptop with no access to anything. The Marketplace upload
-(§ 7) exchanges the run's OIDC token for a short-lived Marketplace token, so it adds no credential.
+makes the whole release reproducible on a laptop with no access to anything. The Marketplace and
+Open VSX uploads (§ 7) exchange the run's OIDC token for short-lived tokens, so they add no credential.
 
 Three habits in the workflow keep it that way, each load-bearing rather than decorative:
 `permissions: {}` at the top with per-job re-grants so only `publish` can write;
@@ -272,7 +281,7 @@ Each archive carries a keyless build provenance attestation, so there is no key 
 release carries `SHA256SUMS`. The release also attaches the VS Code extension as `nvs-<version>.vsix`,
 attested the same way and listed in `SHA256SUMS`; `publish` refuses a release without it. Its version
 is the release's, because `--apply` rewrites `editors/vscode/package.json` and its lockfile with the
-workspace. Publishing the release lists that same file on the VS Code Marketplace, once a reviewer
+workspace. Publishing the release lists that same file on the VS Code Marketplace and Open VSX, once a reviewer
 approves `release-promote.yml`'s `marketplace` job
 (`rule:ide/the-extension-runs-where-the-binary-is`). How a user checks both is the website's
 [install page](../website/src/content/docs/install/index.mdx) § *Check a release archive*.
@@ -329,4 +338,4 @@ has to be done again on the next release.
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
 | The `docker` job failed *before* the release was tagged | Only a dry run gets there, and a dry run pushes nothing, so no image exists for a version the repository has no tag for. Its failure is the smoke test or the image build, and the step log names which check. `tests/docker/smoke.sh` runs the same checks locally — [docker/README.md](../docker/README.md) § *Building an image locally*. |
 | `latest` did not move | It moves on *publish*, not on draft (see step 7 of § *Cutting a release*), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
-| The Marketplace upload failed | Re-run the promote run's failed job (`gh run rerun <id> --failed`), or dispatch `release-promote.yml` on `main` with the tag, and approve its `marketplace` environment. Neither releases anything again. `--skip-duplicate` makes it a success when the version is listed already. A failed token exchange at publish is a Trusted Publishing policy whose owner, repository, workflow or environment is not exactly this job's (§ 7). |
+| The Marketplace or Open VSX upload failed | Re-run the promote run's failed job (`gh run rerun <id> --failed`), or dispatch `release-promote.yml` on `main` with the tag, and approve its `marketplace` environment. Neither releases anything again. `--skip-duplicate` makes an upload a success when the version is listed already, so the rerun repairs whichever one failed. A failed token exchange at publish is a Trusted Publishing policy or trusted publisher whose owner, repository, workflow or environment is not exactly this job's (§ 7). |

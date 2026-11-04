@@ -2,7 +2,7 @@ The VS Code extension is what you install to write Novis in VS Code.
 
 It colours a `.nvs` file when the file opens. It then starts `nvs lsp` and shows what that server
 returns: errors, completions, documentation and the place where a name is declared. You install it
-from the VS Code Marketplace, where its id is `novis-lang.nvs`.
+from the VS Code Marketplace or from Open VSX. Its id is `novis-lang.nvs` in both.
 
 The extension uses the colours of your theme and adds none. `nvs.path` is the path to the `nvs`
 binary. When it is empty, the extension finds `nvs` on `PATH`. When `nvs.lsp.enable` is `false`, no
