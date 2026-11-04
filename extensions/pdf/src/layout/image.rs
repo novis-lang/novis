@@ -1,5 +1,18 @@
 //! The pictures a document draws: an `<img>`, an inline `<svg>` and a background image, each
-//! decoded far enough to know its size and placed as a block or a box's background layer.
+//! decoded far enough to know its size and placed as a box's background layer or as a replaced
+//! box.
+//!
+//! An `<img>` or an inline `<svg>` whose `display` is `inline` or `inline-block` is an inline
+//! box in its line, as an `inline-block` is ([`super::Atom`]): its `vertical-align` places it on
+//! the line, and its margin, border and padding are drawn around it. A floated one is a float,
+//! and any other `display` makes it a block of its own. Its size comes from `width` and `height`,
+//! then the `width` and `height` attributes, then the picture, and `min-width`, `max-width`,
+//! `min-height` and `max-height` limit it as CSS 2.1 §10.4 says, keeping its aspect ratio when no
+//! size is given. A percent height counts against the page's content height, the only height a
+//! document has. A picture wider than its line or taller than the page shrinks to fit, keeping
+//! its aspect ratio. A JPEG's EXIF orientation turns and mirrors it ([`Turn`]).
+//!
+//! Cost: one inline box in its line for each inline picture. Memory: nothing more per request.
 //!
 //! A PDF asset is one of its pages, the first unless the reference ends in `#page=N`, drawn as
 //! the page's own vector content at the page's size in points. Only its appearance is drawn: its
@@ -18,8 +31,10 @@ use krilla::Data;
 use krilla::image::Image;
 use krilla::pdf::PdfDocument;
 
+use super::block::sides;
 use super::inline::Builder;
-use super::{Block, Frame, Images, boxes, keyword, length};
+use super::inline::vertical_align;
+use super::{Block, Frame, Images, Role, boxes, keyword, length};
 use crate::Error;
 use crate::assets::Assets;
 use crate::css::value::{self, Comp};
@@ -28,8 +43,9 @@ use crate::parse::{Dom, Kind, Space};
 
 /// A picture an [`super::Item::Image`] or a background draws.
 pub enum Picture {
-    /// A PNG, JPEG, GIF or WebP image, decoded far enough to know its size.
-    Raster(Image),
+    /// A PNG, JPEG, GIF or WebP image, decoded far enough to know its size, and how a JPEG's
+    /// EXIF orientation turns it.
+    Raster(Image, Turn),
     /// A parsed SVG document, drawn as vector paths.
     Vector(Box<usvg::Tree>),
     /// One page of an existing PDF, drawn as its own vector content.
@@ -49,9 +65,10 @@ impl Picture {
     /// and a PDF page is its own size.
     pub fn size(&self) -> (f32, f32) {
         match self {
-            Picture::Raster(image) => {
+            Picture::Raster(image, turn) => {
                 let (w, h) = image.size();
-                (w as f32 * 0.75, h as f32 * 0.75)
+                let (w, h) = (w as f32 * 0.75, h as f32 * 0.75);
+                if turn.0 >= 5 { (h, w) } else { (w, h) }
             }
             Picture::Vector(tree) => (tree.size().width() * 0.75, tree.size().height() * 0.75),
             Picture::Page(page) => page.size,
@@ -59,21 +76,162 @@ impl Picture {
     }
 }
 
+/// A JPEG's EXIF orientation, from 1 to 8: 1 is upright, 2 to 4 mirror or turn it half a turn,
+/// and 5 to 8 also swap its width and height. Every other picture is 1.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Turn(pub u8);
+
+impl Turn {
+    pub const UPRIGHT: Turn = Turn(1);
+
+    /// The matrix `[a, b, c, d, e, f]` that draws the stored picture, `w` by `h` as it is
+    /// stored, into the box `width` by `height` it is shown in, y downwards.
+    pub fn matrix(self, width: f32, height: f32) -> [f32; 6] {
+        match self.0 {
+            2 => [-1.0, 0.0, 0.0, 1.0, width, 0.0],
+            3 => [-1.0, 0.0, 0.0, -1.0, width, height],
+            4 => [1.0, 0.0, 0.0, -1.0, 0.0, height],
+            5 => [0.0, 1.0, 1.0, 0.0, 0.0, 0.0],
+            6 => [0.0, 1.0, -1.0, 0.0, width, 0.0],
+            7 => [0.0, -1.0, -1.0, 0.0, width, height],
+            8 => [0.0, -1.0, 1.0, 0.0, 0.0, height],
+            _ => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        }
+    }
+
+    /// The orientation a JPEG's first APP1 segment gives in its EXIF data, or upright when it
+    /// has none or the segment does not read. Only the segments before the image data are read.
+    pub fn of_jpeg(data: &[u8]) -> Turn {
+        let mut at = 2;
+        while let [0xff, marker, hi, lo, ..] = data.get(at..).unwrap_or(&[]) {
+            let length = usize::from(*hi) << 8 | usize::from(*lo);
+            let Some(segment) = data.get(at + 4..at + 2 + length) else {
+                break;
+            };
+            match marker {
+                0xe1 if segment.starts_with(b"Exif\0\0") => {
+                    return exif_orientation(&segment[6..]).map_or(Turn::UPRIGHT, Turn);
+                }
+                // The start of the scan, the image data: no EXIF segment comes after it.
+                0xda | 0xd9 => break,
+                _ => at += 2 + length,
+            }
+        }
+        Turn::UPRIGHT
+    }
+}
+
+/// The orientation tag, 0x0112, of the TIFF data `tiff` in its first image directory, when it
+/// is from 1 to 8.
+fn exif_orientation(tiff: &[u8]) -> Option<u8> {
+    let big = match tiff.get(..4)? {
+        [b'M', b'M', 0, 42] => true,
+        [b'I', b'I', 42, 0] => false,
+        _ => return None,
+    };
+    let u16_at = |at: usize| -> Option<u16> {
+        let b: [u8; 2] = tiff.get(at..at + 2)?.try_into().ok()?;
+        Some(if big {
+            u16::from_be_bytes(b)
+        } else {
+            u16::from_le_bytes(b)
+        })
+    };
+    let u32_at = |at: usize| -> Option<usize> {
+        let b: [u8; 4] = tiff.get(at..at + 4)?.try_into().ok()?;
+        let v = if big {
+            u32::from_be_bytes(b)
+        } else {
+            u32::from_le_bytes(b)
+        };
+        usize::try_from(v).ok()
+    };
+    let directory = u32_at(4)?;
+    let count = usize::from(u16_at(directory)?);
+    (0..count).find_map(|i| {
+        let entry = directory.checked_add(2 + 12 * i)?;
+        // A SHORT, type 3, with one value, which sits in the entry's first two value bytes.
+        (u16_at(entry)? == 0x0112 && u16_at(entry + 2)? == 3)
+            .then(|| u16_at(entry + 8))
+            .flatten()
+            .and_then(|v| u8::try_from(v).ok())
+            .filter(|v| (1..=8).contains(v))
+    })
+}
+
 impl Builder<'_, '_> {
-    /// An `<img>` at `at`, laid out in `frame`'s content box.
-    pub(super) fn image(
+    /// An `<img>`, or an inline `<svg>` when `svg` is true, at `at` with `style` and its
+    /// `display`, in `frame`'s content box: an inline box in the text, a float, or a block, which
+    /// in a flex container (`item`) is an anonymous item of its own. An `<img>` is tagged as a
+    /// figure with its alt text, and one with no `src` draws nothing.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn replaced(
         &mut self,
         dom: &Dom,
         at: usize,
         style: &Style,
+        display: &str,
         frame: &Frame,
+        item: bool,
+        svg: bool,
     ) -> Result<(), Error> {
-        let Some(reference) = dom.nodes[at].attr("src") else {
+        let node = &dom.nodes[at];
+        let image = if svg {
+            let name = "<svg>";
+            let picture = self::svg(self.assets, svg_markup(dom, at).as_bytes(), name)?;
+            self.images.push((picture, name.to_owned()));
+            self.images.len() - 1
+        } else {
+            let Some(reference) = node.attr("src") else {
+                return Ok(());
+            };
+            self.load(reference)?
+        };
+        let figure = (!svg).then(|| Role::Figure(node.attr("alt").map(str::to_owned)));
+        let out = matches!(keyword(style, "position"), Some("absolute" | "fixed"));
+        let side = sides(style, "float");
+        let floated = !item && !out && side != [false, false];
+        if floated || (!item && !out && matches!(display, "inline" | "inline-block")) {
+            let mut inner = frame.clone();
+            self.open_atom(style, frame, &mut inner)?;
+            let tagged = figure.is_some();
+            if tagged {
+                self.blocks.push(Block::Tag(figure));
+            }
+            let (width, height) = self.place(image, dom, at, style, &inner, frame.width);
+            if tagged {
+                self.blocks.push(Block::Tag(None));
+            }
+            // The box is as wide and as tall as its picture, with its border and padding.
+            if let Some(Block::Open(g)) = self.blocks.first_mut() {
+                g.width = width + g.border[1] + g.border[3] + g.padding[1] + g.padding[3];
+                g.min_content = height;
+                g.fill = false;
+            }
+            if floated {
+                self.close_float(side[1], sides(style, "clear"), frame);
+            } else {
+                self.close_atom(vertical_align(style, None), frame);
+            }
             return Ok(());
+        }
+        let inner = if item {
+            self.open_anonymous(frame)
+        } else {
+            frame.clone()
         };
         self.flush();
-        let image = self.load(reference)?;
-        self.place(image, dom, at, style, frame);
+        let tagged = figure.is_some();
+        if tagged {
+            self.blocks.push(Block::Tag(figure));
+        }
+        self.place(image, dom, at, style, &inner, inner.width);
+        if tagged {
+            self.blocks.push(Block::Tag(None));
+        }
+        if item {
+            self.close_anonymous();
+        }
         Ok(())
     }
 
@@ -90,46 +248,46 @@ impl Builder<'_, '_> {
         Ok(image)
     }
 
-    /// An inline `<svg>` at `at`, laid out in `frame`'s content box like an `<img>`.
-    pub(super) fn inline_svg(
+    /// The picture at `image` in `images` as a block for the element at `at`, at the size its
+    /// style and its `width` and `height` attributes give, scaled down to fit `frame`'s content
+    /// box and the page. A percent width counts against `basis`. Returns the size it is drawn at.
+    fn place(
         &mut self,
+        image: usize,
         dom: &Dom,
         at: usize,
         style: &Style,
         frame: &Frame,
-    ) -> Result<(), Error> {
-        self.flush();
-        let name = "<svg>";
-        let picture = svg(self.assets, svg_markup(dom, at).as_bytes(), name)?;
-        self.images.push((picture, name.to_owned()));
-        self.place(self.images.len() - 1, dom, at, style, frame);
-        Ok(())
-    }
-
-    /// The picture at `image` in `images` as a block for the element at `at`, at the size its
-    /// style and its `width` and `height` attributes give, scaled down to fit `frame`'s content
-    /// box.
-    fn place(&mut self, image: usize, dom: &Dom, at: usize, style: &Style, frame: &Frame) {
+        basis: f32,
+    ) -> (f32, f32) {
         let (natural_w, natural_h) = self.images[image].0.size();
         let attr = |name: &str| {
             dom.nodes[at]
                 .attr(name)
                 .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
+                .filter(|px| px.is_finite() && *px >= 0.0)
                 .map(|px| px * 0.75)
         };
-        let css_w = length(style, "width", frame.width).or_else(|| attr("width"));
-        let css_h = match style.get("height") {
-            Some(Value::Length(l)) if l.percent == 0.0 => Some(l.pt),
-            _ => attr("height"),
-        };
-        let (mut width, mut height) = match (css_w, css_h) {
+        let page = self.page_height;
+        let across = |name: &str| length(style, name, basis).filter(|v| *v >= 0.0);
+        let down = |name: &str| length(style, name, page).filter(|v| *v >= 0.0);
+        let css_w = across("width").or_else(|| attr("width"));
+        let css_h = down("height").or_else(|| attr("height"));
+        let (width, height) = match (css_w, css_h) {
             (Some(w), Some(h)) => (w, h),
             (Some(w), None) => (w, w * natural_h / natural_w.max(f32::EPSILON)),
             (None, Some(h)) => (h * natural_w / natural_h.max(f32::EPSILON), h),
             (None, None) => (natural_w, natural_h),
         };
+        let wide = [across("min-width"), across("max-width")];
+        let tall = [down("min-height"), down("max-height")];
+        let (mut width, mut height) = if css_w.is_some() && css_h.is_some() {
+            (bound(width, wide), bound(height, tall))
+        } else {
+            constrain(width, height, wide, tall)
+        };
         let scale = (frame.width / width.max(f32::EPSILON))
-            .min(self.page_height / height.max(f32::EPSILON))
+            .min(page / height.max(f32::EPSILON))
             .min(1.0);
         width *= scale;
         height *= scale;
@@ -162,6 +320,7 @@ impl Builder<'_, '_> {
             height,
             draw,
         });
+        (width, height)
     }
 
     /// The background image of `style`: a gradient, or an image `url()` loaded from the asset map
@@ -171,6 +330,37 @@ impl Builder<'_, '_> {
             let image = self.load(reference)?;
             Ok((image, self.images[image].0.size()))
         })
+    }
+}
+
+/// `value` between a least and a greatest value, where a missing bound does not limit it and
+/// the least wins over the greatest.
+fn bound(value: f32, [min, max]: [Option<f32>; 2]) -> f32 {
+    let value = max.map_or(value, |max| value.min(max));
+    min.map_or(value, |min| value.max(min))
+}
+
+/// A picture `w` by `h`, with an aspect ratio to keep, limited by its least and greatest width
+/// and height, by the table in CSS 2.1 §10.4.
+fn constrain(w: f32, h: f32, wide: [Option<f32>; 2], tall: [Option<f32>; 2]) -> (f32, f32) {
+    let (given_w, given_h) = (w, h);
+    let (w, h) = (w.max(f32::EPSILON), h.max(f32::EPSILON));
+    let min_w = wide[0].unwrap_or(0.0);
+    let max_w = wide[1].unwrap_or(f32::INFINITY).max(min_w);
+    let min_h = tall[0].unwrap_or(0.0);
+    let max_h = tall[1].unwrap_or(f32::INFINITY).max(min_h);
+    match (w > max_w, w < min_w, h > max_h, h < min_h) {
+        (true, _, true, _) if max_w / w <= max_h / h => (max_w, (max_w * h / w).max(min_h)),
+        (true, _, true, _) => ((max_h * w / h).max(min_w), max_h),
+        (_, true, _, true) if min_w / w <= min_h / h => ((min_h * w / h).min(max_w), min_h),
+        (_, true, _, true) => (min_w, (min_w * h / w).min(max_h)),
+        (true, _, _, true) => (max_w, min_h),
+        (_, true, true, _) => (min_w, max_h),
+        (true, ..) => (max_w, (max_w * h / w).max(min_h)),
+        (_, true, ..) => (min_w, (min_w * h / w).min(max_h)),
+        (_, _, true, _) => ((max_h * w / h).max(min_w), max_h),
+        (_, _, _, true) => ((min_h * w / h).min(max_w), min_h),
+        _ => (given_w, given_h),
     }
 }
 
@@ -222,6 +412,10 @@ fn decode(assets: &Assets<'_>, reference: &str) -> Result<(Picture, String), Err
     } else {
         reference.to_owned()
     };
+    let turn = match bytes.as_slice() {
+        [0xff, 0xd8, 0xff, ..] => Turn::of_jpeg(&bytes),
+        _ => Turn::UPRIGHT,
+    };
     let decoded = match bytes.as_slice() {
         [0x89, b'P', b'N', b'G', ..] => Image::from_png(Data::from(bytes), false),
         [0xff, 0xd8, 0xff, ..] => Image::from_jpeg(Data::from(bytes), false),
@@ -254,7 +448,7 @@ fn decode(assets: &Assets<'_>, reference: &str) -> Result<(Picture, String), Err
     };
     let image = decoded
         .map_err(|why| Error::Parse(format!("`{name}` does not decode as an image: {why}")))?;
-    Ok((Picture::Raster(image), name))
+    Ok((Picture::Raster(image, turn), name))
 }
 
 /// The SVG document `data` parsed. An `<image>` in it loads through the asset map, and one

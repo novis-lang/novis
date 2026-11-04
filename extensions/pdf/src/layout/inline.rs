@@ -74,7 +74,7 @@ pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Sp
 /// percentage add to the parent's shift: `sub` lowers by a fifth of the parent's font size,
 /// `super` raises by a third, and a percentage is of the element's own line height. `top` and
 /// `bottom` align with the line box, and `baseline` keeps the parent's alignment.
-fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAlign {
+pub(super) fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAlign {
     let inherited = parent.map_or(VerticalAlign::BASELINE, |p| p.align);
     let rise = match inherited.shift {
         BaselineShift::Length(rise) => rise,
@@ -843,7 +843,12 @@ impl Builder<'_, '_> {
 
     /// Opens the `inline-block` box of `style` inside the content box of `outer`: sets the
     /// text around it aside and opens its box against a containing block at `x` 0.
-    fn open_atom(&mut self, style: &Style, outer: &Frame, inner: &mut Frame) -> Result<(), Error> {
+    pub(super) fn open_atom(
+        &mut self,
+        style: &Style,
+        outer: &Frame,
+        inner: &mut Frame,
+    ) -> Result<(), Error> {
         self.set_aside();
         let origin = Frame {
             x: 0.0,
@@ -889,7 +894,7 @@ impl Builder<'_, '_> {
 
     /// Closes the innermost open `inline-block` box, whose `vertical-align` is `align`, and
     /// adds it to the text around it at the end of that text, in `frame`'s paragraph.
-    fn close_atom(&mut self, align: VerticalAlign, frame: &Frame) {
+    pub(super) fn close_atom(&mut self, align: VerticalAlign, frame: &Frame) {
         let Some(blocks) = self.close_box() else {
             return;
         };
@@ -909,7 +914,7 @@ impl Builder<'_, '_> {
     /// Closes the innermost open float, which floats right when `right` is true and clears the
     /// sides `clear` names, inside the content box of `frame`. A float after the start of the
     /// text collected around it is placed at the line it is in, and any other before that text.
-    fn close_float(&mut self, right: bool, clear: [bool; 2], frame: &Frame) {
+    pub(super) fn close_float(&mut self, right: bool, clear: [bool; 2], frame: &Frame) {
         let Some(blocks) = self.close_box() else {
             return;
         };
@@ -1243,7 +1248,7 @@ impl Builder<'_, '_> {
 
     /// Opens an anonymous flex item in the innermost container, whose content box is `frame`,
     /// unless one is open, and returns the frame its content is collected in.
-    fn open_anonymous(&mut self, frame: &Frame) -> Frame {
+    pub(super) fn open_anonymous(&mut self, frame: &Frame) -> Frame {
         if let Some(c) = self.containers.last_mut()
             && !c.anonymous
         {
@@ -1271,7 +1276,7 @@ impl Builder<'_, '_> {
     }
 
     /// Closes the innermost container's anonymous item, if one is open.
-    fn close_anonymous(&mut self) {
+    pub(super) fn close_anonymous(&mut self) {
         if let Some(c) = self.containers.last_mut()
             && c.anonymous
         {
@@ -1650,18 +1655,10 @@ pub(super) fn blocks(
                     builder.close_anonymous();
                 }
                 if *space == Space::Svg && name == "svg" {
-                    if let Some(style) = styles.of(at)
-                        && keyword(style, "display") != Some("none")
-                    {
-                        // A picture in a flex container is an anonymous item of its own.
-                        let inner = if item {
-                            builder.open_anonymous(&frame)
-                        } else {
-                            frame.clone()
-                        };
-                        builder.inline_svg(dom, at, style, &inner)?;
-                        if item {
-                            builder.close_anonymous();
+                    if let Some(style) = styles.of(at) {
+                        let display = keyword(style, "display").unwrap_or("inline");
+                        if display != "none" {
+                            builder.replaced(dom, at, style, display, &frame, item, true)?;
                         }
                     }
                     continue;
@@ -1683,19 +1680,7 @@ pub(super) fn blocks(
                 }
                 let name = name.as_str();
                 if name == "img" {
-                    let inner = if item {
-                        builder.open_anonymous(&frame)
-                    } else {
-                        frame.clone()
-                    };
-                    builder.flush();
-                    let alt = node.attr("alt").map(str::to_owned);
-                    builder.blocks.push(Block::Tag(Some(Role::Figure(alt))));
-                    builder.image(dom, at, style, &inner)?;
-                    builder.blocks.push(Block::Tag(None));
-                    if item {
-                        builder.close_anonymous();
-                    }
+                    builder.replaced(dom, at, style, display, &frame, item, false)?;
                     continue;
                 }
                 // A `<br>` in a flex container is an empty item, which ends the text item before it.

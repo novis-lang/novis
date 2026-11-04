@@ -51,7 +51,7 @@
 //! the paragraph it is in or of the next box after it (`block`'s module doc). Each line beside
 //! it is shortened by the room it takes, and is aligned in what is left. A box's background and
 //! borders are not shortened, as in CSS. `clear` on a block box moves it below the floats it
-//! names. A float in an `<img>` is not read yet, so the picture stays a block.
+//! names. A floated `<img>` or inline `<svg>` is a float as wide and as tall as its picture.
 //!
 //! **Positioning.** A block box under `position: relative` is laid out in its place and then
 //! drawn moved by its `left` or else `right`, and its `top` or else `bottom`. A percentage of
@@ -139,7 +139,8 @@
 //! to an `id` no element has goes nowhere and the writer leaves it out.
 //!
 //! **Images**: an `<img>` whose bytes are PNG, JPEG, GIF, WebP or an SVG document, and an inline
-//! `<svg>`, is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
+//! `<svg>`, is a replaced box: inline in its line, a float, or a block, as [`image`]'s module doc
+//! says. Its size is its CSS `width` and `height`, else its `width` and `height` attributes,
 //! else its natural size, a pixel being a CSS pixel, scaled down to fit the content box. The
 //! picture fills that box, or under `object-fit` is fitted inside it, covers it or keeps its own
 //! size, at the place `object-position` gives, and the box clips what is outside it. An SVG
@@ -178,7 +179,7 @@ mod text;
 mod transform;
 
 pub use boxes::{Paint, Seg, Stop, Stroke, bounds};
-pub use image::Picture;
+pub use image::{Picture, Turn};
 pub use margin::overlay;
 pub use text::{layout, layout_keeping};
 pub use transform::Matrix;

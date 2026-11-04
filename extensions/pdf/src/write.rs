@@ -67,7 +67,7 @@ use std::num::NonZeroU16;
 use crate::css::Color;
 use crate::encrypt;
 use crate::factur_x::{self, Level};
-use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg};
+use crate::layout::{self, Bookmark, Href, Item, Laid, Paint, Picture, Role, Seg, Turn};
 use crate::paginate::PageBox;
 use crate::parse::{Dom, Space};
 use crate::{Error, Instant, Options, Standard};
@@ -94,7 +94,22 @@ fn concat(outer: [f32; 6], inner: [f32; 6]) -> [f32; 6] {
 /// SVG is drawn as vector paths, and a PDF page as a form XObject of its content.
 fn draw_picture(surface: &mut Surface<'_>, picture: &Picture, size: Size) {
     match picture {
-        Picture::Raster(image) => surface.draw_image(image.clone(), size),
+        Picture::Raster(image, turn) if *turn != Turn::UPRIGHT => {
+            // The picture is stored unturned, so it is drawn at its stored size and turned into
+            // the box.
+            let (w, h) = if turn.0 >= 5 {
+                (size.height(), size.width())
+            } else {
+                (size.width(), size.height())
+            };
+            let [a, b, c, d, e, f] = turn.matrix(size.width(), size.height());
+            surface.push_transform(&Transform::from_row(a, b, c, d, e, f));
+            if let Some(stored) = Size::from_wh(w, h) {
+                surface.draw_image(image.clone(), stored);
+            }
+            surface.pop();
+        }
+        Picture::Raster(image, _) => surface.draw_image(image.clone(), size),
         Picture::Vector(tree) => {
             surface.draw_svg(tree, size, SvgSettings::default());
         }
@@ -702,7 +717,7 @@ pub fn write(
             let name = laid
                 .images
                 .iter()
-                .find(|(each, _)| matches!(each, Picture::Raster(each) if *each == image))
+                .find(|(each, _)| matches!(each, Picture::Raster(each, _) if *each == image))
                 .map_or("an image", |(_, name)| name.as_str());
             Error::Parse(format!("`{name}` does not decode as an image: {why}"))
         }

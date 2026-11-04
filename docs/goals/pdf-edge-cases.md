@@ -14,7 +14,7 @@ stages:
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/src/layout/margin.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/src/css/mod.rs, extensions/pdf/tests/layout.rs]
   - id: 3
     title: "an <img> and an inline <svg> are inline boxes in their line, with vertical-align, float, max and min sizes and EXIF orientation"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/block.rs]
   - id: 4
     title: "page breaks fall where CSS Fragmentation puts them: parity by direction, kept margins, no padding-only page, floats after a break, tall boxes that continue"
@@ -283,6 +283,11 @@ handled but untested.
     neutral content (`Shop`, `example.com`, lorem).
 13. **Lanes.** Stages 1 to 7 share `inline.rs`, `block.rs` and `text.rs`, so they run in order. Stages
     8 and 9 write only new test files and can run as side goals once stage 7 is done.
+14. **An image's percent height** counts against the page's content height, the only height a
+    document has, and so does a percent `min-height` and `max-height`. A percent width counts
+    against the containing block. A size whose aspect ratio is free (one or no size given) is
+    limited by the CSS 2.1 §10.4 table, and with both sizes given each side is limited alone. Cost:
+    nothing more.
 
 ## Stages
 
@@ -346,19 +351,27 @@ handled but untested.
 **Does:** makes images inline replaced boxes (decision 2), with tests in the new
 `extensions/pdf/tests/images.rs`.
 
-- [ ] An `<img>` or inline `<svg>` whose `display` is inline becomes a parley inline box sized like the
+- [x] An `<img>` or inline `<svg>` whose `display` is inline becomes a parley inline box sized like the
   picture, placed in its line. `display: block` keeps today's path, and `float` goes through the float
   path, also inside `<a>`. `extensions/pdf/src/layout/inline.rs:1670`
-- [ ] The picture is drawn at its inline box's position and keeps its `Figure` tag and alt text.
+  - [x] `Builder::replaced` opens an atom with the image's style, places the picture in it and
+    sets the box's width and height to the picture's
+  - [x] a float closes through `close_float`, a flex item and any other `display` keep the block path
+- [x] The picture is drawn at its inline box's position and keeps its `Figure` tag and alt text.
   `extensions/pdf/src/layout/image.rs:142`, `extensions/pdf/src/layout/text.rs:493`
-- [ ] Image sizing reads `max-width`, `max-height`, `min-width`, `min-height` and a percent height,
+- [x] Image sizing reads `max-width`, `max-height`, `min-width`, `min-height` and a percent height,
   and an image taller than the page shrinks to the page. `extensions/pdf/src/layout/image.rs:104`
-- [ ] EXIF orientation of a JPEG turns the picture (decision 10). `extensions/pdf/src/layout/image.rs:164`
-- [ ] Existing tests that expect an image as a block are updated where the markup is inline, and the
+  - [x] `constrain` is CSS 2.1 §10.4's table, `bound` limits each side when both are given
+  - [x] percent heights count against the page's content height (decision 14)
+- [x] EXIF orientation of a JPEG turns the picture (decision 10). `extensions/pdf/src/layout/image.rs:164`
+  - [x] `Turn::of_jpeg` reads the APP1 orientation tag, `Picture::Raster` carries it
+  - [x] `size` swaps for 5 to 8, and `write.rs`'s `draw_picture` draws through `Turn::matrix`
+- [x] Existing tests that expect an image as a block are updated where the markup is inline, and the
   module doc says images are inline boxes. `extensions/pdf/tests/layout.rs:830`,
   `extensions/pdf/src/layout/image.rs:1`
-- [ ] Write the seven tests the `inline-images` check names. `extensions/pdf/tests/images.rs:1`
-- [ ] Run the `inline-images` check's command once: green.
+  - [x] `layout`, `paginate` and `render` run once: green, so no test needed a change
+- [x] Write the seven tests the `inline-images` check names. `extensions/pdf/tests/images.rs:1`
+- [x] Run the `inline-images` check's command once: green.
 
 ### 4. page breaks fall where CSS Fragmentation puts them: parity by direction, kept margins, no padding-only page, floats after a break, tall boxes that continue
 
@@ -495,33 +508,34 @@ check once both end.
 
 ### State
 
-Stages 1 and 2 are done. `hostile-input` is green (7 of 7) and `linear-cost` is green (4 of 4).
+Stages 1 to 3 are done. `hostile-input` is green (7 of 7), `linear-cost` is green (4 of 4) and
+`inline-images` is green (7 of 7).
 
-- `layout::Work` on `Laid` counts the work that must stay linear: `table_reads`, `margin_reads`,
-  `image_resolves` and `image_decodes`. `Styles::rule_tests` counts selector tests.
-- `table.rs` sums piece heights and row counts once from the end. `keep`'s forward walk still reads
-  up to a page of pieces per piece, which is linear in the table, and `cost.rs`'s `linear` allows a
-  quarter more per unit for the shorter last page.
-- `margin::Index` files strings, counter changes and running elements by name and page, and
-  `facts` sorts marks onto pages in one pass. The lookups keep the old order rules: the latest
-  entry in list order before the page, the first on the page.
-- `Builder::load` keeps each image reference's index in `images`, so many `Item::Image`s and
-  background layers share one picture. An inline `<svg>` is still parsed at each use.
-- `css::Buckets` files each selector by its rightmost compound's id, else class, else lower-case
-  tag, and `Cascade::matched` tests only an element's candidates, in rule order.
-- A stray rustfmt diff in `table.rs`, `layout.rs` and two test files was committed on its own.
+- `image::Builder::replaced` is the one entry for an `<img>` and an inline `<svg>`. An inline or
+  `inline-block` one is an atom (the inline-block path, `open_atom` and `close_atom`), a floated
+  one closes through `close_float`, and an absolute one, a flex item or any other `display` is a
+  block as before. The atom's `Open` geometry is set to the picture's size with `fill` off, so
+  `Cx::atom` does not narrow it. An inline picture is a glyph-run gap: the text around it is one
+  `Item::Text`, so a test finds a word's ends from its glyph advances (`tests/images.rs` `words`).
+- `Picture::Raster` carries a `Turn`, the JPEG's EXIF orientation. `size` is the shown size, and
+  `write.rs`'s `draw_picture` draws the stored image through `Turn::matrix`.
+- `place` takes a percent-width `basis` and returns the drawn size, and limits the size by
+  `constrain` (CSS 2.1 §10.4) or `bound` (decision 14).
+- `layout::Work` on `Laid` counts the work that must stay linear (stage 2).
 - The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere and has no log,
   and nightly 41813182715 is the run the calm-editor handoff already traced to fixed commits.
 
 ### Next
 
-Stage 3, from its first item: an `<img>` or inline `<svg>` with an inline `display` becomes a parley
-inline box in its line (`extensions/pdf/src/layout/inline.rs:1670`), drawn at the box's position with
-its `Figure` tag (`layout/image.rs` `Builder::place`, `layout/text.rs:493`). `Builder::place` now takes
-an index into `images`, not a `Picture`, so the inline path reads the size with
-`self.images[image].0.size()`. Check parley 0.12's inline box API in the installed source first.
+Stage 4, from its first item: page parity reads the root's `direction` (decision 5). The forced
+side is read at `extensions/pdf/src/layout/block.rs:97` and applied at
+`extensions/pdf/src/layout/block.rs:484` and `:500`, and `paginate/mod.rs:7` documents the first
+page as a right page. Then the kept top margin at a forced break (`block.rs:566`), the 0.01 pt fit
+tolerance, and the float after a pending break. Tests go in the new `extensions/pdf/tests/breaks.rs`.
 
-Tests that may go red at stage 10: any test asserting an empty `dropped` list with an `@page size`
+Tests that may go red at stage 10: `crates/nvs-ext/tests/pdf.rs` was not run after images became
+inline boxes; a test there that places an `<img>` in running text and reads its `y` as a block's
+now sees it on the line. Any test asserting an empty `dropped` list with an `@page size`
 that does not read (`paginate.rs:133` asserts only the page height). Any test that counted
 `laid.images.len()` for a document that draws one asset twice now sees one. The margin, string and
 counter tests in `paginate.rs` were not run after `margin::Index`; their order rules are unchanged.
