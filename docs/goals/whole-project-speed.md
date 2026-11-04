@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/tests/index.rs, crates/nvs-lsp/src/session.rs]
   - id: 3
     title: "nvs check of a class file, an uncached compile, nvs test of a directory and nvs fmt of a tree learn each file-system fact once"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/check_borrow.rs, crates/nvs-cli/src/fmt.rs, docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md]
   - id: 4
     title: "an index entry is analysed by a function that owns everything it reads, and merged into the index apart from that"
@@ -230,6 +230,12 @@ survey first loaded by its raw path and a walk later loads by its resolved path 
 at most two reads per file, against one per program per file before. Keying by the resolved path would
 cost a resolution per file, the cost the lazy search removed.
 
+**A compile resolves its entry twice, once in each form (stage 3).** The settings and `real_path`
+resolve the entry to its plain form, and the `require` walk keys every file under
+`std::fs::canonicalize`'s verbatim form, `\\?\` on Windows. Turning one form into the other without
+a syscall would be a second canonicalizer beside the walk's, the thing `Unowned::trust`'s doc
+(`crates/nvs-config/src/resolve.rs`) warns lets a symlinked cycle through. Cost: one syscall per compile, not per file.
+
 **Declined:**
 
 - **Parallel `nvs check` of a directory and `nvs test`.** Not measured as slow; a backlog item if stage
@@ -325,8 +331,18 @@ than the files). The session writes the items.
   once outside a bundle. Tests `an_autoloaded_file_is_resolved_once` (`check_command.rs`, one
   resolution per extra class) and `a_path_asked_about_is_resolved_once` (`lenders.rs`).
   `examples/program.nvs` went from 23 resolutions to 17.
-- [ ] The run's cache key resolves the entry path the compile already resolved, and again on each
+- [x] The run's cache key resolves the entry path the compile already resolved, and again on each
   validation. `crates/nvs-cli/src/script.rs:1436`, `:1744`, `:1960`
+  *As built:* measured first. `nvs run` does not go through `script.rs`: of an uncached one-line
+  run's nine resolutions, the compile made one, and the settings made eight. `Snapshot::build`
+  resolved the entry and `app::matching` resolved it again; `app::matching_canonical` now takes the
+  path the snapshot resolved. One `resolve` checked the repository's CA file once per `[db]` and
+  `[ldap]` block (five times); `Remembered` (`crates/nvs-config/src/resolve.rs`) keeps each `trust`
+  answer for one resolve. `nvs test --watch` of a directory resolved its in-memory entry after each
+  pass and at each check; its trace's `real` is now `None`. Nine to four for one line,
+  `examples/program.nvs` 17 to 12. Test `a_run_resolves_each_settings_path_once`.
+  Kept: `Self::moved` and `describes_the_disk` resolve a path that a switched link may have moved, and
+  the walk resolves `real` again because it keys files in the verbatim form (see Standing decisions).
 - [x] `nvs test <dir>` reads every file once only to look for `require` (`std::fs::read_to_string`,
   which `read=` does not count), then the `unrequired` walk reads it again when a `require` is present,
   then the compile reads it a third time. `crates/nvs-cli/src/main.rs:3337`. The resolution half is done
@@ -342,7 +358,9 @@ than the files). The session writes the items.
   name matches, compared without case. Test `a_directory_check_resolves_only_what_a_file_requires`
   (six resolutions per test file, was seven). The served-file lookup is on `nvs test`'s path alone,
   and no count test covers it.
-- [ ] Each fix above adds or tightens a count test that would go red if the work came back.
+- [x] Each fix above adds or tightens a count test that would go red if the work came back.
+  The served-file lookup of `nvs test` and the in-memory entry of `nvs test --watch` have none:
+  neither command takes `--count`.
 - [x] `nvs fmt --check` of a tree: nothing repeated (one listing per directory, one read per file, no
   settings and no resolution).
 - [x] Run the `class-file-check` check's command once: green.
@@ -391,33 +409,31 @@ than the files). The session writes the items.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's items are all done but the run's cache key: the class file
-(`62a917765`, `class-file-check` green), `nvs test <dir>` (`5e53c0ada`, `6c13c3390`: one shared
-`loading_once` map, and `SourceMap::forget` drops the walk's entry) and the autoload item
-(`c8d864400`). The `require` walk resolves a directory only at a file's first `require`. The editor's
-warm start is not measured again yet. `website/public/llms-full.txt` is not rendered again since the
-10-cli page changed: the goal end's `bun nv ci --check` names it. The acceptance sweep's reds were
-stale again (no `env-secret-proofs` log; nightly 41813182715 ran on `f3150b922`, before the fixes).
+Stages 1, 2 and 3 are done. Stage 3's last item landed this session: an uncached `nvs run` of one line
+resolves 4 paths (was 9), because the settings snapshot matches `[[app]]` blocks against the entry
+it just resolved (`app::matching_canonical`), one configuration read judges each trusted file once
+(`Remembered`, `crates/nvs-config/src/resolve.rs`), and `nvs test --watch` of a directory no longer
+resolves its in-memory entry (`Trace::real` is an `Option`). Test
+`a_run_resolves_each_settings_path_once` ran once, green. The editor's warm start is not measured
+again yet (stage 5's `lsp-start` item). `website/public/llms-full.txt` is not rendered again since
+the 10-cli page changed: the goal end's `bun nv ci --check` names it. The acceptance sweep's reds were
+stale again: no `env-secret-proofs` log, and nightly 41813182715 ran on `f3150b922`, before
+`a8bdf37fb` (live_edit) and `a2f451fad` (Miri).
 
 Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `incremental.rs`'s three
 `Work` assertions, `crates/nvs-lsp/tests/extensions.rs`, every test of the editor's survey
 (`crates/nvs-lsp/tests/` cases that borrow a map: the survey now shares one map, so a file it read
 first as plain keeps that load), `check_borrow.rs` as a whole, `nvs pkg audit`'s tests, and every
 `nvs check`/`nvs test` of a directory (`check_command.rs`, `nvs test`'s runner tests, `--fix` over a
-directory, `nvs test --watch` of a directory: the walk's entry stays in the map as a dead file). Any
-test that counts `resolved=` exactly may shift down, since the walk resolves fewer directories.
+directory, `nvs test --watch` of a directory). Any test that counts `resolved=` exactly may shift
+down. `nvs-config`'s tests: a test reader that counts `trust` calls now sees one per distinct path
+per resolve, and a snapshot of a file that does not resolve still matches no block.
 
 ### Next
 
-Stage 3's last open items: the run's cache key, then the "each fix adds a count test" item, which the
-three tests above settle once the cache key's test exists. Anchors found so far:
-`Cache::compile` resolves the entry once as `real` (`crates/nvs-cli/src/script.rs:1436`) and hands
-it to `front_end_looking`; `Self::moved` (`:1194`) resolves it again after the compile;
-`describes_the_disk` (`:1960`) resolves it on each validation, which is a fact that may have changed
-(a switched link) and so stays; `Watched::new` (`:1744`) resolves it again on `nvs test --watch`'s
-path. First measure `nvs run --count` of a one-line program uncached and cached, then read where the
-cache key is built from `written` (from `Compiler::prepared`, `:2057`) and drop each resolution of a
-path the same run already resolved. Then stage 3 is done, and stage 4 starts from its snapshot item
-(`crates/nvs-lsp/src/index.rs:1169`, `document.rs`).
+Stage 4, in order: the snapshot type (`crates/nvs-lsp/src/document.rs:741`), then `absorb` split
+into the analysis and the merge (`crates/nvs-lsp/src/index.rs:1169`), then the lone class file's 14
+resolutions (stage 4's third item names the eight sites), then the three test files the stage's last
+item names, run once.
 
 ### Backlog
