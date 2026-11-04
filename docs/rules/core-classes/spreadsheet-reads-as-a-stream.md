@@ -139,7 +139,16 @@ arena, its text and four bytes per string, counts against the archive's byte cei
 whole does: past what the archive has left, the read throws naming the part and
 `[limits] max_decompressed`. **A part is scanned once:** a token the read-ahead block ends inside is
 scanned on from where the last block stopped, and so is a sheet's row, so a token or a row longer
-than many blocks costs its own length.
+than many blocks costs its own length. Custom number formats are found by a map from their id, and a
+format code is rendered from slices of its text, never copies; each costs one map per read and
+nothing per cell.
+
+**What a part writes loosely is read as Excel reads it.** A zip entry name or a relationship
+`Target` with `\` is read with `/`, and a `Target` is percent-decoded before it is resolved. A
+workbook whose relationships omit the shared strings has them read from `xl/sharedStrings.xml`. An
+escaped surrogate pair, `_xD83D__xDE00_`, is joined into one character. A `$` in a merge
+reference is stripped, and phonetic `<rPh>` text is not part of a note. An external link's
+`location` replaces any fragment its `Target` already has, so the link has one `#`.
 
 The tradeoffs. **Performance:** one host call per read-ahead block, one guest call per batch of rows,
 and no Novis code between blocks. **Usability:** typed values, the header's keys on every row, and row

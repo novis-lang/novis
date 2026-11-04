@@ -26,6 +26,8 @@ replaces the table's format and never the cell type.
 workbook's `zone` option, and with none the write throws naming the column. A `DateTime` already
 carries its clock time, which is written as it is. On read, `zone` (default `'UTC'`) is the zone a
 read `DateTime` is placed in, and the clock time in the file is kept exactly; no conversion moves it.
+A clock time that `zone`'s daylight-saving change skips or repeats is placed by `Core\DateTime`'s
+`withTime` rule: a skipped time moves forward by the gap, and a repeated one takes the earlier offset.
 
 **The read table:**
 

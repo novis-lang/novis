@@ -104,6 +104,11 @@ the cut-off and logged download that was never finished
 (`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
 
+**After a download's body is streamed, the request cannot add to it.** `echo` goes to the context's
+output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs`), a late
+`setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`, so no
+compile-time check is needed. `tests/hostile/novis/Spreadsheet-Export/download/` pins it.
+
 **Declined:**
 - **A request-end hook that calls `Stream::abort()`.** It runs user code after the handler returned,
   which cancellation forbids.

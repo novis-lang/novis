@@ -34,7 +34,7 @@ stages:
     context: [extensions/spreadsheet/tests/format.rs, extensions/spreadsheet/tests/evaluate.rs, extensions/spreadsheet/tests/template.rs, extensions/spreadsheet/tests/write.rs, extensions/spreadsheet/tests/sheet_end.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: hostile-input
@@ -633,48 +633,45 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 7 is done; the `pinned-dates` and `pinned-values` checks ran green once (5 and 25 tests),
-and clippy is clean over the extension and the workspace. Five writing subagents appended the tests:
-`crates/nvs-ext/tests/spreadsheet_read.rs` from :5456 (with a new `package_styled` helper at :202
-that `package_with` now calls), `extensions/spreadsheet/tests/format.rs` from :268,
-`evaluate.rs` from :787, `template.rs` from :1118 (helper `binary_parts`), `write.rs` from
-:1262 and `sheet_end.rs` from :1310. Every Declined entry is written (ea6db8c4e), and
-`bun nv rules --check` is clean.
+Every stage is done. `looper verify` is green (third run, after c3faeba6a), and the goal-end gates
+are green: `bun nv verify --doc`, `bun nv owners --closes spreadsheet-edge-cases` (no gap) and
+`bun nv ci --check`.
 
-One pin was red and was a bug, fixed in f136bb5ce: an internal link to `Shop Data!B2` was written
-without quotes (`extensions/spreadsheet/src/tail.rs`'s link arm now quotes by `chart::quoted`).
-Decision 46 and the sheet-end rule say what it does now. Decision 47 records that DT-03's Rust pin
-checks only the wall clock the guest returns.
+The first gate run's reds, fixed in 55fd647a1: seven CLI tests (`spreadsheet_workbook`,
+`spreadsheet_values`, `spreadsheet_sheet`) still expected CSV exports with no BOM and LF; the
+component's size in `extensions/spreadsheet/src/lib.rs` is now 1.72 MiB; the `lineEnd` case asserts
+its error text for `conformance_coverage`; a hostile download attack is in formatter layout; and
+`spreadsheet_hostile`'s `linear_by` takes up to twelve rounds while the fastest pair is over the
+same 4x-per-unit bound (alone the whole-column read measures 7.6x for 8N). Two climbing literals
+are listed in `tools/data/impact-data-literals.txt`. The second run's reds, fixed in c3faeba6a: one
+more such literal, and `crates/nvs-lsp/tests/publish.rs`'s `published` now skips other
+notifications, because `nvs/fileKindsChanged` arrives when the index ends.
 
-The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as eleven
-handoffs have found; it comes from looper's service, not from this repository. The nightly reds on
-run 41813182715 are fixed by a8bdf37fb and a2f451fad, which that run predates.
-`cargo clippy --all-targets` fails on an untracked `crates/nvs-host/tests/zz_connect_probe.rs`
-(`eprintln!`), written at 18:44 by another session; this session did not touch it. If it is
-still there at the gate, whoever owns it deletes it, else the gate's clippy is red on it.
+`bun nv ci --check`'s reds, fixed in 5769fed0d, 0ce83dd11 and the commits after: the website render,
+the roadmap's missing `whole-project-speed` theme, the stale questions of 19 spreadsheet and
+`Core\Csv` pages and the three Open VSX pages, the `Core\Csv` perf records, and
+`Reader::open`'s `about.md` past 200 words. Decisions 5, 11, 12, 14, 15, 16, 45 and 47 are now in
+the spreadsheet read, value-type and write rules. `env-secret-proofs` comes from looper's service;
+the nightly reds on run 41813182715 predate a8bdf37fb and a2f451fad. Other goals' reds that passed
+alone (`agent`, a stdlib statement timeout, `examples` without its database) did not repeat.
 
 ### Next
 
-Stage 8, the gate: `bun nv affected --run` (`looper verify` in the loop) over the whole goal, every
-failure fixed in one pass, then once more. Then the goal-end gates AGENTS.md § *In the loop* names:
-`bun nv verify --doc`, `bun nv owners --closes spreadsheet-edge-cases`, `bun nv ci --check`.
-
-Expected reds: none known. The `template` and `evaluate` suites run whole for the first time since
-stage 5 (`a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy`,
-`operators_follow_excels_precedence_and_coercion`), and the extension's ods style tests for the
-first time since the `digits` change. The link change reaches any test or conformance case that
-writes a link to an unquoted sheet name with a space or a cell-like name; none was found by grep.
+The goal is reached; the driver retires it.
 
 ### Backlog
 
 - A conformance case reading a daylight-saving gap and overlap wall clock through `Reader` with
   `zone: 'Europe/Vienna'`: the gap time moves forward an hour, the overlap takes the earlier
   offset (decision 47).
+- `Export::to` on an open file that already has text writes the CSV byte order mark in the middle
+  of that file (`spreadsheet_values.rs`'s `save_reads_the_format_from_the_path_and_to_writes_where_the_file_is`
+  pins it). Writing the mark only at position 0 would need the handle's position.
