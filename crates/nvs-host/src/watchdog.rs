@@ -3059,50 +3059,51 @@ mod tests {
         crate::cpuclock::burn_at_least(Duration::from_millis(20));
     }
 
-    /// A thread set up as the watchdog's ends its timed waits close to when
-    /// they are due, which bounds how far past its `[limits] cpu_time` a
-    /// request runs between two sweeps. An ordinary macOS thread ends a 50 ms
-    /// wait 50 ms or more late, so this fails there before any attack does.
-    /// The median is held to the bound, so one wait a loaded runner delays
-    /// does not fail it. The figures go to stderr past the capture, for every
-    /// platform's CI log.
+    /// A thread set up as the watchdog's runs under macOS's time-constraint
+    /// policy, whose timed waits end on time, as [`wake_on_time`] says. How
+    /// late each sweep woke is measured in every run ([`lateness`]) and
+    /// explains a stop's overshoot, so this case checks the cause by reading
+    /// the policy back and never by timing a wait: a wait's lateness depends
+    /// on the machine's load (`rule:testing/a-test-holds-at-any-speed`).
+    /// Linux and Windows set nothing, so the case is macOS's alone.
+    #[cfg(target_os = "macos")]
     #[test]
-    fn the_watchdog_threads_timed_waits_end_on_time() {
-        const WAIT: Duration = Duration::from_millis(50);
-        const WAITS: usize = 9;
-        /// Above Windows' 15.6 ms timer tick, and under what macOS adds to an
-        /// ordinary thread's 50 ms wait.
-        const LATE: Duration = Duration::from_millis(30);
-
-        let mut late = std::thread::spawn(|| {
+    fn the_watchdog_thread_runs_under_the_time_constraint_policy() {
+        let (read, default, constraint) = std::thread::spawn(|| {
             wake_on_time();
-            let gate = Mutex::new(());
-            let never = Condvar::new();
-            let mut held = lock(&gate);
-            let mut late = Vec::with_capacity(WAITS);
-            for _ in 0..WAITS {
-                let start = Instant::now();
-                held = never
-                    .wait_timeout(held, WAIT)
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .0;
-                late.push(start.elapsed().saturating_sub(WAIT));
-            }
-            late
+            let mut policy = libc::thread_time_constraint_policy {
+                period: 0,
+                computation: 0,
+                constraint: 0,
+                preemptible: 0,
+            };
+            let mut count = libc::THREAD_TIME_CONSTRAINT_POLICY_COUNT;
+            let mut default: libc::boolean_t = 0;
+            let flavor =
+                libc::thread_policy_flavor_t::try_from(libc::THREAD_TIME_CONSTRAINT_POLICY)
+                    .expect("the policy flavor does not fit its type");
+            #[expect(
+                unsafe_code,
+                reason = "`thread_policy_get` is the mach call that reads a thread's scheduling \
+                          policy, and `std` has none. It names the calling thread, writes into \
+                          stack values this call owns exclusively, and `count` gives the policy's \
+                          size in `integer_t`s."
+            )]
+            let read = unsafe {
+                libc::thread_policy_get(
+                    libc::pthread_mach_thread_np(libc::pthread_self()),
+                    flavor,
+                    (&raw mut policy).cast::<libc::integer_t>(),
+                    &raw mut count,
+                    &raw mut default,
+                )
+            };
+            (read, default, policy.constraint)
         })
         .join()
-        .expect("the waiting thread panicked");
-        late.sort_unstable();
-        let median = late[WAITS / 2];
-        let worst = late[WAITS - 1];
-        let _ = writeln!(
-            std::io::stderr(),
-            "watchdog: {WAITS} waits of {WAIT:?} ended {median:?} late at the median, {worst:?} at worst"
-        );
-        assert!(
-            median < LATE,
-            "the watchdog thread's {WAIT:?} waits ended {median:?} late at the median, past \
-             {LATE:?}: a request would run that far past its CPU limit"
-        );
+        .expect("the thread that reads its policy panicked");
+        assert_eq!(read, libc::KERN_SUCCESS, "the thread's policy could not be read");
+        assert_eq!(default, 0, "the watchdog thread still runs under the default policy");
+        assert!(constraint > 0, "the watchdog thread's policy has no constraint");
     }
 }
