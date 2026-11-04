@@ -171,16 +171,21 @@ fn close(client: &Connection, uri: &Uri) {
 /// The next `textDocument/publishDiagnostics` the server sends.
 ///
 /// Waited for with a bound rather than forever, so a server that publishes
-/// nothing fails this suite instead of hanging it.
+/// nothing fails this suite instead of hanging it. Another notification, such
+/// as `nvs/fileKindsChanged` once the workspace index is built, comes whenever
+/// that work ends, so it is skipped.
 fn published(client: &Connection) -> PublishDiagnosticsParams {
-    match client.receiver.recv_timeout(Duration::from_secs(30)) {
-        Ok(Message::Notification(notification))
-            if notification.method == PublishDiagnostics::METHOD =>
-        {
-            serde_json::from_value(notification.params)
-                .expect("the params deserialize as a `PublishDiagnosticsParams`")
+    loop {
+        match client.receiver.recv_timeout(Duration::from_secs(30)) {
+            Ok(Message::Notification(notification))
+                if notification.method == PublishDiagnostics::METHOD =>
+            {
+                return serde_json::from_value(notification.params)
+                    .expect("the params deserialize as a `PublishDiagnosticsParams`");
+            }
+            Ok(Message::Notification(_)) => {}
+            other => panic!("expected a `textDocument/publishDiagnostics`, got {other:?}"),
         }
-        other => panic!("expected a `textDocument/publishDiagnostics`, got {other:?}"),
     }
 }
 

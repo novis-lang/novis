@@ -84,6 +84,7 @@ crates/nvs-ext/tests/files.rs  "../escaped.txt"  --  a path a guest writes under
 crates/nvs-ext/tests/manifest.rs  "../Units.nvs"  --  a source path in an extension's source section, expected to be refused
 crates/nvs-ext/tests/pack.rs  "../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
 crates/nvs-ext/tests/pack.rs  "Geo/../../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
+crates/nvs-ext/tests/spreadsheet_hostile.rs  "../_rels/.rels"  --  a relationship target inside a workbook built in memory, which points back at a relationships part to make a cycle, never opened
 crates/nvs-ext/tests/spreadsheet_hostile.rs  "../../x"  --  a relationship target inside a workbook built in memory, which the reader is expected to keep inside the archive, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../comments1.xml"  --  a relationship target inside a workbook built in memory, never opened
 crates/nvs-ext/tests/spreadsheet_read.rs  "../comments1.bin"  --  a relationship target inside an xlsb built in memory, never opened
