@@ -117,10 +117,13 @@ fn code_hits(needle: &str) -> Vec<(String, usize)> {
     for path in crate_sources() {
         let text =
             fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+        // A function that returns the type ends its signature with the same
+        // text, and it builds nothing.
+        let returns = format!("-> {needle}");
         let hits = text
             .lines()
             .filter(|line| !line.trim_start().starts_with("//"))
-            .filter(|line| line.contains(needle))
+            .filter(|line| line.contains(needle) && !line.contains(&returns))
             .count();
         if hits > 0 {
             found.push((name_of(&path), hits));
@@ -191,6 +194,7 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
             .filter(|line| {
                 line.contains("SymbolIndex")
                     && !line.contains("&SymbolIndex")
+                    && !line.contains("&crate::SymbolIndex")
                     && !line.contains("&'a SymbolIndex")
             })
             .collect();
@@ -825,11 +829,10 @@ mod work_per_file {
     }
 
     /// Each analysis resolves its own file's path a fixed number of times, and
-    /// the shared `nvs.toml` is resolved once for the index. Fourteen is
-    /// today's figure: the entry's own path is made canonical again at each
-    /// step of the walk and of the merge into the index, which the goal's
-    /// stage 4 cuts. Before the tree was kept it was fifteen, and the settings
-    /// file was parsed once per file.
+    /// the shared `nvs.toml` is resolved once for the index. The figure is six
+    /// a file: the index resolves the entry once and hands the key on, and a
+    /// read resolves its path once for the overlay and the pin. The bound
+    /// allows one more. Before that it was fourteen.
     #[test]
     fn an_index_resolves_each_files_path_a_bounded_number_of_times_per_file() {
         let dir = tree("work-resolved", "");
@@ -837,7 +840,7 @@ mod work_per_file {
         let files = index.work().files;
         let shared = 2;
         assert!(
-            files.resolved <= 14 * FILES as u64 + shared,
+            files.resolved <= 7 * FILES as u64 + shared,
             "{} paths resolved for {FILES} files",
             files.resolved
         );

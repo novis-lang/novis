@@ -446,10 +446,13 @@ impl SourceMap {
 
     /// Adds the file `path` read as: at its pinned id when this map is pinned
     /// and that slot is still empty, and at the next id otherwise.
-    fn place(&mut self, name: String, path: &Path, text: String) -> SourceId {
+    ///
+    /// `key` is `path`'s [`canonical_key`] where the caller resolved it
+    /// already, so one read resolves its path once.
+    fn place(&mut self, name: String, path: &Path, key: Option<PathBuf>, text: String) -> SourceId {
         let len = u32::try_from(self.files.len()).expect("too many source files");
         let pinned = self.pins.as_mut().map(|pins| {
-            let key = canonical_key(path);
+            let key = key.unwrap_or_else(|| canonical_key(path));
             if let Some(&id) = pins.ids.get(&key) {
                 return id;
             }
@@ -496,9 +499,20 @@ impl SourceMap {
     ///
     /// Panics if `text` exceeds [`MAX_SOURCE_LEN`], as [`add`](Self::add) does.
     pub fn overlay(&mut self, path: impl AsRef<Path>, text: impl Into<String>) {
+        self.overlay_key(canonical_key(path.as_ref()), text);
+    }
+
+    /// [`overlay`](Self::overlay) for a path that is a [`canonical_key`]
+    /// already, so it is not resolved again. A caller that overlays the same
+    /// buffers on many maps resolves each buffer's path once.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `text` exceeds [`MAX_SOURCE_LEN`], as [`add`](Self::add) does.
+    pub fn overlay_key(&mut self, key: PathBuf, text: impl Into<String>) {
         let text = text.into();
         assert!(text.len() <= MAX_SOURCE_LEN, "source file exceeds 4 GiB");
-        self.overlays.insert(canonical_key(path.as_ref()), text);
+        self.overlays.insert(key, text);
     }
 
     /// Adds a file with an explicit display name, for input not read from disk
@@ -543,7 +557,7 @@ impl SourceMap {
     /// the text the first check read. It costs one copy of the text.
     pub fn adopt(&mut self, file: &SourceFile) -> SourceId {
         match file.path() {
-            Some(path) => self.place(file.name().to_owned(), path, file.text().to_owned()),
+            Some(path) => self.place(file.name().to_owned(), path, None, file.text().to_owned()),
             None => self.add(file.name(), file.text()),
         }
     }
@@ -590,16 +604,20 @@ impl SourceMap {
         // An open buffer stands in for the file's bytes, and stands in front of
         // the embedded payload because the two can never answer for one path: a
         // bundled executable has no editor attached to it.
-        if !self.overlays.is_empty()
-            && let Some(text) = self.overlays.get(&canonical_key(path)).cloned()
+        // The key the overlay is looked up by is the key the file is pinned
+        // under, so it is resolved once for both.
+        let key = (!self.overlays.is_empty()).then(|| canonical_key(path));
+        if let Some(key) = &key
+            && let Some(text) = self.overlays.get(key).cloned()
         {
-            return Ok(self.place(plain_path(path).display().to_string(), path, text));
+            let name = plain_path(path).display().to_string();
+            return Ok(self.place(name, path, Some(key.clone()), text));
         }
         // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`: inside a bundled executable the payload is the byte
         // source, and the name a diagnostic prints is the path the *build* saw
         // rather than the synthetic one this process resolves against.
         if let Some((name, text)) = crate::embedded::text(path) {
-            return Ok(self.place(name.to_owned(), path, text.to_owned()));
+            return Ok(self.place(name.to_owned(), path, key, text.to_owned()));
         }
         crate::work::count(crate::work::Kind::Read);
         let text = match std::fs::read_to_string(path) {
@@ -617,7 +635,7 @@ impl SourceMap {
             ));
         }
         let name = plain_path(path).display().to_string();
-        Ok(self.place(name, path, text))
+        Ok(self.place(name, path, key, text))
     }
 
     /// Looks up a file.

@@ -60,6 +60,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use lsp_types::Uri;
@@ -125,8 +126,9 @@ pub struct Documents {
     /// Every program [`survey`](Self::survey) found that declares `autoload`,
     /// in entry-path order, which is what makes [`lender_for`](Self::lender_for)
     /// a deterministic choice. One resolved map per such program, held for the
-    /// session.
-    lenders: Vec<Lender>,
+    /// session. Shared with every [`Snapshot`], and copied on write only while
+    /// one is alive.
+    lenders: Arc<Vec<Lender>>,
     /// Where the `Core` stub tree is written, for a jump to a name no source
     /// file declares (`crate::stubs`); `None` is a server nobody told and no
     /// cache directory to fall back to, whose `Core` jumps open nothing.
@@ -322,7 +324,7 @@ impl Documents {
             .filter_map(|(path, _)| Lender::walk(&mut survey, path))
             .collect();
         self.kept.get_mut().clear();
-        self.lenders = lenders;
+        self.lenders = Arc::new(lenders);
     }
 
     /// [`survey`](Self::survey), for the one file that changed: `changed`
@@ -353,15 +355,16 @@ impl Documents {
         entries.sort();
         entries.dedup();
 
-        self.lenders
+        Arc::make_mut(&mut self.lenders)
             .retain(|lender| !entries.iter().any(|entry| entry == lender.entry()));
         let mut survey = survey_of(self);
-        for entry in entries {
-            if let Some(found) = Lender::walk(&mut survey, &entry) {
-                self.lenders.push(found);
-            }
-        }
-        self.lenders.sort_by(|a, b| a.entry().cmp(b.entry()));
+        let found: Vec<Lender> = entries
+            .iter()
+            .filter_map(|entry| Lender::walk(&mut survey, entry))
+            .collect();
+        let lenders = Arc::make_mut(&mut self.lenders);
+        lenders.extend(found);
+        lenders.sort_by(|a, b| a.entry().cmp(b.entry()));
     }
 
     /// The program `path` borrows its `autoload` map from, as
@@ -377,15 +380,10 @@ impl Documents {
     /// `nvs test`, which requires every file under the directory into one
     /// program, and it is held to plain files because a file that requires or
     /// declares anything starts a program of its own.
-    fn lender_for(&self, path: &Path) -> Option<&Lender> {
-        let key = canonical_key(path);
-        if self.lenders.iter().any(|lender| lender.entry() == key) {
-            return None;
-        }
-        nvs_hir::lenders::choose(&self.lenders, path, || {
-            self.text_of(path)
-                .is_some_and(|text| nvs_hir::lenders::is_plain(&text))
-        })
+    ///
+    /// `key` is the file's `canonical_key`, which the caller resolved once.
+    fn lender_for(&self, key: &Path) -> Option<&Lender> {
+        lender_among(&self.lenders, key, || self.text_of(key))
     }
 
     /// Whether the text of `path` — the open buffer, or the file under it —
@@ -502,6 +500,172 @@ impl Documents {
         republish.sort();
         republish
     }
+}
+
+impl Documents {
+    /// What one analysis reads from this store, copied so another thread can
+    /// own it. The index takes one per entry it settles.
+    ///
+    /// It costs one copy of every open buffer's text and one resolution of
+    /// each buffer's path. The lenders are shared, not copied.
+    #[must_use]
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        let buffers = self
+            .buffers
+            .values()
+            .filter_map(|document| {
+                let path = document.path()?;
+                Some(Buffer {
+                    key: canonical_key(path),
+                    version: document.version,
+                    text: document.text.clone(),
+                })
+            })
+            .collect();
+        Snapshot {
+            buffers,
+            lenders: Arc::clone(&self.lenders),
+            stubs: self.stubs.clone(),
+        }
+    }
+
+    /// The parse and check session and the configuration cache every analysis
+    /// out of this store writes, for an analysis that reads a [`Snapshot`].
+    pub(crate) fn caches(
+        &self,
+    ) -> (
+        std::cell::RefMut<'_, Session>,
+        std::cell::RefMut<'_, crate::tree_cache::TreeCache>,
+    ) {
+        (self.session.borrow_mut(), self.trees.borrow_mut())
+    }
+}
+
+/// What one analysis reads besides the files on disk and the caches it
+/// writes: the open buffers, the programs that lend an `autoload` map, and the
+/// stub tree.
+///
+/// [`Documents`] is one, read in place. [`Snapshot`] is a copy of it that
+/// another thread can own.
+pub(crate) trait Reads {
+    /// Registers every open buffer on `map`, as [`Documents::overlay`] does.
+    fn overlay(&self, map: &mut SourceMap);
+    /// The program the file under `key`, a `canonical_key`, borrows its
+    /// `autoload` map from ([`Documents::lender_for`]).
+    fn lender_for(&self, key: &Path) -> Option<&Lender>;
+    /// The stub tree, if one was named.
+    fn stubs(&self) -> Option<&Stubs>;
+    /// The `canonical_key` of every open buffer that names a file.
+    fn open_keys(&self) -> Vec<PathBuf>;
+}
+
+impl Reads for Documents {
+    fn overlay(&self, map: &mut SourceMap) {
+        Self::overlay(self, map);
+    }
+
+    fn lender_for(&self, key: &Path) -> Option<&Lender> {
+        Self::lender_for(self, key)
+    }
+
+    fn stubs(&self) -> Option<&Stubs> {
+        self.stubs.as_ref()
+    }
+
+    fn open_keys(&self) -> Vec<PathBuf> {
+        self.buffers
+            .values()
+            .filter_map(|document| document.path().map(canonical_key))
+            .collect()
+    }
+}
+
+/// One open buffer, as a [`Snapshot`] copied it.
+#[derive(Debug)]
+struct Buffer {
+    /// The file it is a buffer for, under `canonical_key`.
+    key: PathBuf,
+    /// The version the client stamped it with.
+    version: i32,
+    /// Its text.
+    text: String,
+}
+
+/// What one analysis reads from the store, taken at one moment and owned.
+///
+/// The index analyses an entry through one, so the analysis reads nothing the
+/// store can change under it. It is `Send`, so a thread other than the
+/// store's can own it. It has no session: a session shares its interner
+/// through an `Rc`, so each thread that analyses keeps its own.
+#[derive(Debug)]
+pub(crate) struct Snapshot {
+    /// Each open buffer that names a file.
+    buffers: Vec<Buffer>,
+    /// The store's lenders, shared.
+    lenders: Arc<Vec<Lender>>,
+    /// The stub tree, if one was named.
+    stubs: Option<Stubs>,
+}
+
+/// A snapshot is sent to the thread that analyses it.
+const _: () = {
+    const fn sendable<T: Send>() {}
+    sendable::<Snapshot>();
+};
+
+impl Snapshot {
+    /// The version of the open buffer for `key`, a `canonical_key`, or `None`
+    /// when no buffer is open for it.
+    #[must_use]
+    pub(crate) fn version_of(&self, key: &Path) -> Option<i32> {
+        self.buffers
+            .iter()
+            .find(|buffer| buffer.key == key)
+            .map(|buffer| buffer.version)
+    }
+}
+
+impl Reads for Snapshot {
+    fn overlay(&self, map: &mut SourceMap) {
+        for buffer in &self.buffers {
+            map.overlay_key(buffer.key.clone(), buffer.text.clone());
+        }
+    }
+
+    fn lender_for(&self, key: &Path) -> Option<&Lender> {
+        lender_among(&self.lenders, key, || {
+            let mut map = SourceMap::new();
+            self.overlay(&mut map);
+            map.load(key).ok().map(|id| map.file(id).text().to_owned())
+        })
+    }
+
+    fn stubs(&self) -> Option<&Stubs> {
+        self.stubs.as_ref()
+    }
+
+    fn open_keys(&self) -> Vec<PathBuf> {
+        self.buffers
+            .iter()
+            .map(|buffer| buffer.key.clone())
+            .collect()
+    }
+}
+
+/// The lender among `lenders` for the file under `key`, a `canonical_key`, as
+/// [`Documents::lender_for`] says. `text` is the file's text, read only when
+/// the directory test needs it.
+fn lender_among<'a>(
+    lenders: &'a [Lender],
+    key: &Path,
+    text: impl FnOnce() -> Option<String>,
+) -> Option<&'a Lender> {
+    if lenders.iter().any(|lender| lender.entry() == key) {
+        return None;
+    }
+    nvs_hir::lenders::choose_key(lenders, key, || {
+        text().is_some_and(|text| nvs_hir::lenders::is_plain(&text))
+    })
 }
 
 /// How much front-end work one or more analyses did, counted and never
@@ -758,15 +922,49 @@ fn analyse_over(
     version: i32,
     entry_text: Option<String>,
 ) -> Option<Analysed> {
+    let (mut session, mut trees) = documents.caches();
+    let entry = Entry {
+        path,
+        key: &canonical_key(path),
+    };
+    analyse_through(
+        documents,
+        &mut session,
+        &mut trees,
+        entry,
+        version,
+        entry_text,
+    )
+}
+
+/// The file an analysis starts from: the path it is loaded by, and its
+/// `canonical_key`, resolved once by the caller.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Entry<'a> {
+    /// The path the entry is loaded by, which names it in every diagnostic.
+    pub(crate) path: &'a Path,
+    /// `path` under `canonical_key`.
+    pub(crate) key: &'a Path,
+}
+
+/// The walk itself, reading the open buffers and the lenders through `reads`
+/// and keeping its parses and checked outputs in `session`.
+pub(crate) fn analyse_through(
+    reads: &impl Reads,
+    session: &mut Session,
+    trees: &mut crate::tree_cache::TreeCache,
+    entry_at: Entry<'_>,
+    version: i32,
+    entry_text: Option<String>,
+) -> Option<Analysed> {
+    let Entry { path, key } = entry_at;
     let before = nvs_diagnostics::work::so_far();
-    let mut session = documents.session.borrow_mut();
-    let session = &mut *session;
     let parses = &mut session.parses;
     let misses = parses.misses();
     let mut map = parses.map();
-    documents.overlay(&mut map);
+    reads.overlay(&mut map);
     if let Some(text) = entry_text {
-        map.overlay(path, text);
+        map.overlay_key(key.to_path_buf(), text);
     }
     // The entry is loaded rather than added, even though its text is right
     // here: a `require` resolves against the requiring file's own directory,
@@ -797,10 +995,10 @@ fn analyse_over(
     // file a program starts from. A file some program autoloads or requires
     // has no map of its own to resolve a name through, so it borrows that
     // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
-    let lender = documents.lender_for(path);
+    let lender = reads.lender_for(key);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring().to_vec());
     let program = lender.map(|lender| lender.entry().to_path_buf());
-    let extensions = extension_set(documents, path);
+    let extensions = extension_set(trees, path);
     let (module, loaded, autoload) = resolve_program_linted(
         entry,
         stmts,
@@ -930,7 +1128,7 @@ fn analyse_over(
         interner,
         deprecated,
         diags,
-        stubs: documents.stubs.clone(),
+        stubs: reads.stubs().cloned(),
         extensions: extensions.manifests,
         work,
     })
@@ -984,12 +1182,12 @@ fn graph_key(
 /// set per list of entries ([`crate::tree_cache`]), each with the size and modification time of
 /// every file it was read from. A kept answer is used only while every one of those still matches, so an edit to
 /// `nvs.toml` or a `.nvsx` reaches the next analysis with no edit to the source.
-fn extension_set(documents: &Documents, path: &Path) -> crate::tree_cache::Extensions {
+fn extension_set(
+    trees: &mut crate::tree_cache::TreeCache,
+    path: &Path,
+) -> crate::tree_cache::Extensions {
     let data = nvs_config::data::config_file();
-    documents
-        .trees
-        .borrow_mut()
-        .extensions(path, data.as_deref())
+    trees.extensions(path, data.as_deref())
 }
 
 /// What [`program_tree`] found for a document.

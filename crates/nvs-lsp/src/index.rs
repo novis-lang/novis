@@ -112,7 +112,8 @@ use crate::definition::{
     written_types_in,
 };
 use crate::disk_index::{self, Stamp};
-use crate::document::{Analysed, Documents, Work, analyse_file};
+use crate::document::{Analysed, Documents, Entry, Reads, Work, analyse_through};
+use crate::session::Session;
 
 /// The three visibility levels a [`Declaration`] carries.
 ///
@@ -336,9 +337,9 @@ pub struct Import {
 
 /// One file, as the analysis that reached it read it.
 ///
-/// Built by [`SymbolIndex::absorb`], and read back from disk by
-/// [`crate::disk_index::decode`], which restores what an earlier `absorb`
-/// built and analyses nothing.
+/// Built by [`analyse_entry`] and filed by [`SymbolIndex::merge`], and read
+/// back from disk by [`crate::disk_index::decode`], which restores what an
+/// earlier analysis built and analyses nothing.
 #[derive(Debug)]
 pub(crate) struct Indexed {
     /// Every name declared here, in source order.
@@ -722,7 +723,8 @@ impl SymbolIndex {
             let Some(path) = document.path() else {
                 continue;
             };
-            if let Some(analysis) = self.absorb(documents, path, document.version()) {
+            let at = Entry { path, key: &entry };
+            if let Some(analysis) = self.absorb(documents, at, document.version()) {
                 analysed.push((document.uri().clone(), analysis));
             }
         }
@@ -762,8 +764,23 @@ impl SymbolIndex {
         let owns = !self.owned_by(&entry).is_empty();
         if owns || !self.files.contains_key(&entry) {
             self.drop_owned(std::slice::from_ref(&entry));
-            let version = open_document(documents, &entry).map_or(NO_BUFFER, |open| open.version());
-            self.absorb(documents, &entry, version);
+            // The entry is analysed through a snapshot of the store, the
+            // input a thread other than the store's can own.
+            let snapshot = documents.snapshot();
+            let version = snapshot.version_of(&entry).unwrap_or(NO_BUFFER);
+            let (mut session, mut trees) = documents.caches();
+            let files = &self.files;
+            let at = Entry {
+                path: &entry,
+                key: &entry,
+            };
+            let analysed = analyse_entry(&snapshot, &mut session, &mut trees, at, version, |key| {
+                files.contains_key(key)
+            });
+            drop((session, trees));
+            if let Some((_, analysis)) = analysed {
+                self.merge(analysis);
+            }
         }
         if self.pending.is_empty() {
             // The tree is settled, so a parse kept for a file no entry indexed
@@ -1155,88 +1172,44 @@ impl SymbolIndex {
         self.files.is_empty()
     }
 
-    /// Indexes every file one analysis of `entry` reaches.
+    /// Indexes every file one analysis of `entry` reaches, reading the store
+    /// in place. [`refresh`](Self::refresh) analyses each open entry this way.
+    ///
+    /// Returns the analysis it indexed, for [`refresh`](Self::refresh) to hand
+    /// on.
+    fn absorb(
+        &mut self,
+        documents: &Documents,
+        entry: Entry<'_>,
+        version: i32,
+    ) -> Option<Analysed> {
+        let (mut session, mut trees) = documents.caches();
+        let files = &self.files;
+        let (analysed, analysis) =
+            analyse_entry(documents, &mut session, &mut trees, entry, version, |key| {
+                files.contains_key(key)
+            })?;
+        drop((session, trees));
+        self.merge(analysis);
+        Some(analysed)
+    }
+
+    /// Files what one [`analyse_entry`] found.
     ///
     /// **This is the crate's one symbol-index construction site**, and
     /// `tests/index.rs` is what says so: every other module here reads a
     /// `&SymbolIndex`, and a second feature walking the front end for names of
     /// its own is the thing `rule:ide/five-features-are-one-reference-index`
-    /// refuses. A file another entry already indexed is skipped rather than
-    /// re-indexed, per the module doc's second decision.
-    ///
-    /// Returns the analysis it indexed, for [`refresh`](Self::refresh) to hand
-    /// on.
-    fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) -> Option<Analysed> {
-        let before = nvs_diagnostics::work::so_far();
-        let analysed = self.file_entry(documents, entry, version);
-        // The analysis's own share arrived with `analysed.work`, and this adds
-        // what filing its result cost, or the whole when it did not analyse.
-        let spent = nvs_diagnostics::work::so_far() - before;
-        let analysis = analysed
-            .as_ref()
-            .map_or_else(Default::default, |analysed| analysed.work.files);
-        self.work.files += spent - analysis;
-        analysed
-    }
-
-    /// [`absorb`](Self::absorb) without the count of the file-system work it
-    /// did beyond the analysis.
-    fn file_entry(
-        &mut self,
-        documents: &Documents,
-        entry: &Path,
-        version: i32,
-    ) -> Option<Analysed> {
-        let started = SystemTime::now();
-        let analysed = analyse_file(documents, entry, version)?;
-        self.work += analysed.work;
-        let entry = canonical_key(entry);
+    /// refuses. A file another entry already indexed is skipped, per the
+    /// module doc's second decision, so the first analysis that reaches a file
+    /// keeps it. An entry that files no record keeps no reads.
+    fn merge(&mut self, analysis: Analysis) {
+        self.work += analysis.work;
         let mut owns_a_file = false;
-
-        for loaded in &analysed.loaded {
-            let Some(path) = analysed.map.file(loaded.id).path() else {
-                continue;
-            };
-            let key = canonical_key(path);
+        for (key, indexed) in analysis.records {
             if self.files.contains_key(&key) {
                 continue;
             }
-            let text = analysed.map.file(loaded.id).text();
-            let stamp = if open_document(documents, &key).is_some() {
-                None
-            } else {
-                std::fs::metadata(&key)
-                    .ok()
-                    .and_then(|metadata| Stamp::of(&metadata, text.len(), started))
-            };
-            let scope = FileScope::of(&analysed, loaded.id);
-            let uses = occurrences(&analysed, &scope, loaded, &key);
-            let indexed = Indexed {
-                decls: declarations(&analysed, &scope, loaded, &key),
-                occurrences: uses.occurrences,
-                imports: imports(&analysed, loaded, &key),
-                requests: uses.requests,
-                unfollowed: uses.unfollowed,
-                queries: uses.queries,
-                sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
-                    .map(|(_, kind)| DeclKind::of_symbol(kind)),
-                errors: analysed.diags.iter().any(|diag| {
-                    diag.is_error()
-                        && diag
-                            .primary_span()
-                            .is_some_and(|span| span.file == loaded.id)
-                }),
-                broken: analysed.diags.iter().any(|diag| {
-                    crate::diagnostics::breaks_the_tree(diag)
-                        && diag
-                            .primary_span()
-                            .is_some_and(|span| span.file == loaded.id)
-                }),
-                surface: crate::surface::of(&loaded.stmts, text),
-                content: content_hash(text.as_bytes()),
-                stamp,
-                entry: entry.clone(),
-            };
             self.post(&key, &indexed);
             self.files.insert(key, indexed);
             owns_a_file = true;
@@ -1244,10 +1217,8 @@ impl SymbolIndex {
         // An entry that indexed no file has nothing an edit could make stale,
         // so its reads are not kept.
         if owns_a_file {
-            let reads = analysed.files().map(|file| canonical_key(&file)).collect();
-            self.reads.insert(entry, reads);
+            self.reads.insert(analysis.entry, analysis.reads);
         }
-        Some(analysed)
     }
 
     /// Adds what `indexed` declares and uses to the three maps, under `key`.
@@ -1293,6 +1264,129 @@ impl SymbolIndex {
         for (at, named) in indexed.unfollowed.iter().enumerate() {
             remove(&mut self.by_unfollowed, named, &(Arc::clone(&key), at));
         }
+    }
+}
+
+/// What one analysis of an entry point found, before it is filed into the
+/// index. It owns everything it holds, so the analysis that built it and the
+/// [`SymbolIndex::merge`] that files it are apart.
+#[derive(Debug)]
+pub(crate) struct Analysis {
+    /// The entry point, under `canonical_key`.
+    entry: PathBuf,
+    /// Each file the analysis reached that the index did not hold when it
+    /// started, under `canonical_key`, in the order the graph loaded them.
+    records: Vec<(PathBuf, Indexed)>,
+    /// Every file the analysis read, under `canonical_key`, entry first.
+    /// Empty when `records` is.
+    reads: Vec<PathBuf>,
+    /// The front-end work the analysis did, and all the file-system work of
+    /// building its records.
+    work: Work,
+}
+
+/// Analyses `entry` and builds the record of each file it reached that
+/// `indexed` does not name. It reads the store only through `reads`, and
+/// keeps its parses and checked outputs in `session`.
+///
+/// Each path the graph loaded is a `canonical_key` already, because the walk
+/// resolves every file it loads, so only the entry is resolved, by the caller.
+pub(crate) fn analyse_entry(
+    reads: &impl Reads,
+    session: &mut Session,
+    trees: &mut crate::tree_cache::TreeCache,
+    entry: Entry<'_>,
+    version: i32,
+    indexed: impl Fn(&Path) -> bool,
+) -> Option<(Analysed, Analysis)> {
+    let before = nvs_diagnostics::work::so_far();
+    let started = SystemTime::now();
+    let analysed = analyse_through(reads, session, trees, entry, version, None)?;
+    let open = reads.open_keys();
+    // The entry was loaded by the path the caller gave, and every other file
+    // by the key the walk resolved.
+    let key_of = |loaded: &Loaded| -> Option<PathBuf> {
+        if loaded.id == analysed.entry {
+            return Some(entry.key.to_path_buf());
+        }
+        analysed.map.file(loaded.id).path().map(Path::to_path_buf)
+    };
+    let mut records = Vec::new();
+    for loaded in &analysed.loaded {
+        let Some(key) = key_of(loaded) else {
+            continue;
+        };
+        if indexed(&key) {
+            continue;
+        }
+        let text = analysed.map.file(loaded.id).text();
+        let stamp = if open.contains(&key) {
+            None
+        } else {
+            std::fs::metadata(&key)
+                .ok()
+                .and_then(|metadata| Stamp::of(&metadata, text.len(), started))
+        };
+        let indexed = record(&analysed, loaded, &key, stamp, entry.key);
+        records.push((key, indexed));
+    }
+    let reads = if records.is_empty() {
+        Vec::new()
+    } else {
+        analysed
+            .loaded
+            .iter()
+            .filter_map(key_of)
+            .chain(analysed.lent.iter().cloned())
+            .collect()
+    };
+    let mut work = analysed.work;
+    work.files = nvs_diagnostics::work::so_far() - before;
+    let analysis = Analysis {
+        entry: entry.key.to_path_buf(),
+        records,
+        reads,
+        work,
+    };
+    Some((analysed, analysis))
+}
+
+/// The record of one file `analysed` loaded, under `key`.
+fn record(
+    analysed: &Analysed,
+    loaded: &Loaded,
+    key: &Path,
+    stamp: Option<Stamp>,
+    entry: &Path,
+) -> Indexed {
+    let text = analysed.map.file(loaded.id).text();
+    let scope = FileScope::of(analysed, loaded.id);
+    let uses = occurrences(analysed, &scope, loaded, key);
+    let in_file = |diag: &nvs_diagnostics::Diagnostic| {
+        diag.primary_span()
+            .is_some_and(|span| span.file == loaded.id)
+    };
+    Indexed {
+        decls: declarations(analysed, &scope, loaded, key),
+        occurrences: uses.occurrences,
+        imports: imports(analysed, loaded, key),
+        requests: uses.requests,
+        unfollowed: uses.unfollowed,
+        queries: uses.queries,
+        sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
+            .map(|(_, kind)| DeclKind::of_symbol(kind)),
+        errors: analysed
+            .diags
+            .iter()
+            .any(|diag| diag.is_error() && in_file(diag)),
+        broken: analysed
+            .diags
+            .iter()
+            .any(|diag| crate::diagnostics::breaks_the_tree(diag) && in_file(diag)),
+        surface: crate::surface::of(&loaded.stmts, text),
+        content: content_hash(text.as_bytes()),
+        stamp,
+        entry: entry.to_path_buf(),
     }
 }
 

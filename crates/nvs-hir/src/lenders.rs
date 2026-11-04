@@ -97,7 +97,7 @@ impl Parses for Kept<'_> {
 
 /// One program that declares `autoload`, as the files it autoloads or requires
 /// borrow it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Lender {
     /// The file the walk started from, under `canonical_key`.
     entry: PathBuf,
@@ -276,6 +276,19 @@ impl At {
         };
         Self { key, claimed }
     }
+
+    /// [`At::of`] for a path that is a `canonical_key` already.
+    fn of_key(key: &Path) -> Self {
+        let claimed = if nvs_diagnostics::embedded::is_active() {
+            crate::autoload::resolved(key)
+        } else {
+            key.to_path_buf()
+        };
+        Self {
+            key: key.to_path_buf(),
+            claimed,
+        }
+    }
 }
 
 /// The lender among `lenders`, taken in entry-path order, that lends `path`
@@ -299,19 +312,38 @@ pub fn choose<L: Borrow<Lender>>(
     path: &Path,
     plain: impl FnOnce() -> bool,
 ) -> Option<L> {
-    let at = At::of(path);
+    choose_at(lenders, &At::of(path), plain)
+}
+
+/// [`choose`] for a path that is a `canonical_key` already, so it is not
+/// resolved again. The editor's index resolves an entry once and asks this.
+#[must_use]
+pub fn choose_key<L: Borrow<Lender>>(
+    lenders: impl IntoIterator<Item = L>,
+    key: &Path,
+    plain: impl FnOnce() -> bool,
+) -> Option<L> {
+    choose_at(lenders, &At::of_key(key), plain)
+}
+
+/// [`choose`], with the path in both its forms.
+fn choose_at<L: Borrow<Lender>>(
+    lenders: impl IntoIterator<Item = L>,
+    at: &At,
+    plain: impl FnOnce() -> bool,
+) -> Option<L> {
     let mut plain = Some(plain);
     let mut is_plain = None;
     let mut by_place = None;
     for lender in lenders {
-        if lender.borrow().owns_at(&at) {
+        if lender.borrow().owns_at(at) {
             return Some(lender);
         }
         let nearer = by_place.as_ref().is_none_or(|held: &L| {
             lender.borrow().dir.components().count() > held.borrow().dir.components().count()
         });
         if nearer
-            && lender.borrow().lends_to_at(&at, || {
+            && lender.borrow().lends_to_at(at, || {
                 *is_plain.get_or_insert_with(|| plain.take().is_some_and(|plain| plain()))
             })
         {
