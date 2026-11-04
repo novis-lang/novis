@@ -37,7 +37,7 @@ final class Reader
     {}
 
     /// `Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
-    /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
+    /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `encoding`, or it throws a `ParseError`.
     public static function open(tainted bytes|Core\IO\File $source, OpenOptions $options = null): Reader
     {
         var $csv = $options?->csv ?? null;

@@ -9,7 +9,9 @@ can have its own lists.
 
 **Good to know:** a placeholder that your data does not have throws a `LogicError` that names the
 cell. The error can come from `fill` or from the call that writes the file, so put both in the
-`try` block. A value of `null` leaves the cell empty. A list inside an item throws an error.
+`try` block. A value of `null` leaves the cell empty. A list inside an item throws an error. The
+filled file has no macros, ActiveX controls, custom ribbons or OLE objects, even if the template
+has them. Images stay in the file.
 
 **The examples below** fill a report with a list of items, fill values from nested arrays, show
 the errors, and fill a list on each of two sheets.

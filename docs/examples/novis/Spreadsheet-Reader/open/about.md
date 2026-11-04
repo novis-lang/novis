@@ -5,10 +5,13 @@ file can be xlsx, xlsm, xlsb, xls, ods or CSV. `Reader::open` finds the type fro
 from a file name. Then `sheets` lists the sheets, and `rows` reads one of them.
 
 A CSV file is UTF-8 text by default. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
-A file that starts with a UTF-16 byte order mark needs no option.
+A file that starts with a UTF-16 byte order mark needs no option. A CSV file in UTF-32 throws a
+`ParseError`. A CSV file that is not UTF-8 also throws a `ParseError`, and the message names the
+`encoding` option.
 
 **Good to know:** a damaged file throws a `ParseError`. Bytes that are not a spreadsheet also throw
-a `ParseError`, such as an image or a file with a NUL byte. A CSV file has one sheet, `Sheet1`, and
+a `ParseError`, such as an image or a file with a NUL byte. A file saved with a password throws a
+`RuntimeError`. A workbook with a part that is not UTF-8 throws a `ParseError` that names the part. A CSV file has one sheet, `Sheet1`, and
 each value in it is a string. Opening a file never runs its macros and never opens its links. If a
 workbook file changes on disk after `Reader::open`, the next call throws a `LogicError`.
 

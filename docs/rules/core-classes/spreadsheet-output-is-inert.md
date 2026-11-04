@@ -17,8 +17,20 @@ input gives byte-equal output, for a write and for a template fill alike, and a 
 byte comparison. This is the same rule the PDF writer holds (`rule:core-classes/pdf-output-is-inert`),
 and it exists for the same reason: a test that cannot compare bytes ends up comparing nothing.
 
+**A template fill drops every part that can run code**, with its relationships and content-type
+entries: the VBA project, XLM macro sheets, `xl/vbaData.xml`, ActiveX controls under `xl/activeX`,
+`customUI` ribbons and `oleObject*.bin` embeddings (`extensions/spreadsheet/src/template/mod.rs`'s
+`dropped`). A macro sheet's `<sheet>` leaves the workbook with the defined names local to it or
+naming it, and `localSheetId`, `activeTab` and `firstSheet` move to the sheets that stay. A
+worksheet's `control` and `oleObject` that name a dropped part leave the sheet. An embedded package,
+such as an xlsx or a docx, and every image are kept: neither runs when the file opens. Cost: none
+per cell; one pass over the content types, the relationships and the workbook part, which the fill
+rewrites already.
+
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
-part in, and the same input written twice and filled twice, each pair compared byte for byte.
+part in, a filled template with a macro sheet, an ActiveX control, a ribbon and an OLE object whose
+output has none of them and keeps its images, and the same input written twice and filled twice,
+each pair compared byte for byte.
 
 **On disk.** The writer (`extensions/spreadsheet/src/writer.rs`) and the template filler
 (`extensions/spreadsheet/src/template/`) both hold the rule, and `extensions/spreadsheet/tests/excel.rs`

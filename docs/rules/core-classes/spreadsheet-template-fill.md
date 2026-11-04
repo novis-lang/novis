@@ -1,6 +1,7 @@
-`Template::open($source)->fill($data)` copies every part of a designed workbook unchanged except the
-cells it fills, writes a row marked by a list once per item, and moves every reference below it so the
-formulas, tables and charts still point at the right rows.
+`Template::open($source)->fill($data)` copies the parts of a designed workbook, fills its cells,
+writes a row marked by a list once per item, and moves every reference below it so the formulas,
+tables and charts still point at the right rows. The parts that can run code are dropped, as
+`rule:core-classes/spreadsheet-output-is-inert` lists them; every other part is copied unchanged.
 
 **Placeholders** are `{{name}}` and `{{customer.name}}`, a path into `$data`'s keys. A cell that is
 only a placeholder takes the value's cell type by `rule:core-classes/spreadsheet-value-types`'s write
@@ -54,7 +55,8 @@ filled file carries the template's own formulas, links and sheets unescaped, so 
 with a template the program trusts. A program filling an upload says so with
 `Core\Taint::assertTrusted($bytes, $reason)` itself, and with a plain source no taint reaches the
 written file, so the `Export` stays plain `bytes`. **An xlsm template gives xlsx**: the
-`vbaProject` part and its relationship are dropped, and the content type is the xlsx one
+`vbaProject` part and its relationship are dropped, and the content type is the xlsx one. The other
+parts that can run code are dropped from every template
 (`rule:core-classes/spreadsheet-output-is-inert`). Two fills of equal input are byte-equal.
 
 The tradeoffs. **Usability:** a designer builds the invoice in Excel, and the program supplies data.

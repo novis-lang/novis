@@ -32,7 +32,16 @@ xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no wo
 compound file is xls. Other bytes are CSV when they are text: they start with a UTF-16 byte order
 mark, `csv`'s `encoding` names their charset, or their first 4 KiB have no NUL byte and no control
 character but tab, line feed, form feed and carriage return. Anything else throws `ParseError`,
-naming the formats the reader reads. xls holds at most 65,536 rows, and an xls from
+naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark throw
+`ParseError` when no `encoding` is given, and CSV bytes that are not valid UTF-8 throw `ParseError`
+naming the `encoding` option; the first 4 KiB are judged at the open and the rest as the text is
+decoded. An encrypted file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
+files are not supported."): an xlsx saved with a password, which is a compound file with an
+`EncryptedPackage` stream, and an xls with a `FILEPASS` record. No cipher text is decoded. Every XML
+part of a zip package is UTF-8: a part whose first bytes are a UTF-16 or UTF-32 byte order mark or a
+NUL, or whose declaration names another encoding, throws `ParseError` naming the part, and a
+declared US-ASCII reads, because ASCII is UTF-8 (`extensions/spreadsheet/src/read/xml.rs`'s
+`encoding`). Cost: one copy of 256 bytes per XML part. xls holds at most 65,536 rows, and an xls from
 Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
 and never run: the VBA project's `dir` stream is decompressed and its module names read, and no
 module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and an xlsm's is the part

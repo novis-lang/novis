@@ -5389,9 +5389,10 @@ written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `
 
 `rule:core-classes/spreadsheet-template-fill`
 
-`Template::open($source)->fill($data)` copies every part of a designed workbook unchanged except the
-cells it fills, writes a row marked by a list once per item, and moves every reference below it so the
-formulas, tables and charts still point at the right rows.
+`Template::open($source)->fill($data)` copies the parts of a designed workbook, fills its cells,
+writes a row marked by a list once per item, and moves every reference below it so the formulas,
+tables and charts still point at the right rows. The parts that can run code are dropped, as
+[`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert) lists them; every other part is copied unchanged.
 
 **Placeholders** are `{{name}}` and `{{customer.name}}`, a path into `$data`'s keys. A cell that is
 only a placeholder takes the value's cell type by [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types)'s write
@@ -5445,7 +5446,8 @@ filled file carries the template's own formulas, links and sheets unescaped, so 
 with a template the program trusts. A program filling an upload says so with
 `Core\Taint::assertTrusted($bytes, $reason)` itself, and with a plain source no taint reaches the
 written file, so the `Export` stays plain `bytes`. **An xlsm template gives xlsx**: the
-`vbaProject` part and its relationship are dropped, and the content type is the xlsx one
+`vbaProject` part and its relationship are dropped, and the content type is the xlsx one. The other
+parts that can run code are dropped from every template
 ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)). Two fills of equal input are byte-equal.
 
 The tradeoffs. **Usability:** a designer builds the invoice in Excel, and the program supplies data.
@@ -5514,7 +5516,16 @@ xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no wo
 compound file is xls. Other bytes are CSV when they are text: they start with a UTF-16 byte order
 mark, `csv`'s `encoding` names their charset, or their first 4 KiB have no NUL byte and no control
 character but tab, line feed, form feed and carriage return. Anything else throws `ParseError`,
-naming the formats the reader reads. xls holds at most 65,536 rows, and an xls from
+naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark throw
+`ParseError` when no `encoding` is given, and CSV bytes that are not valid UTF-8 throw `ParseError`
+naming the `encoding` option; the first 4 KiB are judged at the open and the rest as the text is
+decoded. An encrypted file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
+files are not supported."): an xlsx saved with a password, which is a compound file with an
+`EncryptedPackage` stream, and an xls with a `FILEPASS` record. No cipher text is decoded. Every XML
+part of a zip package is UTF-8: a part whose first bytes are a UTF-16 or UTF-32 byte order mark or a
+NUL, or whose declaration names another encoding, throws `ParseError` naming the part, and a
+declared US-ASCII reads, because ASCII is UTF-8 (`extensions/spreadsheet/src/read/xml.rs`'s
+`encoding`). Cost: one copy of 256 bytes per XML part. xls holds at most 65,536 rows, and an xls from
 Excel 95 or earlier, BIFF5 and before, throws naming it. An xlsm's macros are listed by `macros()`
 and never run: the VBA project's `dir` stream is decompressed and its module names read, and no
 module's code is read. An xls's project is its `_VBA_PROJECT_CUR` storage, and an xlsm's is the part
@@ -5844,8 +5855,20 @@ input gives byte-equal output, for a write and for a template fill alike, and a 
 byte comparison. This is the same rule the PDF writer holds ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)),
 and it exists for the same reason: a test that cannot compare bytes ends up comparing nothing.
 
+**A template fill drops every part that can run code**, with its relationships and content-type
+entries: the VBA project, XLM macro sheets, `xl/vbaData.xml`, ActiveX controls under `xl/activeX`,
+`customUI` ribbons and `oleObject*.bin` embeddings (`extensions/spreadsheet/src/template/mod.rs`'s
+`dropped`). A macro sheet's `<sheet>` leaves the workbook with the defined names local to it or
+naming it, and `localSheetId`, `activeTab` and `firstSheet` move to the sheets that stay. A
+worksheet's `control` and `oleObject` that name a dropped part leave the sheet. An embedded package,
+such as an xlsx or a docx, and every image are kept: neither runs when the file opens. Cost: none
+per cell; one pass over the content types, the relationships and the workbook part, which the fill
+rewrites already.
+
 The component's tests owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
-part in, and the same input written twice and filled twice, each pair compared byte for byte.
+part in, a filled template with a macro sheet, an ActiveX control, a ribbon and an OLE object whose
+output has none of them and keeps its images, and the same input written twice and filled twice,
+each pair compared byte for byte.
 
 **On disk.** The writer (`extensions/spreadsheet/src/writer.rs`) and the template filler
 (`extensions/spreadsheet/src/template/`) both hold the rule, and `extensions/spreadsheet/tests/excel.rs`
