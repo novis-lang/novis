@@ -234,7 +234,11 @@ document store. A running analysis is never interrupted. An analysis is not star
 client has already replaced, and one overtaken while it ran publishes nothing, because its result is
 about a document version nobody is looking at any more (`crates/nvs-lsp/src/server.rs`, `publish`).
 `$/cancelRequest` stops a request the thread has not reached yet, answering `RequestCancelled` with no
-work; a request already being answered runs to the end.
+work; a request already being answered runs to the end. A request whose document has a later
+`didChange` already queued behind it is answered `ContentModified` with no work, because it was made
+against text that is gone. Without that, each request between two held-down keystrokes runs the
+analysis the next keystroke replaces, and the debounce merges nothing. A request that carries its own
+text is about that text and is answered.
 
 The server holds one document store on one thread, so an async runtime would schedule nothing. Taking one
 would put tokio, tower and `async-trait` into every later dependency review and every build, for a process

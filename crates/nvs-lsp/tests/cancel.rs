@@ -193,6 +193,83 @@ fn a_cancel_for_an_answered_request_changes_nothing() {
         .expect("the server served the exchange without a protocol error");
 }
 
+/// A document under a scratch directory, as the URI a client names it by.
+fn scratch_uri(name: &str) -> String {
+    let dir = nvs_repo::scratch("lsp-superseded");
+    nvs_lsp::uri_of(&dir.join(name))
+        .expect("a scratch path is UTF-8")
+        .to_string()
+}
+
+fn open(uri: &str, text: &str) -> Message {
+    Message::Notification(Notification::new(
+        "textDocument/didOpen".to_owned(),
+        serde_json::json!({
+            "textDocument": { "uri": uri, "languageId": "novis", "version": 1, "text": text },
+        }),
+    ))
+}
+
+fn change(uri: &str, version: i32, text: &str) -> Message {
+    Message::Notification(Notification::new(
+        "textDocument/didChange".to_owned(),
+        serde_json::json!({
+            "textDocument": { "uri": uri, "version": version },
+            "contentChanges": [{ "text": text }],
+        }),
+    ))
+}
+
+fn symbols_of(id: i32, uri: &str) -> Message {
+    Message::Request(Request::new(
+        RequestId::from(id),
+        "textDocument/documentSymbol".to_owned(),
+        serde_json::json!({ "textDocument": { "uri": uri } }),
+    ))
+}
+
+/// A request with a later edit to its document queued behind it is answered
+/// `ContentModified` and runs no work. A request about another document, or
+/// one with no edit behind it, is answered as usual.
+#[test]
+fn a_request_with_a_later_edit_to_its_document_is_answered_content_modified() {
+    let main = scratch_uri("main.nvs");
+    let other = scratch_uri("other.nvs");
+    let answered = serve_queued(vec![
+        open(&main, "<?nvs\nclass A {}\n"),
+        open(&other, "<?nvs\nclass B {}\n"),
+        change(&main, 2, "<?nvs\nclass A2 {}\n"),
+        symbols_of(2, &main),
+        symbols_of(3, &other),
+        change(&main, 3, "<?nvs\nclass A3 {}\n"),
+        symbols_of(4, &main),
+    ]);
+
+    let ids: Vec<RequestId> = answered
+        .iter()
+        .map(|response| response.id.clone())
+        .collect();
+    assert_eq!(ids, [2, 3, 4].map(RequestId::from));
+    assert_eq!(
+        error_code(&answered[0]),
+        Some(ErrorCode::ContentModified as i32),
+        "version 3 was queued behind the request about version 2"
+    );
+    assert_eq!(
+        error_code(&answered[1]),
+        None,
+        "no edit to the other document was queued: {:?}",
+        answered[1]
+    );
+    assert_eq!(error_code(&answered[2]), None, "{:?}", answered[2]);
+    let names = serde_json::to_string(&answered[2].response_result.as_ref().ok())
+        .expect("a result serializes");
+    assert!(
+        names.contains("A3"),
+        "the last request is answered about the last text: {names}"
+    );
+}
+
 #[test]
 fn an_exit_read_while_looking_for_a_cancel_still_ends_the_server() {
     // The last request reads `shutdown` and `exit` off the channel while it looks

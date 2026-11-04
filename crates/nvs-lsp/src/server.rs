@@ -44,7 +44,11 @@
 //! keystroke in the same buffer replaces it, so a line being typed is analysed
 //! once rather than once per character. [`reanalyse`] is the work and [`serve`]'s
 //! loop is what holds it back; a request arriving in the window runs it first,
-//! because an answer is about the buffer as it stands.
+//! because an answer is about the buffer as it stands. A request with a later
+//! edit to its document already queued behind it gets `ContentModified` and
+//! runs nothing ([`superseded`]). Without that, every request between two
+//! held-down keystrokes, such as an undo, runs the analysis the next keystroke
+//! replaces, and the server falls behind the editor.
 //!
 //! **The completion files are loaded once, beside the index, and kept current
 //! by the client's watcher** (`rule:ide/completion-files-offer-values-at-named-parameters`
@@ -353,6 +357,23 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     )?;
                     continue;
                 }
+                // A request about a document the client has edited again since
+                // is about a text that no longer exists. It gets
+                // `ContentModified` and no work, and the client asks again
+                // about the new text if it still needs to. This is also what
+                // lets the debounce merge a burst of edits: such a request
+                // does not run the analysis the next edit replaces.
+                if superseded(&backlog, &request) {
+                    connection.sender.send(
+                        Response::new_err(
+                            request.id,
+                            ErrorCode::ContentModified as i32,
+                            "the document changed after this request".to_owned(),
+                        )
+                        .into(),
+                    )?;
+                    continue;
+                }
                 // An answer is about the buffer as it stands, so a request cuts
                 // the window short rather than being answered off an index the
                 // keystroke in it has already made stale. What the debounce
@@ -536,6 +557,32 @@ fn cancelled(connection: &Connection, backlog: &mut VecDeque<Message>, id: &Requ
     };
     backlog.remove(at);
     true
+}
+
+/// Whether `backlog` holds a `didChange` for the document `request` is about.
+///
+/// The client sent that edit after the request, so the request was made
+/// against text the store no longer holds once the edit is applied. A request
+/// that names no document is never superseded, and neither is one that carries
+/// its own `text`, as `nvs/regions` may: it is about that text. [`cancelled`]
+/// has already moved everything the channel holds into `backlog`.
+fn superseded(backlog: &VecDeque<Message>, request: &Request) -> bool {
+    let Some(uri) = document_of(&request.params) else {
+        return false;
+    };
+    if request.params.get("text").is_some() {
+        return false;
+    }
+    backlog.iter().any(|message| {
+        matches!(message, Message::Notification(notification)
+            if notification.method == DidChangeTextDocument::METHOD
+                && document_of(&notification.params) == Some(uri))
+    })
+}
+
+/// The `textDocument.uri` a message's params name, if they name one.
+fn document_of(params: &serde_json::Value) -> Option<&str> {
+    params.get("textDocument")?.get("uri")?.as_str()
 }
 
 /// Answers `request` and waits for `exit` when `request` is `shutdown`, and
