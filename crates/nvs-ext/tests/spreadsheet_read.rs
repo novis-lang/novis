@@ -842,10 +842,11 @@ fn a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter() {
     block_on(read.request.end()).expect("the request ends");
 }
 
-#[test]
-fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
+/// A header row of `columns` cells that all say `Name`, except the second, which
+/// says `Name (2)`: the numbered name a duplicate would otherwise take.
+fn equal_header(columns: u32) -> Read {
     let mut data = String::from(r#"<row r="1">"#);
-    for at in 0..16_384_u32 {
+    for at in 0..columns {
         let mut column = String::new();
         let mut rest = at + 1;
         while rest > 0 {
@@ -858,10 +859,35 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
         ));
     }
     data.push_str("</row>");
-    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
-    let started = std::time::Instant::now();
-    let header = read.call("readerHeader", vec![options("Shop").value()]);
-    let elapsed = started.elapsed();
+    Read::open(xlsx(&[sheet("Shop", data)], &[]))
+}
+
+/// The fastest of three reads of `read`'s header, per column, with the header
+/// it returned.
+fn header_per_column(read: &Read, columns: u32) -> (f64, Value) {
+    let mut fastest = Duration::MAX;
+    let mut header = None;
+    for _ in 0..3 {
+        let started = std::time::Instant::now();
+        header = Some(read.call("readerHeader", vec![options("Shop").value()]));
+        fastest = fastest.min(started.elapsed());
+    }
+    let header = header.expect("the header was read three times");
+    (fastest.as_secs_f64() / f64::from(columns), header)
+}
+
+/// Numbering a full row of equal names grows linearly with the row: the cost
+/// per column at 16384 columns stays within four times its cost at 2048.
+/// Numbering each duplicate from `(2)` up again makes it eight times.
+/// Both figures come from this run on this machine, so the test holds at any
+/// speed (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the
+/// same run).
+#[test]
+fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
+    let small = equal_header(2_048);
+    let large = equal_header(16_384);
+    let (per_small, _) = header_per_column(&small, 2_048);
+    let (per_large, header) = header_per_column(&large, 16_384);
     let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
     want.extend((3..=16_384).map(|count| format!("Name ({count})")));
     let want: Vec<&str> = want.iter().map(String::as_str).collect();
@@ -871,10 +897,13 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
         "a name given in the file is skipped"
     );
     assert!(
-        elapsed < std::time::Duration::from_secs(10),
-        "a full row of equal headers is read in {elapsed:?}"
+        per_large < per_small * 4.0,
+        "a column costs {:.0} ns at 16384 columns and {:.0} ns at 2048",
+        per_large * 1e9,
+        per_small * 1e9
     );
-    block_on(read.request.end()).expect("the request ends");
+    block_on(small.request.end()).expect("the request ends");
+    block_on(large.request.end()).expect("the request ends");
 }
 
 #[test]
