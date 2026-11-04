@@ -39701,7 +39701,8 @@ Keywords: CSV, comma-separated, parse CSV, write CSV, RFC 4180, header row, deli
 quoted fields and embedded newlines included. With `{ header: true }` the first record is consumed
 as column names and every row is keyed by them; without it a row's keys are `"0"`, `"1"`, ….
 `format` writes each row by its values in order (its keys are ignored), quotes a field only where a
-byte would change the parse, and `{ header: [...] }` writes a first record. A field can be a
+byte would change the parse or where it starts or ends with a space, and `{ header: [...] }` writes a
+first record. Each record ends with `lineEnd`: `"\n"` by default, or `"\r\n"`. A field can be a
 `tainted string`, such as a value read from a database, and then the document is a
 `tainted string` too. The dialect options
 `separator`, `quote` and `escape` are single ASCII bytes.
@@ -39734,7 +39735,7 @@ plum,"a, b"
 | Member | Signature |
 |---|---|
 | [`Core\Csv::parse`](#core-core-csv-parse) | `parse(string $text, { separator?: string, quote?: string, escape?: string, header?: bool }): array<array<string>>` |
-| [`Core\Csv::format`](#core-core-csv-format) | `format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string> }): string` |
+| [`Core\Csv::format`](#core-core-csv-format) | `format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string>, lineEnd?: string }): string` |
 | [`Core\Csv::rows`](#core-core-csv-rows) | `rows(Core\IO\File $file, { separator?: string, quote?: string, escape?: string, header?: bool }): Core\Csv\Rows` |
 
 <a id="core-core-csv-parse"></a>
@@ -39762,10 +39763,10 @@ Parses the whole CSV document `$text` into records, with the grammar of RFC 4180
 #### `Core\Csv::format`
 
 ```nvs skip
-Core\Csv::format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string> }): string
+Core\Csv::format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string>, lineEnd?: string }): string
 ```
 
-Writes `$rows` as a CSV document. A field is quoted only when it contains the separator, the quote, `CR` or `LF`. A quote inside a quoted field is doubled. Every record ends with `LF`, so `parse(format($rows))` returns `$rows`.
+Writes `$rows` as a CSV document. A field is quoted only when it contains the separator, the quote, `CR` or `LF`, or when it starts or ends with a space. A quote inside a quoted field is doubled. Every record ends with `lineEnd`, so `parse(format($rows))` returns `$rows`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -39773,10 +39774,11 @@ Writes `$rows` as a CSV document. A field is quoted only when it contains the se
 | `{ separator: … }` | `string` (default `","`) | The one ASCII character written between fields. The default is `,`. |
 | `{ quote: … }` | `string` (default `"\""`) | The one ASCII character that quotes a field. The default is `"`. |
 | `{ header: … }` | `array<string>` (default `null`) | Column names, written as the first record. The default is `null`, which writes no header row. |
+| `{ lineEnd: … }` | `string` (default `"\n"`) | The characters at the end of each record: `"\n"` or `"\r\n"`. The default is `"\n"`. Excel and RFC 4180 use `"\r\n"`. |
 
 **Returns** `string` — The CSV document. It is an empty string when there are no rows and no header.
 
-**Throws** `RuntimeError` — An option for the CSV format is empty, longer than one ASCII character, or `CR` or `LF`. It is also thrown when `separator` and `quote` are the same character.
+**Throws** `RuntimeError` — An option for the CSV format is empty, longer than one ASCII character, or `CR` or `LF`. It is also thrown when `separator` and `quote` are the same character, and when `lineEnd` is not `"\n"` or `"\r\n"`.
 
 <a id="core-core-csv-rows"></a>
 #### `Core\Csv::rows`
@@ -54246,7 +54248,8 @@ $export->save(string $path): Written
 ```
 
 `save` writes the file to `$path` and returns the row counts and the size.
-The path needs the `fs.write` capability in `nvs.toml`.
+The bytes go to a temporary file in the same folder, which is renamed to `$path` at the end. If a write fails, the temporary file is deleted.
+The folder needs the `fs.write` capability in `nvs.toml`.
 
 **Returns** `Written`
 
@@ -54332,7 +54335,8 @@ Novis\Spreadsheet\Reader::open(tainted bytes|Core\IO\File $source, OpenOptions $
 ```
 
 `Reader::open` opens the spreadsheet in `$source`, the bytes of the file or a file your program opened. Other bytes throw a `ParseError`.
-A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. `csv` sets its `separator`, `quote`, `escape` and `encoding`.
+A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `encoding`, or it throws a `ParseError`.
+A first CSV line such as `sep=;` sets the separator, and it is not a row. When you set the `separator` option, that line is a normal row.
 
 **Returns** `Reader`
 
@@ -54344,6 +54348,7 @@ $reader->sheets(): array<SheetInfo>
 ```
 
 `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
+The size is `null` when the file lists a sheet that it does not contain.
 
 **Returns** `array<SheetInfo>`
 
@@ -54425,7 +54430,7 @@ $reader->evaluate(): array<Missed>
 ```
 
 `evaluate` computes every formula in the workbook. After it, `rows` gives each formula cell its computed result.
-It returns the cells it could not compute, and each one keeps the result saved in the file. `kind` is `'function'`, `'reference'`, `'circular'` or `'token'`.
+It returns the cells it could not compute, and each one keeps the result saved in the file. `kind` is `'function'`, `'reference'`, `'circular'`, `'token'` or `'coercion'`. `'coercion'` means a text such as `'$1'` or `'1,000'` was used as a number.
 
 **Returns** `array<Missed>`
 
@@ -54812,8 +54817,9 @@ If the program stops before `finish`, the download is cut off and the error log 
 Novis\Spreadsheet\Workbook::createForFile(string $path, Options $options = null): Workbook
 ```
 
-`Workbook::createForFile` writes the file to `$path`. If the file exists, it is replaced.
-The path needs the `fs.write` capability in `nvs.toml`.
+`Workbook::createForFile` writes the file to `$path`. If the file exists, `finish` replaces it.
+The bytes go to a temporary file in the same folder, and `finish` renames it to `$path`. If a write fails, the temporary file is deleted.
+The folder needs the `fs.write` capability in `nvs.toml`.
 
 **Returns** `Workbook`
 
@@ -54923,7 +54929,7 @@ Keywords: writerOpen, writerStyle, writerSheet, writerRows, writerPart, writerDe
 | [`Novis\Spreadsheet\Engine::writerColumn`](#core-novis-spreadsheet-engine-writercolumn) | `writerColumn(Writer $writer, uint $column): string` |
 | [`Novis\Spreadsheet\Engine::writerFinish`](#core-novis-spreadsheet-engine-writerfinish) | `writerFinish(Writer $writer): { data: bytes, rows: array<{ name: string, rows: uint }>, size: uint }` |
 | [`Novis\Spreadsheet\Engine::readerOpen`](#core-novis-spreadsheet-engine-readeropen) | `readerOpen(mixed $source, { maxBytes: ?uint, maxRatio: ?uint } $bound): Reading` |
-| [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{ name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }>` |
+| [`Novis\Spreadsheet\Engine::readerSheets`](#core-novis-spreadsheet-engine-readersheets) | `readerSheets(Reading $reader, mixed $source): array<{ name: string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }>` |
 | [`Novis\Spreadsheet\Engine::readerMacros`](#core-novis-spreadsheet-engine-readermacros) | `readerMacros(Reading $reader, mixed $source): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerMerged`](#core-novis-spreadsheet-engine-readermerged) | `readerMerged(Reading $reader, mixed $source, string $sheet): array<string>` |
 | [`Novis\Spreadsheet\Engine::readerLinks`](#core-novis-spreadsheet-engine-readerlinks) | `readerLinks(Reading $reader, mixed $source, string $sheet): array<{ anchor: string, target: string, text: ?string, tooltip: ?string, external: bool }>` |
@@ -55107,17 +55113,17 @@ Opens the workbook in `source`, which is `bytes` or an open `Core\IO\File`. This
 #### `Novis\Spreadsheet\Engine::readerSheets`
 
 ```nvs skip
-Novis\Spreadsheet\Engine::readerSheets(Reading $reader, mixed $source): array<{ name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }>
+Novis\Spreadsheet\Engine::readerSheets(Reading $reader, mixed $source): array<{ name: string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }>
 ```
 
-Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none.
+Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none. They are `null` when the file has no part for the sheet.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$reader` | `Reading` |  |
 | `$source` | `mixed` |  |
 
-**Returns** `array<{ name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }>`
+**Returns** `array<{ name: string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }>`
 
 <a id="core-novis-spreadsheet-engine-readermacros"></a>
 #### `Novis\Spreadsheet\Engine::readerMacros`

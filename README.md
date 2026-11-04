@@ -131,8 +131,9 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Spreadsheet edge cases.** *Working on it now.* `Novis\Spreadsheet` gets a test for each kind of file that other spreadsheet libraries read or write wrong. Each case it does not support is listed with its reason.
-2. **A calmer editor.** The Novis themes for VS Code draw brackets in the text colour and use quieter colours for methods and variables. A new setting turns off the parameter-name hints.
-3. **PDF edge cases.** `Novis\Pdf` gets a test for each kind of document that other HTML-to-PDF libraries render wrong, such as a table across pages. A render reports each CSS feature it does not support.
+2. **A faster start in large projects.** The editor and the compiler read a large project faster. Reading a whole project costs about the same time as compiling it.
+3. **A calmer editor.** The Novis themes for VS Code draw brackets in the text colour and use quieter colours for methods and variables. A new setting turns off the parameter-name hints.
+4. **PDF edge cases.** `Novis\Pdf` gets a test for each kind of document that other HTML-to-PDF libraries render wrong, such as a table across pages. A render reports each CSS feature it does not support.
 <!-- roadmap:end -->
 
 ## Contributing

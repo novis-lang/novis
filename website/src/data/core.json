@@ -7827,7 +7827,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string> }): string",
+          "signature": "format(array<array<string>> $rows, { separator?: string, quote?: string, header?: array<string>, lineEnd?: string }): string",
           "params": [
             {
               "kind": "param",
@@ -7850,11 +7850,15 @@
             {
               "name": "header",
               "type": "array<string>"
+            },
+            {
+              "name": "lineEnd",
+              "type": "string"
             }
           ],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Writes <code>$rows</code> as a CSV document. A field is quoted only when it contains the separator, the quote, <code>CR</code> or <code>LF</code>. A quote inside a quoted field is doubled. Every record ends with <code>LF</code>, so <code>parse(format($rows))</code> returns <code>$rows</code>.",
+            "shortHtml": "Writes <code>$rows</code> as a CSV document. A field is quoted only when it contains the separator, the quote, <code>CR</code> or <code>LF</code>, or when it starts or ends with a space. A quote inside a quoted field is doubled. Every record ends with <code>lineEnd</code>, so <code>parse(format($rows))</code> returns <code>$rows</code>.",
             "params": [
               {
                 "name": "rows",
@@ -7871,13 +7875,17 @@
               {
                 "name": "header",
                 "descHtml": "Column names, written as the first record. The default is <code>null</code>, which writes no header row."
+              },
+              {
+                "name": "lineEnd",
+                "descHtml": "The characters at the end of each record: <code>&quot;\\n&quot;</code> or <code>&quot;\\r\\n&quot;</code>. The default is <code>&quot;\\n&quot;</code>. Excel and RFC 4180 use <code>&quot;\\r\\n&quot;</code>."
               }
             ],
             "returnHtml": "The CSV document. It is an empty string when there are no rows and no header.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "An option for the CSV format is empty, longer than one ASCII character, or <code>CR</code> or <code>LF</code>. It is also thrown when <code>separator</code> and <code>quote</code> are the same character."
+                "descHtml": "An option for the CSV format is empty, longer than one ASCII character, or <code>CR</code> or <code>LF</code>. It is also thrown when <code>separator</code> and <code>quote</code> are the same character, and when <code>lineEnd</code> is not <code>&quot;\\n&quot;</code> or <code>&quot;\\r\\n&quot;</code>."
               }
             ]
           },
@@ -7968,7 +7976,7 @@
       ],
       "slug": "csv",
       "url": "/reference/core/csv/",
-      "summaryHtml": "<p>Reads CSV text into rows of strings, and writes rows back as CSV. It can use a header row, and a different separator or quote character.</p>\n<p><code>Core\\Csv::parse</code> reads a whole document into <code>array&lt;array&lt;string&gt;&gt;</code> — every field is a <code>string</code>, quoted fields and embedded newlines included. With <code>{ header: true }</code> the first record is consumed as column names and every row is keyed by them; without it a row's keys are <code>&quot;0&quot;</code>, <code>&quot;1&quot;</code>, …. <code>format</code> writes each row by its values in order (its keys are ignored), quotes a field only where a byte would change the parse, and <code>{ header: [...] }</code> writes a first record. A field can be a <code>tainted string</code>, such as a value read from a database, and then the document is a <code>tainted string</code> too. The dialect options <code>separator</code>, <code>quote</code> and <code>escape</code> are single ASCII bytes.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\nstring $doc = &quot;name,qty,note\\nfig,2,ripe\\nplum,10,\\&quot;a, b\\&quot;\\n&quot;;\nvar $rows = Core\\Csv::parse($doc, { header: true });\necho Core\\Arr::count($rows), &quot; rows\\n&quot;;\nforeach ($rows as array&lt;string&gt; $row) {\n    echo $row['name'], '=', $row['qty'], ' (', $row['note'], &quot;)\\n&quot;;\n}\n\nvar $plain = Core\\Csv::parse(&quot;a;b\\n1;2\\n&quot;, { separator: ';' });\necho $plain['1']['0'], '+', $plain['1']['1'], &quot;\\n&quot;;\n\narray&lt;array&lt;string&gt;&gt; $out = [['fig', '2'], ['plum', 'a, b']];\necho Core\\Csv::format($out, { header: ['item', 'note'] });</code></pre>\n<pre class=\"output\"><code>2 rows\nfig=2 (ripe)\nplum=10 (a, b)\n1+2\nitem,note\nfig,2\nplum,&quot;a, b&quot;</code></pre>"
+      "summaryHtml": "<p>Reads CSV text into rows of strings, and writes rows back as CSV. It can use a header row, and a different separator or quote character.</p>\n<p><code>Core\\Csv::parse</code> reads a whole document into <code>array&lt;array&lt;string&gt;&gt;</code> — every field is a <code>string</code>, quoted fields and embedded newlines included. With <code>{ header: true }</code> the first record is consumed as column names and every row is keyed by them; without it a row's keys are <code>&quot;0&quot;</code>, <code>&quot;1&quot;</code>, …. <code>format</code> writes each row by its values in order (its keys are ignored), quotes a field only where a byte would change the parse or where it starts or ends with a space, and <code>{ header: [...] }</code> writes a first record. Each record ends with <code>lineEnd</code>: <code>&quot;\\n&quot;</code> by default, or <code>&quot;\\r\\n&quot;</code>. A field can be a <code>tainted string</code>, such as a value read from a database, and then the document is a <code>tainted string</code> too. The dialect options <code>separator</code>, <code>quote</code> and <code>escape</code> are single ASCII bytes.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\nstring $doc = &quot;name,qty,note\\nfig,2,ripe\\nplum,10,\\&quot;a, b\\&quot;\\n&quot;;\nvar $rows = Core\\Csv::parse($doc, { header: true });\necho Core\\Arr::count($rows), &quot; rows\\n&quot;;\nforeach ($rows as array&lt;string&gt; $row) {\n    echo $row['name'], '=', $row['qty'], ' (', $row['note'], &quot;)\\n&quot;;\n}\n\nvar $plain = Core\\Csv::parse(&quot;a;b\\n1;2\\n&quot;, { separator: ';' });\necho $plain['1']['0'], '+', $plain['1']['1'], &quot;\\n&quot;;\n\narray&lt;array&lt;string&gt;&gt; $out = [['fig', '2'], ['plum', 'a, b']];\necho Core\\Csv::format($out, { header: ['item', 'note'] });</code></pre>\n<pre class=\"output\"><code>2 rows\nfig=2 (ripe)\nplum=10 (a, b)\n1+2\nitem,note\nfig,2\nplum,&quot;a, b&quot;</code></pre>"
     },
     {
       "id": "Csv.Rows",
@@ -28892,7 +28900,7 @@
           "options": [],
           "returnType": "Written",
           "doc": {
-            "shortHtml": "<code>save</code> writes the file to <code>$path</code> and returns the row counts and the size.\nThe path needs the <code>fs.write</code> capability in <code>nvs.toml</code>."
+            "shortHtml": "<code>save</code> writes the file to <code>$path</code> and returns the row counts and the size.\nThe bytes go to a temporary file in the same folder, which is renamed to <code>$path</code> at the end. If a write fails, the temporary file is deleted.\nThe folder needs the <code>fs.write</code> capability in <code>nvs.toml</code>."
           },
           "slug": "save",
           "url": "/reference/core/novis-spreadsheet-export/save/",
@@ -29063,7 +29071,7 @@
         },
         {
           "name": "SheetInfo",
-          "type": "{ name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }"
+          "type": "{ name: tainted string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }"
         },
         {
           "name": "Link",
@@ -29128,7 +29136,7 @@
           "options": [],
           "returnType": "Reader",
           "doc": {
-            "shortHtml": "<code>Reader::open</code> opens the spreadsheet in <code>$source</code>, the bytes of the file or a file your program opened. Other bytes throw a <code>ParseError</code>.\nA CSV file is UTF-8 text, or UTF-16 text with a byte order mark. <code>csv</code> sets its <code>separator</code>, <code>quote</code>, <code>escape</code> and <code>encoding</code>."
+            "shortHtml": "<code>Reader::open</code> opens the spreadsheet in <code>$source</code>, the bytes of the file or a file your program opened. Other bytes throw a <code>ParseError</code>.\nA CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs <code>csv</code>'s <code>encoding</code>, or it throws a <code>ParseError</code>.\nA first CSV line such as <code>sep=;</code> sets the separator, and it is not a row. When you set the <code>separator</code> option, that line is a normal row."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-reader/open/",
@@ -29145,7 +29153,7 @@
           "options": [],
           "returnType": "array<SheetInfo>",
           "doc": {
-            "shortHtml": "<code>sheets</code> returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind."
+            "shortHtml": "<code>sheets</code> returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.\nThe size is <code>null</code> when the file lists a sheet that it does not contain."
           },
           "slug": "sheets",
           "url": "/reference/core/novis-spreadsheet-reader/sheets/",
@@ -29300,7 +29308,7 @@
           "options": [],
           "returnType": "array<Missed>",
           "doc": {
-            "shortHtml": "<code>evaluate</code> computes every formula in the workbook. After it, <code>rows</code> gives each formula cell its computed result.\nIt returns the cells it could not compute, and each one keeps the result saved in the file. <code>kind</code> is <code>'function'</code>, <code>'reference'</code>, <code>'circular'</code> or <code>'token'</code>."
+            "shortHtml": "<code>evaluate</code> computes every formula in the workbook. After it, <code>rows</code> gives each formula cell its computed result.\nIt returns the cells it could not compute, and each one keeps the result saved in the file. <code>kind</code> is <code>'function'</code>, <code>'reference'</code>, <code>'circular'</code>, <code>'token'</code> or <code>'coercion'</code>. <code>'coercion'</code> means a text such as <code>'$1'</code> or <code>'1,000'</code> was used as a number."
           },
           "slug": "evaluate",
           "url": "/reference/core/novis-spreadsheet-reader/evaluate/",
@@ -30407,7 +30415,7 @@
           "options": [],
           "returnType": "Workbook",
           "doc": {
-            "shortHtml": "<code>Workbook::createForFile</code> writes the file to <code>$path</code>. If the file exists, it is replaced.\nThe path needs the <code>fs.write</code> capability in <code>nvs.toml</code>."
+            "shortHtml": "<code>Workbook::createForFile</code> writes the file to <code>$path</code>. If the file exists, <code>finish</code> replaces it.\nThe bytes go to a temporary file in the same folder, and <code>finish</code> renames it to <code>$path</code>. If a write fails, the temporary file is deleted.\nThe folder needs the <code>fs.write</code> capability in <code>nvs.toml</code>."
           },
           "slug": "createforfile",
           "url": "/reference/core/novis-spreadsheet-workbook/createforfile/",
