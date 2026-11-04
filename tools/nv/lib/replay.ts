@@ -2,8 +2,9 @@
 // § *A snippet* is the home of both formats; this module reads the first, sends the server the session
 // its steps describe, and writes what the server returned in the second.
 //
-// The session is one stream written to the server's stdin, as the `.tainted` one is, so everything in it
-// is decided before the server answers. Four things in it depend on an answer: which characters are
+// The session is decided whole before the server answers, and written to the server's stdin a part at a
+// time: each request is answered before the next message is written (`lspTalk`), as an editor waits for
+// the list before the next key. Four things in it depend on an answer: which characters are
 // trigger characters, from the `initialize` result; the text an `accept` writes, from the list it
 // accepts from; the edits a `rename` or an `action` makes; and the method a `calls` step asks about,
 // from the `prepareCallHierarchy` answer. `recordReplay` guesses each, plays the session, and plays it
@@ -11,7 +12,7 @@
 // replays, and one more for each step after an edit the guess did not know.
 
 import { join } from "node:path";
-import { lspFrame, lspMessages } from "./lsp.ts";
+import { type LspPart, lspMessages, lspParts } from "./lsp.ts";
 import { ROOT } from "./paths.ts";
 
 /** One step of a `.replay`. */
@@ -73,7 +74,7 @@ export interface Accept {
 
 /** The session a replay's steps describe, under `guess`. An `accept` with no list open has `ask` -1. */
 export interface Session {
-  stream: string;
+  parts: LspPart[];
   guess: Guess;
   asks: Ask[];
   accepts: Accept[];
@@ -89,7 +90,7 @@ function position(text: string, offset: number): { line: number; character: numb
   return { line: before.length - 1, character: before[before.length - 1]!.length };
 }
 
-/** The stream `nvs lsp` is sent for `replay` with the document at `uri`. */
+/** The session `nvs lsp` is sent for `replay` with the document at `uri`. */
 export function replaySession(uri: string, replay: Replay, guess: Guess): Session {
   let text = replay.start;
   let cursor = replay.cursor;
@@ -174,7 +175,7 @@ export function replaySession(uri: string, replay: Replay, guess: Guess): Sessio
     }
   }
   messages.push({ id, method: "shutdown", params: null }, { method: "exit", params: null });
-  return { stream: messages.map(lspFrame).join(""), guess, asks, accepts, last: text };
+  return { parts: lspParts(messages), guess, asks, accepts, last: text };
 }
 
 /** LSP's completion item kinds, by number, spelled as `tests/lsp/` cases spell them. */
@@ -372,13 +373,13 @@ const before = (a: Pos, b: Pos) => a.line < b.line || (a.line === b.line && a.ch
 const sameGuess = (a: Guess, b: Guess) => JSON.stringify([[...a.triggers].sort(), a.inserts, a.edits, a.items]) === JSON.stringify([[...b.triggers].sort(), b.inserts, b.edits, b.items]);
 
 /** The `.replay.out` text `replay` records, from sessions `play` runs, and the text its last step ends
- * on; or why there is none. `play` runs `nvs lsp` with the stream on stdin. */
-export async function recordReplay(uri: string, replay: Replay, play: (stream: string) => Promise<{ code: number; stdout: string; stderr: string }>): Promise<{ recording: string; last: string } | { failure: string }> {
+ * on; or why there is none. `play` runs `nvs lsp` and writes it the parts with `lspTalk`. */
+export async function recordReplay(uri: string, replay: Replay, play: (parts: LspPart[]) => Promise<{ code: number; stdout: string; stderr: string }>): Promise<{ recording: string; last: string } | { failure: string }> {
   let guess: Guess = { triggers: [], inserts: {}, edits: {}, items: {} };
   // Each round learns the trigger characters or at least one more answer the steps depend on, so this ends.
   for (let round = 0; round <= replay.steps.length + 1; round++) {
     const session = replaySession(uri, replay, guess);
-    const ran = await play(session.stream);
+    const ran = await play(session.parts);
     const got = replayRecording(uri, session, ran.stdout);
     if (!sameGuess(guess, got.next)) {
       guess = got.next;

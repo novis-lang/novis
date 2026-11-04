@@ -288,7 +288,7 @@ import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { newestNvs } from "../lib/nvs-binary.ts";
-import { lspFrame, lspMessages } from "../lib/lsp.ts";
+import { type LspPart, lspFrame, lspMessages, lspTalk } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { parseDap, recordDap } from "../lib/dap-replay.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
@@ -1304,7 +1304,7 @@ export async function snippetReplay(p: string, nvs: string, root: string): Promi
   if (!existsSync(join(root, beside(p, REPLAY)))) return null;
   const replay = parseReplay(readAt(root, beside(p, REPLAY)));
   if (typeof replay === "string") return { failure: `${beside(p, REPLAY)}: ${replay}` };
-  const play = (input: string) => runProc([nvs, "lsp"], { cwd: root, input, timeoutMs: SNIPPET_MS });
+  const play = (parts: LspPart[]) => runProc([nvs, "lsp"], { cwd: root, timeoutMs: SNIPPET_MS, ...lspTalk(parts) });
   const got = await recordReplay(pathToFileURL(join(root, p)).href, replay, play);
   return "failure" in got ? { failure: `${beside(p, REPLAY)}: ${got.failure}` } : got;
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { replayProblems, snippetReplay } from "../cmd/site.ts";
+import { lspFrame, lspParts, lspTalk } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
 import { parseReplay, replaySession } from "../lib/replay.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -160,6 +161,24 @@ describe("a .replay", () => {
       [2, 2],
       [2, 6],
     ]);
+  });
+
+  test("writes the change after a request only once the server has answered that request", () => {
+    const parts = lspParts([{ id: 1, method: "a" }, { method: "change" }, { id: 2, method: "b" }, { method: "exit" }]);
+    expect(parts.map((p) => p.answer)).toEqual([1, 2, null]);
+    const written: string[] = [];
+    let ended = false;
+    const talk = lspTalk(parts);
+    talk.talk!({ write: (t) => written.push(t), end: () => (ended = true) });
+    expect(written).toEqual([parts[0]!.frames]);
+    talk.onText!(lspFrame({ method: "window/logMessage", params: {} }), "stdout");
+    expect(written.length).toBe(1);
+    talk.onText!(lspFrame({ id: 1, result: null }), "stdout");
+    expect(written).toEqual([parts[0]!.frames, parts[1]!.frames]);
+    expect(ended).toBe(false);
+    talk.onText!(lspFrame({ id: 2, result: null }), "stdout");
+    expect(written).toEqual(parts.map((p) => p.frames));
+    expect(ended).toBe(true);
   });
 });
 
