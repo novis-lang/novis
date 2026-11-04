@@ -44,6 +44,7 @@ const EDITOR: Client = Client {
     open: false,
     refresh_lenses: false,
     rename_files: false,
+    work_done_progress: false,
 };
 
 /// The mark a document below writes where its cursor is.

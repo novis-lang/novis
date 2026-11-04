@@ -66,6 +66,20 @@ because a torn file fails its checksum. A failed rename deletes the temporary fi
 generation, so the next idle period tries again. Two servers on one root each write a whole file, and the
 last rename wins. The compiled-code cache sweeps only `.nvsc` files, so it never deletes an index file.
 
+**A start shows its progress.** The survey, the index load and the queue's settling are seconds on a large
+tree in which the editor would otherwise show nothing. When the client declared `window.workDoneProgress`, a
+start at the `Workspace` scope with a root sends `window/workDoneProgress/create` with a token of its own,
+then `$/progress` `begin` titled "Indexing" with "Reading the workspace" before the survey. Once the index is
+loaded or planned, and at every turn of the loop, a `report` gives "N of M files" and a percentage, sent
+only when the whole percent rises, so a run is at most a hundred reports. `end` follows at the first turn
+with no entry waiting, whether the idle turns, a whole-tree request's `settle` or a rebuild emptied it, and
+at once when nothing was stale. A scope change that rebuilds the index begins a fresh run, ending one still
+going first, so a client never sees two `begin`s without an `end`. A client that did not declare the
+capability is sent nothing, since a token it never created is a protocol error to it. `begin` follows the
+`create` without waiting for its response, as rust-analyzer does, and the loop and `shut_down` drop the
+response. `crates/nvs-lsp/src/progress.rs` is the mechanism and `crates/nvs-lsp/tests/progress.rs` pins
+the order.
+
 **Memory is spent to buy latency on every keystroke.** For every file of the tree the session keeps its
 statements, trivia and syntax index, its parse diagnostics, its check output and its `Indexed` entry, which
 is O(project) with no growth from edits beyond the interner's bound. A file's entries are freed when it

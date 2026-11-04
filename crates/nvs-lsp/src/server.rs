@@ -32,7 +32,15 @@
 //! a document the client has since replaced, which cannot happen on a thread
 //! that reads the next message only after this one is answered.
 //!
-//! **`textDocument/publishDiagnostics` is the one thing sent unasked**, and
+//! **The index build shows as progress in a client that can show it.** When
+//! the client declared `window.workDoneProgress`, a start at the `Workspace`
+//! scope sends one run of work-done progress: its `begin` before the survey,
+//! its reports as the loop settles the waiting entries, and its `end` once none
+//! waits. A scope change that rebuilds the index sends a fresh run.
+//! [`Indexing`] is the whole of it, and [`serve`]'s loop calls it at every
+//! turn.
+//!
+//! **`textDocument/publishDiagnostics` is the one diagnostic sent unasked**, and
 //! [`publish`] is the whole of it: a document-sync notification is applied to
 //! the store, and every open document it made stale is analysed and published
 //! for. Which documents those are is [`Documents::to_republish`]'s answer
@@ -129,6 +137,7 @@ use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_
 use crate::lens_rows::LensRows;
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
+use crate::progress::Indexing;
 use crate::query;
 use crate::reach::{Reach, reach};
 use crate::recorded;
@@ -220,6 +229,14 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
             .map(Stubs::at),
     );
 
+    // What the client is shown while the tree below is read and indexed. It
+    // begins before the survey, because the survey is the first of that work,
+    // and the loop ends it once no entry waits ([`Indexing`]).
+    let mut indexing = Indexing::new(settings.client.work_done_progress);
+    if walks_tree(&settings) {
+        indexing.begin(connection)?;
+    }
+
     // Before the index, which analyses every file under the root: a file some
     // program autoloads resolves its names through that program's map, and the
     // survey is what finds the programs
@@ -236,6 +253,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // A start on a workspace this server saw before takes the index it wrote
     // then, and only its stale entries wait ([`start_index`]).
     let mut index = start_index(&documents, &settings);
+    indexing.track(connection, index.pending().len())?;
     // What the index file says, as `SymbolIndex::generation` counts it. The
     // loop writes the file when the server is at rest and the two differ.
     let mut saved = index.generation();
@@ -268,6 +286,10 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     let mut backlog: VecDeque<Message> = VecDeque::new();
 
     loop {
+        // Every way the queue shrinks or empties ends in a turn of this loop,
+        // so this one call reports each of them, and ends the run once no
+        // entry waits.
+        indexing.track(connection, index.pending().len())?;
         // What is left of that window, and `None` for a server at rest, which
         // waits on the channel with no deadline at all.
         let left = waiting
@@ -471,6 +493,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         &mut index,
                         &mut completion_files,
                         &mut settings,
+                        &mut indexing,
                         encoding,
                         notification.params,
                     )?;
@@ -527,8 +550,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     )?;
                 }
             }
-            // This server sends two requests, the watcher's registration and
-            // the lens refresh, and neither answer carries anything to act on.
+            // This server sends three requests, the watcher's registration,
+            // the lens refresh and the progress token's creation, and no answer
+            // carries anything to act on.
             Message::Response(_) => {}
         }
     }
@@ -588,10 +612,12 @@ fn document_of(params: &serde_json::Value) -> Option<&str> {
 /// Answers `request` and waits for `exit` when `request` is `shutdown`, and
 /// returns whether it was.
 ///
-/// This is `Connection::handle_shutdown`, with one change: `exit` is read from
-/// `backlog` before the channel. [`cancelled`] can move `exit` into `backlog`
+/// This is `Connection::handle_shutdown`, with two changes. `exit` is read from
+/// `backlog` before the channel: [`cancelled`] can move `exit` into `backlog`
 /// while it looks for a cancel, and a wait on the channel alone would then never
-/// see it.
+/// see it. A response before `exit` is skipped: it answers a request this server
+/// sent, such as the progress token's creation, and the client may send it
+/// after its `shutdown`.
 ///
 /// # Errors
 ///
@@ -608,20 +634,25 @@ fn shut_down(
     connection
         .sender
         .send(Response::new_ok(request.id.clone(), ()).into())?;
-    let next = match backlog.pop_front() {
-        Some(message) => message,
-        None => connection
-            .receiver
-            .recv_timeout(std::time::Duration::from_secs(30))
-            .map_err(|error| format!("no `exit` after `shutdown`: {error}"))?,
-    };
-    match next {
-        Message::Notification(notification)
-            if notification.method == lsp_types::notification::Exit::METHOD =>
-        {
-            Ok(true)
+    loop {
+        let next = match backlog.pop_front() {
+            Some(message) => message,
+            None => connection
+                .receiver
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .map_err(|error| format!("no `exit` after `shutdown`: {error}"))?,
+        };
+        match next {
+            Message::Response(_) => {}
+            Message::Notification(notification)
+                if notification.method == lsp_types::notification::Exit::METHOD =>
+            {
+                return Ok(true);
+            }
+            other => {
+                return Err(format!("unexpected message after `shutdown`: {other:?}").into());
+            }
         }
-        other => Err(format!("unexpected message after `shutdown`: {other:?}").into()),
     }
 }
 
@@ -660,6 +691,13 @@ fn index_file(settings: &Settings) -> Option<PathBuf> {
     let root = settings.root.as_deref()?;
     let folder = nvs_config::data::current()?;
     Some(crate::disk_index::file_for(&folder.lsp_index(), root))
+}
+
+/// Whether the index `settings` select is built from a tree under a root, which
+/// is the work [`Indexing`] shows. Under `Open` the tree is the open documents,
+/// which is no work worth a status.
+fn walks_tree(settings: &Settings) -> bool {
+    settings.scope == CheckScope::Workspace && settings.root.is_some()
 }
 
 /// The session's index at start: the one [`index_file`] kept, with only its
@@ -775,17 +813,23 @@ fn reanalyse(
 ///
 /// What it spends is what the same `initialize` spends, and only when the scope
 /// changed: one survey and one index over the tree the new scope selects, which
-/// replaces the old index rather than adding to it.
+/// replaces the old index rather than adding to it. The client is shown that
+/// rebuild as it is shown the one at start, as a fresh run of [`Indexing`].
 ///
 /// # Errors
 ///
 /// As [`publish`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the loop's own state, handed over field by field as `publish` takes it"
+)]
 fn configure(
     connection: &Connection,
     documents: &mut Documents,
     index: &mut SymbolIndex,
     completion_files: &mut CompletionFiles,
     settings: &mut Settings,
+    indexing: &mut Indexing,
     encoding: PositionEncoding,
     params: serde_json::Value,
 ) -> Result<(), ServerError> {
@@ -794,8 +838,12 @@ fn configure(
     };
     let changed = settings.change(&params.settings);
     if changed.scope {
+        if walks_tree(settings) {
+            indexing.begin(connection)?;
+        }
         documents.survey(settings.scope, settings.root.as_deref());
         *index = start_index(documents, settings);
+        indexing.track(connection, index.pending().len())?;
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;
         }

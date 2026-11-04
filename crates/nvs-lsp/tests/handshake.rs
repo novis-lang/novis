@@ -412,6 +412,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             open: false,
             refresh_lenses: false,
             rename_files: false,
+            work_done_progress: false,
         }
     );
     assert_eq!(

@@ -126,6 +126,7 @@ pub mod order;
 pub mod organize;
 mod parse_cache;
 mod position;
+mod progress;
 pub mod query;
 pub mod reach;
 pub mod recorded;

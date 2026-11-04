@@ -143,6 +143,10 @@ pub struct Client {
     /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
     /// `resourceOperations` include `rename`, so an edit may move a file.
     pub rename_files: bool,
+    /// `window.workDoneProgress`: the client shows progress the server starts
+    /// itself, so the index build at start shows in its status bar
+    /// (`crate::progress`).
+    pub work_done_progress: bool,
 }
 
 impl Client {
@@ -202,6 +206,11 @@ impl Client {
                             .as_ref()
                             .is_some_and(|kinds| kinds.contains(&ResourceOperationKind::Rename))
                 }),
+            work_done_progress: capabilities
+                .window
+                .as_ref()
+                .and_then(|window| window.work_done_progress)
+                .unwrap_or(false),
         }
     }
 }
