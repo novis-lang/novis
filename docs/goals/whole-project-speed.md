@@ -218,6 +218,18 @@ deletes that folder's `cache/lsp-index/`: it never touches an editor's data fold
 BLAKE3 of the root to name the index file. `nvs test` and `nvs fmt` take no `--count`, so stage 1
 measured them with `nvs check --count` per file and a read of their code.
 
+**A class file's project bounds its lender search (stage 3).** The search root narrows to the nearest
+folder at or above the file, and at or below the old root, that holds an `nvs.toml` or a
+`package.toml`. `--root` is narrowed the same way, because a project inside the named folder is still
+the file's project. A program in another project that loads the file by a relative root is the case
+given up, and no tree here has one. The rule's Declined entry against searching *upwards* stands: this walks down from the old root
+and stops at a marker, so it never reads above where the search began.
+
+**One survey shares one map.** `Survey` reads each path once, keyed by the path as given, so a file the
+survey first loaded by its raw path and a walk later loads by its resolved path is read twice. That is
+at most two reads per file, against one per program per file before. Keying by the resolved path would
+cost a resolution per file, the cost the lazy search removed.
+
 **Declined:**
 
 - **Parallel `nvs check` of a directory and `nvs test`.** Not measured as slow; a backlog item if stage
@@ -277,38 +289,57 @@ than the files). The session writes the items.
 
 **Does:** removes each repeated cost stage 1 found outside the editor.
 
-- [ ] `nvs check` of a class file walks the programs under the root once each, in path order, and stops
+- [x] `nvs check` of a class file walks the programs under the root once each, in path order, and stops
   at the first that owns the file: find why it costs three times the whole app, and fix that.
   `crates/nvs-hir/src/lenders.rs:301`, `crates/nvs-cli/src/main.rs:1252`
-- [ ] The test `a_class_file_check_walks_each_program_once`, reading `--count`'s `programs=`.
+  *Why:* it walked every project under the working directory, each program in a new map, and resolved
+  every path first. The three items below are the fix (`62a917765`).
+- [x] The test `a_class_file_check_walks_each_program_once`, reading `--count`'s `programs=`.
   `crates/nvs-cli/tests/check_borrow.rs:1`
-- [ ] The lender search of a class file walks the project the file belongs to, not the directory
+- [x] The lender search of a class file walks the project the file belongs to, not the directory
   `nvs check` runs from: from this checkout's root it lists 4,550 directories and resolves 8,857 paths
   for 120 files read, against 5 and 308 from `apps/registry`. Find the survey root
   (`crates/nvs-cli/src/main.rs:1438`) and bound it by the file's project. `crates/nvs-hir/src/lenders.rs:343`
-- [ ] `first_lender` resolves every `.nvs` path under the root before it walks one program; resolve a
+  *As built:* `project_root` (`crates/nvs-hir/src/lenders.rs:419`), the nearest folder with an
+  `nvs.toml` or `package.toml` at or above the file and below the root. Test
+  `a_class_file_check_searches_only_its_own_project`.
+- [x] `first_lender` resolves every `.nvs` path under the root before it walks one program; resolve a
   path only when its program is walked. `crates/nvs-hir/src/lenders.rs:303`
-- [ ] Each `Lender::walk` starts from an empty source map, so the library the programs share is read
+- [x] Each `Lender::walk` starts from an empty source map, so the library the programs share is read
   and parsed again per program (115 programs and 9,067 files read for one test file of
   `packages/rest/tests`). Share one map across the walks of one search. The editor's survey walks the
   same way at every start, warm included (9,434 files read), so `Documents::survey` takes the shared
   map too. `crates/nvs-hir/src/lenders.rs:69`, `crates/nvs-lsp/src/document.rs:304`
-- [ ] Once a lender is found, the class file is loaded and checked a second time with a fresh map.
-  Keep the first load. `crates/nvs-cli/src/main.rs:1260`
+  *As built:* `Survey` (`crates/nvs-hir/src/lenders.rs:46`): a `SourceMap::loading_once` map, one
+  parse and one resolved path per file. The editor's survey and resurvey and `nvs pkg audit` use one.
+  The editor's warm-start figure is not measured again yet (stage 5's `lsp-start` item).
+- [x] Once a lender is found, the class file is loaded and checked a second time with a fresh map.
+  Keep the first load. `crates/nvs-cli/src/main.rs:1260` *As built:* `SourceMap::adopt`.
 - [ ] An autoloaded file's path is resolved by the directory walk, again by the name probe, and a third
   time when claims are compared: about two resolutions per extra file on an uncached compile. Resolve
   it once and carry the result. `crates/nvs-hir/src/autoload.rs:871`, `:560`, `:880`
 - [ ] The run's cache key resolves the entry path the compile already resolved, and again on each
   validation. `crates/nvs-cli/src/script.rs:1436`, `:1744`, `:1960`
-- [ ] `nvs test <dir>` reads every file once only to look for `require`, then reads it again to
-  compile; and with a `require` present it resolves the whole directory twice (`unrequired`). Learn
-  both from the one compile. `crates/nvs-cli/src/main.rs:3337`, `:3348`
-- [ ] `nvs test <dir>` resolves each file's path in `unrequired` and again after the compile.
-  `crates/nvs-cli/src/main.rs:3363`, `:3213`
+- [ ] `nvs test <dir>` reads every file once only to look for `require` (`std::fs::read_to_string`,
+  which `read=` does not count), then the `unrequired` walk reads it again when a `require` is present,
+  then the compile reads it a third time. `crates/nvs-cli/src/main.rs:3337`. The resolution half is done
+  (next item). *Design for the read half:* the entry's text depends on the walk's edges, so the walk
+  cannot be the compile. Read the texts once into the compile's map: `unrequired` takes a
+  `SourceMap::loading_once` map, loads each file under the spelling the walk will ask for
+  (`nvs_hir::requires::canonicalize` of `dir.join(rel)`, one resolution the walk makes anyway), tests
+  `contains("require")` on the loaded text, and hands the map's files to `Program::front_end` with
+  `SourceMap::adopt` plus the `once` table. The entry is an overlay and must not be kept in `once`,
+  because its text changes between the walk and the compile. Count test: `read=` of a directory check
+  equals the file count, in `crates/nvs-cli/tests/check_command.rs`.
+- [x] `nvs test <dir>` resolves each file's path in `unrequired` and again after the compile.
+  `crates/nvs-cli/src/main.rs:3363`, `:3213` *As built (`5e53c0ada`):* both resolve only a file whose
+  name matches, compared without case. Test `a_directory_check_resolves_only_what_a_file_requires`
+  (six resolutions per test file, was seven). The served-file lookup is on `nvs test`'s path alone,
+  and no count test covers it.
 - [ ] Each fix above adds or tightens a count test that would go red if the work came back.
-- [ ] `nvs fmt --check` of a tree: nothing repeated (one listing per directory, one read per file, no
+- [x] `nvs fmt --check` of a tree: nothing repeated (one listing per directory, one read per file, no
   settings and no resolution).
-- [ ] Run the `class-file-check` check's command once: green.
+- [x] Run the `class-file-check` check's command once: green.
 
 ### 4. an index entry is analysed by a function that owns everything it reads, and merged into the index apart from that
 
@@ -354,31 +385,36 @@ than the files). The session writes the items.
 
 ### State
 
-Stages 1 and 2 are done, and their checks `file-system-counts` and `index-work-bounded` are green.
-Stage 2 is `crates/nvs-lsp/src/tree_cache.rs` (`9c8e2e993`): the configuration tree is kept per list
-of root files, and the extension set per list of entries with its digest, each revalidated by the
-size and time of every path its reader touched. `graph_key` hashes the digest. A cold index of this
-checkout went from 24.3 s to 17.3 s and from 592 settings parses to 263, one per settings file
-(§ *Why*). `program_tree` (`crates/nvs-lsp/src/document.rs`) still reads uncached for the grants
-hover and `server.rs:2217`; both are rare requests.
+Stages 1 and 2 are done. Stage 3's class-file items are done (`62a917765`), and its check
+`class-file-check` ran green. The lender search now searches the file's own project
+(`nvs_hir::lenders::project_root`), its walks share one `Survey` (a `SourceMap::loading_once` map, one
+parse and one resolved path per file), it resolves a path only when it walks its program, and the
+second check adopts the first check's text (`SourceMap::adopt`). From this checkout's root, a check
+of `apps/registry/src/AccountPage.nvs` went from 8,857 resolved, 120 read and 4,550 listed to 190, 69
+and 5. `packages/rest/tests/ClientTest.nvs` went from 115 programs and 9,067 reads to 1 and 17. The
+editor's survey and resurvey and `nvs pkg audit` share a `Survey` too. The editor's warm start is not
+measured again yet. The rule fragment and `docs/reference/tools/10-cli.md` state the project bound.
+`website/public/llms-full.txt` copies that reference page and is not rendered again: the goal end's
+`bun nv ci --check` names it.
 
-The resolution bound in `an_index_resolves_each_files_path_a_bounded_number_of_times_per_file` is
-today's 14 per file. Stage 4 has a new item that names the eight sites that resolve the entry's path
-again, and lowers that bound.
+`nvs test <dir>`'s resolution item is done (`5e53c0ada`). Its read item is open, with a design written
+under it.
 
-The acceptance sweep's reds were stale again: no `env-secret-proofs` log exists, and nightly
-41813182715 ran on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (the macOS cli test).
+The acceptance sweep's reds were stale: no `env-secret-proofs` log exists, and nightly 41813182715 ran
+on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (the macOS cli test).
 
-Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs` (an indexing run's `end` is
-followed by a `window/logMessage`), `incremental.rs`'s three `Work` assertions, and
-`crates/nvs-lsp/tests/extensions.rs` (it now reads its set through the cache).
+Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `incremental.rs`'s three
+`Work` assertions, `crates/nvs-lsp/tests/extensions.rs`, every test of the editor's survey
+(`crates/nvs-lsp/tests/` cases that borrow a map: the survey now shares one map, so a file it read
+first as plain keeps that load), `check_borrow.rs` as a whole, and `nvs pkg audit`'s tests.
 
 ### Next
 
-Stage 3, from its first item: `nvs check` of a class file walks each program once
-(`crates/nvs-hir/src/lenders.rs`, `first_lender`), with the test `a_class_file_check_walks_each_program_once`
-in `crates/nvs-cli/tests/check_borrow.rs`. Its items touch `crates/nvs-cli`, `crates/nvs-hir` and
-`Documents::survey` (`crates/nvs-lsp/src/document.rs:304`). Stage 4 follows and edits
-`crates/nvs-lsp/src/index.rs:1169` and `document.rs`, so it waits for stage 3's survey item.
+Stage 3's remaining items, in this order. First, the `nvs test <dir>` read item
+(`crates/nvs-cli/src/main.rs:3337`, design under the item). Second, the autoload item: an autoloaded
+file's path is resolved three times (`crates/nvs-hir/src/autoload.rs:879` `resolved`, the directory
+walk and the name probe). Third, the run's cache key (`crates/nvs-cli/src/script.rs:1905`, and the
+validation sites the item names). Each adds a count test. Then stage 3 is done, and stage 4 starts
+from its snapshot item (`crates/nvs-lsp/src/index.rs:1169`, `document.rs`).
 
 ### Backlog
