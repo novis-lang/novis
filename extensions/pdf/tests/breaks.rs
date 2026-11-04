@@ -140,6 +140,31 @@ fn heights_that_sum_to_the_page_in_another_order_still_fit() {
 }
 
 #[test]
+fn a_heading_before_a_block_taller_than_a_page_moves_with_its_first_lines() {
+    let long = "lorem ipsum dolor ".repeat(200);
+    let page_of = |filler: u32| {
+        let laid = lay(&format!(
+            "<style>@page {{ size: 200pt 300pt; margin: 0 }} body, h2, p {{ margin: 0 }}
+            h2 {{ font-size: 20pt; break-after: avoid }} p {{ font-size: 10pt }}</style>
+            <div style='height: {filler}pt'></div><h2>Shop</h2><p>{long}</p>"
+        ));
+        assert!(laid.pages.len() > 2, "{}", laid.pages.len());
+        let heading = (0..laid.pages.len())
+            .find(|&p| texts(&laid, p).iter().any(|t| t == "Shop"))
+            .unwrap();
+        // The paragraph's first line is on the heading's page.
+        let after = texts(&laid, heading);
+        let at = after.iter().position(|t| t == "Shop").unwrap();
+        assert!(after.len() > at + 1, "{after:?}");
+        heading
+    };
+    // 40 pt is left under the filler: room for the heading, not for it and two lines.
+    assert_eq!(page_of(260), 1);
+    // 100 pt is left: the heading and the paragraph's first lines stay on the first page.
+    assert_eq!(page_of(200), 0);
+}
+
+#[test]
 fn a_float_after_a_forced_break_lands_on_the_new_page() {
     let laid = lay("<style>body, p { margin: 0 }</style>
         <p style='break-after: page'>Shop</p>

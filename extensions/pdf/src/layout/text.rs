@@ -573,6 +573,59 @@ impl Cx<'_> {
         height - margin
     }
 
+    /// The blocks that measure as the start of the box or paragraph `unit` up to the end of its
+    /// first paragraph's `orphans` lines: each box opened before that paragraph with no bottom
+    /// edge and no least height, then a spacer as tall as those lines. `None` when something
+    /// other than a box, a tag, a string or a target comes before the first paragraph.
+    fn head(&mut self, unit: &[Block]) -> Option<Vec<Block>> {
+        let mut out = Vec::new();
+        let mut depth = 0;
+        for block in unit {
+            match block {
+                Block::Open(g) => {
+                    let mut g = g.clone();
+                    g.margin[2] = 0.0;
+                    g.border[2] = 0.0;
+                    g.padding[2] = 0.0;
+                    g.min_content = 0.0;
+                    out.push(Block::Open(g));
+                    depth += 1;
+                }
+                Block::Tag(_) | Block::String { .. } | Block::Target(_) => out.push(block.clone()),
+                Block::Text {
+                    text,
+                    spans: runs,
+                    para,
+                    width,
+                    marker: false,
+                    inline,
+                    atoms,
+                    leaders,
+                    ..
+                } => {
+                    let room: Vec<(usize, f32)> =
+                        leaders.iter().map(|(at, ..)| (*at, 0.0)).collect();
+                    let mut shaped = self.shape(text, runs, para, inline, atoms, &room);
+                    break_lines(&mut shaped, text, *width, &[], 0.0);
+                    let lines: f32 = line_heights(&shaped)
+                        .into_iter()
+                        .take(para.orphans.max(1))
+                        .sum();
+                    let mut spacer = super::block::geometry(&Style::default(), 0.0, 0.0);
+                    spacer.min_content = lines;
+                    out.push(Block::Open(spacer));
+                    out.push(Block::Close);
+                    out.extend(std::iter::repeat_n(Block::Close, depth));
+                    return Some(out);
+                }
+                // A list marker takes no height of its own.
+                Block::Text { marker: true, .. } => {}
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// Pushes onto `out` the index of every atom `blocks` lay out, a flex item's own included.
     fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
         for block in blocks {
@@ -723,10 +776,23 @@ impl Cx<'_> {
                 if avoid || joined.is_some() {
                     // The group is measured inside a box with no edges, which adds nothing.
                     let wrapper = super::block::geometry(&Style::default(), 0.0, 0.0);
-                    let mut wrapped = vec![Block::Open(wrapper)];
+                    let mut wrapped = vec![Block::Open(wrapper.clone())];
                     wrapped.extend(group.iter().cloned());
                     wrapped.push(Block::Close);
-                    let height = self.measure(wrapped) - top - joined.unwrap_or(bottom);
+                    let last = joined.map_or(bottom, |j| j.0);
+                    let mut height = self.measure(wrapped) - top - last;
+                    // A group taller than a page splits in its last box, so the boxes before
+                    // it are kept with that box's first lines alone (its orphans).
+                    if let Some((_, start)) = joined
+                        && height > flow.next_limit() + super::block::FIT
+                        && let Some(head) = self.head(&group[start..])
+                    {
+                        let mut wrapped = vec![Block::Open(wrapper)];
+                        wrapped.extend(group[..start].iter().cloned());
+                        wrapped.extend(head);
+                        wrapped.push(Block::Close);
+                        height = self.measure(wrapped) - top;
+                    }
                     flow.keep(top, height);
                 }
                 ahead.extend(group.into_iter().rev());
@@ -1452,13 +1518,14 @@ fn rest_of_box(
 /// Moves onto `group` each box after it that a break is avoided before: a block box whose
 /// `break-before` is `avoid`, or, when `after` says the box before has a `break-after` of
 /// `avoid`, the next block box or paragraph. Puts back what it read past them. Returns the
-/// bottom margin of the last box it moved, or `None` when it moved none.
+/// bottom margin of the last box it moved and the index in `group` where that box starts, or
+/// `None` when it moved none.
 fn join(
     group: &mut Vec<Block>,
     mut after: bool,
     ahead: &mut Vec<Block>,
     blocks: &mut impl Iterator<Item = Block>,
-) -> Option<f32> {
+) -> Option<(f32, usize)> {
     let mut bottom = None;
     loop {
         let mut between = Vec::new();
@@ -1481,16 +1548,17 @@ fn join(
             return bottom;
         }
         group.append(&mut between);
+        let start = group.len();
         match found {
             Some(Block::Open(g)) => {
                 after = g.joined[1];
-                bottom = Some(g.margin[2]);
+                bottom = Some((g.margin[2], start));
                 group.push(Block::Open(g));
                 rest_of_box(group, ahead, blocks);
             }
             Some(block) => {
                 after = false;
-                bottom = Some(0.0);
+                bottom = Some((0.0, start));
                 group.push(block);
             }
             None => return bottom,
