@@ -1227,21 +1227,27 @@ impl Connecting for mio::net::UnixStream {
 /// trait that exists only to be these two questions.
 ///
 /// The two questions it asks are the ones that are *sound on both platforms*,
-/// which the obvious pair is not:
+/// which the obvious pair is not, and they are asked in this order:
 ///
-/// - **`SO_ERROR`**, because a failed connect reports writable exactly as a
-///   completed one does, and on Windows this is the only place the refusal
-///   ever appears.
-/// - **A zero-length write**, because it is the portable "is this socket
+/// - **A zero-length write** first, because it is the portable "is this socket
 ///   connected yet" question: `Ok` on a connected socket having sent nothing,
-///   `NotConnected`/`WouldBlock` while the handshake is still in flight, and on
-///   Linux the refusal itself. A local socket whose peer has already hung up
-///   answers `BrokenPipe`, which is a connect that is up, and
-///   `Connecting::connected_then_closed` names it. `peer_addr` is what
-///   `mio`'s own example asks and
-///   it **cannot be used here**: on Windows it answers `Ok(the target address)`
-///   for a socket whose connect has not started succeeding and never will, so a
-///   connect built on it reports success for a stream that is dead.
+///   `NotConnected`/`WouldBlock` while the handshake is still in flight or once
+///   it has failed, and on Linux the refusal itself. A socket whose connect
+///   failed is not connected, so an `Ok` here is never a dead stream. A local
+///   socket whose peer has already hung up answers `BrokenPipe`, which is a
+///   connect that is up, and `Connecting::connected_then_closed` names it.
+/// - **`SO_ERROR`** only when the write said "not yet", because a failed
+///   connect reports writable exactly as a completed one does, and on Windows
+///   this is the only place the refusal ever appears. It is second because it
+///   is the expensive one: on Windows the first `SO_ERROR` read of a socket
+///   that has just connected took 7 to 16 ms on a loopback connect whose
+///   handshake was already up, against microseconds for the write, and asking
+///   it first put that on every outbound connection.
+///
+/// `peer_addr` is what `mio`'s own example asks and it **cannot be used
+/// here**: on Windows it answers `Ok(the target address)` for a socket whose
+/// connect has not started succeeding and never will, so a connect built on it
+/// reports success for a stream that is dead.
 ///
 /// Being sound rather than merely usual matters because a wake names nothing
 /// for either caller: [`suspend_current`] can return for a reason that is not
@@ -1256,20 +1262,20 @@ impl Connecting for mio::net::UnixStream {
 /// The connection's own failure — refused, unreachable, reset while it was
 /// being established — or the platform refusing to answer for the descriptor.
 fn ask_connected<S: Connecting>(inner: &mut S) -> io::Result<bool> {
-    if let Some(err) = inner.take_error()? {
-        return Err(err);
-    }
     match inner.write(&[]) {
         Ok(_) => Ok(true),
-        // Not an error, just "not yet" — which is rule 2's shape asked of a
-        // different question.
+        // "Not yet" or "failed": only `SO_ERROR` tells the two apart, and "not
+        // yet" is rule 2's shape asked of a different question.
         Err(err)
             if matches!(
                 err.kind(),
                 io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
             ) =>
         {
-            Ok(false)
+            match inner.take_error()? {
+                Some(failed) => Err(failed),
+                None => Ok(false),
+            }
         }
         Err(err) if S::connected_then_closed(&err) => Ok(true),
         Err(err) => Err(err),
