@@ -1271,6 +1271,23 @@ impl Ctx {
             .is_some_and(|end| std::time::Instant::now() < end)
     }
 
+    /// Whether the limit handler's CPU slice is open and the tree has spent
+    /// less than the widened [`Self::cpu_limit`]. Then a
+    /// [`SafepointFlags::CPU_LIMIT`] the poll finds was raised by a sweep that
+    /// compared the tree with the ceiling from before the handler's entry, and
+    /// the handler goes on.
+    ///
+    /// The reading is the sampler's own ([`Self::cpu_time_spent`]), so the poll
+    /// and the next sweep judge the same figure. With no reading, the raise
+    /// stands and stops the handler. Read by the poll's slow path only when the
+    /// flag is raised inside a handler, so it costs the request path nothing.
+    pub(super) fn in_cpu_slice(&self) -> bool {
+        self.cpu_slice_open
+            && self.cpu_time_spent().is_some_and(|spent| {
+                u64::try_from(spent.as_nanos()).unwrap_or(u64::MAX) < self.cpu_limit
+            })
+    }
+
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
     /// no cap — `rule:errors/on-limit`.
     ///

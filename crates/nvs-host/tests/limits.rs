@@ -632,6 +632,119 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
     );
 }
 
+/// What the handler's own poll returned after a raise inside its slice, or `-1`
+/// before it has run. A slot per handler, for [`SEEN_LIMIT`]'s reason.
+static STALE_RAISE_STATUS: AtomicI32 = AtomicI32::new(-1);
+static OVERRUN_STATUS: AtomicI32 = AtomicI32::new(-1);
+
+/// A handler that meets a raise the way a sweep that read the ceiling from
+/// before its entry raises: after the handler lowered the flag. The tree has
+/// spent much less than the widened ceiling, so the poll lowers the raise.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `reports_its_time`, and the context \
+              pointer the poll takes is the live one this handler was called with"
+)]
+unsafe extern "C" fn meets_a_stale_raise(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+    unsafe { &*ctx }.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    let status = unsafe { nvs_safepoint(ctx) };
+    STALE_RAISE_STATUS.store(status, Ordering::SeqCst);
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    status
+}
+
+/// A handler that spends its whole slice: it burns until the tree's reading
+/// passes the widened ceiling, then meets the raise the next sweep would make.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `reports_its_time`, and the context \
+              pointer the poll takes is the live one this handler was called with"
+)]
+unsafe extern "C" fn overruns_its_widened_ceiling(
+    ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    {
+        let ctx = unsafe { &*ctx };
+        let ceiling = std::time::Duration::from_nanos(ctx.cpu_limit());
+        // A hang guard: the slice is 5 ms of CPU time.
+        let guard = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while ctx.cpu_time_spent().is_some_and(|spent| spent < ceiling) {
+            assert!(std::time::Instant::now() < guard, "the reading never passed {ceiling:?}");
+            std::hint::black_box(());
+        }
+        ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    }
+    let status = unsafe { nvs_safepoint(ctx) };
+    OVERRUN_STATUS.store(status, Ordering::SeqCst);
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    status
+}
+
+/// A request stopped at its CPU ceiling, with its handler entered, under a
+/// watchdog that does not sweep during the test, so each raise is the test's.
+fn stopped_under_a_watchdog(
+    reserve: u64,
+    handler: Value,
+) -> Option<(nvs_host::Watchdog, nvs_host::Registration, Ctx)> {
+    let hour = std::time::Duration::from_secs(3600);
+    let dog = nvs_host::Watchdog::with(hour, hour, |_| {});
+    let registered = dog.register_requests();
+    nvs_host::ThreadClock::current()?;
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.set_cpu_limit(1);
+    ctx.set_fatal_reserve_time(reserve);
+    ctx.set_limit_handler(handler);
+    registered.publish(ctx.safepoint_view());
+    ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+    Some((dog, registered, ctx))
+}
+
+/// `rule:errors/on-limit`: a sweep reads the tree's ceiling and then raises the
+/// flag. When the handler widens the ceiling and lowers the flag between those
+/// two steps, the raise lands inside the handler. The tree is under the widened
+/// ceiling, so the handler's poll lowers the raise and the handler goes on.
+/// A handler that spends its whole slice is still stopped at its poll.
+#[test]
+fn a_raise_that_read_the_ceiling_from_before_the_handler_does_not_stop_it() {
+    let Some((_dog, registered, mut ctx)) =
+        stopped_under_a_watchdog(60_000_000_000, callable_of(meets_a_stale_raise))
+    else {
+        return;
+    };
+    #[expect(unsafe_code, reason = "the safepoint's ABI takes a live local's pointer")]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+    assert_eq!(status, nvs_runtime::FATAL, "the request still ends at its limit");
+    assert_eq!(
+        STALE_RAISE_STATUS.load(Ordering::SeqCst),
+        nvs_runtime::OK,
+        "the handler's poll lowered a raise made while it was under its widened ceiling"
+    );
+    registered.withdraw(&ctx.safepoint_view());
+
+    let Some((_dog, registered, mut ctx)) =
+        stopped_under_a_watchdog(5_000_000, callable_of(overruns_its_widened_ceiling))
+    else {
+        return;
+    };
+    #[expect(unsafe_code, reason = "the safepoint's ABI takes a live local's pointer")]
+    let status = unsafe { nvs_safepoint(&raw mut ctx) };
+    assert_eq!(status, nvs_runtime::FATAL);
+    assert_eq!(
+        OVERRUN_STATUS.load(Ordering::SeqCst),
+        nvs_runtime::FATAL,
+        "a handler past its widened ceiling is stopped at its poll"
+    );
+    registered.withdraw(&ctx.safepoint_view());
+}
+
 /// `rule:security/isolate-budget-is-the-trees`, and the whole reason `[limits] max_script_depth` has a default at
 /// all: a recursive `spawn script` is stopped by that ceiling and **reported as that ceiling**
 /// rather than as an out-of-memory.

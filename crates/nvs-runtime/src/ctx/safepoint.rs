@@ -1130,6 +1130,14 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
 
 /// [`nvs_safepoint`]'s body, run inside its `catch_unwind`.
 fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
+    if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) && ctx.in_cpu_slice() {
+        // A sweep compared the tree with the ceiling from before the handler's
+        // entry and raised the flag after the handler lowered it. The tree is
+        // under the widened ceiling, so the raise is lowered and the handler
+        // goes on. The next sweep compares with the widened ceiling, and raises
+        // again only once the handler has spent its slice.
+        ctx.lower_safepoint(SafepointFlags::CPU_LIMIT);
+    }
     if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
         // `rule:errors/on-limit` lists CPU time beside memory, so the ladder is the same
         // two lines the memory branch below carries, in the same order: the

@@ -27,11 +27,14 @@ default; a request whose `memory` is `false` reserves nothing.
 also gets a wall-time slice of that size, sized against `[limits] wall_time`. Both are counted from
 the handler's entry, never from the moment of the breach. The CPU slice is the tree's spend at entry
 plus the reserve, published to the sampler. The wall slice is an instant the tree carries. The poll
-lowers a wall-time raise that lands inside it, and the first raise past its end stops the handler. So
-a request thread that reaches its poll late, or is preempted, does not lose the slice: a handler's
-time does not depend on the host's speed. The cost is one word per tree, a store at each end of a
-wall-time handler, and a clock read for each raise inside the slice. A wall-stopped request may run
-past its `wall_time` by its slice plus one sweep interval.
+lowers a wall-time raise that lands inside it, and the first raise past its end stops the handler.
+The poll lowers a CPU raise inside the handler while the sampler's reading of the tree is under the
+widened ceiling: a sweep that read the ceiling from before the handler's entry raises after the
+handler lowered the flag. So a request thread that reaches its poll late, or is preempted, and a
+sampler preempted between its read and its raise, do not take the slice: a handler's time does not
+depend on the host's speed. The cost is one word and one byte per tree, a store at each end of a
+handler, and a clock read for each raise inside the slice. A wall-stopped request may run past its
+`wall_time` by its slice plus one sweep interval.
 
 A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
 that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on

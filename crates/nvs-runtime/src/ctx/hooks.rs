@@ -611,6 +611,11 @@ impl Ctx {
             self.publish_cpu_limit();
             // Spent, not merely lent, for [`Self::fatal_reserve`]'s reason.
             self.fatal_reserve_time = 0;
+            // A sweep that read the ceiling from before the line above can
+            // raise the flag after the line below lowers it. The poll lowers
+            // such a raise while the tree is under the widened ceiling
+            // ([`Self::in_cpu_slice`]).
+            self.cpu_slice_open = true;
         }
         if stopped_for_cpu {
             self.lower_safepoint(SafepointFlags::CPU_LIMIT);
@@ -659,6 +664,7 @@ impl Ctx {
         self.fatal_reserve = reserve;
         self.arm_memory_ceiling();
         crate::budget::restore_refusal(refused);
+        self.cpu_slice_open = false;
         self.cpu_limit = cpu_ordinary;
         self.publish_cpu_limit();
         self.fatal_reserve_time = cpu_reserve;

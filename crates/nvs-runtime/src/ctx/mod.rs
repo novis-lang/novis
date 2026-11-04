@@ -678,6 +678,13 @@ pub struct Ctx {
     /// operator's own `[limits] cpu_time`, moved from one side of the ceiling to
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
+    /// Whether the limit handler is running with its CPU slice open: from
+    /// where [`Self::run_limit_handler`] widens [`Self::cpu_limit`] to where it
+    /// puts the ordinary ceiling back. The poll reads it only when
+    /// [`SafepointFlags::CPU_LIMIT`] is raised ([`Self::in_cpu_slice`]).
+    ///
+    /// **What it spends:** one byte per request.
+    cpu_slice_open: bool,
     /// Takes ownership of the callable `Core\Fatal::onUncaughtThrow` registered
     /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2, and the second handler slot beside [`Self::limit_handler`].

@@ -172,6 +172,7 @@ impl Ctx {
             fatal_reserve: 0,
             cpu_limit: 0,
             fatal_reserve_time: 0,
+            cpu_slice_open: false,
             uncaught_handler: Value::null(),
             shutdown_handler: Value::null(),
             exit_hooks: Vec::new(),
