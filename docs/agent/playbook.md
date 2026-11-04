@@ -214,6 +214,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `.scale.nvs` ramp cannot guard the growth of native code.** It judges interpreted statement
+  counts, so a bench that makes one native call per size reads `size flat` whatever the call costs,
+  and no CI job runs callgrind. A growth property of a native path is guarded by a step count read
+  in a test (`find_counted` in `crates/nvs-stdlib/src/str.rs`), or by a cost per item at two sizes
+  measured in the same run. See `tools/nv/proofs/perf.ts`. `until: gone tools/nv/proofs/perf.ts:size_growth_clock`
+
 - **A stopped `nvs serve` never force-unwinds a parked task, so a server test cannot reach a
   teardown crash in `Task::force_unwind`.** A core's serving loop turns until nothing is parked, and
   a task parked inside a script stands on a helper frame and is forgotten at the scheduler's drop.

@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/metrics.rs, crates/nvs-cli/tests/serve_isolation.rs, tests/conformance/config/wall-time-stops-a-loop-that-calls-nothing.nvst, tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs, crates/nvs-host/src/group.rs]
   - id: 4
     title: "the rest of the listed tests follow the rule, and every bound taken out leaves its path under a bench or a count"
-    status: open
+    status: done
     context: [benches/abi-probe/tests/perf_guards.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -212,6 +212,14 @@ keeps its declaration-order assert alone.
 test in `crates/nvs-cli/tests/live_edit.rs` bounds its compile by the check interval, `settle` and
 the run's measured boot, which compiled the program once. Dropping it would owe a bench first.
 
+**A growth property in native code is guarded by a count or a same-run ratio, never by a scale
+bench.** A `.scale.nvs` ramp judges interpreted statement counts, so one native call reads `flat`
+whatever its own growth, and no CI job runs callgrind. Where the code is in the workspace, its loop
+calls a step closure that the shipped path passes as a no-op, and a test counts the steps
+(`find_counted` in `crates/nvs-stdlib/src/str.rs`). A built-in component has no instruction count
+and its unit tests run in no CI job, so its test compares the cost per item at two sizes in the same
+run (pattern 4), the fastest of three reads each.
+
 **Lanes.** Stages 2 and 3 both edit `crates/nvs-host/src/watchdog.rs`, so the stages run in order.
 Within stage 3 the four fixes touch disjoint files.
 
@@ -292,16 +300,16 @@ out names the bench or cost guard that covers its path, or adds one.
 **Split:** each file group of the list goes to a writing subagent on the session's model. Groups in
 disjoint files run side by side, and none of them builds. The session builds once they all end.
 
-- [ ] Work through the list, one file group per slice. Each entry names its pattern and, for a
+- [x] Work through the list, one file group per slice. Each entry names its pattern and, for a
   removed bound, its bench or count. `docs/goals/speed-independent-tests.md:1`
   - [x] The files the first sweep did not read are swept, and their hits join the list.
   - [x] The tight bounds follow the rule: `html_later.rs`, `time.rs`, `io.rs`, `transport.rs`,
     `sqlite_contention.rs`, `telemetry.rs`, `otlp.rs` and the bounded-wait conformance case.
   - [x] The hang guards under the hostile timeout are raised to it.
   - [x] The sleep-ordered conformance cases and Rust tests wait for an event.
-  - [ ] The growth properties (`spreadsheet_read.rs:874`, the case-insensitive `indexOf` case)
+  - [x] The growth properties (`spreadsheet_read.rs:874`, the case-insensitive `indexOf` case)
     have a bench with its growth or a count.
-- [ ] Every bench or cost guard added for a removed bound is listed in the handoff with its path.
+- [x] Every bench or cost guard added for a removed bound is listed in the handoff with its path.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -315,42 +323,42 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stages 1, 2 and 3 are done. In stage 4 the tight bounds, the hang guards and the sleep-ordered
-tests are done. The growth properties and one check in `latency.rs` are left. Clippy over all
-targets is green, and each rewritten test passed once by name. The five conformance cases passed
-under the debug `nvs test`.
+Stages 1 to 4 are done. Stage 5, the gate, is next. Clippy over all targets is green, and each
+rewritten test passed once by name.
 
-- **Sleep-ordered tests and short guards** (`23b798bca`, `c372bb2a6`, `923c46311`, `56e9c5d7f`,
-  `b97fd3c02`): conformance cases, slotted fills, LDAP and heartbeat wait on events. Guards in
-  `serve.rs`, `socket.rs` and `reactor.rs` are 10 s. `watchdog.rs` reads the thread's own clock.
-  `a-wait-parks-only-...` has a new expected line, `short ran while long slept: yes`.
-- The handshake cases returned at once here, most likely with no database server, so CI is their
-  first real run. `live_edit.rs`'s idle-edit test is renamed and keeps a measured bound.
-- **Tight bounds** (`84028a2b9`..`13e8b4a98`): done. Only `time.rs`'s bound was dropped, and
-  `benches/members/core/Time/sleep.nvs` covers it. No bench or cost guard was added.
-- The run's reds are stale: `env-secret-proofs` is defined nowhere, nightly 41618735447 ran
-  `98845d92`, and `supply chain` belongs to `ci-green`. No test is expected to go red.
-  `slotted/tests.rs` searches raw chunked bytes, so a needle split across a chunk boundary would
-  fail at the 10 s guard. Look there first if it goes red.
+- **What guards each removed bound.** `time.rs`'s bound: `benches/members/core/Time/sleep.nvs`.
+  The spreadsheet header's `< 10 s` (`5e3d0cba4`): the same test now compares the cost per column
+  at 16384 and 2048 columns in one run (pattern 4), `a_header_of_every_column_equal_is_numbered_in_linear_time`
+  in `crates/nvs-ext/tests/spreadsheet_read.rs`. The case-insensitive `indexOf` near miss
+  (`8de4a2c37`): `a_case_insensitive_near_miss_takes_steps_linear_in_the_haystack_and_needle` in
+  `crates/nvs-stdlib/src/str.rs` counts the KMP steps through `find_counted`. Its conformance case
+  keeps the case timeout as a hang guard. No `.scale.nvs` was added: a ramp reads native growth as
+  `flat` (see the standing decision).
+- `crates/nvs-lsp/tests/latency.rs`'s `judge` retries a hard miss up to `ATTEMPTS` = 3, so it stays.
+- **Earlier slices** (`23b798bca`, `c372bb2a6`, `923c46311`, `56e9c5d7f`, `b97fd3c02`,
+  `84028a2b9`..`13e8b4a98`): sleep-ordered tests wait on events, guards are 10 s, `watchdog.rs`
+  reads the thread's own clock, `a-wait-parks-only-...` has the new line `short ran while long
+  slept: yes`.
+- The run's reds are stale: `env-secret-proofs` is defined nowhere and has no log, nightly
+  41618735447 ran `98845d92`, and `supply chain` belongs to `ci-green`.
 
 ### Next
 
-Stage 4 has three entries left. Then its last item is ticked and stage 5 runs.
+Stage 5 runs the gate, as its items say.
 
-1. **The growth properties need a bench with its growth or a count.** Keep each bound until one
-   exists, and name its path in the handoff.
-   - `crates/nvs-ext/tests/spreadsheet_read.rs:874`, the linear-time header `< 10 s`.
-   - `tests/conformance/core/str-index-of-case-insensitive-near-miss-is-linear.nvst:7`, bounded by
-     the case timeout.
-   A bench declares `// bench: complexity linear` with a `.scale.nvs` beside it (playbook,
-   `tools/nv/proofs/roster.ts`). A count of comparisons is the alternative where the code has a
-   counter to read. Hand each to its own writing subagent.
-2. **`crates/nvs-lsp/tests/latency.rs:212-243`, used at `:306`:** check that its hard bound fails
-   only after three attempts, as `perf_guards.rs`'s `judge` does. If it does, it stays.
-3. **Tick stage 4's last item** once the growth benches are listed here with their paths, and set
-   stage 4 done in the front matter.
+1. Start `looper verify` with `run_in_background`, end the turn, and fix every failure it names in
+   one pass. Then run it once more.
+2. The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes speed-independent-tests`,
+   `bun nv ci --check`.
+3. `bun nv ci --push` and `bun nv ci --watch` until CI is green, macOS and Windows included.
 
-**Stage 4's list, as swept.** Every entry not named above is done or stays as its kind says. From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
+**Tests that may go red.** The handshake cases in `crates/nvs-db/tests/handshake.rs` returned at
+once here, most likely with no database server, so CI is their first real run.
+`crates/nvs-server/src/slotted/tests.rs` searches raw chunked bytes, so a needle split across a
+chunk boundary would fail at the 10 s guard. The spreadsheet header ratio has had one local run
+only. If it goes red, its message names both figures: read them before changing anything.
+
+**Stage 4's list, as swept, for reference.** Every entry not named above is done or stays as its kind says. From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
 at any speed and stays unless the clock's resolution can undercut it. A **hang guard** is pattern 1 and
 stays if it is at least the hostile timeout's size. A **tight** bound fails on a slow machine and is
