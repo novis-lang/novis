@@ -15,7 +15,8 @@ use super::block::Flow;
 use super::inline::{Targets, blocks, is_bidi_control};
 use super::margin;
 use super::{
-    Anchor, Atom, Block, Fact, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes,
+    Anchor, Atom, Block, Fact, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, Work,
+    boxes,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -113,6 +114,7 @@ fn pass(
         depth: 0,
         deep: false,
         steps: 0,
+        work: Work::default(),
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
@@ -206,6 +208,7 @@ fn pass(
         running,
         strings,
         steps,
+        work,
         ..
     } = cx;
     let mut spans = spans;
@@ -231,6 +234,7 @@ fn pass(
         depth: 0,
         deep: false,
         steps: 0,
+        work,
     };
     margin::draw(&mut cx, boxes, &mut flow.pages);
     if cx.deep {
@@ -245,6 +249,7 @@ fn pass(
         anchors,
         bookmarks,
         steps: steps + cx.steps,
+        work: cx.work,
     };
     Ok((laid, cx.fonts, landed, targeted))
 }
@@ -270,6 +275,7 @@ pub(super) struct Cx<'s> {
     depth: usize,
     deep: bool,
     steps: usize,
+    pub(super) work: Work,
 }
 
 /// What a box laid out on a page of its own met that belongs to the page the box is drawn on:

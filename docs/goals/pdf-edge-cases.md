@@ -317,8 +317,11 @@ handled but untested.
 **Does:** removes the four quadratic paths, with work-count tests in the new
 `extensions/pdf/tests/cost.rs`, modelled on the depth-cost check at `extensions/pdf/tests/layout.rs:2585`.
 
-- [ ] Table layout keeps a running suffix sum of piece heights, so `rows_from` and `fits_rest` stop
+- [x] Table layout keeps a running suffix sum of piece heights, so `rows_from` and `fits_rest` stop
   re-summing. `extensions/pdf/src/layout/table.rs:547`, `extensions/pdf/src/layout/table.rs:623`
+  - [x] `layout::Work` on `Laid`, carried through both `Cx` passes
+  - [x] Suffix sums of height and row count, every piece read counted in `table_reads`
+  - [x] `cost.rs` `a_table_ten_times_longer_costs_ten_times_the_work`, run once: green
 - [ ] Named strings, counters, running elements and marks are indexed by page once, after layout, so
   each margin box reads its page's entries directly. `extensions/pdf/src/layout/margin.rs:85`,
   `extensions/pdf/src/layout/margin.rs:149`, `extensions/pdf/src/layout/margin.rs:357`

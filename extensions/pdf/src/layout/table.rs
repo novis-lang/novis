@@ -73,7 +73,10 @@
 //! Cost: each cell is laid out once at each of its two content widths in a layout pass, however
 //! often the boxes around its table are measured, once at its column width and once more when
 //! its row is taller, taller than a page, or its `vertical-align` is not `top`. A repeated row's
-//! items are copied on each page. Memory: two widths for each cell, per layout pass.
+//! items are copied on each page. The heights and row counts of the body pieces are summed once
+//! from the end, so paging reads each piece a number of times bounded by the rows a page holds
+//! ([`super::Work::table_reads`]). Memory: two widths for each cell, per layout pass, and three
+//! numbers for each body piece while the table is paged.
 
 use super::block::{BoxGeometry, Flow};
 use super::flex::fit;
@@ -542,22 +545,43 @@ impl Cx<'_> {
                 self.caption(*atom, x, width, flow);
             }
         }
+        // Each piece's height, and the height and the row count of the pieces from each one to
+        // the end, summed once, so paging reads each in one step.
+        let reads = std::cell::Cell::new(pieces.len());
+        let heights_of: Vec<f32> = pieces.iter().map(|p| piece_height(p)).collect();
+        let mut after = vec![(0.0_f32, 0_usize); pieces.len() + 1];
+        for p in (0..pieces.len()).rev() {
+            after[p] = (
+                after[p + 1].0 + heights_of[p],
+                after[p + 1].1 + pieces[p].len(),
+            );
+        }
+        let height = |p: usize| {
+            reads.set(reads.get() + 1);
+            heights_of[p]
+        };
+        let rows_from = |from: usize| {
+            reads.set(reads.get() + 1);
+            after[from].1
+        };
+        let rest = |from: usize| {
+            reads.set(reads.get() + 1);
+            after[from].0
+        };
         // A table does not start at the bottom of a page with fewer than `orphans` body rows
         // under its header rows.
-        let rows_from = |from: usize| pieces[from..].iter().map(Vec::len).sum::<usize>();
         if let Some((top, limit, empty)) = flow.room() {
             let lead = (1..=pieces.len())
                 .find(|n| rows_from(0) - rows_from(*n) >= orphans)
                 .unwrap_or(pieces.len());
             let start = piece_height(&shown(&head, true, false))
-                + pieces[..lead].iter().map(|p| piece_height(p)).sum::<f32>()
+                + (rest(0) - rest(lead))
                 + piece_height(&shown(&foot, true, lead == pieces.len()));
             if !empty && top + start > limit {
                 flow.break_page();
             }
         }
         let mut first = true;
-        let rest = |from: usize| pieces[from..].iter().map(|p| piece_height(p)).sum::<f32>();
         // Whether the rest of the table from the piece `from`, and `extra` more, fits on the
         // last page.
         let fits_rest = |flow: &mut Flow, from: usize, first: bool, extra: f32| match flow.room() {
@@ -609,17 +633,17 @@ impl Cx<'_> {
                 let end = (i..count)
                     .find(|p| group_of(*p) != Some(group))
                     .unwrap_or(count);
-                let height: f32 = pieces[i..end].iter().map(|p| piece_height(p)).sum();
-                if height <= later && top + height + below(end == count) > limit {
+                let tall = rest(i) - rest(end);
+                if tall <= later && top + tall + below(end == count) > limit {
                     return true;
                 }
             }
             let (mut y, mut k) = (top, i);
-            while k < count && y + piece_height(&pieces[k]) + below(k + 1 == count) <= limit {
-                y += piece_height(&pieces[k]);
+            while k < count && y + height(k) + below(k + 1 == count) <= limit {
+                y += height(k);
                 k += 1;
             }
-            if k == count || rows_from(k) >= widows || piece_height(&pieces[k]) > later {
+            if k == count || rows_from(k) >= widows || height(k) > later {
                 return false;
             }
             let target = (i..=k).rev().find(|j| rows_from(*j) >= widows);
@@ -632,7 +656,7 @@ impl Cx<'_> {
             let end = i + 1 == pieces.len();
             let below = piece_height(&shown(&foot, first, end)) + if end { gy } else { 0.0 };
             // A piece taller than a page starts where it is and splits between lines.
-            if flow.paginates() && piece_height(piece) - gy > later {
+            if flow.paginates() && height(i) - gy > later {
                 let room = |flow: &mut Flow, first: bool| match flow.room() {
                     Some((top, limit, _)) => {
                         limit - top - gy - piece_height(&shown(&foot, first, false)) - 0.01
@@ -750,7 +774,7 @@ impl Cx<'_> {
             }
             if here > 0
                 && let Some((top, limit, _)) = flow.room()
-                && (top + piece_height(piece) + below > limit || keep(i, top, limit, first, here))
+                && (top + height(i) + below > limit || keep(i, top, limit, first, here))
             {
                 turn(self, flow, &mut drawing, &mut first, i, 0.0);
                 here = 0;
@@ -759,6 +783,7 @@ impl Cx<'_> {
             here += piece.len();
         }
         self.rows(&shown(&foot, first, true), &laid, gy, flow, &mut drawing);
+        self.work.table_reads += reads.get();
         if !rows.is_empty() {
             flow.place(gy);
         }

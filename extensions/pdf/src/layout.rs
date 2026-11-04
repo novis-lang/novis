@@ -405,6 +405,22 @@ pub struct Laid {
     /// cell, a flex or grid item, an `inline-block`, a float or a margin box, or measured a
     /// box's content width. Each level of nesting adds the same number, and a test pins that.
     pub steps: usize,
+    /// The work of the parts of a render that must grow no faster than the document.
+    pub work: Work,
+}
+
+/// What the parts of a render that must grow no faster than the document did, counted so a
+/// test can compare a document with one ten times its size. Memory: four numbers per render.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Work {
+    /// Each read of a table piece's height or row count while the table's rows are paged.
+    pub table_reads: usize,
+    /// Each named string, counter change, mark or running element a margin box looked at.
+    pub margin_reads: usize,
+    /// Each image reference looked up in the assets.
+    pub image_resolves: usize,
+    /// Each image decoded far enough to know its size.
+    pub image_decodes: usize,
 }
 
 /// Each picture a document draws, with the reference it was loaded from.

@@ -1,0 +1,45 @@
+//! No part of a render grows faster than the document: each test lays out a document and one
+//! ten times its size, and compares the work each did, never the time
+//! (`rule:core-classes/pdf-tables-across-pages`, `rule:core-classes/pdf-css-subset`).
+
+use nvs_pdf::layout::{self, Laid};
+use nvs_pdf::{assets, css, fonts, parse};
+
+fn lay(html: &str) -> Laid {
+    let dom = parse::parse(html);
+    let assets = assets::Assets::new(&[]);
+    let styles = css::cascade(&dom, html, &assets);
+    let fonts = fonts::Fonts::new(&styles.font_faces, &assets).unwrap();
+    layout::layout(&dom, &styles, &assets, fonts).unwrap()
+}
+
+/// Whether `big`, the work of a document ten times the size of the one that took `small`, is no
+/// more than ten times `small` and a quarter more. The smaller document's last page is a larger
+/// part of it, so its work per unit is a little lower. Work that grows with the square of the
+/// document is a hundred times `small`.
+fn linear(small: usize, big: usize) -> bool {
+    small > 0 && big * 10 <= small * 125
+}
+
+#[test]
+fn a_table_ten_times_longer_costs_ten_times_the_work() {
+    let table = |rows: usize| {
+        let body: String = (0..rows)
+            .map(|n| format!("<tr><td>Shop{n}</td><td>4.00</td></tr>"))
+            .collect();
+        lay(&format!(
+            "<style>@page {{ size: 105mm 148mm; margin: 10mm }} body {{ font-size: 10pt }}</style>\
+             <table><thead><tr><th>Item</th><th>Price</th></tr></thead><tbody>{body}</tbody>\
+             <tfoot><tr><td>Total</td><td>-</td></tr></tfoot></table>"
+        ))
+    };
+    let (small, big) = (table(100), table(1000));
+    // Both tables run over several pages, so the work of paging them is counted.
+    let pages = (small.pages.len(), big.pages.len());
+    assert!(pages.0 > 2 && pages.1 > 8 * pages.0, "{pages:?}");
+    let (small, big) = (small.work.table_reads, big.work.table_reads);
+    assert!(
+        linear(small, big),
+        "{small} reads for 100 rows, {big} for 1000"
+    );
+}
