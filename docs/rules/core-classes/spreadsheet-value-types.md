@@ -39,12 +39,18 @@ read `DateTime` is placed in, and the clock time in the file is kept exactly; no
 | a number with a date format that has no time | `Date` |
 | a number with a format that has only a time | `TimeOfDay` |
 | a number with an elapsed-time format (`[h]`, `[mm]`, `[ss]`) | `Duration` |
+| an ISO 8601 date cell (`t="d"`) | `Date`, `TimeOfDay` or `DateTime` in `zone`, by what its text has |
 | an error value | a `CellError` case |
-| empty | `null` |
+| empty, or a value that is empty or blank | `null` |
 | a formula | its stored result, read by this table; `{formulas: true}` gives the `Formula` with that result as its `cached` |
 
 A format is a date format when its code has a date or time token outside quotes and brackets, or it is
-one of the built-in ids that are. Both epochs are read, 1900 with its leap-day bug and 1904.
+one of the built-in ids that are. Both epochs are read, 1900 with its leap-day bug and 1904. In the
+1900 system serial 0 and serial 60 name no real day, so under a format with a date they read as their
+plain number, as a negative serial does. A duration past ±106,751 days, the range of a `Duration`,
+reads as its plain number too. A number or `t="d"` cell whose text is neither a number nor an ISO
+8601 date throws `ParseError` naming the cell; a `Z` at the end of a date is dropped and the clock
+time kept, and any other offset throws.
 `{text: [...]}` names columns that read as Excel's displayed text instead, and `{text: true}` reads
 every column so (`rule:core-classes/spreadsheet-reads-as-a-stream`). A CSV cell is always `string`,
 because CSV has no other type.

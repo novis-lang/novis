@@ -10,7 +10,7 @@ stages:
     context: [extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/src/read/xml.rs, extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/template/mod.rs, crates/nvs-ext/tests/spreadsheet_hostile.rs, tests/hostile/README.md]
   - id: 2
     title: "xlsx reading resolves odd part names, reads empty and date cells, joins surrogate pairs, and lists a sheet whose part is missing"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/zip.rs, extensions/spreadsheet/src/read/xml.rs, extensions/spreadsheet/src/read/extras.rs, extensions/spreadsheet/src/read/merge.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 3
     title: "xls reads continued text and code pages, ods reads offsets, void cells and whitespace as ODF says, and a CSV sep= line sets the separator"
@@ -394,33 +394,33 @@ are, one conformance case and one attack.
 **Does:** fixes the xlsx reading findings (decisions 11 to 17, 21 and 22), with tests appended to
 `crates/nvs-ext/tests/spreadsheet_read.rs`, whose helpers build each package (`:96` to `:455`).
 
-- [ ] RX-02: backslash separators in zip entry names or relationship Targets, and `%XX` Targets, do not
+- [x] RX-02: backslash separators in zip entry names or relationship Targets, and `%XX` Targets, do not
   resolve (decision 11). `extensions/spreadsheet/src/read/zip.rs:180`, `extensions/spreadsheet/src/read/mod.rs:471`
-- [ ] RX-03: a package whose workbook relationships omit sharedStrings is not searched for
+- [x] RX-03: a package whose workbook relationships omit sharedStrings is not searched for
   `xl/sharedStrings.xml` (decision 12). `extensions/spreadsheet/src/read/mod.rs:717`
-- [ ] RX-07, RX-11: `<c><v></v></c>` throws and stops the read, and `t="d"` reads as text
+- [x] RX-07, RX-11: `<c><v></v></c>` throws and stops the read, and `t="d"` reads as text
   (decision 13). `extensions/spreadsheet/src/read/mod.rs:1222`
-- [ ] RX-10: `_xD83D__xDE00_` stays literal (decision 14). `extensions/spreadsheet/src/read/xml.rs:219`
-- [ ] RX-16: a `$` in a merge reference makes `merged()` throw; RX-17: `<rPh>` text in a comment is
+- [x] RX-10: `_xD83D__xDE00_` stays literal (decision 14). `extensions/spreadsheet/src/read/xml.rs:219`
+- [x] RX-16: a `$` in a merge reference makes `merged()` throw; RX-17: `<rPh>` text in a comment is
   appended to the note (decision 15). `extensions/spreadsheet/src/read/merge.rs:57`,
   `extensions/spreadsheet/src/read/extras.rs:325`
-- [ ] RX-18: an external Target with `#` plus a `location` gives two `#` (decision 16).
+- [x] RX-18: an external Target with `#` plus a `location` gives two `#` (decision 16).
   `extensions/spreadsheet/src/read/extras.rs:229`
-- [ ] ST-06: `sheets()` throws for the whole workbook when one sheet's part is missing (decision 17).
+- [x] ST-06: `sheets()` throws for the whole workbook when one sheet's part is missing (decision 17).
   `rows` and `columns` become optional in `wit/spreadsheet.wit:496` and in `SheetInfo` at
   `extensions/spreadsheet/nvs/Reader.nvs:14`. `extensions/spreadsheet/src/read/mod.rs:866`
-- [ ] DT-01: serial 60 reads as 1900-03-01 and serial 0 as 1899-12-31 (decision 21).
+- [x] DT-01: serial 60 reads as 1900-03-01 and serial 0 as 1899-12-31 (decision 21).
   `extensions/spreadsheet/src/read/mod.rs:1309`
-- [ ] DT-06: `ms * 1_000_000` overflows `i64` above serial 106,751 under a `[h]` format and wraps
+- [x] DT-06: `ms * 1_000_000` overflows `i64` above serial 106,751 under a `[h]` format and wraps
   silently in release (decision 22). `extensions/spreadsheet/src/read/mod.rs:1286`
-- [ ] The read table and the sheet list say it: `null` for an empty value, the type of a `t="d"`
+- [x] The read table and the sheet list say it: `null` for an empty value, the type of a `t="d"`
   cell, serials 0 and 60 and an out-of-range duration as plain numbers
   (`docs/rules/core-classes/spreadsheet-value-types.md:1`), and a `null` size for a missing sheet part
   (`docs/rules/core-classes/spreadsheet-roster.md:1`, `docs/examples/novis/Spreadsheet-Reader/sheets/about.md:1`,
   the doc comment at `extensions/spreadsheet/nvs/Reader.nvs:73`). Then `bun nv rules --render` and
   `bun nv rules --check`.
-- [ ] Write the eleven tests the `xlsx-reading` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:4251`
-- [ ] Run the `xlsx-reading` check's command once: green.
+- [x] Write the eleven tests the `xlsx-reading` check names. `crates/nvs-ext/tests/spreadsheet_read.rs:4251`
+- [x] Run the `xlsx-reading` check's command once: green.
 
 ### 3. xls reads continued text and code pages, ods reads offsets, void cells and whitespace as ODF says, and a CSV sep= line sets the separator
 
@@ -637,39 +637,38 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 1 is done: every item is ticked, its checks `hostile-input` and `csv-charset` were green
-last session, and the `Reader::open` proofs run passes with the new attack. The two slices this
-session are the docs commit (the three rules, both `about.md` pages and the `open` doc comment) and
-the attack commit.
+Stage 2 is done: every item is ticked, and the `xlsx-reading` check is green. Its one code commit
+(495ad3f55) carries decisions 11 to 17, 21 and 22 and the eleven tests; the docs commit carries the
+read table, the sheet list rule, the `sheets` page and the manifest help. `rows` and `columns` of
+`SheetInfo` are `?uint` in the WIT, the manifest's `readerSheets` return type and `Reader.nvs`; the
+typed list in `crates/nvs-ext/src/typed/spreadsheet.rs` names fields only and needed no edit. The two
+conformance cases that print sheet sizes still pass.
 
-The attack found a real hole: a stored (uncompressed) XML part shorter than 256 bytes was never
-judged by `xml::encoding`, because a stored part set `done` only on the call after its last
-block, and the reader stops at the end of the XML. `zip::Part::fill`
-(`extensions/spreadsheet/src/read/zip.rs:313`) now ends a stored part in its last block, and
-`a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part` reads every case both
-deflated and stored (`xlsx_as` and `zip_as` in `spreadsheet_hostile.rs`).
+What else changed, so stage 8 knows it: `Reader::value` takes the row number, so a bad number
+cell throws "the cell B2 holds `x`, which is not a number". A `t="d"` cell is parsed by `iso` in
+`read/mod.rs`: a trailing `Z` is dropped, and any other offset throws. `resolve` decodes `%XX` by
+`percent_decoded`.
 
-The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as four handoffs have
+The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as five handoffs have
 found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad, and the next
 nightly confirms both.
 
 ### Next
 
-Stage 2, from its first item.
+Stage 3, from its first item.
 
-1. Decision 11 (RX-02): `\` in zip entry names and relationship `Target`s reads as `/`, and a
-   `Target` is percent-decoded. `extensions/spreadsheet/src/read/zip.rs` (`Directory::find`, and
-   where `Entry::name` is stored at `:150`) and `read/mod.rs`'s `resolve` (`:517`).
-2. Decision 12 (RX-03): sharedStrings found at `xl/sharedStrings.xml` with no relationship.
-   `read/mod.rs:717`.
-3. Decision 13 (RX-07, RX-11), decision 14 (RX-10), decisions 15 and 16, then decision 17's
-   optional sizes (three edits: `wit/spreadsheet.wit:496`, the manifest, and
-   `crates/nvs-ext/src/typed/spreadsheet.rs`, see the playbook's first trap), then 21 and 22.
-4. The tests go into `crates/nvs-ext/tests/spreadsheet_read.rs`, whose helpers start at `:96`.
+1. Decision 18 (RL-01): an xls STRING or LABEL record continued by CONTINUE reads across it, as
+   the SST path does. `extensions/spreadsheet/src/read/xls.rs:724`, `:113`.
+2. Decision 18 (RL-02): xls property strings decode by the property set's `CODEPAGE`.
+   `extensions/spreadsheet/src/read/xls_extras.rs:389`.
+3. Decisions 19 and 20 (RO-02, RO-03): ods offset dates, `void`, `string-value`, and ODF
+   whitespace. `extensions/spreadsheet/src/read/ods.rs:86`, `:535`, `:564`.
+4. Decision 23 (RC-04): a first CSV line `sep=;` sets the separator when no `separator` is given.
+   `extensions/spreadsheet/nvs/Reader.nvs:44`.
+5. The six tests go into `crates/nvs-ext/tests/spreadsheet_read.rs` (append at its end; `xls_of`
+   and `ods` build the files), and the conformance case at
+   `tests/conformance/novis/spreadsheet-a-csv-that-starts-with-sep-uses-that-separator.nvst`.
 
-No existing test is expected to go red. Decision 17 changes `SheetInfo`'s `rows` and `columns` to
-`?uint`, so an example or conformance case that does arithmetic on them may stop compiling; grep
-`docs/examples/novis/Spreadsheet-Reader/sheets/` and `tests/conformance/novis/` for `->rows` on a
-sheet info.
+No existing test is expected to go red.
 
 ### Backlog
