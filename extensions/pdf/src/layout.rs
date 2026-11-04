@@ -268,7 +268,10 @@ pub enum Item {
     /// Where a box laid out on a page of its own met an `id`, a heading, a named string, a
     /// mark or a running element: the index of what it met, and its top. It draws nothing, and
     /// the layout takes it off the page once it knows the page it is on.
-    Here { at: usize, y: f32 },
+    Here {
+        at: usize,
+        y: f32,
+    },
 }
 
 /// What an element is in the document's structure: the tag the writer gives its content.
@@ -278,7 +281,9 @@ pub enum Role {
     Heading(u8),
     Paragraph,
     /// A `ul`, or an `ol` when `ordered`.
-    List { ordered: bool },
+    List {
+        ordered: bool,
+    },
     ListItem,
     Quote,
     /// A `figure`, or an `img` with its `alt`.

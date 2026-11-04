@@ -76,7 +76,10 @@ fn span(laid: &Laid, page: usize, prefix: &str) -> (f32, f32) {
         .map(|r| r.2)
         .collect();
     assert!(!ys.is_empty(), "no {prefix} on page {page}");
-    (ys.iter().copied().fold(f32::MAX, f32::min), ys.iter().copied().fold(f32::MIN, f32::max))
+    (
+        ys.iter().copied().fold(f32::MAX, f32::min),
+        ys.iter().copied().fold(f32::MIN, f32::max),
+    )
 }
 
 const RED: (u8, u8, u8) = (255, 0, 0);
@@ -261,7 +264,10 @@ fn borders_are_closed_at_every_break() {
         let on = edges(&laid, p, RED);
         let (high, low) = span(&laid, p, "Tea");
         assert_eq!(on.len(), 2, "page {p}: {on:?}");
-        assert!(on[0].1 < high - 6.0 && on[1].0 > low, "page {p}: {on:?} {high} {low}");
+        assert!(
+            on[0].1 < high - 6.0 && on[1].0 > low,
+            "page {p}: {on:?} {high} {low}"
+        );
         assert!((on[0].1 - on[0].0 - 2.0).abs() < 0.01, "page {p}: {on:?}");
     }
     // Every row is still drawn once.
@@ -286,12 +292,21 @@ fn borders_are_closed_at_every_break() {
         lines.dedup_by(|a, b| (*a - *b).abs() < 0.01);
         assert_eq!(lines.len(), count + 1, "page {p}: {lines:?}");
         let (high, low) = span(&laid, p, "Tea");
-        assert!(lines[0] < high - 6.0 && lines[count] > low, "page {p}: {lines:?}");
+        assert!(
+            lines[0] < high - 6.0 && lines[count] > low,
+            "page {p}: {lines:?}"
+        );
         // The table's edges lie on the outer rows' edges.
         let red = edges(&laid, p, RED);
         assert_eq!(red.len(), 2, "page {p}: {red:?}");
-        assert!((red[0].0 - lines[0]).abs() < 0.01, "page {p}: {red:?} {lines:?}");
-        assert!((red[1].0 - lines[count]).abs() < 0.01, "page {p}: {red:?} {lines:?}");
+        assert!(
+            (red[0].0 - lines[0]).abs() < 0.01,
+            "page {p}: {red:?} {lines:?}"
+        );
+        assert!(
+            (red[1].0 - lines[count]).abs() < 0.01,
+            "page {p}: {red:?} {lines:?}"
+        );
     }
 
     // A cell of a row taller than a page is closed on every page it is on.
@@ -538,7 +553,11 @@ fn a_tbody_and_a_rowspan_group_stay_together() {
         ));
         let group = page_of(&laid, "Blog1");
         for n in 2..=6 {
-            assert_eq!(page_of(&laid, &format!("Blog{n}")), group, "{before}: Blog{n}");
+            assert_eq!(
+                page_of(&laid, &format!("Blog{n}")),
+                group,
+                "{before}: Blog{n}"
+            );
         }
         for n in (1..=before * 3).step_by(3) {
             let span = page_of(&laid, &format!("Span{n}"));
@@ -669,7 +688,10 @@ fn a_cells_vertical_align_places_its_content() {
     let [_, two, three, _] = lines(&laid);
     let mark = at(&laid, 0, "Mark").1;
     // The lines' own heights differ by a fraction of a point.
-    assert!((mark - (two + three) / 2.0).abs() < 0.5, "{mark} {two} {three}");
+    assert!(
+        (mark - (two + three) / 2.0).abs() < 0.5,
+        "{mark} {two} {three}"
+    );
     // With no `vertical-align`, the content is at the top.
     let laid = row("inherit");
     assert!((at(&laid, 0, "Mark").1 - lines(&laid)[0]).abs() < 0.01);
@@ -694,7 +716,10 @@ fn a_rows_and_a_groups_background_is_drawn() {
     let red = shapes(&laid, 0, RED);
     assert_eq!(red.len(), 1, "{red:?}");
     let (row, [_, top, _, bottom]) = red[0];
-    assert!(top < tea && tea < bottom && bottom < two, "{red:?} {tea} {two}");
+    assert!(
+        top < tea && tea < bottom && bottom < two,
+        "{red:?} {tea} {two}"
+    );
     let blue = shapes(&laid, 0, BLUE);
     assert_eq!(blue.len(), 1, "{blue:?}");
     let (group, [left, top, right, bottom]) = blue[0];
@@ -702,7 +727,10 @@ fn a_rows_and_a_groups_background_is_drawn() {
     // The group's box spans both columns, and is drawn under the row's, which is under the text.
     let (price, _) = at(&laid, 0, "4.00");
     assert!(left < price && price < right, "{blue:?} {price}");
-    assert!(group < row && row < text_index(&laid, 0, "Tea"), "{group} {row}");
+    assert!(
+        group < row && row < text_index(&laid, 0, "Tea"),
+        "{group} {row}"
+    );
 
     // On each page a group is on, its box is drawn once, under its rows there.
     let rows = body_rows(60, |n| format!("<td>Tea{n}</td>"));
@@ -714,7 +742,10 @@ fn a_rows_and_a_groups_background_is_drawn() {
         let blue = shapes(&laid, p, BLUE);
         assert_eq!(blue.len(), 1, "page {p}: {blue:?}");
         let (high, low) = span(&laid, p, "Tea");
-        assert!(blue[0].1[1] < high && low < blue[0].1[3], "page {p}: {blue:?}");
+        assert!(
+            blue[0].1[1] < high && low < blue[0].1[3],
+            "page {p}: {blue:?}"
+        );
     }
 }
 
@@ -760,5 +791,8 @@ fn a_table_directly_in_a_row_is_wrapped_in_a_cell() {
     let (two, second) = at(&laid, 0, "Inner2");
     // The inner table is a cell beside `Left`, and its two cells are in one row.
     assert!(left < one && one < two, "{left} {one} {two}");
-    assert!((first - second).abs() < 0.01 && (first - line).abs() < 0.01, "{line} {first} {second}");
+    assert!(
+        (first - second).abs() < 0.01 && (first - line).abs() < 0.01,
+        "{line} {first} {second}"
+    );
 }

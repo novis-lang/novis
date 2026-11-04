@@ -601,9 +601,8 @@ impl Cx<'_> {
         // one, or a later break would leave fewer than `widows` rows after it.
         let keep = |i: usize, top: f32, limit: f32, first: bool, here: usize| {
             let count = pieces.len();
-            let below = |end: bool| {
-                piece_height(&shown(&foot, first, end)) + if end { gy } else { 0.0 }
-            };
+            let below =
+                |end: bool| piece_height(&shown(&foot, first, end)) + if end { gy } else { 0.0 };
             if let Some(group) = group_of(i)
                 && (i == 0 || group_of(i - 1) != Some(group))
             {
@@ -663,8 +662,10 @@ impl Cx<'_> {
                     for (c, cell) in rows[r].cells.iter().enumerate() {
                         let width = cell_width(starts[r][c], cell.span);
                         let rooms = [part_room(start.0) - start.1, later];
-                        let pages =
-                            Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]), None);
+                        let pages = Flow::paged(
+                            Box::new(move |page, _| rooms[usize::from(page > 0)]),
+                            None,
+                        );
                         let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
                         let count = pages.pages.len();
                         let bottom = pages.cursor + pages.pending;
@@ -749,8 +750,7 @@ impl Cx<'_> {
             }
             if here > 0
                 && let Some((top, limit, _)) = flow.room()
-                && (top + piece_height(piece) + below > limit
-                    || keep(i, top, limit, first, here))
+                && (top + piece_height(piece) + below > limit || keep(i, top, limit, first, here))
             {
                 turn(self, flow, &mut drawing, &mut first, i, 0.0);
                 here = 0;
@@ -864,8 +864,11 @@ impl Cx<'_> {
         g.x = 0.0;
         g.width = width;
         g.min_content = (height - g.border[0] - g.border[2]).max(0.0);
-        self.lay(vec![Block::Open(g), Block::Close], parley::VerticalAlign::BASELINE)
-            .items
+        self.lay(
+            vec![Block::Open(g), Block::Close],
+            parley::VerticalAlign::BASELINE,
+        )
+        .items
     }
 
     /// Sets the marks of the row `row` on the page of `flow` it is drawn on.
@@ -879,7 +882,6 @@ impl Cx<'_> {
             self.note(flow, mark);
         }
     }
-
 
     /// Lays the caption at `atom` out at the table's content width and places it.
     fn caption(&mut self, atom: usize, x: f32, width: f32, flow: &mut Flow) {
@@ -910,7 +912,11 @@ impl Cx<'_> {
             })
             .collect();
         let (starts, columns) = grid(&table.rows);
-        let gx = if table.collapse { 0.0 } else { table.spacing[0] };
+        let gx = if table.collapse {
+            0.0
+        } else {
+            table.spacing[0]
+        };
         let (min, most) = self.column_ranges(&table.rows, &blocks, &starts, columns, gx);
         for (row, cells) in table.rows.iter().zip(blocks) {
             for (cell, blocks) in row.cells.iter().zip(cells) {

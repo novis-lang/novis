@@ -218,7 +218,12 @@ fn a_float_in_a_paragraph_is_placed_at_its_line_and_moves_to_the_next_page() {
     let laid = page(170, "60mm");
     let (news_page, _, news) = find(&laid, "News");
     let last = texts(&laid, 0).last().map_or(0.0, |t| t.2);
-    assert_eq!(news_page, 1, "{} pages, page 0 ends at {last}", laid.pages.len());
+    assert_eq!(
+        news_page,
+        1,
+        "{} pages, page 0 ends at {last}",
+        laid.pages.len()
+    );
     assert!(last > mm(138.0 - 60.0), "page 0 ends at {last}");
     assert!(news < mm(10.0) + 20.0, "News at {news}");
 }
