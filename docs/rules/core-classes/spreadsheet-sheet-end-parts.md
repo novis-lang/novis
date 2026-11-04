@@ -8,7 +8,7 @@ protection.
 | `merge(string $range)` | a merged range |
 | `link(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
 | `note(string $cell, string $text, {author?})` | a note |
-| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty` |
+| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
 | `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
 | `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
 | `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
@@ -31,10 +31,14 @@ password is a hash any tool removes, which the reference card says.
 **An image is its own zip entry.** One added before the sheet's first row is written by the call that
 adds it. Once the rows have started, the sheet's own entry is open, and a zip entry cannot be split,
 so the image's bytes wait until the sheet ends. A report with many images adds them before its rows,
-or on a sheet of their own, to hold none of them.
+or on a sheet of their own, to hold none of them. **The same image bytes are stored once per
+workbook**: an image added again, on any sheet, is anchored to the entry already written, found by
+the SHA-256 digest of its bytes, so two different images are never merged. Cost: one digest per
+image, and one map entry of 40 bytes per distinct image, per writing request.
 
 **A table's top row is its header row**, and each column is named by its header cell, which needs a
-name different from the others. Once rows are written only the sheet's header row is kept, so a
+name different from the others. A header cell that is a number is written as text of the same
+characters, because Excel needs the cell to equal its column's name. Once rows are written only the sheet's header row is kept, so a
 table added after its rows starts at that row, and one added earlier takes its names when the row is
 written. **The totals row is the row after the table**: a table added after its last row writes it
 at once, and one added earlier writes it right after its last row, so the program's next row comes

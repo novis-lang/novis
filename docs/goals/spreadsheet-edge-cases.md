@@ -18,7 +18,7 @@ stages:
     context: [extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/read/xls_extras.rs, extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/nvs/Reader.nvs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 4
     title: "the writer prefixes new functions, keeps line breaks in attributes, counts lengths as Excel does, stores an image once, and a CSV export opens cleanly in Excel"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/cells.rs, extensions/spreadsheet/src/xml.rs, extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/table.rs, extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/nvs/Workbook.nvs, crates/nvs-stdlib/src/csv.rs, extensions/spreadsheet/tests/write.rs]
   - id: 5
     title: "a template fill moves every part that points at a row, and the evaluator reads escaped table columns, 1904 date text and locale text"
@@ -478,7 +478,7 @@ files) and one conformance case.
   (decisions 32 and 33). Add `lineEnd` to `Core\Csv::format`'s options and its help text, and pass
   `"\r\n"` and the BOM from the export. `crates/nvs-stdlib/src/csv.rs:397`,
   `extensions/spreadsheet/nvs/Workbook.nvs:656`
-- [ ] The rules and pages a user reads say it: lengths in UTF-16 units and the upper-case name fold
+- [x] The rules and pages a user reads say it: lengths in UTF-16 units and the upper-case name fold
   (`docs/rules/core-classes/spreadsheet-bulk-boundary.md:8`); a future function is written with its
   prefix (`docs/rules/core-classes/spreadsheet-formula-is-a-value.md:1`); a numeric table header, the
   validation ranges and one stored copy per image, with its cost
@@ -496,7 +496,7 @@ files) and one conformance case.
   the rename above. `tests/conformance/novis/spreadsheet-a-failed-write-to-a-file-leaves-no-file.nvst:1`,
   `tests/conformance/novis/spreadsheet-a-csv-export-starts-with-a-bom-and-ends-records-with-crlf.nvst:1`,
   `tests/conformance/core/csv-format-ends-each-record-with-the-line-end-option.nvst:1`
-- [ ] Run the `writing` and `csv-and-file-export` checks' commands once: green.
+- [x] Run the `writing` and `csv-and-file-export` checks' commands once: green.
 
 ### 5. a template fill moves every part that points at a row, and the evaluator reads escaped table columns, 1904 date text and locale text
 
@@ -637,12 +637,13 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 4's code, its eight Rust tests and four conformance cases are in one commit. The eight
-`writing` tests, `future.rs`'s two unit tests and the four `csv-and-file-export` cases (with the
-updated `csv-quotes-a-field-only-where-a-byte-would-change-the-parse.nvst`) ran green by name;
-build and clippy are green.
+Stage 4 is done; the `writing` and `csv-and-file-export` checks ran green. The CSV conformance
+cases strip the mark and CR before they print (44c8d8c25); a captured download shows CR as `␍`,
+which is `Core\Out::capture`'s escaping. Eighteen CSV example `.out` files are rerecorded
+(d137ad33e). The rules, four `about.md` pages and `docs/reference/core/Csv.md` say stage 4;
+`rules --check`, `verify --doc` and `proofs --comments` are green.
 
-What changed, so stage 8 knows it: `src/future.rs` (sorted `FUTURE`, `prefixed`, called from
+What changed in stage 4, so stage 8 knows it: `src/future.rs` (sorted `FUTURE`, `prefixed`, called from
 `cells.rs`, `conditional.rs`, `tail.rs`); `xml::attr` escapes LF, CR, TAB; `cells::units` and
 `writer::fold` (`to_uppercase`, for sheet, table, name and table-column comparisons);
 `tail::sqref`; a numeric table header written as text via `Tail::table_header_at`; images
@@ -651,41 +652,33 @@ deduplicated by SHA-256 (`sha2` is a new extension dependency, `Cargo.lock` upda
 `Core\Csv::format`'s `lineEnd` (args `[5]`) and edge-space quoting; the CSV export's BOM and CRLF.
 Decisions 29 and 30 are refined in place.
 
-The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere), as seven handoffs have
-found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad.
+The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as eight
+handoffs have found; it comes from looper's service, not from this repository. The nightly reds on
+run 41813182715 are fixed by a8bdf37fb and a2f451fad.
 
 ### Next
 
-Stage 4's last items, in this order:
+Stage 5, one group: the template filler first, then the evaluator. Write the tests last, each run
+once by name.
 
-1. **Eight conformance cases are red (known).** Each echoes raw CSV text, which now starts with a
-   BOM and has CR at line ends. Make each case's output strip `"\u{FEFF}"` and `"\r"` before it
-   echoes (`Core\Str::replaceAll`), or fix the hex and size values, then rerun each case with
-   `target/debug/nvs.exe test <file>`. The new BOM case is what pins the BOM and CRLF. The cases,
-   all under `tests/conformance/novis/`:
-   - `spreadsheet-a-download-never-finished-is-an-error-naming-it`
-   - `spreadsheet-a-rich-cell-writes-its-runs` (`:30`)
-   - `spreadsheet-a-second-csv-sheet-throws` (`:24`)
-   - `spreadsheet-an-export-of-an-iterator-writes-once` (`:30`)
-   - `spreadsheet-an-export-writes-the-same-file-to-each-target` (`:61`, `:127`)
-   - `spreadsheet-nan-throws-for-csv-as-for-xlsx` (`:27`)
-   - `spreadsheet-writes-csv-from-the-same-calls` (`:27`, `:33`, `:37`, `:43`)
-   - `spreadsheet-writes-csv-in-another-dialect-and-charset` (`:25`, `:29`, `:37`)
-2. **Example `.out` files that print CSV will go red in the proofs gate.** Find them with
-   `grep -l "format: 'csv'" docs/examples/novis/**/*.nvs` and rerecord each `.out`. Also check that
-   `docs/examples/core/Csv/format/02-fields-that-need-quotes.out` still matches its program.
-3. **The docs item, untouched so far.** It is stage 4's `The rules and pages a user reads` item,
-   with all its anchors. Also edit:
-   - `crates/nvs-stdlib/src/csv.rs`'s `FORMAT_DOC`, which is done, so `bun nv` may need its
-     reference regenerated;
-   - `createForFile`'s about.md: the temporary file, and that the folder needs `fs.write`;
-   - `docs/examples/core/Csv/format/about.md`: edge spaces and `lineEnd`.
+1. **The template filler** (decisions 34 to 37), in `extensions/spreadsheet/src/template/mod.rs`
+   and `template/shift.rs`. The stage's anchors into `mod.rs` moved when stage 1 added the
+   macro-part pass, so find each by its symbol with `bun nv peek --locate`:
+   - TP-02, notes, page breaks, link `location`, threaded comments and pivots: the part walk that
+     already moves `<row>` and merges;
+   - TP-05, a shared-formula group across the repeated block: the `si` handling;
+   - TP-08, `fullCalcOnLoad`: `template/mod.rs:718`, which keeps an existing attribute; set it to
+     `"1"`;
+   - FP-08, external references and lower-case columns: `template/shift.rs:50` and `:138`.
+2. **The evaluator** (decisions 38 to 40): `eval/parse.rs:848` for `#Orders`, `eval/value.rs:200`
+   (`iso_day`) for the 1904 system, and `eval/value.rs:157` with `eval/mod.rs:46` for the locale
+   miss. The new miss kind needs `wit/spreadsheet.wit:603` (`missed-info`), the component's
+   `manifest.json` and `crates/nvs-ext/src/typed/spreadsheet.rs` together (the playbook's
+   "changed parameter list" trap), and the Novis side in `Reader.nvs`.
+3. The docs item, then the six template tests (`extensions/spreadsheet/tests/template.rs:870`) and
+   the three evaluator tests (`extensions/spreadsheet/tests/evaluate.rs:685`), then the
+   `formulas-and-fill` check once.
 
-   Then run `bun nv rules --render` and `bun nv rules --check`.
-4. Run the `writing` and `csv-and-file-export` checks once. Then tick the last item and set stage 4
-   to done.
-
-Expected reds beyond item 1: none known in Rust. Validation errors for a bad range now say "whole
-columns such as `A:A`", and no existing test matched the old text.
+Expected reds: none known.
 
 ### Backlog

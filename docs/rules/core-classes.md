@@ -4750,6 +4750,11 @@ the header keys numbered and lettered as the engine does, an empty field an empt
 record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
 `Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
 through `Core\Csv::format` with each value as its text, and a second sheet throws naming both.
+**A CSV export is written for a spreadsheet program**: each record ends with CRLF (RFC 4180),
+through `Core\Csv::format`'s `lineEnd`, and a UTF-8 file starts with a byte order mark, without
+which Excel reads its text as the system's ANSI code page. `Core\Csv`'s own defaults stay LF with no
+mark. Each export starts with its own mark, so two exports `to` one open file have two. Cost: three
+bytes per file and one byte per record.
 `Workbook`'s options and `fromRows`'s take `csv?: {separator?, quote?, encoding?: Core\Charset}`,
 checked by `Core\Csv` at create. With an `encoding` other than UTF-8, each batch's text is encoded
 with `Core\Encoding::encodeText`, a UTF-16 file starts with a byte order mark so that it reads back
@@ -4934,7 +4939,7 @@ An ods is written from the same calls, and held until `finish()` (below).
 | Method | Where the bytes go |
 |---|---|
 | `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
-| `createForFile(string $path, {…})` | A file, opened with `Core\IO::open` in `Write` mode and written with `Core\IO\File::write` |
+| `createForFile(string $path, {…})` | A temporary file beside `$path`, `<path>.<16 hex>.part`, opened with `Core\IO::open` in `Write` mode, written with `Core\IO\File::write` and renamed to `$path` by `finish()` |
 | `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
 
@@ -4985,7 +4990,18 @@ and not a broken file, and one error record carrying the name as its `stream` fi
 (`nvs_runtime::Ctx::end_unfinished_stream`). No user code runs then
 ([`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code)). It costs one pointer per request, and the name's
 bytes for a request that streams a download. A workbook written to a file or to memory and never
-finished is not reported. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
+finished is not reported.
+
+**A file is never left half written.** `createForFile` writes to its temporary name and `finish()`
+renames it to the path, so a reader of the path sees the old file or the whole new one. A failed write
+or a failed `finish()` deletes the temporary file, and every later call on the workbook throws
+`LogicError`. An input error in `add`, such as a NaN, leaves the workbook usable, so the temporary
+file stays until `finish()`. `Export::save` writes through `createForFile`, and a filled template's
+`save` writes the same way. The folder needs `fs.write`, not only the file. Cost: one rename per
+file, and the temporary name's bytes per writing request. A program that stops before `finish()`
+leaves the temporary file, and the path untouched.
+
+A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
 widths and every sheet-end part, and throws naming the format when a second sheet is opened.
 
 **An ods is held, not streamed.** ods puts data validation before the first sheet, and a merge, a
@@ -5154,6 +5170,12 @@ inside it. Three helpers write the references, so a program never computes a col
 - A column's `formula: fn(int $row) => Formula` is called once per row with that row's number, and its
   `Formula` is the column's cell in that row.
 
+**A function newer than Excel 2007 is written with its prefix.** Excel stores `XLOOKUP` as
+`_xlfn.XLOOKUP` and opens one without the prefix as `#NAME?`, so the writer adds `_xlfn.` or `_xlws.`
+to each function on MS-XLSX § 2.2.2's list (`extensions/spreadsheet/src/future.rs`, a sorted table)
+and leaves a name inside a string literal as it is. A program writes the plain name. A template fill
+leaves formulas as the template has them. Cost: one scan of each formula's text as it is written.
+
 **A formula has 1 to 8,192 characters** once its leading `=` is dropped, Excel's limit. One check
 (`cells::check_formula`) holds every formula the writer writes: a `Formula` cell, a column's formula,
 a table total, a conditional format and a validation. `Formula::of('')` throws `LogicError` in the
@@ -5283,7 +5305,7 @@ protection.
 | `merge(string $range)` | a merged range |
 | `link(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
 | `note(string $cell, string $text, {author?})` | a note |
-| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty` |
+| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
 | `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
 | `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
 | `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
@@ -5306,10 +5328,14 @@ password is a hash any tool removes, which the reference card says.
 **An image is its own zip entry.** One added before the sheet's first row is written by the call that
 adds it. Once the rows have started, the sheet's own entry is open, and a zip entry cannot be split,
 so the image's bytes wait until the sheet ends. A report with many images adds them before its rows,
-or on a sheet of their own, to hold none of them.
+or on a sheet of their own, to hold none of them. **The same image bytes are stored once per
+workbook**: an image added again, on any sheet, is anchored to the entry already written, found by
+the SHA-256 digest of its bytes, so two different images are never merged. Cost: one digest per
+image, and one map entry of 40 bytes per distinct image, per writing request.
 
 **A table's top row is its header row**, and each column is named by its header cell, which needs a
-name different from the others. Once rows are written only the sheet's header row is kept, so a
+name different from the others. A header cell that is a number is written as text of the same
+characters, because Excel needs the cell to equal its column's name. Once rows are written only the sheet's header row is kept, so a
 table added after its rows starts at that row, and one added earlier takes its names when the row is
 written. **The totals row is the row after the table**: a table added after its last row writes it
 at once, and one added earlier writes it right after its last row, so the program's next row comes
@@ -5716,8 +5742,12 @@ refusal the image component makes ([`core-classes/image-pipeline`](core-classes.
 **Excel's limits throw, naming the limit and the place**: 1,048,576 rows and 16,384 columns, a row or
 column index past them in a read file included; 32,767 characters in a cell; 65,490 cell formats;
 8,192 characters in a formula; 255 characters in a defined name and in a chart or axis title.
-**A sheet name** has 1 to 31 characters, none of `[ ] : * ? / \`, no control character, no `'`
-first or last, and is not `History` in any case. One function checks it (`check_sheet_name` in
+**A cell's text and a sheet name count UTF-16 code units, as Excel does**, so a character outside
+the Basic Multilingual Plane, such as an emoji, counts two (`cells::units`).
+**A sheet name** has 1 to 31 of them, none of `[ ] : * ? / \`, no control character, no `'`
+first or last, and is not `History` in any case. **Two sheet names are the same name when their
+Unicode upper-case folds are equal**, as Excel compares them (`writer::fold`), and so are two table
+names, two defined names and two table column names. One function checks a sheet name (`check_sheet_name` in
 `extensions/spreadsheet/src/writer.rs`), for `Workbook::sheet`, a defined name's reference and a
 chart's series range. **A defined name** in A1 or R1C1 form (`C3`, `R1C1`, `R`, `RC2`) throws. A merged range past the grid throws, and so does a record whose declared
 length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the

@@ -41,6 +41,11 @@ the header keys numbered and lettered as the engine does, an empty field an empt
 record's missing keys `null`, a record numbered by its place in the file. Every value is a `string`.
 `Workbook` writes CSV for a name ending in `.csv` or `{format: 'csv'}`: each batch of rows goes
 through `Core\Csv::format` with each value as its text, and a second sheet throws naming both.
+**A CSV export is written for a spreadsheet program**: each record ends with CRLF (RFC 4180),
+through `Core\Csv::format`'s `lineEnd`, and a UTF-8 file starts with a byte order mark, without
+which Excel reads its text as the system's ANSI code page. `Core\Csv`'s own defaults stay LF with no
+mark. Each export starts with its own mark, so two exports `to` one open file have two. Cost: three
+bytes per file and one byte per record.
 `Workbook`'s options and `fromRows`'s take `csv?: {separator?, quote?, encoding?: Core\Charset}`,
 checked by `Core\Csv` at create. With an `encoding` other than UTF-8, each batch's text is encoded
 with `Core\Encoding::encodeText`, a UTF-16 file starts with a byte order mark so that it reads back

@@ -7,7 +7,7 @@ An ods is written from the same calls, and held until `finish()` (below).
 | Method | Where the bytes go |
 |---|---|
 | `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
-| `createForFile(string $path, {…})` | A file, opened with `Core\IO::open` in `Write` mode and written with `Core\IO\File::write` |
+| `createForFile(string $path, {…})` | A temporary file beside `$path`, `<path>.<16 hex>.part`, opened with `Core\IO::open` in `Write` mode, written with `Core\IO\File::write` and renamed to `$path` by `finish()` |
 | `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
 
@@ -58,7 +58,18 @@ and not a broken file, and one error record carrying the name as its `stream` fi
 (`nvs_runtime::Ctx::end_unfinished_stream`). No user code runs then
 (`rule:concurrency/cancellation-runs-no-user-code`). It costs one pointer per request, and the name's
 bytes for a request that streams a download. A workbook written to a file or to memory and never
-finished is not reported. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
+finished is not reported.
+
+**A file is never left half written.** `createForFile` writes to its temporary name and `finish()`
+renames it to the path, so a reader of the path sees the old file or the whole new one. A failed write
+or a failed `finish()` deletes the temporary file, and every later call on the workbook throws
+`LogicError`. An input error in `add`, such as a NaN, leaves the workbook usable, so the temporary
+file stays until `finish()`. `Export::save` writes through `createForFile`, and a filled template's
+`save` writes the same way. The folder needs `fs.write`, not only the file. Cost: one rename per
+file, and the temporary name's bytes per writing request. A program that stops before `finish()`
+leaves the temporary file, and the path untouched.
+
+A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
 widths and every sheet-end part, and throws naming the format when a second sheet is opened.
 
 **An ods is held, not streamed.** ods puts data validation before the first sheet, and a merge, a

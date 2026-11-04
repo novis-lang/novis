@@ -7,8 +7,12 @@ refusal the image component makes (`rule:core-classes/image-pipeline`).
 **Excel's limits throw, naming the limit and the place**: 1,048,576 rows and 16,384 columns, a row or
 column index past them in a read file included; 32,767 characters in a cell; 65,490 cell formats;
 8,192 characters in a formula; 255 characters in a defined name and in a chart or axis title.
-**A sheet name** has 1 to 31 characters, none of `[ ] : * ? / \`, no control character, no `'`
-first or last, and is not `History` in any case. One function checks it (`check_sheet_name` in
+**A cell's text and a sheet name count UTF-16 code units, as Excel does**, so a character outside
+the Basic Multilingual Plane, such as an emoji, counts two (`cells::units`).
+**A sheet name** has 1 to 31 of them, none of `[ ] : * ? / \`, no control character, no `'`
+first or last, and is not `History` in any case. **Two sheet names are the same name when their
+Unicode upper-case folds are equal**, as Excel compares them (`writer::fold`), and so are two table
+names, two defined names and two table column names. One function checks a sheet name (`check_sheet_name` in
 `extensions/spreadsheet/src/writer.rs`), for `Workbook::sheet`, a defined name's reference and a
 chart's series range. **A defined name** in A1 or R1C1 form (`C3`, `R1C1`, `R`, `RC2`) throws. A merged range past the grid throws, and so does a record whose declared
 length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the

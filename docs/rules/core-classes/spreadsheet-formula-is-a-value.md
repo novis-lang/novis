@@ -19,6 +19,12 @@ inside it. Three helpers write the references, so a program never computes a col
 - A column's `formula: fn(int $row) => Formula` is called once per row with that row's number, and its
   `Formula` is the column's cell in that row.
 
+**A function newer than Excel 2007 is written with its prefix.** Excel stores `XLOOKUP` as
+`_xlfn.XLOOKUP` and opens one without the prefix as `#NAME?`, so the writer adds `_xlfn.` or `_xlws.`
+to each function on MS-XLSX § 2.2.2's list (`extensions/spreadsheet/src/future.rs`, a sorted table)
+and leaves a name inside a string literal as it is. A program writes the plain name. A template fill
+leaves formulas as the template has them. Cost: one scan of each formula's text as it is written.
+
 **A formula has 1 to 8,192 characters** once its leading `=` is dropped, Excel's limit. One check
 (`cells::check_formula`) holds every formula the writer writes: a `Formula` cell, a column's formula,
 a table total, a conditional format and a validation. `Formula::of('')` throws `LogicError` in the
