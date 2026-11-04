@@ -117,6 +117,9 @@ impl Server {
             .arg(&*data)
             .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
             .current_dir(&dir)
+            // Each time stop writes how late its clock woke to standard error, so a
+            // failure message shows how many stops a request met.
+            .env(nvs_runtime::SWEEP_LINES_ENV, "1")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
