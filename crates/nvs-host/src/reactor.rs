@@ -1208,10 +1208,12 @@ mod tests {
         sched.spawn(ctx(), TaskRoot::Worker, |_| {});
         assert_eq!(sched.ready_count(), 1);
 
+        // The event is the turn returning at all: a blocking poll here never
+        // returns. The bound is only a hang guard, and says nothing about speed.
         let started = Instant::now();
         assert_eq!(reactor.turn(&mut sched).expect("a turn failed"), 0);
         assert!(
-            started.elapsed() < Duration::from_secs(2),
+            started.elapsed() < Duration::from_secs(10),
             "the reactor waited while the run queue had work"
         );
     }

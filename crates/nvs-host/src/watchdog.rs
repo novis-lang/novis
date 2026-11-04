@@ -2099,14 +2099,21 @@ mod tests {
         let registered = dog.register(a_cpu(), timers.view());
 
         let request = capped(a_minute());
+        let own = ThreadClock::current();
+        // A charge burned before the publication, so a baseline taken at zero
+        // would show at least that much more than the span read below.
+        if own.is_some() {
+            burn_a_charge();
+        }
+        let before = own.and_then(|clock| clock.burned());
         registered.publish(request.safepoint_view());
         let published = dog.running();
-        if ThreadClock::current().is_none() {
+        let Some(own) = own else {
             // No per-thread clock here, so this core enforces no ceiling and
             // publishes nothing — `crate::cpuclock`'s docs own that answer.
             assert!(published.is_empty(), "a core with no clock published one");
             return;
-        }
+        };
         assert_eq!(published.len(), 1, "the published request was not readable");
         assert_eq!(
             published[0].1.limit(),
@@ -2115,12 +2122,17 @@ mod tests {
         // The charge is measured on this thread's own clock, from the
         // publication and not from some zero: a clock taken on the watchdog's
         // thread would charge this request whatever *that* thread had burned
-        // since it started.
+        // since it started. Both readings of this thread's clock bracket the
+        // publication and the charge, so the charge fits inside their span
+        // (`rule:testing/a-test-holds-at-any-speed`, two readings of one clock).
+        let charge = published[0]
+            .1
+            .burned()
+            .expect("a live thread read as no thread");
+        let after = own.burned().expect("this thread's own clock did not read");
+        let before = before.expect("this thread's own clock did not read");
         assert!(
-            published[0]
-                .1
-                .burned()
-                .is_some_and(|burned| burned < Duration::from_secs(1)),
+            charge <= after.saturating_sub(before),
             "the baseline was not taken on the thread that registered"
         );
 
@@ -2648,22 +2660,32 @@ mod tests {
                 .expect("a published request was not readable")
         };
 
+        // Each charge is compared with this thread's own CPU clock, read around
+        // the same burn (`rule:testing/a-test-holds-at-any-speed`, two readings
+        // of one clock).
+        let own = ThreadClock::current().expect("this thread has a clock");
+        let burn_and_read = || {
+            let from = own.burned().expect("this thread's own clock did not read");
+            burn_a_charge();
+            own.burned().expect("this thread's own clock did not read") - from
+        };
+
         // Published outside any task, so this thread runs each from its
         // publication on: `second` is the one running after both.
         registered.publish(first.safepoint_view());
         registered.publish(second.safepoint_view());
-        burn_a_charge();
+        let second_ran = burn_and_read();
         let first_before = charged(&first);
         assert!(
-            charged(&second) >= Duration::from_millis(20),
+            charged(&second) >= second_ran,
             "the request this thread ran was not charged for it"
         );
 
         switch_to(first.tree_key());
         let second_left = charged(&second);
-        burn_a_charge();
+        let first_ran = burn_and_read();
         assert!(
-            charged(&first) >= first_before + Duration::from_millis(20),
+            charged(&first) >= first_before + first_ran,
             "a request resumed after a switch was not charged for what it ran"
         );
         assert_eq!(

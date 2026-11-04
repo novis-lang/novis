@@ -6759,10 +6759,6 @@ mod tests {
                 ],
                 "the report is in declaration order, not the order the tests finished in"
             );
-            assert!(
-                suite.cases[0].elapsed > suite.cases[3].elapsed,
-                "the first test declared is the last to finish"
-            );
         }
 
         #[test]

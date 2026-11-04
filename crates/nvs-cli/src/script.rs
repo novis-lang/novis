@@ -3839,12 +3839,19 @@ mod tests {
     fn a_change_is_held_back_until_the_program_is_quiet_for_settle() {
         // `[opcache] settle`: an edit younger than the settle time is left
         // alone by the check, and taken by the first check after it.
+        //
+        // The settle time is as long as a hang guard, so the first check runs
+        // inside it on any machine. The edit is then made old by moving the
+        // file's modification time back past the settle time, which is the
+        // stamp the check reads, so the test never sleeps it out
+        // (`rule:testing/a-test-holds-at-any-speed`).
         use nvs_config::tree::{Config, Opcache, Setting};
+        let settle = std::time::Duration::from_secs(10);
         let path = a_file_saying("settling", "one");
         let compiler = Compiler::new(&Config {
             opcache: Some(Opcache {
                 validate: Some(Setting::Text("hash".to_owned())),
-                settle: Some(Setting::Text("300ms".to_owned())),
+                settle: Some(Setting::Text("10s".to_owned())),
                 ..Opcache::default()
             }),
             ..Config::default()
@@ -3854,10 +3861,15 @@ mod tests {
             .expect("the entry compiles");
         path.say("two");
         let wait = compiler.revalidate().expect("the edit is held back");
-        assert!(wait <= std::time::Duration::from_millis(300), "{wait:?}");
+        assert!(wait <= settle, "{wait:?}");
         assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
 
-        std::thread::sleep(wait + std::time::Duration::from_millis(20));
+        std::fs::File::options()
+            .write(true)
+            .open(&*path)
+            .expect("the case is writable")
+            .set_modified(std::time::SystemTime::now() - settle - std::time::Duration::from_secs(1))
+            .expect("the case's modification time is settable");
         assert_eq!(compiler.revalidate(), None);
         assert_eq!(compiler.compiles.load(Ordering::Relaxed), 2);
         let (after, _) = compiler
