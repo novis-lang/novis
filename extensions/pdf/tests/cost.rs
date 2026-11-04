@@ -2,15 +2,34 @@
 //! ten times its size, and compares the work each did, never the time
 //! (`rule:core-classes/pdf-tables-across-pages`, `rule:core-classes/pdf-css-subset`).
 
-use nvs_pdf::layout::{self, Laid};
-use nvs_pdf::{assets, css, fonts, parse};
+use nvs_pdf::layout::{self, Item, Laid};
+use nvs_pdf::{Asset, assets, css, fonts, parse};
 
-fn lay(html: &str) -> Laid {
+fn lay_with(html: &str, list: &[Asset]) -> Laid {
     let dom = parse::parse(html);
-    let assets = assets::Assets::new(&[]);
+    let assets = assets::Assets::new(list);
     let styles = css::cascade(&dom, html, &assets);
     let fonts = fonts::Fonts::new(&styles.font_faces, &assets).unwrap();
     layout::layout(&dom, &styles, &assets, fonts).unwrap()
+}
+
+fn lay(html: &str) -> Laid {
+    lay_with(html, &[])
+}
+
+/// A 2 by 2 PNG, opaque blue.
+fn png() -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, 2, 2);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer
+            .write_image_data(&[0, 0, 255, 255].repeat(4))
+            .unwrap();
+    }
+    out
 }
 
 /// Whether `big`, the work of a document ten times the size of the one that took `small`, is no
@@ -71,4 +90,25 @@ fn a_string_set_on_every_page_costs_the_same_per_page_at_ten_times_the_pages() {
         linear(small, big),
         "{small} reads for 20 pages, {big} for 200"
     );
+}
+
+#[test]
+fn one_image_used_a_thousand_times_is_resolved_and_decoded_once() {
+    let logo = [Asset {
+        name: "logo.png".to_owned(),
+        data: png(),
+    }];
+    let html = "<img src=\"logo.png\" width=\"10\"> \
+                <div style=\"background-image: url(logo.png); height: 4pt\"></div>"
+        .repeat(500);
+    let laid = lay_with(&html, &logo);
+    let drawn = laid
+        .pages
+        .iter()
+        .flat_map(|page| &page.items)
+        .filter(|item| matches!(item, Item::Image { .. }))
+        .count();
+    assert_eq!(drawn, 500);
+    assert_eq!(laid.images.len(), 1);
+    assert_eq!((laid.work.image_resolves, laid.work.image_decodes), (1, 1));
 }

@@ -6,6 +6,11 @@
 //! links, form fields and bookmarks are not. It opens as `read`'s module doc says, so an
 //! encrypted PDF returns `Parse`. Every pass runs under the options' `read::Bound`, so a placed
 //! page's streams decode under it here and when the writer copies them (`crate::render`).
+//!
+//! Cost: an `<img>` or a background image reference is resolved and decoded once per render,
+//! and each later use of it draws the same picture ([`super::Work::image_decodes`]). An inline
+//! `<svg>` is parsed at each use. Memory: one reference and one index for each distinct
+//! picture, until the document's blocks are collected.
 
 use std::sync::{Arc, Mutex};
 
@@ -67,9 +72,22 @@ impl Builder<'_, '_> {
             return Ok(());
         };
         self.flush();
-        let (picture, name) = decode(self.assets, reference)?;
-        self.place(picture, name, dom, at, style, frame);
+        let image = self.load(reference)?;
+        self.place(image, dom, at, style, frame);
         Ok(())
+    }
+
+    /// The index in `images` of the picture `reference` names. A reference this render loaded
+    /// before is not resolved or decoded again, so a picture drawn many times is in the file once.
+    fn load(&mut self, reference: &str) -> Result<usize, Error> {
+        if let Some(&image) = self.loaded.get(reference) {
+            return Ok(image);
+        }
+        let (image, _) = load_into(self.assets, &mut self.images, reference)?;
+        self.work.image_resolves += 1;
+        self.work.image_decodes += 1;
+        self.loaded.insert(reference.to_owned(), image);
+        Ok(image)
     }
 
     /// An inline `<svg>` at `at`, laid out in `frame`'s content box like an `<img>`.
@@ -83,22 +101,16 @@ impl Builder<'_, '_> {
         self.flush();
         let name = "<svg>";
         let picture = svg(self.assets, svg_markup(dom, at).as_bytes(), name)?;
-        self.place(picture, name.to_owned(), dom, at, style, frame);
+        self.images.push((picture, name.to_owned()));
+        self.place(self.images.len() - 1, dom, at, style, frame);
         Ok(())
     }
 
-    /// `picture` as a block for the element at `at`, at the size its style and its `width` and
-    /// `height` attributes give, scaled down to fit `frame`'s content box.
-    fn place(
-        &mut self,
-        picture: Picture,
-        name: String,
-        dom: &Dom,
-        at: usize,
-        style: &Style,
-        frame: &Frame,
-    ) {
-        let (natural_w, natural_h) = picture.size();
+    /// The picture at `image` in `images` as a block for the element at `at`, at the size its
+    /// style and its `width` and `height` attributes give, scaled down to fit `frame`'s content
+    /// box.
+    fn place(&mut self, image: usize, dom: &Dom, at: usize, style: &Style, frame: &Frame) {
+        let (natural_w, natural_h) = self.images[image].0.size();
         let attr = |name: &str| {
             dom.nodes[at]
                 .attr(name)
@@ -143,9 +155,8 @@ impl Builder<'_, '_> {
             }
             None => [0.0, 0.0, width, height],
         };
-        self.images.push((picture, name));
         self.blocks.push(Block::Image {
-            image: self.images.len() - 1,
+            image,
             x: frame.x,
             width,
             height,
@@ -156,26 +167,42 @@ impl Builder<'_, '_> {
     /// The background image of `style`: a gradient, or an image `url()` loaded from the asset map
     /// with its natural size, its `background-size` and its `background-position`.
     pub(super) fn layer(&mut self, style: &Style, rem: f32) -> Result<Option<boxes::Layer>, Error> {
-        layer(self.assets, &mut self.images, style, rem)
+        layer(style, rem, &mut |reference| {
+            let image = self.load(reference)?;
+            Ok((image, self.images[image].0.size()))
+        })
     }
 }
 
-/// The background image of `style`, as [`Builder::layer`] says, its picture added to `images`.
-pub(super) fn layer(
+/// A picture in `images`: its index there and its natural size in points.
+pub(super) type Loaded = (usize, (f32, f32));
+
+/// The picture `reference` names, decoded and added to `images`.
+pub(super) fn load_into(
     assets: &Assets<'_>,
     images: &mut Images,
+    reference: &str,
+) -> Result<Loaded, Error> {
+    let (picture, name) = decode(assets, reference)?;
+    let size = picture.size();
+    images.push((picture, name));
+    Ok((images.len() - 1, size))
+}
+
+/// The background image of `style`, as [`Builder::layer`] says. `load` gives the index and the
+/// size of the picture a reference names.
+pub(super) fn layer(
     style: &Style,
     rem: f32,
+    load: &mut dyn FnMut(&str) -> Result<Loaded, Error>,
 ) -> Result<Option<boxes::Layer>, Error> {
     let Some(reference) = boxes::image_reference(style) else {
         return Ok(boxes::gradient(style, rem));
     };
-    let (picture, name) = decode(assets, &reference)?;
-    let (width, height) = picture.size();
+    let (image, (width, height)) = load(&reference)?;
     let (repeat_x, repeat_y) = boxes::repeat(style);
-    images.push((picture, name));
     Ok(Some(boxes::Layer::Image {
-        image: images.len() - 1,
+        image,
         width,
         height,
         repeat_x,

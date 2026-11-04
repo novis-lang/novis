@@ -431,7 +431,9 @@ pub(super) fn backgrounds(
         let layer = match loaded.iter().find(|(each, _)| *each == key) {
             Some((_, layer)) => layer.clone(),
             None => {
-                let layer = image::layer(assets, images, &style, rem)?;
+                let layer = image::layer(&style, rem, &mut |reference| {
+                    image::load_into(assets, images, reference)
+                })?;
                 loaded.push((key, layer.clone()));
                 layer
             }

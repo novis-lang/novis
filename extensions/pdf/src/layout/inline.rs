@@ -17,7 +17,7 @@ use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
     Anchor, Atom, BLACK, Block, Fact, Frame, Href, Images, Inline, MARGIN, Para, Role, Spaces,
-    Span, color, keyword, length,
+    Span, Work, color, keyword, length,
 };
 use crate::Error;
 use crate::assets::Assets;
@@ -560,6 +560,10 @@ pub(super) struct Builder<'a, 'd> {
     pub(super) assets: &'a Assets<'d>,
     pub(super) blocks: Vec<Block>,
     pub(super) images: Images,
+    /// The index in `images` of each picture loaded by its reference.
+    pub(super) loaded: BTreeMap<String, usize>,
+    /// The pictures resolved and decoded.
+    pub(super) work: Work,
     pub(super) spans: Vec<Span>,
     text: String,
     runs: Vec<(Range<usize>, usize)>,
@@ -1447,8 +1451,17 @@ enum Step {
 }
 
 /// What [`blocks`] collects: the blocks, the `inline-block` boxes, the pictures, the text
-/// styles, whether generated content read `targets`, and the counters at each `id`.
-type Collected = (Vec<Block>, Vec<Atom>, Images, Vec<Span>, bool, Counted);
+/// styles, whether generated content read `targets`, the counters at each `id`, and the
+/// pictures resolved and decoded.
+type Collected = (
+    Vec<Block>,
+    Vec<Atom>,
+    Images,
+    Vec<Span>,
+    bool,
+    Counted,
+    Work,
+);
 
 /// The blocks of `dom`, in document order, and the text styles they name. `content` is the first
 /// page's content width and height, `named` gives the content width of a named page, and
@@ -1477,6 +1490,8 @@ pub(super) fn blocks(
         assets,
         blocks: Vec::new(),
         images: Vec::new(),
+        loaded: BTreeMap::new(),
+        work: Work::default(),
         spans: vec![span_of(&empty, fonts, None)],
         text: String::new(),
         runs: Vec::new(),
@@ -1982,6 +1997,7 @@ pub(super) fn blocks(
         builder.spans,
         builder.targeted,
         builder.counted,
+        builder.work,
     ))
 }
 

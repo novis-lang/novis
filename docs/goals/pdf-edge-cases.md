@@ -328,8 +328,11 @@ handled but untested.
   - [x] `margin::Index` by name and page, `string`, `counter` and `pick` read through it
   - [x] `facts` sorts marks onto pages in one pass
   - [x] `cost.rs` `a_string_set_on_every_page_…`, run once: green
-- [ ] Images are cached by asset reference for the render: one resolve and one decode per distinct
+- [x] Images are cached by asset reference for the render: one resolve and one decode per distinct
   asset. `extensions/pdf/src/layout/image.rs:70`, `extensions/pdf/src/layout/image.rs:192`
+  - [x] `Builder::load` keeps each reference's index in `images`, for `<img>` and backgrounds
+  - [x] the counts reach `Laid::work` through `blocks`' result
+  - [x] `cost.rs` `one_image_used_a_thousand_times_…`, run once: green
 - [ ] Rules are bucketed by the rightmost compound's id, class or tag (decision 11).
   `extensions/pdf/src/css/mod.rs:812`
 - [ ] Write the four tests the `linear-cost` check names. Each compares the work at N and 10N.

@@ -91,7 +91,7 @@ fn pass(
 ) -> Result<Pass, Error> {
     let sheet = Sheet::new(&styles.pages);
     let first = sheet.page(0, false, None);
-    let (blocks, atoms, mut images, spans, targeted, counted) = blocks(
+    let (blocks, atoms, mut images, spans, targeted, counted, work) = blocks(
         dom,
         styles,
         &fonts,
@@ -114,7 +114,7 @@ fn pass(
         depth: 0,
         deep: false,
         steps: 0,
-        work: Work::default(),
+        work,
     };
     // An inner inline-block comes before the one around it, so each one's inner boxes are
     // placed before it is laid out. A flex item waits for its container, which sizes it.
