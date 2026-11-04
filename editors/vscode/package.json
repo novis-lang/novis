@@ -147,7 +147,7 @@
           "type": "integer",
           "default": 150,
           "minimum": 0,
-          "description": "Milliseconds a keystroke waits before analysis starts. The next keystroke cancels the analysis in flight."
+          "description": "Milliseconds to wait after a keystroke before the file is checked again. A new keystroke in that time restarts the wait, so fast typing is checked once. 0 checks after every keystroke."
         },
         "nvs.lsp.trace.server": {
           "type": "string",
