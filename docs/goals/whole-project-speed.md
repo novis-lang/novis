@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/progress.rs, docs/rules/ide/the-server-is-synchronous.md, crates/nvs-lsp/tests/incremental.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: file-system-counts
@@ -434,38 +434,29 @@ than the files). The session writes the items.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done; stage 6, the gate, is next. The pool is `crates/nvs-lsp/src/workers.rs`; the
-in-order filing is `SymbolIndex::turns` (`crates/nvs-lsp/src/index.rs:888`) and `file_result` (`:970`),
-driven by `advance` (`:853`) from the idle arm's `select!` (`crates/nvs-lsp/src/server.rs:352`).
-`settle` (`:821`) drains the workers, which is the whole-tree request's wait. `start_index` and
-`check_workspace` turn workers on; `build` and the tests stay serial. `cargo test --test incremental
--- parallel` ran green, and the edit test goes red with the stale check off. Cold index: 17.3 s to
-4.01 s on 16 cores. The sweep's reds were stale: no `env-secret-proofs` log, and nightly 41813182715
-ran on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (macOS idle edit).
-`website/public/llms-full.txt` still needs a render; `bun nv ci --check` names it.
-
-May be red at the gate: `tests/index.rs`'s construction-site test (`workers.rs` calls `analyse_entry`),
-`stdout_policy.rs` and the manifest-policy test (new direct dependency `crossbeam-channel`), lsp tests
-that drive `serve` over a workspace root, `tests/progress.rs`, `tests/extensions.rs`, lsp tests of a
-borrowed map, `check_borrow.rs`, `nvs pkg audit`'s tests, `nvs check`/`nvs test` of a directory
-(`check_command.rs`, the runner, `--fix`, `--watch`), tests counting `resolved=` exactly, and
-`nvs-config`'s tests that count `trust` calls.
+Every stage is done, and the goal is reached. The gate's first `looper verify` named three binaries,
+fixed in one pass: `every_reader_queries_the_one_index` (`workers_running` joins `BOOKKEEPING`),
+`count_reports_file_system_work` (the two-file check now resolves 6 paths, not 8), and
+`a_result_the_request_cannot_afford_reaches_the_memory_limit`, whose meter deadline is wall time and ran
+out under the full run's load (now an hour; the test judges memory). `tests/index.rs`'s `".."` literal
+is `Component::ParentDir`, so verify's `CARGO_MANIFEST_DIR` check no longer names it. The second
+`looper verify` is green. `bun nv verify --doc` (a redundant link in `lenders.rs`), `bun nv owners
+--closes whole-project-speed` and `bun nv ci --check` (the `nvs check` page's search sentence, its
+questions, `llms-full.txt`) are green. The decisions only this file held now live in
+`rule:ide/the-server-is-synchronous`, `crate::workers`, `SourceMap::loading_once`, `document::Entry`
+and `real_path`'s doc. The sweep's reds were stale: `env-secret-proofs` is defined nowhere, and nightly
+41813182715 ran on `f3150b922`, before the Miri and macOS fixes.
 
 ### Next
 
-Stage 6, the gate: `looper verify` in the background, fix every failure in one pass, run it once more.
-Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes whole-project-speed`,
-`bun nv ci --check` (it names `website/public/llms-full.txt`; render it). Move the standing decisions
-only this file holds into the rules or module docs before the file is deleted: the settings cache and
-the lender bound already live in rules; check *A result is checked at its turn* against
-`rule:ide/the-server-is-synchronous` and `crate::workers`'s doc.
+Nothing: the loop retires this goal, and `calm-editor` is next on the chain.
 
 ### Backlog
