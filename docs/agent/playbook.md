@@ -214,6 +214,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **An lsp test that edits an open library file cannot see a stale result for that file's lender.**
+  The open file's own analysis borrows the first lender's map and indexes that program's files again,
+  so a stale result for that program files nothing, and the test passes with the check it guards
+  turned off. Edit a method that a later program calls, and turn the check off once to see the test
+  go red. See `crates/nvs-lsp/tests/incremental.rs`. `until: gone crates/nvs-lsp/tests/incremental.rs:an_edit_during_a_parallel_index`
+
 - **A `.scale.nvs` ramp cannot guard the growth of native code.** It judges interpreted statement
   counts, so a bench that makes one native call per size reads `size flat` whatever the call costs,
   and no CI job runs callgrind. A growth property of a native path is guarded by a step count read
