@@ -292,6 +292,9 @@ pub struct SourceMap {
     concealed: Vec<Span>,
     /// The ids a loaded path keeps across maps — see [`SourceMap::pinned`].
     pins: Option<Pins>,
+    /// The id each path a load read got, keyed by the path as the load was
+    /// given it — see [`SourceMap::loading_once`]. `None` for every other map.
+    once: Option<HashMap<PathBuf, SourceId>>,
 }
 
 /// Which [`SourceId`] each file keeps from one [`SourceMap`] to the next.
@@ -513,7 +516,42 @@ impl SourceMap {
         id
     }
 
+    /// An empty map in which each path is read once: a second
+    /// [`load`](Self::load) of a path an earlier load read returns the same
+    /// id, and reads nothing.
+    ///
+    /// This is for a caller that walks many programs over one shared library,
+    /// such as the search for the program that lends an `autoload` map
+    /// (`nvs_hir::lenders`). The key is the path exactly as the load was given
+    /// it, so a lookup resolves nothing. Two spellings of one file are read
+    /// once each. A failed load is not kept. It costs one path and one id per
+    /// file read, and every text read stays in the map until the map is
+    /// dropped.
+    #[must_use]
+    pub fn loading_once() -> Self {
+        Self {
+            once: Some(HashMap::new()),
+            ..Self::default()
+        }
+    }
+
+    /// Adds a file another map already read, with its name, its path and its
+    /// text, and reads nothing.
+    ///
+    /// `nvs check` checks a class file a second time, in a new map, once it
+    /// has found the program that lends the file its `autoload` map. This keeps
+    /// the text the first check read. It costs one copy of the text.
+    pub fn adopt(&mut self, file: &SourceFile) -> SourceId {
+        match file.path() {
+            Some(path) => self.place(file.name().to_owned(), path, file.text().to_owned()),
+            None => self.add(file.name(), file.text()),
+        }
+    }
+
     /// Reads a file from disk and adds it.
+    ///
+    /// In a map made by [`loading_once`](Self::loading_once), a path read
+    /// before returns the id it got then.
     ///
     /// # Errors
     ///
@@ -522,6 +560,21 @@ impl SourceMap {
     /// [`MAX_SOURCE_LEN`].
     pub fn load(&mut self, path: impl AsRef<Path>) -> io::Result<SourceId> {
         let path = path.as_ref();
+        let Some(once) = &self.once else {
+            return self.read(path);
+        };
+        if let Some(&id) = once.get(path) {
+            return Ok(id);
+        }
+        let id = self.read(path)?;
+        if let Some(once) = &mut self.once {
+            once.insert(path.to_path_buf(), id);
+        }
+        Ok(id)
+    }
+
+    /// [`load`](Self::load) without the check for a path read before.
+    fn read(&mut self, path: &Path) -> io::Result<SourceId> {
         // An open buffer stands in for the file's bytes, and stands in front of
         // the embedded payload because the two can never answer for one path: a
         // bundled executable has no editor attached to it.

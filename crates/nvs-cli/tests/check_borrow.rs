@@ -11,7 +11,9 @@
 //! to is checked as before, and that a file declaring its own map never
 //! borrows. A check from below the program names the folder it searched and
 //! `--root` finds the program, and a test file whose comment says `require`
-//! still borrows its bootstrap's map.
+//! still borrows its bootstrap's map. With `--count` they hold that the search
+//! walks each program once and reads a shared library once, and that it
+//! searches only the class file's own project.
 //!
 //! Through the built binary, because the survey's root is the working
 //! directory the command runs in.
@@ -374,6 +376,95 @@ fn a_test_file_that_mentions_require_only_in_a_comment_borrows_its_bootstraps_ma
 
     let checked = project.check(&["tests/UserTest.nvs"]);
     assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+}
+
+/// The number `nvs check --count` printed for `kind`, such as `programs`.
+fn counted(output: &Output, kind: &str) -> usize {
+    let stderr = stderr(output);
+    let line = stderr
+        .lines()
+        .find(|line| line.starts_with("compile:"))
+        .unwrap_or_else(|| panic!("`--count` prints a `compile:` line: {stderr}"));
+    line.split_whitespace()
+        .find_map(|field| field.strip_prefix(kind)?.strip_prefix('='))
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_else(|| panic!("the `compile:` line counts `{kind}`: {line}"))
+}
+
+/// Four programs autoload one library, and only the last in path order maps
+/// the class file's root. The search walks each program once, stops at the
+/// last, reads each file of the tree at most twice (once to learn it is plain,
+/// once as the library), and resolves at most ten paths per file.
+/// Walked each in a new map, every program read the library again.
+// covers: tools:cli/nvs-check
+#[test]
+fn a_class_file_check_walks_each_program_once() {
+    let project = Project::new("walks-once");
+    let library = ["Alpha", "Beta", "Gamma", "Delta"];
+    for (at, name) in library.iter().enumerate() {
+        let next = library.get(at + 1).map_or_else(String::new, |next| {
+            format!("\n    public function next(): {next} {{\n        return new {next}();\n    }}\n")
+        });
+        project.write(
+            &format!("lib/Framework/{name}.nvs"),
+            &format!("<?nvs\nnamespace Framework;\n\nclass {name} {{{next}}}\n"),
+        );
+    }
+    for program in ["a", "b", "c"] {
+        project.write(
+            &format!("{program}.nvs"),
+            "<?nvs\nautoload 'Framework' from './lib/Framework';\n\n\
+             use Framework\\Alpha;\n\nnew Alpha();\n",
+        );
+    }
+    project.write(
+        "d.nvs",
+        "<?nvs\nautoload 'Framework' from './lib/Framework';\nautoload 'App' from './app';\n\n\
+         use App\\User;\n\nnew User();\n",
+    );
+    project.write(
+        "app/User.nvs",
+        "<?nvs\nnamespace App;\n\nuse Framework\\Alpha;\n\nclass User {\n    \
+         public function framework(): Alpha {\n        return new Alpha();\n    }\n}\n",
+    );
+    let files = 4 + library.len() + 1;
+
+    let checked = project.check(&["--count", "app/User.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+    assert_eq!(counted(&checked, "programs"), 4, "{}", stderr(&checked));
+    let read = counted(&checked, "read");
+    assert!(
+        read <= 2 * files,
+        "{read} reads for {files} files: {}",
+        stderr(&checked)
+    );
+    // Today's count: each program's walk still resolves its own entry, its
+    // roots and its probes, about nine per file here.
+    let resolved = counted(&checked, "resolved");
+    assert!(
+        resolved <= 10 * files,
+        "{resolved} resolutions for {files} files: {}",
+        stderr(&checked)
+    );
+}
+
+/// The class file's project is the folder of its nearest `nvs.toml`. A check
+/// run from above it walks no program of another project.
+#[test]
+fn a_class_file_check_searches_only_its_own_project() {
+    let project = Project::new("own-project");
+    site(&project);
+    project.write("site/nvs.toml", "");
+    for other in ["one", "two", "three"] {
+        project.write(
+            &format!("other/{other}.nvs"),
+            "<?nvs\nautoload 'Other' from './lib';\n\necho 1;\n",
+        );
+    }
+
+    let checked = project.check(&["--count", "site/app/User.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+    assert_eq!(counted(&checked, "programs"), 1, "{}", stderr(&checked));
 }
 
 /// A file that declares its own `autoload` is a program, and never borrows

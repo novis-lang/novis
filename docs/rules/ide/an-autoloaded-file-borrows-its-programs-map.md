@@ -45,8 +45,9 @@ declares it, or the entry that requires it, is open too.
 `nvs check <file>` borrows by the same test, and searches only when it must. It checks the file first;
 when the walk found no declaration of the file's own program, and the walk or the type phase after it
 reported `E0303` or `E0306`, it walks the `.nvs` files under the project root — `--root <dir>`, else
-the directory of the first `--config` file, else the working directory, skipping what the server
-skips — in path order,
+the directory of the first `--config` file, else the working directory, narrowed to the nearest
+directory at or above the file and below that root that holds an `nvs.toml` or a `package.toml`, and
+skipping what the server skips — in path order,
 stops at the first lender that owns the file, else takes the nearest that holds it, and checks the file
 again with that lender's declarations behind its own. The type phase counts because it is where a
 name written in a type, in `new` or before `::class` is reported: a class file that names a class of
@@ -59,7 +60,8 @@ and `E0306` are the two diagnostics a borrowed map can change, so no other findi
 Neither does one for a name of one segment, such as `Countable`, or a name under `Core`: an
 `autoload` prefix is at least one segment followed by `\`, so no map declares either, and a note
 about a map would send the reader to the wrong fix.
-The second check starts from a fresh source map, and its diagnostics are the ones reported, in the same
+The second check starts from a fresh source map holding the text the first check read, and its
+diagnostics are the ones reported, in the same
 text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
 file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender
 is and whom it lends to, for the server and the command both, so the two cannot disagree.
@@ -69,8 +71,14 @@ just edited, and that file is most often a class file under an `autoload` root; 
 command it was told to trust reports `E0303` and `E0306` on a program that builds clean, and the false
 error sends the agent to fix code that is correct. For such a file the command costs one read of each
 `.nvs` file under the root, one name-resolution walk per file holding `autoload` or `require` up to the
-lender, and a second check of the checked file; a program's entry point pays nothing new. `--root`
-and the note cost a check that succeeds nothing.
+lender, and a second check of the checked file; a program's entry point pays nothing new. The walks of
+one search share one source map and one parse per file (`nvs_hir::lenders::Survey`), so a library every
+program reaches is read and parsed once per search, not once per program, and a path is resolved only
+when its program is walked. That holds the text and the statements of every file the search read until
+the search ends; the server's survey shares one the same way. The project bound is why a check run
+from the top of a checkout of many projects walks one of them: a project's programs load its class
+files, and a program in another project that loads them by a relative root is the case it gives up,
+which `--root` still reaches. `--root` and the note cost a check that succeeds nothing.
 
 `nvs agent hook` checks the edited file as `nvs check` does, in the payload's working directory, but
 its root is the agent's project folder: `CLAUDE_PROJECT_DIR`, which Claude Code gives every hook,

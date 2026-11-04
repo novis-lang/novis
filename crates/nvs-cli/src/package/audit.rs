@@ -37,8 +37,8 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use nvs_config::grants::Grants;
-use nvs_diagnostics::SourceMap;
 use nvs_hir::Lender;
+use nvs_hir::lenders::Survey;
 use serde::Serialize;
 
 use super::advisory::Advisory;
@@ -283,8 +283,9 @@ fn found(
 fn unmatched(dir: &Path, grants: &Grants) -> Vec<Unmatched> {
     let base = nvs_hir::requires::canonicalize(dir).unwrap_or_else(|| dir.to_path_buf());
     let mut found: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut survey = Survey::new();
     for source in nvs_hir::lenders::sources(dir) {
-        let Some(lender) = Lender::walk(SourceMap::new(), &source) else {
+        let Some(lender) = Lender::walk(&mut survey, &source) else {
             continue;
         };
         for (prefix, roots) in lender.map().prefixes() {

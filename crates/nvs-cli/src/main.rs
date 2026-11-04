@@ -1257,17 +1257,15 @@ fn front_end_in(
             && autoload.sites().is_empty()
             && diags.iter().any(nvs_hir::lenders::a_map_could_declare)
         {
-            if let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain) {
+            let root = nvs_hir::lenders::project_root(root, path);
+            if let Some(lender) = nvs_hir::lenders::first_lender(&root, path, plain) {
                 drop(files);
                 lent = Some(lender);
-                map = SourceMap::new();
-                id = match map.load(path) {
-                    Ok(id) => id,
-                    Err(err) => {
-                        report_unreadable(path, &err, sink);
-                        return Err(ExitCode::FAILURE);
-                    }
-                };
+                // The second check starts from a new map, with the text the
+                // first one read.
+                let mut fresh = SourceMap::new();
+                id = fresh.adopt(map.file(id));
+                map = fresh;
                 continue;
             }
             // The search found no program, so the folder it searched may be
@@ -1276,7 +1274,7 @@ fn front_end_in(
                 .iter_mut()
                 .find(|d| nvs_hir::lenders::a_map_could_declare(d))
             {
-                first.notes.push(searched_note(root));
+                first.notes.push(searched_note(&root));
             }
         }
 

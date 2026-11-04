@@ -64,6 +64,7 @@ use std::time::SystemTime;
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
+use nvs_hir::lenders::Survey;
 use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_linted};
 use nvs_syntax::{SyntaxIndex, Trivia};
 use nvs_types::deprecated::Notices;
@@ -161,12 +162,13 @@ fn modified(path: &Path) -> Option<SystemTime> {
         .ok()
 }
 
-/// `path` as a [`Lender`], walked with the open buffers in front of the files
-/// under them, or `None` for a file whose program declares no `autoload`.
-fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
-    let mut map = SourceMap::new();
-    documents.overlay(&mut map);
-    Lender::walk(map, path)
+/// One search for lenders, with the open buffers in front of the files under
+/// them. Every program a survey walks shares it, so a library many programs
+/// reach is read and parsed once per survey.
+fn survey_of(documents: &Documents) -> Survey {
+    let mut survey = Survey::new();
+    documents.overlay(survey.map_mut());
+    survey
 }
 
 impl Documents {
@@ -314,9 +316,10 @@ impl Documents {
     /// walked, so a start that builds its index from the same tree walks the
     /// workspace once.
     pub(crate) fn survey_tree(&mut self, tree: &[(PathBuf, i32)]) {
+        let mut survey = survey_of(self);
         let lenders = tree
             .iter()
-            .filter_map(|(path, _)| lender(self, path))
+            .filter_map(|(path, _)| Lender::walk(&mut survey, path))
             .collect();
         self.kept.get_mut().clear();
         self.lenders = lenders;
@@ -352,8 +355,9 @@ impl Documents {
 
         self.lenders
             .retain(|lender| !entries.iter().any(|entry| entry == lender.entry()));
+        let mut survey = survey_of(self);
         for entry in entries {
-            if let Some(found) = lender(self, &entry) {
+            if let Some(found) = Lender::walk(&mut survey, &entry) {
                 self.lenders.push(found);
             }
         }

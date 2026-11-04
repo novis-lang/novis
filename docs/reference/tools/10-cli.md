@@ -189,7 +189,8 @@ file declares, `nvs check` looks for the program that loads this file with `auto
 the project folder in path order and uses the first program it finds. Then it checks the file with that
 program's `autoload` lines, and the result is the same as for the whole program. The project folder is
 the folder that `--root <folder>` names. Without `--root`, it is the folder of the `--config` file,
-or else the folder you run the command in. The search skips `vendor`, `target` and folders whose
+or else the folder you run the command in. If the file is in a folder below that one with its own
+`nvs.toml` or `package.toml`, the search uses the nearest such folder. The search skips `vendor`, `target` and folders whose
 names start with a dot. If no program loads the file, the errors are reported as usual. The first
 error about an unknown class then has a note. The note names the folder that was searched.
 

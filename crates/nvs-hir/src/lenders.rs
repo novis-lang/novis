@@ -20,14 +20,80 @@
 
 use std::borrow::Borrow;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use ignore::WalkBuilder;
-use nvs_diagnostics::{Diagnostics, SourceMap, canonical_key};
-use nvs_syntax::{Keyword, Lexer, TokenKind, parse_file};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, canonical_key};
+use nvs_syntax::ast::Stmt;
+use nvs_syntax::{Keyword, Lexer, TokenKind, check_declarations, parse_file};
+use rustc_hash::FxHashMap;
 
 use crate::autoload::{AutoloadMap, Site};
 use crate::hierarchy::CoreRoster;
-use crate::requires::resolve_program;
+use crate::requires::{Parses, resolve_program_borrowing};
+
+/// What one search for lenders shares across the programs it walks: one
+/// source map that reads each file once, and one parse of each file.
+///
+/// Programs in one tree mostly autoload one shared library. Walked each in a
+/// new map, every program read and parsed that library again: a search over
+/// 115 test programs read 9,067 files. Here each file is read and parsed once
+/// per search, and its path resolved once. It costs the text, the statements
+/// and the resolved path of every file the search read, held until the search
+/// ends. The editor's survey and `nvs check`'s
+/// search each make one and drop it when they finish.
+#[derive(Debug)]
+pub struct Survey {
+    map: SourceMap,
+    /// Each file's statements and the diagnostics its parse reported, by id.
+    /// A file keeps its id for the whole search ([`SourceMap::loading_once`]).
+    parsed: FxHashMap<SourceId, (Arc<Vec<Stmt>>, Vec<Diagnostic>)>,
+    /// Each file's path under `canonical_key`, by id, resolved the first time a
+    /// lender names the file.
+    keys: FxHashMap<SourceId, Option<PathBuf>>,
+}
+
+impl Survey {
+    /// A search that reads every file from disk.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            map: SourceMap::loading_once(),
+            parsed: FxHashMap::default(),
+            keys: FxHashMap::default(),
+        }
+    }
+
+    /// The map the walks read through. An editor overlays its open buffers on
+    /// it before the first walk.
+    pub fn map_mut(&mut self) -> &mut SourceMap {
+        &mut self.map
+    }
+}
+
+impl Default for Survey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The parses of one [`Survey`], apart from its map so a walk can borrow both.
+struct Kept<'a>(&'a mut FxHashMap<SourceId, (Arc<Vec<Stmt>>, Vec<Diagnostic>)>);
+
+impl Parses for Kept<'_> {
+    fn parse(&mut self, src: &SourceFile, diags: &mut Diagnostics) -> Arc<Vec<Stmt>> {
+        let (stmts, reported) = self.0.entry(src.id()).or_insert_with(|| {
+            let mut own = Diagnostics::new();
+            let stmts = Arc::new(parse_file(src, &mut own));
+            check_declarations(&stmts, src, &mut own);
+            (stmts, own.iter().cloned().collect())
+        });
+        for diagnostic in reported.iter() {
+            diags.report(diagnostic.clone());
+        }
+        Arc::clone(stmts)
+    }
+}
 
 /// One program that declares `autoload`, as the files it autoloads or requires
 /// borrow it.
@@ -56,9 +122,9 @@ impl Lender {
     /// `path` as a lender, or `None` for a file whose program declares no
     /// `autoload`.
     ///
-    /// `map` is the source map the walk reads through: empty for files on
-    /// disk, or holding the open buffers an editor overlays on them. The file
-    /// is asked [`is_plain`] before anything is parsed, so a
+    /// `survey` is what the walks of one search share ([`Survey`]): every file
+    /// is read and parsed once per search, however many programs reach it. The
+    /// file is asked [`is_plain`] before anything is parsed, so a
     /// tree pays one read per file and one walk per file that starts a chain. A
     /// program whose declaration sits in a file it requires holds neither
     /// declaration itself, and only the walk finds it. The walk is name
@@ -66,7 +132,8 @@ impl Lender {
     /// reaches. Its diagnostics are dropped: the program's own check is where
     /// they are reported.
     #[must_use]
-    pub fn walk(mut map: SourceMap, path: &Path) -> Option<Self> {
+    pub fn walk(survey: &mut Survey, path: &Path) -> Option<Self> {
+        let map = &mut survey.map;
         let entry = map.load(path).ok()?;
         if is_plain(map.file(entry).text()) {
             return None;
@@ -74,24 +141,38 @@ impl Lender {
 
         nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Programs);
         let mut diags = Diagnostics::new();
-        let stmts = parse_file(map.file(entry), &mut diags);
-        let (_, loaded, autoload) =
-            resolve_program(entry, stmts, &mut map, CoreRoster::Trusted, &mut diags);
+        let mut kept = Kept(&mut survey.parsed);
+        let stmts = kept.parse(map.file(entry), &mut diags);
+        let (_, loaded, autoload) = resolve_program_borrowing(
+            entry,
+            stmts,
+            map,
+            CoreRoster::Trusted,
+            &mut diags,
+            &[],
+            Some(&mut kept),
+        );
         if autoload.sites().is_empty() {
             return None;
         }
 
+        let keys = &mut survey.keys;
+        let mut key_of = |id: SourceId| {
+            keys.entry(id)
+                .or_insert_with(|| map.file(id).path().map(canonical_key))
+                .clone()
+        };
         let mut declaring: Vec<PathBuf> = autoload
             .sites()
             .iter()
-            .filter_map(|site| map.file(site.span.file).path().map(canonical_key))
+            .filter_map(|site| key_of(site.span.file))
             .collect();
         declaring.sort();
         declaring.dedup();
         let mut reads: Vec<PathBuf> = loaded
             .iter()
             .skip(1)
-            .filter_map(|file| map.file(file.id).path().map(canonical_key))
+            .filter_map(|file| key_of(file.id))
             .collect();
         reads.sort();
         reads.dedup();
@@ -296,25 +377,54 @@ pub fn a_map_could_declare(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 /// that owns `path`, so the cost is one read per file and one walk per program
 /// up to that lender. When no lender owns it, every program under `root` is
 /// walked before the nearest that lends by the directory test is returned.
-/// `plain` is [`is_plain`] for the text of `path`. `path` itself is skipped:
-/// the caller asks only for a file that declares no map of its own.
+/// The walks share one [`Survey`], so a library many programs reach is read and
+/// parsed once. `plain` is [`is_plain`] for the text of `path`. `path` itself
+/// is skipped: the caller asks only for a file that declares no map of its own.
+///
+/// The paths are sorted as the walk found them, all under `root`, which is the
+/// order of their resolved paths too, because the walk follows no link. A
+/// path is resolved only when its program is walked, and to tell `path` apart
+/// only when its file name is the same.
 #[must_use]
 pub fn first_lender(root: &Path, path: &Path, plain: bool) -> Option<Lender> {
-    let key = canonical_key(path);
-    let mut found: Vec<PathBuf> = sources(root)
-        .iter()
-        .map(|source| canonical_key(source))
-        .filter(|source| *source != key)
-        .collect();
+    let mut key = None;
+    let mut found = sources(root);
     found.sort();
-    found.dedup();
+    let mut survey = Survey::new();
     choose(
         found
             .into_iter()
-            .filter_map(|source| Lender::walk(SourceMap::new(), &source)),
+            .filter(|source| {
+                source.file_name() != path.file_name()
+                    || canonical_key(source) != *key.get_or_insert_with(|| canonical_key(path))
+            })
+            .filter_map(|source| Lender::walk(&mut survey, &source)),
         path,
         || plain,
     )
+}
+
+/// The folder [`first_lender`] searches for `path`: the nearest folder that
+/// holds an `nvs.toml` or a `package.toml`, at or above `path` and at or below
+/// `root`, else `root`.
+///
+/// A file's project is the folder of its nearest `nvs.toml` or `package.toml`,
+/// and the program that loads the file is in that project. Searching from a
+/// folder above it walked every other project too: a class file checked from
+/// the root of a checkout with many applications listed 4,550 folders, where
+/// its own project has 5. A `path` outside `root` searches `root`, as before.
+/// It costs one existence test per marker per folder between `path` and
+/// `root`, and resolves no path.
+#[must_use]
+pub fn project_root(root: &Path, path: &Path) -> PathBuf {
+    let (Ok(top), Ok(file)) = (std::path::absolute(root), std::path::absolute(path)) else {
+        return root.to_path_buf();
+    };
+    file.ancestors()
+        .skip(1)
+        .take_while(|dir| dir.starts_with(&top))
+        .find(|dir| dir.join("nvs.toml").is_file() || dir.join("package.toml").is_file())
+        .map_or_else(|| root.to_path_buf(), Path::to_path_buf)
 }
 
 /// Every `.nvs` file under `root`, recursively, in no particular order.
