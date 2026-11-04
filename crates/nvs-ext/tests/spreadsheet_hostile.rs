@@ -1494,7 +1494,10 @@ fn a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keep
         ("xl/_rels/workbook.xml.rels", book_rels.as_bytes()),
         ("xl/sharedStrings.xml", &strings),
         ("xl/worksheets/sheet1.xml", orders.as_bytes()),
-        ("xl/worksheets/_rels/sheet1.xml.rels", orders_rels.as_bytes()),
+        (
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            orders_rels.as_bytes(),
+        ),
         ("xl/worksheets/sheet2.xml", &summary),
         ("xl/macrosheets/sheet1.xml", macro_sheet.as_bytes()),
         ("xl/vbaData.xml", b"<wne:vbaSuppData/>"),
@@ -1647,7 +1650,11 @@ fn a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part() {
     for (what, data, says) in [
         ("UTF-16LE", utf16(&[0xFF, 0xFE], false), "is in UTF-16."),
         ("UTF-16BE", utf16(&[0xFE, 0xFF], true), "is in UTF-16."),
-        ("UTF-16 without a mark", utf16(&[], false), "is in UTF-16 or UTF-32."),
+        (
+            "UTF-16 without a mark",
+            utf16(&[], false),
+            "is in UTF-16 or UTF-32.",
+        ),
         ("UTF-32LE", utf32, "is in UTF-32."),
         (
             "a declared Latin-1",
@@ -1677,5 +1684,597 @@ fn a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part() {
     ] {
         let file = xlsx_named(&data, &shared(&[]), "");
         assert_eq!(read(&file).0, None, "{what}");
+    }
+}
+
+/// A relationship `id` of the office relationship type `kind` to `target`, with the further
+/// attributes `more`.
+fn relationship(id: &str, kind: &str, target: &str, more: &str) -> String {
+    format!(
+        r#"<Relationship Id="{id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/{kind}" Target="{target}"{more}/>"#
+    )
+}
+
+/// A relationships part of `items`, each XML.
+fn rels_part(items: &[String]) -> Vec<u8> {
+    format!(
+        r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{}</Relationships>"#,
+        items.concat()
+    )
+    .into_bytes()
+}
+
+/// An xlsx whose workbook lists one sheet, `Orders`, as `rId1`, whose package relationships are
+/// `root` and whose workbook relationships are `book`, with the further parts `more`.
+fn package(root: &[u8], book: &[u8], more: &[(&str, &[u8])]) -> Vec<u8> {
+    let workbook = br#"<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets></workbook>"#;
+    let mut parts: Vec<(&str, &[u8])> = vec![
+        ("[Content_Types].xml", b"<Types/>"),
+        ("_rels/.rels", root),
+        ("xl/workbook.xml", &workbook[..]),
+        ("xl/_rels/workbook.xml.rels", book),
+    ];
+    parts.extend_from_slice(more);
+    zip(&parts)
+}
+
+/// The package relationships of [`package`] that name `xl/workbook.xml` alone.
+fn plain_root() -> Vec<u8> {
+    rels_part(&[relationship(
+        "rId1",
+        "officeDocument",
+        "xl/workbook.xml",
+        "",
+    )])
+}
+
+/// An ods whose `content.xml` is `content`.
+fn ods(content: &[u8]) -> Vec<u8> {
+    zip(&[
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".as_slice(),
+        ),
+        ("content.xml", content),
+    ])
+}
+
+/// An ods `content.xml` whose one sheet, `Orders`, has the rows `rows`, each XML.
+fn ods_content(rows: &str) -> Vec<u8> {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:spreadsheet><table:table table:name="Orders">{rows}</table:table></office:spreadsheet></office:body></office:document-content>"#
+    )
+    .into_bytes()
+}
+
+/// An ods row of one text cell whose paragraph is the XML `text`.
+fn ods_text_row(text: &str) -> String {
+    format!(
+        r#"<table:table-row><table:table-cell office:value-type="string"><text:p>{text}</text:p></table:table-cell></table:table-row>"#
+    )
+}
+
+/// The UTF-8 `part` written again in UTF-16LE, after its byte order mark.
+fn utf16_marked(part: &[u8]) -> Vec<u8> {
+    let text = std::str::from_utf8(part).expect("the part is UTF-8");
+    let mut out = vec![0xFF, 0xFE];
+    for unit in text.encode_utf16() {
+        out.extend(unit.to_le_bytes());
+    }
+    out
+}
+
+/// A billion-laughs DTD: ten levels of entities, each ten of the one below.
+fn laughs() -> String {
+    let mut laughs = String::from(r#"<!DOCTYPE lolz [<!ENTITY lol0 "lol">"#);
+    for n in 1..10 {
+        let previous = format!("&lol{};", n - 1);
+        laughs.push_str(&format!(r#"<!ENTITY lol{n} "{}">"#, previous.repeat(10)));
+    }
+    laughs.push_str("]>");
+    laughs
+}
+
+/// `method` of a reader of `file`, opened under [`CAP`] with the shipped bound and called with
+/// the reader, the source and `args`: its result, or the failure.
+fn reader_call(file: &[u8], method: &str, args: Vec<Value>) -> Result<Value, Failure> {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
+    let source = Value::Bytes(file.to_vec());
+    let result = (|| -> Result<Value, Failure> {
+        let reader = block_on(request.call_values(
+            &extension,
+            "readerOpen",
+            vec![source.clone(), bound(None, None)],
+        ))?
+        .expect("`readerOpen` returns a reader");
+        let mut all = vec![reader, source.clone()];
+        all.extend(args);
+        Ok(block_on(request.call_values(&extension, method, all))?.unwrap_or(Value::Null))
+    })();
+    drop(block_on(request.end()));
+    result
+}
+
+/// The first batch of at most ten rows of `Orders` in `file`, or the failure's text.
+fn first_batch(file: &[u8]) -> Result<Value, String> {
+    reader_call(
+        file,
+        "readerRows",
+        vec![
+            rows_options(Value::Null, Value::Uint(10), false),
+            Value::Uint(10),
+        ],
+    )
+    .map_err(|failure| failure.to_string())
+}
+
+/// Every string in `value`, at any depth.
+fn strings_in(value: &Value) -> Vec<String> {
+    match value {
+        Value::String(text) => vec![text.clone()],
+        Value::Array(pairs) => pairs
+            .iter()
+            .flat_map(|(_, value)| strings_in(value))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The field `name` of the shape `of`.
+fn field_of(of: &Value, name: &str) -> Value {
+    let Value::Array(fields) = of else {
+        panic!("{of:?} is not a shape");
+    };
+    fields
+        .iter()
+        .find(|(key, _)| *key == Key::String(name.to_owned()))
+        .map(|(_, value)| value.clone())
+        .unwrap_or_else(|| panic!("{of:?} has no `{name}`"))
+}
+
+/// `templateOpen` over `file` under [`CAP`]: the failure's text, or `None` when the template
+/// opens, and the outbound requests the guest sent.
+fn template_open(file: &[u8]) -> (Option<String>, usize) {
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let budget = Arc::new(Watched {
+        meter: Meter::new(Duration::from_secs(60), Some(CAP)),
+        sent: AtomicUsize::new(0),
+    });
+    let request = host.request(budget.clone());
+    let failure = block_on(request.call_values(
+        &extension,
+        "templateOpen",
+        vec![Value::Bytes(file.to_vec()), bound(None, None)],
+    ))
+    .err()
+    .map(|err| err.to_string());
+    drop(block_on(request.end()));
+    (failure, budget.sent.load(Ordering::Acquire))
+}
+
+/// An external entity in an ods part, in a template, or after a comment throws, UTF-16 parts
+/// throw naming the part, and a double-encoded DTD reads as its literal text. The xlsx sheet and
+/// shared strings are `an_external_entity_naming_a_file_or_a_url_reads_nothing`'s.
+#[test]
+fn an_external_entity_in_any_part_and_any_encoding_reads_nothing() {
+    for target in ["file:///etc/passwd", "http://example.com/secret"] {
+        let dtd = format!(r#"<!DOCTYPE r [<!ENTITY xxe SYSTEM "{target}">]>"#);
+        let commented = format!("<!-- Shop -->{dtd}");
+        let cell = r#"<row r="1"><c r="A1" t="inlineStr"><is><t>&xxe;</t></is></c></row>"#;
+        let in_ods = ods_content(&ods_text_row("&xxe;"));
+        for (what, file) in [
+            ("an ods", ods(&declared(&dtd, &in_ods))),
+            (
+                "an ods after a comment",
+                ods(&declared(&commented, &in_ods)),
+            ),
+            (
+                "a sheet after a comment",
+                xlsx(&declared(&commented, &sheet(cell)), &shared(&[])),
+            ),
+        ] {
+            let (failure, sent) = read(&file);
+            let failure = failure.unwrap_or_else(|| panic!("{target} in {what} reads"));
+            assert!(
+                failure.contains("document type declaration"),
+                "{target} in {what}: {failure}"
+            );
+            assert!(!failure.contains("root:"), "{failure}");
+            assert_eq!(sent, 0, "{target} in {what} sent a request");
+        }
+
+        let template = xlsx(&declared(&dtd, &sheet(cell)), &shared(&[]));
+        let (failure, sent) = template_open(&template);
+        let failure = failure.unwrap_or_else(|| panic!("{target} in a template opens"));
+        assert!(
+            failure.contains("document type declaration"),
+            "{target} in a template: {failure}"
+        );
+        assert_eq!(sent, 0, "{target} in a template sent a request");
+    }
+
+    let in_ods = ods(&utf16_marked(&ods_content(&ods_text_row("Shop"))));
+    let failure = read(&in_ods).0.expect("a UTF-16 content.xml reads");
+    assert!(
+        failure.contains("The workbook part `content.xml` is in UTF-16. Only UTF-8 is supported."),
+        "{failure}"
+    );
+    let plain = sheet(r#"<row r="1"><c r="A1"><v>1</v></c></row>"#);
+    let failure = template_open(&xlsx(&utf16_marked(&plain), &shared(&[])))
+        .0
+        .expect("a UTF-16 template sheet opens");
+    assert!(
+        failure.contains(
+            "The workbook part `xl/worksheets/sheet1.xml` is in UTF-16. Only UTF-8 is supported."
+        ),
+        "{failure}"
+    );
+
+    // `&#38;` decodes to `&` once, so the rest is text and no DTD is ever parsed.
+    let raw = "&#38;#60;!DOCTYPE r [&#38;#60;!ENTITY xxe SYSTEM &#38;#34;file:///etc/passwd&#38;#34;&#38;#62;]&#38;#62;&#38;xxe;";
+    let literal = raw.replace("&#38;", "&");
+    let inline = format!(r#"<row r="1"><c r="A1" t="inlineStr"><is><t>{raw}</t></is></c></row>"#);
+    for (what, file) in [
+        ("a sheet", xlsx(&sheet(&inline), &shared(&[]))),
+        ("an ods", ods(&ods_content(&ods_text_row(raw)))),
+    ] {
+        let batch = first_batch(&file).unwrap_or_else(|err| panic!("{what}: {err}"));
+        let strings = strings_in(&batch);
+        assert!(strings.contains(&literal), "{what}: {strings:?}");
+        assert!(!strings.iter().any(|text| text.contains("root:")), "{what}");
+    }
+}
+
+/// A billion-laughs DTD in an ods `content.xml` or `styles.xml` throws at its `<!DOCTYPE`, and
+/// an entity with no DTD throws naming it. The xlsx parts are
+/// `an_entity_is_never_expanded_and_no_dtd_is_loaded`'s.
+#[test]
+fn an_entity_in_an_ods_part_is_never_expanded() {
+    let laughs = laughs();
+    let used = ods_content(&ods_text_row("&lol9;"));
+    let styles = br#"<?xml version="1.0"?><office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>"#;
+    let in_styles = zip(&[
+        (
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet".as_slice(),
+        ),
+        ("content.xml", &ods_content(&ods_text_row("Shop"))),
+        ("styles.xml", &declared(&laughs, styles)),
+    ]);
+    for (what, file) in [
+        ("content.xml", ods(&declared(&laughs, &used))),
+        ("styles.xml", in_styles),
+    ] {
+        let failure = read(&file)
+            .0
+            .unwrap_or_else(|| panic!("a DTD in {what} reads"));
+        assert!(
+            failure.contains("document type declaration"),
+            "{what}: {failure}"
+        );
+        assert!(failure.len() < 1000, "{what}: {} bytes", failure.len());
+    }
+
+    let failure = read(&ods(&used)).0.expect("`&lol9;` in content.xml reads");
+    assert!(failure.contains("the entity `lol9`"), "{failure}");
+    assert!(failure.len() < 1000, "{} bytes", failure.len());
+}
+
+/// 30 MB of spaces in `_rels/.rels`, in `xl/_rels/workbook.xml.rels` and in an ods `content.xml`
+/// stops at the decompression bound, naming the part. Sheets and shared strings are
+/// `the_spreadsheet_bomb_corpus_ends_in_a_throw_or_a_contained_trap`'s.
+#[test]
+fn a_bomb_in_a_rels_part_or_ods_content_ends_at_the_bound() {
+    let bomb = " ".repeat(30_000_000);
+    let to_book = relationship("rId1", "officeDocument", "xl/workbook.xml", "");
+    let to_sheet = relationship("rId1", "worksheet", "worksheets/sheet1.xml", "");
+    let orders = sheet(r#"<row r="1"><c r="A1"><v>1</v></c></row>"#);
+    let more: [(&str, &[u8]); 1] = [("xl/worksheets/sheet1.xml", &orders)];
+    let plain_book = rels_part(std::slice::from_ref(&to_sheet));
+    assert_eq!(
+        read(&package(&plain_root(), &plain_book, &more)).0,
+        None,
+        "the package with no bomb reads"
+    );
+    assert_eq!(
+        read(&ods(&ods_content(&ods_text_row("Shop")))).0,
+        None,
+        "the ods with no bomb reads"
+    );
+
+    for (what, file) in [
+        (
+            "_rels/.rels",
+            package(&rels_part(&[bomb.clone(), to_book]), &plain_book, &more),
+        ),
+        (
+            "xl/_rels/workbook.xml.rels",
+            package(&plain_root(), &rels_part(&[bomb.clone(), to_sheet]), &more),
+        ),
+        (
+            "content.xml",
+            ods(&ods_content(&format!("{}{bomb}", ods_text_row("Shop")))),
+        ),
+    ] {
+        assert!(file.len() < 100_000, "{what}: {}", file.len());
+        let failure = contained(read(&file).0, &format!("a bomb in {what}"));
+        assert!(failure.contains(&format!("`{what}`")), "{what}: {failure}");
+    }
+}
+
+/// Writes `value` at `at` in `file`, little-endian.
+fn put_u32(file: &mut [u8], at: usize, value: u32) {
+    file[at..at + 4].copy_from_slice(&value.to_le_bytes());
+}
+
+/// A sector table chain (DIFAT) that names itself, a mini sector chain that loops, and a stream
+/// longer than its chain each end in a throw. A loop in a stream's or the directory's chain is
+/// `an_xls_sector_chain_that_loops_is_refused`'s.
+#[test]
+fn a_cfb_with_a_difat_cycle_a_mini_fat_cycle_or_a_short_stream_throws() {
+    const END: u32 = 0xFFFF_FFFE;
+    const TABLE: u32 = 0xFFFF_FFFD;
+    // The directory is sector 1: the root entry at byte 1024, and `Workbook` at 1152.
+    const ROOT: usize = 1024;
+    const STREAM: usize = 1152;
+    let honest: Vec<u32> = [TABLE, END].into_iter().chain(3..18).chain([END]).collect();
+
+    // 490 table sectors: 109 in the header, and the rest in extra sectors from sector 18, whose
+    // last entry names sector 18 again.
+    let difat = |count: u32| {
+        let mut file = compound(&honest);
+        file.resize(492 * 512, 0);
+        for at in 1..109 {
+            put_u32(&mut file, 76 + at * 4, 0);
+        }
+        put_u32(&mut file, 44, 490);
+        put_u32(&mut file, 68, 18);
+        put_u32(&mut file, 72, count);
+        put_u32(&mut file, 19 * 512 + 508, 18);
+        file
+    };
+    let failure = read(&difat(2))
+        .0
+        .expect("a DIFAT that loops past its count reads");
+    assert!(
+        failure.contains("its sector table lists more sectors than it has"),
+        "{failure}"
+    );
+    // A count that does not stop the loop: the table's size does, and every sector the loop
+    // lists is the honest table, so the read gets past the compound file.
+    let failure = read(&difat(u32::MAX)).0.expect("zeros read as a workbook");
+    assert!(!failure.contains("sector"), "{failure}");
+
+    // A mini table in sector 18, over a mini stream in sectors 2 and 3, and a `Workbook` of
+    // `size` bytes in the mini stream from mini sector 0.
+    let mini = |chain: &[u32], size: u32| {
+        let mut table = honest.clone();
+        table.push(END);
+        let mut file = compound(&table);
+        file.resize(20 * 512, 0);
+        put_u32(&mut file, 60, 18);
+        put_u32(&mut file, 64, 1);
+        put_u32(&mut file, ROOT + 116, 2);
+        put_u32(&mut file, ROOT + 120, 1024);
+        put_u32(&mut file, STREAM + 116, 0);
+        put_u32(&mut file, STREAM + 120, size);
+        for (at, next) in chain.iter().enumerate() {
+            put_u32(&mut file, 19 * 512 + at * 4, *next);
+        }
+        file
+    };
+    let failure = read(&mini(&[1, END], 100))
+        .0
+        .expect("zeros read as a workbook");
+    assert!(
+        !failure.contains("sector"),
+        "an honest mini chain: {failure}"
+    );
+    let failure = read(&mini(&[1, 0], 200))
+        .0
+        .expect("a mini chain that loops reads");
+    assert!(failure.contains("a sector chain loops"), "{failure}");
+
+    let mut short = Vec::new();
+    for size in [20_000, u32::MAX] {
+        let mut file = compound(&honest);
+        put_u32(&mut file, STREAM + 120, size);
+        short.push((format!("a stream of {size} bytes in 16 sectors"), file));
+    }
+    short.push((
+        "a mini stream of 200 bytes in one mini sector".to_owned(),
+        mini(&[END], 200),
+    ));
+    for (what, file) in short {
+        let failure = read(&file).0.unwrap_or_else(|| panic!("{what} reads"));
+        assert!(
+            failure.contains("a stream is longer than its sectors"),
+            "{what}: {failure}"
+        );
+    }
+}
+
+/// A sheet target of `../../x`, `/x`, `C:\x`, `file:///x` or a URL is a name inside the zip
+/// archive. With no such entry, the sheet is listed with no size, its read throws and a template
+/// has no worksheet. `../../x` and `/x` name the archive's own entry `x`.
+#[test]
+fn a_target_outside_the_package_is_never_read() {
+    let inside =
+        sheet(r#"<row r="1"><c r="A1" t="inlineStr"><is><t>Shop inside</t></is></c></row>"#);
+    let external = r#" TargetMode="External""#;
+    for (target, mode) in [
+        ("../../x", ""),
+        ("/x", ""),
+        (r"C:\x", ""),
+        ("file:///x", ""),
+        ("http://x", ""),
+        ("http://example.com/x", external),
+    ] {
+        let book = rels_part(&[relationship("rId1", "worksheet", target, mode)]);
+        let bare = package(&plain_root(), &book, &[]);
+        let (failure, sent) = read(&bare);
+        let failure = failure.unwrap_or_else(|| panic!("{target} reads"));
+        assert!(
+            failure.contains("the sheet `Orders` has no part"),
+            "{target}: {failure}"
+        );
+        assert_eq!(sent, 0, "{target} sent a request");
+        let listed = reader_call(&bare, "readerSheets", Vec::new())
+            .unwrap_or_else(|err| panic!("{target}: the sheets are listed: {err}"));
+        let Value::Array(sheets) = listed else {
+            panic!("{target}: the sheets are a list");
+        };
+        assert_eq!(field_of(&sheets[0].1, "rows"), Value::Null, "{target}");
+        let (failure, sent) = template_open(&bare);
+        let failure = failure.unwrap_or_else(|| panic!("{target} opens as a template"));
+        assert!(
+            failure.contains("it has no worksheet"),
+            "{target}: {failure}"
+        );
+        assert_eq!(sent, 0, "{target} sent a request from a template");
+
+        let with_x = package(&plain_root(), &book, &[("x", &inside)]);
+        if matches!(target, "../../x" | "/x") {
+            let batch = first_batch(&with_x).unwrap_or_else(|err| panic!("{target}: {err}"));
+            assert!(
+                strings_in(&batch).contains(&"Shop inside".to_owned()),
+                "{target}: {batch:?}"
+            );
+        } else {
+            let failure = read(&with_x).0.unwrap_or_else(|| panic!("{target} reads"));
+            assert!(
+                failure.contains("the sheet `Orders` has no part"),
+                "{target}: {failure}"
+            );
+        }
+    }
+}
+
+/// Package and workbook relationships that name each other, a sheet whose relationships name
+/// the sheet and themselves, and a workbook part that is its own relationships part each read
+/// once and end.
+#[test]
+fn a_relationship_cycle_or_self_reference_is_read_once() {
+    let root = rels_part(&[
+        relationship("rId1", "officeDocument", "xl/workbook.xml", ""),
+        relationship("rId2", "custom", "xl/_rels/workbook.xml.rels", ""),
+    ]);
+    let book = rels_part(&[
+        relationship("rId1", "worksheet", "worksheets/sheet1.xml", ""),
+        relationship("rId2", "custom", "../_rels/.rels", ""),
+        relationship("rId3", "custom", "_rels/workbook.xml.rels", ""),
+    ]);
+    let orders_rels = rels_part(&[
+        relationship("rId1", "drawing", "sheet1.xml", ""),
+        relationship("rId2", "hyperlink", "_rels/sheet1.xml.rels", ""),
+        relationship("rId3", "comments", "_rels/sheet1.xml.rels", ""),
+    ]);
+    let orders = br#"<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Shop</t></is></c></row></sheetData><hyperlinks><hyperlink ref="A1" r:id="rId2"/></hyperlinks><drawing r:id="rId1"/></worksheet>"#;
+    let file = package(
+        &root,
+        &book,
+        &[
+            ("xl/worksheets/sheet1.xml", &orders[..]),
+            ("xl/worksheets/_rels/sheet1.xml.rels", &orders_rels),
+        ],
+    );
+    assert_eq!(read(&file).0, None, "a cycle of relationships reads");
+    for method in ["readerLinks", "readerImages", "readerNotes"] {
+        reader_call(&file, method, vec![Value::String("Orders".to_owned())])
+            .unwrap_or_else(|err| panic!("`{method}`: {err}"));
+    }
+    reader_call(&file, "readerSheets", Vec::new())
+        .unwrap_or_else(|err| panic!("`readerSheets`: {err}"));
+    assert_eq!(
+        template_open(&file).0,
+        None,
+        "a cycle of relationships opens"
+    );
+
+    // The package's workbook is `_rels/.rels` itself, which lists no sheet.
+    let own = rels_part(&[relationship("rId1", "officeDocument", "_rels/.rels", "")]);
+    let failure = read(&package(&own, &book, &[]))
+        .0
+        .expect("a workbook with no sheets reads `Orders`");
+    assert!(
+        failure.contains("The workbook has no sheet named `Orders`."),
+        "{failure}"
+    );
+}
+
+/// 100,000 cells, each adding 1 to the cell below it, evaluate to 100,000 in `A1`, or end in a
+/// throw or a limit. A guest crash, or a host stack overflow that ends the test, is the failure.
+#[test]
+fn a_reference_chain_of_a_hundred_thousand_cells_evaluates_or_throws_cleanly() {
+    const CELLS: u32 = 100_000;
+    let mut data = String::new();
+    for row in 1..CELLS {
+        let below = row + 1;
+        data.push_str(&format!(
+            r#"<row r="{row}"><c r="A{row}"><f>A{below}+1</f><v>0</v></c></row>"#
+        ));
+    }
+    data.push_str(&format!(
+        r#"<row r="{CELLS}"><c r="A{CELLS}"><v>1</v></c></row>"#
+    ));
+    let file = xlsx(&sheet(&data), &shared(&[]));
+
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(CAP))));
+    let source = Value::Bytes(file);
+    let result = (|| -> Result<(Value, Value), Failure> {
+        let reader = block_on(request.call_values(
+            &extension,
+            "readerOpen",
+            vec![source.clone(), bound(None, None)],
+        ))?
+        .expect("`readerOpen` returns a reader");
+        let missed = block_on(request.call_values(
+            &extension,
+            "readerEvaluate",
+            vec![reader.clone(), source.clone()],
+        ))?
+        .unwrap_or(Value::Null);
+        let batch = block_on(request.call_values(
+            &extension,
+            "readerRows",
+            vec![
+                reader,
+                source.clone(),
+                rows_options(Value::Null, Value::Uint(1), false),
+                Value::Uint(1),
+            ],
+        ))?
+        .expect("`readerRows` returns a batch");
+        Ok((missed, batch))
+    })();
+    drop(block_on(request.end()));
+
+    match result {
+        Ok((missed, batch)) => {
+            assert_eq!(missed, Value::Array(Vec::new()), "every cell is computed");
+            let Value::Array(rows) = field_of(&batch, "rows") else {
+                panic!("a batch's rows are a list");
+            };
+            let row = &rows.first().expect("row 1 is read").1;
+            assert_eq!(field_of(row, "number"), Value::Uint(1));
+            let Value::Array(cells) = field_of(row, "cells") else {
+                panic!("a row's cells are a list");
+            };
+            let value = field_of(&cells.first().expect("A1 is read").1, "value");
+            assert!(
+                value == shape(vec![("integer", Value::Int(100_000))])
+                    || value == shape(vec![("number", Value::Float(100_000.0))]),
+                "A1 is {value:?}"
+            );
+        }
+        Err(failure) => assert!(
+            !matches!(failure, Failure::Trap(_)),
+            "the chain crashed the guest: {failure}"
+        ),
     }
 }
