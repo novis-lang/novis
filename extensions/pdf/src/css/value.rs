@@ -11,6 +11,8 @@
 //! A colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()`, `hsla()`, a
 //! CSS named colour or `transparent`, and `currentcolor` computes to the element's `color`.
 
+use std::collections::BTreeMap;
+
 use cssparser::{Parser, Token};
 
 use super::properties::{self, Grammar};
@@ -29,6 +31,13 @@ pub struct Color {
 pub struct Length {
     pub pt: f32,
     pub percent: f32,
+}
+
+impl Length {
+    /// Whether the points and the percentage are both finite numbers.
+    pub fn is_finite(self) -> bool {
+        self.pt.is_finite() && self.percent.is_finite()
+    }
 }
 
 /// A computed value.
@@ -81,7 +90,18 @@ impl Sum {
         self.pt < 0.0 || self.em < 0.0 || self.rem < 0.0 || self.percent < 0.0
     }
 
-    /// The computed length against the element's font size and the root's, in points.
+    /// Whether every part is a finite number. `1e39px` reads as infinity in `f32`, and a
+    /// `calc()` can overflow to infinity or reach NaN, so [`length`] takes neither.
+    fn is_finite(self) -> bool {
+        self.pt.is_finite()
+            && self.em.is_finite()
+            && self.rem.is_finite()
+            && self.percent.is_finite()
+    }
+
+    /// The computed length against the element's font size and the root's, in points. Its
+    /// parts can still overflow to infinity here, which the cascade checks with
+    /// [`Length::is_finite`].
     pub fn compute(self, font_size: f32, root_font_size: f32) -> Length {
         Length {
             pt: self.pt + self.em * font_size + self.rem * root_font_size,
@@ -110,7 +130,7 @@ pub enum Comp {
 }
 
 /// The value's top-level components, or `None` when it holds a token no grammar takes: a bare
-/// block or a bad string or URL. Each identifier is lower-cased.
+/// block, a bad string or URL, or a number that is not finite. Each identifier is lower-cased.
 pub fn components(text: &str) -> Option<Vec<Comp>> {
     parse_components(text, true)
 }
@@ -172,6 +192,12 @@ fn parse_components(text: &str, lower: bool) -> Option<Vec<Comp>> {
             Token::Delim(c) => Comp::Delim(c),
             _ => return None,
         };
+        // `1e39px` reads as infinity in `f32`, and no grammar takes a number that is not finite.
+        if let Comp::Dimension(n, _) | Comp::Percentage(n) | Comp::Number(n, _) = comp
+            && !n.is_finite()
+        {
+            return None;
+        }
         out.push(comp);
     }
     Some(out)
@@ -222,19 +248,21 @@ pub fn has_var(text: &str) -> bool {
     walk(&mut parser)
 }
 
-/// `text` with every `var(--name, fallback)` replaced by the custom property's value, or its
-/// fallback when the property is not set. `None` when a name is missing and has no fallback, or
-/// the substitution nests deeper than [`MAX_VAR_DEPTH`], which is how a cycle ends.
-pub fn substitute(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> Option<String> {
-    substitute_at(text, lookup, 0)
+/// `text` with every `var(--name, fallback)` replaced by `resolve(name)`, or by its fallback when
+/// that is `None`. `resolve` returns the property's value with its own `var()`s already
+/// substituted, so its text is copied and never read again. `None` when a name has no value and
+/// no fallback, or fallbacks nest deeper than [`MAX_VAR_DEPTH`].
+pub fn substitute(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>) -> Option<String> {
+    substitute_at(text, resolve, 0)
 }
 
-/// How deep one `var()` may reach through the custom properties it names.
+/// How deep one `var()` may reach through the custom properties it names, and through the
+/// fallbacks nested in it.
 pub const MAX_VAR_DEPTH: usize = 32;
 
 fn substitute_at(
     text: &str,
-    lookup: &dyn Fn(&str) -> Option<String>,
+    resolve: &mut dyn FnMut(&str) -> Option<String>,
     depth: usize,
 ) -> Option<String> {
     if depth > MAX_VAR_DEPTH {
@@ -243,13 +271,57 @@ fn substitute_at(
     let mut parser = Parser::new(text);
     let mut out = String::new();
     let mut ok = true;
-    walk_substitute(&mut parser, lookup, depth, &mut out, &mut ok);
+    walk_substitute(&mut parser, resolve, depth, &mut out, &mut ok);
     ok.then_some(out)
+}
+
+/// Substitutes the `var()`s of the custom properties an element declares, `names`, and returns
+/// each one's value in the same order: `None` when it is invalid.
+///
+/// `declared` gives a property the element declares, as written, and `inherited` the value of
+/// one it does not, already substituted. Each declared property is read and substituted at most
+/// once, and every later `var()` naming it copies that result. So a chain where each property
+/// names the next one twice costs work linear in the chain, and only its text doubles at each
+/// step. A property that its own chain reaches again is a cycle, and invalid, as CSS says.
+pub fn resolve_custom<'a>(
+    names: &[&str],
+    declared: &mut dyn FnMut(&str) -> Option<&'a str>,
+    inherited: &dyn Fn(&str) -> Option<&'a str>,
+) -> Vec<Option<String>> {
+    let mut resolver = Resolver {
+        declared,
+        inherited,
+        done: BTreeMap::new(),
+    };
+    names.iter().map(|name| resolver.resolve(name, 0)).collect()
+}
+
+/// [`resolve_custom`]'s state: each declared property resolved so far, `None` while its own
+/// substitution runs, so a cycle reads `None`.
+struct Resolver<'d, 'a> {
+    declared: &'d mut dyn FnMut(&str) -> Option<&'a str>,
+    inherited: &'d dyn Fn(&str) -> Option<&'a str>,
+    done: BTreeMap<String, Option<String>>,
+}
+
+impl Resolver<'_, '_> {
+    fn resolve(&mut self, name: &str, depth: usize) -> Option<String> {
+        if let Some(value) = self.done.get(name) {
+            return value.clone();
+        }
+        let Some(text) = (self.declared)(name) else {
+            return (self.inherited)(name).map(str::to_owned);
+        };
+        self.done.insert(name.to_owned(), None);
+        let value = substitute_at(text, &mut |next| self.resolve(next, depth + 1), depth);
+        self.done.insert(name.to_owned(), value.clone());
+        value
+    }
 }
 
 fn walk_substitute(
     p: &mut Parser<'_>,
-    lookup: &dyn Fn(&str) -> Option<String>,
+    resolve: &mut dyn FnMut(&str) -> Option<String>,
     depth: usize,
     out: &mut String,
     ok: &mut bool,
@@ -273,8 +345,9 @@ fn walk_substitute(
                     Some((name, fallback)) => (name.trim(), Some(fallback.trim())),
                     None => (args.trim(), None),
                 };
-                let got = lookup(name).or_else(|| fallback.map(str::to_owned));
-                match got.and_then(|value| substitute_at(&value, lookup, depth + 1)) {
+                let got = resolve(name)
+                    .or_else(|| fallback.and_then(|f| substitute_at(f, resolve, depth + 1)));
+                match got {
                     Some(value) => out.push_str(&value),
                     None => *ok = false,
                 }
@@ -290,7 +363,7 @@ fn walk_substitute(
                     _ => ")",
                 };
                 let _ = p.parse_nested_block(|p| {
-                    walk_substitute(p, lookup, depth, out, ok);
+                    walk_substitute(p, resolve, depth, out, ok);
                     Ok::<_, cssparser::ParseError<()>>(())
                 });
                 out.push_str(close);
@@ -926,7 +999,7 @@ fn one(grammar: Grammar, c: &Comp) -> Option<Specified> {
         }),
         Grammar::LineHeight => keyword_of(c, &["normal"])
             .or(match c {
-                Comp::Number(n, _) if *n >= 0.0 => Some(Specified::Number(*n)),
+                Comp::Number(n, _) if *n >= 0.0 && n.is_finite() => Some(Specified::Number(*n)),
                 _ => None,
             })
             .or_else(|| {
@@ -974,7 +1047,8 @@ fn is_calc(c: &Comp) -> bool {
     matches!(c, Comp::Function(name, _) if name == "calc")
 }
 
-/// A plain number, or a `calc()` that evaluates to one.
+/// A plain number, or a `calc()` that evaluates to one. A number that is not finite is not a
+/// number any grammar takes.
 fn number(c: &Comp) -> Option<f32> {
     match c {
         Comp::Number(n, _) => Some(*n),
@@ -984,11 +1058,13 @@ fn number(c: &Comp) -> Option<f32> {
         },
         _ => None,
     }
+    .filter(|n| n.is_finite())
 }
 
-/// A length, a percentage, a unitless zero, or a `calc()` that evaluates to a length.
+/// A length, a percentage, a unitless zero, or a `calc()` that evaluates to a length. A length
+/// with a part that is not finite is not a length.
 pub fn length(c: &Comp) -> Option<Sum> {
-    match c {
+    let sum = match c {
         Comp::Dimension(v, unit) => unit_sum(*v, unit),
         Comp::Percentage(p) => Some(Sum {
             percent: *p,
@@ -1001,7 +1077,8 @@ pub fn length(c: &Comp) -> Option<Sum> {
             Quantity::Number(_) => None,
         },
         _ => None,
-    }
+    }?;
+    sum.is_finite().then_some(sum)
 }
 
 /// `value` in `unit` as a [`Sum`]: the absolute units in points, the relative ones as `em`s and
@@ -1468,9 +1545,9 @@ mod tests {
     #[test]
     fn a_var_inside_calc_is_substituted_in_place() {
         assert!(has_var("calc(var(--gap) + 1pt)"));
-        let lookup = |name: &str| (name == "--gap").then(|| "4pt".to_owned());
+        let mut lookup = |name: &str| (name == "--gap").then(|| "4pt".to_owned());
         assert_eq!(
-            substitute("calc(var(--gap) + 1pt)", &lookup).as_deref(),
+            substitute("calc(var(--gap) + 1pt)", &mut lookup).as_deref(),
             Some("calc(4pt + 1pt)")
         );
     }

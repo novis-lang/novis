@@ -13,7 +13,9 @@
 //!
 //! `size` is `auto`, a named size (`A3`, `A4`, `A5`, `B4`, `B5`, `letter`, `legal`, `ledger`) with
 //! `portrait` or `landscape` or neither, an orientation alone, or one or two positive lengths, the
-//! width first. A `size` that does not read is A4 portrait. A margin's percentage counts against the
+//! width first. A `size` that does not read, such as a length that overflows to infinity, is
+//! dropped and reported by the cascade ([`read_size`]), and the page keeps the size an earlier rule
+//! gave it, or A4 portrait. A margin's percentage counts against the
 //! page's width for `margin-left` and `margin-right` and against its height for the other two, and
 //! `auto` is 0.
 //!
@@ -209,7 +211,7 @@ pub fn margin_rule(side: &'static str, text: &str) -> Option<PageRule> {
     let [one] = components(text)?.try_into().ok()?;
     let sum = length(&one)?;
     let computed = sum.compute(DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE);
-    (computed.pt >= 0.0 && computed.percent >= 0.0).then(|| PageRule {
+    (computed.is_finite() && computed.pt >= 0.0 && computed.percent >= 0.0).then(|| PageRule {
         selector: String::new(),
         values: vec![(side, Value::Length(computed))],
         boxes: Vec::new(),
@@ -446,33 +448,37 @@ fn named(name: &str) -> Option<(f32, f32)> {
 
 /// The page's width and height in points from its `size`.
 fn size(value: Option<&Value>) -> (f32, f32) {
+    match value {
+        Some(Value::Text(text)) => read_size(text).unwrap_or((PAGE_WIDTH, PAGE_HEIGHT)),
+        _ => (PAGE_WIDTH, PAGE_HEIGHT),
+    }
+}
+
+/// The width and height in points a `size` value gives, or `None` when it does not read. A
+/// length must be more than 0 and finite after it is computed. The cascade drops and reports
+/// a `size` this returns `None` for.
+pub fn read_size(text: &str) -> Option<(f32, f32)> {
     let a4 = (PAGE_WIDTH, PAGE_HEIGHT);
-    let Some(Value::Text(text)) = value else {
-        return a4;
-    };
     let mut paper = None;
     let mut landscape = None;
     let mut lengths = Vec::new();
-    for comp in components(text).unwrap_or_default() {
+    for comp in components(text)? {
         match &comp {
             Comp::Ident(word) => match word.as_str() {
                 "auto" => {}
                 "portrait" => landscape = Some(false),
                 "landscape" => landscape = Some(true),
-                name => match named(name) {
-                    Some((w, h)) => paper = Some((w * 72.0 / 25.4, h * 72.0 / 25.4)),
-                    None => return a4,
-                },
+                name => paper = Some(named(name).map(|(w, h)| (w * 72.0 / 25.4, h * 72.0 / 25.4))?),
             },
             other => match length(other) {
                 Some(sum) if sum.percent == 0.0 => {
                     let pt = sum.compute(DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE).pt;
-                    if pt <= 0.0 {
-                        return a4;
+                    if !(pt > 0.0 && pt.is_finite()) {
+                        return None;
                     }
                     lengths.push(pt);
                 }
-                _ => return a4,
+                _ => return None,
             },
         }
     }
@@ -480,11 +486,11 @@ fn size(value: Option<&Value>) -> (f32, f32) {
         [] => paper.unwrap_or(a4),
         [side] if paper.is_none() && landscape.is_none() => (side, side),
         [width, height] if paper.is_none() && landscape.is_none() => (width, height),
-        _ => return a4,
+        _ => return None,
     };
-    match landscape {
+    Some(match landscape {
         Some(true) => (width.max(height), width.min(height)),
         Some(false) => (width.min(height), width.max(height)),
         None => (width, height),
-    }
+    })
 }

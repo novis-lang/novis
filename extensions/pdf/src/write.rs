@@ -2,7 +2,7 @@
 //!
 //! Each page has the size its `@page` rules give, and each glyph run is drawn in its colour and
 //! its face, a default or an `@font-face` font, which `krilla` subsets to the glyphs the document
-//! draws. Each path is filled with the even-odd rule or stroked, in a colour, a gradient or an
+//! draws. A run of size 0 is not drawn and is not in the tag tree. Each path is filled with the even-odd rule or stroked, in a colour, a gradient or an
 //! image's tiles, and each image is drawn at its box. A group is a clip path, an opacity or both,
 //! pushed at its start and popped at its end.
 //!
@@ -510,6 +510,10 @@ pub fn write(
                     text,
                     ..
                 } => {
+                    // A run of size 0 draws nothing, and its glyphs' advances divide by the size.
+                    if !(*size > 0.0 && size.is_finite()) {
+                        continue;
+                    }
                     let font = match &faces[*face] {
                         Some(font) => font.clone(),
                         None => {

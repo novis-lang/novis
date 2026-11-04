@@ -26,7 +26,9 @@ in the dropped list, and a clean fixture whose three lists are empty.
 **On disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
 drops with its selector and position, and each element the subset does not render as `<name>` at its
 start tag, and `Rendered::missingGlyphs` lists each character no font has
-(`extensions/pdf/tests/layout.rs`). `Rendered::overflows` lists margin, header, footer and slot
+(`extensions/pdf/tests/layout.rs`). A length, a number or a page `size` that is not finite, as
+written or once computed, is dropped and listed like any value its property does not take, and a
+`var()` chain resolves each custom property once per element (`extensions/pdf/tests/hostile_input.rs`). `Rendered::overflows` lists margin, header, footer and slot
 markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). A `data-mark`, a `string-set`, a
 running element and an `id` inside a table cell, an inline-block, a float or a flex item are on the
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of

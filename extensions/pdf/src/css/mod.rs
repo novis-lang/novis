@@ -8,7 +8,9 @@
 //! and `@font-face` are kept for the stages that lay pages out and load fonts, with `@page`'s
 //! margin boxes beside its declarations. Any other at-rule, a selector outside the subset, a
 //! property outside it, and a value its property does not take are dropped and reported in
-//! [`Styles::dropped`] with the selector and the source position, never guessed at.
+//! [`Styles::dropped`] with the selector and the source position, never guessed at. A number that
+//! is not finite is a value no property takes, read as written or computed: `1e39px`, a `calc()`
+//! that overflows, or a font size that nested `em`s grow past the largest `f32`.
 //!
 //! [`USER_AGENT`] is read before the document's sheets and sorts below every one of them: it gives
 //! HTML's elements their `display`, their default margins and their fonts. An element the subset
@@ -876,16 +878,21 @@ impl<'r> Cascade<'_, 'r> {
             .map(|(_, d)| *d)
             .collect();
         if !declared.is_empty() {
-            let mut map = (*custom).clone();
+            // The last declaration of each name wins, as `matched` is in cascade order.
+            let mut raw: BTreeMap<&str, &str> = BTreeMap::new();
             for decl in &declared {
-                map.insert(decl.property.clone(), decl.value.clone());
+                raw.insert(decl.property.as_str(), decl.value.as_str());
             }
-            let raw = map.clone();
-            for decl in &declared {
-                let lookup = |name: &str| raw.get(name).cloned();
-                match value::substitute(&decl.value, &lookup) {
-                    Some(resolved) => map.insert(decl.property.clone(), resolved),
-                    None => map.remove(&decl.property),
+            let names: Vec<&str> = raw.keys().copied().collect();
+            let resolved =
+                value::resolve_custom(&names, &mut |name| raw.get(name).copied(), &|name| {
+                    custom.get(name).map(String::as_str)
+                });
+            let mut map = (*custom).clone();
+            for (name, value) in names.iter().zip(resolved) {
+                match value {
+                    Some(value) => map.insert((*name).to_owned(), value),
+                    None => map.remove(*name),
                 };
             }
             custom = Rc::new(map);
@@ -899,13 +906,13 @@ impl<'r> Cascade<'_, 'r> {
             }
         }
         let mut expanded: BTreeMap<usize, Option<Vec<(&'static str, Specified)>>> = BTreeMap::new();
-        let mut specified: BTreeMap<&'static str, Specified> = BTreeMap::new();
+        // Each longhand's specified value, and the index in `matched` of the declaration it came from.
+        let mut specified: BTreeMap<&'static str, (Specified, usize)> = BTreeMap::new();
         for (&longhand, &index) in &winners {
             let (key, decl) = &matched[index];
             let values = expanded.entry(index).or_insert_with(|| {
                 let text = if decl.has_var {
-                    let lookup = |name: &str| custom.get(name).cloned();
-                    value::substitute(&decl.value, &lookup)
+                    value::substitute(&decl.value, &mut |name| custom.get(name).cloned())
                 } else {
                     Some(decl.value.clone())
                 };
@@ -914,7 +921,7 @@ impl<'r> Cascade<'_, 'r> {
             match values {
                 Some(values) => {
                     if let Some((_, v)) = values.iter().find(|(name, _)| *name == longhand) {
-                        specified.insert(longhand, v.clone());
+                        specified.insert(longhand, (v.clone(), index));
                     }
                 }
                 None => {
@@ -936,22 +943,38 @@ impl<'r> Cascade<'_, 'r> {
                 style.values.insert(p.name, v.clone());
             }
         }
+        // `font-size` first, since every other `em` counts in it, then `color` for `currentcolor`.
         let parent_size = parent.font_size();
-        if let Some(size) = specified.remove("font-size") {
-            self.apply(&mut style, parent, "font-size", size, parent_size);
-        }
-        let font_size = style.font_size();
-        if let Some(color) = specified.remove("color") {
-            self.apply(&mut style, parent, "color", color, font_size);
-        }
-        for (name, v) in specified {
-            self.apply(&mut style, parent, name, v, font_size);
+        let font_size = specified.remove("font-size");
+        let color = specified.remove("color");
+        let ordered = font_size
+            .map(|v| ("font-size", v))
+            .into_iter()
+            .chain(color.map(|v| ("color", v)))
+            .chain(specified);
+        for (name, (v, index)) in ordered {
+            let size = if name == "font-size" {
+                parent_size
+            } else {
+                style.font_size()
+            };
+            if !self.apply(&mut style, parent, name, v, size) {
+                let (key, decl) = &matched[index];
+                let selector = selector_of(key);
+                let decl: &Decl = decl;
+                self.report(decl, &selector);
+            }
         }
         style
     }
 
     /// Sets the longhand `name` in `style` from its specified value. `size` is the font size
     /// its `em`s count in: the parent's for `font-size`, the element's own for the rest.
+    ///
+    /// `false`, with `style` unchanged, when the computed value has a number that is not
+    /// finite: a length in `em`s that overflows, or a font size that grows past `f32` through
+    /// nested `em`s. The value is invalid, and the caller reports it.
+    #[must_use]
     fn apply(
         &self,
         style: &mut Style,
@@ -959,7 +982,7 @@ impl<'r> Cascade<'_, 'r> {
         name: &'static str,
         v: Specified,
         size: f32,
-    ) {
+    ) -> bool {
         let inherited = properties::property(name).is_some_and(|p| p.inherited);
         let computed = match v {
             Specified::Wide(word) => match word.as_str() {
@@ -1025,10 +1048,20 @@ impl<'r> Cascade<'_, 'r> {
             Specified::Function(f, args) => Some(Value::Function(f, args)),
             Specified::Text(t) => Some(Value::Text(t)),
         };
+        let finite = match &computed {
+            Some(Value::Length(l)) => l.is_finite(),
+            Some(Value::Pair(a, b)) => a.is_finite() && b.is_finite(),
+            Some(Value::Number(n)) => n.is_finite(),
+            _ => true,
+        };
+        if !finite {
+            return false;
+        }
         match computed {
             Some(v) => style.values.insert(name, v),
             None => style.values.remove(name),
         };
+        true
     }
 
     /// An `@page` rule's or a margin box's declarations, computed against the root's custom
@@ -1050,17 +1083,35 @@ impl<'r> Cascade<'_, 'r> {
         let mut order: Vec<&'static str> = Vec::new();
         for decl in sorted {
             let text = if decl.has_var {
-                let lookup = |name: &str| root.custom.get(name).cloned();
-                value::substitute(&decl.value, &lookup)
+                value::substitute(&decl.value, &mut |name| root.custom.get(name).cloned())
             } else {
                 Some(decl.value.clone())
             };
-            match text.and_then(|text| value::expand(&decl.property, &text)) {
+            // A `size` the page cannot take is dropped here, so the page keeps the size an earlier
+            // rule gave it, or A4, and the list names the declaration.
+            let values = text
+                .and_then(|text| value::expand(&decl.property, &text))
+                .filter(|values| {
+                    values.iter().all(|(name, v)| match (*name, v) {
+                        ("size", Specified::Text(text)) => {
+                            crate::paginate::read_size(text).is_some()
+                        }
+                        _ => true,
+                    })
+                });
+            match values {
                 Some(values) => {
+                    let mut applied = true;
                     for (name, v) in values {
-                        self.apply(&mut style, &page, name, v, DEFAULT_FONT_SIZE);
-                        order.retain(|n| *n != name);
-                        order.push(name);
+                        if self.apply(&mut style, &page, name, v, DEFAULT_FONT_SIZE) {
+                            order.retain(|n| *n != name);
+                            order.push(name);
+                        } else {
+                            applied = false;
+                        }
+                    }
+                    if !applied {
+                        self.report(decl, selector);
                     }
                 }
                 None => self.report(decl, selector),
