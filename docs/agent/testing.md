@@ -25,9 +25,9 @@ CI runs each test on Linux, macOS, aarch64 and a fresh Windows runner, under loa
 its binary's tests. A test that passes here and fails there costs a CI round of an hour or two. Each
 rule below is a failure CI found that the dev machine could not.
 
-- **A test waits for an event, never for a span of time.** Count the frames, calls or lines it expects,
-  or wait on the signal that says the other side is ready. A bound it still needs gets ten times the
-  time it takes here: a 20 ms window failed on aarch64, and again on Windows.
+- **A test holds at any speed.** It waits for an event, never for a span of time, and judges time only
+  by the four patterns of `rule:testing/a-test-holds-at-any-speed`. A time bound is dropped only where
+  the path has a bench or a counted cost guard.
 - **A test sets the process-wide state it reads.** A drain bit, an environment variable, a current
   directory, a global counter: the neighbouring test in the same binary changes it between two reads.
   Begin the state inside the test, or hold the lock that test also takes.

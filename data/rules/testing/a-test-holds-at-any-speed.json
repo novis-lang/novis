@@ -1,0 +1,14 @@
+{
+  "title": "A test holds at any speed: it checks the order of events, two readings of one clock, a clock it controls, or a bound measured in the same run",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/runner-is-strict",
+    "testing/perf-two-mechanisms",
+    "testing/task-tree-and-virtual-clock",
+    "errors/on-limit"
+  ],
+  "guardedBy": [
+    "tools/nv/proofs/run.ts",
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

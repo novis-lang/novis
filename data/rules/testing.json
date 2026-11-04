@@ -73,6 +73,7 @@
     "testing/a-recorded-request-becomes-a-test",
     "testing/bench-counters",
     "testing/perf-two-mechanisms",
+    "testing/a-test-holds-at-any-speed",
     "testing/member-perf-ledger",
     "testing/valgrind-on-wsl",
     "testing/ci-lanes",
