@@ -5680,7 +5680,8 @@ mod tests {
     }
 
     /// `Core\Time::sleep` for `nanos`, called the way a compiled call site
-    /// calls it with no host on the thread. It answers how long the call took.
+    /// calls it, on whatever host the thread has. It answers how long the call
+    /// took.
     fn slept(nanos: i64) -> std::time::Duration {
         let mut ctx = Ctx::buffered();
         let args = [built(nanos)];
@@ -5702,20 +5703,81 @@ mod tests {
         took
     }
 
-    /// `sleep` returns at once for zero and every negative duration, down to
+    thread_local! {
+        /// How many waits [`CountsWaits`] was asked for on this thread. A host
+        /// is installed per thread, so tests running at the same time do not mix.
+        static WAITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// A host that counts every sleep and park and returns at once, so a test
+    /// can tell whether `sleep` entered a wait at all.
+    #[derive(Debug)]
+    struct CountsWaits;
+
+    static COUNTS_WAITS: CountsWaits = CountsWaits;
+
+    impl nvs_runtime::host::Host for CountsWaits {
+        fn run_group(
+            &self,
+            _ctx: &mut Ctx,
+            _jobs: Vec<nvs_runtime::host::Job>,
+            _bounds: nvs_runtime::host::Bounds,
+        ) -> nvs_runtime::host::Outcome {
+            unreachable!("`sleep` runs no group")
+        }
+
+        fn sleep(&self, _duration: std::time::Duration) -> Woken {
+            WAITS.with(|waits| waits.set(waits.get() + 1));
+            Woken::Elapsed
+        }
+
+        fn waker(&self) -> Option<nvs_runtime::host::Waker> {
+            None
+        }
+
+        fn park(&self, _deadline: Option<std::time::Instant>) -> Woken {
+            WAITS.with(|waits| waits.set(waits.get() + 1));
+            Woken::Elapsed
+        }
+
+        fn yield_slice(&self) -> Woken {
+            Woken::Elapsed
+        }
+
+        fn start_isolate(
+            &self,
+            _ctx: &mut Ctx,
+            _entry: nvs_runtime::host::Entry,
+            _args: Value,
+            _output: nvs_runtime::host::Output,
+            _placement: nvs_runtime::host::Placement,
+            _narrowing: nvs_runtime::host::Narrowing,
+        ) -> Result<Box<dyn nvs_runtime::host::Running>, nvs_runtime::host::StartError> {
+            unreachable!("`sleep` starts no isolate")
+        }
+    }
+
+    /// `sleep` enters no wait for zero and every negative duration, down to
     /// the most negative one, and a positive one is never short.
+    ///
+    /// The zero and negative cases are counted, not timed: the host counts
+    /// each wait it is asked for, and those cases ask for none. Their cost is
+    /// measured by the `Core\Time::sleep` member bench.
     // covers: Core\Time::sleep
     #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn sleep_returns_at_once_at_or_below_zero_and_waits_above_it() {
-        let at_once: std::time::Duration = [0, -1, -1_000_000_000, i64::MIN]
-            .into_iter()
-            .map(slept)
-            .sum();
-        assert!(
-            at_once < std::time::Duration::from_millis(100),
-            "{at_once:?}"
-        );
+        {
+            let _installed = nvs_runtime::host::install(&COUNTS_WAITS);
+            for nanos in [0, -1, -1_000_000_000, i64::MIN] {
+                slept(nanos);
+                assert_eq!(WAITS.with(std::cell::Cell::get), 0, "{nanos} ns waited");
+            }
+            // A positive duration reaches the same host, so the count above
+            // would have seen a wait.
+            slept(1);
+            assert_eq!(WAITS.with(std::cell::Cell::get), 1, "1 ns did not wait");
+        }
         for nanos in [1, 2_000_000] {
             let took = slept(nanos);
             assert!(

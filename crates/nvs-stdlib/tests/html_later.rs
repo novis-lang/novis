@@ -19,6 +19,8 @@ thread_local! {
     static INNER: Cell<Value> = const { Cell::new(Value::null()) };
     /// What happened, in order, for the after-response case.
     static ORDER: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    /// When each slow slot began and ended its sleep, in order, for the concurrency case.
+    static SPANS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
     /// Each context's memory ceiling and request tree, as the limits case saw them.
     static LIMITS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
 }
@@ -116,16 +118,24 @@ slot_fn!(echoes_comments, |ctx| {
     Ok(Value::null())
 });
 
+fn span(event: &'static str) {
+    SPANS.with(|spans| spans.borrow_mut().push(event));
+}
+
 slot_fn!(slow_a, |ctx| {
     ran();
+    span("a began");
     sleep(ctx, Duration::from_millis(150))?;
+    span("a ended");
     ctx.write_output(b"A").expect("a buffer");
     Ok(Value::null())
 });
 
 slot_fn!(slow_b, |ctx| {
     ran();
+    span("b began");
     sleep(ctx, Duration::from_millis(150))?;
+    span("b ended");
     ctx.write_output(b"B").expect("a buffer");
     Ok(Value::null())
 });
@@ -349,9 +359,22 @@ fn later_callables_run_concurrently_and_the_page_waits_for_the_slowest() {
         "A-B",
         "the page went out before both slots were filled"
     );
+    // Both slots began before either ended, so their sleeps overlapped.
+    let spans = SPANS.with(|spans| spans.borrow().clone());
+    let at = |event: &str| {
+        spans
+            .iter()
+            .position(|seen| *seen == event)
+            .unwrap_or_else(|| panic!("`{event}` never happened: {spans:?}"))
+    };
     assert!(
-        took < Duration::from_millis(280),
-        "two 150 ms slots took {took:?}, so they did not run at the same time"
+        at("a began") < at("b ended") && at("b began") < at("a ended"),
+        "one slot ended before the other began, so they did not run at the same time: {spans:?}"
+    );
+    // A hang guard only, as large as the hostile timeout.
+    assert!(
+        took < Duration::from_secs(10),
+        "two 150 ms slots took {took:?}"
     );
 }
 
@@ -400,8 +423,10 @@ fn a_later_past_its_deadline_fills_its_slot_with_its_error_fragment() {
     });
     assert!(done.ok, "a slot's deadline failed the whole page");
     assert_eq!(body(&done), "timed out");
+    // A hang guard only, as large as the hostile timeout. The slot's own sleep is 5 s,
+    // so the fragment `timed out` above is what shows the deadline stopped it.
     assert!(
-        began.elapsed() < Duration::from_secs(2),
+        began.elapsed() < Duration::from_secs(10),
         "the deadline did not stop the slot"
     );
 }
