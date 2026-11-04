@@ -3934,10 +3934,10 @@
   },
   "/reference/core/csv/format/": {
     "feature": "Core\\Csv::format",
-    "hash": "3af1878227156460",
+    "hash": "61b2d0351fca655e",
     "questions": [
       "How do I write an array of rows as CSV?",
-      "Export data to a CSV string",
+      "Write CSV with CRLF line endings",
       "Create a CSV file with a header row",
       "Turn rows into text a spreadsheet can open",
       "Quote fields with commas when writing CSV",
@@ -9646,7 +9646,7 @@
   },
   "/reference/core/novis-spreadsheet-cell/of/": {
     "feature": "Novis\\Spreadsheet\\Cell::of",
-    "hash": "98ea2eee99239b10",
+    "hash": "d7fff88ba35be108",
     "questions": [
       "Make a total red in an Excel file",
       "Highlight a name in a spreadsheet row",
@@ -9790,7 +9790,7 @@
   },
   "/reference/core/novis-spreadsheet-export/bytes/": {
     "feature": "Novis\\Spreadsheet\\Export::bytes",
-    "hash": "7fc532e8f3805b2b",
+    "hash": "869ce927a57ffc52",
     "questions": [
       "Get an Excel file as bytes",
       "Attach a spreadsheet to an email",
@@ -9822,7 +9822,7 @@
   },
   "/reference/core/novis-spreadsheet-export/save/": {
     "feature": "Novis\\Spreadsheet\\Export::save",
-    "hash": "756d197db1b09c8f",
+    "hash": "9c8733495654a91e",
     "questions": [
       "Save a spreadsheet to a file path",
       "Write an xlsx file to disk",
@@ -9833,7 +9833,7 @@
   },
   "/reference/core/novis-spreadsheet-export/to/": {
     "feature": "Novis\\Spreadsheet\\Export::to",
-    "hash": "5dbb1dbf362ae6dd",
+    "hash": "224eb98f9bb10c58",
     "questions": [
       "Write a spreadsheet to an open file",
       "Export into a file I already opened",
@@ -9863,7 +9863,7 @@
   },
   "/reference/core/novis-spreadsheet-formula/of/": {
     "feature": "Novis\\Spreadsheet\\Formula::of",
-    "hash": "68f99641f618ba98",
+    "hash": "5bfb509124b721e2",
     "questions": [
       "Add a SUM formula to an Excel cell",
       "Can user text run as a formula?",
@@ -9885,13 +9885,14 @@
   },
   "/reference/core/novis-spreadsheet-reader/evaluate/": {
     "feature": "Novis\\Spreadsheet\\Reader::evaluate",
-    "hash": "98b5f4e9a5f74c3e",
+    "hash": "2eccd3d8f8212c83",
     "questions": [
       "Compute the formulas of an uploaded Excel file",
       "Check that the saved totals of a report are right",
       "Which formula cells could not be computed?",
       "Does reading a spreadsheet run its formulas?",
-      "Why is TODAY not computed?"
+      "Why is TODAY not computed?",
+      "A formula uses a number or date saved as text"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/images/": {
@@ -9962,14 +9963,14 @@
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "7b10402ce6c5ee6f",
+    "hash": "f160b6dc1e7bd452",
     "questions": [
       "Open an uploaded spreadsheet",
-      "Read a CSV file as a spreadsheet",
-      "Catch the error of a damaged Excel file",
+      "Read a CSV file that starts with a sep= line",
+      "Catch the error of a damaged or non-spreadsheet file",
       "Is the file type found from the name or the bytes?",
       "Read a CSV file with semicolons in Windows-1252",
-      "What happens when the uploaded file is not a spreadsheet?"
+      "Open an Excel file that is protected with a password"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/properties/": {
@@ -9997,12 +9998,12 @@
   },
   "/reference/core/novis-spreadsheet-reader/sheets/": {
     "feature": "Novis\\Spreadsheet\\Reader::sheets",
-    "hash": "596453d03bab3022",
+    "hash": "1cc3e0c026d8752f",
     "questions": [
       "List the sheets of a workbook",
       "Find hidden sheets in an Excel file",
-      "What is a very hidden sheet?",
       "Read every sheet one after another",
+      "Why are the rows and columns of a sheet null?",
       "Is it a chart sheet or a worksheet?",
       "Get the number of rows and columns of a sheet"
     ]
@@ -10051,7 +10052,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/add/": {
     "feature": "Novis\\Spreadsheet\\Sheet::add",
-    "hash": "2fd7875f3311a876",
+    "hash": "b87ede64094bf5dc",
     "questions": [
       "Add one row to an Excel sheet",
       "Set the height of a row",
@@ -10063,7 +10064,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addall/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addAll",
-    "hash": "d65592e63d7f83bd",
+    "hash": "f74aa6815f97a091",
     "questions": [
       "Add many rows to a sheet at once",
       "Write rows from a generator",
@@ -10138,13 +10139,14 @@
   },
   "/reference/core/novis-spreadsheet-sheet/image/": {
     "feature": "Novis\\Spreadsheet\\Sheet::image",
-    "hash": "278df534155711b3",
+    "hash": "9dfd3285990a71fa",
     "questions": [
       "Put a logo at the top of an Excel report",
       "Add a picture for each product",
       "Which image formats can a sheet contain?",
       "Move an image inside a cell with an offset",
-      "What happens when an uploaded file is not an image?"
+      "What happens when an uploaded file is not an image?",
+      "Does the same image added twice make the file bigger?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/link/": {
@@ -10210,13 +10212,14 @@
   },
   "/reference/core/novis-spreadsheet-sheet/validate/": {
     "feature": "Novis\\Spreadsheet\\Sheet::validate",
-    "hash": "233040f79fe5858e",
+    "hash": "304813bc4c457391",
     "questions": [
-      "Limit a cell to a list of choices",
+      "Limit a whole column to a list of choices",
       "Allow only whole numbers between two limits",
       "Show a message when a cell is selected",
       "Data validation in an Excel export",
-      "Error message for a wrong value in Excel"
+      "Error message for a wrong value in Excel",
+      "Can a choice in a dropdown list contain a comma?"
     ]
   },
   "/reference/core/novis-spreadsheet-style/": {
@@ -10262,14 +10265,14 @@
   },
   "/reference/core/novis-spreadsheet-template/fill/": {
     "feature": "Novis\\Spreadsheet\\Template::fill",
-    "hash": "3638b22dd3ef5e5b",
+    "hash": "25e56a04b848b1e3",
     "questions": [
       "Fill placeholders with my data",
       "Repeat a row for each item in a list",
       "Does SUM grow when rows are added?",
       "Error for a missing placeholder",
       "Fill values from nested arrays",
-      "Fill a list on each of two sheets"
+      "Does a filled template keep its macros?"
     ]
   },
   "/reference/core/novis-spreadsheet-template/open/": {
@@ -10317,11 +10320,11 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "0ba11c7b123bcc5b",
+    "hash": "131075cdfdbbed19",
     "questions": [
       "Write an Excel file to a path row by row",
-      "Replace an existing spreadsheet file",
-      "Save two sheets with the summary first",
+      "Is the old file kept when writing the new one fails?",
+      "Why does my CSV export start with a byte order mark?",
       "Permission needed to write a spreadsheet file",
       "Save a CSV file with semicolons for Excel in Europe",
       "Save an ods file to a path"
@@ -10329,7 +10332,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforstream/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForStream",
-    "hash": "d21c29670c5d1683",
+    "hash": "4a0bab2c705ebf55",
     "questions": [
       "Stream rows into a file I opened myself",
       "Write two exports into one file",
@@ -10339,7 +10342,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createinmemory/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createInMemory",
-    "hash": "694787978ca1d4c7",
+    "hash": "b38ca94fd36123e0",
     "questions": [
       "Make an Excel file in memory",
       "Build a CSV in memory and get the bytes",
@@ -10371,7 +10374,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "2d752596c3b7dad3",
+    "hash": "313deb25997256ce",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -10383,7 +10386,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/sheet/": {
     "feature": "Novis\\Spreadsheet\\Workbook::sheet",
-    "hash": "882fda3b78ec4a80",
+    "hash": "5051e4e4f5875b77",
     "questions": [
       "Add a second sheet to a workbook",
       "Rules for sheet names",
