@@ -22,7 +22,7 @@ stages:
     context: [extensions/spreadsheet/src/cells.rs, extensions/spreadsheet/src/xml.rs, extensions/spreadsheet/src/writer.rs, extensions/spreadsheet/src/table.rs, extensions/spreadsheet/src/tail.rs, extensions/spreadsheet/nvs/Workbook.nvs, crates/nvs-stdlib/src/csv.rs, extensions/spreadsheet/tests/write.rs]
   - id: 5
     title: "a template fill moves every part that points at a row, and the evaluator reads escaped table columns, 1904 date text and locale text"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/template/mod.rs, extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/eval/parse.rs, extensions/spreadsheet/src/eval/value.rs, extensions/spreadsheet/src/eval/mod.rs, extensions/spreadsheet/tests/template.rs, extensions/spreadsheet/tests/evaluate.rs, docs/rules/core-classes/spreadsheet-template-fill.md]
   - id: 6
     title: "the hostile and reading classes the engine already handles are pinned by tests"
@@ -287,7 +287,7 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 32. **The Spreadsheet CSV export writes a UTF-8 byte order mark and CRLF record ends (RFC 4180)**, because its reader is a spreadsheet program. `Core\Csv`'s own defaults stay LF with no BOM.
 33. **CRLF comes from a new `Core\Csv::format` option, `lineEnd` (`"\n"` by default, or `"\r\n"`).** Rewriting LF after formatting would change line breaks inside quoted fields, and formatting one record per call costs a call per row; the option costs nothing where it is unused.
 34. **A template fill moves notes (`ref`, VML `x:Row` and `x:Anchor`), page breaks (`<brk id>`), hyperlink `location`, threaded comments and pivot table and cache references with their rows.**
-35. **A shared-formula group that crosses the repeated block is un-shared**: each follower is written with its own formula text.
+35. **A shared-formula group that crosses the repeated block is un-shared**: each follower is written with its own formula text. The test is per follower (`template::unshared`): a follower that moved by other rows than the group's first cell, or that the first cell moved as Excel moves it would give other references than its own moved text, is written `<f>own</f>`. A sheet that streams writes the first cell's `ref` before the move is known, so only followers that keep their offset stay shared, inside it. Cost: two moves of the first cell's text per follower, on a sheet with moves.
 36. **A filled template always sets `fullCalcOnLoad="1"`**, even where the template set `"0"`.
 37. **The template shifter never shifts an external reference (`[1]Shop!A5`) and accepts column letters in either case.**
 38. **A structured-reference item tests `#` before it reads `'` escapes**, so a column named `#Orders` is found.
@@ -503,34 +503,34 @@ files) and one conformance case.
 **Does:** fixes the template-fill and evaluator findings (decisions 34 to 40), with tests appended to
 `extensions/spreadsheet/tests/template.rs` and `extensions/spreadsheet/tests/evaluate.rs`.
 
-- [ ] TP-02: a fill does not move notes (`comments*.xml` `ref`, VML `x:Row` and `x:Anchor`), page
+- [x] TP-02: a fill does not move notes (`comments*.xml` `ref`, VML `x:Row` and `x:Anchor`), page
   breaks, hyperlink `location`, threaded comments or pivot table and cache references (decision 34).
   `extensions/spreadsheet/src/template/mod.rs:374`, `extensions/spreadsheet/src/template/mod.rs:1041`
-- [ ] TP-05: a shared-formula group spanning the repeated block gives wrong references for followers
+- [x] TP-05: a shared-formula group spanning the repeated block gives wrong references for followers
   below it (decision 35). `extensions/spreadsheet/src/template/mod.rs:1470`
-- [ ] TP-08: an explicit `fullCalcOnLoad="0"` is kept (decision 36).
+- [x] TP-08: an explicit `fullCalcOnLoad="0"` is kept (decision 36).
   `extensions/spreadsheet/src/template/mod.rs:500`
-- [ ] FP-08: the shifter reads `[1]Shop!A5` as local `Shop!A5` and shifts it; and it accepts only
+- [x] FP-08: the shifter reads `[1]Shop!A5` as local `Shop!A5` and shifts it; and it accepts only
   upper-case column letters, so `a5` is not shifted (decision 37).
   `extensions/spreadsheet/src/template/shift.rs:138`, `extensions/spreadsheet/src/template/shift.rs:50`
-- [ ] FP-06: a structured-reference column named `#Orders` (stored `'#Orders`) fails as an item
+- [x] FP-06: a structured-reference column named `#Orders` (stored `'#Orders`) fails as an item
   (decision 38). `extensions/spreadsheet/src/eval/parse.rs:848`
-- [ ] `iso_day` counts from 1900, so `="2024-01-15"+0` in a 1904 workbook is wrong (decision 39).
+- [x] `iso_day` counts from 1900, so `="2024-01-15"+0` in a 1904 workbook is wrong (decision 39).
   `extensions/spreadsheet/src/eval/value.rs:200`
-- [ ] FE-03, FE-04: `"$1"`, `"1,000"` and `"1/15/2024"` give `#VALUE!` in arithmetic and match nothing
+- [x] FE-03, FE-04: `"$1"`, `"1,000"` and `"1/15/2024"` give `#VALUE!` in arithmetic and match nothing
   as a criterion, with no miss listed (decision 40). The miss needs a kind of its own: add it to
   `Kind` and to `missed-info` at `wit/spreadsheet.wit:602` and on the Novis side.
   `extensions/spreadsheet/src/eval/value.rs:157`, `extensions/spreadsheet/src/eval/mod.rs:46`
-- [ ] The rules and pages a user reads say it: what a fill moves and that it always recalculates
+- [x] The rules and pages a user reads say it: what a fill moves and that it always recalculates
   (`docs/rules/core-classes/spreadsheet-template-fill.md:1`,
   `docs/examples/novis/Spreadsheet-Template/fill/about.md:1`), and the new miss kind
   (`docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:1`,
   `docs/examples/novis/Spreadsheet-Reader/evaluate/about.md:1`). Then `bun nv rules --render` and
   `bun nv rules --check`.
-- [ ] Write the six tests the `formulas-and-fill` check names for template fill.
+- [x] Write the six tests the `formulas-and-fill` check names for template fill.
   `extensions/spreadsheet/tests/template.rs:870`
-- [ ] Write the three tests it names for the evaluator. `extensions/spreadsheet/tests/evaluate.rs:685`
-- [ ] Run the `formulas-and-fill` check's command once: green.
+- [x] Write the three tests it names for the evaluator. `extensions/spreadsheet/tests/evaluate.rs:685`
+- [x] Run the `formulas-and-fill` check's command once: green.
 
 ### 6. the hostile and reading classes the engine already handles are pinned by tests
 
@@ -589,13 +589,13 @@ writes the Declined entries, then builds and runs both checks once all end.
 - [ ] `extensions/spreadsheet/tests/format.rs:265`, four tests: NF-01 `[RED]`, `GENERAL` and
   `[<=9999999]###-####;(###) ###-####`; NF-03 `?/0`; NF-06 `[$-F800]`; NF-07 a 50,000-character code
   in linear time (decision 41).
-- [ ] `extensions/spreadsheet/tests/evaluate.rs:685`, twelve tests: FP-01 apostrophe, `!` and
+- [ ] `extensions/spreadsheet/tests/evaluate.rs:784`, twelve tests: FP-01 apostrophe, `!` and
   non-Latin sheet names; FP-02 `Sheet!$B:$B` and `A1:B2:C3`; FP-04 `SUM(1,)` and `IF` with an empty
   argument; FP-05 a string that looks like a reference; FP-07 names `A1B`, `R1C`, `x.y` and non-ASCII;
   FP-09 `@` and `A1#` listed; FP-10 `1<2<3`; FE-01 `""=0` is false; FE-02 `#REF!` inside a range; FE-06
   IFS, SWITCH and CHOOSE evaluate only the branch taken; FE-09 `ROUNDDOWN(249.9975,0)` is 249 and
   `ROUNDUP(280.000000000001,0)` is 281; FE-12 SUBTOTAL over hidden rows and a nested SUBTOTAL.
-- [ ] `extensions/spreadsheet/tests/template.rs:870`, three tests: TP-03 relative and quoted-sheet
+- [ ] `extensions/spreadsheet/tests/template.rs:1115`, three tests: TP-03 relative and quoted-sheet
   names; TP-04 a quoted sheet name that looks like a cell; TP-10 media, a header or footer image and
   note VML copied unchanged.
 - [ ] `extensions/spreadsheet/tests/write.rs:964` and `extensions/spreadsheet/tests/sheet_end.rs:1307`,
@@ -637,48 +637,39 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 4 is done; the `writing` and `csv-and-file-export` checks ran green. The CSV conformance
-cases strip the mark and CR before they print (44c8d8c25); a captured download shows CR as `␍`,
-which is `Core\Out::capture`'s escaping. Eighteen CSV example `.out` files are rerecorded
-(d137ad33e). The rules, four `about.md` pages and `docs/reference/core/Csv.md` say stage 4;
-`rules --check`, `verify --doc` and `proofs --comments` are green.
+Stage 5 is done; the `formulas-and-fill` check ran green. Three commits: 2ed6b03a9 (template
+filler), 2defce6c4 (evaluator), 5ff11c2c4 (rules and pages).
 
-What changed in stage 4, so stage 8 knows it: `src/future.rs` (sorted `FUTURE`, `prefixed`, called from
-`cells.rs`, `conditional.rs`, `tail.rs`); `xml::attr` escapes LF, CR, TAB; `cells::units` and
-`writer::fold` (`to_uppercase`, for sheet, table, name and table-column comparisons);
-`tail::sqref`; a numeric table header written as text via `Tail::table_header_at`; images
-deduplicated by SHA-256 (`sha2` is a new extension dependency, `Cargo.lock` updated);
-`Workbook.nvs`'s `target`, `part`, `failed`, `discard` and `Export::save`'s temporary file;
-`Core\Csv::format`'s `lineEnd` (args `[5]`) and edge-space quoting; the CSV export's BOM and CRLF.
-Decisions 29 and 30 are refined in place.
+What changed in stage 5, so stage 8 knows it: `template/mod.rs` gains `zero_based`, `vml_anchor`
+and `unshared`; `rewrite_part` moves a `hyperlink`'s `location` (one reference, by `shift::apply`),
+`rowBreaks/brk id`, a VML `ClientData`'s `Row` and `Anchor`, and a `worksheetSource` `ref` on its
+`sheet` attribute; `rewritten` now rewrites `xl/comments*`, `xl/threadedcomments/`,
+`xl/pivottables/` (owner sheet) and `xl/pivotcache/`; `recalculating` sets an existing
+`fullCalcOnLoad` to `1`. `template/sheet.rs` records each group's first cell (`Sheet::masters`) and a
+follower's `<f/>` range (`Cell::follower`). `shift.rs`: column letters in either case, no shift after
+`]` or in a sheet name starting `[`, and `Shift::row_in`/`apply_in` (read from outside a copy).
+Evaluator: `parse::part` takes whether `#` was unescaped; `value::locale_number` and `number_in`
+(1904); `Ctx::arithmetic` for unary and arithmetic binary operands; `Kind::Coercion` (`"coercion"`,
+crosses as a string, so only the WIT comment changed) raised by arithmetic and by `math::ranges`
+and `all_match` for a number criterion. Decision 35 is refined in place. The `fill` and `evaluate`
+`about.md` pages are back under 200 words (`fill` was 218 before this stage).
 
-The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as eight
+The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as nine
 handoffs have found; it comes from looper's service, not from this repository. The nightly reds on
 run 41813182715 are fixed by a8bdf37fb and a2f451fad.
 
 ### Next
 
-Stage 5, one group: the template filler first, then the evaluator. Write the tests last, each run
-once by name.
+Stage 6, as its `**Split:**` line says: two writing subagents, one for
+`crates/nvs-ext/tests/spreadsheet_hostile.rs` (append at the end, line 1681) and one for
+`crates/nvs-ext/tests/spreadsheet_read.rs` (append at the end, line 4774; the stage's `:4251`
+anchor is stale), each given its list and the file's helpers, neither building. The session
+writes the four CSV conformance cases and the ST-07 attack, then builds and runs the
+`pinned-hostile`, `pinned-reading` and `pinned-csv` checks once. Decision 42 first: grep each
+file for the shape before writing (RB-01 may be pinned by `an_xlsb_record_whose_length_lies_throws`).
 
-1. **The template filler** (decisions 34 to 37), in `extensions/spreadsheet/src/template/mod.rs`
-   and `template/shift.rs`. The stage's anchors into `mod.rs` moved when stage 1 added the
-   macro-part pass, so find each by its symbol with `bun nv peek --locate`:
-   - TP-02, notes, page breaks, link `location`, threaded comments and pivots: the part walk that
-     already moves `<row>` and merges;
-   - TP-05, a shared-formula group across the repeated block: the `si` handling;
-   - TP-08, `fullCalcOnLoad`: `template/mod.rs:718`, which keeps an existing attribute; set it to
-     `"1"`;
-   - FP-08, external references and lower-case columns: `template/shift.rs:50` and `:138`.
-2. **The evaluator** (decisions 38 to 40): `eval/parse.rs:848` for `#Orders`, `eval/value.rs:200`
-   (`iso_day`) for the 1904 system, and `eval/value.rs:157` with `eval/mod.rs:46` for the locale
-   miss. The new miss kind needs `wit/spreadsheet.wit:603` (`missed-info`), the component's
-   `manifest.json` and `crates/nvs-ext/src/typed/spreadsheet.rs` together (the playbook's
-   "changed parameter list" trap), and the Novis side in `Reader.nvs`.
-3. The docs item, then the six template tests (`extensions/spreadsheet/tests/template.rs:870`) and
-   the three evaluator tests (`extensions/spreadsheet/tests/evaluate.rs:685`), then the
-   `formulas-and-fill` check once.
-
-Expected reds: none known.
+Expected reds: none known. Stage 8 runs the existing `template` and `evaluate` suites for the first
+time since stage 5; `a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy` and
+`operators_follow_excels_precedence_and_coercion` are the ones the changes reach.
 
 ### Backlog
