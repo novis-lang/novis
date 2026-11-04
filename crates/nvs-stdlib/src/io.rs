@@ -5255,14 +5255,13 @@ mod tests {
         std::fs::create_dir_all(&root).expect("a base");
         let started = std::time::Instant::now();
         for (mut ctx, granted) in [(writing(), false), (reading("1MiB"), true)] {
-            let plain = call_with(nvs_core_io_within, &mut ctx, &[spelled(&root), "x.txt"]).map(
-                |value| {
+            let plain =
+                call_with(nvs_core_io_within, &mut ctx, &[spelled(&root), "x.txt"]).map(|value| {
                     #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
                     unsafe {
                         value.release();
                     }
-                },
-            );
+                });
             assert_eq!(
                 plain.is_ok(),
                 granted,

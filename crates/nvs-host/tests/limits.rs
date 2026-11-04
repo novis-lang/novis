@@ -645,7 +645,11 @@ static OVERRUN_STATUS: AtomicI32 = AtomicI32::new(-1);
     reason = "the same callee contract as `reports_its_time`, and the context \
               pointer the poll takes is the live one this handler was called with"
 )]
-unsafe extern "C" fn meets_a_stale_raise(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+unsafe extern "C" fn meets_a_stale_raise(
+    ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
     unsafe { &*ctx }.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
     let status = unsafe { nvs_safepoint(ctx) };
     STALE_RAISE_STATUS.store(status, Ordering::SeqCst);
@@ -674,7 +678,10 @@ unsafe extern "C" fn overruns_its_widened_ceiling(
         // A hang guard: the slice is 5 ms of CPU time.
         let guard = std::time::Instant::now() + std::time::Duration::from_secs(60);
         while ctx.cpu_time_spent().is_some_and(|spent| spent < ceiling) {
-            assert!(std::time::Instant::now() < guard, "the reading never passed {ceiling:?}");
+            assert!(
+                std::time::Instant::now() < guard,
+                "the reading never passed {ceiling:?}"
+            );
             std::hint::black_box(());
         }
         ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
@@ -719,9 +726,16 @@ fn a_raise_that_read_the_ceiling_from_before_the_handler_does_not_stop_it() {
     else {
         return;
     };
-    #[expect(unsafe_code, reason = "the safepoint's ABI takes a live local's pointer")]
+    #[expect(
+        unsafe_code,
+        reason = "the safepoint's ABI takes a live local's pointer"
+    )]
     let status = unsafe { nvs_safepoint(&raw mut ctx) };
-    assert_eq!(status, nvs_runtime::FATAL, "the request still ends at its limit");
+    assert_eq!(
+        status,
+        nvs_runtime::FATAL,
+        "the request still ends at its limit"
+    );
     assert_eq!(
         STALE_RAISE_STATUS.load(Ordering::SeqCst),
         nvs_runtime::OK,
@@ -734,7 +748,10 @@ fn a_raise_that_read_the_ceiling_from_before_the_handler_does_not_stop_it() {
     else {
         return;
     };
-    #[expect(unsafe_code, reason = "the safepoint's ABI takes a live local's pointer")]
+    #[expect(
+        unsafe_code,
+        reason = "the safepoint's ABI takes a live local's pointer"
+    )]
     let status = unsafe { nvs_safepoint(&raw mut ctx) };
     assert_eq!(status, nvs_runtime::FATAL);
     assert_eq!(

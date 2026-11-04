@@ -1624,7 +1624,11 @@ mod tests {
             started.elapsed() < Duration::from_secs(10),
             "a hand-over waited for a drain that never runs"
         );
-        assert_eq!(pending.waiting(), spans * 2, "a full queue grew past its bound");
+        assert_eq!(
+            pending.waiting(),
+            spans * 2,
+            "a full queue grew past its bound"
+        );
         assert_eq!(
             u64::try_from(pending.waiting()).expect("a span count") + pending.dropped() - before,
             u64::try_from(spans * 1000).expect("a span count"),
