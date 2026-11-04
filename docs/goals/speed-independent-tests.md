@@ -22,7 +22,7 @@ stages:
     context: [benches/abi-probe/tests/perf_guards.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
     context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml]
 checks:
@@ -325,16 +325,17 @@ disjoint files run side by side, and none of them builds. The session builds onc
 - [x] Run `looper verify` over the whole goal.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [x] Run `looper verify` once more, and it is green.
-- [ ] Push with `bun nv ci --push` and watch with `bun nv ci --watch` until CI is green on every
+- [x] Push with `bun nv ci --push` and watch with `bun nv ci --watch` until CI is green on every
   platform.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. In stage 5, `looper verify` is green on its third run, and `bun nv verify
---doc`, `bun nv owners --closes speed-independent-tests` and `bun nv ci --check` are green. `main` is
-pushed at `012faef11`, and its CI run is what is left.
+Every stage is done. `looper verify`, `bun nv verify --doc`, `bun nv owners --closes
+speed-independent-tests` and `bun nv ci --check` are green. CI run 41833629725 and the Website run are
+green on `012faef11`, with every macOS and Windows job included. Miri runs only in the nightly, so
+tonight's run is the first to check `a2f451fad`.
 
 - **What the push fixed.** Nightly 41813182715 ran `f3150b922`, before the two fixes for its reds were
   pushed: `a2f451fad` (Miri, `openat(O_PATH)`) and `a8bdf37fb` (macOS, the idle-edit test). The
@@ -352,17 +353,12 @@ pushed at `012faef11`, and its CI run is what is left.
 
 ### Next
 
-1. `bun nv ci --watch` until CI is green on `012faef11` or a later tip, macOS and Windows included. Fix each red
-   in one pass, then `bun nv ci --push` again. With CI green, tick stage 5's last item and set the
-   goal done.
+1. Nothing in this goal. The goal is reached, and retiring it deletes this file. If tonight's nightly
+   reds `miri units (nvs-stdlib …)`, the next goal's session reads it first.
 
-**Tests that may go red.** `the_watchdog_thread_runs_under_the_time_constraint_policy` was never
-compiled here: no machine of ours builds `aarch64-apple-darwin`. Its types were checked by hand
-against libc 0.2.191's `thread_policy_get`, so macOS CI is its first compile. The handshake cases in `crates/nvs-db/tests/handshake.rs` returned at
-once here, most likely with no database server, so CI is their first real run.
-`crates/nvs-server/src/slotted/tests.rs` searches raw chunked bytes, so a needle split across a
-chunk boundary would fail at the 10 s guard. The spreadsheet header ratio has had one local run
-only. If it goes red, its message names both figures: read them before changing anything.
+**Tests that may go red.** Miri on `crates/nvs-stdlib/src/io.rs`'s alias tests has not run since
+`a2f451fad`. If the spreadsheet header ratio goes red, its message names both figures: read them
+before changing anything.
 
 **Stage 4's list, as swept, for reference.** Every entry not named above is done or stays as its kind says. From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
