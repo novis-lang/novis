@@ -249,15 +249,21 @@ names the cause in the handoff, then changes the test or the code.
 just edited its file. The other three go to writing subagents on the session's model, side by side,
 none of which builds. The session builds once they all end.
 
-- [ ] The watchdog charge test compares each charge with the thread's own CPU-clock reading over the
+- [x] The watchdog charge test compares each charge with the thread's own CPU-clock reading over the
   same span (pattern 2), not with `Duration::from_millis(20)`. `crates/nvs-host/src/watchdog.rs:2636`
-- [ ] The metrics gather test finds the event that drops an ended core's registry and asserts after
+  - [x] The cause is named: a slice is wall time, so a loaded thread was asked to yield before it ran 20 ms.
+  - [x] Each spin burns once at least and returns this thread's own clock reading over it.
+  - [x] The test runs green by name.
+- [x] The metrics gather test finds the event that drops an ended core's registry and asserts after
   it (pattern 1). If no such event exists, the gather has a race, and the race is fixed in code.
   `crates/nvs-runtime/src/metrics.rs:1761`
 - [ ] `a_looping_guest_reaches_on_limit_and_the_next_request_is_served` and the `wall_time`
   conformance case: find why the limit handler did not run, and fix it as § *Standing decisions*
   says. The conformance case's `--EXPECT--` does not change. `crates/nvs-cli/tests/serve_isolation.rs:381`
-- [ ] The cost guard `the_memory_mark_stays_small_beside_the_allocation_it_fronts`: if its figure can
+  - [x] The `wall_time` case's cause is found and fixed: the handler's slice is counted from its entry.
+  - [ ] The serve test's cause is found from evidence, not from reading alone.
+  - [ ] The serve test's cause is fixed in code, and the test runs green by name.
+- [x] The cost guard `the_memory_mark_stays_small_beside_the_allocation_it_fronts`: if its figure can
   be a count, it becomes a count. Otherwise record in the handoff why the hard bound held a
   1.05x reading, and fix that bound's cause. `benches/abi-probe/tests/perf_guards.rs:2850`
 - [ ] Run each stage-3 check's command once: green.
@@ -286,36 +292,37 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stages 1 and 2 are done, and `lateness-recorded`, `overshoot-judged` and `time-attacks-green` are
-green here.
+Stages 1 and 2 are done. Stage 3 has one item open: the serve test's cause. Each of
+`watchdog-charge`, `metrics-gather` and `serve-on-limit` ran green here by name, and so did
+`wall-time-stops-a-loop-that-calls-nothing.nvst`. Build and `clippy --all-targets -D warnings` are
+green.
 
-- Each sweep records how late it woke against the wait the previous sweep computed (`lateness`,
-  `crates/nvs-host/src/watchdog.rs`, in `State::late`). A CPU stop writes
-  `nvs-proof-sweep: cpu late_us= interval_us= poll_us= threads=` from the watchdog's thread
-  (`watch`). A claimed wall-time stop writes a `wall` line from `nvs_runtime`
-  (`write_wall_sweep_line`, `crates/nvs-runtime/src/ctx/safepoint.rs`, and `Ctx::wall_time_breach`).
-  A CPU limit set below what was used writes a `cpu` line with no lateness
-  (`crates/nvs-runtime/src/ctx/limits.rs`). Lines are written only under `NVS_PROOF_SWEEPS`.
-- `tools/nv/proofs/run.ts`: `spawnProof` sets `SWEEP_ENV`, `spawnTimed` takes the lines out of stderr
-  into `Ran.sweeps` (`takeSweeps`), and `explainedMs` and `timeOvershoot` judge the stop.
-  `TIME_OVERSHOOT_SLACK_MS` is gone. `tools/nv/test/proofs-time.test.ts` is new, and the time cases
-  of `tools/nv/test/hostile-ending.test.ts` now carry sweep lines.
-- `Core\Task::all`: nightly 41618735447's macOS red tested `98845d922`, which is older than
-  `488791366` (the slice clock wakes on time on macOS). That was the cause, and it is fixed. The
-  attack's CPU safety net went from 200 ms to 1 s.
-
-The sweep's `env-secret-proofs` red is still stale: it has no log and no definition. The nightly's
-`supply chain` red is CI's, owned by the `ci-green` side loop. No test is expected to go red. A
-`.out` or a `judge` caller that reads stderr would no longer see a sweep line. That is intended, and
-nothing found reads one.
+- Fixed: the watchdog charge test (pattern 2), a real race in `metrics::every_core` (the `ended`
+  flag), the `wall_time` handler's slice (counted from its entry, `TreeState::wall_slice_end`), and the
+  memory-mark guard (its 1.05x was an out-of-line `carry`, fixed by `2388e7510`; it stays a ratio).
+  Each commit message has the cause.
+- **Serve test: cause not found.** The only failure is run 41279676146, `test / windows-x86_64`:
+  `GET / 500` after 404 ms, no mark, no `FATAL` line in the server's stderr. By reading, the guest
+  path runs the handler (`crates/nvs-cli/src/extensions.rs:900`) with a CPU reserve counted from its
+  entry. 404 ms is about 300 + one 50 ms interval + the 50 ms reserve, so the handler most likely
+  started and was stopped inside its reserve. Either `Core\IO::write`'s first file creation spent
+  past it on Windows, or a sweep that read the old ceiling raised after the handler published a new
+  one (the raise after `running.limit()` in the watchdog's stop walk).
+- `env-secret-proofs` is still stale: no such check exists in the tree. Nightly 41618735447's macOS
+  red tested a commit older than `488791366`. `supply chain` is the `ci-green` side loop's. No test
+  is expected to go red.
 
 ### Next
 
-Stage 3, from its first item: the watchdog charge test
-(`crates/nvs-host/src/watchdog.rs`, `a_thread_charges_each_request_for_its_own_time_with_slices_on`)
-compares each charge with the thread's own CPU-clock reading. Then the metrics gather, the
-`serve_isolation` limit handler and the `wall_time` case, as the stage lists. Its four fixes touch
-disjoint files.
+Stage 3's open item: get evidence for the serve test. Make the server say how the request ended.
+In `crates/nvs-cli/tests/serve_isolation.rs:381` start the server with `NVS_PROOF_SWEEPS` set, so
+each CPU stop writes its `nvs-proof-sweep: cpu` line into `server.said()`. Two lines mean a raise
+inside the handler. Check also whether a served request's `FATAL` text reaches stderr; if not, the
+failure message cannot tell "handler stopped" from "handler skipped", and that is worth a log line.
+Then reproduce on Windows under load: run the test in a loop beside a CPU burner. If the second
+sweep raise is the cause, re-check the published ceiling just before the raise in the watchdog's
+stop walk. If the write's own cost is the cause, the reserve's accounting is the fix, as
+§ *Standing decisions* says. Then tick the stage and start stage 4.
 
 **Stage 4's list.** From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
@@ -409,3 +416,7 @@ benches other than `abi-probe`, and matched no assert that compares across lines
 first.
 
 ### Backlog
+
+- `crates/nvs-runtime/src/budget.rs` § *What it spends* (near `:205`) says a balance update is "a
+  small fraction of a platform heap one". On glibc that holds only while `carry` is inlined, and the
+  section could say so.
