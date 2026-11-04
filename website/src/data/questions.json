@@ -9963,7 +9963,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "f160b6dc1e7bd452",
+    "hash": "0f25e0e5c5633bdd",
     "questions": [
       "Open an uploaded spreadsheet",
       "Read a CSV file that starts with a sep= line",
