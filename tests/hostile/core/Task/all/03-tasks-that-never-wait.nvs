@@ -8,8 +8,8 @@ class Counter
     public static int $count = 0;
 }
 
-// 1. Lowers the CPU limit of this request to 200 milliseconds, so a missed deadline ends the program.
-echo 'CPU limit: ', Core\Config::set('limits.cpu_time', '200ms') ? 'lowered' : 'not changed', "\n";
+// 1. Lowers the CPU limit of this request to 1 second. If the deadline is missed, this limit ends the program.
+echo 'CPU limit: ', Core\Config::set('limits.cpu_time', '1s') ? 'lowered' : 'not changed', "\n";
 
 // 2. Starts the two tasks with a deadline of 50 milliseconds, and catches the `TimeoutError`.
 echo "step 2\n";

@@ -1509,9 +1509,11 @@ fn wake_for_lowered_ceiling() {
 ///
 /// Both threads need it. A task that never waits yields only when the slice
 /// clock ticks, and a group's `deadline` is read only at a yield. With late
-/// ticks and an on-time sweep, the 200 ms CPU stop in
-/// `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` came before its
-/// 50 ms deadline was read.
+/// ticks and an on-time sweep, a CPU stop four times a group's deadline came
+/// before the deadline was read. The attack
+/// `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` keeps its CPU
+/// limit as a safety net twenty times its deadline, so it tests the deadline
+/// and not how fast the machine is.
 ///
 /// The policy asks for 0.25 ms of CPU in each millisecond, which a sweep of
 /// either thread stays under. A sweep that runs longer is preempted like any
