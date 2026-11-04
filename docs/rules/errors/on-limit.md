@@ -22,6 +22,17 @@ ceiling. Every configured run has a memory ceiling, 128 MiB where none is writte
 (`rule:config/no-configuration-file-is-a-complete-configuration`), so the reserve is carved by
 default; a request whose `memory` is `false` reserves nothing.
 
+**Time:** the CPU reserve is carved out of `[limits] cpu_time` the same way: `fatal_reserve_time`,
+50 ms by default and never more than a quarter of the ceiling. A handler entered for a wall-time stop
+also gets a wall-time slice of that size, sized against `[limits] wall_time`. Both are counted from
+the handler's entry, never from the moment of the breach. The CPU slice is the tree's spend at entry
+plus the reserve, published to the sampler. The wall slice is an instant the tree carries. The poll
+lowers a wall-time raise that lands inside it, and the first raise past its end stops the handler. So
+a request thread that reaches its poll late, or is preempted, does not lose the slice: a handler's
+time does not depend on the host's speed. The cost is one word per tree, a store at each end of a
+wall-time handler, and a clock read for each raise inside the slice. A wall-stopped request may run
+past its `wall_time` by its slice plus one sweep interval.
+
 A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
 that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on
 an interval and holds an entry per core, reads each core's own CPU clock and raises the CPU bit in the

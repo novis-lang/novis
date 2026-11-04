@@ -10,8 +10,9 @@
 //! sweep, which a run starts for its CPU limit, stops the run at the deadline too. Whichever
 //! of the three reaches it first claims the stop ([`SafepointView::stop_at_wall_time`]),
 //! so a later first raise never lands inside the handler. The `Core\Fatal::onLimit`
-//! handler runs with the flag lowered, and the thread raises it once more after the
-//! default `fatal_reserve_time`, which is the handler's slice.
+//! handler runs with the flag lowered, in a wall-time slice counted from its own entry
+//! ([`SafepointView::wall_slice_end`]). The thread raises the flag once more at the
+//! slice's end, which stops a handler that overruns it.
 //!
 //! The deadline is the tree's ([`SafepointView::wall_deadline`]), so `Core\Config::set`
 //! may move it. The thread files a wake through [`SafepointView::watch_wall_time`] before
@@ -20,7 +21,8 @@
 //! is set.
 //!
 //! **What it spends:** one thread for the length of a run that has a `wall_time`, asleep
-//! until the deadline or until the number moves, and nothing for a run that never has one.
+//! until the deadline, the number moving or the handler's slice ending, and nothing for a
+//! run that never has one.
 
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -96,13 +98,38 @@ fn watch(view: &SafepointView, moved: &Sender<Event>, events: &Receiver<Event>) 
                 // first, and then its handler is running and this raise is skipped.
                 view.stop_at_wall_time();
                 view.expire_deadline();
-                // `rule:errors/on-limit`'s handler runs with the flag lowered, so
-                // it is raised once more after the default reserve. That stops a
-                // handler that overruns its slice.
-                let rest = events.recv_timeout(nvs_config::defaults::LIMITS_FATAL_RESERVE_TIME);
-                if !matches!(rest, Ok(Event::Stop)) {
-                    view.request(SafepointFlags::WALL_TIME);
-                }
+                stop_at_slice_end(view, moved, events);
+                return;
+            }
+        }
+    }
+}
+
+/// After the stop: waits for the `Core\Fatal::onLimit` handler's wall-time slice
+/// and raises [`SafepointFlags::WALL_TIME`] once more at its end, which stops a
+/// handler that overruns it. The slice opens when the handler starts
+/// ([`SafepointView::wall_slice_end`]), so a handler that starts late still gets
+/// all of it. A run with no handler opens no slice. The flag is still raised
+/// then, and the thread waits for the run to end.
+fn stop_at_slice_end(view: &SafepointView, moved: &Sender<Event>, events: &Receiver<Event>) {
+    loop {
+        // Filed before the slice is read, so a slice that opens between the two
+        // still sends the thread round again.
+        let wake = moved.clone();
+        view.watch_wall_time(Box::new(move || {
+            let _ = wake.send(Event::Moved);
+        }));
+        let event = match view.wall_slice_end() {
+            Some(end) => {
+                events.recv_timeout(end.saturating_duration_since(std::time::Instant::now()))
+            }
+            None => events.recv().map_err(|_| RecvTimeoutError::Disconnected),
+        };
+        match event {
+            Ok(Event::Moved) => {}
+            Ok(Event::Stop) | Err(RecvTimeoutError::Disconnected) => return,
+            Err(RecvTimeoutError::Timeout) => {
+                view.request(SafepointFlags::WALL_TIME);
                 return;
             }
         }

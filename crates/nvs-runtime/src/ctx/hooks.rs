@@ -617,16 +617,22 @@ impl Ctx {
         }
         // The wall-time and output halves, for the CPU flag's reason: the
         // handler is a function, and its entry is a poll either flag would stop
-        // it at. What bounds the wall-time slice is the clock that raised the
-        // flag and raises it again: `nvs run`'s `wall` module one reserve
-        // later, and `nvs_host::watchdog`'s sweep for a served request one
-        // interval past the deadline. The output flag is raised again by the
-        // handler's own first write, since the request is still over its
-        // ceiling.
+        // it at. The wall-time slice opens here, before the flag is lowered, so
+        // it is counted from the handler's entry: a raise that lands inside it
+        // is lowered at the poll, and the first raise past its end stops the
+        // handler. `nvs run`'s `wall` module raises at that end, and
+        // `nvs_host::watchdog`'s sweep raises on every pass. A stop found by a
+        // sleep that ended at the deadline raised no flag, and opens the slice
+        // too. The output flag is raised again by the handler's own first
+        // write, since the request is still over its ceiling.
         let stopped_for_wall = self.safepoint_flags().contains(SafepointFlags::WALL_TIME);
         let stopped_for_output = self
             .safepoint_flags()
             .contains(SafepointFlags::OUTPUT_LIMIT);
+        let wall_slice = stopped_for_wall || limit == Limit::WallTime;
+        if wall_slice {
+            self.open_wall_slice();
+        }
         self.lower_safepoint(SafepointFlags::WALL_TIME | SafepointFlags::OUTPUT_LIMIT);
         // Built here rather than by either caller, and *after* the reserve is
         // in force: it allocates, and a report the ladder could not afford to
@@ -646,6 +652,9 @@ impl Ctx {
         // its slice.
         drop(reporting);
         let answer = crate::call_callable(self, handler, &[report]);
+        if wall_slice {
+            self.close_wall_slice();
+        }
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
         self.arm_memory_ceiling();

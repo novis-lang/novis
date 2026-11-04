@@ -1237,6 +1237,40 @@ impl Ctx {
         crate::Fault::fatal(self.wall_time_message())
     }
 
+    /// Opens the wall-time slice of a limit handler entered now, for a request
+    /// past its `[limits] wall_time`, and wakes the clock that waits for it
+    /// ([`super::safepoint::TreeState::wall_slice_end`]).
+    ///
+    /// The slice is [`Self::reserve_time_within`] of the request's `wall_time`:
+    /// `[limits] fatal_reserve_time`, 50 ms where none is written, and never more
+    /// than a quarter of the `wall_time`. It starts now, at the handler's entry,
+    /// so how late the request thread reached its poll does not shorten it. A
+    /// request with no `wall_time` opens none.
+    pub(super) fn open_wall_slice(&self) {
+        let ceiling = self
+            .tree
+            .wall_time
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let reserve = Self::reserve_time_within(ceiling, self.configured_fatal_reserve_time());
+        self.tree.open_wall_slice(reserve);
+    }
+
+    /// Closes the slice [`Self::open_wall_slice`] opened, at the handler's exit.
+    pub(super) fn close_wall_slice(&self) {
+        self.tree
+            .wall_slice_end
+            .store(0, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Whether a limit handler's wall-time slice is open and has not ended yet.
+    /// Read by the poll's slow path only when [`SafepointFlags::WALL_TIME`] is
+    /// raised, so it costs one load, and one clock read inside a slice.
+    pub(super) fn in_wall_slice(&self) -> bool {
+        self.tree
+            .wall_slice_ends_at()
+            .is_some_and(|end| std::time::Instant::now() < end)
+    }
+
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
     /// no cap — `rule:errors/on-limit`.
     ///

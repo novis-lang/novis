@@ -655,8 +655,20 @@ impl SafepointView {
         self.tree.wall_deadline()
     }
 
+    /// Where the wall-time slice of the limit handler now running ends, or
+    /// `None` while no handler runs for a wall-time stop. A clock that stopped
+    /// the request raises [`SafepointFlags::WALL_TIME`] again at this instant,
+    /// and a raise before it does not stop the handler
+    /// ([`TreeState::wall_slice_end`]). The wake [`Self::watch_wall_time`]
+    /// files is also called when a slice opens.
+    #[must_use]
+    pub fn wall_slice_end(&self) -> Option<std::time::Instant> {
+        self.tree.wall_slice_ends_at()
+    }
+
     /// Files `wake` to be called once, the next time the request's
-    /// `wall_time` moves, in place of any wake filed before it.
+    /// `wall_time` moves or a limit handler opens its wall-time slice, in place
+    /// of any wake filed before it.
     pub fn watch_wall_time(&self, wake: Box<dyn FnOnce() + Send>) {
         self.tree.wall_time_watch.put(wake);
     }
@@ -853,6 +865,22 @@ pub struct TreeState {
     /// Locked only past the deadline, by the clocks and that sleep, so nothing
     /// on the request path takes it.
     pub(super) wall_stop: std::sync::Mutex<bool>,
+    /// Where the wall-time slice of a running limit handler ends, in
+    /// nanoseconds after [`Self::started`], or `0` while no handler runs for a
+    /// wall-time stop. [`Ctx::run_limit_handler`] opens it at the handler's
+    /// entry and closes it at its exit.
+    ///
+    /// The slice is counted from the handler's entry, never from the deadline.
+    /// A request thread that reaches its poll late, or is preempted inside the
+    /// handler, would otherwise lose part of the slice to the host's speed, and
+    /// a clock's raise could stop a handler that has run for no time at all. The
+    /// poll ignores a raise of [`SafepointFlags::WALL_TIME`] while the slice is
+    /// open ([`Ctx::in_wall_slice`]), and `nvs run`'s clock raises it again at
+    /// the slice's end ([`SafepointView::wall_slice_end`]).
+    ///
+    /// **What it spends:** one word per tree, a store at each end of a
+    /// wall-time handler, and a clock read at each raise that lands inside it.
+    pub(super) wall_slice_end: std::sync::atomic::AtomicU64,
     /// What [`crate::extension`]'s host keeps for this request — the
     /// extension instances its calls made, and the resources they returned —
     /// set at its first call into an extension. It is dropped when the
@@ -955,6 +983,38 @@ impl TreeState {
                 .0
                 .checked_add(std::time::Duration::from_nanos(nanos))?
                 .checked_add(self.debug.held_for()?),
+        }
+    }
+
+    /// Where the open wall-time slice of a limit handler ends, or `None` while
+    /// none is open ([`Self::wall_slice_end`]'s field doc).
+    pub(super) fn wall_slice_ends_at(&self) -> Option<std::time::Instant> {
+        match self
+            .wall_slice_end
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            0 => None,
+            nanos => self
+                .started
+                .0
+                .checked_add(std::time::Duration::from_nanos(nanos)),
+        }
+    }
+
+    /// Opens a wall-time slice `reserve` nanoseconds long, starting now, and
+    /// wakes whoever waits on the wall deadline, so `nvs run`'s clock reads where
+    /// the slice ends. A `reserve` of `0` opens nothing.
+    pub(super) fn open_wall_slice(&self, reserve: u64) {
+        if reserve == 0 {
+            return;
+        }
+        let since_start = u64::try_from(self.started.0.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        // At least 1, because `0` is the encoding of no open slice.
+        let end = since_start.saturating_add(reserve).max(1);
+        self.wall_slice_end
+            .store(end, std::sync::atomic::Ordering::Release);
+        if let Some(wake) = self.wall_time_watch.take() {
+            wake();
         }
     }
 
@@ -1093,22 +1153,29 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
         // the flag arrives only from a caller that had already decided the
         // request was over.
         //
-        // One thing that sampler is not told, and it is not an edit here: the
-        // handler below widens this context's ceiling and leaves the one its
-        // tree carries where it stood, so a handler is bounded by the next
-        // sweep rather than by its reserve.
+        // The handler below publishes its widened ceiling to the tree, so the
+        // sampler bounds the handler by its reserve, counted from what the tree
+        // had spent at the handler's entry.
         ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending(ctx.cpu_time_message());
         return crate::FATAL;
     }
     if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
-        // The CPU branch's two lines in the same order. `Ctx::run_limit_handler`
-        // lowers this flag for the handler's call, and the clock that raised it
-        // raises it again once the handler's slice has passed: `nvs run`'s own
-        // clock, or `nvs_host::watchdog`'s sweep for a served request.
-        ctx.run_limit_handler(Limit::WallTime);
-        ctx.set_pending(ctx.wall_time_message());
-        return crate::FATAL;
+        if ctx.in_wall_slice() {
+            // A clock raised the flag inside the handler's slice. The slice is
+            // counted from the handler's entry, so the raise is lowered and the
+            // handler goes on. The next raise past the slice's end stops it:
+            // `nvs run`'s clock raises at that instant, and
+            // `nvs_host::watchdog`'s sweep raises on every pass.
+            ctx.lower_safepoint(SafepointFlags::WALL_TIME);
+        } else {
+            // The CPU branch's two lines in the same order.
+            // `Ctx::run_limit_handler` lowers this flag for the handler's call
+            // and opens the handler's wall-time slice.
+            ctx.run_limit_handler(Limit::WallTime);
+            ctx.set_pending(ctx.wall_time_message());
+            return crate::FATAL;
+        }
     }
     // Ahead of the memory branch below, which is the whole point of it: the
     // flag was raised by the allocation that crossed
