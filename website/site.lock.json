@@ -372,7 +372,7 @@
   },
   "tools/cli/index.mdx": {
     "tools:cli/nvs-cache": "78e5402e91cda80f",
-    "tools:cli/nvs-check": "85533fbb31eceea9",
+    "tools:cli/nvs-check": "091ad2e81671c1cb",
     "tools:cli/nvs-telemetry": "2bd39131b67069de",
     "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
     "tools:cli/one-binary": "d33c811051be5621",

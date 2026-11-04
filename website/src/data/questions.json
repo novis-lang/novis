@@ -1136,7 +1136,7 @@
   },
   "/reference/cli/nvs-check/": {
     "feature": "tools:cli/nvs-check",
-    "hash": "85533fbb31eceea9",
+    "hash": "091ad2e81671c1cb",
     "questions": [
       "How do I check my code for errors without running it?",
       "Type-check every file in a folder from a pre-commit hook or CI",
@@ -18196,11 +18196,11 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "fa8c4be0e85b8e27",
+    "hash": "11a7592916cbca93",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",
-      "Check one class file without its program in the current folder",
+      "Check one class file that a program in my project loads with autoload",
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
