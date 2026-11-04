@@ -1257,3 +1257,124 @@ fn the_same_image_added_twice_is_stored_once() {
     assert!(blog.contains("Target=\"../media/image1.png\""), "{blog}");
     assert!(blog.contains("Target=\"../media/image2.png\""), "{blog}");
 }
+
+#[test]
+fn cells_of_a_row_with_gaps_are_written_in_column_order() {
+    let empty = Cell {
+        value: None,
+        style: None,
+    };
+    let mut writer = writer();
+    let bold = writer
+        .style(Style {
+            bold: Some(true),
+            ..Style::default()
+        })
+        .unwrap();
+    // Values at A, C and F. B and E are null, and D is null with a style.
+    let cells = vec![
+        text("Tea"),
+        empty.clone(),
+        number(3.5),
+        Cell {
+            value: None,
+            style: Some(bold),
+        },
+        empty,
+        number(7.0),
+    ];
+    let mut options = SheetOptions::named("Shop");
+    options.header = no_header();
+    let out = writer.sheet(options, &[row(cells)]).unwrap();
+    let book = finish(writer, out);
+    let sheet = book.sheet(1);
+    let start = sheet.find("<sheetData>").unwrap();
+    let data = &sheet[start..sheet.find("</sheetData>").unwrap()];
+
+    // A null cell without a style writes no element.
+    for gap in ["B1", "E1"] {
+        assert!(!data.contains(&format!("r=\"{gap}\"")), "{gap}: {data}");
+    }
+    // A null cell with a style writes an empty element that carries the style.
+    let styled = between_cells(data, "D1");
+    assert!(
+        styled.starts_with("<c r=\"D1\" s=\"") && styled.ends_with("/>"),
+        "{styled}"
+    );
+    let at = |reference: &str| {
+        data.find(&format!("<c r=\"{reference}\""))
+            .unwrap_or_else(|| panic!("{reference} is in {data}"))
+    };
+    assert!(at("A1") < at("C1"), "{data}");
+    assert!(at("C1") < at("D1"), "{data}");
+    assert!(at("D1") < at("F1"), "{data}");
+    assert!(data.contains("<c r=\"C1\"><v>3.5</v></c>"), "{data}");
+    assert!(data.contains("<c r=\"F1\"><v>7</v></c>"), "{data}");
+    assert_eq!(data.matches("<c r=").count(), 4, "{data}");
+}
+
+/// The element of the cell `reference` in `data`, up to the first `>` after it.
+fn between_cells<'a>(data: &'a str, reference: &str) -> &'a str {
+    let start = data
+        .find(&format!("<c r=\"{reference}\""))
+        .unwrap_or_else(|| panic!("{reference} is in {data}"));
+    let end = start + data[start..].find('>').unwrap() + 1;
+    &data[start..end]
+}
+
+#[test]
+fn a_freeze_of_columns_only_or_both_axes_writes_its_pane() {
+    let freeze = |name: &str, rows: u64, columns: u64| {
+        let mut options = SheetOptions::named(name);
+        options.header = no_header();
+        options.freeze_rows = rows;
+        options.freeze_columns = columns;
+        options
+    };
+    let rows = [row(vec![text("Tea"), text("Cake"), number(3.5)])];
+    let mut writer = writer();
+    let mut out = writer.sheet(freeze("Shop", 0, 2), &rows).unwrap();
+    out.extend(writer.sheet(freeze("Blog", 1, 2), &rows).unwrap());
+    // A header row that freezes adds its row to a column freeze.
+    let mut framework = SheetOptions::named("Framework");
+    framework.freeze_columns = 1;
+    out.extend(
+        writer
+            .sheet(
+                framework,
+                &[
+                    header(&["Name", "Price"]),
+                    row(vec![text("Tea"), number(3.5)]),
+                ],
+            )
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+
+    let columns = book.sheet(1);
+    assert!(
+        columns.contains(
+            "<sheetView workbookViewId=\"0\"><pane xSplit=\"2\" topLeftCell=\"C1\" activePane=\"topRight\" state=\"frozen\"/>\
+             <selection pane=\"topRight\" activeCell=\"C1\" sqref=\"C1\"/></sheetView>"
+        ),
+        "{columns}"
+    );
+    assert!(!columns.contains("ySplit"), "{columns}");
+
+    let both = book.sheet(2);
+    assert!(
+        both.contains(
+            "<pane xSplit=\"2\" ySplit=\"1\" topLeftCell=\"C2\" activePane=\"bottomRight\" state=\"frozen\"/>\
+             <selection pane=\"bottomRight\" activeCell=\"C2\" sqref=\"C2\"/>"
+        ),
+        "{both}"
+    );
+
+    let header_and_column = book.sheet(3);
+    assert!(
+        header_and_column.contains(
+            "<pane xSplit=\"1\" ySplit=\"1\" topLeftCell=\"B2\" activePane=\"bottomRight\" state=\"frozen\"/>"
+        ),
+        "{header_and_column}"
+    );
+}

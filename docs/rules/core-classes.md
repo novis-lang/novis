@@ -5327,7 +5327,8 @@ it. For the same reason a `group` over rows is added before those rows, a `group
 `print`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
 comes later. **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook**, and any
 other target, such as `file:` or `javascript:`, throws `LogicError`, so a link built from user data
-opens no local file and runs nothing. `Workbook::define` writes a defined name, and the workbook's
+opens no local file and runs nothing. A cell target's sheet name that is not in quotes is quoted
+where Excel quotes it, so `Shop Data!A1` is written `'Shop Data'!A1`. `Workbook::define` writes a defined name, and the workbook's
 `properties` the document properties.
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.

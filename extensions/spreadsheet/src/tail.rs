@@ -643,8 +643,16 @@ impl Tail {
             && !sheet.is_empty()
             && area(cell).is_some()
         {
+            // A sheet name the caller did not quote is quoted where Excel needs it, so
+            // `Shop Data!A1` is written `'Shop Data'!A1`.
+            let already = sheet.len() >= 2 && sheet.starts_with('\'') && sheet.ends_with('\'');
+            let location = if already {
+                target.to_owned()
+            } else {
+                format!("{}!{cell}", crate::chart::quoted(sheet))
+            };
             element.push_str(" location=\"");
-            xml::attr(&mut element, target);
+            xml::attr(&mut element, &location);
             element.push('"');
         } else {
             return Err(Error::Invalid(format!(

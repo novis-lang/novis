@@ -1305,3 +1305,150 @@ fn a_second_print_on_a_sheet_throws() {
     );
     assert!(!sheet.contains("<headerFooter>"), "{sheet}");
 }
+
+#[test]
+fn an_internal_link_to_a_quoted_sheet_name_is_written_quoted() {
+    let link = |anchor: &str, target: &str| {
+        Part::Link(Link {
+            anchor: anchor.to_owned(),
+            target: target.to_owned(),
+            text: None,
+            tooltip: None,
+        })
+    };
+    let mut writer = writer();
+    let mut out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(4))
+        .unwrap();
+    for part in [
+        link("A1", "'Shop Data'!A1"),
+        link("A2", "'Shop''s'!A1"),
+        // The same sheets without quotes: the writer adds them.
+        link("A3", "Shop Data!B2"),
+        link("A4", "Shop's!B2"),
+    ] {
+        assert!(writer.part(part).unwrap().is_empty());
+    }
+    for name in ["Shop Data", "Shop's"] {
+        out.extend(writer.sheet(SheetOptions::named(name), &orders(1)).unwrap());
+    }
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    assert_eq!(
+        between(sheet, "<hyperlinks>", "</hyperlinks>"),
+        "<hyperlinks><hyperlink ref=\"A1\" location=\"'Shop Data'!A1\"/>\
+         <hyperlink ref=\"A2\" location=\"'Shop''s'!A1\"/>\
+         <hyperlink ref=\"A3\" location=\"'Shop Data'!B2\"/>\
+         <hyperlink ref=\"A4\" location=\"'Shop''s'!B2\"/></hyperlinks>"
+    );
+    // An internal link has no relationship.
+    assert!(!book.has("xl/worksheets/_rels/sheet1.xml.rels"));
+}
+
+#[test]
+fn a_note_of_several_lines_keeps_its_line_breaks() {
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(3))
+        .unwrap();
+    for (noted, note) in [("B2", "line one\nline two"), ("B3", "line one\n")] {
+        writer
+            .part(Part::Note(Note {
+                noted: noted.to_owned(),
+                note: note.to_owned(),
+                author: None,
+            }))
+            .unwrap();
+    }
+    let book = finish(writer, out);
+
+    let comments = book.part("xl/comments1.xml");
+    // A line break inside the text is kept as a line break.
+    assert!(
+        comments.contains(
+            "<comment ref=\"B2\" authorId=\"0\"><text><r><t>line one\nline two</t></r></text></comment>"
+        ),
+        "{comments}"
+    );
+    // A line break at the end needs `xml:space`, or a reader drops it.
+    assert!(
+        comments.contains(
+            "<comment ref=\"B3\" authorId=\"0\"><text><r><t xml:space=\"preserve\">line one\n</t></r></text></comment>"
+        ),
+        "{comments}"
+    );
+    assert!(!comments.contains("&#10;"), "{comments}");
+
+    let vml = book.part("xl/drawings/vmlDrawing1.vml");
+    assert!(vml.starts_with("<xml "), "{vml}");
+    assert!(vml.ends_with("</xml>"), "{vml}");
+    assert_eq!(vml.matches("<v:shape ").count(), 2, "{vml}");
+    assert_eq!(vml.matches("</v:shape>").count(), 2, "{vml}");
+    assert!(
+        vml.contains("<x:Row>1</x:Row><x:Column>1</x:Column>"),
+        "{vml}"
+    );
+    assert!(
+        vml.contains("<x:Row>2</x:Row><x:Column>1</x:Column>"),
+        "{vml}"
+    );
+    // The note text is in the comments part only.
+    assert!(!vml.contains("line one"), "{vml}");
+}
+
+#[test]
+fn a_merge_over_an_autofilter_row_is_written() {
+    let mut writer = writer();
+    let mut first = vec![header(&["Name", "Quantity"])];
+    first.extend(orders(3));
+    let out = writer.sheet(SheetOptions::named("Shop"), &first).unwrap();
+    for part in [
+        Part::Merge("A1:B1".to_owned()),
+        Part::Protect(Protect {
+            password: None,
+            allow: vec!["autoFilter".to_owned()],
+        }),
+    ] {
+        assert!(writer.part(part).unwrap().is_empty());
+    }
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    let tail = &sheet[sheet.find("</sheetData>").unwrap()..];
+    // The schema order: sheetProtection, then autoFilter, then mergeCells.
+    let protect = tail.find("<sheetProtection").expect("the protection");
+    let filter = tail
+        .find("<autoFilter ref=\"A1:B4\"/>")
+        .unwrap_or_else(|| panic!("the autofilter in {tail}"));
+    let merges = tail
+        .find("<mergeCells count=\"1\"><mergeCell ref=\"A1:B1\"/></mergeCells>")
+        .unwrap_or_else(|| panic!("the merge in {tail}"));
+    assert!(protect < filter && filter < merges, "{tail}");
+}
+
+#[test]
+fn sheet_protection_has_no_lock_revision() {
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &orders(2))
+        .unwrap();
+    writer
+        .part(Part::Protect(Protect {
+            password: Some("password".to_owned()),
+            allow: Vec::new(),
+        }))
+        .unwrap();
+    let book = finish(writer, out);
+
+    let sheet = book.sheet(1);
+    assert!(
+        sheet.contains(
+            "</sheetData><sheetProtection password=\"83AF\" sheet=\"1\" objects=\"1\" scenarios=\"1\"/>"
+        ),
+        "{sheet}"
+    );
+    // `lockRevision` is an attribute of `workbookProtection` only.
+    assert!(!sheet.contains("lockRevision"), "{sheet}");
+    assert!(!book.workbook().contains("lockRevision"));
+}
