@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/regex.rs, crates/nvs-host/src/slice.rs]
   - id: 3
     title: "the tests that failed in CI compare readings of one clock or the order of events"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/metrics.rs, crates/nvs-cli/tests/serve_isolation.rs, tests/conformance/config/wall-time-stops-a-loop-that-calls-nothing.nvst, tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs, crates/nvs-host/src/group.rs]
   - id: 4
     title: "the rest of the listed tests follow the rule, and every bound taken out leaves its path under a bench or a count"
@@ -74,6 +74,13 @@ checks:
     timeout: 1800
     tests:
       - a_looping_guest_reaches_on_limit_and_the_next_request_is_served
+  - id: stale-cpu-raise
+    stage: 3
+    name: a CPU raise from a sweep that read the ceiling before the handler's entry does not stop the handler
+    run: [cargo, test, --test, limits, --, a_raise_that_read_the_ceiling_from_before_the_handler_does_not_stop_it]
+    timeout: 1800
+    tests:
+      - a_raise_that_read_the_ceiling_from_before_the_handler_does_not_stop_it
 ---
 
 # no test or proof depends on how fast the machine is
@@ -257,16 +264,16 @@ none of which builds. The session builds once they all end.
 - [x] The metrics gather test finds the event that drops an ended core's registry and asserts after
   it (pattern 1). If no such event exists, the gather has a race, and the race is fixed in code.
   `crates/nvs-runtime/src/metrics.rs:1761`
-- [ ] `a_looping_guest_reaches_on_limit_and_the_next_request_is_served` and the `wall_time`
+- [x] `a_looping_guest_reaches_on_limit_and_the_next_request_is_served` and the `wall_time`
   conformance case: find why the limit handler did not run, and fix it as § *Standing decisions*
   says. The conformance case's `--EXPECT--` does not change. `crates/nvs-cli/tests/serve_isolation.rs:381`
   - [x] The `wall_time` case's cause is found and fixed: the handler's slice is counted from its entry.
-  - [ ] The serve test's cause is found from evidence, not from reading alone.
-  - [ ] The serve test's cause is fixed in code, and the test runs green by name.
+  - [x] The serve test's cause is found from evidence, not from reading alone.
+  - [x] The serve test's cause is fixed in code, and the test runs green by name.
 - [x] The cost guard `the_memory_mark_stays_small_beside_the_allocation_it_fronts`: if its figure can
   be a count, it becomes a count. Otherwise record in the handoff why the hard bound held a
   1.05x reading, and fix that bound's cause. `benches/abi-probe/tests/perf_guards.rs:2850`
-- [ ] Run each stage-3 check's command once: green.
+- [x] Run each stage-3 check's command once: green.
 
 ### 4. the rest of the listed tests follow the rule, and every bound taken out leaves its path under a bench or a count
 
@@ -292,37 +299,37 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has one item open: the serve test's cause. Each of
-`watchdog-charge`, `metrics-gather` and `serve-on-limit` ran green here by name, and so did
-`wall-time-stops-a-loop-that-calls-nothing.nvst`. Build and `clippy --all-targets -D warnings` are
-green.
+Stages 1, 2 and 3 are done. Every stage-3 check ran green here by name, the new `stale-cpu-raise`
+included. Build and `clippy --all-targets -D warnings` are green.
 
-- Fixed: the watchdog charge test (pattern 2), a real race in `metrics::every_core` (the `ended`
-  flag), the `wall_time` handler's slice (counted from its entry, `TreeState::wall_slice_end`), and the
-  memory-mark guard (its 1.05x was an out-of-line `carry`, fixed by `2388e7510`; it stays a ratio).
-  Each commit message has the cause.
-- **Serve test: cause not found.** The only failure is run 41279676146, `test / windows-x86_64`:
-  `GET / 500` after 404 ms, no mark, no `FATAL` line in the server's stderr. By reading, the guest
-  path runs the handler (`crates/nvs-cli/src/extensions.rs:900`) with a CPU reserve counted from its
-  entry. 404 ms is about 300 + one 50 ms interval + the 50 ms reserve, so the handler most likely
-  started and was stopped inside its reserve. Either `Core\IO::write`'s first file creation spent
-  past it on Windows, or a sweep that read the old ceiling raised after the handler published a new
-  one (the raise after `running.limit()` in the watchdog's stop walk).
-- `env-secret-proofs` is still stale: no such check exists in the tree. Nightly 41618735447's macOS
-  red tested a commit older than `488791366`. `supply chain` is the `ci-green` side loop's. No test
-  is expected to go red.
+- **Serve test: cause found and fixed (`f7f40eb16`).** The watchdog's stop walk reads a tree's
+  ceiling (`crates/nvs-host/src/watchdog.rs:1398`) and then raises `CPU_LIMIT` (`:1425`). When the
+  handler widens the ceiling and lowers the flag between those two steps, the raise lands inside the
+  handler. Its first poll ran the ladder again, found no handler, and ended the request with no
+  output. The poll now lowers a CPU raise inside the handler's slice while the sampler's reading is
+  under the widened ceiling (`Ctx::in_cpu_slice`, `crates/nvs-runtime/src/ctx/limits.rs`). The new
+  test `crates/nvs-host/tests/limits.rs` (`a_raise_that_read_the_ceiling_from_before_the_handler_
+  does_not_stop_it`) is red without the poll change and green with it. `rule:errors/on-limit`
+  records the fix and its cost.
+- **The evidence is that test, not a CI reproduction.** 192 runs of the serve test, 48 at once
+  beside one CPU burner per core, all passed here. Every server in `serve_isolation.rs` now sets
+  `NVS_PROOF_SWEEPS` (`c3a803617`), so a recurrence on CI prints its sweep lines. The other
+  candidate, the handler's first file write spending more than 50 ms of CPU on Windows, stays
+  open. If the serve test fails again with no second sweep line, that is the cause, and the
+  reserve's accounting is the fix.
+- The sweep's reds are stale: `env-secret-proofs` is defined nowhere, nightly 41618735447 ran
+  `98845d92` (older than `488791366`), and `supply chain` is the `ci-green` loop's. No test is
+  expected to go red.
 
 ### Next
 
-Stage 3's open item: get evidence for the serve test. Make the server say how the request ended.
-In `crates/nvs-cli/tests/serve_isolation.rs:381` start the server with `NVS_PROOF_SWEEPS` set, so
-each CPU stop writes its `nvs-proof-sweep: cpu` line into `server.said()`. Two lines mean a raise
-inside the handler. Check also whether a served request's `FATAL` text reaches stderr; if not, the
-failure message cannot tell "handler stopped" from "handler skipped", and that is worth a log line.
-Then reproduce on Windows under load: run the test in a loop beside a CPU burner. If the second
-sweep raise is the cause, re-check the published ceiling just before the raise in the watchdog's
-stop walk. If the write's own cost is the cause, the reserve's accounting is the fix, as
-§ *Standing decisions* says. Then tick the stage and start stage 4.
+Stage 4: work through the list below, one file group per slice, as its `**Split:**` line says. First
+sweep the files the list did not read (the paragraph after the list). Then hand each file group to a
+writing subagent on the session's model, side by side, none of which builds, and build once they end.
+Start with the tight bounds, since they fail in CI: `html_later.rs:353`, `sqlite_contention.rs:181`,
+`telemetry.rs:1494`, `time.rs:5716`, `io.rs:5274`, `transport.rs:4351`, `otlp.rs:1620`, and the
+`task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst` case. A removed bound needs a bench or
+a counted cost guard first, and the handoff names its path.
 
 **Stage 4's list.** From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
@@ -416,6 +423,11 @@ benches other than `abi-probe`, and matched no assert that compares across lines
 first.
 
 ### Backlog
+
+- A served request that ends in a `FATAL` writes nothing to the server's stderr
+  (`crates/nvs-cli/tests/serve_isolation.rs:401` can only print the status). A floor line per served
+  `FATAL` would let a test tell a stopped handler from a skipped one. It needs its cost per request
+  and its coalescing, as `rule:http-server/the-floor-cannot-fill-the-disk` says.
 
 - `crates/nvs-runtime/src/budget.rs` § *What it spends* (near `:205`) says a balance update is "a
   small fraction of a platform heap one". On glibc that holds only while `carry` is inlined, and the
