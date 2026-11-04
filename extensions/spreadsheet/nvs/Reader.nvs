@@ -45,13 +45,20 @@ final class Reader
         tainted bytes $start = self::head($source);
         tainted string $head = Core\Encoding::toHex(Core\Bytes::slice($start, 0, 4));
         if (!self::workbookStart($head)) {
-            ?Core\Charset $charset = self::charsetOf($head, $csv?->encoding ?? null);
+            ?Core\Charset $asked = $csv?->encoding ?? null;
+            if ($asked == null && (Core\Str::startsWith($head, 'fffe0000') || Core\Str::startsWith($head, '0000feff'))) {
+                throw new ParseError('The CSV file is in UTF-32. UTF-32 is not supported. Save the file as UTF-8 or UTF-16.');
+            }
+            ?Core\Charset $charset = self::charsetOf($head, $asked);
             if ($charset != null) {
                 self::checkDialect($dialect);
                 return new Reader(null, $source, self::decoded($source, $charset), 0, $dialect);
             }
             if (!self::isText($start)) {
                 throw new ParseError('The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods and CSV files.');
+            }
+            if (!self::isUtf8($start)) {
+                throw new ParseError(self::notUtf8());
             }
             if ($source is Core\IO\File) {
                 ?uint $skip = self::csvFile($source);
@@ -402,14 +409,18 @@ final class Reader
         return { name: 'Sheet1', position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet };
     }
 
-    // The text of CSV bytes, or `null` for a zip archive or bytes that are not UTF-8, which the engine reads.
+    // The text of CSV bytes, or `null` for a zip archive, which the engine reads. Bytes that are not UTF-8 throw.
     private static function csvText(tainted bytes $data): ?tainted string
     {
         tainted string $text = '';
+        bool $utf8 = true;
         try {
             $text = Core\Encoding::decodeText($data, Core\Charset::Utf8);
         } catch (RuntimeError $e) {
-            return null;
+            $utf8 = false;
+        }
+        if (!$utf8) {
+            throw new ParseError(self::notUtf8());
         }
         if (self::zipStart(Core\Str::codePoints(Core\Str::slice($text, 0, 3)))) {
             return null;
@@ -469,6 +480,31 @@ final class Reader
             }
         }
         return true;
+    }
+
+    // Whether the first 4 KiB are UTF-8. They may end inside a character, so up to three bytes at the end may be cut off.
+    private static function isUtf8(tainted bytes $start): bool
+    {
+        int $length = Core\Bytes::length($start) as int;
+        int $cut = 0;
+        while ($cut < 4 && $cut <= $length) {
+            try {
+                Core\Encoding::decodeText(Core\Bytes::slice($start, 0, $length - $cut), Core\Charset::Utf8);
+                return true;
+            } catch (RuntimeError $e) {
+            }
+            if ($length < 4096) {
+                return false;
+            }
+            $cut = $cut + 1;
+        }
+        return false;
+    }
+
+    // The message for a CSV file that is not UTF-8.
+    private static function notUtf8(): string
+    {
+        return 'The CSV file is not UTF-8 text. Set the `csv` option `encoding` to its charset, such as `Core\Charset::Windows1252`.';
     }
 
     // A zip archive (xlsx, xlsm, xlsb, ods) or a compound file (xls) is a workbook, whatever the `csv` options say.

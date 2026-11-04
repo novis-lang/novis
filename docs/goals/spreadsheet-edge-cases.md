@@ -357,9 +357,11 @@ are, one conformance case and one attack.
   the part (decision 9). `extensions/spreadsheet/src/read/xml.rs:1`
   - [x] `zip::Part` keeps the first 256 bytes of an XML part, and `xml::encoding` judges them
   - [x] `a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part` passes
-- [ ] RC-03: a UTF-32LE byte order mark (`FF FE 00 00`) is read as UTF-16LE, and invalid UTF-8 in the
+- [x] RC-03: a UTF-32LE byte order mark (`FF FE 00 00`) is read as UTF-16LE, and invalid UTF-8 in the
   first 4 KiB says "not a spreadsheet". Throw the messages in decision 10.
   `extensions/spreadsheet/nvs/Reader.nvs:486`
+  - [x] `open` throws for a UTF-32 mark when no `encoding` is given, and `isUtf8` judges the first 4 KiB
+  - [x] `csvText` throws `notUtf8()` for bytes that are not UTF-8 past the first 4 KiB
 - [ ] The rules and pages a user reads say it: an encrypted file, a part in another encoding and a
   UTF-32 CSV throw (`docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:1`,
   `docs/examples/novis/Spreadsheet-Reader/open/about.md:1`, the doc comment at
@@ -368,16 +370,16 @@ are, one conformance case and one attack.
   copied unchanged, `docs/rules/core-classes/spreadsheet-output-is-inert.md:1`,
   `docs/examples/novis/Spreadsheet-Template/fill/about.md:1`); and decision 2's memory cost is in
   the reads-as-a-stream rule. Then `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Write the ten tests the `hostile-input` check names. The cost tests follow decision 41.
+- [x] Write the ten tests the `hostile-input` check names. The cost tests follow decision 41.
   `crates/nvs-ext/tests/spreadsheet_hostile.rs:1022`
-- [ ] Write the conformance case the `csv-charset` check names.
+- [x] Write the conformance case the `csv-charset` check names.
   `tests/conformance/novis/spreadsheet-a-utf32-csv-throws-and-a-csv-that-is-not-utf8-names-the-encoding-option.nvst:1`
 - [ ] Attack `tests/hostile/novis/Spreadsheet-Reader/open/02-encrypted-and-wrongly-encoded-files.nvs`:
   an encrypted xlsx, an xls with a password, a sheet part in UTF-16, a UTF-32 CSV and an ods row
   repeated to the end of the grid. Build the bytes as `01-files-that-are-not-workbooks.nvs` in the same
   directory does, and follow `tests/hostile/README.md`. Run `bun nv proofs --run --id
   'Novis\Spreadsheet\Reader::open' --show` once: it passes.
-- [ ] Run the `hostile-input` and `csv-charset` checks' commands once: green.
+- [x] Run the `hostile-input` and `csv-charset` checks' commands once: green.
 
 ### 2. xlsx reading resolves odd part names, reads empty and date cells, joins surrogate pairs, and lists a sheet whose part is missing
 
