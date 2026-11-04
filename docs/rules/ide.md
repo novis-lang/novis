@@ -3159,7 +3159,11 @@ the tooltip are the whole signal: a theme or a user cannot tell the kinds apart 
 API takes a badge of one or two characters and draws no shape around it, and no API changes how the
 Explorer shows a file's name.
 
-The list is what the index holds. The client asks when a server starts answering, after
+The list is what the index holds at the moment of the ask, and the server never settles its queue to
+answer it. The client asks the moment a server starts, so settling there would hold every other answer
+until the whole workspace was read, which on a first start is minutes. A list asked before the index
+is settled is short, and the server sends the notification `nvs/fileKindsChanged`, with no parameters,
+each time its queue empties. The client asks again on it, when a server starts answering, after
 `nvs.checkWorkspace`, and when a Novis document is opened or saved, and several asks close together are
 one, since the server does not watch `.nvs` files on disk. A file changed outside the editor shows its
 old kind until one of those happens, the same staleness every reader of the index has. The badge shares

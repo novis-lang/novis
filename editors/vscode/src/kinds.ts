@@ -14,6 +14,9 @@
 /** The server's own request, spelled where `crates/nvs-lsp/src/file_kinds.rs` spells it. */
 export const METHOD = "nvs/fileKinds";
 
+/** What the server sends once it has read every waiting file, so the client asks again. */
+export const CHANGED = "nvs/fileKindsChanged";
+
 /** The four words the server answers with. */
 export type Kind = "class" | "interface" | "enum" | "type";
 

@@ -1,15 +1,17 @@
 // The badge beside each Novis file that declares one type: the editor's own file decorations, fed
 // from the server's `nvs/fileKinds` (`rule:ide/a-file-shows-what-it-declares`).
 //
-// The server knows a file once it is in its index: at start, after `nvs.checkWorkspace`, and when
-// the file is opened or edited. So this asks again at the same moments. It asks when a server starts
-// answering, when a Novis document is opened or saved, and after a workspace pass. Several asks close
+// The server knows a file once it is in its index: while it reads the workspace at start, after
+// `nvs.checkWorkspace`, and when the file is opened or edited. So this asks again at the same
+// moments. It asks when a server starts answering, when the server says it has read every waiting
+// file, when a Novis document is opened or saved, and after a workspace pass. Several asks close
 // together are one ask, because opening a folder of files opens many documents at once. An answer
 // that arrives after a newer ask was sent is dropped.
 //
 // With no server answering there is nothing to ask, and every badge is removed.
 
 import {
+  Disposable,
   EventEmitter,
   ExtensionContext,
   FileDecoration,
@@ -21,7 +23,7 @@ import {
 } from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
-import { BADGES, FileKind, Kind, METHOD, changed, isKind, key } from "./kinds";
+import { BADGES, CHANGED, FileKind, Kind, METHOD, changed, isKind, key } from "./kinds";
 
 /** How long a burst of opened or saved documents is waited out before the server is asked. */
 const SETTLE_MS = 300;
@@ -33,6 +35,7 @@ interface Known {
 }
 
 let serving: LanguageClient | undefined;
+let listening: Disposable | undefined;
 let known = new Map<string, Known>();
 let asked = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -51,11 +54,14 @@ export function install(context: ExtensionContext): void {
     workspace.onDidOpenTextDocument(asking),
     workspace.onDidSaveTextDocument(asking),
     { dispose: () => clearTimeout(timer) },
+    { dispose: () => listening?.dispose() },
   );
 }
 
 /** The client every ask goes to, or `undefined` while none is running. */
 export function serve(client: LanguageClient | undefined): void {
+  listening?.dispose();
+  listening = client?.onNotification(CHANGED, () => soon());
   serving = client;
   void refresh();
 }

@@ -478,11 +478,13 @@ impl SymbolIndex {
     /// first.
     #[must_use]
     pub fn planned(documents: &Documents, scope: CheckScope, root: Option<&Path>) -> Self {
+        Self::planned_tree(tree(documents, scope, root))
+    }
+
+    /// [`planned`](Self::planned) over a tree [`tree`] already walked.
+    pub(crate) fn planned_tree(tree: Vec<(PathBuf, i32)>) -> Self {
         Self {
-            pending: tree(documents, scope, root)
-                .into_iter()
-                .map(|(path, _)| path)
-                .collect(),
+            pending: tree.into_iter().map(|(path, _)| path).collect(),
             ..Self::default()
         }
     }
@@ -517,8 +519,21 @@ impl SymbolIndex {
         root: Option<&Path>,
         path: &Path,
     ) -> Self {
-        Self::loaded(documents, scope, root, path)
-            .unwrap_or_else(|| Self::planned(documents, scope, root))
+        Self::load_from_tree(documents, scope, root, path, tree(documents, scope, root))
+    }
+
+    /// [`load_from`](Self::load_from) over a tree [`tree`] already walked.
+    pub(crate) fn load_from_tree(
+        documents: &Documents,
+        scope: CheckScope,
+        root: Option<&Path>,
+        path: &Path,
+        tree: Vec<(PathBuf, i32)>,
+    ) -> Self {
+        match Self::loaded(documents, scope, root, path, &tree) {
+            Some(index) => index,
+            None => Self::planned_tree(tree),
+        }
     }
 
     /// [`load_from`](Self::load_from), and `None` where it discards the file.
@@ -527,6 +542,7 @@ impl SymbolIndex {
         scope: CheckScope,
         root: Option<&Path>,
         path: &Path,
+        tree: &[(PathBuf, i32)],
     ) -> Option<Self> {
         let root = root.filter(|_| scope == CheckScope::Workspace)?;
         let stamp = nvs_config::cache::build_stamp()?;
@@ -582,9 +598,9 @@ impl SymbolIndex {
             stale.remove(key);
         }
         index.pending = stale;
-        for (entry, _) in tree(documents, scope, Some(root)) {
-            if !index.files.contains_key(&entry) {
-                index.pending.insert(entry);
+        for (entry, _) in tree {
+            if !index.files.contains_key(entry) {
+                index.pending.insert(entry.clone());
             }
         }
         // The index now says what the file says, except where a stamp moved
@@ -1387,8 +1403,13 @@ pub(crate) fn tree(
     if scope == CheckScope::Workspace
         && let Some(root) = root
     {
-        for path in nvs_hir::lenders::sources(root) {
-            selected.entry(canonical_key(&path)).or_insert(NO_BUFFER);
+        // The walk starts from the canonical root, joins each name as its
+        // directory lists it, and follows no link, so every path it yields is
+        // already its own canonical key. Canonicalizing each one again opens
+        // the file on Windows, and on a tree of many files that was most of a
+        // start's cost.
+        for path in nvs_hir::lenders::sources(&canonical_key(root)) {
+            selected.entry(path).or_insert(NO_BUFFER);
         }
     }
     selected.into_iter().collect()

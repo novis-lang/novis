@@ -302,9 +302,17 @@ impl Documents {
     /// [`crate::SymbolIndex::build`] included, which is why this comes before
     /// it. [`resurvey`](Self::resurvey) keeps the answer current after that.
     pub fn survey(&mut self, scope: crate::CheckScope, root: Option<&Path>) {
-        let lenders = crate::index::tree(self, scope, root)
-            .into_iter()
-            .filter_map(|(path, _)| lender(self, &path))
+        let tree = crate::index::tree(self, scope, root);
+        self.survey_tree(&tree);
+    }
+
+    /// [`survey`](Self::survey) over a tree [`crate::index::tree`] already
+    /// walked, so a start that builds its index from the same tree walks the
+    /// workspace once.
+    pub(crate) fn survey_tree(&mut self, tree: &[(PathBuf, i32)]) {
+        let lenders = tree
+            .iter()
+            .filter_map(|(path, _)| lender(self, path))
             .collect();
         self.kept.get_mut().clear();
         self.lenders = lenders;

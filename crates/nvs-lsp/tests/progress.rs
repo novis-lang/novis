@@ -222,6 +222,51 @@ fn a_whole_tree_request_ends_the_indexing_run_it_settles() {
     assert!(end < shutdown, "the end comes before the `shutdown` answer");
 }
 
+/// `nvs/fileKinds`, which a client asks the moment the server starts.
+fn file_kinds() -> Message {
+    Message::Request(Request::new(
+        RequestId::from(3),
+        "nvs/fileKinds".to_owned(),
+        serde_json::json!(null),
+    ))
+}
+
+#[test]
+fn the_file_kinds_asked_at_start_are_answered_before_the_index_is_read() {
+    let (_dir, params) = workspace("kinds", true);
+    let sent = serve_queued(params, vec![file_kinds(), workspace_symbols()]);
+    let at = |found: &dyn Fn(&Message) -> bool, what: &str| {
+        sent.iter()
+            .position(found)
+            .unwrap_or_else(|| panic!("{what}: {sent:?}"))
+    };
+    let answered = at(
+        &|message| matches!(message, Message::Response(response) if response.id == RequestId::from(3)),
+        "`nvs/fileKinds` is answered",
+    );
+    let Message::Response(response) = &sent[answered] else {
+        unreachable!("the position of a response");
+    };
+    assert_eq!(
+        response.response_result.as_ref().ok(),
+        Some(&serde_json::json!([])),
+        "the answer is what the index holds, and no file was read yet"
+    );
+    let ended = at(
+        &|message| matches!(seen(message), Some(Seen::End(_))),
+        "the run ends",
+    );
+    let changed = at(
+        &|message| matches!(message, Message::Notification(n) if n.method == "nvs/fileKindsChanged"),
+        "the client is told the kinds changed",
+    );
+    assert!(answered < ended, "the answer did not wait for the index");
+    assert!(
+        answered < changed,
+        "the client is told to ask again after the index is read"
+    );
+}
+
 #[test]
 fn a_client_that_does_not_show_progress_is_sent_none() {
     let (_dir, params) = workspace("hidden", false);

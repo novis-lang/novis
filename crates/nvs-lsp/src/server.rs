@@ -133,7 +133,7 @@ use crate::folding;
 use crate::hints;
 use crate::hover;
 use crate::imports;
-use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
+use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at, tree};
 use crate::lens_rows::LensRows;
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
@@ -241,7 +241,10 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // program autoloads resolves its names through that program's map, and the
     // survey is what finds the programs
     // (`rule:ide/an-open-document-is-its-own-entry-point`).
-    documents.survey(settings.scope, settings.root.as_deref());
+    // The tree is walked once here, and the survey and the index below both
+    // read it.
+    let tree = tree(&documents, settings.scope, settings.root.as_deref());
+    documents.survey_tree(&tree);
 
     // The one index `rule:ide/five-features-are-one-reference-index` names,
     // held here because this is what owns the store it is built from. Empty at
@@ -252,7 +255,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // waiting in it, and the loop below settles them while no message waits.
     // A start on a workspace this server saw before takes the index it wrote
     // then, and only its stale entries wait ([`start_index`]).
-    let mut index = start_index(&documents, &settings);
+    let mut index = start_index(&documents, &settings, tree);
     indexing.track(connection, index.pending().len())?;
     // What the index file says, as `SymbolIndex::generation` counts it. The
     // loop writes the file when the server is at rest and the two differ.
@@ -662,7 +665,10 @@ fn shut_down(
 /// Every other request reads the open document's own analysis, or a
 /// declaration, and a waiting entry keeps its declarations. CodeLens is not
 /// here: a lens answers from what the index holds, and [`settled`] asks the
-/// client for the lenses again once the queue is empty.
+/// client for the lenses again once the queue is empty. `nvs/fileKinds` is not
+/// here for the same reason, and [`settled`] tells the client to ask for it
+/// again. A client asks for it as soon as the server starts, so settling the
+/// queue for it would hold every other answer until the whole tree was read.
 fn needs_every_file(method: &str) -> bool {
     matches!(
         method,
@@ -677,7 +683,6 @@ fn needs_every_file(method: &str) -> bool {
             | CallHierarchyPrepare::METHOD
             | CallHierarchyIncomingCalls::METHOD
             | CallHierarchyOutgoingCalls::METHOD
-            | file_kinds::METHOD
     )
 }
 
@@ -700,13 +705,18 @@ fn walks_tree(settings: &Settings) -> bool {
     settings.scope == CheckScope::Workspace && settings.root.is_some()
 }
 
-/// The session's index at start: the one [`index_file`] kept, with only its
-/// stale entries waiting, or a planned one where there is no valid file.
-fn start_index(documents: &Documents, settings: &Settings) -> SymbolIndex {
+/// The session's index at start over `tree`, the entry points [`tree`]
+/// walked: the one [`index_file`] kept, with only its stale
+/// entries waiting, or a planned one where there is no valid file.
+fn start_index(
+    documents: &Documents,
+    settings: &Settings,
+    tree: Vec<(PathBuf, i32)>,
+) -> SymbolIndex {
     let root = settings.root.as_deref();
     match index_file(settings) {
-        Some(file) => SymbolIndex::load_from(documents, settings.scope, root, &file),
-        None => SymbolIndex::planned(documents, settings.scope, root),
+        Some(file) => SymbolIndex::load_from_tree(documents, settings.scope, root, &file, tree),
+        None => SymbolIndex::planned_tree(tree),
     }
 }
 
@@ -723,8 +733,9 @@ fn save_index(index: &SymbolIndex, settings: &Settings) -> bool {
 }
 
 /// What follows once the index has no entry waiting: the completion files are
-/// checked against the whole index, and the client is asked for its lenses
-/// again, because a count may have changed while entries waited.
+/// checked against the whole index, the client is told the file kinds may have
+/// changed, and it is asked for its lenses again, because a count may have
+/// changed while entries waited.
 ///
 /// # Errors
 ///
@@ -739,6 +750,9 @@ fn settled(
     if completion_files.check(index) {
         publish_completion_files(connection, completion_files, encoding)?;
     }
+    connection
+        .sender
+        .send(Notification::new(file_kinds::CHANGED.to_owned(), ()).into())?;
     if settings.code_lens && settings.client.refresh_lenses {
         connection.sender.send(
             Request::new(
@@ -841,8 +855,9 @@ fn configure(
         if walks_tree(settings) {
             indexing.begin(connection)?;
         }
-        documents.survey(settings.scope, settings.root.as_deref());
-        *index = start_index(documents, settings);
+        let tree = tree(documents, settings.scope, settings.root.as_deref());
+        documents.survey_tree(&tree);
+        *index = start_index(documents, settings, tree);
         indexing.track(connection, index.pending().len())?;
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;

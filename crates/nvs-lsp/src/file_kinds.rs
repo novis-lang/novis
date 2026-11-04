@@ -15,8 +15,16 @@
 //!
 //! The request takes no parameters and answers the whole list. A client asks
 //! again whenever the index may have changed — at start, after a workspace
-//! pass, and after an open document changes — and each answer costs one pass
-//! over the index's file map, with no analysis.
+//! pass, after an open document changes, and when the server sends
+//! [`CHANGED`] — and each answer costs one pass over the index's file map,
+//! with no analysis.
+//!
+//! **The answer is what the index holds now.** Entries still waiting to be
+//! read are not in it, so the list at start is short until the index is
+//! settled. The server sends [`CHANGED`] each time the queue empties, and the
+//! client asks again. Waiting for the queue instead would hold every other
+//! request behind the whole tree's analysis, because a client asks for this
+//! list the moment the server starts.
 
 use serde::Serialize;
 
@@ -27,6 +35,10 @@ use crate::index::{DeclKind, SymbolIndex};
 ///
 /// Namespaced for [`crate::redactions::METHOD`]'s reason: it is not LSP's.
 pub const METHOD: &str = "nvs/fileKinds";
+
+/// The notification the server sends when the index has settled, so the
+/// client asks [`METHOD`] again. It has no parameters.
+pub const CHANGED: &str = "nvs/fileKindsChanged";
 
 /// One file and the kind of the one type it declares.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
