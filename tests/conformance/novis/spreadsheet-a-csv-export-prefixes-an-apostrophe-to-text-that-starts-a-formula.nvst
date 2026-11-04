@@ -1,0 +1,38 @@
+--TEST--
+A Spreadsheet CSV export writes text that starts with `=`, `+`, `-`, `@`, a tab or a carriage return with a `'` first, writes a negative number as it is, and reads each field back with its `'`: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// Each text value starts with a character that Excel reads as the start of a formula.
+var $book = Workbook::createInMemory({ format: 'csv' });
+$book->sheet("Orders", { header: false })->addAll([["=1+1"], ["+1"], ["-1"], ["@x"], ["\tShop"], ["\rShop"], ["Shop"], [-1]]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+// This prints the file with each line end, tab and carriage return shown as text.
+echo Core\Str::replaceAll($file as string, ["\u{FEFF}" => "", "\r\n" => "<CRLF>\n", "\t" => "<TAB>", "\r" => "<CR>"]);
+
+// The reader returns each field as it is in the file, with its `'`.
+foreach (Reader::open($file)->rows(0) as var $row) {
+    foreach ($row->values as var $value) {
+        echo "[", Core\Str::replaceAll($value as string, ["\t" => "<TAB>", "\r" => "<CR>"]), "]";
+    }
+    echo "\n";
+}
+--EXPECT--
+'=1+1<CRLF>
+'+1<CRLF>
+'-1<CRLF>
+'@x<CRLF>
+'<TAB>Shop<CRLF>
+"'<CR>Shop"<CRLF>
+Shop<CRLF>
+-1<CRLF>
+['=1+1]
+['+1]
+['-1]
+['@x]
+['<TAB>Shop]
+['<CR>Shop]
+[Shop]
+[-1]

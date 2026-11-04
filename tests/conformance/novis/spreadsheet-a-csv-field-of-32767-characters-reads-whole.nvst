@@ -1,0 +1,19 @@
+--TEST--
+`Reader::open` reads a quoted CSV field of 32,767 characters, the most an Excel cell has, whole and unchanged: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+
+// The field has 32,766 `x` characters and one `é`, which is two bytes in UTF-8.
+string $long = Core\Str::repeat("x", 32766) . "é";
+bytes $file = ("Note,Item\n\"" . $long . "\",Tea\n") as bytes;
+foreach (Reader::open($file)->rows(0, { header: true }) as var $row) {
+    tainted string $note = $row->values['Note'] as string;
+    echo Core\Str::length($note), " characters\n";
+    echo $note == $long ? "the same text" : "other text", "\n";
+    echo $row->values['Item'] as string, "\n";
+}
+--EXPECT--
+32767 characters
+the same text
+Tea

@@ -1,0 +1,34 @@
+--TEST--
+`Reader::open` reads a quoted CSV field that is never closed to the end of the file, a backslash as a plain character when no `escape` is given, and a bare CR as the end of a record: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+
+final class Show
+{
+    public static function rows(bytes $file): void
+    {
+        foreach (Reader::open($file)->rows(0) as var $row) {
+            echo "row ", $row->number as string, ":";
+            foreach ($row->values as var $value) {
+                echo " [", Core\Str::replaceAll($value is string ? $value : "null", ["\r" => "<CR>", "\n" => "<LF>"]), "]";
+            }
+            echo "\n";
+        }
+    }
+}
+
+// The quote is never closed, so the field is the rest of the file.
+Show::rows("Item,Note\nTea,\"never closed\nmore" as bytes);
+// With no `escape` option, `\` is a plain character.
+Show::rows("Item,Path\nTea,C:\\shop\\\"tea\"\n" as bytes);
+// Each CR alone ends a record.
+Show::rows("Item,Qty\rTea,2\rCake,3\r" as bytes);
+--EXPECT--
+row 1: [Item] [Note]
+row 2: [Tea] [never closed<LF>more]
+row 1: [Item] [Path]
+row 2: [Tea] [C:\shop\"tea"]
+row 1: [Item] [Qty]
+row 2: [Tea] [2]
+row 3: [Cake] [3]

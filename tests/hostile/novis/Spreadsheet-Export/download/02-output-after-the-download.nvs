@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request sends a download, then tries to write more text, headers and rows after it.
+// The file should stay as it was sent. Each late write should do nothing or throw an error.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method runs `$step` and prints whether it finished or threw.
+    public static function step(int $step, callable(): void $run): void
+    {
+        try {
+            $run();
+            echo "\nstep ", $step, " ran\n";
+        } catch (Throwable $e) {
+            echo "\nstep ", $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+var $book = Workbook::createForDownload('orders.csv', { format: 'csv' });
+$book->sheet('Orders')->add(['item' => 'Tea', 'qty' => 2]);
+$book->finish();
+
+// 1. Text after the end of the download.
+Attack::step(1, fn (): void => {
+    echo "<script>alert(1)</script>";
+});
+
+// 2. A header after the end of the download.
+Attack::step(2, fn (): void => {
+    Core\Response::setHeader('Location', 'https://example.com/');
+});
+
+// 3. A row after `finish`.
+Attack::step(3, fn (): void => {
+    $book->sheet('Orders')->add(['item' => 'Cake', 'qty' => 3]);
+});
+
+// 4. A second `finish`.
+Attack::step(4, fn (): void => {
+    $book->finish();
+});
+
+// 5. A second download in the same request.
+Attack::step(5, fn (): void => {
+    Workbook::fromRows([['item' => 'Cake']])->download('second.csv');
+});

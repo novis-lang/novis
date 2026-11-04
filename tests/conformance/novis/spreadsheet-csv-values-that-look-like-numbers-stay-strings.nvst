@@ -1,0 +1,20 @@
+--TEST--
+`Reader::open` reads every CSV field as a `string`, so `007`, a 16-digit id, `1E3`, `+49`, `1.10` and `TRUE` keep their text: rule:core-classes/spreadsheet-reads-as-a-stream
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Reader;
+
+// Each value looks like a number or a bool. The reader returns the text as it is.
+bytes $file = "Code,Id,Power,Phone,Price,Flag\n007,1234567890123456,1E3,+49,1.10,TRUE\n" as bytes;
+foreach (Reader::open($file)->rows(0, { header: true }) as var $row) {
+    foreach ($row->values as var $key => mixed $value) {
+        echo $key, ": ", $value is string ? "string " . $value : "not a string", "\n";
+    }
+}
+--EXPECT--
+Code: string 007
+Id: string 1234567890123456
+Power: string 1E3
+Phone: string +49
+Price: string 1.10
+Flag: string TRUE
