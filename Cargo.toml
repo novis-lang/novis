@@ -452,6 +452,11 @@ lsp-server = "0.10"
 # neither duplicate reaches Novis's own code — a `Uri` in a request is parsed by
 # `lsp-types` and handed on as a path. Pure Rust, no build script, no C, MIT.
 lsp-types = "0.97"
+# The channel `lsp-server` already hands its messages over on, named so the
+# server's loop can wait on the client and on its index workers in one
+# `select!` (`crates/nvs-lsp/src/workers.rs`). It is in the lock file through
+# `lsp-server`, so naming it adds no crate.
+crossbeam-channel = "0.5"
 
 # --- core utilities ---
 anyhow = "1"

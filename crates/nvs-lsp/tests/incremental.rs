@@ -1044,3 +1044,102 @@ fn two_servers_writing_one_root_leave_one_whole_index_file() {
         .collect();
     assert_eq!(left, ["root.idx"], "a temporary file was left behind");
 }
+
+/// A planned workspace index of `dir`, settled on `workers` threads, or on
+/// this one when it is zero.
+fn planned(dir: &TempDir, workers: usize) -> (Documents, SymbolIndex) {
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(dir.root()));
+    let mut index = SymbolIndex::planned(&documents, CheckScope::Workspace, Some(dir.root()));
+    if workers > 0 {
+        index.use_workers(workers);
+    }
+    (documents, index)
+}
+
+/// The bytes `index` writes to its index file, saved under `name`.
+fn bytes_of(index: &SymbolIndex, dir: &TempDir, name: &str) -> Vec<u8> {
+    fs::create_dir_all(dir.at("index")).expect("a scratch directory");
+    let file = dir.at(&format!("index/{name}.idx"));
+    index
+        .save_to(&file, dir.root())
+        .expect("the index is written");
+    fs::read(&file).expect("the index file")
+}
+
+/// The index settled on worker threads is the serial one, byte for byte:
+/// results are filed in entry path order, and the first analysis to reach a
+/// file keeps it, as in the serial loop.
+#[test]
+fn a_parallel_index_holds_what_the_serial_index_holds() {
+    let dir = tree(6, 8);
+    age(&dir);
+    let (documents, mut serial) = planned(&dir, 0);
+    serial.settle(&documents);
+    let (documents, mut parallel) = planned(&dir, 4);
+    parallel.settle(&documents);
+    assert!(parallel.pending().is_empty(), "the parallel index settled");
+    assert_eq!(indexed(&parallel), indexed(&serial));
+    assert!(
+        bytes_of(&parallel, &dir, "parallel") == bytes_of(&serial, &dir, "serial"),
+        "the parallel index file differs from the serial one"
+    );
+}
+
+/// An edit while jobs run makes the result of every job that read the edited
+/// file stale. Each such entry waits again and is analysed against the new
+/// text, so the index is the one the serial loop builds after the same edit.
+#[test]
+fn an_edit_during_a_parallel_index_requeues_the_entries_that_read_it() {
+    let dir = tree(4, 8);
+    age(&dir);
+    let path = dir.at(&part(3));
+    // `App4/main.nvs` is fourth in path order, so its job is sent before the
+    // edit. Its `Home` calls `next` on `Part3`, and the edit renames that
+    // method. The open file's own analysis borrows the map of `App3`, the
+    // first program, so it does not index `App4`'s files: only a stale result
+    // could file them with the old name.
+    let renamed = fs::read_to_string(&path)
+        .expect("a fixture file")
+        .replacen("public function next(", "public function after(", 1);
+    let edit = |documents: &mut Documents, index: &mut SymbolIndex| {
+        documents.open(
+            uri_of(&path).expect("a temp path is UTF-8"),
+            1,
+            renamed.clone(),
+        );
+        documents.resurvey(&path);
+        index.refresh(documents, &path);
+        index.settle(documents);
+    };
+
+    let (mut documents, mut serial) = planned(&dir, 0);
+    edit(&mut documents, &mut serial);
+
+    let (mut documents, mut parallel) = planned(&dir, 4);
+    assert!(parallel.advance(&documents), "entries wait");
+    assert!(
+        parallel.workers_running() > 0,
+        "jobs were sent before the edit"
+    );
+    edit(&mut documents, &mut parallel);
+
+    assert_eq!(indexed(&parallel), indexed(&serial));
+    assert!(
+        bytes_of(&parallel, &dir, "parallel") == bytes_of(&serial, &dir, "serial"),
+        "a result from before the edit was filed"
+    );
+}
+
+/// The workers exist only while entries wait. Once the index is settled, no
+/// worker thread is left.
+#[test]
+fn a_settled_parallel_index_leaves_no_worker_running() {
+    let dir = tree(4, 8);
+    let (documents, mut index) = planned(&dir, 3);
+    assert!(index.advance(&documents), "entries wait");
+    assert!(index.workers_running() > 0, "the first step starts workers");
+    index.settle(&documents);
+    assert!(index.pending().is_empty(), "the index settled");
+    assert_eq!(index.workers_running(), 0, "a worker is still running");
+}

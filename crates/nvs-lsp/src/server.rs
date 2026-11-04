@@ -1,9 +1,12 @@
 //! The connection, the handshake, and the loop that reads it.
 //!
 //! One reader thread, one writer thread and this one — the three
-//! `rule:ide/the-server-is-synchronous` names, and no fourth. A message is
+//! `rule:ide/the-server-is-synchronous` names — and, while index entries
+//! wait, the workers that analyse them ([`crate::workers`]). A message is
 //! taken off the channel, answered, and the next one is taken; there is no
-//! executor to hand it to and nothing here returns a `Future`.
+//! executor to hand it to and nothing here returns a `Future`. While entries
+//! wait, the loop waits on the client and on the workers' results together,
+//! and a message goes first.
 //!
 //! **[`answer`] is the dispatch, and a refusal is one of its answers.** Every
 //! request gets a response: an arm's when there is one, and `MethodNotFound`
@@ -325,13 +328,15 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     Err(_) => return Ok(()),
                 },
                 // Index work is waiting, so the channel is only looked at. A
-                // message that is there goes first, and one entry is settled
-                // when none is. An answer therefore waits for one entry's
-                // analysis at most.
+                // message that is there goes first. When none is, the results
+                // whose turn has come are filed and more entries go to the
+                // workers, and the loop waits for whichever comes next: a
+                // message or a result. The analyses run on the workers, so an
+                // answer waits for no entry's analysis.
                 None if !index.pending().is_empty() => match connection.receiver.try_recv() {
                     Ok(message) => message,
                     Err(error) if error.is_empty() => {
-                        if !index.settle_one(&documents) {
+                        if !index.advance(&documents) {
                             settled(
                                 connection,
                                 &index,
@@ -339,8 +344,23 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                                 &settings,
                                 encoding,
                             )?;
+                            continue;
                         }
-                        continue;
+                        let Some(results) = index.results() else {
+                            continue;
+                        };
+                        crossbeam_channel::select! {
+                            recv(connection.receiver) -> message => match message {
+                                Ok(message) => message,
+                                Err(_) => return Ok(()),
+                            },
+                            recv(results) -> done => {
+                                if let Ok(done) = done {
+                                    index.receive(done);
+                                }
+                                continue;
+                            }
+                        }
                     }
                     Err(_) => return Ok(()),
                 },
@@ -707,17 +727,20 @@ fn walks_tree(settings: &Settings) -> bool {
 
 /// The session's index at start over `tree`, the entry points [`tree`]
 /// walked: the one [`index_file`] kept, with only its stale
-/// entries waiting, or a planned one where there is no valid file.
+/// entries waiting, or a planned one where there is no valid file. Its
+/// waiting entries are analysed on worker threads.
 fn start_index(
     documents: &Documents,
     settings: &Settings,
     tree: Vec<(PathBuf, i32)>,
 ) -> SymbolIndex {
     let root = settings.root.as_deref();
-    match index_file(settings) {
+    let mut index = match index_file(settings) {
         Some(file) => SymbolIndex::load_from_tree(documents, settings.scope, root, &file, tree),
         None => SymbolIndex::planned_tree(tree),
-    }
+    };
+    index.use_workers(0);
+    index
 }
 
 /// Writes `index` to [`index_file`], and returns whether it did. A failure
@@ -931,7 +954,9 @@ fn check_workspace(
 ) -> Result<Response, ServerError> {
     let root = settings.root.as_deref();
     documents.survey(CheckScope::Workspace, root);
-    *index = SymbolIndex::build(documents, CheckScope::Workspace, root);
+    *index = SymbolIndex::planned(documents, CheckScope::Workspace, root);
+    index.use_workers(0);
+    index.settle(documents);
     if completion_files.check(index) {
         publish_completion_files(connection, completion_files, encoding)?;
     }

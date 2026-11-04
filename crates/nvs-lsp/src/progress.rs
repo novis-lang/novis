@@ -21,8 +21,10 @@
 //! and each run has a token of its own, so a client never sees two `begin`s
 //! without an `end` between them. [`Indexing::track`] is called at the top of
 //! every turn of the loop, so the queue emptying anywhere — the idle turn's
-//! `settle_one`, a whole-tree request's `settle`, or a rebuild that left nothing
-//! to settle — is followed by the `end` at the next turn.
+//! `advance`, a whole-tree request's `settle`, or a rebuild that left nothing
+//! to settle — is followed by the `end` at the next turn. An entry leaves the
+//! queue when its result is filed, not when a worker takes it, so the share
+//! counts filed entries.
 //!
 //! A run's `end` is followed by one `window/logMessage` at the `Log` level: the
 //! index's [`Work`](crate::Work) since the session started, and the file-system

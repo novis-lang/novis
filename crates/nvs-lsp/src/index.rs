@@ -47,10 +47,13 @@
 //!
 //! A keystroke re-analyses the open documents among the readers at once,
 //! because those are published and a cursor stands in them. Every other reader
-//! waits in [`SymbolIndex::pending`], and the server settles one entry at a
-//! time while no message is waiting. The first build is the same queue. So a
-//! completion or a hover waits for one analysis of its own document, never
-//! for the tree. Its files stay indexed while it waits: their text did not
+//! waits in [`SymbolIndex::pending`], and the server's workers analyse them
+//! while it answers ([`SymbolIndex::advance`], [`crate::workers`]). Each
+//! result is filed on the server's thread in entry path order, making the
+//! serial loop's decision at each entry's turn, so the index is the one
+//! [`SymbolIndex::settle_one`] builds alone. The first build is the same
+//! queue. So a completion or a hover waits for one analysis of its own
+//! document, never for the tree. Its files stay indexed while it waits: their text did not
 //! change, so only what a use in them resolved to can be behind. A reader that
 //! needs every file, such as references, rename and the hierarchies, settles
 //! the queue before it answers.
@@ -444,6 +447,17 @@ pub struct SymbolIndex {
     /// moved. The server writes the index to disk when this differs from
     /// what it was at the last write ([`generation`](Self::generation)).
     generation: u64,
+    /// The workers that analyse waiting entries off the server's thread, when
+    /// [`use_workers`](Self::use_workers) asked for them. `None` settles each
+    /// entry on the caller's thread.
+    workers: Option<crate::workers::Pool>,
+    /// How many times [`refresh`](Self::refresh) ran. A job carries the
+    /// number from when it was sent.
+    change: u64,
+    /// Each file a [`refresh`](Self::refresh) was about while a job was in
+    /// flight, with the counter it moved to. A result that read one of them
+    /// after its job was sent is stale. Cleared once no entry waits.
+    changed: FxHashMap<PathBuf, u64>,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -678,6 +692,10 @@ impl SymbolIndex {
     /// program and test is a reader of every file.
     pub fn refresh(&mut self, documents: &Documents, changed: &Path) -> Refreshed {
         let key = canonical_key(changed);
+        self.change += 1;
+        if self.workers.is_some() {
+            self.changed.insert(key.clone(), self.change);
+        }
         let readers = self.readers_of(&key);
         let mut now: Vec<PathBuf> = readers
             .iter()
@@ -761,26 +779,9 @@ impl SymbolIndex {
         let Some(entry) = self.pending.pop_first() else {
             return false;
         };
-        let owns = !self.owned_by(&entry).is_empty();
-        if owns || !self.files.contains_key(&entry) {
+        if !self.skips(&entry) {
             self.drop_owned(std::slice::from_ref(&entry));
-            // The entry is analysed through a snapshot of the store, the
-            // input a thread other than the store's can own.
-            let snapshot = documents.snapshot();
-            let version = snapshot.version_of(&entry).unwrap_or(NO_BUFFER);
-            let (mut session, mut trees) = documents.caches();
-            let files = &self.files;
-            let at = Entry {
-                path: &entry,
-                key: &entry,
-            };
-            let analysed = analyse_entry(&snapshot, &mut session, &mut trees, at, version, |key| {
-                files.contains_key(key)
-            });
-            drop((session, trees));
-            if let Some((_, analysis)) = analysed {
-                self.merge(analysis);
-            }
+            self.analyse_here(documents, &entry);
         }
         if self.pending.is_empty() {
             // The tree is settled, so a parse kept for a file no entry indexed
@@ -791,10 +792,214 @@ impl SymbolIndex {
         true
     }
 
+    /// Whether `entry`'s turn skips it: its own file is indexed and it owns
+    /// no file, so its analysis would read a graph another entry indexed.
+    fn skips(&self, entry: &Path) -> bool {
+        self.files.contains_key(entry) && self.owned_by(entry).is_empty()
+    }
+
+    /// Analyses `entry` on this thread, through a snapshot of the store, and
+    /// files what it found.
+    fn analyse_here(&mut self, documents: &Documents, entry: &Path) {
+        let snapshot = documents.snapshot();
+        let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
+        let (mut session, mut trees) = documents.caches();
+        let files = &self.files;
+        let at = Entry { path: entry, key: entry };
+        let analysed = analyse_entry(&snapshot, &mut session, &mut trees, at, version, |key| {
+            files.contains_key(key)
+        });
+        drop((session, trees));
+        if let Some((_, analysis)) = analysed {
+            self.merge(analysis);
+        }
+    }
+
     /// Analyses every entry in [`pending`](Self::pending), which is what a
-    /// reader that needs every file asks for first.
+    /// reader that needs every file asks for first. With workers, it waits
+    /// for them to drain.
     pub fn settle(&mut self, documents: &Documents) {
+        if let Some(mut pool) = self.workers.take() {
+            while self.turns(documents, &mut pool) {
+                pool.wait();
+            }
+            self.workers = Some(pool);
+            return;
+        }
         while self.settle_one(documents) {}
+    }
+
+    /// Settles the waiting entries on `count` worker threads from now on
+    /// (`rule:ide/the-server-is-synchronous`). A count of zero is one per core
+    /// but one, and at least one.
+    pub fn use_workers(&mut self, count: usize) {
+        self.workers = Some(if count == 0 {
+            crate::workers::Pool::sized_to_the_machine()
+        } else {
+            crate::workers::Pool::new(count)
+        });
+    }
+
+    /// How many worker threads run now. A settled index has none.
+    #[must_use]
+    pub fn workers_running(&self) -> usize {
+        self.workers.as_ref().map_or(0, crate::workers::Pool::running)
+    }
+
+    /// One step of settling without waiting: files every worker result whose
+    /// turn has come, in entry path order, and sends the next entries to the
+    /// workers. Returns whether any entry still waits. Without workers it is
+    /// [`settle_one`](Self::settle_one).
+    pub fn advance(&mut self, documents: &Documents) -> bool {
+        let Some(mut pool) = self.workers.take() else {
+            return self.settle_one(documents);
+        };
+        pool.collect();
+        let left = self.turns(documents, &mut pool);
+        self.workers = Some(pool);
+        left
+    }
+
+    /// The side worker results arrive on, for a caller that waits on it beside
+    /// other input. `None` without workers.
+    pub(crate) fn results(&self) -> Option<crossbeam_channel::Receiver<crate::workers::Done>> {
+        self.workers.as_ref().map(crate::workers::Pool::results)
+    }
+
+    /// Keeps a result a caller took off [`results`](Self::results) until its
+    /// turn.
+    pub(crate) fn receive(&mut self, done: crate::workers::Done) {
+        if let Some(pool) = &mut self.workers {
+            pool.receive(done);
+        }
+    }
+
+    /// Takes the waiting entries in path order, as [`settle_one`] does, until
+    /// the first one whose result has not arrived. Returns whether any entry
+    /// still waits, after sending as many jobs as the pool has room for.
+    ///
+    /// Each turn is the serial loop's turn, made on the state every earlier
+    /// turn left, so the index is the one [`settle_one`] builds. A result is
+    /// analysed again here when something it relied on moved since its job
+    /// was sent: a file it read was refreshed, or a file it took as indexed
+    /// was dropped since.
+    ///
+    /// [`settle_one`]: Self::settle_one
+    fn turns(&mut self, documents: &Documents, pool: &mut crate::workers::Pool) -> bool {
+        loop {
+            let Some(head) = self.pending.first().cloned() else {
+                pool.stop();
+                self.changed.clear();
+                documents.settled(|path| self.files.contains_key(path));
+                return false;
+            };
+            if let Some(done) = pool.take(&head) {
+                self.file_result(documents, done);
+                continue;
+            }
+            if pool.is_running(&head) {
+                break;
+            }
+            if self.skips(&head) {
+                self.pending.remove(&head);
+                continue;
+            }
+            if !self.send(documents, pool, &head) {
+                self.pending.remove(&head);
+                self.drop_owned(std::slice::from_ref(&head));
+                self.analyse_here(documents, &head);
+                continue;
+            }
+            break;
+        }
+        // Entries ahead of their turn go to the workers too. One whose own
+        // file is indexed and that owns nothing is left for its turn, which
+        // skips it unless an earlier turn dropped that file.
+        while pool.has_room() {
+            let next = match &pool.cursor {
+                Some(cursor) => self
+                    .pending
+                    .range::<PathBuf, _>((
+                        std::ops::Bound::Excluded(cursor),
+                        std::ops::Bound::Unbounded,
+                    ))
+                    .next()
+                    .cloned(),
+                None => self.pending.first().cloned(),
+            };
+            let Some(next) = next else {
+                break;
+            };
+            pool.cursor = Some(next.clone());
+            if pool.is_sent(&next) || self.skips(&next) {
+                continue;
+            }
+            if !self.send(documents, pool, &next) {
+                break;
+            }
+        }
+        true
+    }
+
+    /// Sends `entry` to the workers, with the files the index holds now.
+    fn send(&self, documents: &Documents, pool: &mut crate::workers::Pool, entry: &Path) -> bool {
+        let indexed = match &pool.view {
+            Some((generation, view)) if *generation == self.generation => Arc::clone(view),
+            _ => {
+                let view: Arc<FxHashSet<PathBuf>> = Arc::new(self.files.keys().cloned().collect());
+                pool.view = Some((self.generation, Arc::clone(&view)));
+                view
+            }
+        };
+        let snapshot = documents.snapshot();
+        let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
+        pool.send(crate::workers::Job {
+            entry: entry.to_path_buf(),
+            snapshot,
+            version,
+            indexed,
+            owned: self.owned_by(entry),
+            change: self.change,
+        })
+    }
+
+    /// Files the result of the entry whose turn it is, as [`settle_one`]
+    /// would have filed its own analysis.
+    ///
+    /// [`settle_one`]: Self::settle_one
+    fn file_result(&mut self, documents: &Documents, done: crate::workers::Done) {
+        let crate::workers::Done {
+            entry,
+            change,
+            analysis,
+        } = done;
+        let moved = |key: &Path| self.changed.get(key).is_some_and(|at| *at > change);
+        let stale = moved(&entry)
+            || analysis
+                .as_ref()
+                .is_some_and(|analysis| analysis.reads.iter().any(|read| moved(read)));
+        if let Some(analysis) = &analysis {
+            self.work += analysis.work;
+        }
+        // A file it read changed after it was sent: it stays waiting, and its
+        // next turn sends it again.
+        if stale {
+            return;
+        }
+        self.pending.remove(&entry);
+        if self.skips(&entry) {
+            return;
+        }
+        self.drop_owned(std::slice::from_ref(&entry));
+        let Some(mut analysis) = analysis else {
+            return;
+        };
+        if analysis.skipped.iter().any(|key| !self.files.contains_key(key)) {
+            self.analyse_here(documents, &entry);
+            return;
+        }
+        analysis.work = Work::default();
+        self.merge(analysis);
     }
 
     /// The entry points that are waiting for [`settle_one`](Self::settle_one),
@@ -1278,8 +1483,11 @@ pub(crate) struct Analysis {
     /// started, under `canonical_key`, in the order the graph loaded them.
     records: Vec<(PathBuf, Indexed)>,
     /// Every file the analysis read, under `canonical_key`, entry first.
-    /// Empty when `records` is.
     reads: Vec<PathBuf>,
+    /// Each file the analysis reached and left out because the index held it.
+    /// A worker's result is analysed again if one of them was dropped before
+    /// its turn.
+    skipped: Vec<PathBuf>,
     /// The front-end work the analysis did, and all the file-system work of
     /// building its records.
     work: Work,
@@ -1312,11 +1520,13 @@ pub(crate) fn analyse_entry(
         analysed.map.file(loaded.id).path().map(Path::to_path_buf)
     };
     let mut records = Vec::new();
+    let mut skipped = Vec::new();
     for loaded in &analysed.loaded {
         let Some(key) = key_of(loaded) else {
             continue;
         };
         if indexed(&key) {
+            skipped.push(key);
             continue;
         }
         let text = analysed.map.file(loaded.id).text();
@@ -1330,22 +1540,19 @@ pub(crate) fn analyse_entry(
         let indexed = record(&analysed, loaded, &key, stamp, entry.key);
         records.push((key, indexed));
     }
-    let reads = if records.is_empty() {
-        Vec::new()
-    } else {
-        analysed
-            .loaded
-            .iter()
-            .filter_map(key_of)
-            .chain(analysed.lent.iter().cloned())
-            .collect()
-    };
+    let reads = analysed
+        .loaded
+        .iter()
+        .filter_map(key_of)
+        .chain(analysed.lent.iter().cloned())
+        .collect();
     let mut work = analysed.work;
     work.files = nvs_diagnostics::work::so_far() - before;
     let analysis = Analysis {
         entry: entry.key.to_path_buf(),
         records,
         reads,
+        skipped,
         work,
     };
     Some((analysed, analysis))

@@ -22,6 +22,10 @@ lsp-server.workspace = true
 # The vocabulary. Same, and the two are versioned together because a
 # `lsp-server` example is written against a `lsp-types` shape.
 lsp-types.workspace = true
+# The channel the index workers send their results on, which the serve loop
+# selects on beside the client's (`crate::workers`). `lsp-server` already
+# links it.
+crossbeam-channel.workspace = true
 # The front end an open document is analysed with. One document is its own
 # entry point (`rule:ide/an-open-document-is-its-own-entry-point`) and its
 # `require` graph is resolved exactly the way `nvs check` resolves it, so these

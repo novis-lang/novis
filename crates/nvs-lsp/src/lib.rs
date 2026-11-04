@@ -147,6 +147,7 @@ pub mod surface;
 pub mod symbols;
 mod taint;
 mod tree_cache;
+mod workers;
 
 pub use capabilities::{
     CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, declared_capabilities,

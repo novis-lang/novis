@@ -4602,6 +4602,7 @@ name = "nvs-lsp"
 version = "0.0.2"
 dependencies = [
  "blake3",
+ "crossbeam-channel",
  "lsp-server",
  "lsp-types",
  "nvs-config",

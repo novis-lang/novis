@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/session.rs, crates/nvs-lsp/src/parse_cache.rs, docs/rules/ide/the-server-is-synchronous.md]
   - id: 5
     title: "the editor settles its index on every core, and the index it builds is the serial one"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/progress.rs, docs/rules/ide/the-server-is-synchronous.md, crates/nvs-lsp/tests/incremental.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -120,6 +120,14 @@ After stage 2 (`9c8e2e993`), the same cold start: `initialize` 0.11 s, `document
 end **17.3 s**. Index work: parsed 12,297, checked 13,111, resolved 133,761, read 9,106, listed 22,
 settings 263. Server work: resolved 144,689, read 18,245, listed 4,581, settings 263, programs 116. The
 checkout tracks 256 `nvs.toml` files, so 263 is each settings file and its includes parsed once.
+
+After stage 5, on 16 cores (15 workers): cold `initialize` 0.11 s, `documentSymbol` 0.76 s, index end
+**4.01 s**. Index work: parsed 13,214, checked 13,853, resolved 50,496, read 9,788, listed 30, settings
+584. Server work: resolved 10,145, read 8,721, listed 4,559, programs 116. Warm: `initialize` 0.01 s,
+`documentSymbol` 0.94 s, index end 1.04 s; index work parsed 320, checked 320, resolved 1,447, read 295,
+settings 5. A cold index parses about 900 files more than the serial one: each worker parses a shared
+library once for its own session, and a result an earlier entry made unneeded is work done twice. Each
+worker's configuration cache parses each settings file once, so settings is about twice the serial count.
 
 A cold index resolves about 15 paths per file it reads and parsed 592 settings files before stage 2. A warm start
 still walks all 116 programs and reads 9,434 files for the survey alone, because each walk reads the
@@ -248,6 +256,18 @@ Cost: one copy of the open buffers' text per settled entry, on the background pa
 walk keys every required and autoloaded file under `canonical_key` already, and only the entry is
 loaded by the caller's path, so the caller hands its key in (`Entry`). A cold index resolves 6 paths a
 file (was 14); the test's bound is 7.
+
+**A result is checked at its turn, not trusted (stage 5).** A dispatched entry stays in `pending`
+until its result is filed, so progress and every `pending()` reader see what they saw before. At an
+entry's turn the serial decision is made again on the index as earlier turns left it. A result is
+dropped and the entry sent again when a refresh since its job touched a file it read (the index's
+`change` counter and `changed` map, kept only while workers exist). It is analysed again on the
+server's thread when a file it took as indexed was dropped since. Entries ahead of their turn are sent
+only when the index does not hold their file, so a library's files are skipped at their turn and
+never sent. A job shares one copy of the indexed set with every job sent at the same index
+generation. A worker that panics returns no analysis for its entry and starts fresh caches, so the
+server never waits for ever. `crossbeam-channel` is named as a dependency, already in the lock
+through `lsp-server`, so the loop can `select!` on the client and the results.
 
 **Declined:**
 
@@ -400,17 +420,17 @@ than the files). The session writes the items.
 
 **Does:** runs the stage-4 analysis on workers, merges in path order, re-queues what an edit made stale.
 
-- [ ] The worker pool and the ordered merge, as § *Standing decisions* says. The serve loop's idle arm
+- [x] The worker pool and the ordered merge, as § *Standing decisions* says. The serve loop's idle arm
   sends jobs and merges results. `crates/nvs-lsp/src/server.rs:334`
-- [ ] A whole-tree request drains the workers first. `crates/nvs-lsp/src/server.rs:666`
-- [ ] The three tests the `parallel-index` check names. The equality test builds one tree serially and in
+- [x] A whole-tree request drains the workers first. `crates/nvs-lsp/src/server.rs:666`
+- [x] The three tests the `parallel-index` check names. The equality test builds one tree serially and in
   parallel and compares the saved index bytes. `crates/nvs-lsp/tests/incremental.rs:1`
-- [ ] `rule:ide/the-server-is-synchronous` says which work runs on workers, what each worker holds and
+- [x] `rule:ide/the-server-is-synchronous` says which work runs on workers, what each worker holds and
   for how long, and why the answer is still the one thread's.
   `docs/rules/ide/the-server-is-synchronous.md:1`. Then `bun nv rules --render` and
   `bun nv rules --check`.
-- [ ] Run the `parallel-index` check's command once: green.
-- [ ] `bun nv lsp-start` cold and warm on this checkout: record the figures in § *Why*.
+- [x] Run the `parallel-index` check's command once: green.
+- [x] `bun nv lsp-start` cold and warm on this checkout: record the figures in § *Why*.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -422,34 +442,30 @@ than the files). The session writes the items.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 landed in one commit: `absorb` is `analyse_entry`
-(`crates/nvs-lsp/src/index.rs:1294`), which builds the records of each file the index did not hold
-and the entry's reads, and `merge` (`:1206`), which files them under the first-reach rule.
-`settle_one` (`:760`) analyses through `Documents::snapshot` (`crates/nvs-lsp/src/document.rs:512`);
-`refresh` analyses through the store in place. `SourceMap::read` resolves a path once for the overlay
-and the pin, and `SourceMap::overlay_key` and `nvs_hir::lenders::choose_key` take a key already
-resolved. `cargo test --test index --test incremental --test autoload` ran green; the construction-site
-test now ignores a signature that returns `Indexed`, and accepts `&crate::SymbolIndex` (`progress.rs`
-from stage 1 had turned it red). The acceptance sweep's reds were stale again: no `env-secret-proofs`
-log, and nightly 41813182715 ran on `f3150b922`. `website/public/llms-full.txt` is still not rendered
-again since the 10-cli page changed: the goal end's `bun nv ci --check` names it.
+Stages 1 to 5 are done; stage 6, the gate, is next. The pool is `crates/nvs-lsp/src/workers.rs`; the
+in-order filing is `SymbolIndex::turns` (`crates/nvs-lsp/src/index.rs:888`) and `file_result` (`:970`),
+driven by `advance` (`:853`) from the idle arm's `select!` (`crates/nvs-lsp/src/server.rs:352`).
+`settle` (`:821`) drains the workers, which is the whole-tree request's wait. `start_index` and
+`check_workspace` turn workers on; `build` and the tests stay serial. `cargo test --test incremental
+-- parallel` ran green, and the edit test goes red with the stale check off. Cold index: 17.3 s to
+4.01 s on 16 cores. The sweep's reds were stale: no `env-secret-proofs` log, and nightly 41813182715
+ran on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (macOS idle edit).
+`website/public/llms-full.txt` still needs a render; `bun nv ci --check` names it.
 
-Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `crates/nvs-lsp/tests/extensions.rs`,
-every lsp test of a borrowed map (the snapshot's lender choice reads a file's text through
-`overlay_key`), `check_borrow.rs` as a whole, `nvs pkg audit`'s tests, every `nvs check`/`nvs test` of a
-directory (`check_command.rs`, the runner tests, `--fix` and `--watch` of a directory), and any test that
-counts `resolved=` exactly (it may shift down: a read with open buffers resolves once, not twice).
-`nvs-config`'s tests: a reader that counts `trust` calls sees one per distinct path per resolve.
+May be red at the gate: `tests/index.rs`'s construction-site test (`workers.rs` calls `analyse_entry`),
+`stdout_policy.rs` and the manifest-policy test (new direct dependency `crossbeam-channel`), lsp tests
+that drive `serve` over a workspace root, `tests/progress.rs`, `tests/extensions.rs`, lsp tests of a
+borrowed map, `check_borrow.rs`, `nvs pkg audit`'s tests, `nvs check`/`nvs test` of a directory
+(`check_command.rs`, the runner, `--fix`, `--watch`), tests counting `resolved=` exactly, and
+`nvs-config`'s tests that count `trust` calls.
 
 ### Next
 
-Stage 5, in order: the worker pool and the ordered merge (`crates/nvs-lsp/src/server.rs:334`, the idle
-arm that calls `settle_one`): each job is `(entry, Snapshot, change counter)`, a worker owns a
-`Session` and a `TreeCache` and returns `Analysis` (never `Analysed`), results merge in entry path
-order through `SymbolIndex::merge`. Then the drain before a whole-tree request
-(`crates/nvs-lsp/src/server.rs:672`), the three `parallel-index` tests in `crates/nvs-lsp/tests/incremental.rs`,
-the rule text in `docs/rules/ide/the-server-is-synchronous.md`, and `bun nv lsp-start` cold and warm.
-A worker's `indexed` closure needs the keys the index held at dispatch: pass a set copied then, and let
-`merge`'s first-reach check drop what was filed since.
+Stage 6, the gate: `looper verify` in the background, fix every failure in one pass, run it once more.
+Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes whole-project-speed`,
+`bun nv ci --check` (it names `website/public/llms-full.txt`; render it). Move the standing decisions
+only this file holds into the rules or module docs before the file is deleted: the settings cache and
+the lender bound already live in rules; check *A result is checked at its turn* against
+`rule:ide/the-server-is-synchronous` and `crate::workers`'s doc.
 
 ### Backlog
