@@ -2,11 +2,21 @@
 //
 // `src/colours.ts` imports no `vscode`. What is pinned is that turning the setting on adds rules for
 // the theme showing and keeps every rule the user wrote, that turning it off takes out exactly what
-// it wrote and leaves the file as it was, and which theme counts as the one showing.
+// it wrote and leaves the file as it was, that a rule an earlier palette wrote is still the setting's,
+// and which theme counts as the one showing.
 
 import * as assert from "node:assert/strict";
 
-import { NOVIS_THEMES, activeTheme, isNovis, rules, withRules, withoutRules } from "../../src/colours";
+import {
+  NOVIS_THEMES,
+  PALETTE,
+  RETIRED,
+  activeTheme,
+  isNovis,
+  rules,
+  withRules,
+  withoutRules,
+} from "../../src/colours";
 
 describe("turning the setting on", () => {
   it("adds the rules for the theme showing, in that theme's block", () => {
@@ -50,6 +60,18 @@ describe("turning the setting off", () => {
     const on = withRules(undefined, "Some Dark", "dark");
     (on["[Some Dark]"] as { rules: Record<string, unknown> }).rules["class:nvs"] = "#FF0000";
     assert.deepEqual(withoutRules(on), { "[Some Dark]": { rules: { "class:nvs": "#FF0000" } } });
+  });
+
+  it("removes a rule the setting wrote with an earlier palette", () => {
+    // An earlier version wrote `RETIRED[0]`'s method colour. After an update, that rule is still the
+    // setting's: turning the setting off removes it, and turning it on writes the new colour over it.
+    // A rule with a value in no palette is the user's, and stays both times.
+    const old = { "[Some Dark]": { rules: { "method:nvs": RETIRED[0].method, "type:nvs": "#ABCDEF" } } };
+    assert.notEqual(RETIRED[0].method, PALETTE.dark.method);
+    assert.deepEqual(withoutRules(old), { "[Some Dark]": { rules: { "type:nvs": "#ABCDEF" } } });
+    const block = withRules(old, "Some Dark", "dark")["[Some Dark]"] as { rules: Record<string, unknown> };
+    assert.equal(block.rules["method:nvs"], PALETTE.dark.method);
+    assert.equal(block.rules["type:nvs"], "#ABCDEF");
   });
 });
 

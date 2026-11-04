@@ -18,7 +18,20 @@
     "editorIndentGuide.activeBackground1": "#C9CCD6",
     "editorWhitespace.foreground": "#D3D5DB",
     "editorBracketMatch.background": "#DBE6F5",
-    "editorBracketMatch.border": "#B4C4DE"
+    "editorBracketMatch.border": "#B4C4DE",
+    "editorBracketHighlight.foreground1": "#1F1F1F",
+    "editorBracketHighlight.foreground2": "#1F1F1F",
+    "editorBracketHighlight.foreground3": "#1F1F1F",
+    "editorBracketHighlight.foreground4": "#1F1F1F",
+    "editorBracketHighlight.foreground5": "#1F1F1F",
+    "editorBracketHighlight.foreground6": "#1F1F1F",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#F50000",
+    "editorInlayHint.background": "#00000000",
+    "editorInlayHint.foreground": "#8C8C8C",
+    "editorInlayHint.parameterBackground": "#00000000",
+    "editorInlayHint.parameterForeground": "#8C8C8C",
+    "editorInlayHint.typeBackground": "#00000000",
+    "editorInlayHint.typeForeground": "#8C8C8C"
   },
   "tokenColors": [
     {

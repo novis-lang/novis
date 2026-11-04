@@ -18,7 +18,20 @@
     "editorIndentGuide.activeBackground1": "#4B5059",
     "editorWhitespace.foreground": "#3B3E45",
     "editorBracketMatch.background": "#43454A",
-    "editorBracketMatch.border": "#5C5F66"
+    "editorBracketMatch.border": "#5C5F66",
+    "editorBracketHighlight.foreground1": "#BCBEC4",
+    "editorBracketHighlight.foreground2": "#BCBEC4",
+    "editorBracketHighlight.foreground3": "#BCBEC4",
+    "editorBracketHighlight.foreground4": "#BCBEC4",
+    "editorBracketHighlight.foreground5": "#BCBEC4",
+    "editorBracketHighlight.foreground6": "#BCBEC4",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#F75464",
+    "editorInlayHint.background": "#00000000",
+    "editorInlayHint.foreground": "#7A7E85",
+    "editorInlayHint.parameterBackground": "#00000000",
+    "editorInlayHint.parameterForeground": "#7A7E85",
+    "editorInlayHint.typeBackground": "#00000000",
+    "editorInlayHint.typeForeground": "#7A7E85"
   },
   "tokenColors": [
     {
@@ -71,7 +84,7 @@
     },
     {
       "scope": ["variable", "variable.parameter"],
-      "settings": { "foreground": "#8BA7CF" }
+      "settings": { "foreground": "#9876AA" }
     },
     {
       "scope": ["punctuation.section.embedded.begin", "punctuation.section.embedded.end"],
@@ -108,7 +121,7 @@
     },
     {
       "scope": ["entity.name.function", "support.function", "meta.function-call.generic"],
-      "settings": { "foreground": "#FFC66D" }
+      "settings": { "foreground": "#56A8F5" }
     },
     {
       "scope": [
@@ -160,13 +173,13 @@
     "type": "#BCBEC4",
     "typeParameter": "#BCBEC4",
     "struct": "#BCBEC4",
-    "method": "#FFC66D",
-    "function": "#FFC66D",
+    "method": "#56A8F5",
+    "function": "#56A8F5",
     "property": "#C77DBB",
     "enumMember": { "foreground": "#C77DBB", "italic": true },
     "decorator": "#B3AE60",
-    "parameter": "#8BA7CF",
-    "variable": "#8BA7CF",
+    "parameter": "#9876AA",
+    "variable": "#9876AA",
     "*.tainted": { "underline": true },
     "*.secret": { "italic": true }
   }

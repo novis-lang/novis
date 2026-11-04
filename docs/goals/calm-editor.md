@@ -6,7 +6,7 @@ context: [editors/vscode/themes/novis-dark-color-theme.json, editors/vscode/them
 stages:
   - id: 1
     title: "the Novis themes draw brackets plainly, methods and variables in PhpStorm's colours, and hints without a box"
-    status: open
+    status: done
     context: [editors/vscode/src/theme.ts, editors/vscode/test/client/colours.test.ts, docs/rules/ide/novis-ships-names-not-colours.md, docs/reference/tools/40-editor.md]
   - id: 2
     title: "nvs.inlayHints.parameterNames turns the parameter-name hints off, and the server notices without a restart"
@@ -124,9 +124,11 @@ theme's own comment colour as the foreground.
 removes only a rule whose value is exactly what the setting writes now, so after the change the old
 rule would count as the user's and stay forever. `colours.ts` therefore keeps the palettes the setting
 used to write (`RETIRED`, today one entry: dark method `#FFC66D`). `withoutRules` removes a rule whose
-value is the current palette's or a retired one's. `theme.ts` already runs `withoutRules` before
-`withRules` (`editors/vscode/src/theme.ts:65`), so a user with the setting on gets the new colour at
-the next activation and loses no rule of their own. A retired entry is kept, never removed: a user can
+value is the current palette's or a retired one's. `theme.ts` passes the unchanged settings to
+`withRules` (`editors/vscode/src/theme.ts:79`), so `withRules` itself drops a rule whose value is a
+retired palette's before it adds the current rules. A user with the setting on gets the new colour at
+the next activation, and every other theme's block keeps its rules until that theme shows, as before.
+No rule of the user's is lost. A retired entry is kept, never removed: a user can
 update from any older version. Cost: one more comparison per rule, at activation only.
 
 **The new setting.** `nvs.inlayHints.parameterNames`, a boolean, default `true`, scope `resource`.
@@ -216,20 +218,20 @@ file, so they run in order. The goal is small enough that a session may take mor
 **Does:** changes the two theme files and the palette as § *Standing decisions* says, removes rules an
 earlier palette wrote, and updates the tests and docs that state the colours.
 
-- [ ] Novis Dark: the method, function, variable and parameter colours, in both `tokenColors` and
+- [x] Novis Dark: the method, function, variable and parameter colours, in both `tokenColors` and
   `semanticTokenColors`, plus the bracket and inlay hint colours.
   `editors/vscode/themes/novis-dark-color-theme.json:1`
-- [ ] Novis Light: the bracket and inlay hint colours. `editors/vscode/themes/novis-light-color-theme.json:1`
-- [ ] `PALETTE.dark.method` becomes `#56A8F5`, with `RETIRED` and `withoutRules` as § *Standing
+- [x] Novis Light: the bracket and inlay hint colours. `editors/vscode/themes/novis-light-color-theme.json:1`
+- [x] `PALETTE.dark.method` becomes `#56A8F5`, with `RETIRED` and `withoutRules` as § *Standing
   decisions* says, and the module doc says why a retired value is kept. `editors/vscode/src/colours.ts:16`
-- [ ] The contributions suite gets the test `draws every bracket level in the theme's text colour, and
+- [x] The contributions suite gets the test `draws every bracket level in the theme's text colour, and
   a parameter hint without a box`, for both themes. `editors/vscode/test/contributions/contributions.test.ts:560`
-- [ ] The colours suite gets the test `removes a rule the setting wrote with an earlier palette`, and
+- [x] The colours suite gets the test `removes a rule the setting wrote with an earlier palette`, and
   a rule with a value in no palette still stays. `editors/vscode/test/client/colours.test.ts:1`
-- [ ] The rule's *Built* paragraph names the bracket and hint colours and the retired palette.
+- [x] The rule's *Built* paragraph names the bracket and hint colours and the retired palette.
   `docs/rules/ide/novis-ships-names-not-colours.md:50`. The reference page needs no change unless it
   names a colour value: check `docs/reference/tools/40-editor.md:450`.
-- [ ] Run the `themes-calm` check's command once: green.
+- [x] Run the `themes-calm` check's command once: green.
 
 ### 2. nvs.inlayHints.parameterNames turns the parameter-name hints off, and the server notices without a restart
 

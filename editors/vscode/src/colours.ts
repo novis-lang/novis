@@ -8,15 +8,29 @@
 // theme they already use. Both ways use the one palette here, and the contributions suite asserts the
 // theme files agree with it. Nothing here imports `vscode`, which is what lets the headless tier hold
 // it; `src/theme.ts` is the half that reads and writes the editor's settings.
+//
+// A palette the setting wrote in an earlier version stays in `RETIRED`, and is never removed. The
+// setting tells its own rules from the user's by value alone, so without the old value a rule it
+// wrote before an update would count as the user's and stay forever. A user can update from any
+// older version, so every retired palette is kept. Cost: one more comparison per rule, at activation.
 
 /** Whether a theme draws light text on a dark background or the reverse. */
 export type Shade = "dark" | "light";
 
+/** The two colours a type and a method get. */
+interface Palette {
+  type: string;
+  method: string;
+}
+
 /** The two colours a type and a method get, one pair per shade. */
-export const PALETTE: Record<Shade, { type: string; method: string }> = {
-  dark: { type: "#BCBEC4", method: "#FFC66D" },
+export const PALETTE: Record<Shade, Palette> = {
+  dark: { type: "#BCBEC4", method: "#56A8F5" },
   light: { type: "#1F1F1F", method: "#795E26" },
 };
+
+/** Every palette the setting wrote in an earlier version, oldest first. */
+export const RETIRED: readonly Palette[] = [{ type: "#BCBEC4", method: "#FFC66D" }];
 
 /** The label of the bundled theme for each shade, which is also its id in `workbench.colorTheme`. */
 export const NOVIS_THEMES: Record<Shade, string> = { dark: "Novis Dark", light: "Novis Light" };
@@ -29,7 +43,10 @@ type Customizations = Record<string, unknown>;
  * documents by its `:nvs` suffix, so no other language changes colour.
  */
 export function rules(shade: Shade): Customizations {
-  const { type, method } = PALETTE[shade];
+  return paletteRules(PALETTE[shade]);
+}
+
+function paletteRules({ type, method }: Palette): Customizations {
   return {
     "namespace:nvs": type,
     "class:nvs": type,
@@ -42,22 +59,30 @@ export function rules(shade: Shade): Customizations {
 
 /**
  * `current` with the rules for `theme` added. A rule the user already wrote for the same token
- * type stays as they wrote it, so turning the setting on never overwrites their own colour.
+ * type stays as they wrote it, so turning the setting on never overwrites their own colour. A rule
+ * a retired palette wrote is replaced, so an update brings the new colour.
  */
 export function withRules(current: unknown, theme: string, shade: Shade): Customizations {
   const all = record(current);
   const key = `[${theme}]`;
   const block = record(all[key]);
-  return { ...all, [key]: { ...block, rules: { ...rules(shade), ...record(block.rules) } } };
+  const retired = RETIRED.map(paletteRules);
+  const kept = Object.fromEntries(
+    Object.entries(record(block.rules)).filter(
+      ([token, rule]) => !retired.some((old) => same(old[token], rule)),
+    ),
+  );
+  return { ...all, [key]: { ...block, rules: { ...rules(shade), ...kept } } };
 }
 
 /**
  * `current` with every rule the setting wrote taken out of every theme's block, or `undefined` when
- * nothing is left. A rule whose value is not exactly the one the setting writes is the user's, and
- * stays. A block left empty goes too, so turning the setting off returns the file to how it was.
+ * nothing is left. A rule whose value is not exactly one the setting writes now or wrote with a
+ * retired palette is the user's, and stays. A block left empty goes too, so turning the setting off
+ * returns the file to how it was.
  */
 export function withoutRules(current: unknown): Customizations | undefined {
-  const written = [rules("dark"), rules("light")];
+  const written = [PALETTE.dark, PALETTE.light, ...RETIRED].map(paletteRules);
   const result: Customizations = {};
   for (const [key, value] of Object.entries(record(current))) {
     if (!key.startsWith("[")) {

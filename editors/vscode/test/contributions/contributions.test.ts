@@ -581,6 +581,34 @@ describe("the colour the extension contributes only when the user picks it", () 
     }
   });
 
+  it("draws every bracket level in the theme's text colour, and a parameter hint without a box", () => {
+    // Coloured bracket pairs and boxed hints make a line busy. Both Novis themes draw every bracket
+    // level as body text, an unmatched bracket in the theme's own `invalid` colour, and a hint as
+    // dim comment-coloured text on no background. Another theme keeps VS Code's own choice.
+    for (const file of ["novis-dark", "novis-light"]) {
+      const theme = JSON.parse(readFileSync(join(ROOT, "themes", `${file}-color-theme.json`), "utf8")) as {
+        colors: Record<string, string>;
+        tokenColors: { scope: string[]; settings: { foreground?: string } }[];
+      };
+      const scoped = (scope: string) =>
+        theme.tokenColors.find((rule) => rule.scope.includes(scope))?.settings.foreground;
+      const text = theme.colors["editor.foreground"];
+      for (let level = 1; level <= 6; level++) {
+        assert.equal(theme.colors[`editorBracketHighlight.foreground${level}`], text,
+                     `${file} colours bracket level ${level}`);
+      }
+      assert.equal(theme.colors["editorBracketHighlight.unexpectedBracket.foreground"], scoped("invalid"));
+      for (const kind of ["", "parameter", "type"]) {
+        const background = kind === "" ? "background" : `${kind}Background`;
+        const foreground = kind === "" ? "foreground" : `${kind}Foreground`;
+        assert.equal(theme.colors[`editorInlayHint.${background}`], "#00000000",
+                     `${file} draws a box behind a ${kind || "plain"} hint`);
+        assert.equal(theme.colors[`editorInlayHint.${foreground}`], scoped("comment"),
+                     `${file} draws a ${kind || "plain"} hint unlike a comment`);
+      }
+    }
+  });
+
   it("explains both ways in the setting, with a link that runs the theme command", () => {
     const setting = manifest.contributes.configuration.properties["nvs.highlighting.distinctNames"] as
       ConfigProperty & { markdownDescription?: string; scope?: string };

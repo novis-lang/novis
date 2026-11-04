@@ -52,4 +52,8 @@ legend, the `semanticTokenScopes` contribution, the semantic highlighting defaul
 the two bundled themes and the `nvs.highlighting.distinctNames` setting in
 `editors/vscode/package.json`; `editors/vscode/test/contributions/contributions.test.ts` asserts all
 but the first two, and `editors/vscode/test/client/colours.test.ts` asserts what the setting writes and
-removes.
+removes. Both themes draw every bracket level in their `editor.foreground`, an unmatched bracket in
+their `invalid` colour, and an inlay hint in their comment colour on a transparent background, and the
+contributions suite asserts it. `RETIRED` in `editors/vscode/src/colours.ts` keeps every palette the
+setting wrote in an earlier version, so a rule written before an update is still the setting's to
+replace or remove.
