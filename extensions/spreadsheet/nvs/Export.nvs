@@ -2,6 +2,7 @@
 namespace Novis\Spreadsheet;
 
 use LogicError;
+use Throwable;
 
 /// A whole workbook from `Workbook::fromRows` or `Template::fill`. The method you call on it sets where the file goes.
 final class Export
@@ -36,16 +37,31 @@ final class Export
     }
 
     /// `save` writes the file to `$path` and returns the row counts and the size.
-    /// The path needs the `fs.write` capability in `nvs.toml`.
+    /// The bytes go to a temporary file in the same folder, which is renamed to `$path` at the end. If a write fails, the temporary file is deleted.
+    /// The folder needs the `fs.write` capability in `nvs.toml`.
     public function save(#[Core\Path] string $path): Written
     {
         if ($this->fill != null) {
-            var $file = Core\IO::open($path, Core\IO::FileMode::Write);
-            var $written = $this->filled(fn(bytes $chunk): void => {
-                $file->write($chunk);
-            }, false);
-            $file->close();
-            return $written;
+            string $part = $path . '.' . Core\Random::token(8) . '.part';
+            var $file = Core\IO::open($part, Core\IO::FileMode::Write);
+            try {
+                var $written = $this->filled(fn(bytes $chunk): void => {
+                    $file->write($chunk);
+                }, false);
+                $file->close();
+                Core\IO::move($part, $path);
+                return $written;
+            } catch (Throwable $e) {
+                try {
+                    $file->close();
+                } catch (Throwable $closed) {
+                }
+                try {
+                    Core\IO::remove($part);
+                } catch (Throwable $removed) {
+                }
+                throw $e;
+            }
         }
         return $this->run(Workbook::createForFile($path, $this->options));
     }

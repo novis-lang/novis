@@ -1,13 +1,14 @@
 --TEST--
-`Core\Csv::format` quotes a field exactly where a byte in it would otherwise change the parse, and the four bytes that trigger it move with the dialect — counted over a sweep, not read off a rendering
+`Core\Csv::format` quotes a field exactly where a byte in it would otherwise change the parse or a space is at its edge, and the four bytes that trigger it move with the dialect — counted over a sweep, not read off a rendering
 --FILE--
 <?nvs
 // The round trip pins that reading undoes writing
 // (`csv-format-then-parse-is-the-identity-over-awkward-records.nvst`), and a
 // writer that quoted *every* field would satisfy it exactly as well. The rule
 // `crates/nvs-stdlib/src/csv.rs`'s module doc actually states is narrower —
-// quote a field where a byte in it would otherwise change the parse, and
-// otherwise write its bytes through — so what is asserted here is the
+// quote a field where a byte in it would otherwise change the parse or where
+// it starts or ends with a space, and otherwise write its bytes through — so
+// what is asserted here is the
 // **minimality**, by counting which fields came out quoted against which
 // fields hold one of the four bytes. That is a property of the whole table: a
 // writer quoting plausibly row by row still fails it.
@@ -25,10 +26,10 @@ final class Q {
 }
 
 // Seven fields nothing structural is in — including the ones a writer that
-// quoted "when in doubt" would take: an empty field, leading and trailing
-// space, a tab, and the backslash that is not an escape under either dialect
-// here — then the four bytes that are structural under one dialect or the
-// other.
+// quoted "when in doubt" would take: an empty field, a tab, and the backslash
+// that is not an escape under either dialect here — one with a space at each
+// edge, which both dialects quote, then the four bytes that are structural
+// under one dialect or the other.
 array<string> $probes = [
     "plain",
     "",
@@ -55,12 +56,13 @@ int $moved = 0;
 foreach ($probes as string $p) {
     $n = $n + 1;
     // The predicate is written out from the rule rather than from the answer:
-    // the separator, the quote, `CR` and `LF`. `CR` and `LF` are structural
-    // under every dialect because they terminate a record whatever the other
-    // two bytes are.
-    bool $wantDef = Core\Str::contains($p, ",") || Core\Str::contains($p, "\"")
+    // the separator, the quote, `CR` and `LF`, and a space at either edge.
+    // `CR` and `LF` are structural under every dialect because they terminate
+    // a record whatever the other two bytes are.
+    bool $edge = Core\Str::startsWith($p, " ") || Core\Str::endsWith($p, " ");
+    bool $wantDef = $edge || Core\Str::contains($p, ",") || Core\Str::contains($p, "\"")
         || Core\Str::contains($p, "\r") || Core\Str::contains($p, "\n");
-    bool $wantAlt = Core\Str::contains($p, ";") || Core\Str::contains($p, "'")
+    bool $wantAlt = $edge || Core\Str::contains($p, ";") || Core\Str::contains($p, "'")
         || Core\Str::contains($p, "\r") || Core\Str::contains($p, "\n");
     bool $gotDef = Q::def($p);
     bool $gotAlt = Q::alt($p);
@@ -104,8 +106,8 @@ echo "field ", Core\Str::length($twoQuotes),
 echo "empty record ", Core\Str::length(Core\Csv::format([[""]])), "\n";
 --EXPECT--
 probes 13
-default agree 13 quoted 4
-alt agree 13 quoted 4
+default agree 13 quoted 5
+alt agree 13 quoted 5
 moved 4
 field 5 record 10
 empty record 1

@@ -46,7 +46,10 @@
 //! **An image is its own entry, `xl/media/image<n>.<ext>`**, numbered across the workbook. Added
 //! before the sheet's first row, it is written by the call that adds it. Once the sheet's own
 //! entry has started, the zip entry is still open, and a zip entry cannot be split, so the image's
-//! bytes wait in [`OpenSheet`] until the sheet ends. Memory: per writing request, the images added
+//! bytes wait in [`OpenSheet`] until the sheet ends. The same bytes added again, on any sheet, are
+//! not stored again: the new anchor names the entry already written, found by the SHA-256 digest
+//! of the bytes. Cost: one digest per image, and one map entry of 40 bytes per distinct image, per
+//! workbook. Memory: per writing request, the images added
 //! to the open sheet after its first row, until the sheet ends.
 //!
 //! **A chart is its own part, `xl/charts/chart<n>.xml`**, numbered across the workbook and written
@@ -60,7 +63,10 @@
 //! sheet's default autofilter is left out when it overlaps a table, and a sheet does not end
 //! while a table's header row or totals row is still to write.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
+
+use sha2::{Digest, Sha256};
 
 use crate::cells::{self, Layers};
 use crate::chart::is_r1c1;
@@ -148,6 +154,9 @@ pub struct Writer {
     /// The media entries written so far, and their formats in order, for the content types.
     media: usize,
     formats: Vec<Format>,
+    /// The number of each media entry, by the SHA-256 digest of its bytes, so the same image
+    /// added again is stored once.
+    stored: HashMap<[u8; 32], usize>,
     /// The names of the tables added so far, the one numbered `n` at `n - 1`.
     tables: Vec<String>,
     /// The charts added so far, each numbered across the workbook.
@@ -173,7 +182,7 @@ pub(crate) fn check_sheet_name<'a>(
     if name.is_empty() {
         return Err(Error::Invalid("A sheet name cannot be empty.".to_owned()));
     }
-    if name.chars().count() > 31 {
+    if cells::units(name) > 31 {
         return bad("is too long. A sheet name has at most 31 characters");
     }
     if let Some(c) = name.chars().find(|c| ":\\/?*[]".contains(*c)) {
@@ -187,14 +196,20 @@ pub(crate) fn check_sheet_name<'a>(
     if name.starts_with('\'') || name.ends_with('\'') {
         return bad("starts or ends with `'`. That is not allowed");
     }
-    let lower = name.to_lowercase();
-    if lower == "history" {
+    let folded = fold(name);
+    if folded == "HISTORY" {
         return bad("is not allowed. Excel keeps the name `History` for itself");
     }
-    if taken.any(|sheet| sheet.to_lowercase() == lower) {
+    if taken.any(|sheet| fold(sheet) == folded) {
         return bad("is used twice. Each sheet needs its own name");
     }
     Ok(())
+}
+
+/// `name` folded as Excel compares sheet, table and defined names: by Unicode upper case, so
+/// `ς` and `σ` are the same letter.
+pub(crate) fn fold(name: &str) -> String {
+    name.to_uppercase()
 }
 
 /// Turns each column's format into a layer over its style, so a cell layers one column style.
@@ -325,13 +340,13 @@ pub(crate) fn check_name(
             "The reference `{reference}` of the name `{name}` is not a range of this workbook. Write a sheet and a range, such as `'Sheet 1'!$A$1:$B$10`."
         ))
     })?;
-    let lower = name.to_lowercase();
-    if defined.iter().any(|(n, _)| n.to_lowercase() == lower) {
+    let folded = fold(name);
+    if defined.iter().any(|(n, _)| fold(n) == folded) {
         return Err(Error::Invalid(format!(
             "The name `{name}` is defined twice."
         )));
     }
-    if tables.iter().any(|n| n.to_lowercase() == lower) {
+    if tables.iter().any(|n| fold(n) == folded) {
         return Err(Error::Invalid(format!(
             "The name `{name}` is a table's name already."
         )));
@@ -352,8 +367,8 @@ pub(crate) fn check_name_sheets<'a>(
         else {
             continue;
         };
-        let lower = sheet.to_lowercase();
-        if !sheets.clone().any(|known| known.to_lowercase() == lower) {
+        let folded = fold(&sheet);
+        if !sheets.clone().any(|known| fold(known) == folded) {
             return Err(Error::Invalid(format!(
                 "The name `{name}` refers to the sheet `{sheet}`, which the workbook does not have. Add the sheet, or change the reference."
             )));
@@ -454,11 +469,18 @@ pub(crate) fn absolute(range: &str) -> String {
 }
 
 /// The name of the sheet number `part` of an overflow from `base`, as `Orders (2)`, with `base`
-/// shortened to keep it within 31 characters.
+/// shortened to keep it within 31 UTF-16 units.
 pub(crate) fn continued(base: &str, part: u32) -> String {
     let suffix = format!(" ({part})");
-    let keep = 31 - suffix.chars().count();
-    let mut name: String = base.chars().take(keep).collect();
+    let mut room = 31 - suffix.len();
+    let mut name = String::new();
+    for c in base.chars() {
+        if c.len_utf16() > room {
+            break;
+        }
+        room -= c.len_utf16();
+        name.push(c);
+    }
     name.push_str(&suffix);
     name
 }
@@ -500,6 +522,7 @@ impl Writer {
             names: Vec::new(),
             formulas: false,
             media: 0,
+            stored: HashMap::new(),
             formats: Vec::new(),
             tables: Vec::new(),
             charts: 0,
@@ -629,8 +652,14 @@ impl Writer {
                 open.fit |= fits;
             }
             Part::Image(image) => {
+                let digest: [u8; 32] = Sha256::digest(&image.image).into();
+                if let Some(&media) = self.stored.get(&digest) {
+                    open.tail.image(&image, media)?;
+                    return Ok(Vec::new());
+                }
                 let format = open.tail.image(&image, self.media + 1)?;
                 self.media += 1;
+                self.stored.insert(digest, self.media);
                 if !self.formats.contains(&format) {
                     self.formats.push(format);
                     self.formats.sort();
@@ -678,9 +707,9 @@ impl Writer {
         };
         let sheet = open.options.name.as_str();
         let mut placed = Placed::new(table, id, sheet)?;
-        let lower = placed.name.to_lowercase();
-        if self.tables.iter().any(|n| n.to_lowercase() == lower)
-            || self.names.iter().any(|(n, _)| n.to_lowercase() == lower)
+        let folded = fold(&placed.name);
+        if self.tables.iter().any(|n| fold(n) == folded)
+            || self.names.iter().any(|(n, _)| fold(n) == folded)
         {
             return Err(Error::Invalid(format!(
                 "The name `{}` is used twice. A table's name is different from every other table and name of the workbook.",
@@ -1000,6 +1029,16 @@ impl Writer {
                                 cached_text: cached_text.clone(),
                                 cached_number: *cached_number,
                             }),
+                            style: cell.style,
+                        })
+                    }
+                    // A table's header cell is its column's name, so a number there is written
+                    // as the same text.
+                    Some(Value::Integer(_) | Value::Decimal(_) | Value::Number(_))
+                        if open.tail.table_header_at(column as u32, number) =>
+                    {
+                        crate::table::header_text(Some(cell)).map(|text| Cell {
+                            value: Some(Value::Text(text)),
                             style: cell.style,
                         })
                     }

@@ -89,20 +89,24 @@
 //! trailing newline every generator writes does not produce a phantom row of
 //! one empty field.
 //!
-//! # Writing: one rule, four bytes
+//! # Writing: one rule, four bytes and the edges
 //!
 //! [`nvs_core_csv_format`] quotes a field exactly when it holds the separator,
 //! the quote, `CR` or `LF` — the four bytes whose presence would otherwise
-//! change how the field parses back — and doubles the quote inside one. Every
-//! record ends with `LF`, including the last, so `parse(format($rows))` is
-//! `$rows` again.
+//! change how the field parses back — or starts or ends with a space, and
+//! doubles the quote inside one. RFC 4180 § 2.4 keeps a field's spaces, but
+//! Excel, LibreOffice and many hand-written readers trim them from an unquoted
+//! field, so a quoted edge space reads back the same everywhere; every reader
+//! reads the quoted field as the same text, so this changes no data. Every
+//! record ends with `lineEnd`, `LF` by default and `CRLF` on request, including
+//! the last, so `parse(format($rows))` is `$rows` again. `lineEnd` is an option
+//! rather than a rewrite of the answer, because a rewrite of `LF` would also
+//! change the line breaks inside quoted fields; it costs nothing unused.
 //!
-//! This deliberately does **not** reproduce `fputcsv`'s habit of quoting a
-//! field that merely contains a space or a tab. Neither byte changes a parse,
-//! RFC 4180 § 2.4 keeps the spaces inside a field either way, and quoting on
-//! them makes a diff of two exports noisy for no reader's benefit. A caller
-//! who needs every field quoted is asking for a different member, not for this
-//! one's default to be looser.
+//! This does **not** reproduce `fputcsv`'s habit of quoting a field that holds
+//! a space or a tab inside it. Neither changes a parse or is trimmed by any
+//! reader, and quoting on them makes a diff of two exports noisy for no
+//! reader's benefit.
 //!
 //! `{ header: [...] }` writes those names as the first record and is otherwise
 //! independent of the rows — a row is written by its **values in order**, its
@@ -383,8 +387,9 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 /// `Core\Csv::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Writes `$rows` as a CSV document. A field is quoted only when it contains the \
-            separator, the quote, `CR` or `LF`. A quote inside a quoted field is doubled. Every \
-            record ends with `LF`, so `parse(format($rows))` returns `$rows`.",
+            separator, the quote, `CR` or `LF`, or when it starts or ends with a space. A quote \
+            inside a quoted field is doubled. Every record ends with `lineEnd`, so \
+            `parse(format($rows))` returns `$rows`.",
     params: &[
         ParamDoc {
             name: "rows",
@@ -409,12 +414,19 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
                    no header row.",
             shape: &[],
         },
+        ParamDoc {
+            name: "lineEnd",
+            desc: "The characters at the end of each record: `\"\\n\"` or `\"\\r\\n\"`. The \
+                   default is `\"\\n\"`. Excel and RFC 4180 use `\"\\r\\n\"`.",
+            shape: &[],
+        },
     ],
     ret: "The CSV document. It is an empty string when there are no rows and no header.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "An option for the CSV format is empty, longer than one ASCII character, or `CR` \
-               or `LF`. It is also thrown when `separator` and `quote` are the same character.",
+               or `LF`. It is also thrown when `separator` and `quote` are the same character, \
+               and when `lineEnd` is not `\"\\n\"` or `\"\\r\\n\"`.",
     }],
 };
 
@@ -536,7 +548,29 @@ const FORMAT_OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Array(&CoreTy::Str),
         default: Const::Null,
     },
+    CoreOption {
+        name: "lineEnd",
+        ty: CoreTy::Str,
+        default: Const::Str("\n"),
+    },
 ];
+
+/// `Core\Csv::format`'s `lineEnd`: `LF` or `CRLF`.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] for any other text.
+fn line_end(value: &Value) -> Result<&'static [u8], Fault> {
+    match text_of(value, "format", "lineEnd")?.as_bytes() {
+        b"\n" => Ok(b"\n"),
+        b"\r\n" => Ok(b"\r\n"),
+        _ => Err(Fault::thrown(
+            "Core\\Csv::format(): the `lineEnd` option is not \"\\n\" or \"\\r\\n\". A record ends \
+             with one of these two"
+                .to_owned(),
+        )),
+    }
+}
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
@@ -882,8 +916,9 @@ nvs_runtime::nvs_helper! {
     /// half, over a whole document rather than one line.
     ///
     /// A field is quoted exactly when it holds the separator, the quote, `CR`
-    /// or `LF`, and a quote inside one is doubled. Every record ends with
-    /// `LF`, so `parse(format($rows))` answers `$rows`. A row is written by
+    /// or `LF`, or starts or ends with a space, and a quote inside one is
+    /// doubled. Every record ends with `lineEnd`, `LF` by default, so
+    /// `parse(format($rows))` answers `$rows`. A row is written by
     /// its values in order and its keys are ignored — the module docs own why,
     /// and own why there is no `escape` option here.
     ///
@@ -897,16 +932,17 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** the buffer, at most twice the document, and one copy
     /// of the document as the answer, both charged to the request.
-    fn nvs_core_csv_format(ctx, args: [4]) {
+    fn nvs_core_csv_format(ctx, args: [5]) {
         let rows = array_of(&args[0], "format", "the rows")?;
         let separator = dialect_byte(&args[1], "format", "separator")?;
         let quote = dialect_byte(&args[2], "format", "quote")?;
         distinct(&[separator, quote], "format")?;
+        let end = line_end(&args[4])?;
 
         let mut out = ByteWriter::new();
         if args[3].tag() != Some(Tag::Null) {
             let names = array_of(&args[3], "format", "the `header` option")?;
-            write_record(&mut out, &names, separator, quote)?;
+            write_record(&mut out, &names, separator, quote, end)?;
         }
 
         let mut slot = 0;
@@ -919,7 +955,7 @@ nvs_runtime::nvs_helper! {
             slot = live + 1;
             let value = rows.value_at(live).expect("a live slot has a value");
             let record = array_of(&value, "format", "a row")?;
-            write_record(&mut out, &record, separator, quote)?;
+            write_record(&mut out, &record, separator, quote, end)?;
         }
         // The document is copied once more into the string, so that copy asks
         // too. The breach is read before the buffer is freed, so it names the
@@ -930,8 +966,8 @@ nvs_runtime::nvs_helper! {
         };
 
         // Every byte written is either one of the argument's — which are UTF-8
-        // by `rule:types/bytes` — or the separator, the quote or an `LF`, each of which
-        // `dialect_byte` has already held to ASCII.
+        // by `rule:types/bytes` — or the separator, the quote or the line end, each of which
+        // `dialect_byte` and `line_end` have already held to ASCII.
         #[expect(
             clippy::disallowed_methods,
             reason = "the arguments' strings joined by ASCII bytes"
@@ -941,7 +977,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// One record's fields, in slot order, terminated with `LF`.
+/// One record's fields, in slot order, terminated with `end`.
 ///
 /// # Errors
 ///
@@ -952,6 +988,7 @@ fn write_record(
     record: &NvsArray,
     separator: u8,
     quote: u8,
+    end: &[u8],
 ) -> Result<(), Fault> {
     let mut slot = 0;
     let mut column = 0;
@@ -980,18 +1017,20 @@ fn write_record(
         write_field(out, field, separator, quote);
         column += 1;
     }
-    out.put_byte(b'\n');
+    out.put(end);
     Ok(())
 }
 
-/// One field, quoted only where a byte in it would otherwise change the parse.
+/// One field, quoted only where a byte in it would otherwise change the parse,
+/// or where it starts or ends with a space, which many readers trim.
 ///
 /// A quoted field is written a run at a time, cut after each quote, so the
 /// writer is asked once per quote and not once per byte.
 fn write_field(out: &mut ByteWriter, field: &[u8], separator: u8, quote: u8) {
     let structural =
         |byte: u8| byte == separator || byte == quote || byte == b'\r' || byte == b'\n';
-    if !field.iter().copied().any(structural) {
+    let edge = field.first() == Some(&b' ') || field.last() == Some(&b' ');
+    if !edge && !field.iter().copied().any(structural) {
         out.put(field);
         return;
     }
@@ -1689,7 +1728,13 @@ mod tests {
 
         let document = run(
             super::nvs_core_csv_format,
-            &[Value::array(rows), s(";"), s("'"), list(&["qty", "name"])],
+            &[
+                Value::array(rows),
+                s(";"),
+                s("'"),
+                list(&["qty", "name"]),
+                s("\n"),
+            ],
         )
         .expect("two distinct ASCII bytes are a dialect");
         assert_eq!(text(&document), "qty;name\n2;'a''b'\n10;plain\n");
@@ -1704,6 +1749,7 @@ mod tests {
                 s(","),
                 s("\""),
                 Value::null(),
+                s("\n"),
             ],
         )
         .expect("an empty table writes");
@@ -1715,7 +1761,13 @@ mod tests {
         assert!(
             run(
                 super::nvs_core_csv_format,
-                &[Value::array(NvsArray::new()), s(";"), s(";"), Value::null(),],
+                &[
+                    Value::array(NvsArray::new()),
+                    s(";"),
+                    s(";"),
+                    Value::null(),
+                    s("\n"),
+                ],
             )
             .is_err(),
             "one byte cannot be both the separator and the quote"

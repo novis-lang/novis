@@ -3,7 +3,10 @@
 //! `rule:core-classes/spreadsheet-writes-as-a-stream`).
 
 use miniz_oxide::inflate::decompress_to_vec;
+use nvs_spreadsheet::drawing::Image;
 use nvs_spreadsheet::styles::{Implicit, Styles};
+use nvs_spreadsheet::table::Table;
+use nvs_spreadsheet::tail::{Part, RuleKind, Validation};
 use nvs_spreadsheet::{
     Border, Cell, Column, Error, Header, Line, Row, SheetOptions, Style, Value, WorkbookOptions,
     Writer,
@@ -81,7 +84,7 @@ fn finish(mut writer: Writer, mut out: Vec<u8>) -> Book {
 }
 
 /// The entries of the zip archive `archive`, each name with its inflated text, read through the
-/// central directory.
+/// central directory. A media entry's bytes are read as lossy text.
 fn entries(archive: &[u8]) -> Vec<(String, String)> {
     let u16_at = |at: usize| usize::from(u16::from_le_bytes([archive[at], archive[at + 1]]));
     let u32_at = |at: usize| u32::from_le_bytes(archive[at..at + 4].try_into().unwrap());
@@ -102,7 +105,7 @@ fn entries(archive: &[u8]) -> Vec<(String, String)> {
         let name = String::from_utf8(archive[at + 46..at + 46 + name_len].to_vec()).unwrap();
         let data = local + 30 + u16_at(local + 26) + u16_at(local + 28);
         let inflated = decompress_to_vec(&archive[data..data + packed]).unwrap();
-        out.push((name, String::from_utf8(inflated).unwrap()));
+        out.push((name, String::from_utf8_lossy(&inflated).into_owned()));
         at += 46 + name_len + u16_at(at + 30) + u16_at(at + 32);
     }
     out
@@ -961,4 +964,296 @@ fn a_column_past_32_bits_is_named_in_full() {
     assert_eq!(writer.cell(16_383, 1_048_576).unwrap(), "XFD1048576");
     assert_eq!(writer.column(0).unwrap(), "A2:A2");
     finish(writer, out);
+}
+
+fn formula(text: &str) -> Cell {
+    Cell {
+        value: Some(Value::Formula {
+            formula: text.to_owned(),
+            cached_text: None,
+            cached_number: None,
+        }),
+        style: None,
+    }
+}
+
+/// The text of the one `<f>` element of `sheet`.
+fn formula_text(sheet: &str) -> &str {
+    let start = sheet.find("<f>").expect("the sheet has a formula") + 3;
+    let end = start + sheet[start..].find("</f>").unwrap();
+    &sheet[start..end]
+}
+
+/// A sheet `Shop` with one row that has the formula `text`, finished.
+fn one_formula(text: &str) -> Book {
+    let mut writer = writer();
+    let out = writer
+        .sheet(SheetOptions::named("Shop"), &[row(vec![formula(text)])])
+        .unwrap();
+    finish(writer, out)
+}
+
+#[test]
+fn a_function_newer_than_excel_2007_is_written_with_its_prefix() {
+    let book = one_formula("XLOOKUP(A1,B:B,C:C)+ifs(A1>1,1)+SUM(TEXTJOIN(\",\",TRUE,A1:A3))");
+    assert_eq!(
+        formula_text(book.sheet(1)),
+        "_xlfn.XLOOKUP(A1,B:B,C:C)+_xlfn.ifs(A1&gt;1,1)+SUM(_xlfn.TEXTJOIN(\",\",TRUE,A1:A3))"
+    );
+    // `FILTER` and `SORT` take both prefixes, and a name with a prefix already keeps it.
+    let book = one_formula("SORT(FILTER(A1:A9,A1:A9>0))+_xlfn.CONCAT(A1,B1)");
+    assert_eq!(
+        formula_text(book.sheet(1)),
+        "_xlfn._xlws.SORT(_xlfn._xlws.FILTER(A1:A9,A1:A9&gt;0))+_xlfn.CONCAT(A1,B1)"
+    );
+}
+
+#[test]
+fn a_function_name_inside_a_string_is_not_prefixed() {
+    let book = one_formula("\"IFS(1)\"&'Shop CONCAT('!A1&Orders[XLOOKUP(]&CONCAT(\"a\",\"b\")");
+    assert_eq!(
+        formula_text(book.sheet(1)),
+        "\"IFS(1)\"&amp;'Shop CONCAT('!A1&amp;Orders[XLOOKUP(]&amp;_xlfn.CONCAT(\"a\",\"b\")"
+    );
+}
+
+fn validation(range: &str, kind: RuleKind, values: &[&str]) -> Validation {
+    Validation {
+        validated: range.to_owned(),
+        kind,
+        operator: None,
+        values: values.iter().map(|&value| value.to_owned()).collect(),
+        input_title: None,
+        input_message: None,
+        error_title: None,
+        error_message: None,
+        allow_empty: false,
+    }
+}
+
+#[test]
+fn line_breaks_and_tabs_in_attribute_values_are_written_as_character_references() {
+    let mut writer = writer();
+    let out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    let mut rule = validation("A1:A9", RuleKind::List, &["Tea", "Cake"]);
+    rule.input_message = Some("Pick one.\nTea\tor cake.\r\nThanks".to_owned());
+    writer.part(Part::Validation(rule)).unwrap();
+    let book = finish(writer, out);
+    assert!(
+        book.sheet(1)
+            .contains("prompt=\"Pick one.&#10;Tea&#9;or cake.&#13;&#10;Thanks\""),
+        "{}",
+        book.sheet(1)
+    );
+}
+
+#[test]
+fn text_and_sheet_name_lengths_count_utf16_units() {
+    // An emoji is two UTF-16 units, so 15 of them and one letter are 31 units.
+    let mut writer = writer();
+    let fits = format!("{}a", "😀".repeat(15));
+    let mut out = writer.sheet(SheetOptions::named(&fits), &[]).unwrap();
+    let message = invalid(
+        writer
+            .sheet(SheetOptions::named(&"😀".repeat(16)), &[])
+            .unwrap_err(),
+    );
+    assert!(message.contains("at most 31 characters"), "{message}");
+
+    // 16,384 emoji are 32,768 units, one past the most a cell has.
+    out.extend(writer.sheet(SheetOptions::named("Shop"), &[]).unwrap());
+    let message = invalid(
+        writer
+            .rows(&[row(vec![text(&"😀".repeat(16_384))])])
+            .unwrap_err(),
+    );
+    assert!(
+        message.contains("`A1`") && message.contains("32768"),
+        "{message}"
+    );
+    out.extend(
+        writer
+            .rows(&[row(vec![text(&format!("{}a", "😀".repeat(16_383)))])])
+            .unwrap(),
+    );
+    finish(writer, out);
+}
+
+#[test]
+fn sheet_names_that_differ_only_in_case_are_the_same_name_by_upper_case_folding() {
+    // `σ` and the final `ς` have one upper case, `Σ`, and two lower cases.
+    let mut writer = writer();
+    writer.sheet(SheetOptions::named("Shop σ"), &[]).unwrap();
+    let message = invalid(
+        writer
+            .sheet(SheetOptions::named("SHOP ς"), &[])
+            .unwrap_err(),
+    );
+    assert!(message.contains("used twice"), "{message}");
+    let message = invalid(
+        writer
+            .sheet(SheetOptions::named("HISTORY"), &[])
+            .unwrap_err(),
+    );
+    assert!(message.contains("`History`"), "{message}");
+}
+
+#[test]
+fn a_numeric_table_header_is_written_as_text() {
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    let shop = Table {
+        range: "A1:C3".to_owned(),
+        name: None,
+        style: None,
+        banded: true,
+        filter: true,
+        totals: Vec::new(),
+    };
+    out.extend(writer.part(Part::Table(shop)).unwrap());
+    let year = Cell {
+        value: Some(Value::Integer(2024)),
+        style: None,
+    };
+    out.extend(
+        writer
+            .rows(&[
+                row(vec![text("Item"), year, number(2.5)]),
+                row(vec![text("Tea"), number(1.0), number(2.0)]),
+                row(vec![text("Cake"), number(3.0), number(4.0)]),
+            ])
+            .unwrap(),
+    );
+    let book = finish(writer, out);
+    let sheet = book.sheet(1);
+    assert!(
+        sheet.contains("<c r=\"B1\" t=\"inlineStr\"><is><t>2024</t></is></c>"),
+        "{sheet}"
+    );
+    assert!(
+        sheet.contains("<c r=\"C1\" t=\"inlineStr\"><is><t>2.5</t></is></c>"),
+        "{sheet}"
+    );
+    // The rows below the header keep their numbers.
+    assert!(sheet.contains("<c r=\"B2\"><v>1</v></c>"), "{sheet}");
+    let table = book.part("xl/tables/table1.xml");
+    assert!(
+        table.contains("name=\"2024\"") && table.contains("name=\"2.5\""),
+        "{table}"
+    );
+}
+
+#[test]
+fn a_validation_on_whole_columns_or_several_ranges_is_written_and_a_quote_in_a_list_value_is_doubled()
+ {
+    let mut writer = writer();
+    let out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    for rule in [
+        validation("A:A", RuleKind::List, &["Shop \"Main\"", "Blog"]),
+        validation("$C$2:$C$9, E2:E9", RuleKind::Formula, &["=ISNUMBER(C2)"]),
+        validation("2:4", RuleKind::Formula, &["=TRUE"]),
+    ] {
+        writer.part(Part::Validation(rule)).unwrap();
+    }
+    for bad in ["A1:", "B:A", "A1 Shop"] {
+        let message = invalid(
+            writer
+                .part(Part::Validation(validation(
+                    bad,
+                    RuleKind::Formula,
+                    &["=TRUE"],
+                )))
+                .unwrap_err(),
+        );
+        assert!(
+            message.contains("whole columns such as `A:A`"),
+            "{bad}: {message}"
+        );
+    }
+    let message = invalid(
+        writer
+            .part(Part::Validation(validation(
+                "A1:A9",
+                RuleKind::List,
+                &["a,b"],
+            )))
+            .unwrap_err(),
+    );
+    assert!(message.contains("has a `,`"), "{message}");
+    let book = finish(writer, out);
+    let sheet = book.sheet(1);
+    assert!(
+        sheet.contains("sqref=\"A:A\"><formula1>\"Shop \"\"Main\"\",Blog\"</formula1>"),
+        "{sheet}"
+    );
+    assert!(sheet.contains("sqref=\"C2:C9 E2:E9\""), "{sheet}");
+    assert!(sheet.contains("sqref=\"2:4\""), "{sheet}");
+}
+
+/// The chunks of a PNG `width` by `height` pixels, as `sheet_end.rs` builds one.
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+    bytes.extend(width.to_be_bytes());
+    bytes.extend(height.to_be_bytes());
+    bytes.extend([8, 6, 0, 0, 0]);
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x02IDAT\x78\x9c");
+    bytes.extend([0; 4]);
+    bytes.extend(b"\x00\x00\x00\x00IEND");
+    bytes.extend([0; 4]);
+    bytes
+}
+
+fn image(at: &str, bytes: Vec<u8>) -> Image {
+    Image {
+        at: at.to_owned(),
+        image: bytes,
+        width: None,
+        height: None,
+        offset_x: None,
+        offset_y: None,
+    }
+}
+
+#[test]
+fn the_same_image_added_twice_is_stored_once() {
+    let logo = png(2, 1);
+    let other = png(3, 1);
+    let mut writer = writer();
+    let mut out = writer.sheet(SheetOptions::named("Shop"), &[]).unwrap();
+    out.extend(writer.part(Part::Image(image("A1", logo.clone()))).unwrap());
+    out.extend(writer.rows(&[row(vec![text("Tea")])]).unwrap());
+    // Added again after the first row, and on a second sheet: no bytes are stored again.
+    assert!(
+        writer
+            .part(Part::Image(image("C3", logo.clone())))
+            .unwrap()
+            .is_empty()
+    );
+    out.extend(writer.sheet(SheetOptions::named("Blog"), &[]).unwrap());
+    assert!(
+        writer
+            .part(Part::Image(image("B2", logo.clone())))
+            .unwrap()
+            .is_empty()
+    );
+    out.extend(writer.part(Part::Image(image("D4", other))).unwrap());
+    let book = finish(writer, out);
+
+    let media: Vec<&str> = book
+        .parts
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| name.starts_with("xl/media/"))
+        .collect();
+    assert_eq!(media, ["xl/media/image1.png", "xl/media/image2.png"]);
+    let shop = book.part("xl/drawings/_rels/drawing1.xml.rels");
+    assert_eq!(
+        shop.matches("Target=\"../media/image1.png\"").count(),
+        2,
+        "{shop}"
+    );
+    let blog = book.part("xl/drawings/_rels/drawing2.xml.rels");
+    assert!(blog.contains("Target=\"../media/image1.png\""), "{blog}");
+    assert!(blog.contains("Target=\"../media/image2.png\""), "{blog}");
 }

@@ -6674,6 +6674,7 @@ mod tests {
                         Value::text(","),
                         Value::text("\""),
                         Value::null(),
+                        Value::text("\n"),
                     ]
                 },
             },

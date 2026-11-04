@@ -206,7 +206,10 @@ pub fn check(rule: &Conditional) -> Result<(), Error> {
 /// Appends `<formula>` with `value`, its leading `=` dropped.
 fn formula(out: &mut String, value: &str) {
     out.push_str("<formula>");
-    xml::text(out, value.strip_prefix('=').unwrap_or(value));
+    xml::text(
+        out,
+        &crate::future::prefixed(value.strip_prefix('=').unwrap_or(value)),
+    );
     out.push_str("</formula>");
 }
 

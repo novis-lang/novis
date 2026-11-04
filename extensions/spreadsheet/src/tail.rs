@@ -120,6 +120,33 @@ pub fn area(text: &str) -> Option<Area> {
     })
 }
 
+/// A validation's ranges as `sqref` writes them, or `None` when one is not a range. A range is a
+/// cell range (`A1:D10`), whole columns (`A:C`) or whole rows (`2:9`), and several are separated
+/// by a space or a comma. `sqref` separates them by a space and has no `$`.
+fn sqref(text: &str) -> Option<String> {
+    let mut out = String::new();
+    for part in text.split([' ', ',']).filter(|part| !part.is_empty()) {
+        let part = part.replace('$', "");
+        let (from, to) = part.split_once(':').unwrap_or((&part, &part));
+        let lines = |from: &str, to: &str| -> Option<bool> {
+            if let (Some(left), Some(right)) = (column_index(from), column_index(to)) {
+                return Some(left <= right);
+            }
+            let (top, bottom) = (row_number(from)?, row_number(to)?);
+            Some(top <= bottom)
+        };
+        let whole = part.contains(':') && lines(from, to) == Some(true);
+        if !whole && area(&part).is_none() {
+            return None;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(&part);
+    }
+    (!out.is_empty()).then_some(out)
+}
+
 fn bad_range(what: &str, range: &str) -> Error {
     Error::Invalid(format!(
         "The {what} range `{range}` is not a range of cells, such as `A1:D10`."
@@ -655,7 +682,11 @@ impl Tail {
 
     fn validation(&mut self, rule: &Validation) -> Result<(), Error> {
         let range = &rule.validated;
-        area(range).ok_or_else(|| bad_range("validation", range))?;
+        let sqref = sqref(range).ok_or_else(|| {
+            Error::Invalid(format!(
+                "The validation range `{range}` is not a range of cells. Write a range such as `A1:D10`, whole columns such as `A:A`, or several of them, such as `A2:A9 C2:C9`."
+            ))
+        })?;
         limited("input title", &rule.input_title, MAX_TITLE)?;
         limited("error title", &rule.error_title, MAX_TITLE)?;
         limited("input message", &rule.input_message, MAX_MESSAGE)?;
@@ -687,19 +718,20 @@ impl Tail {
                 }
                 [one] if one.starts_with('=') => vec![one[1..].to_owned()],
                 values => {
-                    if let Some(value) = values.iter().find(|v| v.contains([',', '"'])) {
+                    if let Some(value) = values.iter().find(|v| v.contains(',')) {
                         return Err(Error::Invalid(format!(
-                            "The list value `{value}` has a `,` or a `\"`. Put such values in cells, and give the list as a reference such as `=$F$1:$F$9`."
+                            "The list value `{value}` has a `,`. Put such values in cells, and give the list as a reference such as `=$F$1:$F$9`."
                         )));
                     }
                     let joined = values.join(",");
-                    if joined.chars().count() > MAX_LIST {
+                    if cells::units(&joined) > MAX_LIST {
                         return Err(Error::Invalid(format!(
                             "The list validation of `{range}` has {} characters. Excel allows at most 255. Put the values in cells, and give the list as a reference such as `=$F$1:$F$9`.",
-                            joined.chars().count()
+                            cells::units(&joined)
                         )));
                     }
-                    vec![format!("\"{joined}\"")]
+                    // A quote inside Excel's list text is written twice.
+                    vec![format!("\"{}\"", joined.replace('"', "\"\""))]
                 }
             },
             kind => rule.values.iter().map(|value| bound(kind, value)).collect(),
@@ -728,10 +760,10 @@ impl Tail {
         optional_attr(&mut out, "error", &rule.error_message);
         optional_attr(&mut out, "promptTitle", &rule.input_title);
         optional_attr(&mut out, "prompt", &rule.input_message);
-        let _ = write!(out, " sqref=\"{}\">", range.replace('$', ""));
+        let _ = write!(out, " sqref=\"{sqref}\">");
         for (at, formula) in formulas.iter().enumerate() {
             let _ = write!(out, "<formula{}>", at + 1);
-            xml::text(&mut out, formula);
+            xml::text(&mut out, &crate::future::prefixed(formula));
             let _ = write!(out, "</formula{}>", at + 1);
         }
         out.push_str("</dataValidation>");
@@ -923,6 +955,11 @@ impl Tail {
             .iter()
             .find(|table| table.covers(column, row))
             .map(|table| table.name.as_str())
+    }
+
+    /// Whether the cell at `column` and `row` is a header cell of a table.
+    pub fn table_header_at(&self, column: u32, row: u32) -> bool {
+        self.tables.iter().any(|table| table.heads(column, row))
     }
 
     /// Names the columns of each table whose header row is among `rows`, the first of them

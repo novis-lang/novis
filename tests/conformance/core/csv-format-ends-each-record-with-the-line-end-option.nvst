@@ -1,0 +1,40 @@
+--TEST--
+Core\Csv::format ends each record with its `lineEnd` option, LF by default or CRLF, keeps a line feed inside a quoted field as it is, reads back as the same records, and throws for any other line end
+--FILE--
+<?nvs
+// covers: Core\Csv::format
+final class Show {
+    // This function shows CR and LF as visible text.
+    public static function of(string $document): string {
+        return "[" . Core\Str::replaceAll($document, ["\r" => "<CR>", "\n" => "<LF>"]) . "]";
+    }
+}
+
+array<array<string>> $rows = [["Shop", "line one\nline two"], ["Blog", "3"]];
+
+echo Show::of(Core\Csv::format($rows)), "\n";
+string $crlf = Core\Csv::format($rows, { lineEnd: "\r\n", header: ["Name", "Note"] });
+echo Show::of($crlf), "\n";
+
+// Parsing the CRLF document returns the same fields.
+foreach (Core\Csv::parse($crlf, { header: true }) as array<string> $record) {
+    echo $record["Name"], ": ", Show::of($record["Note"]), "\n";
+}
+
+array<string> $bads = ["\r", ";", ""];
+foreach ($bads as string $bad) {
+    try {
+        Core\Csv::format($rows, { lineEnd: $bad });
+        echo "no error\n";
+    } catch (RuntimeError $e) {
+        echo "RuntimeError\n";
+    }
+}
+--EXPECT--
+[Shop,"line one<LF>line two"<LF>Blog,3<LF>]
+[Name,Note<CR><LF>Shop,"line one<LF>line two"<CR><LF>Blog,3<CR><LF>]
+Shop: [line one<LF>line two]
+Blog: [3]
+RuntimeError
+RuntimeError
+RuntimeError

@@ -5,6 +5,7 @@ use Iterable;
 use Iterator;
 use LogicError;
 use RuntimeError;
+use Throwable;
 
 /// An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in `.ods` or `.csv`, or `format: 'ods'` or `format: 'csv'`, sets the format.
 /// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
@@ -23,6 +24,10 @@ final class Workbook
     private ?Core\Response\Stream $response = null;
     private ?Core\IO\File $file = null;
     private bool $closeFile = false;
+    // For `createForFile`: the path the program named, and the temporary file beside it that has the bytes until `finish`.
+    private ?string $target = null;
+    private ?string $part = null;
+    private bool $failed = false;
     private bool $keep = false;
     private array<bytes> $kept = [];
     private bool $open = false;
@@ -72,13 +77,17 @@ final class Workbook
         return $book;
     }
 
-    /// `Workbook::createForFile` writes the file to `$path`. If the file exists, it is replaced.
-    /// The path needs the `fs.write` capability in `nvs.toml`.
+    /// `Workbook::createForFile` writes the file to `$path`. If the file exists, `finish` replaces it.
+    /// The bytes go to a temporary file in the same folder, and `finish` renames it to `$path`. If a write fails, the temporary file is deleted.
+    /// The folder needs the `fs.write` capability in `nvs.toml`.
     public static function createForFile(#[Core\Path] string $path, Options $options = null): Workbook
     {
         var $book = self::start($path, $path, $options);
-        $book->file = Core\IO::open($path, Core\IO::FileMode::Write);
+        string $part = $path . '.' . Core\Random::token(8) . '.part';
+        $book->file = Core\IO::open($part, Core\IO::FileMode::Write);
         $book->closeFile = true;
+        $book->target = $path;
+        $book->part = $part;
         return $book;
     }
 
@@ -233,13 +242,24 @@ final class Workbook
     public function finish(): Written
     {
         $this->checkOpen();
-        $this->flushSheet();
-        $this->finished = true;
-        var $last = Engine::writerFinish($this->writer);
-        $this->send($last->data);
-        $this->response?->end();
-        if ($this->closeFile) {
-            $this->file?->close();
+        try {
+            $this->flushSheet();
+            $this->finished = true;
+            var $last = Engine::writerFinish($this->writer);
+            $this->send($last->data);
+            $this->response?->end();
+            if ($this->closeFile) {
+                $this->file?->close();
+            }
+            ?string $part = $this->part;
+            ?string $target = $this->target;
+            if ($part != null && $target != null) {
+                Core\IO::move($part, $target);
+                $this->part = null;
+            }
+        } catch (Throwable $e) {
+            $this->discard();
+            throw $e;
         }
         array<int> $rows = [];
         int $size = $last->size as int;
@@ -337,8 +357,31 @@ final class Workbook
 
     private function checkOpen(): void
     {
+        if ($this->failed) {
+            throw new LogicError('The workbook could not be written to its file, and its temporary file is deleted. Create a new workbook to try again.');
+        }
         if ($this->finished) {
             throw new LogicError('The workbook is finished. `finish` is the last call on a workbook.');
+        }
+    }
+
+    // Deletes the temporary file of `createForFile` after a failed write. The file at the program's path is not changed. Later calls throw.
+    private function discard(): void
+    {
+        ?string $part = $this->part;
+        if ($part == null) {
+            return;
+        }
+        $this->failed = true;
+        $this->part = null;
+        try {
+            $this->file?->close();
+        } catch (Throwable $e) {
+        }
+        $this->file = null;
+        try {
+            Core\IO::remove($part);
+        } catch (Throwable $e) {
         }
     }
 
@@ -589,7 +632,12 @@ final class Workbook
         }
         $this->csvSize = $this->csvSize + Core\Bytes::length($chunk);
         $this->response?->write($chunk);
-        $this->file?->write($chunk);
+        try {
+            $this->file?->write($chunk);
+        } catch (Throwable $e) {
+            $this->discard();
+            throw $e;
+        }
         if ($this->keep) {
             $this->kept[] = $chunk;
         }
@@ -654,7 +702,7 @@ final class Workbook
     }
 
     // The rows as CSV bytes, one record per row, from `Core\Csv::format` in the workbook's dialect and charset.
-    // A UTF-16 file starts with a byte order mark. A character the charset lacks throws, naming its cell.
+    // Each record ends with CR and LF. A UTF-8 or UTF-16 file starts with a byte order mark, so Excel reads its characters right. A character the charset lacks throws, naming its cell.
     private function csvBytes(array<Row> $rows): bytes
     {
         array<array<string>> $records = [];
@@ -677,9 +725,12 @@ final class Workbook
             }
             $records[] = $fields;
         }
-        string $text = Core\Csv::format($records, { separator: $this->separator, quote: $this->quote });
+        string $text = Core\Csv::format($records, { separator: $this->separator, quote: $this->quote, lineEnd: "\r\n" });
         ?Core\Charset $charset = $this->encoding;
         if ($charset == null) {
+            if ($this->csvRecords == 0) {
+                $text = "\u{FEFF}" . $text;
+            }
             return $text as bytes;
         }
         if ($this->csvRecords == 0 && ($charset == Core\Charset::Utf16Le || $charset == Core\Charset::Utf16Be)) {

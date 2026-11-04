@@ -160,8 +160,9 @@ fn style_name(style: &str) -> Result<String, Error> {
     )))
 }
 
-/// The text a header cell names its column with, or `None` for an empty cell.
-fn header_text(cell: Option<&Cell>) -> Option<String> {
+/// The text a header cell names its column with, or `None` for an empty cell. A number is named
+/// by the text xlsx writes for it, and the writer writes such a cell as that text.
+pub(crate) fn header_text(cell: Option<&Cell>) -> Option<String> {
     let text = match cell?.value.as_ref()? {
         Value::Text(text) => text.clone(),
         Value::Integer(value) => value.to_string(),
@@ -265,8 +266,11 @@ impl Placed {
                     self.name
                 )));
             };
-            let lower = name.to_lowercase();
-            if names.iter().any(|other| other.to_lowercase() == lower) {
+            let folded = crate::writer::fold(&name);
+            if names
+                .iter()
+                .any(|other| crate::writer::fold(other) == folded)
+            {
                 return Err(Error::Invalid(format!(
                     "The header cell `{at}` of the table `{}` repeats the name `{name}`. The names of a table's columns are different.",
                     self.name
@@ -360,6 +364,11 @@ impl Placed {
                 .iter()
                 .any(|total| total.column == self.columns[at])
         })
+    }
+
+    /// Whether the cell at `column` and `row` is in its header row.
+    pub fn heads(&self, column: u32, row: u32) -> bool {
+        row == self.area.top && (self.area.left..=self.area.right).contains(&column)
     }
 
     /// Whether the cell at `column` and `row` is one of its data rows or its totals row.

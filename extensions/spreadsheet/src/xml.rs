@@ -5,7 +5,9 @@
 //! forbids (a C0 control other than tab and line feed, and U+FFFE and U+FFFF) is Excel's
 //! `_xHHHH_` escape, and so is a carriage return, which an XML parser would fold into a line feed.
 //! An underscore that would begin such an escape is written `_x005F_`, so text that holds
-//! `_x0041_` reads back as itself. [`attr`] writes an attribute value, which adds `"`.
+//! `_x0041_` reads back as itself. [`attr`] writes an attribute value, which adds `"`, and writes
+//! a line feed, a carriage return and a tab as `&#10;`, `&#13;` and `&#9;`, because an XML parser
+//! reads each of them raw in an attribute as a space.
 
 use std::fmt::Write as _;
 
@@ -34,6 +36,9 @@ fn escape(out: &mut String, value: &str, quote: bool) {
             '<' => Some("&lt;"),
             '>' => Some("&gt;"),
             '"' if quote => Some("&quot;"),
+            '\n' if quote => Some("&#10;"),
+            '\r' if quote => Some("&#13;"),
+            '\t' if quote => Some("&#9;"),
             '_' if starts_escape(&bytes[at..]) => Some("_x005F_"),
             _ => None,
         };

@@ -20,6 +20,8 @@ crc32fast = "1.5"
 itoa = "1"
 # The shortest text that reads back as the same `f64`.
 ryu = "1"
+# The digest that finds an image added twice, so two different images are never one.
+sha2 = { version = "0.10", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wit-bindgen = "0.63"

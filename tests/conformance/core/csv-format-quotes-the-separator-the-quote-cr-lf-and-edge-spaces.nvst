@@ -1,0 +1,63 @@
+--TEST--
+Core\Csv::format, swept over every 7-bit byte as a one-field record, quotes the separator, the quote, CR, LF and a field that starts or ends with a space, a space or a tab inside a field is written bare, and every field reads back unchanged
+--FILE--
+<?nvs
+final class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+
+    public static function of(string $document): string {
+        return "[" . Core\Str::replaceAll(
+            $document,
+            ["\r" => "<CR>", "\n" => "<LF>", "\t" => "<TAB>"],
+        ) . "]";
+    }
+}
+
+// One letter per byte from 0 to 127: `y` if the field is quoted. The second
+// line lists the quoted bytes. A field of one space starts with a space, so
+// it is quoted.
+string $band = "";
+string $list = "";
+for (int $b = 0; $b < 128; $b = $b + 1) {
+    array<array<string>> $rows = [[Core\Str::fromCodePoint($b as uint)]];
+    bool $quoted = Core\Str::startsWith(Core\Csv::format($rows), "\"");
+    $band = $band . Show::yn($quoted);
+    if ($quoted) {
+        $list = $list . " " . $b;
+    }
+}
+echo $band, "\n";
+echo "quoted:", $list, "\n";
+
+// A space and a tab inside a field are written without quotes. The comma is quoted.
+array<array<string>> $mixed = [["a b", "c\td", "e,f"]];
+string $document = Core\Csv::format($mixed);
+echo Show::of($document), "\n";
+
+// A space at the start or the end of a field is quoted. A tab at the edge is not.
+array<array<string>> $edges = [[" Shop", "Shop ", " ", "\tShop", "Sh op"]];
+string $edged = Core\Csv::format($edges);
+echo Show::of($edged), "\n";
+
+// Parsing each document returns the same fields.
+array<string> $documents = [$document, $edged];
+foreach ($documents as string $text) {
+    foreach (Core\Csv::parse($text) as array<string> $record) {
+        foreach ($record as string $field) {
+            echo "<", Core\Str::replaceAll($field, ["\t" => "<TAB>"]), ">";
+        }
+    }
+    echo "\n";
+}
+--EXPECT--
+nnnnnnnnnnynnynnnnnnnnnnnnnnnnnnynynnnnnnnnnynnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+quoted: 10 13 32 34 44
+[a b,c<TAB>d,"e,f"<LF>]
+[" Shop","Shop "," ",<TAB>Shop,Sh op<LF>]
+<a b><c<TAB>d><e,f>
+< Shop><Shop >< ><<TAB>Shop><Sh op>

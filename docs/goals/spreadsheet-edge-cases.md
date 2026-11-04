@@ -281,8 +281,8 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 26. **Text and sheet-name lengths count UTF-16 units, and sheet names compare by Unicode upper-case folding**, as Excel does.
 27. **A table header cell is written as text of the same characters.**
 28. **A validation accepts a whole-column (`A:A`) and a multi-range `sqref`; a quote in a list value is doubled**; a comma in a list value still throws, because Excel's list literal cannot contain one.
-29. **The same image bytes are stored once per workbook**, found by a hash of the bytes; it costs one hash per image and one map entry per distinct image, per workbook.
-30. **`createForFile` writes to a temporary name beside the target and renames it on `finish()`; on an error the temporary file is deleted.** It costs one rename.
+29. **The same image bytes are stored once per workbook**, found by the SHA-256 digest of the bytes (the `sha2` crate), so two different images are never merged by a collision; it costs one digest per image and one 40-byte map entry per distinct image, per workbook.
+30. **`createForFile` writes to a temporary name beside the target and renames it on `finish()`; on an error the temporary file is deleted.** It costs one rename. The name is `<path>.<16 hex>.part`. A failed file write or a failed `finish()` deletes it and every later call throws; an input error in `add` leaves the writer usable, so the temporary file stays until `finish`. `Export::save` of a template fill does the same. The folder, not only the file, needs `fs.write`.
 31. **`Core\Csv::format` quotes a field that starts or ends with a space**; every reader reads the quoted field back the same, so this changes no data.
 32. **The Spreadsheet CSV export writes a UTF-8 byte order mark and CRLF record ends (RFC 4180)**, because its reader is a spreadsheet program. `Core\Csv`'s own defaults stay LF with no BOM.
 33. **CRLF comes from a new `Core\Csv::format` option, `lineEnd` (`"\n"` by default, or `"\r\n"`).** Rewriting LF after formatting would change line breaks inside quoted fields, and formatting one record per call costs a call per row; the option costs nothing where it is unused.
@@ -454,27 +454,27 @@ files) and one conformance case.
 **Does:** fixes the writing findings (decisions 24 to 33), with tests appended to
 `extensions/spreadsheet/tests/write.rs` and four conformance cases.
 
-- [ ] WX-11: no `_xlfn.` or `_xlws.` prefix is ever written, so XLOOKUP, IFS, CONCAT, TEXTJOIN and
+- [x] WX-11: no `_xlfn.` or `_xlws.` prefix is ever written, so XLOOKUP, IFS, CONCAT, TEXTJOIN and
   every function newer than Excel 2007 open as `#NAME?` (decision 24). Keep the list as a sorted
   table in the writer, from MS-XLSX § 2.2.2. `extensions/spreadsheet/src/cells.rs:384`
-- [ ] WX-01: attribute values keep LF and TAB raw, so validation prompts, link tooltips, table column
+- [x] WX-01: attribute values keep LF and TAB raw, so validation prompts, link tooltips, table column
   names and style names lose their line breaks (decision 25). `extensions/spreadsheet/src/xml.rs:24`
-- [ ] WX-06, WX-07: text length (32,767) and sheet-name length (31) count chars, and the duplicate-name
+- [x] WX-06, WX-07: text length (32,767) and sheet-name length (31) count chars, and the duplicate-name
   check folds with `to_lowercase` (decision 26). `extensions/spreadsheet/src/cells.rs:162`,
   `extensions/spreadsheet/src/writer.rs:176`
-- [ ] WX-15: a numeric table header cell is written as a number while its `tableColumn` name is text
+- [x] WX-15: a numeric table header cell is written as a number while its `tableColumn` name is text
   (decision 27). `extensions/spreadsheet/src/table.rs:164`
-- [ ] WX-16: a whole-column or multi-range `sqref` is rejected, and a list value with a quote throws
+- [x] WX-16: a whole-column or multi-range `sqref` is rejected, and a list value with a quote throws
   (decision 28). `extensions/spreadsheet/src/tail.rs:111`
-- [ ] WX-20: the same image bytes added twice are stored twice (decision 29).
+- [x] WX-20: the same image bytes added twice are stored twice (decision 29).
   `extensions/spreadsheet/src/writer.rs:631`
-- [ ] WX-27: `createForFile` leaves a half-written file when a write fails (decision 30). Check whether
+- [x] WX-27: `createForFile` leaves a half-written file when a write fails (decision 30). Check whether
   `Export::save` writes through it, and give it the same behaviour if not.
   `extensions/spreadsheet/nvs/Workbook.nvs:77`
-- [ ] WC-01: a CSV field with a leading or trailing space is not quoted (decision 31). Rename and
+- [x] WC-01: a CSV field with a leading or trailing space is not quoted (decision 31). Rename and
   extend `tests/conformance/core/csv-format-quotes-exactly-the-separator-the-quote-cr-and-lf.nvst` to
   the name the `csv-and-file-export` check gives. `crates/nvs-stdlib/src/csv.rs:983`
-- [ ] WC-03: the Spreadsheet CSV export has no UTF-8 byte order mark and ends records with LF
+- [x] WC-03: the Spreadsheet CSV export has no UTF-8 byte order mark and ends records with LF
   (decisions 32 and 33). Add `lineEnd` to `Core\Csv::format`'s options and its help text, and pass
   `"\r\n"` and the BOM from the export. `crates/nvs-stdlib/src/csv.rs:397`,
   `extensions/spreadsheet/nvs/Workbook.nvs:656`
@@ -491,8 +491,8 @@ files) and one conformance case.
   is written through `Core\Csv`); and `Core\Csv::format`'s edge-space quoting and `lineEnd`
   (`crates/nvs-stdlib/src/csv.rs:1`, `docs/examples/core/Csv/format/about.md:1`). Then
   `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Write the eight tests the `writing` check names. `extensions/spreadsheet/tests/write.rs:964`
-- [ ] Write the four conformance cases the `csv-and-file-export` check names, the edge-space one by
+- [x] Write the eight tests the `writing` check names. `extensions/spreadsheet/tests/write.rs:964`
+- [x] Write the four conformance cases the `csv-and-file-export` check names, the edge-space one by
   the rename above. `tests/conformance/novis/spreadsheet-a-failed-write-to-a-file-leaves-no-file.nvst:1`,
   `tests/conformance/novis/spreadsheet-a-csv-export-starts-with-a-bom-and-ends-records-with-crlf.nvst:1`,
   `tests/conformance/core/csv-format-ends-each-record-with-the-line-end-option.nvst:1`
@@ -637,42 +637,55 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 3 is done: every item is ticked, and the `xls-ods-reading` and `csv-separator-line` checks'
-commands are green (the suite ran all 56 spreadsheet cases green). One code commit carries
-decisions 18 to 20 and 23, the six tests, the conformance case and the docs; a separate style commit
-formats `template/mod.rs`'s `without_inert`, which stage 1 left unformatted.
+Stage 4's code, its eight Rust tests and four conformance cases are in one commit. The eight
+`writing` tests, `future.rs`'s two unit tests and the four `csv-and-file-export` cases (with the
+updated `csv-quotes-a-field-only-where-a-byte-would-change-the-parse.nvst`) ran green by name;
+build and clippy are green.
 
-What changed, so stage 8 knows it: `xls.rs`'s `continued_string` reads a `LABEL` or `STRING` with
-the `CONTINUE`s that follow it (the sheet loop's iterator is `Peekable`); a record with none is read
-in place. `read/codepage.rs` is new (decision 18's refinement). In `ods.rs`, `date_serial` drops an
-offset, `value_cell` gives `void` no value and takes `string-value`, and `read` tracks `paragraph`
-and `skip` for `collapse`. `Reader.nvs`'s CSV opens go through `csvReader`, `sepLine` and
-`startText`. Test helper `property_stream_in` takes a code page, and `ods_shop` builds a one-sheet
-ods.
+What changed, so stage 8 knows it: `src/future.rs` (sorted `FUTURE`, `prefixed`, called from
+`cells.rs`, `conditional.rs`, `tail.rs`); `xml::attr` escapes LF, CR, TAB; `cells::units` and
+`writer::fold` (`to_uppercase`, for sheet, table, name and table-column comparisons);
+`tail::sqref`; a numeric table header written as text via `Tail::table_header_at`; images
+deduplicated by SHA-256 (`sha2` is a new extension dependency, `Cargo.lock` updated);
+`Workbook.nvs`'s `target`, `part`, `failed`, `discard` and `Export::save`'s temporary file;
+`Core\Csv::format`'s `lineEnd` (args `[5]`) and edge-space quoting; the CSV export's BOM and CRLF.
+Decisions 29 and 30 are refined in place.
 
-The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as six handoffs have
-found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad, and the next
-nightly confirms both.
+The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere), as seven handoffs have
+found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad.
 
 ### Next
 
-Stage 4, from its first item. The writer files are not loaded yet.
+Stage 4's last items, in this order:
 
-1. Decision 24 (WX-11): `_xlfn.` and `_xlws.` prefixes, outside string literals, from a sorted
-   table. `extensions/spreadsheet/src/cells.rs:384`.
-2. Decision 25 (WX-01): `xml::attr` writes LF, CR and TAB as character references.
-   `extensions/spreadsheet/src/xml.rs:24`.
-3. Decision 26 (WX-06, WX-07): UTF-16 lengths and upper-case name folding.
-   `extensions/spreadsheet/src/cells.rs:162`, `extensions/spreadsheet/src/writer.rs:176`.
-4. Decisions 27 to 29 (WX-15, WX-16, WX-20): `extensions/spreadsheet/src/table.rs:164`,
-   `extensions/spreadsheet/src/tail.rs:111`, `extensions/spreadsheet/src/writer.rs:631`.
-5. Decisions 30 to 33 (WX-27, WC-01, WC-03): `extensions/spreadsheet/nvs/Workbook.nvs:77`, `:656`,
-   `crates/nvs-stdlib/src/csv.rs:983`, `:397`. `lineEnd` is a `Core\Csv::format` option, so its
-   help text and `docs/examples/core/Csv/format/about.md` change too.
-6. Tests: `extensions/spreadsheet/tests/write.rs` (eight) and four conformance cases, as the stage
-   lists.
+1. **Eight conformance cases are red (known).** Each echoes raw CSV text, which now starts with a
+   BOM and has CR at line ends. Make each case's output strip `"\u{FEFF}"` and `"\r"` before it
+   echoes (`Core\Str::replaceAll`), or fix the hex and size values, then rerun each case with
+   `target/debug/nvs.exe test <file>`. The new BOM case is what pins the BOM and CRLF. The cases,
+   all under `tests/conformance/novis/`:
+   - `spreadsheet-a-download-never-finished-is-an-error-naming-it`
+   - `spreadsheet-a-rich-cell-writes-its-runs` (`:30`)
+   - `spreadsheet-a-second-csv-sheet-throws` (`:24`)
+   - `spreadsheet-an-export-of-an-iterator-writes-once` (`:30`)
+   - `spreadsheet-an-export-writes-the-same-file-to-each-target` (`:61`, `:127`)
+   - `spreadsheet-nan-throws-for-csv-as-for-xlsx` (`:27`)
+   - `spreadsheet-writes-csv-from-the-same-calls` (`:27`, `:33`, `:37`, `:43`)
+   - `spreadsheet-writes-csv-in-another-dialect-and-charset` (`:25`, `:29`, `:37`)
+2. **Example `.out` files that print CSV will go red in the proofs gate.** Find them with
+   `grep -l "format: 'csv'" docs/examples/novis/**/*.nvs` and rerecord each `.out`. Also check that
+   `docs/examples/core/Csv/format/02-fields-that-need-quotes.out` still matches its program.
+3. **The docs item, untouched so far.** It is stage 4's `The rules and pages a user reads` item,
+   with all its anchors. Also edit:
+   - `crates/nvs-stdlib/src/csv.rs`'s `FORMAT_DOC`, which is done, so `bun nv` may need its
+     reference regenerated;
+   - `createForFile`'s about.md: the temporary file, and that the folder needs `fs.write`;
+   - `docs/examples/core/Csv/format/about.md`: edge spaces and `lineEnd`.
 
-No existing test is expected to go red, except the renamed
-`csv-format-quotes-exactly-the-separator-the-quote-cr-and-lf.nvst`, which WC-01 extends.
+   Then run `bun nv rules --render` and `bun nv rules --check`.
+4. Run the `writing` and `csv-and-file-export` checks once. Then tick the last item and set stage 4
+   to done.
+
+Expected reds beyond item 1: none known in Rust. Validation errors for a bad range now say "whole
+columns such as `A:A`", and no existing test matched the old text.
 
 ### Backlog

@@ -20,8 +20,14 @@ use crate::{Cell, Clock, Date, Error, TimeOfDay, Value, xml};
 /// Nanoseconds in a day.
 const DAY_NANOS: f64 = 86_400_000_000_000.0;
 
-/// The most characters Excel keeps in one cell.
+/// The most UTF-16 units Excel keeps in one cell.
 const MAX_TEXT: usize = 32_767;
+
+/// The length of `text` as Excel counts it: in UTF-16 units, so a character outside the Basic
+/// Multilingual Plane, such as most emoji, counts as two.
+pub fn units(text: &str) -> usize {
+    text.encode_utf16().count()
+}
 
 /// Appends the letters of the column at `index`, counted from 0.
 pub fn column_letters(out: &mut String, index: u32) {
@@ -158,7 +164,7 @@ fn finite(at: &str, value: f64) -> Result<f64, Error> {
     }
 }
 
-/// `text`, when its `count` characters fit in one cell.
+/// `text`, when its `count` UTF-16 units fit in one cell.
 fn length<'a>(at: &str, text: &'a str, count: usize) -> Result<&'a str, Error> {
     if count > MAX_TEXT {
         return Err(Error::Invalid(format!(
@@ -246,7 +252,7 @@ fn written<'a>(
     integer: &'a mut itoa::Buffer,
 ) -> Result<Written<'a>, Error> {
     Ok(match value {
-        Value::Text(text) => Written::Text(length(at, text, text.chars().count())?),
+        Value::Text(text) => Written::Text(length(at, text, units(text))?),
         Value::Number(value) => Written::Number(finite(at, *value)?, Implicit::None),
         Value::Integer(value) => {
             let text = integer.format(*value);
@@ -291,7 +297,7 @@ fn written<'a>(
             Written::Formula(formula, cached_text.as_deref(), number)
         }
         Value::Rich(runs) => {
-            let count = runs.iter().map(|run| run.text.chars().count()).sum();
+            let count = runs.iter().map(|run| units(&run.text)).sum();
             length(at, "", count)?;
             Written::Rich(runs)
         }
@@ -381,7 +387,7 @@ pub fn cell(
                 out.push_str(" t=\"str\"");
             }
             out.push_str("><f>");
-            xml::text(out, text);
+            xml::text(out, &crate::future::prefixed(text));
             out.push_str("</f>");
             if let Some(cached) = cached_text {
                 out.push_str("<v>");

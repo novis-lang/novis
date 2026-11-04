@@ -53,6 +53,7 @@ pub mod conditional;
 pub mod drawing;
 pub mod eval;
 pub mod format;
+pub mod future;
 pub mod ods;
 pub mod openformula;
 pub mod read;
