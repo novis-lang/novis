@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/check_borrow.rs, crates/nvs-cli/src/fmt.rs, docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md]
   - id: 4
     title: "an index entry is analysed by a function that owns everything it reads, and merged into the index apart from that"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/session.rs, crates/nvs-lsp/src/parse_cache.rs, docs/rules/ide/the-server-is-synchronous.md]
   - id: 5
     title: "the editor settles its index on every core, and the index it builds is the serial one"
@@ -236,6 +236,19 @@ resolve the entry to its plain form, and the `require` walk keys every file unde
 a syscall would be a second canonicalizer beside the walk's, the thing `Unowned::trust`'s doc
 (`crates/nvs-config/src/resolve.rs`) warns lets a symlinked cycle through. Cost: one syscall per compile, not per file.
 
+**A snapshot has no session (stage 4).** `Snapshot` (`crates/nvs-lsp/src/document.rs`) holds the
+open buffers under their resolved keys, the lenders behind an `Arc` and the stub tree, and is `Send`.
+The session is not in it: `Session` shares its interner through an `Rc`, so it cannot cross a thread.
+`analyse_entry` takes `&mut Session` and `&mut TreeCache` beside the snapshot, and a stage-5 worker
+builds both on its own thread, as the parallel design already says. The serial loop lends the store's.
+The lenders are copied on write (`Arc::make_mut`) only when a resurvey runs while a snapshot is alive.
+Cost: one copy of the open buffers' text per settled entry, on the background path.
+
+**A loaded path is the walk's key (stage 4).** `analyse_entry` resolves no path the walk loaded: the
+walk keys every required and autoloaded file under `canonical_key` already, and only the entry is
+loaded by the caller's path, so the caller hands its key in (`Entry`). A cold index resolves 6 paths a
+file (was 14); the test's bound is 7.
+
 **Declined:**
 
 - **Parallel `nvs check` of a directory and `nvs test`.** Not measured as slow; a backlog item if stage
@@ -369,11 +382,11 @@ than the files). The session writes the items.
 
 **Does:** splits `absorb` into an analysis that returns the records and a merge, with no thread yet.
 
-- [ ] A snapshot type with what one analysis reads: the open buffers' text, the lenders behind an
+- [x] A snapshot type with what one analysis reads: the open buffers' text, the lenders behind an
   `Arc`, the stubs path, and a session it owns. It is `Send`. `crates/nvs-lsp/src/document.rs:741`
-- [ ] `absorb` becomes the analysis (returning each reached file's `Indexed` and the entry's reads) and
+- [x] `absorb` becomes the analysis (returning each reached file's `Indexed` and the entry's reads) and
   the merge (today's first-reach rule). `settle_one` calls both. `crates/nvs-lsp/src/index.rs:1169`
-- [ ] An analysis of a lone class file resolves its own path 14 times. Eight sites make an already
+- [x] An analysis of a lone class file resolves its own path 14 times. Eight sites make an already
   canonical path canonical again: `absorb`'s entry, each loaded path and the reads
   (`crates/nvs-lsp/src/index.rs:1193`, `:1200`, `:1247`), `lender_for`
   (`crates/nvs-lsp/src/document.rs:377`), `At::of` (`crates/nvs-hir/src/lenders.rs:188`),
@@ -381,7 +394,7 @@ than the files). The session writes the items.
   (`crates/nvs-hir/src/requires.rs:492`, `:727`) and `crates/nvs-hir/src/autoload.rs:880`. The new
   analysis function resolves the entry once and hands the key on. Then lower the bound in
   `an_index_resolves_each_files_path_a_bounded_number_of_times_per_file` to the new figure.
-- [ ] Run `cargo test --test index --test incremental --test autoload`: green, unchanged.
+- [x] Run `cargo test --test index --test incremental --test autoload`: green, unchanged.
 
 ### 5. the editor settles its index on every core, and the index it builds is the serial one
 
@@ -409,31 +422,34 @@ than the files). The session writes the items.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3's last item landed this session: an uncached `nvs run` of one line
-resolves 4 paths (was 9), because the settings snapshot matches `[[app]]` blocks against the entry
-it just resolved (`app::matching_canonical`), one configuration read judges each trusted file once
-(`Remembered`, `crates/nvs-config/src/resolve.rs`), and `nvs test --watch` of a directory no longer
-resolves its in-memory entry (`Trace::real` is an `Option`). Test
-`a_run_resolves_each_settings_path_once` ran once, green. The editor's warm start is not measured
-again yet (stage 5's `lsp-start` item). `website/public/llms-full.txt` is not rendered again since
-the 10-cli page changed: the goal end's `bun nv ci --check` names it. The acceptance sweep's reds were
-stale again: no `env-secret-proofs` log, and nightly 41813182715 ran on `f3150b922`, before
-`a8bdf37fb` (live_edit) and `a2f451fad` (Miri).
+Stages 1 to 4 are done. Stage 4 landed in one commit: `absorb` is `analyse_entry`
+(`crates/nvs-lsp/src/index.rs:1294`), which builds the records of each file the index did not hold
+and the entry's reads, and `merge` (`:1206`), which files them under the first-reach rule.
+`settle_one` (`:760`) analyses through `Documents::snapshot` (`crates/nvs-lsp/src/document.rs:512`);
+`refresh` analyses through the store in place. `SourceMap::read` resolves a path once for the overlay
+and the pin, and `SourceMap::overlay_key` and `nvs_hir::lenders::choose_key` take a key already
+resolved. `cargo test --test index --test incremental --test autoload` ran green; the construction-site
+test now ignores a signature that returns `Indexed`, and accepts `&crate::SymbolIndex` (`progress.rs`
+from stage 1 had turned it red). The acceptance sweep's reds were stale again: no `env-secret-proofs`
+log, and nightly 41813182715 ran on `f3150b922`. `website/public/llms-full.txt` is still not rendered
+again since the 10-cli page changed: the goal end's `bun nv ci --check` names it.
 
-Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `incremental.rs`'s three
-`Work` assertions, `crates/nvs-lsp/tests/extensions.rs`, every test of the editor's survey
-(`crates/nvs-lsp/tests/` cases that borrow a map: the survey now shares one map, so a file it read
-first as plain keeps that load), `check_borrow.rs` as a whole, `nvs pkg audit`'s tests, and every
-`nvs check`/`nvs test` of a directory (`check_command.rs`, `nvs test`'s runner tests, `--fix` over a
-directory, `nvs test --watch` of a directory). Any test that counts `resolved=` exactly may shift
-down. `nvs-config`'s tests: a test reader that counts `trust` calls now sees one per distinct path
-per resolve, and a snapshot of a file that does not resolve still matches no block.
+Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `crates/nvs-lsp/tests/extensions.rs`,
+every lsp test of a borrowed map (the snapshot's lender choice reads a file's text through
+`overlay_key`), `check_borrow.rs` as a whole, `nvs pkg audit`'s tests, every `nvs check`/`nvs test` of a
+directory (`check_command.rs`, the runner tests, `--fix` and `--watch` of a directory), and any test that
+counts `resolved=` exactly (it may shift down: a read with open buffers resolves once, not twice).
+`nvs-config`'s tests: a reader that counts `trust` calls sees one per distinct path per resolve.
 
 ### Next
 
-Stage 4, in order: the snapshot type (`crates/nvs-lsp/src/document.rs:741`), then `absorb` split
-into the analysis and the merge (`crates/nvs-lsp/src/index.rs:1169`), then the lone class file's 14
-resolutions (stage 4's third item names the eight sites), then the three test files the stage's last
-item names, run once.
+Stage 5, in order: the worker pool and the ordered merge (`crates/nvs-lsp/src/server.rs:334`, the idle
+arm that calls `settle_one`): each job is `(entry, Snapshot, change counter)`, a worker owns a
+`Session` and a `TreeCache` and returns `Analysis` (never `Analysed`), results merge in entry path
+order through `SymbolIndex::merge`. Then the drain before a whole-tree request
+(`crates/nvs-lsp/src/server.rs:672`), the three `parallel-index` tests in `crates/nvs-lsp/tests/incremental.rs`,
+the rule text in `docs/rules/ide/the-server-is-synchronous.md`, and `bun nv lsp-start` cold and warm.
+A worker's `indexed` closure needs the keys the index held at dispatch: pass a set copied then, and let
+`merge`'s first-reach check drop what was filed since.
 
 ### Backlog
