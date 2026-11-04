@@ -165,6 +165,31 @@ fn a_heading_before_a_block_taller_than_a_page_moves_with_its_first_lines() {
 }
 
 #[test]
+fn a_fixed_height_box_taller_than_a_page_continues_on_the_next_page() {
+    let laid = lay(
+        "<style>@page { size: 200pt 300pt; margin: 0 } body, p { margin: 0 }</style>
+        <p>Shop</p><div id='box' style='height: 500pt; background: #336699'></div>
+        <p id='blog'>Blog</p>",
+    );
+    assert_eq!(laid.pages.len(), 2);
+    // The box starts under `Shop`, fills the rest of the first page, and its last part is
+    // on the second page, with `Blog` under it.
+    let (page, top) = laid.anchors["box"];
+    assert_eq!(page, 0);
+    let (page, blog) = laid.anchors["blog"];
+    assert!(page == 1 && close(blog, 500.0 - (300.0 - top)), "{top} {blog}");
+    // Each page draws its slice of the background.
+    for page in &laid.pages {
+        let fills = page
+            .items
+            .iter()
+            .filter(|item| matches!(item, Item::Path { stroke: None, .. }))
+            .count();
+        assert_eq!(fills, 1);
+    }
+}
+
+#[test]
 fn a_float_after_a_forced_break_lands_on_the_new_page() {
     let laid = lay("<style>body, p { margin: 0 }</style>
         <p style='break-after: page'>Shop</p>

@@ -10,7 +10,8 @@
 //! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
 //! its floats: its own flow ends below them ([`Flow::contain`]).
 //!
-//! A box cut by a page break is painted on each page it is on. CSS's `slice` leaves its bottom
+//! A box cut by a page break is painted on each page it is on, and a box whose `height` or
+//! `min-height` is more than the room left goes on over the next pages for the rest. CSS's `slice` leaves its bottom
 //! edge open before the break and its top edge open after it. A table and a table cell are
 //! closed instead (`rule:core-classes/pdf-tables-across-pages`), unless their
 //! `box-decoration-break` is `slice`: each page that cuts one ends it under the last block and
@@ -888,7 +889,20 @@ impl Flow {
                 self.cursor += self.pending.min(want - self.cursor);
                 self.pending = 0.0;
                 if want > self.cursor {
-                    let more = want - self.cursor;
+                    // The height left over goes on the pages after this one, each page's room
+                    // at a time, so the box is sliced across every page it is on.
+                    let mut more = want - self.cursor;
+                    while more > self.limit() - self.cursor + FIT {
+                        let room = self.limit() - self.cursor;
+                        if room <= 0.0 && self.empty() {
+                            break;
+                        }
+                        if room > 0.0 {
+                            self.place(room);
+                            more -= room;
+                        }
+                        self.new_page();
+                    }
                     self.place(more);
                 }
             }

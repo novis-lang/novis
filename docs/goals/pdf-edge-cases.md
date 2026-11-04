@@ -394,7 +394,7 @@ handled but untested.
 - [ ] Write the nine tests the `breaks` check names. `extensions/pdf/tests/breaks.rs:1`
   - [x] the six for parity, the kept margin, the bottom edge, the tolerance and the float
   - [x] `a_heading_before_a_block_taller_than_a_page_moves_with_its_first_lines`
-  - [ ] `a_fixed_height_box_taller_than_a_page_continues_on_the_next_page`
+  - [x] `a_fixed_height_box_taller_than_a_page_continues_on_the_next_page`
   - [ ] `a_flex_line_taller_than_a_page_splits_between_its_items_lines`
 - [ ] Run the `breaks` check's command once: green.
 
