@@ -6,7 +6,7 @@ context: [docs/agent/testing.md, tools/nv/proofs/run.ts, crates/nvs-host/src/wat
 stages:
   - id: 1
     title: "the rule is written, and the tests it covers are listed"
-    status: open
+    status: done
     context: [docs/rules/testing/a-test-has-a-wall-time-limit.md, docs/rules/testing/runner-is-strict.md, data/rules/testing/ci-lanes.json, benches/abi-probe/tests/perf_guards.rs]
   - id: 2
     title: "a time-limit stop is judged against what the watchdog measured in the same run"
@@ -207,12 +207,12 @@ modules in `crates/*/src/`, `benches/*/tests/` and `tests/conformance/` for an a
 `Duration` passed only to a sleep or a park inside a wait loop). Its answer is `path:line`, one line
 each, with the bound.
 
-- [ ] Write `docs/rules/testing/a-test-holds-at-any-speed.md` and its JSON, as § *Standing decisions*
+- [x] Write `docs/rules/testing/a-test-holds-at-any-speed.md` and its JSON, as § *Standing decisions*
   says. `docs/rules/testing/a-test-holds-at-any-speed.md:1`
-- [ ] Replace the first bullet of § *A test holds on every CI runner* with a pointer to the rule.
+- [x] Replace the first bullet of § *A test holds on every CI runner* with a pointer to the rule.
   `docs/agent/testing.md:28`
-- [ ] Render and check the rulebook: `bun nv rules --render`, then `bun nv rules --check`.
-- [ ] Write the subagent's list into the handoff's `### Next` under stage 4, grouped by file, each
+- [x] Render and check the rulebook: `bun nv rules --render`, then `bun nv rules --check`.
+- [x] Write the subagent's list into the handoff's `### Next` under stage 4, grouped by file, each
   entry with the pattern that fixes it. The five tests stage 3 owns are left out.
 
 ### 2. a time-limit stop is judged against what the watchdog measured in the same run
@@ -280,10 +280,110 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Written 2026-11-04 from the CI failures of 2026-11-01 to 2026-11-03. Nothing is built yet.
+Stage 1 is done. `rule:testing/a-test-holds-at-any-speed` is in the rulebook
+(`docs/rules/testing/a-test-holds-at-any-speed.md:1`), listed in `data/rules/testing.json`, and
+`docs/agent/testing.md:28` points to it. The rule already names `timeOvershoot`'s explained bound,
+which stage 2 builds. No test is expected to go red from this stage.
+
+The acceptance sweep's `env-secret-proofs` check is not defined anywhere in the tree, and
+`bun nv proofs --verify --only 'Core\Env::secret'` is green here. The nightly CI run it named
+(41428598621, a `schedule` run) was cancelled after three minutes; a newer nightly (41618735447)
+exists, and CI is the `ci-green` side loop's.
 
 ### Next
 
-Stage 1, from its first item: write `docs/rules/testing/a-test-holds-at-any-speed.md`.
+Stage 2, from its first item: record each sweep's lateness in `Shared::sweep_and_wait`
+(`crates/nvs-host/src/watchdog.rs:1313`) and `next_wait` (`crates/nvs-host/src/watchdog.rs:1551`).
+
+**Stage 4's list.** From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
+3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
+at any speed and stays unless the clock's resolution can undercut it. A **hang guard** is pattern 1 and
+stays if it is at least the hostile timeout's size. A **tight** bound fails on a slow machine and is
+fixed by the named pattern; where it is removed, its path needs a bench or a count first.
+
+- `crates/nvs-db/tests/sqlite_contention.rs`: `:145` lower, stays. `:177` lower, stays. `:181` `< 6 s`
+  for a 300 ms budget: pattern 4, judge it by the CPU time the request had left, read in the run.
+- `crates/nvs-stdlib/tests/html_later.rs`: `:353` two 150 ms slots `< 280 ms`, tight: pattern 1, each
+  slot records when it started, and the second starts before the first ends. `:404` `< 2 s` for a
+  50 ms deadline: hang guard, raise to the hostile timeout.
+- `crates/nvs-stdlib/tests/db_stream.rs`: `:684`, `:712` `< 10 s` against a 30 s statement: hang
+  guards, stay.
+- `crates/nvs-cli/tests/one_binary.rs:311` `< 50 s` against a 60 s sleep: hang guard, stays.
+- `crates/nvs-cli/tests/live_edit.rs`: `:903` compile seen within 5.3 s: pattern 1, wait for the
+  compile event, bound as hang guard. `:1032` derives its bound from the measured boot time (`:1008`):
+  pattern 4 already, stays.
+- `crates/nvs-cli/tests/live_config.rs:2542` `< 20 s` for a 1 s header timeout: hang guard, stays.
+- `crates/nvs-cli/tests/serve_isolation.rs:586` `PROBE_BOUND` 10 s per probe: hang guard, stays (this
+  file's stage-3 test is a separate slice).
+- `crates/nvs-ext/tests/spreadsheet_read.rs:874` linear-time header `< 10 s`: the property is growth,
+  so it needs a bench with its growth; pattern 4 or a count of comparisons.
+- `crates/nvs-ext/tests/call.rs:415` `< 10 s` for a 50 ms CPU limit: hang guard, stays.
+- `crates/nvs-lsp/tests/latency.rs:212-243`, used at `:306`: two-bound judge like `perf_guards.rs`;
+  check its hard bound fails only after three attempts, then stays.
+- `crates/nvs-ldap/tests/samba.rs:382-386`: a 200 ms deadline must expire before a late peer answers:
+  pattern 1, the peer answers only after the client has timed out.
+- `crates/nvs-host/src/timer.rs`: `:360`, `:441`, `:659` lower, stay. `:477` `< 1 s` for a 5 s wait:
+  hang guard, stays.
+- `crates/nvs-host/src/reactor.rs`: `:1214` turn `< 2 s`: pattern 1 if the turn can be counted;
+  else hang guard. `:1556` `< 60 s`: hang guard, stays.
+- `crates/nvs-host/src/net.rs`: `:2361`, `:2418` lower, stay. `:2413` `< 5 s` for a 50 ms bound:
+  hang guard, stays.
+- `crates/nvs-host/src/watchdog.rs`: `:2058` CPU burned `< 1 s`: pattern 2, compare with the thread's
+  own clock reading. `:2543` charged `>= 20 ms` lower: check against the thread's own reading
+  (pattern 2), since stage 3 changes its neighbour at `:2636`.
+- `crates/nvs-runtime/src/ctx/safepoint.rs:1702` lower, stays.
+- `crates/nvs-stdlib/src/time.rs`: `:5716` zero sleeps `< 100 ms`: tight, pattern 2 against a
+  reading of a no-op span, or a count that no wait was entered. `:5722`, `:5798` lower, stay.
+- `crates/nvs-stdlib/src/cache.rs:3975` lower, stays.
+- `crates/nvs-stdlib/src/cli.rs:4703` 20 ms wait `< 5 s`: hang guard, stays.
+- `crates/nvs-stdlib/src/db/execute.rs`: `:1767` lower, stays. `:1828` `< 5 s` for 200 ms: hang guard,
+  stays.
+- `crates/nvs-stdlib/src/process.rs`: `:2973`, `:3022`, `:3105` `< 20 s`: hang guards, stay.
+- `crates/nvs-stdlib/src/http.rs:8483` `< 10 s` against a 20 s timeout: hang guard, stays.
+- `crates/nvs-stdlib/src/http/socket.rs`: `:1231` `< 3 s`: hang guard, raise to the hostile timeout.
+  `:1275` `> 1 s` with 50 ms pings: pattern 1, count the pings the peer answered. `:1532` `< 5 s`:
+  hang guard, stays.
+- `crates/nvs-stdlib/src/http/transport.rs`: `:4324` `< 5 s` budget and `:5243`, `:5379`: hang guards,
+  stay. `:4351` backoff past a 500 ms deadline `< 1 s`: pattern 1, assert no sleep was entered (a
+  count), then drop the bound.
+- `crates/nvs-stdlib/src/io.rs:5274` ten refusals `< 500 ms`: the property is "before any network
+  attempt", so pattern 1: count network attempts (zero), then drop the bound.
+- `crates/nvs-db/src/sqlite.rs:2248` `< 10 s` for 100 ms: hang guard, stays.
+- `crates/nvs-server/src/otlp.rs:1620` 1000 hand-overs `< 1 s`: "never delays a response" is a count
+  property: count blocking sends (zero); the timing goes to a bench.
+- `crates/nvs-server/src/serve.rs`: `:5657`, `:5686`, `:5858`, `:12063`, `:12137`, `:12247`, `:12345`
+  `< 5 s`: hang guards; raise each to the hostile timeout where 5 s is under it.
+- `crates/nvs-test/src/run.rs`: `:1093` `< 20 s`, `:1157` `< 8 s`: hang guards, stay.
+- `crates/nvs-cli/src/telemetry.rs:1494` `< 2.5 s` for 500 ms + 2 s: tight, pattern 4: the bound is
+  the budget plus a measured connect attempt, or pattern 1 on the give-up event.
+- `crates/nvs-cli/src/script.rs:3857` revalidate wait `<= 300 ms`: pattern 3 if the settle wait reads
+  a seam; else pattern 1.
+- `crates/nvs-cli/src/runner.rs:6763` compares two children's elapsed: pattern 1, order of events.
+- `benches/abi-probe/tests/wasm_async.rs:285` lower, stays.
+- `tests/conformance/config/wall-time-ends-a-sleep-that-would-pass-it.nvst:6`, `isolate/a-worker-placed-
+  child-that-never-ends-is-stopped-by-its-trees-cpu-time.nvst:11`, `error/a-loop-that-allocates-nothing-
+  is-stopped-by-the-cpu-ceiling.nvst:35`, `error/a-cpu-time-narrowed-by-config-set-stops-a-loop-that-
+  calls-nothing.nvst:14`, `lang/a-test-past-its-wall-time-limit-fails-and-names-the-limit.nvst:20`: a
+  limit fires and the expected output names it; they hold at any speed unless the handler misses, which
+  is stage 3's cause.
+- `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst:22`,
+  `task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst:37`: a 20 ms
+  sleep gives survivors a turn: pattern 1, wait for an event the survivors would cause.
+- `tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst:19,32`: five 150 ms
+  children under a 700 ms deadline, both ways: tight. Pattern 1: the unlimited map's children block on
+  a channel the test releases, so the margin is not a time.
+- `tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst:33`,
+  `task/close-wakes-a-waiting-receiver-and-what-was-queued-still-arrives.nvst:26`,
+  `core/late-init-a-second-task-waits-for-the-first.nvst:17`: ordering by sleep lengths: pattern 1.
+- `tests/conformance/core/str-index-of-case-insensitive-near-miss-is-linear.nvst:7`: the case timeout
+  is the bound on a growth property: needs a bench with its growth, or a count of comparisons.
+- `core/time-sleep-is-bounded-at-zero-and-waits-in-whatever-unit-it-is-given.nvst:59` lower, and
+  `core/a-cancelled-task-dies-where-it-sleeps.nvst:24`, `core/late-init-a-failed-init-is-retried-by-
+  the-next-read.nvst:70`, `task/a-task-tree-dies-with-its-parent.nvst:41` (20 ms against 2 s): stay.
+
+The sweep did not read `nvs-stdlib/tests/queue.rs`, `nvs-db/tests/pool_reuse.rs`,
+`nvs-db/tests/handshake.rs`, `nvs-cli/src/service.rs`, `nvs-server/src/slotted`, `nvs-ext/src` or
+benches other than `abi-probe`, and matched no assert that compares across lines. Stage 4 sweeps those
+first.
 
 ### Backlog
