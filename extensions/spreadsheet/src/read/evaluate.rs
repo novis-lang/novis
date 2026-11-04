@@ -103,7 +103,7 @@ impl Reader {
             let Ok(col) = u32::try_from(cell.column) else {
                 continue;
             };
-            let value = match self.value(cell)? {
+            let value = match self.value(cell, raw.number)? {
                 None => Value::Blank,
                 Some(Read::Text(text)) => Value::Text(text),
                 Some(Read::Boolean(b)) => Value::Bool(b),

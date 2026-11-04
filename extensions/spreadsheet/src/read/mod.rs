@@ -37,7 +37,9 @@
 //!
 //! **Time values.** A serial is rounded to the millisecond, the precision Excel shows. In the 1900
 //! system a serial below 61 is one day later than its count, because Excel counts the day
-//! 1900-02-29, which did not exist. Serial 60 reads as 1900-03-01.
+//! 1900-02-29, which did not exist. Serial 0 and serial 60 name no real day, so they read as
+//! their plain number, as a negative serial does. A `t="d"` cell's ISO 8601 text reads as its
+//! date or time type by [`iso`].
 //!
 //! What it spends, per reading request: the zip directory, the styles' kinds, the shared strings
 //! in one arena, one block of compressed bytes and the inflater's window, one block of sheet XML
@@ -185,8 +187,9 @@ pub struct SheetInfo {
     pub name: String,
     pub position: u64,
     pub visibility: Visibility,
-    pub rows: u64,
-    pub columns: u64,
+    /// `None` when the sheet's part is missing from the file.
+    pub rows: Option<u64>,
+    pub columns: Option<u64>,
     pub kind: SheetKind,
 }
 
@@ -513,8 +516,11 @@ fn broken(what: &str) -> Error {
     Error::Parse(format!("The file is not a valid workbook: {what}."))
 }
 
-/// `target` resolved against the folder of the part `base`, as a relationship's target is.
+/// `target` resolved against the folder of the part `base`, as a relationship's target is. A `\`
+/// separates folders as `/` does, and each `%XX` escape is decoded first.
 fn resolve(base: &str, target: &str) -> String {
+    let target = percent_decoded(target).replace('\\', "/");
+    let target = target.as_str();
     if let Some(absolute) = target.strip_prefix('/') {
         return absolute.to_owned();
     }
@@ -530,6 +536,31 @@ fn resolve(base: &str, target: &str) -> String {
         }
     }
     parts.join("/")
+}
+
+/// `text` with each `%XX` escape decoded to its byte. A `%` not followed by two hex digits is
+/// kept as written, and bytes that are not UTF-8 are replaced.
+fn percent_decoded(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains('%') {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let hex = |byte: Option<&u8>| byte.and_then(|byte| char::from(*byte).to_digit(16));
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        if byte == b'%'
+            && let (Some(high), Some(low)) = (hex(bytes.get(at + 1)), hex(bytes.get(at + 2)))
+            && let Ok(decoded) = u8::try_from(high * 16 + low)
+        {
+            out.push(decoded);
+            at += 3;
+        } else {
+            out.push(byte);
+            at += 1;
+        }
+    }
+    std::borrow::Cow::Owned(String::from_utf8_lossy(&out).into_owned())
 }
 
 /// One relationship: its id, its type's last segment, its target and whether it is external.
@@ -761,7 +792,14 @@ impl Reader {
             .or_else(|| Some("xl/vbaProject.bin".to_owned()))
             .filter(|part| directory.find(part).is_some());
         Ok(Self {
-            strings_part: part_of("sharedStrings"),
+            // A package whose relationships omit the shared strings is searched at the usual
+            // path, as Excel does.
+            strings_part: part_of("sharedStrings")
+                .or_else(|| {
+                    let usual = if binary { "xl/sharedStrings.bin" } else { "xl/sharedStrings.xml" };
+                    Some(usual.to_owned())
+                })
+                .filter(|part| directory.find(part).is_some()),
             vba_part,
             workbook: Some(workbook),
             directory,
@@ -918,10 +956,16 @@ impl Reader {
         }
         let mut out = Vec::with_capacity(self.sheets.len());
         for (position, listed) in self.sheets.iter().enumerate() {
-            let (rows, columns) = if listed.kind == SheetKind::Worksheet {
-                self.cursor(source, &listed.name, false)?.size(source)?
+            // A sheet whose part is missing is listed with no size, so the other sheets still
+            // read. Reading its rows throws naming it.
+            let missing = listed.rows.is_none() && self.part(listed).is_err();
+            let (rows, columns) = if listed.kind == SheetKind::Chartsheet {
+                (Some(0), Some(0))
+            } else if missing {
+                (None, None)
             } else {
-                (0, 0)
+                let (rows, columns) = self.cursor(source, &listed.name, false)?.size(source)?;
+                (Some(rows), Some(columns))
             };
             out.push(SheetInfo {
                 name: listed.name.clone(),
@@ -1128,7 +1172,7 @@ impl Reader {
         let mut values = Vec::with_capacity(starting.len());
         for (at, column) in starting {
             let value = match raw.cells.iter().find(|cell| cell.column == column) {
-                Some(cell) => self.value(cell)?.map(|value| {
+                Some(cell) => self.value(cell, raw.number)?.map(|value| {
                     let text = self.display(cell, &value, locale);
                     (value, text)
                 }),
@@ -1199,7 +1243,7 @@ impl Reader {
         }
         let mut cells = Vec::with_capacity(raw.cells.len());
         for cell in raw.cells {
-            let value = self.value(&cell)?;
+            let value = self.value(&cell, raw.number)?;
             let display = match &value {
                 Some(value)
                     if shown
@@ -1232,9 +1276,16 @@ impl Reader {
         })
     }
 
-    /// The read value of `cell`, by the read table.
-    fn value(&self, cell: &sheet::RawCell) -> Result<Option<Read>, Error> {
-        let text = || cell.value.clone().unwrap_or_default();
+    /// The read value of `cell` in row `row`, by the read table. An empty or blank value is no
+    /// value. A number cell or a `t="d"` cell whose text is not a number or an ISO 8601 date
+    /// throws naming the cell.
+    fn value(&self, cell: &sheet::RawCell, row: u64) -> Result<Option<Read>, Error> {
+        let not_a = |raw: &str, what: &str| {
+            broken(&format!(
+                "the cell {}{row} holds `{raw}`, which is not {what}",
+                letters(cell.column)
+            ))
+        };
         Ok(Some(match cell.kind.as_slice() {
             b"s" => {
                 let Some(index) = cell
@@ -1274,14 +1325,16 @@ impl Reader {
                 Some(error) => Read::Error(error),
                 None => return Ok(None),
             },
-            b"d" => Read::Text(text()),
+            b"d" => match cell.value.as_deref().map(str::trim) {
+                None | Some("") => return Ok(None),
+                Some(raw) => iso(raw).ok_or_else(|| not_a(raw, "an ISO 8601 date or time"))?,
+            },
             _ => {
-                let Some(raw) = cell.value.as_deref().map(str::trim) else {
-                    return Ok(None);
+                let raw = match cell.value.as_deref().map(str::trim) {
+                    None | Some("") => return Ok(None),
+                    Some(raw) => raw,
                 };
-                let number: f64 = raw
-                    .parse()
-                    .map_err(|_| broken(&format!("a number cell holds `{raw}`")))?;
+                let number: f64 = raw.parse().map_err(|_| not_a(raw, "a number"))?;
                 let kind = self
                     .styles
                     .get(cell.style as usize)
@@ -1329,10 +1382,76 @@ fn plain(number: f64) -> Read {
     }
 }
 
+/// The value of a `t="d"` cell's ISO 8601 text: a `Date` for a date alone, a `TimeOfDay` for a
+/// time alone, and a date and time otherwise. A trailing `Z` is dropped, so the clock time in the
+/// file is kept. `None` for any other text, such as a time with an offset.
+fn iso(text: &str) -> Option<Read> {
+    let text = text.strip_suffix('Z').unwrap_or(text);
+    let (day, time) = match text.split_once('T') {
+        Some((day, time)) => (Some(day).filter(|day| !day.is_empty()), Some(time)),
+        None if text.contains(':') => (None, Some(text)),
+        None => (Some(text), None),
+    };
+    let number = |part: &str, digits: usize| {
+        (part.len() == digits && part.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| part.parse::<i64>().ok())
+            .flatten()
+    };
+    let day = match day {
+        Some(day) => {
+            let mut parts = day.splitn(3, '-');
+            let year = number(parts.next()?, 4)?;
+            let month = number(parts.next()?, 2)?;
+            let of_month = number(parts.next()?, 2)?;
+            let date = civil(days_from_civil(year, month, of_month));
+            if (date.year, date.month, date.day) != (year, month, of_month) {
+                return None;
+            }
+            Some(date)
+        }
+        None => None,
+    };
+    let time = match time {
+        Some(time) => {
+            let (whole, fraction) = time.split_once('.').unwrap_or((time, ""));
+            let mut parts = whole.splitn(3, ':');
+            let hour = number(parts.next()?, 2)?;
+            let minute = number(parts.next()?, 2)?;
+            let second = match parts.next() {
+                Some(second) => number(second, 2)?,
+                None => 0,
+            };
+            if hour > 23 || minute > 59 || second > 59 || fraction.len() > 9 {
+                return None;
+            }
+            let nanos = if fraction.is_empty() {
+                0
+            } else {
+                number(fraction, fraction.len())? * 10_i64.pow(9 - fraction.len() as u32)
+            };
+            Some(TimeOfDay {
+                hour,
+                minute,
+                second,
+                nanos,
+            })
+        }
+        None => None,
+    };
+    Some(match (day, time) {
+        (Some(day), Some(clock)) => Read::Clock(Clock { day, clock }),
+        (Some(day), None) => Read::Date(day),
+        (None, Some(time)) => Read::Time(time),
+        (None, None) => return None,
+    })
+}
+
 const DAY_MS: i64 = 86_400_000;
 
 /// The time value a serial `number` is under a format of `kind`, or `None` for a plain number or a
-/// serial no date can have.
+/// serial no date can have. In the 1900 system serial 0 and serial 60 name no real day, so under
+/// a format with a date they read as their plain number. A duration past the range of
+/// nanoseconds in 64 bits is a plain number too.
 fn timed(number: f64, kind: Kind, date1904: bool) -> Option<Read> {
     if kind == Kind::Plain || !number.is_finite() {
         return None;
@@ -1347,12 +1466,15 @@ fn timed(number: f64, kind: Kind, date1904: bool) -> Option<Read> {
     )]
     let ms = ms as i64;
     if kind == Kind::Duration {
-        return Some(Read::Duration(ms * 1_000_000));
+        return ms.checked_mul(1_000_000).map(Read::Duration);
     }
     if ms < 0 {
         return None;
     }
     let (days, of_day) = (ms / DAY_MS, ms % DAY_MS);
+    if !date1904 && kind != Kind::Time && (days == 0 || days == 60) {
+        return None;
+    }
     let time = TimeOfDay {
         hour: of_day / 3_600_000,
         minute: of_day / 60_000 % 60,

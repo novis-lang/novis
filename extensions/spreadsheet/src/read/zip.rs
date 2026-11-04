@@ -146,7 +146,8 @@ impl Directory {
                 return Err(broken("its zip directory is cut short"));
             }
             entries.push(Entry {
-                name: String::from_utf8_lossy(&central[at + 46..end]).into_owned(),
+                // Some writers separate folders with `\`, which reads as `/`.
+                name: String::from_utf8_lossy(&central[at + 46..end]).replace('\\', "/"),
                 method: u16_at(&central, at + 10),
                 packed: u64::from(u32_at(&central, at + 20)),
                 raw: u64::from(u32_at(&central, at + 24)),

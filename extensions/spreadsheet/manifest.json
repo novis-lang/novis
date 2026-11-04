@@ -101,9 +101,9 @@
         {"name": "reader", "type": "Reading"},
         {"name": "source", "type": "mixed"}
       ],
-      "returns": "array<{ name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind }>",
+      "returns": "array<{ name: string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind }>",
       "source": true,
-      "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none."
+      "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none. They are `null` when the file has no part for the sheet."
     },
     {
       "name": "readerMacros",

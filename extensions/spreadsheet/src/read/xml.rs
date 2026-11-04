@@ -300,29 +300,47 @@ fn code(digits: &[u8], radix: u32) -> Result<char, Error> {
 }
 
 /// Decodes Excel's `_xHHHH_` escapes in cell and note text, which the writer adds for characters
-/// XML cannot carry (`crate::xml`'s module doc).
+/// XML cannot carry (`crate::xml`'s module doc). Two escapes that are a UTF-16 surrogate pair,
+/// such as `_xD83D__xDE00_`, are one character. A lone surrogate stays as written.
 pub fn unescape(text: String) -> String {
     if !text.contains("_x") {
         return text;
     }
     let bytes = text.as_bytes();
+    // The UTF-16 unit an escape at `at` writes.
+    let unit = |at: usize| -> Option<u32> {
+        let escape = bytes.get(at..at + 7)?;
+        let hex = &escape[2..6];
+        if escape[0] != b'_'
+            || escape[1] != b'x'
+            || escape[6] != b'_'
+            || !hex.iter().all(u8::is_ascii_hexdigit)
+        {
+            return None;
+        }
+        std::str::from_utf8(hex)
+            .ok()
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+    };
     let mut out = String::with_capacity(text.len());
     let mut at = 0;
     let mut start = 0;
     while at + 7 <= bytes.len() {
-        let hex = &bytes[at + 2..at + 6];
-        if bytes[at] == b'_'
-            && bytes[at + 1] == b'x'
-            && bytes[at + 6] == b'_'
-            && hex.iter().all(u8::is_ascii_hexdigit)
-            && let Some(c) = std::str::from_utf8(hex)
-                .ok()
-                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
-                .and_then(char::from_u32)
-        {
+        let decoded = match unit(at) {
+            Some(high @ 0xD800..=0xDBFF) => match unit(at + 7) {
+                Some(low @ 0xDC00..=0xDFFF) => {
+                    char::from_u32(0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00))
+                        .map(|c| (c, 14))
+                }
+                _ => None,
+            },
+            Some(code) => char::from_u32(code).map(|c| (c, 7)),
+            None => None,
+        };
+        if let Some((c, size)) = decoded {
             out.push_str(&text[start..at]);
             out.push(c);
-            at += 7;
+            at += size;
             start = at;
         } else {
             at += 1;

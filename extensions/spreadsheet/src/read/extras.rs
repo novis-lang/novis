@@ -225,7 +225,10 @@ impl Reader {
         let target = |rel: Option<&str>, location: Option<String>| {
             let rel = rel.and_then(|id| rels.iter().find(|(rid, _, _, _)| rid == id));
             match (rel, location) {
+                // The location replaces a fragment the target already has, so the link has
+                // one `#`.
                 (Some((_, _, target, external)), Some(location)) => {
+                    let target = target.split_once('#').map_or(target.as_str(), |(at, _)| at);
                     Some((format!("{target}#{location}"), *external))
                 }
                 (Some((_, _, target, external)), None) => Some((target.clone(), *external)),
@@ -309,11 +312,14 @@ impl Reader {
         let mut author: Option<String> = None;
         let mut note: Option<(String, Option<usize>, String)> = None;
         let mut in_text = false;
+        // Phonetic text (`<rPh>`) is a reading guide for the note's text, and not part of it.
+        let mut in_phonetic = false;
         let mut at = 0;
         while let Some((token, size)) = xml::next(&bytes[at..])? {
             at += size;
             match token {
                 Token::Open { name, attrs, empty } => match xml::local(name) {
+                    b"rPh" => in_phonetic = !empty,
                     b"author" if !empty => author = Some(String::new()),
                     b"author" => authors.push(String::new()),
                     b"comment" => {
@@ -327,6 +333,7 @@ impl Reader {
                 },
                 Token::Close(name) => match xml::local(name) {
                     b"author" => authors.extend(author.take()),
+                    b"rPh" => in_phonetic = false,
                     b"t" => in_text = false,
                     b"comment" => {
                         if let Some((noted, by, text)) = note.take() {
@@ -346,7 +353,10 @@ impl Reader {
                 Token::Text(raw) => {
                     if let Some(author) = author.as_mut() {
                         text(raw, author)?;
-                    } else if in_text && let Some((_, _, out)) = note.as_mut() {
+                    } else if in_text
+                        && !in_phonetic
+                        && let Some((_, _, out)) = note.as_mut()
+                    {
                         text(raw, out)?;
                     }
                 }

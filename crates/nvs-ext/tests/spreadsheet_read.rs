@@ -4251,3 +4251,335 @@ fn builtin_formats_14_and_22_render_as_excel_shows_them_in_en_us() {
     }
     block_on(read.request.end()).expect("the request ends");
 }
+
+/// A worksheet part whose `<sheetData>` is `data`.
+fn sheet_part(data: &str) -> Vec<u8> {
+    format!(
+        r#"<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>{data}</sheetData></worksheet>"#
+    )
+    .into_bytes()
+}
+
+/// A package whose workbook lists `sheets`, each as its name and the `Target` its relationship
+/// names, and whose parts are `parts` as given. With `strings_rel`, the workbook's relationships
+/// name `sharedStrings.xml`.
+fn bare_book(sheets: &[(&str, &str)], strings_rel: bool, parts: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let mut book =
+        format!(r#"<?xml version="1.0"?><workbook xmlns="{main}" xmlns:r="{rel}"><sheets>"#);
+    let mut book_rels = vec![("rIdS", "styles", "styles.xml", false)];
+    let ids: Vec<String> = (1..=sheets.len()).map(|n| format!("rId{n}")).collect();
+    for ((name, target), id) in sheets.iter().zip(&ids) {
+        book.push_str(&format!(r#"<sheet name="{name}" sheetId="1" r:id="{id}"/>"#));
+        book_rels.push((id, "worksheet", target, false));
+    }
+    book.push_str("</sheets></workbook>");
+    if strings_rel {
+        book_rels.push(("rIdT", "sharedStrings", "sharedStrings.xml", false));
+    }
+    let mut all = vec![
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            rels(&[("rId1", "officeDocument", "xl/workbook.xml", false)]),
+        ),
+        ("xl/workbook.xml", book.into_bytes()),
+        ("xl/_rels/workbook.xml.rels", rels(&book_rels)),
+        ("xl/styles.xml", STYLES.as_bytes().to_vec()),
+    ];
+    all.extend(parts.iter().map(|(name, data)| (*name, data.clone())));
+    zip(&all)
+}
+
+// covers: Novis\Spreadsheet\Reader::open
+#[test]
+fn backslashes_and_percent_escapes_in_part_names_and_targets_resolve() {
+    // One part is stored under a name with `\`, one is named by a `Target` with `\`, and one
+    // by a `Target` with a `%20` escape.
+    let read = Read::open(bare_book(
+        &[
+            ("Shop", "worksheets/sheet1.xml"),
+            ("Blog", r"worksheets\sheet2.xml"),
+            ("Prices", "worksheets/my%20prices.xml"),
+        ],
+        false,
+        &[
+            (
+                r"xl\worksheets\sheet1.xml",
+                sheet_part(&row(1, &[("", 0, "<v>1</v>")])),
+            ),
+            (
+                "xl/worksheets/sheet2.xml",
+                sheet_part(&row(1, &[("", 0, "<v>2</v>")])),
+            ),
+            (
+                "xl/worksheets/my prices.xml",
+                sheet_part(&row(1, &[("", 0, "<v>3</v>")])),
+            ),
+        ],
+    ));
+    for (name, value) in [("Shop", 1), ("Blog", 2), ("Prices", 3)] {
+        assert_eq!(
+            read.all(&options(name), 10),
+            vec![(1, vec![(1, integer(value))])],
+            "{name}"
+        );
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn shared_strings_missing_from_the_workbook_rels_are_found_at_their_usual_path() {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let read = Read::open(bare_book(
+        &[("Shop", "worksheets/sheet1.xml")],
+        false,
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                sheet_part(&row(1, &[("s", 0, "<v>1</v>")])),
+            ),
+            (
+                "xl/sharedStrings.xml",
+                format!(r#"<sst xmlns="{main}"><si><t>Tea</t></si><si><t>Coffee</t></si></sst>"#)
+                    .into_bytes(),
+            ),
+        ],
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Coffee"))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_empty_value_reads_as_null_and_a_date_cell_reads_as_its_date_type() {
+    let data = [
+        row(
+            1,
+            &[
+                ("", 0, "<v></v>"),
+                ("", 0, "<v> </v>"),
+                ("d", 0, "<v>2024-01-15</v>"),
+                ("d", 0, "<v>2024-01-15T18:00:00Z</v>"),
+                ("d", 0, "<v>12:30:00</v>"),
+                ("d", 0, "<v></v>"),
+            ],
+        ),
+        row(2, &[("", 0, "<v>7</v>")]),
+    ]
+    .concat();
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![
+            (
+                1,
+                vec![
+                    (3, shape(vec![("date", date(2024, 1, 15))])),
+                    (
+                        4,
+                        shape(vec![("day", date(2024, 1, 15)), ("clock", time(18, 0, 0))])
+                    ),
+                    (5, shape(vec![("time", time(12, 30, 0))])),
+                ]
+            ),
+            (2, vec![(1, integer(7))]),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_number_cell_with_text_throws_naming_the_cell() {
+    let read = Read::open(xlsx(
+        &[
+            sheet("Shop", row(2, &[("", 0, "<v>7</v>"), ("", 0, "<v>many</v>")])),
+            sheet("Blog", row(3, &[("d", 0, "<v>soon</v>")])),
+        ],
+        &[],
+    ));
+    for (name, cell, raw) in [("Shop", "B2", "many"), ("Blog", "A3", "soon")] {
+        let failed = read.failure("readerRows", vec![options(name).value(), Value::Uint(10)]);
+        assert!(
+            failed.contains(&format!("the cell {cell} holds `{raw}`")),
+            "{failed}"
+        );
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_escaped_surrogate_pair_reads_as_one_character() {
+    let data = row(
+        1,
+        &[
+            ("inlineStr", 0, "<is><t>Shop _xD83D__xDE00_</t></is>"),
+            // A lone surrogate is not a character, so it stays as written.
+            ("inlineStr", 0, "<is><t>_xD83D_ alone</t></is>"),
+        ],
+    );
+    let read = Read::open(xlsx(
+        &[sheet("Shop", data)],
+        &["Blog _xD83D__xDE00_"],
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![(1, text("Shop \u{1F600}")), (2, text("_xD83D_ alone"))]
+        )]
+    );
+    block_on(read.request.end()).expect("the request ends");
+    let read = Read::open(xlsx(
+        &[sheet("Shop", row(1, &[("s", 0, "<v>0</v>")]))],
+        &["Blog _xD83D__xDE00_"],
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Blog \u{1F600}"))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_merged_range_written_with_dollar_signs_reads_as_the_range() {
+    let read = Read::open(xlsx(
+        &[Sheet {
+            tail: r#"<mergeCells count="1"><mergeCell ref="$A$1:$B$2"/></mergeCells>"#.to_owned(),
+            ..sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))
+        }],
+        &[],
+    ));
+    assert_eq!(
+        read.call("readerMerged", vec![string("Shop")]),
+        strings(&["A1:B2"])
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn phonetic_text_in_a_note_is_not_part_of_the_note() {
+    let comments = r#"<?xml version="1.0"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Ann</author></authors><commentList><comment ref="A1" authorId="0"><text><r><t>Shop</t></r><rPh sb="0" eb="4"><t>shoppu</t></rPh><phoneticPr fontId="1"/></text></comment></commentList></comments>"#;
+    let read = Read::open(package(
+        &[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))],
+        &[],
+        &[
+            (
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                rels(&[("rIdC", "comments", "../comments1.xml", false)]),
+            ),
+            ("xl/comments1.xml", comments.as_bytes().to_vec()),
+        ],
+    ));
+    let notes = read.call("readerNotes", vec![string("Shop")]);
+    assert_eq!(field(entries(&notes)[0], "note"), &string("Shop"));
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_external_link_with_a_fragment_and_a_location_has_one_hash() {
+    let read = Read::open(package(
+        &[Sheet {
+            tail: r#"<hyperlinks><hyperlink ref="A1" r:id="rIdL" location="Prices"/></hyperlinks>"#
+                .to_owned(),
+            ..sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))
+        }],
+        &[],
+        &[(
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            rels(&[("rIdL", "hyperlink", "https://example.com/shop#old", true)]),
+        )],
+    ));
+    let links = read.call("readerLinks", vec![string("Shop")]);
+    assert_eq!(
+        field(entries(&links)[0], "target"),
+        &string("https://example.com/shop#Prices")
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_sheet_whose_part_is_missing_is_listed_with_no_size_and_throws_when_read() {
+    let read = Read::open(bare_book(
+        &[
+            ("Shop", "worksheets/sheet1.xml"),
+            ("Blog", "worksheets/sheet2.xml"),
+        ],
+        false,
+        &[(
+            "xl/worksheets/sheet1.xml",
+            sheet_part(&row(1, &[("", 0, "<v>1</v>")])),
+        )],
+    ));
+    let sheets = read.call("readerSheets", vec![]);
+    let sizes: Vec<(&Value, &Value, &Value)> = entries(&sheets)
+        .into_iter()
+        .map(|sheet| (field(sheet, "name"), field(sheet, "rows"), field(sheet, "columns")))
+        .collect();
+    assert_eq!(
+        sizes,
+        vec![
+            (&string("Shop"), &Value::Uint(1), &Value::Uint(1)),
+            (&string("Blog"), &Value::Null, &Value::Null),
+        ]
+    );
+    let failed = read.failure("readerRows", vec![options("Blog").value(), Value::Uint(10)]);
+    assert!(failed.contains("the sheet `Blog` has no part"), "{failed}");
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, integer(1))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn serials_zero_and_sixty_read_as_plain_numbers() {
+    // Style 1 is a date, 2 a date and time, and 3 a time. Serial 0 and serial 60 name no
+    // real day in the 1900 system. A time alone has no day, so 0.5 is noon.
+    let data = row(
+        1,
+        &[
+            ("", 1, "<v>0</v>"),
+            ("", 1, "<v>60</v>"),
+            ("", 2, "<v>60.5</v>"),
+            ("", 3, "<v>0.5</v>"),
+            ("", 1, "<v>61</v>"),
+        ],
+    );
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0].1,
+        vec![
+            (1, integer(0)),
+            (2, integer(60)),
+            (3, number(60.5)),
+            (4, shape(vec![("time", time(12, 0, 0))])),
+            (5, shape(vec![("date", date(1900, 3, 1))])),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_duration_serial_past_the_range_of_a_time_reads_as_its_number() {
+    // Style 4 is `[h]:mm:ss`. 100,000 days fit in 64 bits of nanoseconds, and 200,000 do not.
+    let data = row(1, &[("", 4, "<v>100000</v>"), ("", 4, "<v>200000</v>")]);
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0].1,
+        vec![
+            (
+                1,
+                shape(vec![(
+                    "duration",
+                    core("Core\\Time\\Duration", &[("nanos", 100_000 * 86_400_000_000_000)]),
+                )])
+            ),
+            (2, integer(200_000)),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}

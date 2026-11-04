@@ -49,8 +49,15 @@ impl Merge {
         })
     }
 
-    /// The range an xlsx writes as `A1:C3`.
+    /// The range an xlsx writes as `A1:C3`. A `$` in it, as in `$A$1:$C$3`, is ignored.
     pub fn parse(reference: &[u8]) -> Result<Self, Error> {
+        let plain: Vec<u8>;
+        let reference = if reference.contains(&b'$') {
+            plain = reference.iter().copied().filter(|&b| b != b'$').collect();
+            &plain[..]
+        } else {
+            reference
+        };
         let mut corners = reference.splitn(2, |&b| b == b':');
         let first = corners.next().unwrap_or_default();
         let last = corners.next().unwrap_or(first);

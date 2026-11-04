@@ -497,8 +497,9 @@ interface engine {
         name: string,
         position: u64,
         visibility: visibility,
-        rows: u64,
-        columns: u64,
+        /// `none` when the sheet's part is missing from the file.
+        rows: option<u64>,
+        columns: option<u64>,
         kind: sheet-kind,
     }
 

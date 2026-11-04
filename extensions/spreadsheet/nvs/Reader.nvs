@@ -11,7 +11,7 @@ use RuntimeError;
 final class Reader
 {
     type RowOptions = ?{ header?: bool|int, from?: uint, limit?: uint, columns?: array<string>, zone?: string, text?: bool|array<string>, formulas?: bool, emptyRows?: string, merged?: string, hidden?: string, locale?: string };
-    type SheetInfo = { name: tainted string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind };
+    type SheetInfo = { name: tainted string, position: uint, visibility: Visibility, rows: ?uint, columns: ?uint, kind: SheetKind };
     type Link = { anchor: tainted string, target: tainted string, text: ?tainted string, tooltip: ?tainted string, external: bool };
     type Note = { noted: tainted string, note: tainted string, author: ?tainted string };
     type Name = { name: tainted string, reference: tainted string, sheet: ?tainted string };
@@ -78,6 +78,7 @@ final class Reader
     }
 
     /// `sheets` returns each sheet in tab order, with its name, its position from 0, whether it is hidden, its size and its kind.
+    /// The size is `null` when the file lists a sheet that it does not contain.
     public function sheets(): array<SheetInfo>
     {
         if ($this->reader == null) {
