@@ -333,30 +333,26 @@ disjoint files run side by side, and none of them builds. The session builds onc
 ### State
 
 Stages 1 to 4 are done. In stage 5, `looper verify` is green on its third run, and `bun nv verify
---doc`, `bun nv owners --closes speed-independent-tests` and `bun nv ci --check` are green. The push
-and the CI watch are what is left.
+--doc`, `bun nv owners --closes speed-independent-tests` and `bun nv ci --check` are green. `main` is
+pushed at `012faef11`, and its CI run is what is left.
 
-- **What the gate fixed.** `d7c2dd011` renders `docs/rules/errors.md` after stage 3's rule edit.
-  `853951fca` replaces `the_watchdog_threads_timed_waits_end_on_time`, which held a wait's median
-  lateness under 30 ms and was 31 ms late here under load, with
-  `the_watchdog_thread_runs_under_the_time_constraint_policy` (macOS only), which reads the policy
-  `wake_on_time` sets back from the thread. `eadc9441d` puts the chain's three goals on the
-  roadmap. `8df6864d1` measures `Core\Str` again, since `find_counted` changed `str.rs`.
+- **What the push fixed.** Nightly 41813182715 ran `f3150b922`, before the two fixes for its reds were
+  pushed: `a2f451fad` (Miri, `openat(O_PATH)`) and `a8bdf37fb` (macOS, the idle-edit test). The
+  push of `74e43801c` went red on `proofs / macos-aarch64`'s website stale guard. The replay
+  `field-paths/01-complete-a-path.replay` wrote its whole session at once. Since `0f3939764` the server
+  answers a request with a later change queued with `ContentModified`, so the answer depended on how far
+  the server had read the pipe. `012faef11` writes each part once the request before it is answered
+  (`lspTalk` in `tools/nv/lib/lsp.ts`, tested in `tools/nv/test/site-replay.test.ts`).
 
-- **What guards each removed bound.** `time.rs`'s bound: `benches/members/core/Time/sleep.nvs`.
-  The spreadsheet header's `< 10 s` (`5e3d0cba4`): the same test now compares the cost per column
-  at 16384 and 2048 columns in one run (pattern 4), `a_header_of_every_column_equal_is_numbered_in_linear_time`
-  in `crates/nvs-ext/tests/spreadsheet_read.rs`. The case-insensitive `indexOf` near miss
-  (`8de4a2c37`): `a_case_insensitive_near_miss_takes_steps_linear_in_the_haystack_and_needle` in
-  `crates/nvs-stdlib/src/str.rs` counts the KMP steps through `find_counted`. Its conformance case
-  keeps the case timeout as a hang guard. No `.scale.nvs` was added: a ramp reads native growth as
-  `flat` (see the standing decision).
-- The sweep's reds were stale: `env-secret-proofs` is defined nowhere, nightly 41618735447 ran
-  `98845d92`, and `supply chain` belongs to `ci-green`.
+- **What guards each removed bound.** `time.rs`'s: `benches/members/core/Time/sleep.nvs`. The
+  spreadsheet header's: a same-run ratio in `crates/nvs-ext/tests/spreadsheet_read.rs`. The
+  case-insensitive `indexOf` near miss: a step count through `find_counted` in
+  `crates/nvs-stdlib/src/str.rs`.
+- The sweep's `env-secret-proofs` red is stale: it is defined nowhere and has no log.
 
 ### Next
 
-1. `bun nv ci --watch` until CI is green on the pushed tip, macOS and Windows included. Fix each red
+1. `bun nv ci --watch` until CI is green on `012faef11` or a later tip, macOS and Windows included. Fix each red
    in one pass, then `bun nv ci --push` again. With CI green, tick stage 5's last item and set the
    goal done.
 
