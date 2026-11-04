@@ -1591,3 +1591,64 @@ fn a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keep
     assert!(orders.contains(r#"<drawing r:id="rId1"/>"#), "{orders}");
     assert_eq!(orders.matches("Shop item number").count(), 2, "{orders}");
 }
+
+/// A sheet part in UTF-16 or UTF-32, with a byte order mark or without one, and a part whose
+/// declaration names another encoding each throw naming the part. A declaration of UTF-8 or
+/// US-ASCII, and a UTF-8 byte order mark, read.
+#[test]
+fn a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part() {
+    let utf8 = sheet(r#"<row r="1"><c r="A1"><v>1</v></c></row>"#);
+    let text = String::from_utf8(utf8.clone()).unwrap();
+    let utf16 = |bom: &[u8], big: bool| {
+        let mut out = bom.to_vec();
+        for unit in text.encode_utf16() {
+            out.extend(if big {
+                unit.to_be_bytes()
+            } else {
+                unit.to_le_bytes()
+            });
+        }
+        out
+    };
+    let mut utf32 = vec![0xFF, 0xFE, 0, 0];
+    for c in text.chars() {
+        utf32.extend(u32::from(c).to_le_bytes());
+    }
+    let declared = |encoding: &str| {
+        text.replacen(
+            r#"<?xml version="1.0"?>"#,
+            &format!(r#"<?xml version="1.0" encoding="{encoding}" standalone="yes"?>"#),
+            1,
+        )
+        .into_bytes()
+    };
+    let part = "`xl/worksheets/sheet1.xml`";
+    for (what, data, says) in [
+        ("UTF-16LE", utf16(&[0xFF, 0xFE], false), "is in UTF-16."),
+        ("UTF-16BE", utf16(&[0xFE, 0xFF], true), "is in UTF-16."),
+        ("UTF-16 without a mark", utf16(&[], false), "is in UTF-16 or UTF-32."),
+        ("UTF-32LE", utf32, "is in UTF-32."),
+        (
+            "a declared Latin-1",
+            declared("ISO-8859-1"),
+            "declares the encoding `ISO-8859-1`.",
+        ),
+    ] {
+        let file = xlsx_named(&data, &shared(&[]), "");
+        let failure = read(&file).0.unwrap_or_else(|| panic!("{what} reads"));
+        assert!(
+            failure.contains(&format!("{part} {says} Only UTF-8 is supported.")),
+            "{what}: {failure}"
+        );
+    }
+    let mut marked = vec![0xEF, 0xBB, 0xBF];
+    marked.extend(&utf8);
+    for (what, data) in [
+        ("UTF-8", declared("UTF-8")),
+        ("US-ASCII", declared("US-ASCII")),
+        ("a UTF-8 mark", marked),
+    ] {
+        let file = xlsx_named(&data, &shared(&[]), "");
+        assert_eq!(read(&file).0, None, "{what}");
+    }
+}

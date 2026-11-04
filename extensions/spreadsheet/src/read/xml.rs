@@ -13,8 +13,58 @@
 //! entity other than the five XML predefines, so a part cannot name a file, a URL or a
 //! billion-laughs expansion (`rule:core-classes/spreadsheet-has-no-io`). A comment and a
 //! processing instruction are [`Token::Skip`]; CDATA is text.
+//!
+//! **Every XML part is UTF-8.** [`encoding`] judges the first [`HEAD`] bytes of a part, which
+//! [`super::zip::Part`] keeps as it inflates them. A byte order mark of UTF-16 or UTF-32, a NUL,
+//! or a declaration naming another encoding is an [`Error::Parse`] naming the part. A
+//! declaration of US-ASCII is read, because ASCII is UTF-8. It costs one copy of 256 bytes per
+//! XML part.
 
 use crate::Error;
+
+/// How many of a part's first bytes [`encoding`] judges: enough for its byte order mark and
+/// its declaration.
+pub const HEAD: usize = 256;
+
+/// Whether the part `name` is XML, by its extension, so [`encoding`] judges it.
+pub fn is_xml(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".xml") || lower.ends_with(".rels") || lower.ends_with(".vml")
+}
+
+/// Throws when the part `name`, whose first bytes are `head`, is not UTF-8.
+pub fn encoding(name: &str, head: &[u8]) -> Result<(), Error> {
+    let not = |what: &str| {
+        Err(Error::Parse(format!(
+            "The workbook part `{name}` {what}. Only UTF-8 is supported."
+        )))
+    };
+    if head.starts_with(&[0xFF, 0xFE, 0, 0]) || head.starts_with(&[0, 0, 0xFE, 0xFF]) {
+        return not("is in UTF-32");
+    }
+    if head.starts_with(&[0xFF, 0xFE]) || head.starts_with(&[0xFE, 0xFF]) {
+        return not("is in UTF-16");
+    }
+    if head.contains(&0) {
+        return not("is in UTF-16 or UTF-32");
+    }
+    let text = head.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(head);
+    let Some(declaration) = text.strip_prefix(b"<?xml") else {
+        return Ok(());
+    };
+    let Some(end) = find(declaration, 0, b"?>") else {
+        return Ok(());
+    };
+    let Some(named) = attr(&declaration[..end], b"encoding") else {
+        return Ok(());
+    };
+    let named = String::from_utf8_lossy(named);
+    let known = ["utf-8", "utf8", "us-ascii", "ascii"];
+    if known.iter().any(|ok| named.trim().eq_ignore_ascii_case(ok)) {
+        return Ok(());
+    }
+    not(&format!("declares the encoding `{named}`"))
+}
 
 /// One token.
 #[derive(Debug, PartialEq, Eq)]

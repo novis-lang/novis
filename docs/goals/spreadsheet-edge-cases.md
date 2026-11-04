@@ -261,7 +261,7 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 6. **A whole-column read walks only that column.** The evaluator gets a by-column index of its stored cells only if the existing map cannot be walked by column; its cost is one entry per stored cell, per evaluation, freed with the request.
 7. **An encrypted xlsx (a CFB with `EncryptedPackage`) and an xls with `FILEPASS` throw** "This file is encrypted with a password. Encrypted files are not supported."
 8. **A template fill drops XLM macro sheets, `xl/vbaData.xml`, `xl/activeX`, `customUI` ribbons and `oleObject*.bin` embeddings**, with their relationships and content types. It keeps package embeddings (an embedded xlsx or docx) and images.
-9. **An XML part whose bytes start with a UTF-16 or UTF-32 byte order mark or with NULs, or whose declaration names an encoding other than UTF-8, throws naming the part.**
+9. **An XML part whose bytes start with a UTF-16 or UTF-32 byte order mark or with NULs, or whose declaration names an encoding other than UTF-8, throws naming the part.** A declared US-ASCII reads, because ASCII is UTF-8. The check is `xml::encoding` over the first 256 bytes `zip::Part` inflates of every `.xml`, `.rels` and `.vml` part: one 256-byte copy per part.
 10. **A CSV in UTF-32 throws "UTF-32 is not supported"**, and a CSV that is not valid UTF-8 throws naming the charset it is not and the `encoding` option.
 11. **A zip entry name or a relationship `Target` with `\` is read with `/`, and a `Target` is percent-decoded** before it is resolved.
 12. **A workbook whose relationships omit sharedStrings is searched at `xl/sharedStrings.xml`.**
@@ -353,8 +353,10 @@ are, one conformance case and one attack.
     `activeTab` and `firstSheet`
   - [x] `without_inert` removes a `control` or `oleObject` naming a dropped part, and its empty wrappers
   - [x] `a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keeps_images` passes
-- [ ] A part declared or encoded as UTF-16 or UTF-32 is lexed as garbage with no error; throw naming
+- [x] A part declared or encoded as UTF-16 or UTF-32 is lexed as garbage with no error; throw naming
   the part (decision 9). `extensions/spreadsheet/src/read/xml.rs:1`
+  - [x] `zip::Part` keeps the first 256 bytes of an XML part, and `xml::encoding` judges them
+  - [x] `a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part` passes
 - [ ] RC-03: a UTF-32LE byte order mark (`FF FE 00 00`) is read as UTF-16LE, and invalid UTF-8 in the
   first 4 KiB says "not a spreadsheet". Throw the messages in decision 10.
   `extensions/spreadsheet/nvs/Reader.nvs:486`

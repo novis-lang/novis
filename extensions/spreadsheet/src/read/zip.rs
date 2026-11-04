@@ -224,6 +224,8 @@ pub struct Part {
     input: Vec<u8>,
     used: usize,
     done: bool,
+    /// The first bytes of an XML part, kept until [`super::xml::encoding`] judges them.
+    head: Option<Vec<u8>>,
 }
 
 impl std::fmt::Debug for Part {
@@ -267,7 +269,23 @@ impl Part {
             input: Vec::new(),
             used: 0,
             done: false,
+            head: super::xml::is_xml(&entry.name).then(Vec::new),
         })
+    }
+
+    /// Keeps the first bytes of `new`, and judges the part's encoding once it has
+    /// [`super::xml::HEAD`] of them or has ended.
+    fn judge(&mut self, new: &[u8]) -> Result<(), Error> {
+        let Some(head) = self.head.as_mut() else {
+            return Ok(());
+        };
+        let take = (super::xml::HEAD - head.len()).min(new.len());
+        head.extend_from_slice(&new[..take]);
+        if head.len() == super::xml::HEAD || self.done {
+            let head = self.head.take().unwrap_or_default();
+            super::xml::encoding(&self.name, &head)?;
+        }
+        Ok(())
     }
 
     /// Appends the next bytes of the part to `out`. Returns `false` once the part has ended.
@@ -289,6 +307,7 @@ impl Part {
         match &mut self.method {
             Method::Stored if drained => {
                 self.done = true;
+                self.judge(&[])?;
                 return Ok(false);
             }
             Method::Stored => {
@@ -316,6 +335,9 @@ impl Part {
         }
         if self.out > self.raw {
             return Err(broken("a part is larger than the zip directory says"));
+        }
+        if self.head.is_some() {
+            self.judge(&out[before..])?;
         }
         Ok(true)
     }
