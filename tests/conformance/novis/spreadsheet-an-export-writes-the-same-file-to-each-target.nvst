@@ -68,11 +68,13 @@ final class Check
         echo $label, ": save ", $file == $memory ? "same" : "differs",
             ", to ", $streamedFile == $memory ? "same" : "differs";
         // A CSV file is text, so `Core\Out::capture` can collect the download.
+        // In a command-line program, the collected text shows each CR as `␍`.
         if ($csv) {
             var $sent = Core\Out::capture(fn (): void => {
                 $make()->download("sent.csv");
             });
-            echo ", download ", ($sent as string as bytes) == $memory ? "same" : "differs";
+            string $shown = Core\Str::replaceAll($memory as string, ["\r" => "\u{240D}"]);
+            echo ", download ", ($sent as string) == $shown ? "same" : "differs";
         }
         echo "\n";
         echo $label, ": sizes ", $saved->size == Core\Bytes::length($memory) ? "match" : "differ",
@@ -124,7 +126,8 @@ Workbook::fromRows([["order" => 1]], {format: "csv"})->to($log);
 $log->write("# second\n");
 Workbook::fromRows([["order" => 2]], {format: "csv"})->to($log);
 $log->close();
-echo Core\IO::readText("log.csv");
+// Each CSV file starts with a byte order mark and ends each line with CR and LF. This prints the log without both.
+echo Core\Str::replaceAll(Core\IO::readText("log.csv"), ["\u{FEFF}" => "", "\r" => ""]);
 
 // A filled template writes the same bytes through `save` and `to`, and `download` sends it.
 bytes $template = Check::template();

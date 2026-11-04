@@ -17,7 +17,7 @@ $done->finish();
 var $left = Workbook::createForDownload("orders.csv");
 $left->sheet("Orders")->add(["id" => 1]);
 --EXPECT--
-name
+﻿name
 Ada
 --EXPECT-ERROR--
 {"level":"error","msg":"A response stream started with `$mustEnd` was not ended, so its body is cut off. Call `end()` on the stream before the program ends.","fields":{"stream":"orders.csv"}}

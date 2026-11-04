@@ -24,23 +24,25 @@ var $written = $book->finish();
 echo $written->rows["Orders"], " rows\n";
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
 echo $written->size == Core\Bytes::length($file) ? "the size is the length of the file" : "the size is wrong", "\n";
-echo $file as string;
+// The CSV file starts with a byte order mark and ends each line with CR and LF. This case prints each file without both.
+echo Core\Str::replaceAll($file as string, ["\u{FEFF}" => "", "\r" => ""]);
 
 // A date, a time, a duration and an `Instant` in the workbook's `zone` are written as text.
 var $times = Workbook::createInMemory({format: "csv", zone: "Europe/Berlin"});
 $times->sheet("Times", {header: false})->add([Core\Time\Date::at(2024, 1, 15), Core\Time\TimeOfDay::at(9, 30), Core\Time\Duration::minutes(150), Core\Time::at(2024, 1, 15, Core\Time\Zone::UTC, {hour: 9, minute: 30})->toInstant()]);
 bytes $timesFile = $times->finish()->bytes ?? Core\Bytes::fill(0, 0);
-echo $timesFile as string;
+echo Core\Str::replaceAll($timesFile as string, ["\u{FEFF}" => "", "\r" => ""]);
 
 // A name that ends in `.csv` writes CSV, and `fromRows` writes it the same way.
 Workbook::fromRows([["name" => "Ada", "city" => "London"]])->save("people.csv");
-echo Core\IO::read("people.csv");
+echo Core\Str::replaceAll(Core\IO::readText("people.csv"), ["\u{FEFF}" => "", "\r" => ""]);
 
 // A download of a CSV file sends the same text.
 var $sent = Core\Out::capture(fn (): void => {
     Workbook::fromRows([["name" => "Ada", "city" => "London"]])->download("people.csv");
 });
-echo $sent as string;
+// In a command-line program, the collected text shows each CR as `␍`.
+echo Core\Str::replaceAll($sent as string, ["\u{FEFF}" => "", "\u{240D}" => ""]);
 --FILE nvs.toml--
 [capabilities.fs]
 read = ["."]

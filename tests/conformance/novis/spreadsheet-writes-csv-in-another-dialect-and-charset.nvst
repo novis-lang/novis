@@ -22,11 +22,14 @@ final class Show
 array<array<mixed>> $rows = [['Name' => 'Jürgen', 'Note' => "a;b 'c'"], ['Name' => 'Zoë', 'Note' => 'Köln']];
 
 // A semicolon separator and a `'` quote, in UTF-8.
-echo Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', quote: "'" } })->bytes() as string;
+// The file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
+string $utf8 = Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', quote: "'" } })->bytes() as string;
+echo Core\Str::replaceAll($utf8, ["\u{FEFF}" => "", "\r" => ""]);
 
-// Latin-1: `ü`, `ë` and `ö` are one byte each.
+// Latin-1: `ü`, `ë` and `ö` are one byte each, and the file has no byte order mark.
+// The second line starts at byte 11, after `Name;Note` and CR and LF.
 bytes $latin = Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', encoding: Core\Charset::Latin1 } })->bytes();
-echo Core\Encoding::toHex(Core\Bytes::slice($latin, 10, 6)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($latin, 11, 6)), "\n";
 Show::rows(Reader::open($latin, { csv: { separator: ';', encoding: Core\Charset::Latin1 } })->rows(0, { header: true }));
 
 // UTF-16 starts with a byte order mark, so the reader needs no option.

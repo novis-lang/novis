@@ -24,7 +24,9 @@ try {
     echo "xlsx: ", $e->message, "\n";
 }
 
-echo Workbook::fromRows([["order" => 1042, "total" => 19.5]], {format: "csv"})->bytes() as string;
+// The CSV file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
+string $csv = Workbook::fromRows([["order" => 1042, "total" => 19.5]], {format: "csv"})->bytes() as string;
+echo Core\Str::replaceAll($csv, ["\u{FEFF}" => "", "\r" => ""]);
 --EXPECT--
 The cell `B3` has the number NaN. A cell can contain only a finite number.
 The cell `B3` has the number inf. A cell can contain only a finite number.

@@ -21,7 +21,8 @@ $orders->add(["Gadget", 4]);
 var $written = $book->finish();
 echo $written->rows["Orders"], " rows\n";
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
-echo $file as string;
+// The CSV file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
+echo Core\Str::replaceAll($file as string, ["\u{FEFF}" => "", "\r" => ""]);
 
 try {
     Workbook::createInMemory({format: "xls"});
