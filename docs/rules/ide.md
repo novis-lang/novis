@@ -577,7 +577,10 @@ that rule's reader too. A `.lspt` case renders it one line per declaration, `fil
 eighth, and it is admitted for two idioms that are settled and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
 and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
-source said it, so a re-derived one is a confident lie. `documentHighlight` reads the index for a reason of its own: it
+source said it, so a re-derived one is a confident lie. `nvs.inlayHints.parameterNames`, on by default,
+turns the parameter-name hints off and keeps the type hints. The server drops them from its answer and
+asks a client that supports it to fetch its hints again, so no restart is needed. `hints::for_document`
+does not read the setting, so the type phase stays the one source of a hint. `documentHighlight` reads the index for a reason of its own: it
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 
@@ -1538,7 +1541,11 @@ legend, the `semanticTokenScopes` contribution, the semantic highlighting defaul
 the two bundled themes and the `nvs.highlighting.distinctNames` setting in
 `editors/vscode/package.json`; `editors/vscode/test/contributions/contributions.test.ts` asserts all
 but the first two, and `editors/vscode/test/client/colours.test.ts` asserts what the setting writes and
-removes.
+removes. Both themes draw every bracket level in their `editor.foreground`, an unmatched bracket in
+their `invalid` colour, and an inlay hint in their comment colour on a transparent background, and the
+contributions suite asserts it. `RETIRED` in `editors/vscode/src/colours.ts` keeps every palette the
+setting wrote in an earlier version, so a rule written before an update is still the setting's to
+replace or remove.
 
 <sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 
@@ -2963,7 +2970,8 @@ those lists and to the manifest in one change; the rule that brings it names it.
 `nvs.path` (the binary, falling back to `PATH`), the `nvs.lsp.*` settings, `nvs.secrets.redact` and
 `nvs.taint.mark` ([`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local),
 [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration)), and `nvs.check.scope`, `nvs.codeLens.enable` and
-`nvs.checkWorkspace` ([`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace)). A non-standard request,
+`nvs.checkWorkspace` ([`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace)), and
+`nvs.inlayHints.parameterNames` ([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)). A non-standard request,
 such as `nvs/redactions` or `nvs/regions`, is frozen the same way under
 [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).
 

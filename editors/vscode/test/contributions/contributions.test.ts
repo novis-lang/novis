@@ -111,6 +111,7 @@ const SETTINGS = [
   "nvs.ast.enable",
   "nvs.stubs.dir",
   "nvs.highlighting.distinctNames",
+  "nvs.inlayHints.parameterNames",
 ];
 
 const COMMANDS = [
@@ -456,6 +457,7 @@ describe("the frozen identifiers", () => {
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
     assert.equal(properties["nvs.stubs.dir"].default, "");
     assert.equal(properties["nvs.highlighting.distinctNames"].default, false);
+    assert.equal(properties["nvs.inlayHints.parameterNames"].default, true);
   });
 });
 

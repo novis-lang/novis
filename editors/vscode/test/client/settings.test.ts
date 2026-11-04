@@ -24,7 +24,12 @@ describe("a changed setting", () => {
   });
 
   it("is sent to the running server for every other nvs setting", () => {
-    for (const setting of ["nvs.check.scope", "nvs.codeLens.enable", "nvs.lsp.debounce"]) {
+    for (const setting of [
+      "nvs.check.scope",
+      "nvs.codeLens.enable",
+      "nvs.inlayHints.parameterNames",
+      "nvs.lsp.debounce",
+    ]) {
       assert.equal(reaction(affecting(setting)), "send", setting);
     }
   });

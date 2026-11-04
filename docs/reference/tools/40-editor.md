@@ -460,6 +460,7 @@ turn on `nvs.highlighting.distinctNames`, which keeps your theme and adds two co
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
 | `nvs.check.scope` | `"workspace"` | which files the server reads, so which types completion offers and which files diagnostics are published for — `workspace` for every file under the workspace folder, which is also the only scope an unreferenced private member is dimmed at, `open` for the open documents and what they require or autoload |
 | `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens. Click a lens to see the list of places it counts |
+| `nvs.inlayHints.parameterNames` | `true` | whether a literal argument shows the name of the parameter it fills, such as `length:` before `4`. With `false`, only the type hints after a `var` stay |
 | `nvs.template.services` | `true` | whether the editor's own HTML, CSS and JavaScript services answer inside an inline-HTML region |
 | `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
@@ -476,9 +477,10 @@ The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.
 `nvs.template.format`, `nvs.ast.enable` and `nvs.highlighting.distinctNames` are the client's own and take effect on the next redraw, request or save,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
-`nvs.check.scope`, `nvs.codeLens.enable` and `nvs.lsp.debounce` are read by the server. When you
-change one, the client sends the new values to the running server, and they apply at once. A new
-`nvs.check.scope` makes the server read the files of the new scope again. `nvs.stubs.dir` applies
+`nvs.check.scope`, `nvs.codeLens.enable`, `nvs.inlayHints.parameterNames` and `nvs.lsp.debounce` are
+read by the server. When you change one, the client sends the new values to the running server, and
+they apply at once. A new `nvs.check.scope` makes the server read the files of the new scope again. A
+new `nvs.inlayHints.parameterNames` makes the editor ask for its hints again. `nvs.stubs.dir` applies
 the next time the server starts, which **Novis: Restart Language Server** does.
 
 ## The commands it contributes

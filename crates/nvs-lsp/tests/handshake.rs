@@ -25,8 +25,8 @@ use std::path::Path;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::{
-    ClientCapabilities, GeneralClientCapabilities, InitializeParams, InitializeResult,
-    PositionEncodingKind, WorkspaceFolder,
+    ClientCapabilities, GeneralClientCapabilities, InitializeParams, InitializeResult, InlayHint,
+    InlayHintKind, PositionEncodingKind, WorkspaceFolder,
 };
 use nvs_lsp::{CheckScope, Client, Settings};
 
@@ -350,6 +350,7 @@ fn every_setting_is_read_off_initialization_options() {
     let settings = Settings::from_initialize(&configured(serde_json::json!({
         "check": { "scope": "workspace" },
         "codeLens": { "enable": false },
+        "inlayHints": { "parameterNames": false },
     })));
 
     assert_eq!(settings.scope, CheckScope::Workspace);
@@ -357,6 +358,160 @@ fn every_setting_is_read_off_initialization_options() {
         !settings.code_lens,
         "`nvs.codeLens.enable` was turned off and the server did not notice"
     );
+    assert!(
+        !settings.parameter_names,
+        "`nvs.inlayHints.parameterNames` was turned off and the server did not notice"
+    );
+}
+
+/// Runs `initialize` with `params`, then `messages`, then `shutdown` and
+/// `exit`, and returns every message the server sent.
+fn serve_queued(params: InitializeParams, messages: Vec<Message>) -> Vec<Message> {
+    let (server, client) = Connection::memory();
+    let send = |message: Message| client.sender.send(message).expect("the channel is open");
+    send(Message::Request(Request::new(
+        RequestId::from(1),
+        "initialize".to_owned(),
+        params,
+    )));
+    send(Message::Notification(Notification::new(
+        "initialized".to_owned(),
+        serde_json::json!({}),
+    )));
+    for message in messages {
+        send(message);
+    }
+    send(Message::Request(Request::new(
+        RequestId::from(1000),
+        "shutdown".to_owned(),
+        serde_json::json!(null),
+    )));
+    send(Message::Notification(Notification::new(
+        "exit".to_owned(),
+        serde_json::json!(null),
+    )));
+    nvs_lsp::serve(&server).expect("the server served the exchange without a protocol error");
+    drop(server);
+    client.receiver.try_iter().collect()
+}
+
+/// The kinds of the hints the server answers for a document with one `var`
+/// declaration and one call with two literal arguments, under `options`.
+fn hint_kinds(options: serde_json::Value) -> Vec<InlayHintKind> {
+    let dir = nvs_repo::scratch("lsp-hint-setting");
+    let uri = nvs_lsp::uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
+    let source = concat!(
+        "<?nvs\n",
+        "class Greeter {\n",
+        "    public function greet(string $name, int $times): string { return $name; }\n",
+        "}\n",
+        "var $g = new Greeter();\n",
+        "$g->greet(\"world\", 2);\n",
+    );
+    let sent = serve_queued(
+        configured(options),
+        vec![
+            Message::Notification(Notification::new(
+                "textDocument/didOpen".to_owned(),
+                serde_json::json!({ "textDocument": {
+                    "uri": uri, "languageId": "nvs", "version": 1, "text": source,
+                } }),
+            )),
+            Message::Request(Request::new(
+                RequestId::from(2),
+                "textDocument/inlayHint".to_owned(),
+                serde_json::json!({
+                    "textDocument": { "uri": uri },
+                    "range": { "start": { "line": 0, "character": 0 },
+                               "end": { "line": 9, "character": 0 } },
+                }),
+            )),
+        ],
+    );
+    let answer = sent
+        .into_iter()
+        .find_map(|message| match message {
+            Message::Response(response) if response.id == RequestId::from(2) => Some(response),
+            _ => None,
+        })
+        .expect("the inlay hint request was answered");
+    let hints: Vec<InlayHint> = serde_json::from_value(
+        answer
+            .response_result
+            .expect("the inlay hint request was answered, not refused"),
+    )
+    .expect("the answer is a list of hints");
+    hints
+        .into_iter()
+        .map(|hint| {
+            hint.kind
+                .expect("every hint this server answers has a kind")
+        })
+        .collect()
+}
+
+#[test]
+fn parameter_name_hints_turned_off_leave_only_the_type_hints() {
+    // The same document under both values: on, the call's two literals carry
+    // their parameter names; off, only the `var` declaration's type is left.
+    let debounce = serde_json::json!({ "debounce": 0 });
+    assert_eq!(
+        hint_kinds(serde_json::json!({ "lsp": debounce })),
+        vec![
+            InlayHintKind::TYPE,
+            InlayHintKind::PARAMETER,
+            InlayHintKind::PARAMETER
+        ]
+    );
+    assert_eq!(
+        hint_kinds(serde_json::json!({
+            "lsp": debounce,
+            "inlayHints": { "parameterNames": false },
+        })),
+        vec![InlayHintKind::TYPE]
+    );
+}
+
+#[test]
+fn parameter_name_hints_turned_off_ask_the_client_to_fetch_hints_again() {
+    // A change to the setting sends `workspace/inlayHint/refresh` to a client
+    // that supports it, so the hints it already drew change without a restart.
+    // A change to anything else, and a client without the support, get none.
+    let change = |section: serde_json::Value| {
+        Message::Notification(Notification::new(
+            "workspace/didChangeConfiguration".to_owned(),
+            serde_json::json!({ "settings": section }),
+        ))
+    };
+    let refreshes = |refresh_support: bool, messages: Vec<Message>| {
+        let capabilities: ClientCapabilities = serde_json::from_value(serde_json::json!({
+            "workspace": { "inlayHint": { "refreshSupport": refresh_support } },
+        }))
+        .expect("the capabilities are the protocol's own shape");
+        serve_queued(
+            InitializeParams {
+                capabilities,
+                ..InitializeParams::default()
+            },
+            messages,
+        )
+        .into_iter()
+        .filter(|message| {
+            matches!(message, Message::Request(request) if request.method == "workspace/inlayHint/refresh")
+        })
+        .count()
+    };
+    let off = serde_json::json!({ "inlayHints": { "parameterNames": false } });
+    assert_eq!(refreshes(true, vec![change(off.clone())]), 1);
+    assert_eq!(
+        refreshes(
+            true,
+            vec![change(serde_json::json!({ "lsp": { "debounce": 0 } }))]
+        ),
+        0,
+        "a change that leaves the setting as it was asks for no refresh"
+    );
+    assert_eq!(refreshes(false, vec![change(off)]), 0);
 }
 
 #[test]
@@ -411,6 +566,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             run_tests: false,
             open: false,
             refresh_lenses: false,
+            refresh_hints: false,
             rename_files: false,
             work_done_progress: false,
         }

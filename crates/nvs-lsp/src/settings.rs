@@ -14,7 +14,8 @@
 //! A new `nvs.check.scope` rebuilds the symbol index over the new tree and
 //! publishes every open document again, since the unused-member dimming
 //! depends on it. A new `nvs.codeLens.enable` asks the client to fetch its
-//! lenses again. `nvs.lsp.debounce` applies to the next edit. `nvs.stubs.dir`,
+//! lenses again. A new `nvs.inlayHints.parameterNames` asks the client to fetch
+//! its inlay hints again. `nvs.lsp.debounce` applies to the next edit. `nvs.stubs.dir`,
 //! `coverage.dir` and the workspace root keep the values `initialize` gave
 //! them: the client fills in the first two itself, and the last is not a
 //! setting. Keeping the
@@ -65,6 +66,12 @@ pub struct Settings {
     /// a request per visible declaration — a large file is where it costs most
     /// and is wanted least.
     pub code_lens: bool,
+    /// `nvs.inlayHints.parameterNames`: whether a parameter-name hint is shown
+    /// before a literal argument.
+    ///
+    /// Default `true`. Off, only the type hints stay: they are the other half
+    /// of the hint set, and this setting names only the first.
+    pub parameter_names: bool,
     /// `nvs.lsp.debounce`: how long an edit waits before the analysis it made
     /// stale runs.
     ///
@@ -140,6 +147,9 @@ pub struct Client {
     /// `workspace.codeLens.refreshSupport`: the server may ask the client to
     /// fetch its lenses again, which a changed setting does.
     pub refresh_lenses: bool,
+    /// `workspace.inlayHint.refreshSupport`: the server may ask the client to
+    /// fetch its inlay hints again, which a changed setting does.
+    pub refresh_hints: bool,
     /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
     /// `resourceOperations` include `rename`, so an edit may move a file.
     pub rename_files: bool,
@@ -195,6 +205,12 @@ impl Client {
                 .and_then(|workspace| workspace.code_lens.as_ref())
                 .and_then(|lens| lens.refresh_support)
                 .unwrap_or(false),
+            refresh_hints: capabilities
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.inlay_hint.as_ref())
+                .and_then(|hint| hint.refresh_support)
+                .unwrap_or(false),
             rename_files: capabilities
                 .workspace
                 .as_ref()
@@ -222,6 +238,7 @@ impl Default for Settings {
         Self {
             scope: CheckScope::Workspace,
             code_lens: true,
+            parameter_names: true,
             // The same 150 the manifest declares, because a client that sends
             // the section it holds sends this number anyway and the two
             // disagreeing would be a default nobody can read off either side.
@@ -268,15 +285,16 @@ impl Settings {
         if !section.is_object() {
             return Changed::default();
         }
-        let before = (self.scope, self.code_lens);
+        let before = (self.scope, self.code_lens, self.parameter_names);
         self.read(Some(section));
         Changed {
             scope: self.scope != before.0,
             code_lens: self.code_lens != before.1,
+            inlay_hints: self.parameter_names != before.2,
         }
     }
 
-    /// Reads the three settings a change may carry out of `options`, each at
+    /// Reads the four settings a change may carry out of `options`, each at
     /// its default where `options` does not say.
     fn read(&mut self, options: Option<&Value>) {
         let defaults = Self::default();
@@ -287,6 +305,9 @@ impl Settings {
         self.code_lens = at(options, &["codeLens", "enable"])
             .and_then(Value::as_bool)
             .unwrap_or(defaults.code_lens);
+        self.parameter_names = at(options, &["inlayHints", "parameterNames"])
+            .and_then(Value::as_bool)
+            .unwrap_or(defaults.parameter_names);
         self.debounce = at(options, &["lsp", "debounce"])
             .and_then(Value::as_u64)
             .map(Duration::from_millis)
@@ -294,14 +315,17 @@ impl Settings {
     }
 }
 
-/// Which settings one change made different, of the two that decide what the
-/// server built rather than how it answers.
+/// Which settings one change made different, of the ones that decide what the
+/// server built or what the client already fetched.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Changed {
     /// `nvs.check.scope`: the index is rebuilt over the new tree.
     pub scope: bool,
     /// `nvs.codeLens.enable`: the client fetches its lenses again.
     pub code_lens: bool,
+    /// `nvs.inlayHints.parameterNames`: the client fetches its inlay hints
+    /// again.
+    pub inlay_hints: bool,
 }
 
 /// The value `path` names under the `nvs` section, if the client sent one.

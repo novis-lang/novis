@@ -69,7 +69,10 @@ that rule's reader too. A `.lspt` case renders it one line per declaration, `fil
 eighth, and it is admitted for two idioms that are settled and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
 and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
-source said it, so a re-derived one is a confident lie. `documentHighlight` reads the index for a reason of its own: it
+source said it, so a re-derived one is a confident lie. `nvs.inlayHints.parameterNames`, on by default,
+turns the parameter-name hints off and keeps the type hints. The server drops them from its answer and
+asks a client that supports it to fetch its hints again, so no restart is needed. `hints::for_document`
+does not read the setting, so the type phase stays the one source of a hint. `documentHighlight` reads the index for a reason of its own: it
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 

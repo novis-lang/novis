@@ -177,6 +177,11 @@
           "default": true,
           "description": "Show reference, implementor and override counts above a declaration."
         },
+        "nvs.inlayHints.parameterNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Shows the parameter name before a literal argument, such as `length:` before `4`."
+        },
         "nvs.template.services": {
           "type": "boolean",
           "default": true,

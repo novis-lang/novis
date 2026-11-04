@@ -10,7 +10,7 @@ stages:
     context: [editors/vscode/src/theme.ts, editors/vscode/test/client/colours.test.ts, docs/rules/ide/novis-ships-names-not-colours.md, docs/reference/tools/40-editor.md]
   - id: 2
     title: "nvs.inlayHints.parameterNames turns the parameter-name hints off, and the server notices without a restart"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/settings.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/tests/handshake.rs, editors/vscode/package.json, editors/vscode/test/client/settings.test.ts, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, docs/rules/ide/the-request-set-is-closed.md, website/src/content/docs/tools/editor/index.mdx]
   - id: 3
     title: "a /// doc comment has a faint background from the /// to the end of its text, in the Novis themes"
@@ -131,7 +131,9 @@ the next activation, and every other theme's block keeps its rules until that th
 No rule of the user's is lost. A retired entry is kept, never removed: a user can
 update from any older version. Cost: one more comparison per rule, at activation only.
 
-**The new setting.** `nvs.inlayHints.parameterNames`, a boolean, default `true`, scope `resource`.
+**The new setting.** `nvs.inlayHints.parameterNames`, a boolean, default `true`, with no `scope`, the
+same as `nvs.codeLens.enable`. The client sends the `nvs` section without a resource, so a `resource`
+scope would accept a folder's value that the server never receives.
 It is read by the server, like `nvs.codeLens.enable`:
 
 - `Settings` (`crates/nvs-lsp/src/settings.rs:58`) gains `parameter_names: bool`, read at
@@ -238,28 +240,28 @@ earlier palette wrote, and updates the tests and docs that state the colours.
 **Does:** adds the setting to the extension, reads it in the server, filters the hints and refreshes
 them on a change, and documents it.
 
-- [ ] Contribute `nvs.inlayHints.parameterNames` after `nvs.codeLens.enable`. Its description:
+- [x] Contribute `nvs.inlayHints.parameterNames` after `nvs.codeLens.enable`. Its description:
   "Shows the parameter name before a literal argument, such as `length:` before `4`."
   `editors/vscode/package.json:175`
-- [ ] Read it in `Settings::read` and `from_initialize`, add `Changed::inlay_hints`, and read
+- [x] Read it in `Settings::read` and `from_initialize`, add `Changed::inlay_hints`, and read
   `workspace.inlayHint.refreshSupport` beside `refresh_lenses`. The module doc's list of settings says
   what a change to it does. `crates/nvs-lsp/src/settings.rs:58`
-- [ ] Filter `PARAMETER` hints in `inlay_hints`, and send `workspace/inlayHint/refresh` from
+- [x] Filter `PARAMETER` hints in `inlay_hints`, and send `workspace/inlayHint/refresh` from
   `configure` when the setting changed. `crates/nvs-lsp/src/server.rs:2707`
-- [ ] Write the two tests the `hints-setting` check names, beside
+- [x] Write the two tests the `hints-setting` check names, beside
   `every_setting_is_read_off_initialization_options`. Add `"inlayHints": { "parameterNames": false }`
   to that test too. `crates/nvs-lsp/tests/handshake.rs:345`
-- [ ] Add the setting to the client's list of server-read settings. `editors/vscode/test/client/settings.test.ts:27`
-- [ ] Rules: add the name to the roster of server-read settings
+- [x] Add the setting to the client's list of server-read settings. `editors/vscode/test/client/settings.test.ts:27`
+- [x] Rules: add the name to the roster of server-read settings
   (`docs/rules/ide/contributions-are-frozen-and-only-ever-added.md:12`), and say in
   `docs/rules/ide/the-request-set-is-closed.md:1` that the setting removes the parameter-name hints
   and keeps the type hints. Then `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Docs: a row in the reference table and the server-read list
+- [x] Docs: a row in the reference table and the server-read list
   (`docs/reference/tools/40-editor.md:462`, `docs/reference/tools/40-editor.md:479`), and a row in the
   website's settings table (`website/src/content/docs/tools/editor/index.mdx:187`). The website row
   follows AGENTS.md § *Text an end user reads*: "Shows the parameter name before a literal argument.
   With `false`, only the type hints stay."
-- [ ] Run the `hints-setting` check's command once: green.
+- [x] Run the `hints-setting` check's command once: green.
 
 ### 3. a /// doc comment has a faint background from the /// to the end of its text, in the Novis themes
 
@@ -304,14 +306,26 @@ show how to change a Novis colour.
 
 ### State
 
-Nothing is built yet. The goal comes from the user's screenshot comparison on 2026-11-04. § *Why*
-holds the measured differences and the sampled PhpStorm colours, so no session needs the screenshots.
+Stages 1 and 2 are done, and both their checks ran green once. Stage 1: both themes draw
+brackets and hints as decided, and `RETIRED` keeps the old `#FFC66D` method colour. `theme.ts` passes
+the unchanged settings to `withRules`, so `withRules` drops a retired value itself (see § *Standing
+decisions*). Stage 2: `nvs.inlayHints.parameterNames` is contributed with no `scope`, like
+`nvs.codeLens.enable`. The server drops `PARAMETER` hints in `inlay_hints` and sends
+`workspace/inlayHint/refresh` from `configure`. The two `hints-setting` tests are in
+`crates/nvs-lsp/tests/handshake.rs`, with a `serve_queued` helper of their own. No test is expected to
+go red. The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere, and nightly
+41813182715 ran on `f3150b922`, before `a8bdf37fb` (macOS live edit) and `a2f451fad` (Miri).
 
 ### Next
 
-Stage 1, from its first item: Novis Dark's colours in
-`editors/vscode/themes/novis-dark-color-theme.json:1`. The contributions suite's palette assertion
-(`editors/vscode/test/contributions/contributions.test.ts:576`) goes red until `PALETTE.dark.method`
-changes with the theme, so change both in one slice.
+Stage 3, from its first item: the `docComment` kind beside `SECRET_LITERAL`
+(`crates/nvs-lsp/src/redactions.rs:92`), added in `for_document` (`crates/nvs-lsp/src/redactions.rs:123`)
+from the trivia, and the module doc's two-kinds decision (`crates/nvs-lsp/src/redactions.rs:10`).
+Then `Client` reads `experimental.redactionKinds` beside `commands`
+(`crates/nvs-lsp/src/settings.rs:171`). Adding a field to `Client` breaks the two test literals at
+`crates/nvs-lsp/tests/completion_edits.rs:38` and in `crates/nvs-lsp/tests/handshake.rs`'s
+`a_command_is_sent_only_to_a_client_that_named_it`. The client half starts at
+`editors/vscode/src/extension.ts:102` and `editors/vscode/src/concealment.ts:64`. The colour test goes
+beside stage 1's theme test (`editors/vscode/test/contributions/contributions.test.ts:586`).
 
 ### Backlog

@@ -10,6 +10,7 @@ those lists and to the manifest in one change; the rule that brings it names it.
 `nvs.path` (the binary, falling back to `PATH`), the `nvs.lsp.*` settings, `nvs.secrets.redact` and
 `nvs.taint.mark` (`rule:ide/reveal-is-explicit-and-window-local`,
 `rule:ide/tainted-has-no-default-decoration`), and `nvs.check.scope`, `nvs.codeLens.enable` and
-`nvs.checkWorkspace` (`rule:ide/check-scope-defaults-to-the-workspace`). A non-standard request,
+`nvs.checkWorkspace` (`rule:ide/check-scope-defaults-to-the-workspace`), and
+`nvs.inlayHints.parameterNames` (`rule:ide/the-request-set-is-closed`). A non-standard request,
 such as `nvs/redactions` or `nvs/regions`, is frozen the same way under
 `rule:ide/the-request-set-is-closed`.

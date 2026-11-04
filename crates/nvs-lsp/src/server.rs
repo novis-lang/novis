@@ -93,10 +93,11 @@ use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeLensRefresh, CodeLensRequest, Completion, DocumentHighlightRequest,
     DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
-    GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest,
-    References, RegisterCapability, Rename, Request as _, ResolveCompletionItem,
-    SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare,
-    TypeHierarchySubtypes, TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
+    GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRefreshRequest,
+    InlayHintRequest, PrepareRenameRequest, References, RegisterCapability, Rename, Request as _,
+    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+    TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes, WillRenameFiles,
+    WorkspaceSymbolRequest,
 };
 use lsp_types::{
     AnnotatedTextEdit, CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams,
@@ -109,15 +110,15 @@ use lsp_types::{
     DocumentChanges, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
     FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintParams, Location,
-    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
-    PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams, RenameFile,
-    RenameFilesParams, RenameParams, ResourceOp, SelectionRange, SelectionRangeParams,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
-    SymbolKind, TextDocumentEdit, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
-    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, Uri, WorkspaceEdit, WorkspaceSymbol, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintKind,
+    InlayHintParams, Location, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
+    PrepareRenameResponse, PublishDiagnosticsParams, Range, ReferenceParams, Registration,
+    RegistrationParams, RenameFile, RenameFilesParams, RenameParams, ResourceOp, SelectionRange,
+    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentEdit, TextDocumentIdentifier,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    WorkspaceSymbol, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -917,12 +918,26 @@ fn configure(
             .into(),
         )?;
     }
+    if changed.inlay_hints && settings.client.refresh_hints {
+        connection.sender.send(
+            Request::new(
+                RequestId::from(REFRESH_HINTS.to_owned()),
+                InlayHintRefreshRequest::METHOD.to_owned(),
+                (),
+            )
+            .into(),
+        )?;
+    }
     Ok(())
 }
 
 /// The id of the lens refresh [`configure`] sends. Every refresh reuses it,
 /// since its answer is read and dropped.
 const REFRESH_LENSES: &str = "nvs/refresh-lenses";
+
+/// The id of the inlay hint refresh [`configure`] sends, reused for the same
+/// reason as [`REFRESH_LENSES`].
+const REFRESH_HINTS: &str = "nvs/refresh-hints";
 
 /// The method name `nvs.checkWorkspace` sends: one workspace pass, on demand
 /// (`rule:ide/check-scope-defaults-to-the-workspace`).
@@ -1064,7 +1079,7 @@ fn answer(
             Err(error) => unreadable(id, &method, &error),
         },
         InlayHintRequest::METHOD => match serde_json::from_value::<InlayHintParams>(params) {
-            Ok(params) => Response::new_ok(id, inlay_hints(documents, encoding, &params)),
+            Ok(params) => Response::new_ok(id, inlay_hints(documents, settings, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         SelectionRangeRequest::METHOD => {
@@ -2839,8 +2854,13 @@ fn selection_range(
 /// The bounds are inclusive at both ends. A hint sits *between* two characters
 /// rather than on one, so a hint at the first position of the visible range is
 /// one the reader can see, and so is a hint at its last.
+///
+/// With `nvs.inlayHints.parameterNames` off, every hint of kind `PARAMETER` is
+/// dropped here and the type hints stay. [`hints::for_document`] does not read
+/// the setting, so it stays the one source of a hint.
 fn inlay_hints(
     documents: &Documents,
+    settings: &Settings,
     encoding: PositionEncoding,
     params: &InlayHintParams,
 ) -> Vec<InlayHint> {
@@ -2849,6 +2869,7 @@ fn inlay_hints(
     };
     hints::for_document(&analysed, encoding)
         .into_iter()
+        .filter(|hint| settings.parameter_names || hint.kind != Some(InlayHintKind::PARAMETER))
         .filter(|hint| {
             at_or_after(hint.position, params.range.start)
                 && at_or_after(params.range.end, hint.position)

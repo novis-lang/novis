@@ -186,6 +186,7 @@ extension `0.4.2` works with `nvs` `0.4.0`, and does not work with `nvs` `0.5.0`
 | `nvs.secrets.redact` | `true` | Hides values of a `secret` type, such as a password. |
 | `nvs.taint.mark` | `"off"` | Shows a sign next to `tainted` values, which come from outside the program. Use `declaration` or `sink` to turn it on. |
 | `nvs.codeLens.enable` | `true` | Shows above each declaration how often it is used. |
+| `nvs.inlayHints.parameterNames` | `true` | Shows the parameter name before a literal argument. With `false`, only the type hints stay. |
 
 A change to `nvs.path` or `nvs.lsp.enable` restarts the server. After a change to another setting,
 run **Novis: Restart Language Server**.
