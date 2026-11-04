@@ -1224,6 +1224,7 @@ impl Ctx {
             .wall_stop
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+        super::safepoint::write_wall_sweep_line(self.tree.wall_deadline());
         self.run_limit_handler(crate::Limit::WallTime);
         crate::Fault::fatal(self.wall_time_message())
     }

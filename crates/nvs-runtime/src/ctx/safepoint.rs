@@ -687,7 +687,9 @@ impl SafepointView {
             return false;
         }
         *claimed = true;
+        drop(claimed);
         self.request(SafepointFlags::WALL_TIME);
+        write_wall_sweep_line(self.tree.wall_deadline());
         true
     }
 
@@ -1330,6 +1332,62 @@ pub(super) fn time_used_text(
         ),
         (None, false) => format!(" of {} ms", limit.as_millis()),
     }
+}
+
+/// The sweep line of a wall-time stop that was claimed now: how far past
+/// `deadline` the claim came, which counts both the clock's wait and how late it
+/// woke. A request with no deadline writes nothing.
+pub(super) fn write_wall_sweep_line(deadline: Option<std::time::Instant>) {
+    if let Some(at) = deadline {
+        let late = std::time::Instant::now().saturating_duration_since(at);
+        write_sweep_line("wall", late, std::time::Duration::ZERO, 1);
+    }
+}
+
+/// The variable `bun nv proofs` sets on every program it runs, so a time stop
+/// writes a [`write_sweep_line`] the runner judges the stop by. A process
+/// without it writes no such line.
+pub const SWEEP_LINES_ENV: &str = "NVS_PROOF_SWEEPS";
+
+/// The CPU time one poll site may be from the next, as a stop is judged: one
+/// watchdog sweep interval. `rule:http-server/time-is-bounded-inside-a-helper`
+/// sizes a helper's batch so its polls come far more often. A helper whose batch
+/// runs longer than this on the machine running it holds its core this long past
+/// a stop, and the proofs runner reds that run.
+pub const POLL_GAP: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Writes the line the proofs runner explains a time stop's overshoot by, when
+/// [`SWEEP_LINES_ENV`] is set:
+/// `nvs-proof-sweep: <kind> late_us=<late> interval_us=<interval> poll_us=<poll> threads=<threads>`.
+///
+/// `late` is how much later than it should have the stop's clock woke, measured
+/// on the clock's own thread. `interval` is the most CPU time a tree's thread can
+/// spend between two sweeps that are on time, which is zero for a wall-time stop
+/// whose `late` already counts from the deadline. `threads` is how many threads
+/// the tree was charged on. `tools/nv/proofs/run.ts`'s `timeOvershoot` reads it.
+///
+/// What it spends: one environment read per process, and a line per stop only
+/// when the variable is set. A request's `FATAL` does not change.
+pub fn write_sweep_line(
+    kind: &str,
+    late: std::time::Duration,
+    interval: std::time::Duration,
+    threads: u32,
+) {
+    use std::io::Write as _;
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if !*ON.get_or_init(|| std::env::var_os(SWEEP_LINES_ENV).is_some()) {
+        return;
+    }
+    // Through the handle, as every other floor write is: `eprintln!` would
+    // panic on a closed pipe.
+    let _ = writeln!(
+        std::io::stderr(),
+        "nvs-proof-sweep: {kind} late_us={} interval_us={} poll_us={} threads={threads}",
+        late.as_micros(),
+        interval.as_micros(),
+        POLL_GAP.as_micros()
+    );
 }
 
 /// The calling thread's stack pointer, read from the register.

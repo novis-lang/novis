@@ -65,6 +65,19 @@
 //! core, and a shorter or longer one buys an operator nothing the margin does
 //! not.
 //!
+//! # How late a sweep woke
+//!
+//! Each sweep records how late it came against the wait the sweep before it
+//! computed ([`lateness`]). A stop at a CPU ceiling is late by at most one
+//! interval plus that lateness, and one poll gap of the code that was running
+//! ([`nvs_runtime::POLL_GAP`]). When `bun nv proofs` runs a program, each stop
+//! writes those figures on a line of their own ([`nvs_runtime::write_sweep_line`]),
+//! and the runner reds a stop they do not explain. So a time-limit attack is
+//! judged by what this machine measured in this run.
+//!
+//! What it spends: one instant and two durations per watchdog, written on its
+//! own thread, and nothing on the request path.
+//!
 //! # The requests a core is running
 //!
 //! Reporting a wedged core answers the *core*. Stopping the **request** that
@@ -751,6 +764,33 @@ struct State {
     /// Here rather than beside the `Arc` so that registering takes `&self`, as
     /// it must when every core registers itself.
     thread: Option<JoinHandle<()>>,
+    /// When the last sweep ran and the wait it computed, so the next sweep can
+    /// say how late it woke against that wait ([`lateness`]).
+    last_sweep: Option<(Instant, Duration)>,
+    /// How late the last sweep woke ([`lateness`]).
+    late: Duration,
+}
+
+/// How late a sweep at `now` woke, against the sweep before it: `now` past the
+/// instant that sweep ran plus the wait it computed, or zero for a sweep that
+/// came on time or early. A sweep that a registration or a lowered ceiling woke
+/// early is on time.
+///
+/// It is measured against the wait the code computed, never against the
+/// interval. A change that makes the thread wait longer leaves this at zero, so
+/// a stop that comes later for it is not explained by it.
+fn lateness(last_sweep: Option<(Instant, Duration)>, now: Instant) -> Duration {
+    last_sweep.map_or(Duration::ZERO, |(at, wait)| {
+        now.saturating_duration_since(at + wait)
+    })
+}
+
+/// What one sweep found: the stalls to report, the wait before the next sweep,
+/// and the thread count of each tree it stopped at its CPU ceiling.
+struct Sweep {
+    stalls: Vec<Stall>,
+    wait: Duration,
+    stopped: Vec<u32>,
 }
 
 fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -856,6 +896,8 @@ impl Watchdog {
                 running: true,
                 next_id: 0,
                 thread: None,
+                last_sweep: None,
+                late: Duration::ZERO,
             }),
             shed: Shed::default(),
             change: Condvar::new(),
@@ -1309,11 +1351,16 @@ impl Shared {
     /// nothing at all.
     ///
     /// It also returns how long the watchdog thread waits before the next
-    /// pass: [`next_wait`] over the trees this pass read.
-    fn sweep_and_wait(&self, now: Instant) -> (Vec<Stall>, Duration) {
+    /// pass: [`next_wait`] over the trees this pass read. It records how late
+    /// this pass came against the wait the pass before it computed
+    /// ([`lateness`]), and returns the thread count of each tree it stopped, for
+    /// the line [`nvs_runtime::write_sweep_line`] writes.
+    fn sweep_and_wait(&self, now: Instant) -> Sweep {
         let mut state = lock(&self.state);
+        state.late = lateness(state.last_sweep, now);
         let margin = self.margin;
         let mut stalls = Vec::new();
+        let mut stopped = Vec::new();
         // What each tree under a ceiling has spent, summed over every thread
         // it is published on: a child placed on another core is charged
         // there, and its time counts against the tree's one ceiling
@@ -1351,13 +1398,18 @@ impl Shared {
                 let Some(limit) = running.limit() else {
                     continue;
                 };
-                let Some(&TreeSpend { spent: total, .. }) = spent.get(&running.view.tree_key())
+                let Some(&TreeSpend {
+                    spent: total,
+                    threads,
+                    ..
+                }) = spent.get(&running.view.tree_key())
                 else {
                     continue;
                 };
                 if Duration::from_nanos(total) < limit {
                     continue;
                 }
+                stopped.push(threads);
                 // Both halves, because they are two different polls: the flag
                 // is what compiled code reads between calls, and the deadline
                 // is what `rule:http-server/time-is-bounded-inside-a-helper`'s
@@ -1401,14 +1453,19 @@ impl Shared {
             });
         }
         state.recount(&self.shed);
-        (stalls, wait)
+        state.last_sweep = Some((now, wait));
+        Sweep {
+            stalls,
+            wait,
+            stopped,
+        }
     }
 
     /// The stalls of one [`Self::sweep_and_wait`] pass, for the tests that do
     /// not read the wait.
     #[cfg(test)]
     fn sweep(&self, now: Instant) -> Vec<Stall> {
-        self.sweep_and_wait(now).0
+        self.sweep_and_wait(now).stalls
     }
 }
 
@@ -1617,10 +1674,16 @@ fn watch(shared: &Arc<Shared>) {
         }
         // Outside the lock, so a sink that takes its time cannot keep a core
         // from registering or deregistering.
-        let (stalls, next) = shared.sweep_and_wait(Instant::now());
-        wait = next;
-        for stall in stalls {
+        let sweep = shared.sweep_and_wait(Instant::now());
+        wait = sweep.wait;
+        for stall in sweep.stalls {
             (shared.sink)(&stall);
+        }
+        if !sweep.stopped.is_empty() {
+            let late = lock(&shared.state).late;
+            for threads in sweep.stopped {
+                nvs_runtime::write_sweep_line("cpu", late, shared.interval, threads);
+            }
         }
     }
 }
@@ -2381,6 +2444,56 @@ mod tests {
             ),
             MIN_WAIT,
             "a tree at its ceiling spun the thread"
+        );
+    }
+
+    /// A sweep that comes past the wait the sweep before it computed records
+    /// exactly how far past. The instants are given, so no clock is read.
+    #[test]
+    fn a_sweep_records_how_late_it_woke_against_the_wait_it_computed() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(5), tx);
+        let first = Instant::now();
+        let wait = dog.shared.sweep_and_wait(first).wait;
+        let late = Duration::from_millis(7);
+        dog.shared.sweep_and_wait(first + wait + late);
+        assert_eq!(lock(&dog.shared.state).late, late);
+        assert_eq!(
+            lateness(
+                Some((first, Duration::from_millis(3))),
+                first + Duration::from_millis(50)
+            ),
+            Duration::from_millis(47),
+            "the lateness was not measured against the computed wait"
+        );
+    }
+
+    /// A sweep that comes when its wait ends, or early because something woke
+    /// it, records no lateness.
+    #[test]
+    fn a_sweep_that_wakes_on_time_records_no_lateness() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(5), tx);
+        let first = Instant::now();
+        assert_eq!(lock(&dog.shared.state).late, Duration::ZERO);
+        let wait = dog.shared.sweep_and_wait(first).wait;
+        assert_eq!(
+            lock(&dog.shared.state).late,
+            Duration::ZERO,
+            "a first sweep was late"
+        );
+        let second = first + wait;
+        dog.shared.sweep_and_wait(second);
+        assert_eq!(
+            lock(&dog.shared.state).late,
+            Duration::ZERO,
+            "an on-time sweep was late"
+        );
+        dog.shared.sweep_and_wait(second + wait / 2);
+        assert_eq!(
+            lock(&dog.shared.state).late,
+            Duration::ZERO,
+            "an early sweep was late"
         );
     }
 
