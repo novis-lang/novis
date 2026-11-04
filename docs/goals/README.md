@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [speed-independent-tests]
+chain: [speed-independent-tests, calm-editor]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,11 +37,12 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `speed-independent-tests` is live.
+The chain holds 2 goal(s). `speed-independent-tests` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`speed-independent-tests`](speed-independent-tests.md) **live** | every time-limit attack is judged against what the watchdog measured on that machine in that run, the flaky Rust tests and conformance case compare readings of one clock or the order of events, and a rule says how a test holds at any speed | 1 ✓ the rule is written, and the tests it covers are listed · 2 ✓ a time-limit stop is judged against what the watchdog measured in the same run · **3 the tests that failed in CI compare readings of one clock or the order of events** · 4 the rest of the listed tests follow the rule, and every bound taken out leaves its path under a bench or a count · 5 the goal is verified once, and every failure is fixed |
+| 2 | [`calm-editor`](calm-editor.md) | the Novis themes draw brackets in the text colour, methods in PhpStorm's blue, variables in its muted purple and parameter hints without a box, and a setting turns the parameter-name hints off | **1 the Novis themes draw brackets plainly, methods and variables in PhpStorm's colours, and hints without a box** · 2 nvs.inlayHints.parameterNames turns the parameter-name hints off, and the server notices without a restart · 3 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
