@@ -208,9 +208,13 @@ set up the order the test wants, and the property is asserted separately, the pr
 and no bench is owed. `parallel_report_is_in_declaration_order` (`crates/nvs-cli/src/runner.rs`)
 keeps its declaration-order assert alone.
 
-**A latency claim with no bench keeps its bound, measured in the run (pattern 4).** The idle-edit
-test in `crates/nvs-cli/tests/live_edit.rs` bounds its compile by the check interval, `settle` and
-the run's measured boot, which compiled the program once. Dropping it would owe a bench first.
+**A bound is measured in the run only when every term of it is.** The idle-edit test in
+`crates/nvs-cli/tests/live_edit.rs` bounded its compile by the check interval, `settle` and the
+run's boot. Its waits are timed waits on an ordinary thread, which macOS ends up to three times
+late, and the boot has none, so macOS CI read 341 ms against a later compile. The test now checks
+the order of events alone. The timing of the next check is guarded without a clock by
+`a_change_is_held_back_until_the_program_is_quiet_for_settle` in `crates/nvs-cli/src/script.rs`,
+which checks the wait it returns.
 
 **A growth property in native code is guarded by a count or a same-run ratio, never by a scale
 bench.** A `.scale.nvs` ramp judges interpreted statement counts, so one native call reads `flat`

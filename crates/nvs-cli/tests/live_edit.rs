@@ -883,12 +883,14 @@ fn a_change_is_compiled_before_it_is_swapped_in() {
 
 /// An edit reaches a server that gets no request at all: the background check
 /// compiles it, and the test sends no request until the compile's warning is
-/// written. The compile comes within `revalidate_freq` plus `settle` plus one
-/// compile, and one compile is judged by how long this run took to boot, which
-/// compiled the program once.
+/// written. The case checks that order of events. When the check runs is the
+/// watch thread's timed waits, which macOS ends late by up to three times
+/// their length, so no bound measured in the run explains it. That the next
+/// check is timed to `settle` is
+/// `script::tests::a_change_is_held_back_until_the_program_is_quiet_for_settle`'s,
+/// and `awaits_said`'s bound is only a hang guard.
 #[test]
 fn an_idle_server_takes_an_edit_without_a_request() {
-    let booting = Instant::now();
     let server = Server::start(
         "idle",
         &[
@@ -897,16 +899,9 @@ fn an_idle_server_takes_an_edit_without_a_request() {
         ],
     );
     server.awaits_body("/", "first");
-    let bound = Duration::from_millis(100 + 200) + booting.elapsed();
 
     server.write("app.nvs", &warned("Compiled second.", "second"));
-    let written = Instant::now();
     server.awaits_said("Compiled second.");
-    assert!(
-        written.elapsed() <= bound,
-        "the edit was not compiled within {bound:?}, the check interval, `settle` and this run's boot: {}",
-        server.said()
-    );
 
     server.awaits_body("/", "second");
     assert_eq!(
