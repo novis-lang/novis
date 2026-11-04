@@ -197,6 +197,20 @@
 //! the HTML region, so the editor's HTML service does not answer beside them
 //! (`rule:ide/completion-is-asked-where-a-spelling-ends`).
 //!
+//! # What a comment offers
+//!
+//! Nothing, except on a `///` line's tag
+//! (`rule:tooling/doc-comment-tags-are-see-and-example`). A comment is prose,
+//! and the words that open a statement or a member parse nowhere in it. An `@`
+//! at the start of a doc line is offered the two tags. The target of a `@see`
+//! is offered the types in reach, and after `Class::` every member of that
+//! class, static or not, as plain names: the tag resolves a member of any kind,
+//! and a doc comment calls nothing. A type is written in the shortest spelling
+//! that resolves **without** a `use` line, because a `@see` is not a read of
+//! an import and a line added for one would be reported unused. The path of an
+//! `@example` is offered the way a `require` path is, from the file's own
+//! directory, which is where the compiler resolves it from.
+//!
 //! # What a namespace separator offers
 //!
 //! A name with a separator in it is read from the root
@@ -340,8 +354,8 @@ use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
 use nvs_syntax::ast::{
-    AutoloadKind, ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember,
-    StmtKind, Visibility,
+    AutoloadKind, ClassMember, ClassMemberKind, DocTagKind, EnumCase, MethodMember, Modifier,
+    PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -437,6 +451,15 @@ pub fn at(
         Asked::Literal(Literal::Scheme(text_start)) => scheme_names(&cursor, text_start),
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
         Asked::AttributeKey(written, doc) => attribute_keys(&cursor, written, doc),
+        Asked::DocTag(DocTag::Name(written)) => doc_tag_names(&cursor, written),
+        Asked::DocTag(DocTag::See(start)) => see_targets(&cursor, start),
+        Asked::DocTag(DocTag::Example(start)) => paths(
+            &cursor,
+            &WrittenPath {
+                text_start: start,
+                files: Files::Source,
+            },
+        ),
         Asked::Position => position(&cursor),
         Asked::Nothing => return Vec::new(),
     };
@@ -476,6 +499,12 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
         || open_tag_written(upto).is_some()
     {
         return true;
+    }
+    if upto.ends_with('@') {
+        return matches!(
+            comment_at(analysed, offset).and_then(|comment| doc_tag_at(analysed, comment, offset)),
+            Some(DocTag::Name(_))
+        );
     }
     let Some(last) = upto.chars().next_back() else {
         return false;
@@ -580,6 +609,8 @@ enum Asked {
     /// The name half of a field in a compiler attribute's payload, this many
     /// bytes of it written, and the attribute's card.
     AttributeKey(usize, &'static AttributeDoc),
+    /// The tag of a `///` line, or the target after one.
+    DocTag(DocTag),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -1525,6 +1556,11 @@ fn paths(cursor: &Cursor<'_>, literal: &WrittenPath) -> Vec<CompletionItem> {
 /// below nothing and buys the receiver half of `Core\Str::` an answer it would
 /// otherwise be refused for standing before the receiver's end.
 fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: BytePos) -> Asked {
+    // A comment is prose, so no arm below answers inside one. The tag of a
+    // `///` line and the target after it are the one place it holds a name.
+    if let Some(comment) = comment_at(analysed, offset) {
+        return doc_tag_at(analysed, comment, offset).map_or(Asked::Nothing, Asked::DocTag);
+    }
     // These literals are strings, so no other arm answers inside one.
     if let Some(literal) = literal_at(analysed, files, path, offset) {
         return Asked::Literal(literal);
@@ -1677,6 +1713,156 @@ fn open_tags(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
             )
         })
         .collect()
+}
+
+/// Where in a `///` line the cursor is writing a name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DocTag {
+    /// The tag itself: an `@` at the start of the line and this many bytes of
+    /// it written, the `@` included.
+    Name(usize),
+    /// The target of a `@see`, which starts at this byte.
+    See(BytePos),
+    /// The path of an `@example`, which starts at this byte.
+    Example(BytePos),
+}
+
+/// The comment the cursor at `offset` is writing inside, if it is in one.
+///
+/// A line comment runs to its line's end, and a cursor there still extends it.
+/// A closed block comment ends at its `*/`, and a cursor after that is code.
+fn comment_at(analysed: &Analysed, offset: BytePos) -> Option<nvs_syntax::Trivia> {
+    let trivia = &analysed.trivia;
+    let before = trivia.partition_point(|run| run.span.start < offset);
+    let run = *trivia.get(before.checked_sub(1)?)?;
+    let inside = match run.kind {
+        nvs_syntax::TriviaKind::Whitespace => false,
+        nvs_syntax::TriviaKind::LineComment | nvs_syntax::TriviaKind::DocComment => {
+            offset <= run.span.end
+        }
+        nvs_syntax::TriviaKind::BlockComment => {
+            let text = analysed.map.file(analysed.entry).text();
+            let closed = text
+                .get(run.span.start as usize..run.span.end as usize)
+                .is_some_and(|body| body.len() >= 4 && body.ends_with("*/"));
+            offset < run.span.end || (offset == run.span.end && !closed)
+        }
+    };
+    inside.then_some(run)
+}
+
+/// Which name of a `///` line the cursor at `offset` is writing, read the way
+/// the parser reads a tag: an `@` first on the line past the marker and its
+/// indentation, then the ASCII letters of the name, then the target. A target
+/// is one word, so a cursor past a space in it is in prose.
+fn doc_tag_at(analysed: &Analysed, comment: nvs_syntax::Trivia, offset: BytePos) -> Option<DocTag> {
+    if comment.kind != nvs_syntax::TriviaKind::DocComment {
+        return None;
+    }
+    let line = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(comment.span.start as usize..offset as usize)?;
+    let rest = line
+        .strip_prefix(nvs_syntax::DOC_MARKER)?
+        .trim_start()
+        .strip_prefix('@')?;
+    let name_len = rest.bytes().take_while(u8::is_ascii_alphabetic).count();
+    let (name, after) = rest.split_at(name_len);
+    if after.is_empty() {
+        return Some(DocTag::Name(1 + name_len));
+    }
+    let target = after.trim_start();
+    if target.len() == after.len() || target.contains(char::is_whitespace) {
+        return None;
+    }
+    let start = offset - BytePos::try_from(target.len()).ok()?;
+    match DocTagKind::named(name)? {
+        DocTagKind::See => Some(DocTag::See(start)),
+        DocTagKind::Example => Some(DocTag::Example(start)),
+    }
+}
+
+/// The two doc comment tags, each replacing the `written` bytes of one already
+/// typed. Accepting one writes the space after it and opens the list of its
+/// targets.
+fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
+    DocTagKind::ALL
+        .into_iter()
+        .enumerate()
+        .map(|(rank, kind)| {
+            let tag = format!("@{}", kind.name());
+            let detail = match kind {
+                DocTagKind::See => "links to a class, method, property, constant or enum case",
+                DocTagKind::Example => "links to an example file under `examples/` or `tests/`",
+            };
+            (rank, tag, detail)
+        })
+        .map(|(rank, tag, detail)| CompletionItem {
+            text_edit: Some(cursor.replacing(written, format!("{tag} "))),
+            filter_text: Some(tag.clone()),
+            sort_text: Some(rank.to_string()),
+            command: cursor.client.suggest.then(|| Command {
+                title: "Suggest".to_owned(),
+                command: Client::SUGGEST.to_owned(),
+                arguments: None,
+            }),
+            ..item(tag, CompletionItemKind::KEYWORD, detail.to_owned())
+        })
+        .collect()
+}
+
+/// What a `@see` target starting at `start` may name: the types in reach, and
+/// after `Class::` the members of that class.
+///
+/// Every item names the text it replaces, because a target has a `\` or a `$`
+/// in it that a client does not count as part of a word.
+fn see_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
+    let written = cursor.upto().get(start as usize..).unwrap_or_default();
+    let Some((class_text, member)) = written.split_once("::") else {
+        return in_reach(cursor, Spelled::WithoutImport)
+            .into_iter()
+            .map(|offered| CompletionItem {
+                text_edit: Some(cursor.replacing(written.len(), offered.label.clone())),
+                filter_text: Some(offered.label.clone()),
+                ..offered
+            })
+            .collect();
+    };
+    let analysed = cursor.analysed;
+    let class = match class_text {
+        "self" | "static" => class_at(analysed, cursor.offset),
+        "parent" => class_at(analysed, cursor.offset).and_then(|class| {
+            analysed
+                .module
+                .graph
+                .get(&class)
+                .and_then(|links| links.extends.first().cloned())
+        }),
+        _ => resolved_name(analysed, class_text, start),
+    };
+    let Some(class) = class else {
+        return Vec::new();
+    };
+    let mut offered: Vec<CompletionItem> = Vec::new();
+    for reach in [Reach::Static, Reach::Instance] {
+        for found in members_of(cursor, &class, reach) {
+            if offered.iter().any(|seen| seen.label == found.label) {
+                continue;
+            }
+            offered.push(CompletionItem {
+                text_edit: Some(cursor.replacing(member.len(), found.label.clone())),
+                filter_text: Some(found.label.clone()),
+                insert_text: None,
+                insert_text_format: None,
+                additional_text_edits: None,
+                command: None,
+                ..found
+            });
+        }
+    }
+    offered
 }
 
 /// Whether the name being written at `offset` follows a single `:` that itself
@@ -2857,7 +3043,10 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
             type_row(symbol.clone(), kind, symbol.clone())
         } else if reached != symbol || last == symbol {
             type_row(reached, kind, symbol.clone())
-        } else if let Some(site) = site.as_ref().filter(|_| !taken.contains(&last)) {
+        } else if let Some(site) = site
+            .as_ref()
+            .filter(|_| spelled == Spelled::Shortest && !taken.contains(&last))
+        {
             CompletionItem {
                 filter_text: Some(format!("{last} {symbol}")),
                 additional_text_edits: Some(vec![importing(file, *site, &symbol, encoding)]),
@@ -2896,6 +3085,10 @@ enum Spelled {
     Shortest,
     /// The qualified name and nothing else, which is what `use` takes.
     Qualified,
+    /// The shortest one that resolves at the cursor with the imports the file
+    /// already has, and the qualified name otherwise. A `@see` target is not
+    /// a read of an import, so a `use` line added for one is reported unused.
+    WithoutImport,
 }
 
 /// Every type the server holds, for a bare name to reach: the workspace

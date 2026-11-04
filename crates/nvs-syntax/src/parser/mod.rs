@@ -440,13 +440,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                 argument_start,
                 argument_start + in_line(written.len()),
             );
-            let kind = match name {
-                "see" => DocTagKind::See,
-                "example" => DocTagKind::Example,
-                _ => {
-                    self.report_unknown_doc_tag(span, name);
-                    continue;
-                }
+            let Some(kind) = DocTagKind::named(name) else {
+                self.report_unknown_doc_tag(span, name);
+                continue;
             };
             tags.push(DocTag {
                 kind,

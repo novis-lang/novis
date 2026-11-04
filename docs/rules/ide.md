@@ -2174,7 +2174,7 @@ although the access node spans its own arguments.
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
-The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/`, `.` and `{`. The first five are
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/`, `.`, `{` and `@`. The first five are
 the last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written
 `<?`, and a request one of them raised is answered only where the text before the cursor ends in that
 whole spelling. Each of them is also an operator's character, and an editor asks on the keystroke:
@@ -2192,8 +2192,16 @@ path's segments are split on `.` ([`ide/a-field-path-completes-one-segment-at-a-
 answered only inside a `string<K>` literal, at a `string<K>` parameter or under `as string<K>`, where it
 opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
 next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
-string, `/` divides, `.` concatenates and `{` is text. A request the developer raised by hand, or by
-typing a name, is not held to this.
+string, `/` divides, `.` concatenates and `{` is text. `@` is answered only first on a `///` line, where
+it opens a tag ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)). A request the developer raised by
+hand, or by typing a name, is not held to this.
+
+**A comment offers nothing, whoever asked, except a doc comment's tag and its target.** The `@` of a tag
+is offered `@see` and `@example`, and accepting one writes the space after it and asks again. A `@see`
+target is offered the types in reach, written the shortest way that resolves with the file's own imports
+and never with a new `use` line, since the tag is no use of an import. After `Class::` it is offered every
+member of that class, static or not, as a plain name. An `@example` target is offered paths from the
+file's own directory, the way a `require` path is.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left

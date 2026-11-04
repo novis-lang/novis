@@ -293,7 +293,7 @@ fn a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index() {
 /// that directory, and `/` lists the one above it. The `.` construct is a
 /// string argument at the parameter [`TRIGGER_KEYS`] splits its values on `.`
 /// at.
-const TRIGGERED: [(&str, &str, &str); 10] = [
+const TRIGGERED: [(&str, &str, &str); 11] = [
     (">", "$b->", ""),
     (":", "User::", ""),
     ("\\", "Core\\", ""),
@@ -304,6 +304,7 @@ const TRIGGERED: [(&str, &str, &str); 10] = [
     ("/", "require '../", "';"),
     (".", "User::label('shop.", "');"),
     ("{", "echo 'by {", "' as string<property<User>>;"),
+    ("@", "/// @", "\nclass Tagged {}"),
 ];
 
 /// A class with both halves declared, so every construct below has something
@@ -386,11 +387,11 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
             !offered.is_empty(),
             "`{character}` is a trigger character and `{construct}` is offered nothing"
         );
-        // An open tag is rendered as a keyword and is no word of the position
-        // list, which is what this refuses.
+        // An open tag and a doc comment's tag are rendered as keywords and are
+        // no word of the position list, which is what this refuses.
         let words: Vec<&str> = offered
             .lines()
-            .filter(|line| !line.starts_with("<?"))
+            .filter(|line| !line.starts_with("<?") && !line.starts_with('@'))
             .filter(|line| line.split_whitespace().nth(1) == Some("keyword"))
             .collect();
         assert!(
@@ -558,7 +559,7 @@ fn sources() -> Vec<Source> {
 ///
 /// An extension class's members are read from its manifest, the one the
 /// checker seeded the class's signatures from (`Analysed::extensions`).
-const SOURCED: [(&str, &str); 44] = [
+const SOURCED: [(&str, &str); 46] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -570,6 +571,8 @@ const SOURCED: [(&str, &str); 44] = [
     ("type_members_of", "registry::class("),
     ("declared_type_members", "declared_type("),
     ("open_tags", "OPEN_TAGS"),
+    ("doc_tag_names", "DocTagKind::ALL"),
+    ("see_targets", "members_of("),
     ("paths", "autoload::entries_of("),
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),

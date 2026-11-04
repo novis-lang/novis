@@ -980,3 +980,132 @@ fn a_list_carries_keys_and_resolving_an_item_reads_its_card() {
         "a case resolves to its own line, or its enum's"
     );
 }
+
+/// The labels offered at the end of `source`, in the order they are sent.
+fn labels(source: &str) -> Vec<String> {
+    offered_to(EDITOR, source)
+        .into_iter()
+        .map(|item| item.label)
+        .collect()
+}
+
+/// A class whose members a `@see` target reaches: one of each kind the tag
+/// resolves.
+const SEEN: &str = "<?nvs
+class Shop {
+    public static int $count = 0;
+    public string $name = '';
+    const LIMIT = 3;
+    public function total(int $a): int { return $a; }
+";
+
+/// A comment offers nothing, and the `@` of a doc comment's tag offers the two
+/// tags, each writing the space after it and opening the list again.
+#[test]
+fn a_comment_offers_nothing_but_the_tags_of_a_doc_line() {
+    for source in [
+        "<?nvs\nclass A {\n    // ab",
+        "<?nvs\nclass A {\n    # ab",
+        "<?nvs\nclass A {\n    /// some prose",
+        "<?nvs\nclass A {\n    /// mail me@",
+        "<?nvs\nclass A {\n    // @",
+        "<?nvs\nclass A {\n    /* still open",
+        "<?nvs\nclass A {\n    /// @see Shop and more",
+        "<?nvs\nclass A {\n    /// @param ",
+    ] {
+        assert_eq!(labels(source), Vec::<String>::new(), "`{source}`");
+    }
+    for written in ["@", "@s", "@ex"] {
+        let source = format!("<?nvs\nclass A {{\n    /// {written}");
+        let items = offered_to(EDITOR, &source);
+        let names: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(names, ["@example", "@see"], "`{written}`");
+        let see = named(&items, "@see");
+        let column = u32::try_from(8 + written.len()).expect("a short line");
+        assert_eq!(
+            see.text_edit,
+            Some(CompletionTextEdit::Edit(TextEdit {
+                range: Range {
+                    start: Position {
+                        line: 2,
+                        character: 8,
+                    },
+                    end: Position {
+                        line: 2,
+                        character: column,
+                    },
+                },
+                new_text: "@see ".to_owned(),
+            })),
+            "`{written}` is replaced by the whole tag"
+        );
+        assert_eq!(
+            see.command.as_ref().map(|command| command.command.as_str()),
+            Some(Client::SUGGEST)
+        );
+    }
+}
+
+/// A `@see` target is offered the types in reach, and after `Class::` every
+/// member of that class as a plain name.
+#[test]
+fn a_see_target_offers_types_and_then_every_member() {
+    let types = labels(&format!("{TYPES}{SEEN}    /// @see Squ"));
+    assert!(types.iter().any(|label| label == "Square"), "{types:?}");
+    assert!(
+        types
+            .iter()
+            .all(|label| label != "abstract" && label != "function"),
+        "a target is no member's first word: {types:?}"
+    );
+
+    for owner in ["Shop", "self", "static"] {
+        let source =
+            format!("{SEEN}    /// @see {owner}::<|>\n    public function f(): void {{}}\n}}");
+        let items = offered_to(EDITOR, &source);
+        let names: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        for member in ["total", "LIMIT", "$count", "name"] {
+            assert!(names.contains(&member), "`{owner}::{member}` in {names:?}");
+            let item = named(&items, member);
+            assert_eq!(item.insert_text, None, "`{owner}::{member}` calls nothing");
+            assert_eq!(item.command, None);
+        }
+    }
+
+    let core = labels("<?nvs\n/// @see Core\\Str::");
+    assert!(core.iter().any(|label| label == "length"), "{core:?}");
+}
+
+/// A `@see` target is written without a `use` line, because the tag does not
+/// count as a use of an import.
+#[test]
+fn a_see_target_adds_no_use_line() {
+    let items = offered_to(EDITOR, "<?nvs\nnamespace App;\n/// @see Str");
+    let str_class = named(&items, "Core\\Str");
+    assert_eq!(str_class.additional_text_edits, None);
+}
+
+/// An `@example` path is offered from the file's own directory, the way a
+/// `require` path is.
+#[test]
+fn an_example_path_is_offered_from_the_files_directory() {
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("nvs-doc-case.nvs");
+    let items = offered_in(&here, EDITOR, "<?nvs\n/// @example te<|>\nclass A {}");
+    let tests = named(&items, "tests/");
+    assert_eq!(
+        tests
+            .command
+            .as_ref()
+            .map(|command| command.command.as_str()),
+        Some(Client::SUGGEST)
+    );
+}
+
+#[test]
+fn an_at_sign_is_answered_only_where_it_opens_a_doc_tag() {
+    assert!(triggered("<?nvs\n/// @"));
+    assert!(triggered("<?nvs\nclass A {\n    ///   @"));
+    for source in ["<?nvs\n/// mail me@", "<?nvs\n// @", "<?nvs\n$a = @"] {
+        assert!(!triggered(source), "`{source}`");
+    }
+}

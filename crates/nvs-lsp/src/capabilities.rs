@@ -275,7 +275,8 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             // `.`, `/` and `:` start the next segment of a value split on that
             // separator, and `{` opens a hole of a `string<K>` literal. A
             // client offers nothing in a string unless asked, and these are
-            // answered only inside such a literal.
+            // answered only inside such a literal. `@` opens a doc comment's
+            // tag, and is answered only first on a `///` line.
             trigger_characters: Some(vec![
                 ">".to_owned(),
                 ":".to_owned(),
@@ -287,6 +288,7 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
                 "/".to_owned(),
                 ".".to_owned(),
                 "{".to_owned(),
+                "@".to_owned(),
             ]),
             all_commit_characters: None,
             work_done_progress_options: WorkDoneProgressOptions::default(),

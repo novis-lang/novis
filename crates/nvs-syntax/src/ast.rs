@@ -1660,6 +1660,26 @@ pub enum DocTagKind {
     Example,
 }
 
+impl DocTagKind {
+    /// Every tag, in the order the rule lists them.
+    pub const ALL: [Self; 2] = [Self::See, Self::Example];
+
+    /// The tag's name, as written after its `@`.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::See => "see",
+            Self::Example => "example",
+        }
+    }
+
+    /// The tag written as `name` after an `@`, if it is one.
+    #[must_use]
+    pub fn named(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+}
+
 /// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClassDecl {
