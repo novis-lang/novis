@@ -4,12 +4,46 @@
 use std::io::Read as _;
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nvs_runtime::{Ctx, NativeBody, Value};
 
 use super::{POLYFILL, POLYFILL_HASH, TRIGGER, TRIGGER_HASH, allow_scripts};
 use crate::serve::tests::served_page;
+
+/// How long a gated slot waits for its gate before it goes on anyway. This is
+/// only a hang guard: a test whose gate never opens fails on its assertions
+/// instead of hanging.
+const HANG_GUARD: Duration = Duration::from_secs(10);
+
+/// The gates that hold a slot back, one per test that uses one. A test opens
+/// its gate once the event it waits for has happened, so the order of its
+/// slots follows events and not the speed of the machine.
+static GATES: [AtomicBool; 4] = [const { AtomicBool::new(false) }; 4];
+
+/// Parks the running slot until the test opens gate `gate`, or until
+/// [`HANG_GUARD`] has passed.
+fn wait_for_gate(gate: usize) {
+    let give_up = Instant::now() + HANG_GUARD;
+    while !GATES[gate].load(Ordering::Acquire) && Instant::now() < give_up {
+        let _ = nvs_host::sleep(Duration::from_millis(1));
+    }
+}
+
+/// Lets the slot waiting on gate `gate` go on.
+fn open(gate: usize) {
+    GATES[gate].store(true, Ordering::Release);
+}
+
+/// A slot that waits for gate `GATE` to open, then writes one paragraph.
+struct Gated<const GATE: usize>;
+impl<const GATE: usize> NativeBody for Gated<GATE> {
+    fn run(ctx: &mut Ctx) {
+        wait_for_gate(GATE);
+        ctx.write_output(format!("<p>gate {GATE}</p>").as_bytes())
+            .expect("a slot's body refused a write");
+    }
+}
 
 /// A slot that waits `MS` milliseconds, then writes one paragraph.
 struct After<const MS: u64>;
@@ -30,12 +64,11 @@ impl NativeBody for Writes {
     }
 }
 
-/// A slot that meets a limit of the request tree, once a quicker slot has
-/// finished.
-struct Breaches;
-impl NativeBody for Breaches {
+/// A slot that meets a limit of the request tree once gate `GATE` opens.
+struct Breaches<const GATE: usize>;
+impl<const GATE: usize> NativeBody for Breaches<GATE> {
     fn run(ctx: &mut Ctx) {
-        let _ = nvs_host::sleep(Duration::from_millis(60));
+        wait_for_gate(GATE);
         ctx.set_pending_fatal("the request reached its memory limit");
     }
 }
@@ -68,6 +101,45 @@ fn whole(mut socket: TcpStream, _: std::sync::Arc<crate::admit::Admission>) -> S
         .read_to_string(&mut answer)
         .expect("the response could not be read");
     answer
+}
+
+/// Reads from `socket` into `seen` until `done` is true for what has arrived.
+fn read_until(socket: &mut TcpStream, seen: &mut Vec<u8>, done: impl Fn(&str) -> bool) {
+    let mut buffer = [0u8; 4096];
+    while !done(&String::from_utf8_lossy(seen)) {
+        let read = socket
+            .read(&mut buffer)
+            .expect("the response could not be read");
+        assert!(
+            read > 0,
+            "the response ended before the part the test waits for: {}",
+            String::from_utf8_lossy(seen)
+        );
+        seen.extend_from_slice(&buffer[..read]);
+    }
+}
+
+/// A slotted page with `slots`, made slotted by the call. The client reads
+/// until `done` is true for what has arrived, opens gate `gate`, and then
+/// reads the rest.
+fn slotted_opening(slots: fn() -> Vec<Value>, done: fn(&str) -> bool, gate: usize) -> String {
+    served_page(
+        move |ctx| {
+            ctx.make_slotted()
+                .expect("the main script could not make its response slotted");
+            page(ctx, &slots());
+        },
+        None,
+        move |mut socket, _| {
+            let mut seen = Vec::new();
+            read_until(&mut socket, &mut seen, done);
+            open(gate);
+            socket
+                .read_to_end(&mut seen)
+                .expect("the response could not be read");
+            String::from_utf8_lossy(&seen).into_owned()
+        },
+    )
 }
 
 /// A slotted page with `slots`, made slotted by the call, read whole.
@@ -114,12 +186,15 @@ fn fills(body: &str) -> Vec<usize> {
 
 #[test]
 fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
+    // The slot waits for gate 0, which the client opens only once the shell
+    // has arrived. A server that held the shell back for the slot sends it
+    // after the hang guard, with the slot finished.
     static FINISHED: AtomicBool = AtomicBool::new(false);
     struct Parks;
     impl NativeBody for Parks {
         fn run(ctx: &mut Ctx) {
-            let _ = nvs_host::sleep(Duration::from_millis(300));
-            FINISHED.store(true, Ordering::Relaxed);
+            wait_for_gate(0);
+            FINISHED.store(true, Ordering::Release);
             ctx.write_output(b"<p>late</p>")
                 .expect("a slot's body refused a write");
         }
@@ -133,15 +208,11 @@ fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
         None,
         |mut socket, _| {
             let mut seen = Vec::new();
-            let mut buffer = [0u8; 4096];
-            while !String::from_utf8_lossy(&seen).contains("<h1>Blog</h1>") {
-                let read = socket
-                    .read(&mut buffer)
-                    .expect("the response could not be read");
-                assert!(read > 0, "the response ended before its shell arrived");
-                seen.extend_from_slice(&buffer[..read]);
-            }
-            let finished = FINISHED.load(Ordering::Relaxed);
+            read_until(&mut socket, &mut seen, |seen| {
+                seen.contains("<h1>Blog</h1>")
+            });
+            let finished = FINISHED.load(Ordering::Acquire);
+            open(0);
             socket
                 .read_to_end(&mut seen)
                 .expect("the response could not be read");
@@ -160,18 +231,26 @@ fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
 // covers: Core\Html::later
 #[test]
 fn fills_arrive_in_the_order_their_later_finished() {
-    let answer = slotted(|| {
-        vec![
-            nvs_runtime::native_callable::<After<300>>(),
-            nvs_runtime::native_callable::<After<30>>(),
-        ]
-    });
+    // The first slot waits for gate 1, which the client opens once the second
+    // slot's fill has arrived. A server that sent fills in the order of their
+    // placeholders holds that fill back until the hang guard lets the first
+    // slot finish, and then sends it second.
+    let answer = slotted_opening(
+        || {
+            vec![
+                nvs_runtime::native_callable::<Gated<1>>(),
+                nvs_runtime::native_callable::<After<30>>(),
+            ]
+        },
+        |seen| seen.contains("<p>after 30</p>"),
+        1,
+    );
     let (_, body) = split(&answer);
     let fast = body
         .find("<p>after 30</p>")
         .expect("the fast slot's fill is missing");
     let slow = body
-        .find("<p>after 300</p>")
+        .find("<p>gate 1</p>")
         .expect("the slow slot's fill is missing");
     assert!(
         fast < slow,
@@ -477,14 +556,19 @@ fn a_slotted_route_without_later_is_sent_whole() {
 fn a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_and_ends() {
     // No slot here is parked in its own body when the breach stops the
     // others: a test slot is a native function, and a parked one cannot be
-    // torn down. The two quick slots finish before the breach.
-    let answer = slotted(|| {
-        vec![
-            nvs_runtime::native_callable::<Writes>(),
-            nvs_runtime::native_callable::<Breaches>(),
-            nvs_runtime::native_callable::<Writes>(),
-        ]
-    });
+    // torn down. The breaching slot waits for gate 2, which the client opens
+    // once the fills of the two quick slots have arrived.
+    let answer = slotted_opening(
+        || {
+            vec![
+                nvs_runtime::native_callable::<Writes>(),
+                nvs_runtime::native_callable::<Breaches<2>>(),
+                nvs_runtime::native_callable::<Writes>(),
+            ]
+        },
+        |seen| fills(seen).len() >= 2,
+        2,
+    );
     let (head, body) = split(&answer);
     assert!(
         head.starts_with("http/1.1 200"),
@@ -515,20 +599,22 @@ fn a_slotted_response_holds_its_admission_place_until_its_last_fill() {
         |ctx| {
             ctx.make_slotted()
                 .expect("the main script could not make its response slotted");
-            page(ctx, &[nvs_runtime::native_callable::<After<300>>()]);
+            page(ctx, &[nvs_runtime::native_callable::<Gated<3>>()]);
         },
         None,
+        // The slot waits for gate 3, so it is still running when the shell
+        // arrives. The client reads the count, then lets the slot finish.
         |mut socket, admission| {
             let mut seen = Vec::new();
-            let mut buffer = [0u8; 4096];
-            while !String::from_utf8_lossy(&seen).contains("<h1>Blog</h1>") {
-                let read = socket
-                    .read(&mut buffer)
-                    .expect("the response could not be read");
-                assert!(read > 0, "the response ended before its shell arrived");
-                seen.extend_from_slice(&buffer[..read]);
-            }
-            admission.in_flight().to_string()
+            read_until(&mut socket, &mut seen, |seen| {
+                seen.contains("<h1>Blog</h1>")
+            });
+            let in_flight = admission.in_flight().to_string();
+            open(3);
+            socket
+                .read_to_end(&mut seen)
+                .expect("the response could not be read");
+            in_flight
         },
     );
     assert_eq!(

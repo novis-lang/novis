@@ -3647,6 +3647,12 @@ pub(crate) mod tests {
     /// is what lets the accept loop finish and the test report.
     const CLIENT_PATIENCE: Duration = Duration::from_secs(10);
 
+    /// The bound a test puts on an event it waits for, such as a drain closing
+    /// a connection. It is only a hang guard, as large as the hostile timeout:
+    /// the event on its own is what the test checks, and a slow machine still
+    /// meets it.
+    const HANG_GUARD: Duration = Duration::from_secs(10);
+
     /// Drives `sched` to the end of its work, the way `nvs serve` drives a
     /// worker rather than the way a one-shot program does.
     ///
@@ -5654,7 +5660,7 @@ pub(crate) mod tests {
             "the drain did not leave a parked peer RFC 6455's `going away`"
         );
         assert!(
-            took < Duration::from_secs(5),
+            took < HANG_GUARD,
             "the drain left the program parked on its peer: closed after {took:?}"
         );
         let said = said.borrow();
@@ -5683,7 +5689,7 @@ pub(crate) mod tests {
             match got {
                 Ok(Some(_)) => "a frame arrived".to_owned(),
                 Ok(None) => "the loop ended".to_owned(),
-                Err(_) if took < Duration::from_secs(5) => "receive failed in time".to_owned(),
+                Err(_) if took < HANG_GUARD => "receive failed in time".to_owned(),
                 Err(error) => format!("receive failed after {took:?}: {error}"),
             }
         }
@@ -5855,7 +5861,7 @@ pub(crate) mod tests {
             "a program asleep for the whole period sent another update"
         );
         assert!(
-            took < Duration::from_secs(5),
+            took < HANG_GUARD,
             "the drain waited for a ten-minute sleep: closed after {took:?}"
         );
         let said = said.borrow();
@@ -12060,7 +12066,7 @@ pub(crate) mod tests {
             "the request in flight when the drain began was not answered: {seen}"
         );
         assert!(
-            closed && took < Duration::from_secs(5),
+            closed && took < HANG_GUARD,
             "the drain waited out a period on an idle connection: closed after {took:?}"
         );
     }
@@ -12134,7 +12140,7 @@ pub(crate) mod tests {
             "the 503 did not tell the client the connection closes: {seen}"
         );
         assert!(
-            closed && took < Duration::from_secs(5),
+            closed && took < HANG_GUARD,
             "the drain waited for the running request: closed after {took:?}"
         );
     }
@@ -12244,7 +12250,7 @@ pub(crate) mod tests {
             "a stream cut by the drain ended with its terminating chunk: {seen}"
         );
         assert!(
-            closed && took < Duration::from_secs(5),
+            closed && took < HANG_GUARD,
             "the drain waited for the streaming request: closed after {took:?}"
         );
     }
@@ -12342,7 +12348,7 @@ pub(crate) mod tests {
             "the response's head was not written before the cut: {head}"
         );
         assert!(
-            took < Duration::from_secs(5),
+            took < HANG_GUARD,
             "the drain waited for the response being written: it ended after {took:?}"
         );
     }
