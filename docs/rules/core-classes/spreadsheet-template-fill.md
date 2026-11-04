@@ -38,12 +38,20 @@ part on it names a row a list on a later sheet moves. It then costs the memory o
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
 autofilter, data validation, conditional formats (an `x14` one under `extLst` too), tables, drawing
-anchors and chart ranges. A shared formula (`<f t="shared">`) whose first cell is in a block gets a
+anchors, chart ranges, notes (a comment's `ref` and its VML `x:Row` and `x:Anchor`), threaded
+comments, row page breaks (`<brk id>`), a link's `location`, pivot tables' `location` and pivot
+caches' source ranges. A shared formula (`<f t="shared">`) whose first cell is in a block gets a
 new group number (`si`) in every copy but the first, numbered after the sheet's highest, so no two
-copies share one; a group whose first cell is outside the block keeps its number. A range
+copies share one; a group whose first cell is outside the block keeps its number. A follower of a
+group that crosses a block, one that moved by other rows than the group's first cell or that the
+first cell moved as Excel moves it would give other references, is written with its own formula
+text: un-shared. Cost: two moves of the first cell's text per follower, on a sheet with moves. A range
 that covers the template row grows with the block, so `SUM(C5:C5)` over a block of 100 items becomes
 `SUM(C5:C104)`. The shifter tokenizes A1 references — relative, absolute, ranges, whole rows and
-columns, and references to other sheets — and leaves every other character of formula text as it was.
+columns, and references to other sheets, with column letters in either case — and leaves every other
+character of formula text as it was. A reference into another workbook (`[1]Shop!A5`,
+`'[Book.xlsx]Shop'!A5`) never moves. **A filled workbook always recalculates when opened:**
+`calcChain.xml` is dropped and `fullCalcOnLoad` is set to `1`, even where the template set `0`.
 
 **`->set('Summary!B2', $value)`** fills one cell by address, by the same write table, before `fill`.
 An address with no sheet name, `set('B2', …)`, is on the first sheet. A filled value's text is

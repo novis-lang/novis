@@ -5463,12 +5463,20 @@ part on it names a row a list on a later sheet moves. It then costs the memory o
 **The shift.** Every row below a repeated block moves down by the rows it added, and every part that
 points at those rows moves with it: merged ranges, formulas, defined names, the print area, the
 autofilter, data validation, conditional formats (an `x14` one under `extLst` too), tables, drawing
-anchors and chart ranges. A shared formula (`<f t="shared">`) whose first cell is in a block gets a
+anchors, chart ranges, notes (a comment's `ref` and its VML `x:Row` and `x:Anchor`), threaded
+comments, row page breaks (`<brk id>`), a link's `location`, pivot tables' `location` and pivot
+caches' source ranges. A shared formula (`<f t="shared">`) whose first cell is in a block gets a
 new group number (`si`) in every copy but the first, numbered after the sheet's highest, so no two
-copies share one; a group whose first cell is outside the block keeps its number. A range
+copies share one; a group whose first cell is outside the block keeps its number. A follower of a
+group that crosses a block, one that moved by other rows than the group's first cell or that the
+first cell moved as Excel moves it would give other references, is written with its own formula
+text: un-shared. Cost: two moves of the first cell's text per follower, on a sheet with moves. A range
 that covers the template row grows with the block, so `SUM(C5:C5)` over a block of 100 items becomes
 `SUM(C5:C104)`. The shifter tokenizes A1 references — relative, absolute, ranges, whole rows and
-columns, and references to other sheets — and leaves every other character of formula text as it was.
+columns, and references to other sheets, with column letters in either case — and leaves every other
+character of formula text as it was. A reference into another workbook (`[1]Shop!A5`,
+`'[Book.xlsx]Shop'!A5`) never moves. **A filled workbook always recalculates when opened:**
+`calcChain.xml` is dropped and `fullCalcOnLoad` is set to `1`, even where the template set `0`.
 
 **`->set('Summary!B2', $value)`** fills one cell by address, by the same write table, before `fill`.
 An address with no sheet name, `set('B2', …)`, is on the first sheet. A filled value's text is
@@ -5813,8 +5821,9 @@ request. It computes every formula cell of every sheet once, in the guest, in de
 returns what it could not compute: `cell` as `Sheet!A1`, `kind` as `'function'` (a function outside
 the set, with its name), `'reference'` (another workbook, a missing sheet, a 3D reference, a union, an
 intersection, an array constant, or a result of more than one cell, with the reference), `'circular'`
-(with the formula) or `'token'` (formula text the evaluator cannot read, or a formula the reader could
-not decode). A test asserts that list is empty, the visibility rule the PDF component applies to
+(with the formula), `'token'` (formula text the evaluator cannot read, or a formula the reader could
+not decode) or `'coercion'` (a text that only a locale makes a number, such as `$1`, `1,000` or
+`1/15/2024`, used in arithmetic or matched against a number criterion, with the text). A test asserts that list is empty, the visibility rule the PDF component applies to
 dropped CSS ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)). After it, each `rows()` reads a formula cell as its
 computed result, through the read table and the cell's number format, and `formulas: true` gives that
 result as the `cached`. A cell it did not compute keeps its stored result, and a cell that reads it
@@ -5831,8 +5840,11 @@ no formulas and returns `[]`.
   pays anything until a program calls it.
 - **Excel's behaviour.** Numbers are `f64`, and coercion and error values follow Excel. Text
   converts to a number when it is a number, a percentage, an ISO date or a clock time, and is
-  `#VALUE!` otherwise, so a date in a locale's own order (`1/15/2024`) is `#VALUE!` here, because
-  the result would depend on the machine. An unknown name is `#NAME?`. Defined names and structured
+  `#VALUE!` otherwise. An ISO date counts from the workbook's date system, 1900 or 1904. Text that
+  only a locale makes a number (`$1`, `1,000`, `1/15/2024`) is a `coercion` miss in arithmetic
+  and in a number criterion, and its cell keeps its stored value, because Excel's result would
+  depend on the machine. A structured reference tests `#` before it reads `'` escapes, so a column
+  named `#Orders`, written `'#Orders`, is a column. An unknown name is `#NAME?`. Defined names and structured
   references (`Table[Column]`, `[#This Row]`, `[#Data]`, `[#All]`, `[#Headers]`, `[#Totals]`)
   resolve, and a sheet-qualified name reads only that sheet's names.
 - **Bounds.** Parentheses and calls more than 64 deep, a tree more than 512 nodes deep, or more

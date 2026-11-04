@@ -33,8 +33,9 @@ request. It computes every formula cell of every sheet once, in the guest, in de
 returns what it could not compute: `cell` as `Sheet!A1`, `kind` as `'function'` (a function outside
 the set, with its name), `'reference'` (another workbook, a missing sheet, a 3D reference, a union, an
 intersection, an array constant, or a result of more than one cell, with the reference), `'circular'`
-(with the formula) or `'token'` (formula text the evaluator cannot read, or a formula the reader could
-not decode). A test asserts that list is empty, the visibility rule the PDF component applies to
+(with the formula), `'token'` (formula text the evaluator cannot read, or a formula the reader could
+not decode) or `'coercion'` (a text that only a locale makes a number, such as `$1`, `1,000` or
+`1/15/2024`, used in arithmetic or matched against a number criterion, with the text). A test asserts that list is empty, the visibility rule the PDF component applies to
 dropped CSS (`rule:core-classes/pdf-css-subset`). After it, each `rows()` reads a formula cell as its
 computed result, through the read table and the cell's number format, and `formulas: true` gives that
 result as the `cached`. A cell it did not compute keeps its stored result, and a cell that reads it
@@ -51,8 +52,11 @@ no formulas and returns `[]`.
   pays anything until a program calls it.
 - **Excel's behaviour.** Numbers are `f64`, and coercion and error values follow Excel. Text
   converts to a number when it is a number, a percentage, an ISO date or a clock time, and is
-  `#VALUE!` otherwise, so a date in a locale's own order (`1/15/2024`) is `#VALUE!` here, because
-  the result would depend on the machine. An unknown name is `#NAME?`. Defined names and structured
+  `#VALUE!` otherwise. An ISO date counts from the workbook's date system, 1900 or 1904. Text that
+  only a locale makes a number (`$1`, `1,000`, `1/15/2024`) is a `coercion` miss in arithmetic
+  and in a number criterion, and its cell keeps its stored value, because Excel's result would
+  depend on the machine. A structured reference tests `#` before it reads `'` escapes, so a column
+  named `#Orders`, written `'#Orders`, is a column. An unknown name is `#NAME?`. Defined names and structured
   references (`Table[Column]`, `[#This Row]`, `[#Data]`, `[#All]`, `[#Headers]`, `[#Totals]`)
   resolve, and a sheet-qualified name reads only that sheet's names.
 - **Bounds.** Parentheses and calls more than 64 deep, a tree more than 512 nodes deep, or more
