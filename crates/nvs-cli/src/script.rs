@@ -358,7 +358,8 @@ struct Trace {
     /// which is the path the compile read the program through. Where the entry
     /// path resolves to another one now, a `current` link was switched, and the
     /// trace no longer describes the disk whatever the files behind it hold.
-    real: PathBuf,
+    /// `None` for an entry that exists only in memory, which no link can move.
+    real: Option<PathBuf>,
 }
 
 /// One directory a discovery scan listed, and what it held.
@@ -1465,7 +1466,7 @@ impl Compiler {
                     answers,
                     files: reads,
                     listed,
-                    real,
+                    real: Some(real),
                 },
             );
         };
@@ -1527,7 +1528,7 @@ impl Compiler {
                 answers,
                 files: reads,
                 listed,
-                real,
+                real: Some(real),
             },
         )
     }
@@ -1741,7 +1742,9 @@ impl Watched {
                 answers,
                 files: reads,
                 listed,
-                real: real_path(written),
+                // An entry made in memory is not on disk, so there is no path
+                // to resolve, now or at a later check.
+                real: (!synthesized).then(|| real_path(written)),
             },
         }
     }
@@ -1957,7 +1960,9 @@ fn describes_the_disk(
     validate: Validate,
     checked: SystemTime,
 ) -> Option<Option<(Stamps, Stamps)>> {
-    if real_path(written) != trace.real {
+    if let Some(real) = &trace.real
+        && real_path(written) != *real
+    {
         return None;
     }
     if trace

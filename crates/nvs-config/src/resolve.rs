@@ -291,6 +291,76 @@ impl Files for Unowned {
     }
 }
 
+/// Another reader with each [`Files::trust`] answer kept for one [`resolve`], so a file the tree
+/// names several times is judged once. One CA file under five `[db]` and `[ldap]` blocks is one
+/// check, not five. Every other call goes to the reader unchanged.
+///
+/// The answers live only as long as one resolve, which reads the tree at one moment, so a kept
+/// answer is the one a second check would give. A reload is a new resolve and checks again.
+/// Cost: one path and one answer per distinct file judged, freed when the resolve returns.
+struct Remembered<'a> {
+    files: &'a dyn Files,
+    trusted: std::cell::RefCell<BTreeMap<PathBuf, Result<PathBuf, Untrusted>>>,
+}
+
+impl<'a> Remembered<'a> {
+    fn over(files: &'a dyn Files) -> Self {
+        Self {
+            files,
+            trusted: std::cell::RefCell::default(),
+        }
+    }
+}
+
+impl Files for Remembered<'_> {
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        if let Some(known) = self.trusted.borrow().get(path) {
+            return known.clone();
+        }
+        let answer = self.files.trust(path);
+        self.trusted
+            .borrow_mut()
+            .insert(path.to_path_buf(), answer.clone());
+        answer
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        self.files.canonical(path)
+    }
+
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        self.files.canonical_block(path)
+    }
+
+    fn read(&self, path: &Path) -> Result<String, String> {
+        self.files.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        self.files.read_config(path)
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        self.files.read_bytes(path)
+    }
+
+    fn exposure(&self, path: &Path) -> Option<String> {
+        self.files.exposure(path)
+    }
+
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        self.files.list(dir)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.files.exists(path)
+    }
+
+    fn missing(&self, path: &Path) -> bool {
+        self.files.missing(path)
+    }
+}
+
 /// [`Disk`] judging for another account than this process's: the account a service will run as.
 /// A command that sets up or reports on a service resolves through it, so it names the file, the
 /// `E0607` and the repair the service's own boot would (`rule:config/ownership-is-the-trust-boundary`).
@@ -523,6 +593,8 @@ pub fn resolve(
     let Roots::Files(paths) = roots else {
         return merge.finish();
     };
+    let remembered = Remembered::over(files);
+    let files: &dyn Files = &remembered;
     for path in paths {
         read_into(&mut merge, path, sources, files, &mut Vec::new(), 0)?;
     }

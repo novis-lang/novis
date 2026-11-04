@@ -220,7 +220,7 @@ impl Snapshot {
     ) -> Result<Arc<Self>, Diagnostic> {
         let roster = AppBlocks::of(resolved);
         let matching = match &entry {
-            Some(entry) => app::matching(&roster.apps, entry, files)?,
+            Some(entry) => app::matching_canonical(&roster.apps, entry),
             None => Vec::new(),
         };
         let mut snapshot = Self {
@@ -618,10 +618,13 @@ impl Published {
         if let Some(found) = self.resolved.read().expect(lock).folders.get(entry) {
             return Arc::clone(found);
         }
-        let canonical = files
-            .canonical(entry)
-            .unwrap_or_else(|_| entry.to_path_buf());
-        let matched = app::matching(&self.blocks.apps, &canonical, files).unwrap_or_default();
+        // A path that does not resolve matches no block, and its folder is the one it names.
+        let resolved = files.canonical(entry).ok();
+        let matched = resolved
+            .as_deref()
+            .map(|canonical| app::matching_canonical(&self.blocks.apps, canonical))
+            .unwrap_or_default();
+        let canonical = resolved.unwrap_or_else(|| entry.to_path_buf());
         let keys = app::keys(&self.blocks.apps, &matched);
         let folder: Arc<Path> = app::folder(&canonical, &keys).into();
         let mut resolved = self.resolved.write().expect(lock);
@@ -660,7 +663,7 @@ impl Published {
         if let Some(found) = self.resolved.read().expect(lock).entries.get(&canonical) {
             return Ok(Arc::clone(found));
         }
-        let chain = app::matching(&self.blocks.apps, &canonical, files)?;
+        let chain = app::matching_canonical(&self.blocks.apps, &canonical);
         let known = if chain.is_empty() {
             Some(Arc::clone(&self.host))
         } else {

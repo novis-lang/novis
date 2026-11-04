@@ -452,6 +452,47 @@ fn an_autoloaded_file_is_resolved_once() {
     assert_eq!(eight - four, 4, "{four} for 4 classes, {eight} for 8");
 }
 
+/// An uncached `nvs run` resolves each path its settings and its program name
+/// once (`rule:testing/bench-counters`): `nvs.toml`, a CA file two `[db]`
+/// blocks share, and the entry. The entry is resolved twice, once for its
+/// `[[app]]` blocks and once by the compile, which keys files in the verbatim
+/// form a Windows path takes. It was nine: the snapshot resolved the entry
+/// twice, and each block checked the CA file again.
+#[test]
+fn a_run_resolves_each_settings_path_once() {
+    let dir = scratch("count-run-settings");
+    let block = |name: &str| {
+        format!(
+            "[db.{name}]\ndriver = \"postgres\"\nhost = \"127.0.0.1\"\nport = 5432\n\
+             user = \"app\"\npassword = \"Example-Pw1\"\ndatabase = \"app\"\n\
+             tls_ca_file = \"ca.crt\"\n\n"
+        )
+    };
+    fs::write(
+        dir.join("nvs.toml"),
+        format!("{}{}", block("main"), block("second")),
+    )
+    .unwrap();
+    fs::write(dir.join("ca.crt"), "").unwrap();
+    fs::write(dir.join("main.nvs"), "<?nvs\necho 1;\n").unwrap();
+    let data = nvs_repo::scratch_private("nvsdata");
+    let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .args(["run", "--count", "main.nvs"])
+        .current_dir(&dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(0), "{stderr}");
+    let resolved = compile_counts(&stderr)
+        .iter()
+        .find(|(name, _)| name == "resolved")
+        .map(|(_, value)| *value)
+        .unwrap_or_else(|| panic!("`--count` counts `resolved`: {stderr}"));
+    assert_eq!(resolved, 4, "{stderr}");
+}
+
 /// The require scan of a directory, its walk and the compile share one map, so
 /// a directory check reads each file once (`rule:testing/bench-counters`). It
 /// read each test file three times: once for the word `require`, once in the

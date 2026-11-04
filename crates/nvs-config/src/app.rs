@@ -23,7 +23,7 @@
 //! without it `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted
 //! inside an application's tree inherits that application's capabilities. Both sides are
 //! canonicalized — the block's key by [`canonicalize`] once at boot, the entry file by [`matching`]
-//! per run — and the prefix test is `Path::starts_with`, which compares whole components, so
+//! per run, or by the snapshot just before it calls `matching_canonical` — and the prefix test is `Path::starts_with`, which compares whole components, so
 //! `/srv/www/shopfront` is not under `/srv/www/shop`.
 //!
 //! **A block's key is canonicalized in place**, replacing what the operator wrote, exactly as `rule:config/a-secret-is-a-file-whose-content-is-the-value`
@@ -685,16 +685,24 @@ pub fn matching(apps: &[App], entry: &Path, files: &dyn Files) -> Result<Vec<usi
             "it is the entry file whose `[[app]]` blocks were being looked up",
         )
     })?;
+    Ok(matching_canonical(apps, &entry))
+}
+
+/// [`matching`] for an `entry` its caller has just made canonical with
+/// [`Files::canonical`], so the path is resolved once per snapshot and not twice. Private to this
+/// crate: each caller resolves the entry on the line before, where the rule's
+/// canonicalize-then-prefix order can be read in one place.
+pub(crate) fn matching_canonical(apps: &[App], entry: &Path) -> Vec<usize> {
     // A block keyed on the entry file or on any directory above it would apply here, whether or
     // not one is written today, so each of those paths is what this program uses of the roster.
     for above in entry.ancestors() {
         nvs_footprint::app(above);
     }
     let mut matched: Vec<usize> = (0..apps.len())
-        .filter(|index| covers(&apps[*index], &entry))
+        .filter(|index| covers(&apps[*index], entry))
         .collect();
     matched.sort_by_key(|index| key_of(&apps[*index]).map_or(0, |key| key.components().count()));
-    Ok(matched)
+    matched
 }
 
 /// The app folder of the canonical `entry`: the `root` of the most specific block that covers it,
