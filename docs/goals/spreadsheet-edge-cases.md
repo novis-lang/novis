@@ -611,17 +611,34 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Not started. Research was done 2026-11-04 interactively; gaps.md's content is folded into this file.
-The triage's anchors were read from the code; each item's first step is to confirm its anchor with
-`bun nv peek`.
+Stage 1's first four items are done and committed (9597f6440, f0c22cade): a repeated ods row is a
+`sheet::Kept` given again by `Cursor::Whole`; `xml::next_from` and `sheet::Partial` scan a part once;
+the shared-string arena counts against the archive ceiling (`Strings::within`, `Directory::left`
+and `charge`); a row's shared-formula groups name cells by index. Four of the ten `hostile-input`
+tests exist and pass, each run once by name. The rule `spreadsheet-reads-as-a-stream` says all of it.
+
+The sweep's reds at this session's start: `env-secret-proofs` is stale (defined nowhere, no log, as
+the speed-independent-tests handoff already found). The nightly run 41813182715 was on f3150b922;
+its macOS `live_edit` timing failure is what a8bdf37fb fixes, and its Miri `openat` failure in
+`nvs-stdlib` `io::tests::a_windows_alias_is_refused_by_its_text_before_any_network_attempt` is what
+a2f451fad skips. Neither was rerun; the next nightly confirms both.
+
+While this session ran, the tree held another session's uncommitted edits in `crates/nvs-lsp/` and
+`crates/nvs-diagnostics/` (timing probes, `probe_timing.rs`), which fail workspace
+`cargo clippy --all-targets` on a `u128 as u64` cast. They were left unstaged; the spreadsheet
+crate's own clippy is clean.
 
 ### Next
 
-Stage 1, from its first item. Open first `extensions/spreadsheet/src/read/ods.rs:656` (the repeated
-row), `extensions/spreadsheet/src/read/xml.rs:44` (the refill scan) and
-`extensions/spreadsheet/src/read/mod.rs:231` (the shared-string arena), then the helpers at
-`crates/nvs-ext/tests/spreadsheet_hostile.rs:175` (`xlsx`, `sheet`, `shared`), `:294`
-(`read_filling`) and `:633` (`compound`), and the same-run cost test at
-`crates/nvs-ext/tests/spreadsheet_read.rs:886`. No existing test is expected to go red.
+Stage 1 from `A custom format code is found by a linear search per xf`: `codes.iter().find` at
+`extensions/spreadsheet/src/read/mod.rs:599`, then `rest()` at
+`extensions/spreadsheet/src/format/mod.rs:244`, then the whole-column read at
+`extensions/spreadsheet/src/eval/mod.rs:109` and `:601`. Their tests use the helpers already in
+`crates/nvs-ext/tests/spreadsheet_hostile.rs`: `linear` (`:310`, N against 8N within 4× per unit,
+decision 41), `read_time` (`:301`), `noise` (`:423`), `letters` (`:1165`), `first_rows_under`
+(`:436`) with `SHIPPED` (`:417`). A format-renderer or evaluator test may sit better in the
+extension's own `tests/format.rs` or `tests/evaluate.rs`, but the `hostile-input` check runs
+`--test spreadsheet_hostile`, so each of the ten names lives there. Then the encryption item
+(`extensions/spreadsheet/src/read/xls.rs:330`). No existing test is expected to go red.
 
 ### Backlog
