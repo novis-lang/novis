@@ -870,7 +870,8 @@ impl Checked {
     /// `tokens` is the one figure no phase keeps, so each loaded file is
     /// lexed a second time for it. `nodes` is [`nvs_syntax::walk`]'s tree,
     /// the one `Core\Ast` reads. `ir` is the instructions and terminators of
-    /// every function, and is present only for a command that lowers.
+    /// every function, and is present only for a command that lowers. The
+    /// file-system counts follow it (`nvs_diagnostics::work`).
     fn count_line(&self, program: Option<&nvs_ir::Program>) -> String {
         fn nodes(node: &nvs_syntax::walk::Node) -> usize {
             1 + node.children.iter().map(nodes).sum::<usize>()
@@ -898,6 +899,9 @@ impl Checked {
                 .sum();
             line.push_str(&format!(" ir={ir}"));
         }
+        // The file-system work this thread did since the process started: the
+        // compile and the configuration it read run here, and nothing before them.
+        line.push_str(&format!(" {}", nvs_diagnostics::work::so_far()));
         line
     }
 

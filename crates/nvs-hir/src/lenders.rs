@@ -72,6 +72,7 @@ impl Lender {
             return None;
         }
 
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Programs);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry), &mut diags);
         let (_, loaded, autoload) =
@@ -359,6 +360,11 @@ pub fn sources(root: &Path) -> Vec<PathBuf> {
         })
         .build()
         .filter_map(Result::ok)
+        .inspect(|entry| {
+            if entry.file_type().is_some_and(|kind| kind.is_dir()) {
+                nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Listed);
+            }
+        })
         .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
         .map(ignore::DirEntry::into_path)
         .filter(|path| path.extension().is_some_and(|ext| ext == "nvs"))

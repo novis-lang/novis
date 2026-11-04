@@ -181,11 +181,13 @@ pub struct Disk;
 impl Files for Disk {
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
         nvs_footprint::exists(path);
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Resolved);
         trust::check(path)
     }
 
     fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
         nvs_footprint::exists(path);
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Resolved);
         trust::canonical(path).map_err(|err| err.to_string())
     }
 
@@ -200,6 +202,7 @@ impl Files for Disk {
 
     fn read_config(&self, path: &Path) -> Result<String, String> {
         nvs_footprint::config(path);
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Settings);
         std::fs::read_to_string(path).map_err(|err| err.to_string())
     }
 
@@ -214,6 +217,7 @@ impl Files for Disk {
 
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
         nvs_footprint::dir(dir);
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Listed);
         let entries = std::fs::read_dir(dir).map_err(|err| err.to_string())?;
         let mut paths = Vec::new();
         for entry in entries {
@@ -250,6 +254,7 @@ impl Files for Unowned {
     /// cycle gets through.
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
         nvs_footprint::exists(path);
+        nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Resolved);
         trust::canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))
     }
 

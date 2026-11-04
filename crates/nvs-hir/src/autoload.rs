@@ -963,6 +963,7 @@ fn listing(dir: &Path) -> Option<Vec<(PathBuf, bool)>> {
         );
     }
     nvs_footprint::dir(dir);
+    nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Listed);
     let entries = std::fs::read_dir(dir).ok()?;
     Some(
         entries

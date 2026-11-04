@@ -34,6 +34,7 @@ pub mod record;
 mod render;
 mod source;
 mod span;
+pub mod work;
 
 pub use diagnostic::{Code, Diagnostic, Diagnostics, Label, LabelStyle, Severity, Suggestion};
 pub use paths::lexical_normalize;

@@ -368,6 +368,7 @@ pub fn span_text(src: &SourceFile, span: Span) -> &str {
 /// registered under the path an editor sent would never be found.
 #[must_use]
 pub fn canonical_key(path: &Path) -> PathBuf {
+    crate::work::count(crate::work::Kind::Resolved);
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
@@ -535,6 +536,7 @@ impl SourceMap {
         if let Some((name, text)) = crate::embedded::text(path) {
             return Ok(self.place(name.to_owned(), path, text.to_owned()));
         }
+        crate::work::count(crate::work::Kind::Read);
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(error) => {

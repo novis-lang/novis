@@ -744,6 +744,7 @@ pub fn canonicalize(path: &Path) -> Option<PathBuf> {
         return nvs_diagnostics::embedded::canonicalize(path);
     }
     nvs_footprint::exists(path);
+    nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Resolved);
     path.canonicalize().ok()
 }
 

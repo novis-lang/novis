@@ -1167,6 +1167,26 @@ impl SymbolIndex {
     /// Returns the analysis it indexed, for [`refresh`](Self::refresh) to hand
     /// on.
     fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) -> Option<Analysed> {
+        let before = nvs_diagnostics::work::so_far();
+        let analysed = self.file_entry(documents, entry, version);
+        // The analysis's own share arrived with `analysed.work`, and this adds
+        // what filing its result cost, or the whole when it did not analyse.
+        let spent = nvs_diagnostics::work::so_far() - before;
+        let analysis = analysed
+            .as_ref()
+            .map_or_else(Default::default, |analysed| analysed.work.files);
+        self.work.files += spent - analysis;
+        analysed
+    }
+
+    /// [`absorb`](Self::absorb) without the count of the file-system work it
+    /// did beyond the analysis.
+    fn file_entry(
+        &mut self,
+        documents: &Documents,
+        entry: &Path,
+        version: i32,
+    ) -> Option<Analysed> {
         let started = SystemTime::now();
         let analysed = analyse_file(documents, entry, version)?;
         self.work += analysed.work;

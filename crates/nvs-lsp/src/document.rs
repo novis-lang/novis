@@ -510,12 +510,18 @@ pub struct Work {
     pub parsed: usize,
     /// The files whose bodies the type phase checked.
     pub checked: usize,
+    /// The file-system work: paths resolved, files read, directories listed,
+    /// settings files parsed and programs walked
+    /// ([`nvs_diagnostics::work`]). An analysis counts its own walk, and the
+    /// index adds what it did to file the result.
+    pub files: nvs_diagnostics::work::FileWork,
 }
 
 impl std::ops::AddAssign for Work {
     fn add_assign(&mut self, other: Self) {
         self.parsed += other.parsed;
         self.checked += other.checked;
+        self.files += other.files;
     }
 }
 
@@ -744,6 +750,7 @@ fn analyse_over(
     version: i32,
     entry_text: Option<String>,
 ) -> Option<Analysed> {
+    let before = nvs_diagnostics::work::so_far();
     let mut session = documents.session.borrow_mut();
     let session = &mut *session;
     let parses = &mut session.parses;
@@ -817,7 +824,10 @@ fn analyse_over(
     exprs.record_provenance();
     // A file the cache held for its text was not parsed, so only the misses
     // count.
-    let mut work = Work { parsed, checked: 0 };
+    let mut work = Work {
+        parsed,
+        ..Work::default()
+    };
     let deprecated;
     {
         // The type phase, continued into exactly the way `nvs-cli`'s
@@ -894,6 +904,7 @@ fn analyse_over(
     // other name is left as it is, so this costs one comparison per `E0303`
     // and `E0306`.
     nvs_types::moved::note_moves(&mut diags, &map);
+    work.files = nvs_diagnostics::work::so_far() - before;
 
     Some(Analysed {
         map,

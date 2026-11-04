@@ -286,13 +286,20 @@ fn check_count_prints_what_each_phase_produced() {
     assert_eq!(String::from_utf8_lossy(&small.stdout), "no errors\n");
     let small = compile_counts(&stderr);
     let names: Vec<&str> = small.iter().map(|(name, _)| name.as_str()).collect();
-    assert_eq!(names, ["tokens", "nodes", "names", "exprs"], "{stderr}");
+    assert_eq!(
+        names,
+        [
+            "tokens", "nodes", "names", "exprs", "resolved", "read", "listed", "settings",
+            "programs"
+        ],
+        "{stderr}"
+    );
 
     let large = check_in(&dir, &["--count", "large.nvs"]);
     let stderr = String::from_utf8_lossy(&large.stderr);
     assert_eq!(large.status.code(), Some(0), "{stderr}");
     let large = compile_counts(&stderr);
-    for ((name, before), (_, after)) in small.iter().zip(&large) {
+    for ((name, before), (_, after)) in small[..4].iter().zip(&large[..4]) {
         assert!(after > before, "{name}: {before} then {after}");
     }
 
@@ -315,12 +322,52 @@ fn check_count_prints_what_each_phase_produced() {
     let counts = compile_counts(&stderr);
     assert_eq!(
         counts[..4],
-        small[..],
+        small[..4],
         "the same front end, the same counts"
     );
     assert_eq!(counts[4].0, "ir", "{stderr}");
     assert!(counts[4].1 > 0, "{stderr}");
     assert!(stderr.contains("count: statements="), "{stderr}");
+}
+
+/// `nvs check --count` prints the file-system work after the compile counts,
+/// and a two-file program's are exact: each file is read once, and each path
+/// is resolved a fixed number of times, so a change that resolves or reads a
+/// file again turns this red (`rule:testing/bench-counters`).
+#[test]
+fn count_reports_file_system_work() {
+    let dir = scratch("count-files");
+    fs::write(dir.join("nvs.toml"), "").unwrap();
+    fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nrequire \"lib.nvs\";\nCounter $c = new Counter();\necho $c->total, \"\\n\";\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("lib.nvs"),
+        "<?nvs\nclass Counter {\n    public int $total = 0;\n}\n",
+    )
+    .unwrap();
+
+    let out = check_in(&dir, &["--count", "main.nvs"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    let counts = compile_counts(&stderr);
+    let files: Vec<(&str, u64)> = counts[4..]
+        .iter()
+        .map(|(name, value)| (name.as_str(), *value))
+        .collect();
+    assert_eq!(
+        files,
+        [
+            ("resolved", 8),
+            ("read", 2),
+            ("listed", 0),
+            ("settings", 1),
+            ("programs", 0)
+        ],
+        "{stderr}"
+    );
 }
 
 /// `rule:testing/bench-counters`: two counted runs of one program print the

@@ -274,6 +274,7 @@ fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
         Work {
             parsed: 1,
             checked: 1,
+            files: work.files,
         },
         "a keystroke in a program nothing else reads is one analysis of its own file"
     );
@@ -473,6 +474,7 @@ fn a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_
         Work {
             parsed: 1,
             checked: 1,
+            files: work.files,
         }
     );
 }
@@ -830,11 +832,13 @@ fn a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry() {
         "opening a document queued other entries: {:?}",
         waiting(&index)
     );
+    let work = index.take_work();
     assert_eq!(
-        index.take_work(),
+        work,
         Work {
             parsed: graph,
             checked: graph,
+            files: work.files,
         },
         "one analysis of the open document's graph, and no other"
     );

@@ -41,6 +41,17 @@ switch only where they wait. The attribute's options are
 `crates/nvs-types/src/testing.rs`'s `BENCH_OPTIONS`, and a bench's rows are
 `crates/nvs-cli/src/runner.rs`'s `Rows`.
 
+**The compiler counts its file-system work too.** `nvs check --count` and `nvs run --count` print a
+`compile:` line before any run row: what each phase produced (`tokens`, `nodes`, `names`, `exprs`, and
+`ir` for a command that lowers), then `resolved` (paths made canonical), `read` (source files read),
+`listed` (directories listed), `settings` (configuration files read to be parsed) and `programs`
+(programs walked to find which one lends its `autoload` map). The language server's index sums the
+same five per entry in its `Work`, beside the files it parsed and checked. Each is counted in the one
+function that does the work, on a thread-local counter, and the module doc of `nvs_diagnostics::work`
+names each site. A test reads a delta around its own work, so tests on several threads never share a
+count. A count is the same on every machine, so a test bounds it per file: a path resolved twice is a
+red test, and a slow disk is not.
+
 **Declined:**
 - **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
   produces a number CI cannot gate on. The counters cost less and produce one it can.
