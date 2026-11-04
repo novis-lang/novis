@@ -3207,15 +3207,19 @@ impl Program {
         )?;
         // A folder's generated entry requires every file, so each one is checked. A test request
         // runs only the file a served request runs, and never a script under `jobs/` or `bin/`.
+        // Only a file with the served file's name is resolved, so a directory
+        // of tests resolves one path here, not one per file.
         if let Self::Directory { dir, .. } = self {
-            let served =
-                nvs_diagnostics::canonical_key(&dir.join(nvs_config::mount::IMPLICIT_ENTRY));
+            let named = dir.join(nvs_config::mount::IMPLICIT_ENTRY);
+            let mut served = None;
             checked.request = checked.files.iter().map(|file| file.id).find(|&id| {
-                checked
-                    .map
-                    .file(id)
-                    .path()
-                    .is_some_and(|path| nvs_diagnostics::canonical_key(path) == served)
+                checked.map.file(id).path().is_some_and(|path| {
+                    path.file_name()
+                        .zip(named.file_name())
+                        .is_some_and(|(name, served)| name.eq_ignore_ascii_case(served))
+                        && nvs_diagnostics::canonical_key(path)
+                            == *served.get_or_insert_with(|| nvs_diagnostics::canonical_key(&named))
+                })
             });
         }
         Ok(checked)
@@ -3350,15 +3354,34 @@ fn unrequired(entry: &std::path::Path, dir: &std::path::Path, files: &[PathBuf])
         nvs_hir::CoreRoster::Trusted,
         &mut diags,
     );
-    let required: std::collections::HashSet<PathBuf> = loaded
+    // A file is resolved only when its name is the name of a file another one
+    // requires, so a directory where one file requires the bootstrap resolves
+    // two paths, not one per file.
+    let targets: Vec<&std::path::Path> = loaded
         .iter()
         .filter(|file| file.id != id)
         .flat_map(|file| file.requires.iter().map(|&(_, target)| target))
-        .filter_map(|target| map.file(target).path().map(nvs_diagnostics::canonical_key))
+        .filter_map(|target| map.file(target).path())
         .collect();
+    let mut required: Option<std::collections::HashSet<PathBuf>> = None;
     files
         .iter()
-        .filter(|file| !required.contains(&nvs_diagnostics::canonical_key(file)))
+        .filter(|file| {
+            !targets.iter().any(|target| {
+                target
+                    .file_name()
+                    .zip(file.file_name())
+                    .is_some_and(|(target, file)| target.eq_ignore_ascii_case(file))
+            })
+                || !required
+                    .get_or_insert_with(|| {
+                        targets
+                            .iter()
+                            .map(|target| nvs_diagnostics::canonical_key(target))
+                            .collect()
+                    })
+                    .contains(&nvs_diagnostics::canonical_key(file))
+        })
         .cloned()
         .collect()
 }

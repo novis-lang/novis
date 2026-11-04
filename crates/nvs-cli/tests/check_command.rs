@@ -370,6 +370,52 @@ fn count_reports_file_system_work() {
     );
 }
 
+/// A directory of test files and a bootstrap that requires a library is one
+/// program. Learning which file another one requires resolves the library's
+/// path, not every file's. So each test file added costs the resolutions of
+/// the two walks that read it and no more (`rule:testing/bench-counters`).
+#[test]
+fn a_directory_check_resolves_only_what_a_file_requires() {
+    let resolved = |tests: u64| -> u64 {
+        let dir = scratch(&format!("count-directory-{tests}"));
+        fs::write(dir.join("nvs.toml"), "").unwrap();
+        let under = dir.join("tests");
+        fs::create_dir_all(&under).unwrap();
+        fs::write(under.join("bootstrap.nvs"), "<?nvs\nrequire 'lib.nvs';\n").unwrap();
+        fs::write(
+            under.join("lib.nvs"),
+            "<?nvs\nclass Counter {\n    public int $total = 0;\n}\n",
+        )
+        .unwrap();
+        for at in 1..=tests {
+            fs::write(
+                under.join(format!("Test{at}.nvs")),
+                format!(
+                    "<?nvs\nfinal class Test{at} {{\n    public function total(): int {{\n        \
+                     return (new Counter())->total;\n    }}\n}}\n"
+                ),
+            )
+            .unwrap();
+        }
+        let out = check_in(&dir, &["--count", "tests"]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{stderr}");
+        compile_counts(&stderr)
+            .iter()
+            .find(|(name, _)| name == "resolved")
+            .map(|(_, value)| *value)
+            .unwrap_or_else(|| panic!("`--count` counts `resolved`: {stderr}"))
+    };
+    let (eight, sixteen) = (resolved(8), resolved(16));
+    // Today's six per test file are the two walks' own. Resolving every file
+    // to compare it with what the bootstrap requires made it seven.
+    assert_eq!(
+        sixteen - eight,
+        8 * 6,
+        "{eight} for 8 test files, {sixteen} for 16"
+    );
+}
+
 /// `rule:testing/bench-counters`: two counted runs of one program print the
 /// same count line, collections included. The program makes cycles under a
 /// small ceiling, so the in-flight collector runs, and `gc=` is not zero. The
