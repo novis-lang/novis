@@ -263,3 +263,69 @@ fn openformula_and_a1_text_translate_both_ways() {
     assert_eq!(openformula::to_a1("of:=[.A1"), None);
     assert_eq!(openformula::to_a1("of:=\"open"), None);
 }
+
+#[test]
+fn color_and_general_keywords_in_any_case_and_a_condition_section_render() {
+    // A colour in any case is dropped from the text.
+    assert_eq!(render("[RED]0", 12.0), "12");
+    assert_eq!(render("[Red]0", 12.0), "12");
+    assert_eq!(render("[red]0", -12.0), "-12");
+    // `General` is read in any case.
+    assert_eq!(render("GENERAL", 1234.5), "1234.5");
+    assert_eq!(render("general", 1234.5), "1234.5");
+    assert_eq!(render("General", 1234.5), "1234.5");
+    // A number up to 9999999 takes the first section, and a larger one the second.
+    let phone = "[<=9999999]###-####;(###) ###-####";
+    assert_eq!(render(phone, 5551234.0), "555-1234");
+    assert_eq!(render(phone, 2125551234.0), "(212) 555-1234");
+}
+
+#[test]
+fn a_fraction_code_with_a_zero_denominator_renders_without_a_panic() {
+    // A denominator of `0` is a placeholder, so the closest one-digit denominator is used.
+    assert_eq!(render("?/0", 1.5), "3/2");
+    assert_eq!(render("?/0", 0.25), "1/4");
+    assert_eq!(render("# ?/0", 1.5), "1 1/2");
+}
+
+#[test]
+fn a_system_long_date_code_renders_as_a_long_date() {
+    // `[$-F800]` names no locale, so the names come from the read's locale.
+    let code = "[$-F800]dddd, mmmm dd, yyyy";
+    assert_eq!(render(code, MONDAY), "Monday, January 15, 2024");
+    assert_eq!(in_locale(code, MONDAY, "de"), "Montag, Januar 15, 2024");
+}
+
+/// A code of 8N characters renders at most four times as slowly per character as one of N.
+/// The fastest of three runs of each is kept, and the two run in turn so both see the same load
+/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run).
+#[test]
+fn a_fifty_thousand_character_format_code_renders_in_linear_time() {
+    // Each piece is a quoted text, an escaped letter, a plain letter and a `_)` space.
+    const PIECE: &str = "\"ab\"\\cx_)";
+    let code = |pieces: usize| format!("0{}", PIECE.repeat(pieces));
+    let (small, large) = (code(700), code(5_600));
+    assert!(
+        large.len() >= 50_000,
+        "the code has {} characters",
+        large.len()
+    );
+    assert_eq!(render(&large, 2.0), format!("2{}", "abcx ".repeat(5_600)));
+    let time = |code: &str| {
+        let started = std::time::Instant::now();
+        for _ in 0..10 {
+            std::hint::black_box(render(std::hint::black_box(code), 2.0));
+        }
+        started.elapsed()
+    };
+    let (mut fastest_small, mut fastest_large) =
+        (std::time::Duration::MAX, std::time::Duration::MAX);
+    for _ in 0..3 {
+        fastest_small = fastest_small.min(time(&small));
+        fastest_large = fastest_large.min(time(&large));
+    }
+    assert!(
+        fastest_large < fastest_small * 32,
+        "N took {fastest_small:?} and 8N {fastest_large:?}"
+    );
+}

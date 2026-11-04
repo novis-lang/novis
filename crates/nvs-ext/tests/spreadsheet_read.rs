@@ -195,6 +195,17 @@ fn package_with(
     extra: &[(&str, Vec<u8>)],
     book_tail: &str,
 ) -> Vec<u8> {
+    package_styled(sheets, shared, extra, book_tail, STYLES)
+}
+
+/// The package [`package_with`] makes, with `styles` as its styles part.
+fn package_styled(
+    sheets: &[Sheet<'_>],
+    shared: &[&str],
+    extra: &[(&str, Vec<u8>)],
+    book_tail: &str,
+    styles: &str,
+) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let mut book =
@@ -248,7 +259,7 @@ fn package_with(
         ),
         ("xl/workbook.xml".to_owned(), book.into_bytes()),
         ("xl/_rels/workbook.xml.rels".to_owned(), rels.into_bytes()),
-        ("xl/styles.xml".to_owned(), STYLES.as_bytes().to_vec()),
+        ("xl/styles.xml".to_owned(), styles.as_bytes().to_vec()),
         ("xl/sharedStrings.xml".to_owned(), sst.into_bytes()),
     ];
     all.extend(parts);
@@ -5437,6 +5448,184 @@ fn an_ods_number_style_with_three_leading_zeros_formats_as_written() {
     assert_eq!(
         shown,
         vec![(&string("007"), &integer(7)), (&string("007"), &integer(7)),]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A time of day with its milliseconds.
+fn time_ms(hour: i64, minute: i64, second: i64, ms: i64) -> Value {
+    core(
+        "Core\\Time\\TimeOfDay",
+        &[
+            ("hour", hour),
+            ("minute", minute),
+            ("second", second),
+            ("nanos", ms * 1_000_000),
+        ],
+    )
+}
+
+/// A date and time in no zone, as the reader gives it.
+fn clock(day: Value, time: Value) -> Value {
+    shape(vec![("day", day), ("clock", time)])
+}
+
+/// In a workbook with `date1904="1"`, serial 0 is 1904-01-01. A date, a date and time and a time
+/// read counted from that day.
+#[test]
+fn dates_in_a_1904_workbook_read_as_their_days() {
+    // Style 1 is a date, 2 a date and time, and 3 a time. 43844 is 2024-01-15 in the 1904
+    // system, and 45306 is the same day in the 1900 system.
+    let data = row(
+        1,
+        &[
+            ("", 1, "<v>0</v>"),
+            ("", 1, "<v>43844</v>"),
+            ("", 2, "<v>43844.75</v>"),
+            ("", 2, "<v>0.5</v>"),
+            ("", 3, "<v>0.5208333333333334</v>"),
+        ],
+    );
+    let read = Read::open(package_with(
+        &[sheet("Shop", data)],
+        &[],
+        &[],
+        r#"<workbookPr date1904="1"/>"#,
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![
+                (1, shape(vec![("date", date(1904, 1, 1))])),
+                (2, shape(vec![("date", date(2024, 1, 15))])),
+                (3, clock(date(2024, 1, 15), time(18, 0, 0))),
+                (4, clock(date(1904, 1, 1), time(12, 0, 0))),
+                (5, shape(vec![("time", time(12, 30, 0))])),
+            ]
+        )]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// The reader gives a date and time as the clock time the file stores, in no zone. A time that a
+/// daylight saving change skips or repeats in `Europe/Vienna` is given unchanged. The `zone` a
+/// read names is applied after this, by `Core\Time\DateTime::withTime`.
+#[test]
+fn a_date_time_in_a_daylight_saving_gap_or_overlap_reads_as_one_instant() {
+    // 2024-03-31 02:30 does not exist in Vienna, and 2024-10-27 02:30 happens twice.
+    let gap = format!("<v>{}</v>", 45_382.0 + 2.5 / 24.0);
+    let overlap = format!("<v>{}</v>", 45_592.0 + 2.5 / 24.0);
+    let data = row(1, &[("", 2, &gap), ("", 2, &overlap)]);
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0].1,
+        vec![
+            (1, clock(date(2024, 3, 31), time(2, 30, 0))),
+            (2, clock(date(2024, 10, 27), time(2, 30, 0))),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A serial is rounded to the nearest millisecond, and the milliseconds are kept in the time.
+#[test]
+fn milliseconds_in_a_serial_read_into_the_time_of_day() {
+    // 45,296,789 ms is 12:34:56.789.
+    let exact = format!("<v>{}</v>", 45_296_789.0 / 86_400_000.0);
+    let rounded_up = format!("<v>{}</v>", 45_296_789.6 / 86_400_000.0);
+    let dated = format!("<v>{}</v>", 45_306.0 + 45_296_789.0 / 86_400_000.0);
+    let next_day = format!("<v>{}</v>", 45_306.0 + 86_399_999.6 / 86_400_000.0);
+    let data = row(
+        1,
+        &[
+            ("", 3, &exact),
+            ("", 3, &rounded_up),
+            ("", 2, &dated),
+            ("", 2, &next_day),
+        ],
+    );
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0].1,
+        vec![
+            (1, shape(vec![("time", time_ms(12, 34, 56, 789))])),
+            (2, shape(vec![("time", time_ms(12, 34, 56, 790))])),
+            (3, clock(date(2024, 1, 15), time_ms(12, 34, 56, 789))),
+            // 23:59:59.9996 rounds to midnight of the next day.
+            (4, clock(date(2024, 1, 16), time(0, 0, 0))),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A cell with a percent format reads as its stored fraction. Its text shows the percent.
+#[test]
+fn a_percent_cell_reads_as_its_fraction() {
+    // Style 1 is the built-in format 9, `0%`. Style 2 is the custom format `0.00%`.
+    let styles = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00%"/></numFmts>
+<cellXfs count="3"><xf numFmtId="0"/><xf numFmtId="9" applyNumberFormat="1"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs>
+</styleSheet>"#;
+    let data = row(
+        1,
+        &[
+            ("", 1, "<v>0.25</v>"),
+            ("", 2, "<v>0.25</v>"),
+            ("", 1, "<v>1</v>"),
+        ],
+    );
+    let read = Read::open(package_styled(&[sheet("Shop", data)], &[], &[], "", styles));
+    let batch = read.batch(
+        with(&options("Shop"), &[("textAll", Value::Bool(true))]),
+        10,
+    );
+    let cells = entries(field(entries(field(&batch, "rows"))[0], "cells"));
+    let shown: Vec<(&Value, &Value)> = cells
+        .into_iter()
+        .map(|cell| (field(cell, "value"), field(cell, "display")))
+        .collect();
+    assert_eq!(
+        shown,
+        vec![
+            (&number(0.25), &string("25%")),
+            (&number(0.25), &string("25.00%")),
+            (&integer(1), &string("100%")),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A formula with a text result stores it as `t="str"`. The stored result reads as that text,
+/// with its leading zeros.
+#[test]
+fn a_cached_text_result_keeps_its_leading_zeros() {
+    let data = row(
+        1,
+        &[
+            ("str", 0, r#"<f>TEXT(123,"00000")</f><v>00123</v>"#),
+            ("str", 0, "<f>B2&amp;\"\"</f><v>0.50</v>"),
+        ],
+    );
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0].1,
+        vec![(1, text("00123")), (2, text("0.50"))]
+    );
+    let batch = read.batch(
+        Options {
+            formulas: true,
+            ..options("Shop")
+        }
+        .value(),
+        10,
+    );
+    let first = entries(field(entries(field(&batch, "rows"))[0], "cells"))[0];
+    assert_eq!(field(first, "value"), &text("00123"));
+    assert_eq!(
+        field(first, "formula"),
+        &Value::String(r#"TEXT(123,"00000")"#.to_owned())
     );
     block_on(read.request.end()).expect("the request ends");
 }

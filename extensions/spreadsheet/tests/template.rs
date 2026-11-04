@@ -1113,3 +1113,223 @@ fn a_lower_case_reference_in_a_template_formula_is_shifted() {
     let sheet = &parts(&out)["xl/worksheets/sheet1.xml"];
     assert!(sheet.contains("<f>d8+Summary!b2</f>"), "{sheet}");
 }
+
+#[test]
+fn relative_and_quoted_sheet_names_are_shifted() {
+    let on = |sheet: &str| {
+        [Shift {
+            sheet: sheet.to_owned(),
+            top: 5,
+            bottom: 5,
+            delta: 10,
+            copy: None,
+        }]
+    };
+    let shop = on("Shop");
+    let cases = [
+        ("A6", "A16"),
+        ("Shop!A6", "Shop!A16"),
+        ("'Shop'!A6", "'Shop'!A16"),
+        ("shop!$A$6", "shop!$A$16"),
+        ("SUM('Shop'!A5:A5)", "SUM('Shop'!A5:A15)"),
+        ("'Shop Data'!A6", "'Shop Data'!A6"),
+        ("Other!A6", "Other!A6"),
+    ];
+    for (before, after) in cases {
+        assert_eq!(shift::apply(before, "Shop", &shop), after, "{before}");
+    }
+    assert_eq!(
+        shift::apply("A6+'Shop'!A6", "Other", &shop),
+        "A6+'Shop'!A16"
+    );
+    assert_eq!(
+        shift::apply("A6+'Shop Data'!$A$6+Shop!A6", "Shop Data", &on("Shop Data")),
+        "A16+'Shop Data'!$A$16+Shop!A6"
+    );
+
+    // The filled sheet is named `Shop Data`, so every reference to it needs quotes.
+    let summary = concat!(
+        r#"<row r="1"><c r="B1"><f>'Shop Data'!D6</f><v>0</v></c></row>"#,
+        r#"<row r="2"><c r="B2"><v>10</v></c></row>"#,
+        r#"<row r="3"><c r="B3"><f>SUM('Shop Data'!D5:D5)+Shop!D6</f><v>0</v></c></row>"#,
+    );
+    let rows = INVOICE.replace(
+        "<f>D6+Summary!B2</f>",
+        "<f>D6+'Shop Data'!D6+'Summary'!B2</f>",
+    );
+    let base = template_with(&rows, summary, "", false);
+    let workbook = parts(&base)["xl/workbook.xml"]
+        .replace(r#"name="Invoice""#, r#"name="Shop Data""#)
+        .replace(">Invoice!$A$1:$D$8<", ">'Shop Data'!$A$1:$D$8<");
+    let out = fill(
+        &replaced(&base, "xl/workbook.xml", &workbook),
+        &[],
+        header(),
+        &[("items", (1..=3).map(item).collect())],
+    )
+    .unwrap();
+    let parts = parts(&out);
+    let sheet = &parts["xl/worksheets/sheet1.xml"];
+    assert!(
+        sheet.contains("<f>D8+'Shop Data'!D8+'Summary'!B2</f>"),
+        "{sheet}"
+    );
+    let summary = &parts["xl/worksheets/sheet2.xml"];
+    assert!(
+        summary.contains("<f>'Shop Data'!D8</f>")
+            && summary.contains("<f>SUM('Shop Data'!D5:D7)+Shop!D6</f>"),
+        "{summary}"
+    );
+    let workbook = &parts["xl/workbook.xml"];
+    assert!(
+        workbook.contains(r#"localSheetId="0">'Shop Data'!$A$1:$D$10</definedName>"#),
+        "{workbook}"
+    );
+}
+
+#[test]
+fn a_quoted_sheet_name_that_looks_like_a_cell_is_not_shifted_as_a_cell() {
+    let on = |sheet: &str| {
+        [Shift {
+            sheet: sheet.to_owned(),
+            top: 5,
+            bottom: 5,
+            delta: 10,
+            copy: None,
+        }]
+    };
+    // The filled sheet is `Data`: a sheet named like a cell is another sheet, and stays.
+    let data = on("Data");
+    let cases = [
+        ("'A1'!B6", "'A1'!B6"),
+        ("'R2C3'!B6+B6", "'R2C3'!B6+B16"),
+        ("'A6'!A6", "'A6'!A6"),
+        ("SUM('A6'!A5:A6)*A6", "SUM('A6'!A5:A6)*A16"),
+    ];
+    for (before, after) in cases {
+        assert_eq!(shift::apply(before, "Data", &data), after, "{before}");
+    }
+    // The filled sheet is named `A6`: only the cell part after `!` moves.
+    let a6 = on("A6");
+    let cases = [
+        ("'A6'!A6", "'A6'!A16"),
+        ("'a6'!B6:B7", "'a6'!B16:B17"),
+        ("'A6'!A5", "'A6'!A5"),
+        ("A6", "A6"),
+    ];
+    for (before, after) in cases {
+        assert_eq!(shift::apply(before, "Data", &a6), after, "{before}");
+    }
+    assert_eq!(shift::apply("A6+'A1'!A6", "A6", &a6), "A16+'A1'!A6");
+
+    // In a fill, the sheet `Summary` is renamed `A6`, and the invoice is the filled sheet.
+    let rows = INVOICE.replace("<f>D6+Summary!B2</f>", "<f>D6+'A6'!D6</f>");
+    let base = template(&rows, "", false);
+    let workbook = parts(&base)["xl/workbook.xml"].replace(r#"name="Summary""#, r#"name="A6""#);
+    let out = fill(
+        &replaced(&base, "xl/workbook.xml", &workbook),
+        &[],
+        header(),
+        &[("items", (1..=3).map(item).collect())],
+    )
+    .unwrap();
+    let parts = parts(&out);
+    let sheet = &parts["xl/worksheets/sheet1.xml"];
+    assert!(sheet.contains("<f>D8+'A6'!D6</f>"), "{sheet}");
+    let summary = &parts["xl/worksheets/sheet2.xml"];
+    assert!(summary.contains("<f>Invoice!D8</f>"), "{summary}");
+}
+
+/// Every part of the zip `bytes`, by name, as its bytes.
+fn binary_parts(bytes: &[u8]) -> BTreeMap<String, Vec<u8>> {
+    let source = Bytes(bytes.to_vec());
+    let directory = Directory::read(&source, Bound::default()).unwrap();
+    directory
+        .entries()
+        .iter()
+        .map(|entry| (entry.name.clone(), directory.whole(&source, entry).unwrap()))
+        .collect()
+}
+
+#[test]
+fn media_header_images_and_note_drawings_are_copied_unchanged() {
+    // The image bytes are not UTF-8, as a real image's are not.
+    let png: Vec<u8> = vec![
+        0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0xff, 0xfe, 0x80,
+        0x00,
+    ];
+    let header_vml = r##"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="2"/></o:shapelayout><v:shape id="CH" o:spid="_x0000_s2049" type="#_x0000_t75" style="position:absolute;margin-left:0;margin-top:0;width:96pt;height:48pt;z-index:1"><v:imagedata o:relid="rId1" o:title="logo"/><o:lock v:ext="edit" rotation="t"/></v:shape></xml>"##;
+    let header_rels = r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>"#;
+    // A note on A1, above the repeated row 5: its rows 0 to 3 do not move.
+    let note_vml = r##"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:x="urn:schemas-microsoft-com:office:excel"><v:shape type="#_x0000_t202"><x:ClientData ObjectType="Note"><x:Anchor>1, 15, 0, 2, 3, 15, 3, 16</x:Anchor><x:Row>0</x:Row><x:Column>0</x:Column></x:ClientData></v:shape></xml>"##;
+    let comments = r#"<?xml version="1.0" encoding="UTF-8"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Shop</author></authors><commentList><comment ref="A1" authorId="0"><text><t>Top</t></text></comment></commentList></comments>"#;
+    let extra = concat!(
+        r#"<headerFooter><oddHeader>&amp;C&amp;G</oddHeader></headerFooter>"#,
+        r#"<legacyDrawing r:id="rId3"/><legacyDrawingHF r:id="rId5"/>"#,
+    );
+    let sheet_rels = concat!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/>"#,
+        r#"<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing1.vml"/>"#,
+        r#"<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments1.xml"/>"#,
+        r#"<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing2.vml"/>"#,
+        r#"</Relationships>"#,
+    );
+    let mut all = binary_parts(&template(INVOICE, "", false));
+    let added: [(&str, Vec<u8>); 7] = [
+        (
+            "xl/worksheets/sheet1.xml",
+            sheet(INVOICE)
+                .replace("<drawing ", &format!("{extra}<drawing "))
+                .into_bytes(),
+        ),
+        (
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            sheet_rels.as_bytes().to_vec(),
+        ),
+        ("xl/comments1.xml", comments.as_bytes().to_vec()),
+        ("xl/drawings/vmlDrawing1.vml", note_vml.as_bytes().to_vec()),
+        (
+            "xl/drawings/vmlDrawing2.vml",
+            header_vml.as_bytes().to_vec(),
+        ),
+        (
+            "xl/drawings/_rels/vmlDrawing2.vml.rels",
+            header_rels.as_bytes().to_vec(),
+        ),
+        ("xl/media/image1.png", png.clone()),
+    ];
+    for (name, bytes) in &added {
+        all.insert((*name).to_owned(), bytes.clone());
+    }
+    let mut archive = Archive::new();
+    for (name, bytes) in &all {
+        archive.begin(name).unwrap();
+        archive.write(bytes).unwrap();
+        archive.end().unwrap();
+    }
+    archive.close().unwrap();
+    let out = fill(
+        &archive.take(),
+        &[],
+        header(),
+        &[("items", (1..=3).map(item).collect())],
+    )
+    .unwrap();
+    let after = binary_parts(&out);
+    for name in [
+        "xl/media/image1.png",
+        "xl/drawings/vmlDrawing1.vml",
+        "xl/drawings/vmlDrawing2.vml",
+        "xl/drawings/_rels/vmlDrawing2.vml.rels",
+        "xl/comments1.xml",
+    ] {
+        assert_eq!(after.get(name), all.get(name), "{name}");
+    }
+    let sheet = String::from_utf8(after["xl/worksheets/sheet1.xml"].clone()).unwrap();
+    assert!(sheet.contains(extra), "{sheet}");
+    let rels = String::from_utf8(after["xl/worksheets/_rels/sheet1.xml.rels"].clone()).unwrap();
+    assert!(
+        rels.contains(r#"Id="rId5""#) && rels.contains("vmlDrawing2.vml"),
+        "{rels}"
+    );
+}

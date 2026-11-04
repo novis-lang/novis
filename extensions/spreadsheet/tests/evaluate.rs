@@ -782,3 +782,316 @@ fn text_that_needs_a_locale_to_be_a_number_is_listed_and_keeps_its_stored_value(
     assert_eq!(get(&book, "Shop!B7"), text("7"));
     assert_eq!(Kind::Coercion.as_str(), "coercion");
 }
+
+#[test]
+fn sheet_names_with_apostrophes_bangs_and_non_latin_letters_parse() {
+    let p = |t: &str| parse::parse(t).unwrap();
+    assert_eq!(p("='Shop''s'!A1"), area(Some("Shop's"), 1, 1, 1, 1));
+    assert_eq!(p("='Q1!Sales'!A1"), area(Some("Q1!Sales"), 1, 1, 1, 1));
+    assert_eq!(p("='Продажи'!A1"), area(Some("Продажи"), 1, 1, 1, 1));
+    assert_eq!(p("=Продажи!B1"), area(Some("Продажи"), 1, 2, 1, 2));
+    let mut book = book(
+        &["Summary", "Shop's", "Q1!Sales", "Продажи"],
+        &[
+            ("Summary", "A1", "='Shop''s'!A1"),
+            ("Summary", "A2", "='Q1!Sales'!A1"),
+            ("Summary", "A3", "='Продажи'!A1"),
+            ("Summary", "A4", "=Продажи!B1"),
+        ],
+    );
+    put(&mut book, "Shop's", "A1", n(1.0));
+    put(&mut book, "Q1!Sales", "A1", n(2.0));
+    put(&mut book, "Продажи", "A1", n(3.0));
+    put(&mut book, "Продажи", "B1", text("четыре"));
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "Summary!A1"), n(1.0));
+    assert_eq!(get(&book, "Summary!A2"), n(2.0));
+    assert_eq!(get(&book, "Summary!A3"), n(3.0));
+    assert_eq!(get(&book, "Summary!A4"), text("четыре"));
+}
+
+#[test]
+fn whole_column_ranges_and_chained_ranges_parse() {
+    let p = |t: &str| parse::parse(t).unwrap();
+    assert_eq!(
+        p("=SUM(Sheet2!$B:$B)"),
+        Expr::Call("SUM".into(), vec![area(Some("Sheet2"), 1, 2, 1_048_576, 2)])
+    );
+    assert_eq!(
+        p("=A1:B2:C3"),
+        Expr::Binary(
+            Binary::Range,
+            boxed(area(None, 1, 1, 2, 2)),
+            boxed(area(None, 3, 3, 3, 3))
+        )
+    );
+    let mut book = book(
+        &["Sheet1", "Sheet2"],
+        &[
+            ("Sheet1", "E1", "=SUM(Sheet2!$B:$B)"),
+            ("Sheet1", "E2", "=SUM(A1:B2:C3)"),
+        ],
+    );
+    put(&mut book, "Sheet2", "B1", n(1.0));
+    put(&mut book, "Sheet2", "B1000000", n(2.0));
+    put(&mut book, "Sheet2", "C1", n(100.0));
+    // `C1` is outside `A1:B2` and outside `C3`, but inside the box `A1:C3`.
+    for (cell, value) in [
+        ("A1", 1.0),
+        ("B2", 2.0),
+        ("C1", 4.0),
+        ("C3", 8.0),
+        ("D4", 16.0),
+    ] {
+        put(&mut book, "Sheet1", cell, n(value));
+    }
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "Sheet1!E1"), n(3.0));
+    assert_eq!(get(&book, "Sheet1!E2"), n(15.0));
+}
+
+#[test]
+fn an_empty_argument_is_evaluated_as_excel_does() {
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "A1", "=SUM(1,)"),
+            ("Sheet1", "A2", "=IF(FALSE,1,)"),
+            ("Sheet1", "A3", "=IF(TRUE,,1)"),
+        ],
+    );
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "A1"), n(1.0));
+    assert_eq!(get(&book, "A2"), n(0.0));
+    assert_eq!(get(&book, "A3"), n(0.0));
+}
+
+#[test]
+fn a_string_that_looks_like_a_reference_stays_a_string() {
+    assert_eq!(parse::parse("=\"A1\"").unwrap(), Expr::Text("A1".into()));
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "C1", "=\"A1\""),
+            ("Sheet1", "C2", "=LEN(\"B2:C3\")"),
+        ],
+    );
+    put(&mut book, "Sheet1", "A1", n(42.0));
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "C1"), text("A1"));
+    assert_eq!(get(&book, "C2"), n(5.0));
+}
+
+#[test]
+fn names_that_look_like_cells_or_have_dots_or_non_ascii_letters_parse() {
+    let p = |t: &str| parse::parse(t).unwrap();
+    for name in ["A1B", "R1C", "x.y", "Größe"] {
+        assert_eq!(
+            p(&format!("={name}")),
+            Expr::Name(None, name.into()),
+            "{name}"
+        );
+    }
+    let mut book = book(&["Sheet1"], &[]);
+    for (name, value) in [("A1B", "1"), ("R1C", "2"), ("x.y", "4"), ("Größe", "8")] {
+        book.define(Name {
+            name: name.into(),
+            sheet: None,
+            text: value.into(),
+        });
+    }
+    put_formula(&mut book, "Sheet1", "D1", "=A1B+R1C+x.y+Größe", n(0.0));
+    put_formula(&mut book, "Sheet1", "D2", "=Größe", n(0.0));
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "D1"), n(15.0));
+    assert_eq!(get(&book, "D2"), n(8.0));
+}
+
+#[test]
+fn implicit_intersection_and_spill_references_are_listed() {
+    // Neither form is computed: each cell is listed and keeps the value the file stored.
+    let mut book = book(&["Sheet1"], &[]);
+    for (cell, value) in [("A1", 1.0), ("A2", 2.0), ("A3", 3.0)] {
+        put(&mut book, "Sheet1", cell, n(value));
+    }
+    for (cell, formula) in [
+        ("B1", "=@A1:A3"),
+        ("B2", "=A1#"),
+        ("B3", "=_xlfn.SINGLE(A1:A3)"),
+        ("B4", "=_xlfn.ANCHORARRAY(A1)"),
+    ] {
+        put_formula(&mut book, "Sheet1", cell, formula, n(9.0));
+    }
+    assert_eq!(
+        book.evaluate(),
+        [
+            missed("Sheet1!B1", Kind::Token, "=@A1:A3"),
+            missed("Sheet1!B2", Kind::Token, "=A1#"),
+            missed("Sheet1!B3", Kind::Function, "SINGLE"),
+            missed("Sheet1!B4", Kind::Function, "ANCHORARRAY"),
+        ]
+    );
+    for row in 1..=4 {
+        assert_eq!(get(&book, &format!("B{row}")), n(9.0));
+    }
+}
+
+#[test]
+fn chained_comparisons_evaluate_left_to_right() {
+    assert_eq!(
+        parse::parse("=1<2<3").unwrap(),
+        Expr::Binary(
+            Binary::Lt,
+            boxed(Expr::Binary(
+                Binary::Lt,
+                boxed(Expr::Number(1.0)),
+                boxed(Expr::Number(2.0))
+            )),
+            boxed(Expr::Number(3.0))
+        )
+    );
+    // `1<2` is TRUE, and a boolean compares greater than any number, so `TRUE<3` is FALSE.
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "A1", "=1<2<3"),
+            ("Sheet1", "A2", "=3>2>1"),
+            ("Sheet1", "A3", "=1=1=TRUE"),
+        ],
+    );
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "A1"), Value::Bool(false));
+    // `3>2` is TRUE, and `TRUE>1` is TRUE for the same reason.
+    assert_eq!(get(&book, "A2"), Value::Bool(true));
+    assert_eq!(get(&book, "A3"), Value::Bool(true));
+}
+
+#[test]
+fn an_empty_string_is_not_equal_to_zero() {
+    // Overlaps `operators_follow_excels_precedence_and_coercion` for an empty cell.
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "A1", "=\"\"=0"),
+            ("Sheet1", "A2", "=0=\"\""),
+            ("Sheet1", "A3", "=Z9=0"),
+            ("Sheet1", "A4", "=Z9=\"\""),
+            ("Sheet1", "A5", "=Z9=FALSE"),
+        ],
+    );
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "A1"), Value::Bool(false));
+    assert_eq!(get(&book, "A2"), Value::Bool(false));
+    assert_eq!(get(&book, "A3"), Value::Bool(true));
+    assert_eq!(get(&book, "A4"), Value::Bool(true));
+    assert_eq!(get(&book, "A5"), Value::Bool(true));
+}
+
+#[test]
+fn an_error_inside_a_range_gives_that_error() {
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "B2", "=#REF!"),
+            ("Sheet1", "C2", "=1/0"),
+            ("Sheet1", "D1", "=SUM(A1:A3)"),
+            ("Sheet1", "D2", "=SUM(B1:B3)"),
+            ("Sheet1", "D3", "=SUM(C1:C3)"),
+        ],
+    );
+    for col in ["A", "B", "C"] {
+        put(&mut book, "Sheet1", &format!("{col}1"), n(1.0));
+        put(&mut book, "Sheet1", &format!("{col}3"), n(2.0));
+    }
+    put(&mut book, "Sheet1", "A2", Value::Error(CellError::Ref));
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "D1"), Value::Error(CellError::Ref));
+    assert_eq!(get(&book, "D2"), Value::Error(CellError::Ref));
+    assert_eq!(get(&book, "D3"), Value::Error(CellError::DivZero));
+}
+
+#[test]
+fn ifs_switch_and_choose_evaluate_only_the_branch_taken() {
+    // `NOPE` is no function of the set: computing it would list the cell, so an empty list
+    // shows the branch was never computed.
+    let mut book = book(
+        &["Sheet1"],
+        &[
+            ("Sheet1", "A1", "=IFS(TRUE,1,1/0,2)"),
+            ("Sheet1", "A2", "=IFS(TRUE,1,NOPE(),NOPE())"),
+            ("Sheet1", "A3", "=SWITCH(1,1,\"a\",2,1/0)"),
+            ("Sheet1", "A4", "=SWITCH(1,1,\"a\",NOPE(),NOPE(),NOPE())"),
+            ("Sheet1", "A5", "=CHOOSE(1,\"x\",1/0)"),
+            ("Sheet1", "A6", "=CHOOSE(1,\"x\",NOPE())"),
+        ],
+    );
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "A1"), n(1.0));
+    assert_eq!(get(&book, "A2"), n(1.0));
+    assert_eq!(get(&book, "A3"), text("a"));
+    assert_eq!(get(&book, "A4"), text("a"));
+    assert_eq!(get(&book, "A5"), text("x"));
+    assert_eq!(get(&book, "A6"), text("x"));
+}
+
+#[test]
+fn rounddown_and_roundup_correct_binary_noise() {
+    let cases: &[(&str, f64)] = &[
+        ("=ROUNDDOWN(249.9975,0)", 249.0),
+        ("=ROUNDUP(280.000000000001,0)", 281.0),
+        ("=ROUNDUP(2.2*3,1)", 6.6),
+        ("=ROUNDDOWN(0.3-0.1,1)", 0.2),
+        ("=ROUNDUP(0.1+0.2,1)", 0.3),
+        ("=ROUNDDOWN(1.1*3,1)", 3.3),
+    ];
+    let mut book = Book::new();
+    book.sheet("Sheet1");
+    for (row, (formula, _)) in cases.iter().enumerate() {
+        put_formula(
+            &mut book,
+            "Sheet1",
+            &format!("A{}", row + 1),
+            formula,
+            n(0.0),
+        );
+    }
+    assert_eq!(book.evaluate(), []);
+    for (row, (formula, want)) in cases.iter().enumerate() {
+        assert_eq!(get(&book, &format!("A{}", row + 1)), n(*want), "{formula}");
+    }
+}
+
+#[test]
+fn subtotal_skips_hidden_rows_and_nested_subtotals() {
+    // Overlaps the SUBTOTAL cases in `evaluate/math.rs`, which have no nested or hidden rows.
+    let mut book = book(
+        &["Shown", "Hidden"],
+        &[
+            ("Shown", "A3", "=SUBTOTAL(9,A1:A2)"),
+            ("Shown", "A5", "=SUBTOTAL(9,A1:A4)"),
+            ("Shown", "A6", "=SUM(A1:A4)"),
+            ("Hidden", "A4", "=SUBTOTAL(109,A1:A3)"),
+            ("Hidden", "A5", "=SUBTOTAL(109,A1:A4)"),
+            ("Hidden", "A6", "=SUBTOTAL(9,A1:A3)"),
+        ],
+    );
+    for (cell, value) in [("A1", 1.0), ("A2", 2.0), ("A4", 4.0)] {
+        put(&mut book, "Shown", cell, n(value));
+    }
+    for (cell, value) in [("A1", 10.0), ("A2", 20.0), ("A3", 30.0)] {
+        put(&mut book, "Hidden", cell, n(value));
+    }
+    let hidden = book.sheet("Hidden");
+    book.hide_row(hidden, 2);
+    // Code 9 over a hidden row is listed: the file does not say whether a filter hid it.
+    assert_eq!(
+        book.evaluate(),
+        [missed("Hidden!A6", Kind::Function, "SUBTOTAL")]
+    );
+    assert_eq!(get(&book, "Shown!A3"), n(3.0));
+    assert_eq!(get(&book, "Shown!A5"), n(7.0));
+    assert_eq!(get(&book, "Shown!A6"), n(10.0));
+    assert_eq!(get(&book, "Hidden!A4"), n(40.0));
+    assert_eq!(get(&book, "Hidden!A5"), n(40.0));
+    assert_eq!(get(&book, "Hidden!A6"), n(0.0));
+}
