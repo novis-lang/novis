@@ -638,8 +638,8 @@ writes the Declined entries, then builds and runs both checks once all end.
 ### State
 
 Stage 2 is done: every item is ticked, and the `xlsx-reading` check is green. Its one code commit
-(495ad3f55) carries decisions 11 to 17, 21 and 22 and the eleven tests; the docs commit carries the
-read table, the sheet list rule, the `sheets` page and the manifest help. `rows` and `columns` of
+(495ad3f55) carries decisions 11 to 17, 21 and 22, the eleven tests and the manifest help; the docs
+commit carries the read table, the sheet list rule and the `sheets` page. `rows` and `columns` of
 `SheetInfo` are `?uint` in the WIT, the manifest's `readerSheets` return type and `Reader.nvs`; the
 typed list in `crates/nvs-ext/src/typed/spreadsheet.rs` names fields only and needed no edit. The two
 conformance cases that print sheet sizes still pass.
