@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/testing/a-test-has-a-wall-time-limit.md, docs/rules/testing/runner-is-strict.md, data/rules/testing/ci-lanes.json, benches/abi-probe/tests/perf_guards.rs]
   - id: 2
     title: "a time-limit stop is judged against what the watchdog measured in the same run"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/regex.rs, crates/nvs-host/src/slice.rs]
   - id: 3
     title: "the tests that failed in CI compare readings of one clock or the order of events"
@@ -146,6 +146,12 @@ the request path, which latency and throughput forbid. Instead:
   `tools/nv/proofs/run.ts` gets a new one, and its module doc names it.
 - Wall-time readings (`TIME_USED_RE`'s `wall` kind) are judged the same way.
 
+**One poll gap is `nvs_runtime::POLL_GAP`, one sweep interval of CPU time.** Measuring each gap
+would put a clock read on the request path, which is declined. A helper whose batch runs longer than
+one interval on a machine holds its core past a stop. That is a latency defect, so the runner reds
+it. A CPU bound is `threads * (interval + summed lateness + poll)`. A wall bound is the claim's
+lateness from the deadline plus one poll. A run with no sweep line explains no overshoot.
+
 **A safety-net limit in an attack is not the property it measures.** In
 `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` the 200 ms CPU limit exists to end the
 program if the 50 ms deadline is missed. The session finds why the CPU limit fired first on macOS:
@@ -220,19 +226,19 @@ each, with the bound.
 **Does:** the watchdog records how late each sweep woke, the proofs runner judges a time stop
 against it, and the six time-limit attacks are green.
 
-- [ ] Record each sweep's lateness against the wait it computed, in `Shared::sweep_and_wait`
+- [x] Record each sweep's lateness against the wait it computed, in `Shared::sweep_and_wait`
   (`crates/nvs-host/src/watchdog.rs:1313`) and `next_wait` (`crates/nvs-host/src/watchdog.rs:1551`).
   Write the two unit tests the `lateness-recorded` check names. They drive the computed wait and the
   wake instant directly, so they hold at any speed. `crates/nvs-host/src/watchdog.rs:1313`
-- [ ] Put the lateness of the sweeps between the crossing and the stop on the runner-only stderr line,
+- [x] Put the lateness of the sweeps between the crossing and the stop on the runner-only stderr line,
   where the CPU stop is raised (`crates/nvs-host/src/watchdog.rs:1373`), and the same for a wall-time
   stop. `crates/nvs-host/src/watchdog.rs:1373`
-- [ ] Replace `TIME_OVERSHOOT_SLACK_MS` with the explained bound in `timeOvershoot`, and write
+- [x] Replace `TIME_OVERSHOOT_SLACK_MS` with the explained bound in `timeOvershoot`, and write
   `tools/nv/test/proofs-time.test.ts` with the three tests the `overshoot-judged` check names.
   `tools/nv/proofs/run.ts:355`
-- [ ] Find why `Core\Task::all`'s CPU limit fired before its deadline, and fix it as § *Standing
+- [x] Find why `Core\Task::all`'s CPU limit fired before its deadline, and fix it as § *Standing
   decisions* says. `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs:1`
-- [ ] Run the `time-attacks-green` check's command once: green.
+- [x] Run the `time-attacks-green` check's command once: green.
 
 ### 3. the tests that failed in CI compare readings of one clock or the order of events
 
@@ -280,20 +286,36 @@ disjoint files run side by side, and none of them builds. The session builds onc
 
 ### State
 
-Stage 1 is done. `rule:testing/a-test-holds-at-any-speed` is in the rulebook
-(`docs/rules/testing/a-test-holds-at-any-speed.md:1`), listed in `data/rules/testing.json`, and
-`docs/agent/testing.md:28` points to it. The rule already names `timeOvershoot`'s explained bound,
-which stage 2 builds. No test is expected to go red from this stage.
+Stages 1 and 2 are done, and `lateness-recorded`, `overshoot-judged` and `time-attacks-green` are
+green here.
 
-The acceptance sweep's `env-secret-proofs` check is not defined anywhere in the tree, and
-`bun nv proofs --verify --only 'Core\Env::secret'` is green here. The nightly CI run it named
-(41428598621, a `schedule` run) was cancelled after three minutes; a newer nightly (41618735447)
-exists, and CI is the `ci-green` side loop's.
+- Each sweep records how late it woke against the wait the previous sweep computed (`lateness`,
+  `crates/nvs-host/src/watchdog.rs`, in `State::late`). A CPU stop writes
+  `nvs-proof-sweep: cpu late_us= interval_us= poll_us= threads=` from the watchdog's thread
+  (`watch`). A claimed wall-time stop writes a `wall` line from `nvs_runtime`
+  (`write_wall_sweep_line`, `crates/nvs-runtime/src/ctx/safepoint.rs`, and `Ctx::wall_time_breach`).
+  A CPU limit set below what was used writes a `cpu` line with no lateness
+  (`crates/nvs-runtime/src/ctx/limits.rs`). Lines are written only under `NVS_PROOF_SWEEPS`.
+- `tools/nv/proofs/run.ts`: `spawnProof` sets `SWEEP_ENV`, `spawnTimed` takes the lines out of stderr
+  into `Ran.sweeps` (`takeSweeps`), and `explainedMs` and `timeOvershoot` judge the stop.
+  `TIME_OVERSHOOT_SLACK_MS` is gone. `tools/nv/test/proofs-time.test.ts` is new, and the time cases
+  of `tools/nv/test/hostile-ending.test.ts` now carry sweep lines.
+- `Core\Task::all`: nightly 41618735447's macOS red tested `98845d922`, which is older than
+  `488791366` (the slice clock wakes on time on macOS). That was the cause, and it is fixed. The
+  attack's CPU safety net went from 200 ms to 1 s.
+
+The sweep's `env-secret-proofs` red is still stale: it has no log and no definition. The nightly's
+`supply chain` red is CI's, owned by the `ci-green` side loop. No test is expected to go red. A
+`.out` or a `judge` caller that reads stderr would no longer see a sweep line. That is intended, and
+nothing found reads one.
 
 ### Next
 
-Stage 2, from its first item: record each sweep's lateness in `Shared::sweep_and_wait`
-(`crates/nvs-host/src/watchdog.rs:1313`) and `next_wait` (`crates/nvs-host/src/watchdog.rs:1551`).
+Stage 3, from its first item: the watchdog charge test
+(`crates/nvs-host/src/watchdog.rs`, `a_thread_charges_each_request_for_its_own_time_with_slices_on`)
+compares each charge with the thread's own CPU-clock reading. Then the metrics gather, the
+`serve_isolation` limit handler and the `wall_time` case, as the stage lists. Its four fixes touch
+disjoint files.
 
 **Stage 4's list.** From an `Explore` sweep, so each anchor is a pointer to check. The five tests stage
 3 owns are left out. Kinds: a **lower** bound (`elapsed >= X`) only grows on a slow machine, so it holds
