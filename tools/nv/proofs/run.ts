@@ -322,10 +322,39 @@ export function overshoot(reading: MemoryReading): string | null {
   );
 }
 
-/** How far past its CPU or wall-time limit a request may get before its time `FATAL` is red: the
- * watchdog samples once per interval, and a native call reaches its next poll a little after the raise,
- * so a legitimate reading is a little over the limit. The bound is never raised to make an attack pass. */
-export const TIME_OVERSHOOT_SLACK_MS = 100;
+/** The variable every proof program runs with, so each time stop writes a sweep line
+ * (`nvs_runtime::SWEEP_LINES_ENV`). `spawnTimed` takes those lines out of stderr into `Ran.sweeps`. */
+export const SWEEP_ENV = "NVS_PROOF_SWEEPS";
+const SWEEP_PREFIX = "nvs-proof-sweep: ";
+const SWEEP_RE = /^nvs-proof-sweep: (cpu|wall) late_us=([0-9]+) interval_us=([0-9]+) poll_us=([0-9]+) threads=([0-9]+)$/;
+
+/** One stop's figures, as `nvs_runtime::write_sweep_line` writes them: how late the clock that stopped
+ * the request woke, the most CPU time one thread spends between two on-time sweeps, one poll gap, and
+ * the threads the tree was charged on. */
+export interface SweepLine {
+  kind: "cpu" | "wall";
+  lateUs: number;
+  intervalUs: number;
+  pollUs: number;
+  threads: number;
+}
+
+/** The sweep lines of a run's stderr, and the stderr without them. */
+export function takeSweeps(stderr: string): { stderr: string; sweeps: SweepLine[] } {
+  if (!stderr.includes(SWEEP_PREFIX)) return { stderr, sweeps: [] };
+  const sweeps: SweepLine[] = [];
+  const kept: string[] = [];
+  for (const line of stderr.split("\n")) {
+    const m = SWEEP_RE.exec(line.replace(/\r$/, ""));
+    if (!m) {
+      kept.push(line);
+      continue;
+    }
+    sweeps.push({ kind: m[1] as "cpu" | "wall", lateUs: Number(m[2]), intervalUs: Number(m[3]), pollUs: Number(m[4]), threads: Number(m[5]) });
+  }
+  return { stderr: kept.join("\n"), sweeps };
+}
+
 /** The reading of a time `FATAL`: `exceeded its CPU-time limit: N ms used of a limit of L ms`, or the
  * wall-time twin. A CPU limit the program set below what it had spent adds `, set when S ms were used`.
  * A `FATAL` that names its limit alone has no reading. */
@@ -338,27 +367,57 @@ export interface TimeReading {
   used: number;
   limit: number;
   crossed: number;
+  /** The run's sweep lines of this reading's kind: what explains how far `used` got past `crossed`. */
+  sweeps: SweepLine[];
 }
 
 /** The worst time reading in a run's output, by how far `used` is past `crossed`, or null when it has none. */
-export function timeReading(out: Ran): TimeReading | null {
+export function timeReading(out: Pick<Ran, "stdout" | "stderr" | "sweeps">): TimeReading | null {
   let worst: TimeReading | null = null;
   for (const m of (out.stderr + out.stdout).matchAll(TIME_USED_RE)) {
     const limit = Number(m[3]);
-    const reading = { kind: m[1] as "CPU" | "wall", used: Number(m[2]), limit, crossed: Math.max(limit, Number(m[4] ?? 0)) };
+    const kind = m[1] as "CPU" | "wall";
+    const sweeps = (out.sweeps ?? []).filter((s) => s.kind === (kind === "CPU" ? "cpu" : "wall"));
+    const reading = { kind, used: Number(m[2]), limit, crossed: Math.max(limit, Number(m[4] ?? 0)), sweeps };
     if (worst === null || reading.used - reading.crossed > worst.used - worst.crossed) worst = reading;
   }
   return worst;
 }
 
-/** Why a time reading is red, or null when it is within `crossed` plus `TIME_OVERSHOOT_SLACK_MS`. */
+/**
+ * How far past `crossed` a time stop may get, in milliseconds, from what the run measured. It is the
+ * code's own terms and the lateness the clocks measured in that run, and no constant of this file.
+ *
+ * - A CPU stop: each of the tree's threads runs at most one sweep interval past the crossing before
+ *   an on-time sweep reads it, plus how late each sweep that stopped it woke, plus one poll gap before it
+ *   reaches a poll. So the bound is `threads * (interval + sum of late + poll)`.
+ * - A wall-time stop: its line's `late` counts from the deadline itself, so the bound is the latest
+ *   claim's `late` plus one poll gap.
+ * - A run with no line of the reading's kind: nothing explains an overshoot, so the bound is zero.
+ *
+ * Each sweep's lateness is measured against the wait the watchdog computed, never against the interval.
+ * A change that makes it wait longer is not explained, and neither is a native call that stops polling.
+ */
+export function explainedMs(reading: TimeReading): number {
+  const lines = reading.sweeps.filter((s) => s.kind === (reading.kind === "CPU" ? "cpu" : "wall"));
+  if (lines.length === 0) return 0;
+  const poll = Math.max(...lines.map((s) => s.pollUs));
+  if (reading.kind === "wall") return (Math.max(...lines.map((s) => s.lateUs)) + poll) / 1000;
+  const threads = Math.max(1, ...lines.map((s) => s.threads));
+  const interval = Math.max(...lines.map((s) => s.intervalUs));
+  const late = lines.reduce((sum, s) => sum + s.lateUs, 0);
+  return (threads * (interval + late + poll)) / 1000;
+}
+
+/** Why a time reading is red, or null when what the run measured explains how far it got past `crossed`
+ * (`explainedMs`). */
 export function timeOvershoot(reading: TimeReading): string | null {
-  if (reading.used <= reading.crossed + TIME_OVERSHOOT_SLACK_MS) return null;
+  const over = reading.used - reading.crossed;
+  const bound = explainedMs(reading);
+  if (over <= bound) return null;
   const set = reading.crossed > reading.limit ? `, set when ${reading.crossed} ms were used` : "";
-  return (
-    `used ${reading.used} ms against a ${reading.kind}-time limit of ${reading.limit} ms${set}, ` +
-    `${reading.used - reading.crossed} ms over -- past the bound of the limit plus ${TIME_OVERSHOOT_SLACK_MS} ms`
-  );
+  const measured = reading.sweeps.length === 0 ? "the run wrote no sweep line to explain it" : `the sweeps it measured explain ${bound.toFixed(1)} ms`;
+  return `used ${reading.used} ms against a ${reading.kind}-time limit of ${reading.limit} ms${set}, ${over} ms over -- ${measured}`;
 }
 
 /** Whether the host killed the program. With no memory reading of its own, that means the host ran out
@@ -405,6 +464,8 @@ export interface Ran {
   /** The binary that ran, `argv[0]`: its default data folder is `.nvsdata` beside it. A verdict kept
    * from before the field existed has none. */
   exe?: string;
+  /** The time stops' sweep lines, taken out of `stderr` (`takeSweeps`). */
+  sweeps?: SweepLine[];
 }
 
 const sibling = (proof: string, suffix: string) => proof.replace(/\.(nvs|cmd)$/, suffix);
@@ -566,7 +627,7 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const vars = abs(sibling(proof, ".env"));
   const own = !scratch && existsSync(vars) ? envLines(readFileSync(vars, "utf8")) : {};
-  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...own, ...record?.env, ...recording };
+  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...own, ...record?.env, ...recording, [SWEEP_ENV]: "1" };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
   if (commandEnv) {
     for (const name of COMMAND_UNSET) delete env[name];
@@ -627,11 +688,12 @@ async function spawnTimed(argv: string[], env: Record<string, string | undefined
     const exited = await child.exited;
     // What a failed or killed program left running is killed with it, so it holds no pipe and no file.
     if (exited !== 0 || timedOut) tree.reap();
-    const [stdout, stderr] = await reading;
+    const [stdout, written] = await reading;
+    const { stderr, sweeps } = takeSweeps(written);
     // A program ended by a signal has no exit status of its own, and that is crash-shaped.
     const signal = child.signalCode && !timedOut ? String(child.signalCode) : undefined;
     const code = signal ? -1 : exited;
-    return { code, stdout, stderr, timedOut, ms: performance.now() - started, exe: argv[0]!, ...(signal ? { signal } : {}) };
+    return { code, stdout, stderr, timedOut, ms: performance.now() - started, exe: argv[0]!, sweeps, ...(signal ? { signal } : {}) };
   } finally {
     clearTimeout(timer);
     tree.close();
@@ -1006,7 +1068,7 @@ interface OvershootRow {
  * `bun nv proofs --overshoot`: runs every attack under `tests/hostile/` whose `ends-early` names `FATAL`,
  * `OVERSHOOT_JOBS` at a time, and prints how far past its memory ceiling, or its CPU or wall-time limit,
  * each one got, worst first. It fails when a memory reading is past `overshootBound`, when a time reading
- * is past its limit plus `TIME_OVERSHOOT_SLACK_MS`, when the server's memory filled first, or when the
+ * is past what its run's sweeps explain (`explainedMs`), when the server's memory filled first, or when the
  * host killed a program before it printed a reading. An attack that stopped at another limit has no
  * reading, and is counted.
  *
@@ -1064,12 +1126,12 @@ export async function overshootScan(nvs: string, out: string[]): Promise<number>
   }
   const over = (t: TimeReading) => t.used - t.crossed;
   const timed = rows.filter((r) => r.time !== null).sort((a, b) => over(b.time!) - over(a.time!) || a.path.localeCompare(b.path));
-  out.push(`nv proofs overshoot: ${timed.length} attack(s) stopped at a time limit, worst first (the bound is the limit plus ${TIME_OVERSHOOT_SLACK_MS} ms):`);
+  out.push(`nv proofs overshoot: ${timed.length} attack(s) stopped at a time limit, worst first (the bound is what each run's sweeps measured):`);
   for (const r of timed) {
     const { kind, used, limit, crossed } = r.time!;
     const late = timeOvershoot(r.time!) !== null;
     const set = crossed > limit ? `, set at ${crossed} ms` : "";
-    out.push(`  ${late ? "FAIL" : "ok  "}  ${kind} ${used} / ${limit} ms${set} (+${used - crossed})  ${r.ms} ms  ${r.path}`);
+    out.push(`  ${late ? "FAIL" : "ok  "}  ${kind} ${used} / ${limit} ms${set} (+${used - crossed} of ${explainedMs(r.time!).toFixed(1)})  ${r.ms} ms  ${r.path}`);
   }
   for (const r of rows.filter((r) => r.reading === null && r.time === null && r.note).sort((a, b) => a.path.localeCompare(b.path))) {
     out.push(`  ${r.red ? "FAIL" : "-   "}  ${r.note}  ${r.path}`);

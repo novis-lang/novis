@@ -908,6 +908,14 @@ impl Ctx {
             .store(spent, std::sync::atomic::Ordering::Relaxed);
         if spent >= self.cpu_limit {
             self.request_safepoint(SafepointFlags::CPU_LIMIT);
+            // Raised here, on the request's own thread, so no sweep is late
+            // and only the next poll is between the crossing and the stop.
+            crate::write_sweep_line(
+                "cpu",
+                std::time::Duration::ZERO,
+                std::time::Duration::ZERO,
+                1,
+            );
         }
     }
 

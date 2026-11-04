@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { abs } from "../lib/paths.ts";
-import { declaredEnding, judgeHostile, type Ran } from "../proofs/run.ts";
+import { declaredEnding, judgeHostile, type Ran, takeSweeps } from "../proofs/run.ts";
 
 const PATH = "tests/hostile/demo/01-three-steps.nvs";
 
@@ -141,25 +141,33 @@ describe("an attack that ends at its memory limit", () => {
 describe("an attack that ends at a time limit", () => {
   const fatal = (kind: string, used: number, limit: number) =>
     `FATAL: the request exceeded its ${kind}-time limit: ${used} ms used of a limit of ${limit} ms\n`;
-  const atLimit = (kind: string, used: number, limit: number) => judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", fatal(kind, used, limit)));
+  // What the runtime writes beside a stop: the CPU sweep woke 2 ms late, the wall-time claim 30 ms past
+  // its deadline, and a CPU limit set below what was used was raised on the request's own thread.
+  const cpuSweep = "nvs-proof-sweep: cpu late_us=2000 interval_us=50000 poll_us=50000 threads=1\n";
+  const wallSweep = "nvs-proof-sweep: wall late_us=30000 interval_us=0 poll_us=50000 threads=1\n";
+  const setSweep = "nvs-proof-sweep: cpu late_us=0 interval_us=0 poll_us=50000 threads=1\n";
+  const withSweeps = (stderr: string): Ran => ({ ...ran(1, "caught\nstep 3\n", ""), ...takeSweeps(stderr) });
+  const atLimit = (kind: string, used: number, limit: number) =>
+    judge("ends-early 3 FATAL", withSweeps((kind === "CPU" ? cpuSweep : wallSweep) + fatal(kind, used, limit)));
 
-  test("a time FATAL within the limit plus 100 ms passes", () => {
-    expect(atLimit("CPU", 162, 150)).toEqual(["ok", ""]);
-    expect(atLimit("wall", 400, 300)).toEqual(["ok", ""]);
+  test("a time FATAL within what its sweeps explain passes, and the sweep line leaves stderr", () => {
+    expect(atLimit("CPU", 252, 150)).toEqual(["ok", ""]);
+    expect(atLimit("wall", 380, 300)).toEqual(["ok", ""]);
+    expect(withSweeps(cpuSweep + fatal("CPU", 160, 150)).stderr).toBe(fatal("CPU", 160, 150));
   });
 
-  test("a time FATAL past the limit plus 100 ms fails and names the reading and the limit", () => {
+  test("a time FATAL past what its sweeps explain fails and names the reading and the limit", () => {
     const [verdict, why] = atLimit("CPU", 2150, 150);
     expect(verdict).toBe("fail");
     expect(why).toContain("used 2150 ms against a CPU-time limit of 150 ms");
-    expect(atLimit("wall", 401, 300)[0]).toBe("fail");
+    expect(atLimit("wall", 381, 300)[0]).toBe("fail");
   });
 
   test("a CPU limit set below the time already used is measured from when it was set", () => {
     const late = (used: number) =>
-      `FATAL: the request exceeded its CPU-time limit: ${used} ms used of a limit of 15 ms, set when 480 ms were used\n`;
-    expect(judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", late(500)))).toEqual(["ok", ""]);
-    const [verdict, why] = judge("ends-early 3 FATAL", ran(1, "caught\nstep 3\n", late(700)));
+      setSweep + `FATAL: the request exceeded its CPU-time limit: ${used} ms used of a limit of 15 ms, set when 480 ms were used\n`;
+    expect(judge("ends-early 3 FATAL", withSweeps(late(500)))).toEqual(["ok", ""]);
+    const [verdict, why] = judge("ends-early 3 FATAL", withSweeps(late(700)));
     expect(verdict).toBe("fail");
     expect(why).toContain("set when 480 ms were used, 220 ms over");
   });

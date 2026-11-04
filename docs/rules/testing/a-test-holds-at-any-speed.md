@@ -20,7 +20,9 @@ time says it by one of four patterns, and never by comparing a measured span wit
    code's own fixed term. For a time-limit attack, the proofs runner explains a stop's overshoot by the
    watchdog's sweep interval, how late the sweeps between the crossing and the stop woke, and one poll
    gap of the code that was running (`timeOvershoot` in `tools/nv/proofs/run.ts`). An overshoot those do
-   not explain is red on every machine.
+   not explain is red on every machine. The poll gap is the code's term, `nvs_runtime::POLL_GAP`: a
+   helper's batch is sized so its polls come well inside one sweep interval. Measuring each gap would
+   put a clock read on the request path, which this rule declines below.
 
 **A test drops a time bound only where the path it covers has a bench or a counted cost guard.** A
 bound in a test is often the only thing that would notice a path getting slower. Before it is taken
@@ -41,7 +43,7 @@ no longer. What it never does is decide its verdict by how fast that was.
   itself. A slow runner or a busy developer machine stays flaky.
 - **A `--slow` mode** that pins tests to few cores or keeps the other cores busy. It finds flaky tests
   only some of the time, so it is itself flaky.
-- **Raising `TIME_OVERSHOOT_SLACK_MS` or any other fixed bound.** A larger constant hides a real
+- **A fixed slack on a time stop, or raising any other fixed bound.** A larger constant hides a real
   regression on a fast machine and still fails on a machine slower than the one it was chosen on.
 - **A CPU-clock read on the request thread at each poll**, to judge a stop exactly. Every CPU-clock read
   is a system call (`crates/nvs-host/src/cpuclock.rs`), and this one would sit on the request path.

@@ -238,7 +238,7 @@ pub const DEFAULT_MARGIN: Duration = Duration::from_secs(5);
 /// its `[limits] cpu_time` waits only until the earliest moment that tree can
 /// cross it (`next_wait`). A request then stops at its limit plus the time
 /// the OS takes to wake this thread. `bun nv proofs --overshoot` holds a CPU
-/// `FATAL` to its limit plus 100 ms.
+/// `FATAL` to the bound that run's sweeps measured (*How late a sweep woke*).
 /// Cost: twenty wakeups a second of one thread, each a few loads per core.
 /// While a tree is within one interval of its ceiling, the thread wakes once
 /// per remaining CPU time instead, and at most once per `MIN_WAIT`: a
