@@ -6,7 +6,7 @@ context: [extensions/pdf/subset.json, docs/rules/core-classes/pdf-css-subset.md,
 stages:
   - id: 1
     title: "hostile CSS, images, SVG and link text never break a render, and each bomb ends at the request's ceiling"
-    status: open
+    status: done
     context: [extensions/pdf/src/css/value.rs, extensions/pdf/src/write.rs, extensions/pdf/src/assets.rs, extensions/pdf/src/layout/image.rs, tests/hostile/README.md, tests/hostile/novis/Pdf-Document/asset/01-files-and-addresses-outside-the-assets.nvs]
   - id: 2
     title: "no part of a render grows faster than the document: tables, margin-box lookups, repeated images and selector matching are linear"
@@ -291,26 +291,26 @@ handled but untested.
 **Does:** closes the robustness holes the audit found, each with a test in the new
 `extensions/pdf/tests/hostile_input.rs` and one attack file.
 
-- [ ] A length, a font size or a page size that is not finite after parsing or arithmetic is an
+- [x] A length, a font size or a page size that is not finite after parsing or arithmetic is an
   invalid value: dropped and reported, and an `@page size` falls back to A4. Check at the cascade's
   value conversion, and at `size()` and `margin_rule`. `extensions/pdf/src/css/value.rs:1`,
   `extensions/pdf/src/paginate/mod.rs:454`
-- [ ] `var()` resolves each custom property once per element and reuses it, so a chain where each
+- [x] `var()` resolves each custom property once per element and reuses it, so a chain where each
   property names the next one twice costs linear work. The output size is left to the memory ceiling
   (decision 3). `extensions/pdf/src/css/value.rs:228`
-- [ ] A glyph run of size 0 is not drawn, and nothing in `write.rs` divides by a size of 0.
+- [x] A glyph run of size 0 is not drawn, and nothing in `write.rs` divides by a size of 0.
   `extensions/pdf/src/write.rs:524`
-- [ ] Tests for a link URI and a title, author and subject with `( ) \ % & < >` and `é`: the file
+- [x] Tests for a link URI and a title, author and subject with `( ) \ % & < >` and `é`: the file
   parses back with `read.rs`, the text is unchanged, and PDF/A still validates.
   `extensions/pdf/src/write.rs:457`, `extensions/pdf/src/write.rs:667`
-- [ ] A test that `file%3A//x` and `HTTP://x` are missing assets, and an SVG asset with a DTD of
+- [x] A test that `file%3A//x` and `HTTP://x` are missing assets, and an SVG asset with a DTD of
   nested entities, an external entity and a `<use>` cycle renders or throws `Parse`.
   `extensions/pdf/src/assets.rs:102`
-- [ ] Write the seven tests the `hostile-input` check names. `extensions/pdf/tests/hostile_input.rs:1`
-- [ ] Attack `tests/hostile/novis/Pdf-Document/render/02-values-that-grow-without-end.nvs`: `1e308px`
+- [x] Write the seven tests the `hostile-input` check names. `extensions/pdf/tests/hostile_input.rs:1`
+- [x] Attack `tests/hostile/novis/Pdf-Document/render/02-values-that-grow-without-end.nvs`: `1e308px`
   widths, a `var()` doubling chain, a PNG that declares 60000 × 60000 pixels, and 10,000
   `@font-face` rules. Follow `tests/hostile/README.md` and the render directory's `nvs.toml`.
-- [ ] Run the `hostile-input` check's command once: green.
+- [x] Run the `hostile-input` check's command once: green.
 
 ### 2. no part of a render grows faster than the document: tables, margin-box lookups, repeated images and selector matching are linear
 
@@ -484,15 +484,32 @@ check once both end.
 
 ### State
 
-Nothing is built yet. The research (dompdf, mPDF, TCPDF and tc-lib-pdf, WeasyPrint, and the advisories
-of all of them) and the audit of `extensions/pdf/` ran on 2026-11-04, and § *Why* and the stages hold
-all of it. The audit's anchors were read from the code; each item's first step is to confirm its anchor
-with `bun nv peek`.
+Stage 1 is done, and its `hostile-input` check is green (7 of 7).
+
+- A number that is not finite never becomes a `Comp` (`value.rs` `parse_components`), `length()`
+  and `number()` refuse a `calc()` that overflows, and the cascade's `apply` returns `false` for a
+  computed value that is not finite, which `compute` and `declared` report. `@page size` is checked
+  by `paginate::read_size` in `declared`, so a `size` that does not read (`banana` too) is now in
+  `dropped`, and the page stays A4.
+- `value::resolve_custom` resolves an element's custom properties once each, with a memo, and
+  `substitute` takes a `resolve` whose text is never walked again.
+- `write.rs` skips a glyph run whose size is not more than 0.
+- The attack `render/02-values-that-grow-without-end.nvs` ran on `target/debug/nvs.exe run` from
+  its directory: steps 1 and 3 render, step 2's PNG throws `ParseError`, and step 4 ends `FATAL`.
+  It has not run through `bun nv proofs --run`; stage 10 runs it.
+- The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere and has no log,
+  and nightly 41813182715 is the run the calm-editor handoff already traced to fixed commits.
 
 ### Next
 
-Stage 1, from its first item: non-finite lengths in `extensions/pdf/src/css/value.rs:1`. The other
-stage-1 items touch `value.rs:228`, `write.rs` and `assets.rs`, so the whole stage fits one session.
-No existing test is expected to go red.
+Stage 2, from its first item: the suffix sum of piece heights in `extensions/pdf/src/layout/table.rs`
+(`rows_from` and `fits_rest`), then the page index of named strings in `layout/margin.rs`, the image
+cache in `layout/image.rs`, and rule buckets in `css/mod.rs` `Cascade::matched` (decision 11). The
+four tests go in a new `extensions/pdf/tests/cost.rs` and count work. No counter exists in the crate
+yet: add one per mechanism, public only as far as a test needs it, the way `resolve_custom` is a
+public function a test drives with a counting closure.
+
+Tests that may go red at stage 10: any test asserting an empty `dropped` list with an `@page size`
+that does not read. `paginate.rs:133` uses `size: A4 tall` but asserts only the page height.
 
 ### Backlog
