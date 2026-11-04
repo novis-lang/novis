@@ -256,7 +256,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // A start on a workspace this server saw before takes the index it wrote
     // then, and only its stale entries wait ([`start_index`]).
     let mut index = start_index(&documents, &settings, tree);
-    indexing.track(connection, index.pending().len())?;
+    indexing.track(connection, &index)?;
     // What the index file says, as `SymbolIndex::generation` counts it. The
     // loop writes the file when the server is at rest and the two differ.
     let mut saved = index.generation();
@@ -292,7 +292,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
         // Every way the queue shrinks or empties ends in a turn of this loop,
         // so this one call reports each of them, and ends the run once no
         // entry waits.
-        indexing.track(connection, index.pending().len())?;
+        indexing.track(connection, &index)?;
         // What is left of that window, and `None` for a server at rest, which
         // waits on the channel with no deadline at all.
         let left = waiting
@@ -858,7 +858,7 @@ fn configure(
         let tree = tree(documents, settings.scope, settings.root.as_deref());
         documents.survey_tree(&tree);
         *index = start_index(documents, settings, tree);
-        indexing.track(connection, index.pending().len())?;
+        indexing.track(connection, index)?;
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;
         }

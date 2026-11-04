@@ -24,14 +24,20 @@
 //! `settle_one`, a whole-tree request's `settle`, or a rebuild that left nothing
 //! to settle — is followed by the `end` at the next turn.
 //!
+//! A run's `end` is followed by one `window/logMessage` at the `Log` level: the
+//! index's [`Work`](crate::Work) since the session started, and the file-system
+//! work the server's thread did, the survey of the tree included. `bun nv
+//! lsp-start` reads it, and a client shows it in its log.
+//!
 //! What it spends is one counter and, during a run, one token and two numbers,
 //! for the whole session. The check at each turn is one length read.
 
 use lsp_server::{Connection, Notification, Request, RequestId};
-use lsp_types::notification::{Notification as _, Progress};
+use lsp_types::notification::{LogMessage, Notification as _, Progress};
 use lsp_types::request::{Request as _, WorkDoneProgressCreate};
 use lsp_types::{
-    NumberOrString, ProgressParams, ProgressParamsValue, WorkDoneProgress, WorkDoneProgressBegin,
+    LogMessageParams, MessageType, NumberOrString, ProgressParams, ProgressParamsValue,
+    WorkDoneProgress, WorkDoneProgressBegin,
     WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressReport,
 };
 
@@ -89,7 +95,7 @@ impl Indexing {
         if !self.shown {
             return Ok(());
         }
-        self.end(connection)?;
+        self.end(connection, None)?;
         self.runs += 1;
         let name = format!("{TOKEN}/{}", self.runs);
         let token = NumberOrString::String(name.clone());
@@ -132,10 +138,11 @@ impl Indexing {
     pub(crate) fn track(
         &mut self,
         connection: &Connection,
-        pending: usize,
+        index: &crate::SymbolIndex,
     ) -> Result<(), ServerError> {
+        let pending = index.pending().len();
         if pending == 0 {
-            return self.end(connection);
+            return self.end(connection, Some(index.work()));
         }
         let Some(run) = self.run.as_mut() else {
             return Ok(());
@@ -162,8 +169,14 @@ impl Indexing {
         )
     }
 
-    /// Sends the run's `end`, when a run is going.
-    fn end(&mut self, connection: &Connection) -> Result<(), ServerError> {
+    /// Sends the run's `end`, when a run is going, and then the work the
+    /// index and the server's thread did. A run a new one cuts short has no
+    /// `work`, because its index is being replaced, and logs nothing.
+    fn end(
+        &mut self,
+        connection: &Connection,
+        work: Option<crate::Work>,
+    ) -> Result<(), ServerError> {
         let Some(run) = self.run.take() else {
             return Ok(());
         };
@@ -171,7 +184,28 @@ impl Indexing {
             connection,
             &run.token,
             WorkDoneProgress::End(WorkDoneProgressEnd { message: None }),
-        )
+        )?;
+        let Some(work) = work else {
+            return Ok(());
+        };
+        let message = format!(
+            "index work: parsed={} checked={} {}; server work: {}",
+            work.parsed,
+            work.checked,
+            work.files,
+            nvs_diagnostics::work::so_far()
+        );
+        connection.sender.send(
+            Notification::new(
+                LogMessage::METHOD.to_owned(),
+                LogMessageParams {
+                    typ: MessageType::LOG,
+                    message,
+                },
+            )
+            .into(),
+        )?;
+        Ok(())
     }
 }
 
