@@ -85,23 +85,57 @@ pub(super) enum Position {
     Absolute,
 }
 
-/// A forced page break: to the next page, or to the next left or right one.
+/// A forced page break: to the next page, to the next left or right one, or to the next one of
+/// the first page's side (`recto`) or the other (`verso`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Break {
     Page,
     Left,
     Right,
+    Recto,
+    Verso,
+}
+
+impl Break {
+    /// Whether the page this break goes to has an even index, from 0, or `None` for any page.
+    /// The page at index 0 is a right page in a left-to-right document, `rtl` false, and a left
+    /// page in a right-to-left one.
+    fn even(self, rtl: bool) -> Option<bool> {
+        match self {
+            Break::Page => None,
+            Break::Recto => Some(true),
+            Break::Verso => Some(false),
+            Break::Right => Some(!rtl),
+            Break::Left => Some(rtl),
+        }
+    }
+
+    /// The break where a `break-after` of `earlier` and the next box's `break-before` of
+    /// `later` meet: the later one's side when it names one, or else the earlier one's.
+    fn meet(earlier: Option<Break>, later: Option<Break>) -> Option<Break> {
+        match (earlier, later) {
+            (_, Some(side)) if side != Break::Page => Some(side),
+            (Some(side), _) => Some(side),
+            (None, later) => later,
+        }
+    }
 }
 
 /// The forced break the property `name` gives, if it gives one.
 fn forced(style: &Style, name: &str) -> Option<Break> {
     match keyword(style, name) {
         Some("page" | "always" | "all") => Some(Break::Page),
-        Some("left" | "verso") => Some(Break::Left),
-        Some("right" | "recto") => Some(Break::Right),
+        Some("left") => Some(Break::Left),
+        Some("right") => Some(Break::Right),
+        Some("recto") => Some(Break::Recto),
+        Some("verso") => Some(Break::Verso),
         _ => None,
     }
 }
+
+/// How much more than a page's content height a fit test lets through, so heights that add up
+/// to the page in another order still fit.
+pub(super) const FIT: f32 = 0.01;
 
 /// An absolute box's `top`, `right`, `bottom` and `left`, each as points and a percentage of
 /// its containing block, or `None` for `auto`.
@@ -313,6 +347,11 @@ pub(super) struct Flow {
     widen: Option<Heights>,
     /// A `break-after` that has not been taken, because nothing has been placed after it yet.
     forced: Option<Break>,
+    /// Whether the document runs right to left, so its first page is a left page.
+    pub(super) rtl: bool,
+    /// Whether the last page was started by a forced break, which keeps the top margin of the
+    /// first box on it.
+    kept: bool,
     /// Where the last page's content starts: under the top edges the closed boxes open across
     /// its break draw again.
     start: f32,
@@ -362,6 +401,8 @@ impl Flow {
             heights: None,
             widen: None,
             forced: None,
+            rtl: false,
+            kept: false,
             start: 0.0,
             baseline: None,
             first: None,
@@ -472,7 +513,8 @@ impl Flow {
     }
 
     /// Takes a forced break: a new page unless nothing is placed on the last one, and an empty
-    /// blank page before it when it is on the wrong side. The first page is a right one.
+    /// blank page before it when it is on the wrong side. The margin before the break is
+    /// dropped and the one after it kept, as CSS Fragmentation §5.2 says.
     fn force(&mut self, side: Break) {
         if self.heights.is_none() {
             return;
@@ -480,11 +522,13 @@ impl Flow {
         if !self.empty() {
             self.new_page();
         }
-        let right = self.pages.len() % 2 == 1;
-        if matches!((side, right), (Break::Left, true) | (Break::Right, false)) {
+        let even = (self.pages.len() - 1).is_multiple_of(2);
+        if side.even(self.rtl).is_some_and(|want| want != even) {
             self.page().blank = true;
             self.new_page();
         }
+        self.pending = 0.0;
+        self.kept = true;
     }
 
     /// The index of the page the next box placed starts on: the last page, or a later one when
@@ -495,9 +539,8 @@ impl Flow {
             return last;
         };
         let next = if self.empty() { last } else { last + 1 };
-        // The page at an even index is a right one.
-        match (side, next % 2 == 0) {
-            (Break::Left, true) | (Break::Right, false) => next + 1,
+        match side.even(self.rtl) {
+            Some(want) if want != next.is_multiple_of(2) => next + 1,
             _ => next,
         }
     }
@@ -526,7 +569,7 @@ impl Flow {
         }
         let top = self.cursor + self.pending.max(margin);
         let name = self.pages.last().and_then(|p| p.name.as_deref());
-        if top + height > self.limit() && height <= heights(self.pages.len(), name) {
+        if top + height > self.limit() + FIT && height <= heights(self.pages.len(), name) + FIT {
             self.new_page();
         }
     }
@@ -562,9 +605,9 @@ impl Flow {
     }
 
     /// The margin the next box is placed under: the pending one, which the top of a page after
-    /// the first drops.
+    /// the first drops unless a forced break started that page.
     fn margin(&self) -> f32 {
-        if self.empty() && self.pages.len() > 1 {
+        if self.empty() && self.pages.len() > 1 && !self.kept {
             0.0
         } else {
             self.pending
@@ -606,6 +649,7 @@ impl Flow {
         self.cursor = above;
         self.start = above;
         self.floats.clear();
+        self.kept = false;
     }
 
     /// Where the next box's top would be, before it is placed.
@@ -658,11 +702,15 @@ impl Flow {
     ) -> (f32, f32) {
         let (width, height) = size;
         let (x, room) = containing;
+        // A `break-after` before the float is taken first, so the float starts the new page.
+        if let Some(side) = self.forced.take() {
+            self.force(side);
+        }
         let mut top = self
             .next_top()
             .max(self.cleared(clear))
             .max(self.floats.last().map_or(0.0, |f| f.top));
-        if !self.empty() && top + height > self.limit() {
+        if !self.empty() && top + height > self.limit() + FIT {
             self.new_page();
             top = 0.0;
         }
@@ -714,7 +762,7 @@ impl Flow {
         }
         let empty = self.empty();
         let margin = self.margin();
-        if !empty && self.cursor + margin + height > self.limit() {
+        if !empty && self.cursor + margin + height > self.limit() + FIT {
             self.new_page();
         } else {
             self.cursor += margin;
@@ -729,6 +777,19 @@ impl Flow {
         self.arrive(page, top);
         self.cursor += height;
         top
+    }
+
+    /// Places a closing box's bottom border and padding, `inset` tall. Where they do not fit
+    /// under its content, the padding is cut at the page's end, so they never start a page of
+    /// their own.
+    fn edge(&mut self, inset: f32) {
+        let margin = self.margin();
+        if self.empty() || self.cursor + margin + inset <= self.limit() + FIT {
+            self.place(inset);
+            return;
+        }
+        self.pending = 0.0;
+        self.cursor = self.cursor.max(self.limit());
     }
 
     pub(super) fn page(&mut self) -> &mut Page {
@@ -750,7 +811,7 @@ impl Flow {
 
     pub(super) fn open(&mut self, geometry: BoxGeometry) {
         let after = self.forced.take();
-        if let Some(side) = geometry.breaks[0].or(after) {
+        if let Some(side) = Break::meet(after, geometry.breaks[0]) {
             self.force(side);
         }
         // The first box placed on a page names it.
@@ -833,7 +894,7 @@ impl Flow {
             }
         }
         if inset > 0.0 {
-            self.place(inset);
+            self.edge(inset);
         }
         // How many items the box's own paint is on each of its pages.
         let mut painted = Vec::new();

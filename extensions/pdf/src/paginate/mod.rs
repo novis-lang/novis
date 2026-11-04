@@ -4,9 +4,10 @@
 //! A page is A4 portrait with a 2 cm margin on every side unless an `@page` rule says otherwise.
 //! The rules that match a page apply in the order of their selector's specificity and then their
 //! source order, the last value of a property kept: a page name counts most, then `:first` and
-//! `:blank`, then `:left` and `:right`. The first page is `:first` and a right page, and the pages
-//! alternate right and left from there. A page is `:blank` when a forced break to a `left` or
-//! `right` page left it empty (`layout`'s module doc). A selector with a page name matches a page
+//! `:blank`, then `:left` and `:right`. The first page is `:first`. It is a right page when the
+//! root element's `direction` is `ltr` and a left page when it is `rtl`, and the pages alternate
+//! from there. A page is `:blank` when a forced break to a `left`, `right`, `recto` or `verso`
+//! page left it empty (`layout`'s module doc). A selector with a page name matches a page
 //! of that name only. A page's name is the `page` of the first block box placed on it, or of the
 //! box it goes on with, and a block box whose `page` is `auto` has its parent's. A block box
 //! whose page name differs from the block box before it starts a new page.
@@ -118,9 +119,10 @@ impl Selector {
         )
     }
 
-    /// Whether the selector matches the page at `index`, from 0, named `name`.
-    fn matches(&self, index: usize, blank: bool, name: Option<&str>) -> bool {
-        let right = index.is_multiple_of(2);
+    /// Whether the selector matches the page at `index`, from 0, named `name`, in a document
+    /// that runs right to left when `rtl` is true.
+    fn matches(&self, index: usize, blank: bool, name: Option<&str>, rtl: bool) -> bool {
+        let right = index.is_multiple_of(2) != rtl;
         self.name.as_deref().is_none_or(|own| Some(own) == name)
             && (!self.first || index == 0)
             && (!self.blank || blank)
@@ -133,6 +135,8 @@ impl Selector {
 #[derive(Debug, Clone, Default)]
 pub struct Sheet {
     rules: Vec<(Selector, PageRule)>,
+    /// Whether the root element runs right to left, so the first page is a left page.
+    rtl: bool,
 }
 
 /// The values the rules matching one page give: the page's own, and each margin box's by its
@@ -144,13 +148,15 @@ pub struct Matched<'s> {
 }
 
 impl Sheet {
-    pub fn new(rules: &[PageRule]) -> Sheet {
+    /// The sheet of `rules`, for a document whose root element runs right to left when `rtl`
+    /// is true.
+    pub fn new(rules: &[PageRule], rtl: bool) -> Sheet {
         let mut rules: Vec<(Selector, PageRule)> = rules
             .iter()
             .filter_map(|rule| Some((Selector::read(&rule.selector)?, rule.clone())))
             .collect();
         rules.sort_by_key(|(selector, _)| selector.specificity());
-        Sheet { rules }
+        Sheet { rules, rtl }
     }
 
     /// What the rules matching the page at `index` named `name` give, `blank` when it is a
@@ -160,7 +166,7 @@ impl Sheet {
         for (_, rule) in self
             .rules
             .iter()
-            .filter(|(selector, _)| selector.matches(index, blank, name))
+            .filter(|(selector, _)| selector.matches(index, blank, name, self.rtl))
         {
             for (name, value) in &rule.values {
                 matched.values.insert(name, value);

@@ -89,7 +89,13 @@ fn pass(
     fonts: Fonts,
     targets: &Targets,
 ) -> Result<Pass, Error> {
-    let sheet = Sheet::new(&styles.pages);
+    // The root element's `direction` decides whether the first page is a right or a left one.
+    let rtl = dom.nodes[0]
+        .children
+        .iter()
+        .find_map(|&at| styles.of(at))
+        .is_some_and(|style| super::keyword(style, "direction") == Some("rtl"));
+    let sheet = Sheet::new(&styles.pages, rtl);
     let first = sheet.page(0, false, None);
     let (blocks, atoms, mut images, spans, targeted, counted, work) = blocks(
         dom,
@@ -138,6 +144,7 @@ fn pass(
                 - widths.page(0, false, name).content_width()
         })),
     );
+    flow.rtl = rtl;
     cx.run(blocks, &mut flow);
     if cx.deep {
         return Err(too_deep());
@@ -1397,7 +1404,7 @@ fn kept(heights: &[f32], room: (f32, f32, bool), para: &Para) -> Option<usize> {
     let mut fit = 0;
     // The same test as `Flow::place`, so the break falls where placing the lines puts it.
     while let Some(&height) = heights.get(fit) {
-        if !(fit == 0 && empty) && y + height > limit {
+        if !(fit == 0 && empty) && y + height > limit + super::block::FIT {
             break;
         }
         y += height;

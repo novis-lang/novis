@@ -19,11 +19,17 @@
 //! A box's background, borders and outline are drawn under its content as paths (`boxes`'
 //! module doc), and a box under `opacity` is drawn with its content in one group. A box that
 //! goes on past a page is drawn in a slice on each page, closed at its first and last edge.
-//! A block box's `break-before` of `page`, `left` or `right` (`always`, `verso` and `recto` the
-//! same) starts it on a new page, or on the next left or right one with an empty `:blank` page
-//! before it when it must, and does nothing on a page nothing has been placed on yet. Its
-//! `break-after` does the same for what is placed after it, so the last box's adds no page. A
-//! blank page draws no slice of a box around it, and an image or an inline-block reads no break.
+//! A block box's `break-before` of `page` (`always` the same), `left`, `right`, `recto` or
+//! `verso` starts it on a new page, or on the next page of that side with an empty `:blank` page
+//! before it when it must, and does nothing on a page nothing has been placed on yet. The first
+//! page is `recto`: a right page when the root element's `direction` is `ltr` and a left one
+//! when it is `rtl`. Its `break-after` does the same for what is placed after it, so the last
+//! box's adds no page, and where a `break-after` meets a `break-before` the later one's side
+//! wins. A forced break drops the margin before it and keeps the top margin of the box after
+//! it, and a float takes a waiting `break-after` as a block box does. A box's bottom border and
+//! padding never start a page of their own: where they do not fit, the padding is cut at the
+//! page's end. A blank page draws no slice of a box around it, and an image or an inline-block
+//! reads no break.
 //!
 //! **Inline boxes.** An inline element with a horizontal margin, a border, padding or a
 //! background is an [`Inline`] of its text block. Its left margin, border and padding are an empty
