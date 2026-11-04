@@ -128,7 +128,10 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-Nothing is planned after the current release yet.
+The work is in the order it is planned. The order can change.
+
+1. **A calmer editor.** *Working on it now.* The Novis themes for VS Code draw brackets in the text colour and use quieter colours for methods and variables. A new setting turns off the parameter-name hints.
+2. **PDF edge cases.** `Novis\Pdf` gets a test for each kind of document that other HTML-to-PDF libraries render wrong, such as a table across pages. A render reports each CSS feature it does not support.
 <!-- roadmap:end -->
 
 ## Contributing
