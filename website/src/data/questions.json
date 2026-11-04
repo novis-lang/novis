@@ -955,13 +955,13 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "4ecf044c142a732a",
+    "hash": "d1d45983724f4316",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",
       "Which Rust version and C compiler do I need to build nvs from source?",
       "How do I add nvs to my PATH?",
-      "Download and install the Novis extension for VS Code",
+      "Install the Novis extension in VS Code, VSCodium or Cursor",
       "Check the checksum and signature of a release archive"
     ]
   },
@@ -1427,13 +1427,13 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "55bd5d13eb766001",
+    "hash": "4d6d817086510608",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
       "Why are passwords blurred in my editor?",
-      "Class names and methods have the same colour in VS Code",
+      "Install the Novis extension in VSCodium from Open VSX",
       "Show my program's tasks as a tree while debugging in VS Code"
     ]
   },
@@ -18232,9 +18232,9 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "3b45fa0c0033d762",
+    "hash": "84bc869d89e28a22",
     "questions": [
-      "Install the Novis VS Code extension from the Marketplace or a .vsix file",
+      "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Rename a method in every file of my project at once",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
