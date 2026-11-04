@@ -31,9 +31,11 @@
 //! reference is not found that way, and its declarations are reported at the position the search
 //! reached. A position in a linked or imported sheet counts in that sheet.
 //!
-//! Cost: every element is tested against every selector, and the pseudo-element passes only
-//! against selectors that end in one. Memory: one [`Style`] per element, holding its declared and
-//! inherited longhands, freed when the render returns.
+//! Cost: the selectors are filed once by the id, class or tag their rightmost compound needs, and
+//! each element is tested only against the selectors of its own id, classes and tag and those
+//! that need none of them ([`Styles::rule_tests`] counts the tests). The pseudo-element passes
+//! test only selectors that end in one. Memory: one [`Style`] per element, holding its declared
+//! and inherited longhands, and two numbers for each selector, freed when the render returns.
 
 pub mod properties;
 pub mod select;
@@ -45,6 +47,7 @@ use std::rc::Rc;
 use cssparser::{Delimiter, ParseError, Parser, SourceLocation, Token};
 use selectors::SelectorList;
 use selectors::context::SelectorCaches;
+use selectors::parser::{Combinator, Component};
 
 use crate::assets::Assets;
 use crate::parse::{Dom, Kind, Space};
@@ -201,6 +204,9 @@ pub struct Styles {
     /// Each `@font-face` rule's descriptors as written.
     pub font_faces: Vec<Vec<(String, String)>>,
     pub dropped: Vec<Dropped>,
+    /// How many times a selector was tested against an element. Each selector is tested only
+    /// against an element with the id, class or tag its rightmost compound needs.
+    pub rule_tests: usize,
 }
 
 impl Styles {
@@ -689,6 +695,8 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
     let mut cascade = Cascade {
         tree: Tree::new(dom),
         rules: &collector.rules,
+        buckets: Buckets::new(&collector.rules),
+        tests: 0,
         user_agent,
         caches: SelectorCaches::default(),
         root_font_size: DEFAULT_FONT_SIZE,
@@ -755,6 +763,7 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
     styles.font_faces = std::mem::take(&mut collector.font_faces);
     styles.dropped = collector.dropped;
     styles.dropped.extend(cascade.dropped);
+    styles.rule_tests = cascade.tests;
     styles
 }
 
@@ -772,9 +781,78 @@ fn rendered_order(dom: &Dom) -> Vec<usize> {
     order
 }
 
+/// Each selector of a list of rules, as its rule's index and its own in the rule's list, by what
+/// its rightmost compound needs: an id, else a class, else a tag, else nothing. An element is
+/// tested only against the selectors of its id, its classes, its tag and the rest, which are
+/// all the selectors that can match it. A selector ending in a pseudo-element is filed by the
+/// compound before it. Tags are filed in lower case and the matching tests the case.
+#[derive(Default)]
+struct Buckets {
+    ids: BTreeMap<String, Vec<(usize, usize)>>,
+    classes: BTreeMap<String, Vec<(usize, usize)>>,
+    tags: BTreeMap<String, Vec<(usize, usize)>>,
+    rest: Vec<(usize, usize)>,
+}
+
+impl Buckets {
+    fn new(rules: &[Rule]) -> Self {
+        let mut out = Self::default();
+        for (r, rule) in rules.iter().enumerate() {
+            for (s, selector) in rule.selectors.slice().iter().enumerate() {
+                let (mut id, mut class, mut tag) = (None, None, None);
+                let mut iter = selector.iter();
+                loop {
+                    for component in &mut iter {
+                        match component {
+                            Component::ID(name) => id = Some(name.0.clone()),
+                            Component::Class(name) => class = Some(name.0.clone()),
+                            Component::LocalName(name) => {
+                                tag = Some(name.lower_name.0.to_ascii_lowercase());
+                            }
+                            _ => {}
+                        }
+                    }
+                    if iter.next_sequence() != Some(Combinator::PseudoElement) {
+                        break;
+                    }
+                }
+                let at = (r, s);
+                match (id, class, tag) {
+                    (Some(id), ..) => out.ids.entry(id).or_default().push(at),
+                    (None, Some(class), _) => out.classes.entry(class).or_default().push(at),
+                    (None, None, Some(tag)) => out.tags.entry(tag).or_default().push(at),
+                    (None, None, None) => out.rest.push(at),
+                }
+            }
+        }
+        out
+    }
+
+    /// The selectors that can match `node`, in rule order, each once.
+    fn candidates(&self, node: &crate::parse::Node) -> Vec<(usize, usize)> {
+        let mut out = self.rest.clone();
+        let mut add = |found: Option<&Vec<(usize, usize)>>| out.extend(found.into_iter().flatten());
+        if let Some(id) = node.attr("id") {
+            add(self.ids.get(id));
+        }
+        for class in node.attr("class").unwrap_or("").split_ascii_whitespace() {
+            add(self.classes.get(class));
+        }
+        if let Kind::Element { name, .. } = &node.kind {
+            add(self.tags.get(&name.to_ascii_lowercase()));
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+}
+
 struct Cascade<'d, 'r> {
     tree: Tree<'d>,
     rules: &'r [Rule],
+    buckets: Buckets,
+    /// How many times a selector was tested against an element.
+    tests: usize,
     /// How many of `rules`, from the first, are [`USER_AGENT`]'s.
     user_agent: usize,
     caches: SelectorCaches,
@@ -814,14 +892,18 @@ impl<'r> Cascade<'_, 'r> {
     {
         let mut out: Vec<(Key, &'a Decl)> = Vec::new();
         let rules: &'r [Rule] = self.rules;
-        for (index, rule) in rules.iter().enumerate() {
-            let specificity = rule
-                .selectors
-                .slice()
-                .iter()
-                .filter(|s| self.tree.matches(s, at, pseudo, &mut self.caches))
-                .map(|s| s.specificity())
-                .max();
+        let candidates = self.buckets.candidates(&self.tree.dom.nodes[at]);
+        for run in candidates.chunk_by(|a, b| a.0 == b.0) {
+            let index = run[0].0;
+            let rule = &rules[index];
+            let mut specificity = None;
+            for &(_, s) in run {
+                let selector = &rule.selectors.slice()[s];
+                self.tests += 1;
+                if self.tree.matches(selector, at, pseudo, &mut self.caches) {
+                    specificity = specificity.max(Some(selector.specificity()));
+                }
+            }
             if let Some(specificity) = specificity {
                 let author = index >= self.user_agent;
                 for (n, decl) in rule.decls.iter().enumerate() {

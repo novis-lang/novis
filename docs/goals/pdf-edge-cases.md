@@ -10,7 +10,7 @@ stages:
     context: [extensions/pdf/src/css/value.rs, extensions/pdf/src/write.rs, extensions/pdf/src/assets.rs, extensions/pdf/src/layout/image.rs, tests/hostile/README.md, tests/hostile/novis/Pdf-Document/asset/01-files-and-addresses-outside-the-assets.nvs]
   - id: 2
     title: "no part of a render grows faster than the document: tables, margin-box lookups, repeated images and selector matching are linear"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/src/layout/margin.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/src/css/mod.rs, extensions/pdf/tests/layout.rs]
   - id: 3
     title: "an <img> and an inline <svg> are inline boxes in their line, with vertical-align, float, max and min sizes and EXIF orientation"
@@ -333,11 +333,13 @@ handled but untested.
   - [x] `Builder::load` keeps each reference's index in `images`, for `<img>` and backgrounds
   - [x] the counts reach `Laid::work` through `blocks`' result
   - [x] `cost.rs` `one_image_used_a_thousand_times_…`, run once: green
-- [ ] Rules are bucketed by the rightmost compound's id, class or tag (decision 11).
+- [x] Rules are bucketed by the rightmost compound's id, class or tag (decision 11).
   `extensions/pdf/src/css/mod.rs:812`
-- [ ] Write the four tests the `linear-cost` check names. Each compares the work at N and 10N.
+  - [x] `Buckets` files each selector once, by the compound before a pseudo-element too
+  - [x] `Cascade::matched` tests only the candidates, counted in `Styles::rule_tests`
+- [x] Write the four tests the `linear-cost` check names. Each compares the work at N and 10N.
   `extensions/pdf/tests/cost.rs:1`
-- [ ] Run the `linear-cost` check's command once: green.
+- [x] Run the `linear-cost` check's command once: green.
 
 ### 3. an <img> and an inline <svg> are inline boxes in their line, with vertical-align, float, max and min sizes and EXIF orientation
 
@@ -493,32 +495,35 @@ check once both end.
 
 ### State
 
-Stage 1 is done, and its `hostile-input` check is green (7 of 7).
+Stages 1 and 2 are done. `hostile-input` is green (7 of 7) and `linear-cost` is green (4 of 4).
 
-- A number that is not finite never becomes a `Comp` (`value.rs` `parse_components`), `length()`
-  and `number()` refuse a `calc()` that overflows, and the cascade's `apply` returns `false` for a
-  computed value that is not finite, which `compute` and `declared` report. `@page size` is checked
-  by `paginate::read_size` in `declared`, so a `size` that does not read (`banana` too) is now in
-  `dropped`, and the page stays A4.
-- `value::resolve_custom` resolves an element's custom properties once each, with a memo, and
-  `substitute` takes a `resolve` whose text is never walked again.
-- `write.rs` skips a glyph run whose size is not more than 0.
-- The attack `render/02-values-that-grow-without-end.nvs` ran on `target/debug/nvs.exe run` from
-  its directory: steps 1 and 3 render, step 2's PNG throws `ParseError`, and step 4 ends `FATAL`.
-  It has not run through `bun nv proofs --run`; stage 10 runs it.
+- `layout::Work` on `Laid` counts the work that must stay linear: `table_reads`, `margin_reads`,
+  `image_resolves` and `image_decodes`. `Styles::rule_tests` counts selector tests.
+- `table.rs` sums piece heights and row counts once from the end. `keep`'s forward walk still reads
+  up to a page of pieces per piece, which is linear in the table, and `cost.rs`'s `linear` allows a
+  quarter more per unit for the shorter last page.
+- `margin::Index` files strings, counter changes and running elements by name and page, and
+  `facts` sorts marks onto pages in one pass. The lookups keep the old order rules: the latest
+  entry in list order before the page, the first on the page.
+- `Builder::load` keeps each image reference's index in `images`, so many `Item::Image`s and
+  background layers share one picture. An inline `<svg>` is still parsed at each use.
+- `css::Buckets` files each selector by its rightmost compound's id, else class, else lower-case
+  tag, and `Cascade::matched` tests only an element's candidates, in rule order.
+- A stray rustfmt diff in `table.rs`, `layout.rs` and two test files was committed on its own.
 - The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere and has no log,
   and nightly 41813182715 is the run the calm-editor handoff already traced to fixed commits.
 
 ### Next
 
-Stage 2, from its first item: the suffix sum of piece heights in `extensions/pdf/src/layout/table.rs`
-(`rows_from` and `fits_rest`), then the page index of named strings in `layout/margin.rs`, the image
-cache in `layout/image.rs`, and rule buckets in `css/mod.rs` `Cascade::matched` (decision 11). The
-four tests go in a new `extensions/pdf/tests/cost.rs` and count work. No counter exists in the crate
-yet: add one per mechanism, public only as far as a test needs it, the way `resolve_custom` is a
-public function a test drives with a counting closure.
+Stage 3, from its first item: an `<img>` or inline `<svg>` with an inline `display` becomes a parley
+inline box in its line (`extensions/pdf/src/layout/inline.rs:1670`), drawn at the box's position with
+its `Figure` tag (`layout/image.rs` `Builder::place`, `layout/text.rs:493`). `Builder::place` now takes
+an index into `images`, not a `Picture`, so the inline path reads the size with
+`self.images[image].0.size()`. Check parley 0.12's inline box API in the installed source first.
 
 Tests that may go red at stage 10: any test asserting an empty `dropped` list with an `@page size`
-that does not read. `paginate.rs:133` uses `size: A4 tall` but asserts only the page height.
+that does not read (`paginate.rs:133` asserts only the page height). Any test that counted
+`laid.images.len()` for a document that draws one asset twice now sees one. The margin, string and
+counter tests in `paginate.rs` were not run after `margin::Index`; their order rules are unchanged.
 
 ### Backlog

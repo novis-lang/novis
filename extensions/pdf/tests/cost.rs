@@ -112,3 +112,36 @@ fn one_image_used_a_thousand_times_is_resolved_and_decoded_once() {
     assert_eq!(laid.images.len(), 1);
     assert_eq!((laid.work.image_resolves, laid.work.image_decodes), (1, 1));
 }
+
+#[test]
+fn rules_that_cannot_match_an_element_are_not_tested_against_it() {
+    // Many rules for ids, classes and tags the document does not have, and one that matches.
+    let tests = |unused: usize| {
+        let rules: String = (0..unused)
+            .map(|n| format!("#shop{n} {{ color: red }} p .blog{n} {{ color: red }} h{n} {{ }}"))
+            .collect();
+        let html = format!(
+            "<style>{rules} .price {{ color: blue }}</style>{}",
+            "<p class=\"price\">4.00</p>".repeat(20)
+        );
+        let dom = parse::parse(&html);
+        let styles = css::cascade(&dom, &html, &assets::Assets::new(&[]));
+        let blue = dom
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, node)| node.attr("class") == Some("price"))
+            .filter(|(at, _)| {
+                let color = styles.of(*at).and_then(|s| s.get("color"));
+                matches!(color, Some(css::Value::Color(c)) if (c.r, c.g, c.b) == (0, 0, 255))
+            })
+            .count();
+        assert_eq!(blue, 20);
+        styles.rule_tests
+    };
+    let (small, big) = (tests(100), tests(1000));
+    assert!(
+        small > 0 && small == big,
+        "{small} tests with 300 rules, {big} with 3000"
+    );
+}
