@@ -842,9 +842,8 @@ fn a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter() {
     block_on(read.request.end()).expect("the request ends");
 }
 
-/// A header row of `columns` cells that all say `Name`, except the second, which
-/// says `Name (2)`: the numbered name a duplicate would otherwise take.
-fn equal_header(columns: u32) -> Read {
+/// A header row of `columns` cells, the text of each given by `text`.
+fn header_of(columns: u32, text: impl Fn(u32) -> String) -> Read {
     let mut data = String::from(r#"<row r="1">"#);
     for at in 0..columns {
         let mut column = String::new();
@@ -853,7 +852,7 @@ fn equal_header(columns: u32) -> Read {
             column.insert(0, char::from(b'A' + u8::try_from((rest - 1) % 26).unwrap()));
             rest = (rest - 1) / 26;
         }
-        let text = if at == 1 { "Name (2)" } else { "Name" };
+        let text = text(at);
         data.push_str(&format!(
             r#"<c r="{column}1" t="inlineStr"><is><t>{text}</t></is></c>"#
         ));
@@ -862,48 +861,51 @@ fn equal_header(columns: u32) -> Read {
     Read::open(xlsx(&[sheet("Shop", data)], &[]))
 }
 
-/// The fastest of three reads of `read`'s header, per column, with the header
-/// it returned.
-fn header_per_column(read: &Read, columns: u32) -> (f64, Value) {
-    let mut fastest = Duration::MAX;
-    let mut header = None;
-    for _ in 0..3 {
-        let started = std::time::Instant::now();
-        header = Some(read.call("readerHeader", vec![options("Shop").value()]));
-        fastest = fastest.min(started.elapsed());
-    }
-    let header = header.expect("the header was read three times");
-    (fastest.as_secs_f64() / f64::from(columns), header)
+/// One read of `read`'s header: how long it took, and the header it returned.
+fn timed_header(read: &Read) -> (Duration, Value) {
+    let started = std::time::Instant::now();
+    let header = read.call("readerHeader", vec![options("Shop").value()]);
+    (started.elapsed(), header)
 }
 
-/// Numbering a full row of equal names grows linearly with the row: the cost
-/// per column at 16384 columns stays within four times its cost at 2048.
-/// Numbering each duplicate from `(2)` up again makes it eight times.
-/// Both figures come from this run on this machine, so the test holds at any
-/// speed (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the
+/// Numbering a full row of equal names grows linearly with the row. A header
+/// of 16384 equal names is read in at most four times the time of one of 16384
+/// distinct names, which parses the same and needs no numbering. Numbering
+/// each duplicate from `(2)` up again makes it thousands of times. The two are
+/// read in turn and the fastest of three reads each is kept, so both see the
+/// same load (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the
 /// same run).
 #[test]
 fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
-    let small = equal_header(2_048);
-    let large = equal_header(16_384);
-    let (per_small, _) = header_per_column(&small, 2_048);
-    let (per_large, header) = header_per_column(&large, 16_384);
+    const COLUMNS: u32 = 16_384;
+    // `Name (2)` in the second column is the numbered name a duplicate would
+    // otherwise take.
+    let equal = header_of(COLUMNS, |at| {
+        if at == 1 { "Name (2)" } else { "Name" }.to_owned()
+    });
+    let distinct = header_of(COLUMNS, |at| format!("N{at:05}"));
+    let (mut fastest_equal, mut fastest_distinct) = (Duration::MAX, Duration::MAX);
+    let mut header = None;
+    for _ in 0..3 {
+        let (took, read) = timed_header(&equal);
+        fastest_equal = fastest_equal.min(took);
+        header = Some(read);
+        fastest_distinct = fastest_distinct.min(timed_header(&distinct).0);
+    }
     let mut want = vec!["Name".to_owned(), "Name (2)".to_owned()];
-    want.extend((3..=16_384).map(|count| format!("Name ({count})")));
+    want.extend((3..=COLUMNS).map(|count| format!("Name ({count})")));
     let want: Vec<&str> = want.iter().map(String::as_str).collect();
     assert_eq!(
-        header,
+        header.expect("the header was read three times"),
         strings(&want),
         "a name given in the file is skipped"
     );
     assert!(
-        per_large < per_small * 4.0,
-        "a column costs {:.0} ns at 16384 columns and {:.0} ns at 2048",
-        per_large * 1e9,
-        per_small * 1e9
+        fastest_equal < fastest_distinct * 4,
+        "{COLUMNS} equal names took {fastest_equal:?} and {COLUMNS} distinct ones {fastest_distinct:?}"
     );
-    block_on(small.request.end()).expect("the request ends");
-    block_on(large.request.end()).expect("the request ends");
+    block_on(equal.request.end()).expect("the request ends");
+    block_on(distinct.request.end()).expect("the request ends");
 }
 
 #[test]
