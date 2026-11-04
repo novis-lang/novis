@@ -360,7 +360,7 @@ fn count_reports_file_system_work() {
     assert_eq!(
         files,
         [
-            ("resolved", 8),
+            ("resolved", 6),
             ("read", 2),
             ("listed", 0),
             ("settings", 1),

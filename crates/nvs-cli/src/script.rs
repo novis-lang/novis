@@ -1904,6 +1904,12 @@ fn stamp_of(path: &Path) -> Option<Stamp> {
 ///
 /// `nvs_config::trust::canonical`, so that a Windows path keeps the spelling
 /// every other path in the program has and not the verbatim `\\?\` one.
+///
+/// So a compile resolves its entry twice: once here, and once when the
+/// `require` walk keys it under `std::fs::canonicalize`'s verbatim form.
+/// Turning one form into the other without the syscall would be a second
+/// canonicalizer beside the walk's, which `Unowned::trust`'s doc warns lets a
+/// symlinked cycle through. It costs one syscall per compile, not per file.
 fn real_path(written: &Path) -> PathBuf {
     nvs_config::trust::canonical(written).unwrap_or_else(|_| written.to_path_buf())
 }

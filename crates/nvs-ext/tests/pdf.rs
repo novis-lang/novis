@@ -690,7 +690,9 @@ fn report(rows: usize) -> String {
 
 /// The render of `report(8400)` in a request of `memory` bytes, or of no limit for `None`, and the
 /// bytes its request is charged once the call has returned. Its PDF is about 4 MiB, and its guest
-/// grows to about 150 MiB.
+/// grows to about 150 MiB. These tests judge memory alone, so the CPU deadline is an hour: a render
+/// takes over two minutes of wall time when every test binary runs beside it, and the meter's
+/// deadline is wall time.
 fn render_report(memory: Option<u64>) -> (Result<(Vec<u8>, u64), Failure>, u64) {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
@@ -699,7 +701,7 @@ fn render_report(memory: Option<u64>) -> (Result<(Vec<u8>, u64), Failure>, u64) 
     let extension = pdf(&builtins)
         .extension()
         .expect("the PDF component compiles and checks");
-    let meter = Arc::new(Meter::new(Duration::from_secs(120), memory));
+    let meter = Arc::new(Meter::new(Duration::from_secs(3600), memory));
     let request = host.request(meter.clone());
     let out = render(&request, extension, &report(8400), &[]);
     (out, meter.charged())

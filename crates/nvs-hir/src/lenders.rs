@@ -6,8 +6,8 @@
 //! Walked as its own entry point, either resolves none of the names its program
 //! resolves. A **lender** is a program whose `require` chain declares
 //! `autoload`, and [`Lender::lends_to`] is the one test of which files it
-//! lends its map to. [`resolve_program_borrowing`](crate::resolve_program_borrowing)
-//! and [`resolve_program_linted`](crate::resolve_program_linted) take its
+//! lends its map to. [`resolve_program_borrowing`] and
+//! [`resolve_program_linted`](crate::resolve_program_linted) take its
 //! [`sites`](Lender::sites) as the borrowed declarations.
 //!
 //! Two callers survey a tree for lenders, and both go through this module so

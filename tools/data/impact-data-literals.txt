@@ -36,7 +36,6 @@ crates/nvs-config/tests/trust.rs  ".."  --  joined onto the test's own temporary
 crates/nvs-hir/src/requires.rs  "../lib.nvs"  --  a `require` target compared as a path, never opened
 crates/nvs-lsp/src/case.rs  "../escape.nvs"  --  a case file's auxiliary path the parser is expected to refuse
 crates/nvs-lsp/src/rename.rs  "../"  --  a prefix a rewritten `require` path is compared with, never opened
-crates/nvs-lsp/tests/index.rs  ".."  --  a step joined to a scratch directory's path, so the walk sees a key that is not canonical; it opens only that scratch directory
 crates/nvs-ext/src/wasi.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-ext/src/typed/image.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-ext/src/typed/image.rs  "../../wit/image.wit"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing

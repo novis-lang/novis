@@ -16,7 +16,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use nvs_lsp::reach::{Reach, reach};
 use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of, uri_of};
@@ -215,9 +215,10 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 /// The refresh path, the server's loop, `nvs code`, a file move's `require`
 /// rewrite and this suite ask these; a feature asks the queries beside them,
 /// which is what [`every_reader_queries_the_one_index`] counts. `work` is
-/// asked by `tests/incremental.rs` alone, and `generation` and `save_to` by the
-/// server's idle write and that suite. None of them looks a name up.
-const BOOKKEEPING: [&str; 10] = [
+/// asked by `tests/incremental.rs` alone, `generation` and `save_to` by the
+/// server's idle write and that suite, and `workers_running` by that suite's
+/// test that a settled index runs no worker. None of them looks a name up.
+const BOOKKEEPING: [&str; 11] = [
     "files",
     "holds",
     "len",
@@ -228,6 +229,7 @@ const BOOKKEEPING: [&str; 10] = [
     "work",
     "generation",
     "save_to",
+    "workers_running",
 ];
 
 /// Eight readers, and each one of them is a query against the one index.
@@ -788,7 +790,7 @@ fn a_planned_entry_is_its_files_canonical_key() {
     fs::create_dir_all(dir.path.join("Lib").join("Sub")).expect("a scratch directory");
     dir.write("main.nvs", "<?nvs\nclass Main {}\n");
     dir.write("Lib/Sub/Item.nvs", "<?nvs\nclass Item {}\n");
-    let root = dir.path.join("Lib").join("..");
+    let root = dir.path.join("Lib").join(Component::ParentDir);
     let index = SymbolIndex::planned(&Documents::new(), CheckScope::Workspace, Some(&root));
     let planned: Vec<&PathBuf> = index.pending().iter().collect();
     assert_eq!(planned.len(), 2, "both files are planned: {planned:?}");
