@@ -2615,6 +2615,19 @@ nvs_runtime::nvs_helper! {
 /// boundaries as that subject over the part it covers, so a caller may pass a
 /// suffix or a prefix that starts or ends on one.
 fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(usize, usize)> {
+    find_counted(haystack, needle, case_insensitive, &mut || {})
+}
+
+/// [`find_from`], calling `step` once per character the scan reads and once per
+/// fallback it takes, in the table and in the scan. A test counts the steps to
+/// check the scan is linear on any machine. [`find_from`] passes a closure that
+/// does nothing, so the count costs nothing outside a test.
+fn find_counted(
+    haystack: &str,
+    needle: &str,
+    case_insensitive: bool,
+    step: &mut impl FnMut(),
+) -> Option<(usize, usize)> {
     if !case_insensitive {
         let at = haystack.find(needle)?;
         if whole_clusters(haystack, at, at + needle.len()) {
@@ -2625,15 +2638,17 @@ fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(us
     if wanted.is_empty() {
         return Some((0, 0));
     }
-    let fallback = fallback_of(&wanted);
+    let fallback = fallback_counted(&wanted, step);
     // The byte offsets of the last `wanted.len()` characters, so a match's
     // start is known when its last character is read.
     let mut starts = vec![0usize; wanted.len()];
     let mut q = 0usize;
     for (j, (at, found)) in haystack.char_indices().enumerate() {
+        step();
         starts[j % wanted.len()] = at;
         let next = key(found, case_insensitive);
         while q > 0 && next != wanted[q] {
+            step();
             q = fallback[q - 1];
         }
         if next == wanted[q] {
@@ -2741,10 +2756,18 @@ fn key(c: char, case_insensitive: bool) -> Lowered {
 /// Knuth–Morris–Pratt's failure table for `wanted`: entry `i` is the length of
 /// the longest proper prefix of `wanted[..=i]` that is also its suffix.
 fn fallback_of(wanted: &[Lowered]) -> Vec<usize> {
+    fallback_counted(wanted, &mut || {})
+}
+
+/// [`fallback_of`], calling `step` once per entry and once per fallback, as
+/// [`find_counted`] does.
+fn fallback_counted(wanted: &[Lowered], step: &mut impl FnMut()) -> Vec<usize> {
     let mut fallback = vec![0usize; wanted.len()];
     let mut k = 0usize;
     for i in 1..wanted.len() {
+        step();
         while k > 0 && wanted[i] != wanted[k] {
+            step();
             k = fallback[k - 1];
         }
         if wanted[i] == wanted[k] {
@@ -6028,6 +6051,36 @@ mod tests {
             index_of(&format!("{haystack}b"), &needle, 0, true),
             Some(u64::try_from(hay - near).expect("the position fits a u64"))
         );
+    }
+
+    /// A case-insensitive search for a long needle that almost matches at every
+    /// start takes at most two steps per character of the haystack and of the
+    /// needle. The count is the same on any machine, where a time bound is not
+    /// (`rule:testing/a-test-holds-at-any-speed`). Trying the needle at every
+    /// start would take about the haystack's length times the needle's.
+    #[test]
+    fn a_case_insensitive_near_miss_takes_steps_linear_in_the_haystack_and_needle() {
+        let (hay, near) = if cfg!(miri) {
+            (1 << 11, 1 << 5)
+        } else {
+            (1 << 20, 1 << 12)
+        };
+        let haystack = "a".repeat(hay);
+        let needle = format!("{}B", "A".repeat(near));
+        let bound = 2 * (hay + 1 + near + 1);
+        for (subject, want) in [
+            (haystack.clone(), None),
+            (format!("{haystack}b"), Some((hay - near, near + 1))),
+        ] {
+            let mut steps = 0usize;
+            let found = super::find_counted(&subject, &needle, true, &mut || steps += 1);
+            assert_eq!(found, want);
+            assert!(
+                steps <= bound,
+                "the search took {steps} steps over {} characters, past {bound}",
+                subject.len() + needle.len()
+            );
+        }
     }
 
     /// `codePoints` answers scalar values, not clusters: a combining mark and
