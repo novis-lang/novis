@@ -629,52 +629,49 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 1 has seven of its fourteen items done and committed. 9597f6440 and f0c22cade landed the
-repeated ods row, the one-pass XML scan, the shared-string ceiling and the shared-formula index.
-4e38a9cc1 landed the custom-format map (`read/mod.rs`'s `styles`), the in-place keyword test in
-`format::lex` (`starts`), and the evaluator's `Grid<V>` (`eval/mod.rs`). Each sheet's cells and
-formulas now carry a by-column row list, and a rect taller than it is wide walks only its
-columns (`Stored`), in `Ctx::entries`, `Ctx::cells` and `precedents` alike. b47fe3941 makes
-`xls::read` throw decision 7's message for a compound file with `EncryptedPackage`
-(`cfb::File::has`) and at an xls `FILEPASS` record. Seven of the ten `hostile-input` tests exist
-and pass, each run once by name. `spreadsheet_hostile.rs` gained `xlsx_with` and `styles`, a styles
-part of custom codes; `linear_by`, timing with any function; `evaluate_time`, which runs
-`readerEvaluate`; and `compound_of`, a compound file with a named stream and its content.
+Stage 1 has twelve of its fourteen items done and committed. Every code item is in, and both of
+its checks, `hostile-input` and `csv-charset`, ran once this session and are green.
 
-The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as two handoffs found
-already. The nightly reds on run 41813182715 (f3150b922) are fixed by a8bdf37fb (macOS `live_edit`)
-and a2f451fad (the Miri `openat` skip); the next nightly confirms both.
+a8e21e5e4 is the template item: `dropped`, `without_sheets` and `without_inert` in
+`template/mod.rs`, and `Sheet::inert`. 5c84be4f5 is the encodings item: `xml::encoding`, called
+from `zip::Part`. 7ac531677 is RC-03: `isUtf8` and `notUtf8()` in `Reader.nvs`.
 
-The tree still holds another session's uncommitted edits in `crates/nvs-lsp/`,
-`crates/nvs-diagnostics/` and now `crates/nvs-hir/`. They fail workspace `cargo clippy
---all-targets` on a `u128 as u64` cast at `crates/nvs-diagnostics/src/source.rs:374`. They were
-left unstaged, and the spreadsheet crate's own clippy is clean.
+The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as three handoffs have
+found. The nightly reds on run 41813182715 (f3150b922) are fixed by a8bdf37fb (macOS `live_edit`)
+and a2f451fad (the Miri `openat` skip). The next nightly confirms both.
+
+The tree still holds another session's uncommitted edits in `crates/nvs-lsp/` and
+`crates/nvs-hir/`. They were left unstaged. Workspace `cargo clippy --all-targets` is clean
+with them.
 
 ### Next
 
-The template item (decision 8), `extensions/spreadsheet/src/template/mod.rs`. Dropping the parts
-is not enough, because three other parts name them:
-- `dropped` (`:216`) adds `xl/macrosheets/`, `xl/vbadata.xml`, `xl/activex/`, `customui/` and
-  `oleobject` (`xl/embeddings/oleObject*.bin`), with each `_rels` of a dropped part.
-- `rewritten` (`:1050`) drops their relationships and content types through `without` (`:471`):
-  `[Content_Types].xml` (`macrosheet`, `vbadata`, `activex`, `oleobject`, `customui`),
-  `xl/_rels/workbook.xml.rels` (`macrosheet`), and the root `_rels/.rels`, which names
-  `customUI` (`ui/extensibility`). A sheet's own `.rels` names its `control` and `oleObject`
-  relationships, and today `.rels` parts return `Ok(None)` (copied unchanged), so add an arm for
-  `xl/worksheets/_rels/`.
-- `xl/workbook.xml` keeps a `<sheet r:id>` for each macro sheet. `Template::open` (`:557`) skips
-  them already. The fill removes that `<sheet>` element, removes each `definedName` whose
-  `localSheetId` is that sheet, lowers each higher `localSheetId` by one, and clamps
-  `workbookView`'s `activeTab` and `firstSheet`.
-- A worksheet's XML names its ActiveX controls in `<controls>` and its OLE objects in
-  `<oleObjects>`, each inside `mc:AlternateContent`. Remove both elements where the sheet is
-  written (`head`, `:1103`, and the path that copies a sheet without blocks), or the file does
-  not open.
+Stage 1's last two items, then stage 2.
 
-Its test is `a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keeps_images`
-in `crates/nvs-ext/tests/spreadsheet_hostile.rs`. Build the template with `zip` (`:44`), fill it
-as `filling` (`:968`) does, and read the archive's parts with `entry` (`:1066`). Then the
-encodings item (decision 9, `extensions/spreadsheet/src/read/xml.rs:1`) and RC-03 (decision 10,
-`extensions/spreadsheet/nvs/Reader.nvs:486`). No existing test is expected to go red.
+1. The docs item. These rules and pages still describe the old behaviour:
+   - `docs/rules/core-classes/spreadsheet-template-fill.md:1` says every part is copied unchanged.
+     Say a fill drops the parts that can run code, and point at the inert rule.
+   - `docs/rules/core-classes/spreadsheet-output-is-inert.md:1` needs a paragraph listing what a
+     fill drops (decision 8), and that embedded packages and images stay.
+   - `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md` § *Formats* needs three facts: an
+     encrypted file throws (decision 7), an XML part not in UTF-8 throws (decision 9), and a UTF-32
+     CSV or a CSV that is not UTF-8 throws (decision 10). It also needs decision 2's cost, one row
+     per repeated ods row.
+   - The pages `docs/examples/novis/Spreadsheet-Reader/open/about.md` and
+     `docs/examples/novis/Spreadsheet-Template/fill/about.md`, and the doc comment at
+     `extensions/spreadsheet/nvs/Reader.nvs:39`, which says what a CSV file is. These are text an
+     end user reads, so AGENTS.md § *Text an end user reads* applies. Run
+     `bun nv proofs --comments` on them.
+   - Then `bun nv rules --render` and `bun nv rules --check`.
+2. The attack `tests/hostile/novis/Spreadsheet-Reader/open/02-encrypted-and-wrongly-encoded-files.nvs`.
+   Build its bytes as `01-files-that-are-not-workbooks.nvs` does. Then run
+   `bun nv proofs --run --id 'Novis\Spreadsheet\Reader::open' --show` once. When it passes, set
+   stage 1 to done in the front matter.
+
+Stage 2 starts at decision 11, in `extensions/spreadsheet/src/read/zip.rs` (`Directory::find`) and
+`read/mod.rs`'s `resolve` (`:517`). No existing test is expected to go red, but these may:
+`spreadsheet-reads-csv-in-another-dialect-and-charset.nvst` (it reads a Latin-1 CSV with the option
+set, so it should still pass), and any template test whose sheet `.rels` is now rewritten by
+`without`.
 
 ### Backlog
