@@ -20,15 +20,16 @@
 //!   person hid it, and Excel counts only the second.
 //!
 //! An input whose Excel result is not certain is listed under the function's name, never given a
-//! guessed value.
+//! guessed value. A criterion, or a cell tested against a number criterion, that only a locale
+//! makes a number is a `coercion` miss.
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use super::functions::{arity, error, listed, number, value, wildcard};
 use super::parse::{Expr, Rect};
-use super::value::{Value, number_of_text};
-use super::{Ctx, Miss, Operand};
+use super::value::{Value, locale_number, number_of_text};
+use super::{Ctx, Miss, Operand, coercion};
 use crate::read::CellError;
 
 /// The value of a `Result<_, CellError>`, or the error as the function's result.
@@ -737,7 +738,14 @@ fn ranges(
             Ok(at) => at,
             Err(e) => return Ok(Err(e)),
         };
-        let criterion = Criterion::of(&ctx.scalar(&pair[1])?).ok_or_else(|| listed(name))?;
+        let given = ctx.scalar(&pair[1])?;
+        if let Value::Text(t) = &given {
+            let rest = t.trim_start_matches(['<', '>', '=']);
+            if locale_number(rest) {
+                return Err(coercion(t));
+            }
+        }
+        let criterion = Criterion::of(&given).ok_or_else(|| listed(name))?;
         if out
             .first()
             .is_some_and(|first| shape(first.rect) != shape(rect))
@@ -757,6 +765,11 @@ fn ranges(
 fn all_match(ctx: &Ctx<'_>, name: &str, ranges: &[Range], dr: u32, dc: u32) -> Result<bool, Miss> {
     for range in ranges {
         let cell = ctx.at(range.sheet, range.rect.top + dr, range.rect.left + dc);
+        if let (Target::Number(_), Value::Text(t)) = (&range.criterion.target, cell)
+            && locale_number(t)
+        {
+            return Err(coercion(t));
+        }
         if !range.criterion.test(cell).ok_or_else(|| listed(name))? {
             return Ok(false);
         }

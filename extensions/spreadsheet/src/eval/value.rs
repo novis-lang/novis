@@ -3,9 +3,10 @@
 //!
 //! - **To a number**, for arithmetic: a boolean is 1 or 0, a blank is 0, and a text is its
 //!   number when it is one: a decimal or scientific number, a percentage (`50%`), an ISO date
-//!   (`2024-01-15`), a clock time (`13:30`, `13:30:15`) or both. Other text is `#VALUE!`. A
-//!   date in a locale's own order (`1/15/2024`) is other text here, where Excel reads it by the
-//!   machine's locale.
+//!   (`2024-01-15`, counted from the workbook's date system), a clock time (`13:30`,
+//!   `13:30:15`) or both. Text that only a locale makes a number, such as a date in a locale's
+//!   own order (`1/15/2024`), `$1` or `1,000`, is listed as a `coercion` miss, because Excel
+//!   reads it by the machine's locale ([`locale_number`]). Other text is `#VALUE!`.
 //! - **To text**, for `&`: a number is written with up to 15 significant digits, in the
 //!   scientific form past `1E+15` and below `1E-9`. A boolean is `TRUE` or `FALSE`, and a blank
 //!   is `""`.
@@ -153,8 +154,28 @@ pub fn number_text(v: f64) -> String {
     out
 }
 
-/// A text's number, by the rules in the module doc.
+/// Whether `text` is no number by [`number_of_text`], but a locale could read it as one: it has a
+/// digit, and nothing but digits, `,`, `.`, `/`, `-`, `+`, `:`, `%`, spaces, parentheses and
+/// currency signs (`$1`, `1,000`, `1/15/2024`, `1,5`).
+pub fn locale_number(text: &str) -> bool {
+    let t = text.trim();
+    t.chars().any(|c| c.is_ascii_digit())
+        && t.chars().all(|c| {
+            c.is_ascii_digit()
+                || matches!(c, ',' | '.' | '/' | '-' | '+' | ':' | '%' | ' ' | '(' | ')')
+                || matches!(c, '$' | '€' | '£' | '¥')
+        })
+        && number_of_text(t).is_none()
+}
+
+/// A text's number, by the rules in the module doc. An ISO date counts from the 1900 system,
+/// as [`number_in`] with `date1904` false does.
 pub fn number_of_text(text: &str) -> Option<f64> {
+    number_in(text, false)
+}
+
+/// A text's number, its ISO date counted from the 1904 system when `date1904` is true.
+pub fn number_in(text: &str, date1904: bool) -> Option<f64> {
     let t = text.trim();
     if t.is_empty() {
         return None;
@@ -172,7 +193,13 @@ pub fn number_of_text(text: &str) -> Option<f64> {
     };
     let mut serial = 0.0;
     if let Some(day) = day {
-        serial += iso_day(day)?;
+        let days = iso_day(day)?;
+        // The 1904 system's serial 0 is the 1900 system's 1462, and it has no day before it.
+        serial += if date1904 {
+            Some(days - 1462.0).filter(|days| *days >= 0.0)?
+        } else {
+            days
+        };
     }
     if let Some(clock) = clock {
         serial += clock_time(clock)?;

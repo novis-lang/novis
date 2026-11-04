@@ -683,3 +683,102 @@ fn a_computed_result_reads_by_the_read_table() {
         .collect();
     assert_eq!(cached, [Some("A1+1".to_owned()), Some("B1+1".to_owned())]);
 }
+
+#[test]
+fn a_table_column_named_with_a_hash_is_found_by_its_escaped_name() {
+    let mut book = book(&["Shop"], &[]);
+    book.table(Table {
+        name: "Sales".into(),
+        sheet: "Shop".into(),
+        rect: Rect {
+            top: 1,
+            left: 1,
+            bottom: 3,
+            right: 2,
+        },
+        header: true,
+        totals: false,
+        columns: vec!["Item".into(), "#Orders".into()],
+    });
+    for (cell, value) in [
+        ("A1", text("Item")),
+        ("B1", text("#Orders")),
+        ("A2", text("Pen")),
+        ("B2", n(2.0)),
+        ("A3", text("Ink")),
+        ("B3", n(5.0)),
+    ] {
+        put(&mut book, "Shop", cell, value);
+    }
+    // `'#` is the escaped column name, and `#Data` with no `'` is an item.
+    for (cell, formula) in [
+        ("D1", "=SUM(Sales['#Orders])"),
+        ("D2", "=SUM(Sales[[#Data],['#Orders]])"),
+        ("D3", "=Sales[[#Headers],['#Orders]]"),
+    ] {
+        put_formula(&mut book, "Shop", cell, formula, n(0.0));
+    }
+    assert_eq!(book.evaluate(), []);
+    assert_eq!(get(&book, "Shop!D1"), n(7.0));
+    assert_eq!(get(&book, "Shop!D2"), n(7.0));
+    assert_eq!(get(&book, "Shop!D3"), text("#Orders"));
+}
+
+#[test]
+fn a_date_text_in_a_1904_workbook_counts_from_1904() {
+    let formulas = [
+        ("Shop", "A1", "=\"2024-01-15\"+0"),
+        ("Shop", "A2", "=\"1904-01-02 12:00\"*1"),
+        ("Shop", "A3", "=-\"2024-01-15\""),
+    ];
+    let mut old = book(&["Shop"], &formulas);
+    assert_eq!(old.evaluate(), []);
+    assert_eq!(get(&old, "Shop!A1"), n(45306.0));
+    let mut book = book(&["Shop"], &formulas);
+    book.use_1904();
+    assert_eq!(book.evaluate(), []);
+    // 2024-01-15 is 1,462 days fewer from 1904-01-01 than from the 1900 system's start.
+    assert_eq!(get(&book, "Shop!A1"), n(43844.0));
+    assert_eq!(get(&book, "Shop!A2"), n(1.5));
+    assert_eq!(get(&book, "Shop!A3"), n(-43844.0));
+}
+
+#[test]
+fn text_that_needs_a_locale_to_be_a_number_is_listed_and_keeps_its_stored_value() {
+    let mut book = book(&["Shop"], &[]);
+    for (cell, value) in [
+        ("A1", text("$1")),
+        ("A2", text("1,000")),
+        ("A3", text("1/15/2024")),
+        ("A4", text("2")),
+    ] {
+        put(&mut book, "Shop", cell, value);
+    }
+    for (cell, formula, stored) in [
+        ("B1", "=A1+1", n(7.0)),
+        ("B2", "=-A2", n(8.0)),
+        ("B3", "=A3*2", n(9.0)),
+        ("B4", "=COUNTIF(A1:A3,1000)", n(1.0)),
+        ("B5", "=COUNTIF(C1:C2,\"1,000\")", n(2.0)),
+        ("B6", "=A4+1", n(0.0)),
+        ("B7", "=B1&\"\"", n(0.0)),
+    ] {
+        put_formula(&mut book, "Shop", cell, formula, stored);
+    }
+    assert_eq!(
+        book.evaluate(),
+        [
+            missed("Shop!B1", Kind::Coercion, "$1"),
+            missed("Shop!B2", Kind::Coercion, "1,000"),
+            missed("Shop!B3", Kind::Coercion, "1/15/2024"),
+            missed("Shop!B4", Kind::Coercion, "$1"),
+            missed("Shop!B5", Kind::Coercion, "1,000"),
+        ]
+    );
+    // Each missed cell keeps its stored value, and a cell that reads one reads that value.
+    assert_eq!(get(&book, "Shop!B1"), n(7.0));
+    assert_eq!(get(&book, "Shop!B3"), n(9.0));
+    assert_eq!(get(&book, "Shop!B6"), n(3.0));
+    assert_eq!(get(&book, "Shop!B7"), text("7"));
+    assert_eq!(Kind::Coercion.as_str(), "coercion");
+}

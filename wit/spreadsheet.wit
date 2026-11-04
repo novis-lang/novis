@@ -598,8 +598,8 @@ interface engine {
     }
 
     /// A formula cell `reader-evaluate` did not compute: `cell` as
-    /// `Sheet!A1`, `kind` as `function`, `reference`, `circular` or
-    /// `token`, and the text that names what.
+    /// `Sheet!A1`, `kind` as `function`, `reference`, `circular`, `token`
+    /// or `coercion`, and the text that names what.
     record missed-info {
         cell: string,
         kind: string,

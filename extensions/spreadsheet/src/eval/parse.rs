@@ -772,8 +772,9 @@ impl Parser<'_> {
             Some(b'[') => loop {
                 self.spaces();
                 self.expect(b'[')?;
+                let item = self.peek() == Some(b'#');
                 let first = self.bracket()?;
-                let first = part(first, &mut items)?;
+                let first = part(first, item, &mut items)?;
                 if let Some(name) = first {
                     let mut last = name.clone();
                     if self.eat(b':') {
@@ -800,8 +801,9 @@ impl Parser<'_> {
                 }
             }
             _ => {
+                let item = self.peek() == Some(b'#');
                 let text = self.bracket_text()?;
-                if let Some(name) = part(text, &mut items)? {
+                if let Some(name) = part(text, item, &mut items)? {
                     columns = Some((name.clone(), name));
                 }
             }
@@ -844,9 +846,11 @@ impl Parser<'_> {
     }
 }
 
-/// One part of a structured reference: an item, pushed to `items`, or a column's name.
-fn part(text: String, items: &mut Vec<Item>) -> Result<Option<String>, Unreadable> {
-    if !text.starts_with('#') {
+/// One part of a structured reference: an item, pushed to `items`, or a column's name. `item`
+/// is whether the part began with a `#` that no `'` escapes, so a column named `#Orders`,
+/// written `'#Orders`, is a column.
+fn part(text: String, item: bool, items: &mut Vec<Item>) -> Result<Option<String>, Unreadable> {
+    if !item {
         return Ok(Some(text));
     }
     let item = match text.to_ascii_lowercase().as_str() {

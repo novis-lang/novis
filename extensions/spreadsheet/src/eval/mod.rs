@@ -22,6 +22,9 @@
 //! - `circular`: a cell in a cycle, with its formula.
 //! - `token`: formula text the parser cannot read, or a formula the reader could not decode,
 //!   with its text.
+//! - `coercion`: a text that only a locale makes a number (`$1`, `1,000`, `1/15/2024`), used in
+//!   arithmetic or matched against a number criterion, with the text. Excel reads such text by
+//!   the machine's locale, so no one value is right.
 //!
 //! Nothing here does I/O or follows a reference out of the workbook. What it spends, per
 //! evaluation: the grid, one parsed tree per formula and per name, the list of cells each
@@ -50,6 +53,7 @@ pub enum Kind {
     Reference,
     Circular,
     Token,
+    Coercion,
 }
 
 impl Kind {
@@ -59,7 +63,16 @@ impl Kind {
             Self::Reference => "reference",
             Self::Circular => "circular",
             Self::Token => "token",
+            Self::Coercion => "coercion",
         }
+    }
+}
+
+/// The miss of a text that only a locale makes a number, such as `$1`, `1,000` or `1/15/2024`.
+pub(crate) fn coercion(text: &str) -> Miss {
+    Miss {
+        kind: Kind::Coercion,
+        text: text.to_owned(),
     }
 }
 
@@ -818,6 +831,7 @@ impl<'a> Ctx<'a> {
                 if *op == parse::Unary::Plus {
                     return v(value);
                 }
+                let value = self.arithmetic(value)?;
                 v(match value.number() {
                     Ok(n) if *op == parse::Unary::Minus => Value::number_or_error(-n),
                     Ok(n) => Value::number_or_error(n / 100.0),
@@ -839,8 +853,13 @@ impl<'a> Ctx<'a> {
                 }
             }
             Expr::Binary(op, left, right) => {
-                let a = self.scalar(left)?;
-                let b = self.scalar(right)?;
+                let mut a = self.scalar(left)?;
+                let mut b = self.scalar(right)?;
+                use parse::Binary as B;
+                if matches!(op, B::Plus | B::Minus | B::Times | B::Divide | B::Power) {
+                    a = self.arithmetic(a)?;
+                    b = self.arithmetic(b)?;
+                }
                 v(binary(*op, &a, &b))
             }
             Expr::Call(name, args) => functions::call(self, name, args),
@@ -849,6 +868,21 @@ impl<'a> Ctx<'a> {
                 text: text.clone(),
             }),
         }
+    }
+
+    /// An operand of arithmetic. A text that is a number counts its ISO date from the
+    /// workbook's date system, and a text only a locale makes a number is a `coercion` miss.
+    fn arithmetic(&self, value: Value) -> Result<Value, Miss> {
+        let Value::Text(t) = &value else {
+            return Ok(value);
+        };
+        if value::locale_number(t) {
+            return Err(coercion(t));
+        }
+        Ok(match value::number_in(t, self.date1904()) {
+            Some(n) => Value::Number(n),
+            None => value,
+        })
     }
 
     fn name(&mut self, qualifier: Option<&str>, name: &str) -> Result<Operand, Miss> {
