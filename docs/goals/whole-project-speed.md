@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/check.rs, crates/nvs-diagnostics/src/source.rs, crates/nvs-hir/src/requires.rs, crates/nvs-cli/tests/check_command.rs, docs/rules/testing/bench-counters.md, crates/nvs-lsp/src/server.rs]
   - id: 2
     title: "the editor reads each settings file once per change, and hashes each extension set once"
-    status: open
+    status: done
     context: [crates/nvs-lsp/tests/index.rs, crates/nvs-lsp/src/session.rs]
   - id: 3
     title: "nvs check of a class file, an uncached compile, nvs test of a directory and nvs fmt of a tree learn each file-system fact once"
@@ -116,7 +116,12 @@ whole thread, the survey of the tree's programs included:
 | cold | 0.11 s | 2.02 s | 24.3 s | parsed 12,297, checked 13,111, resolved 134,092, read 9,106, listed 22, settings 592 | resolved 145,020, read 18,245, listed 4,581, settings 592, programs 116 |
 | warm | 0.01 s | 0.96 s | 1.38 s | parsed 313, checked 320, resolved 4,044, read 295, listed 1, settings 5 | resolved 6,784, read 9,434, listed 4,560, settings 5, programs 116 |
 
-A cold index resolves about 15 paths per file it reads and parses 592 settings files. A warm start
+After stage 2 (`9c8e2e993`), the same cold start: `initialize` 0.11 s, `documentSymbol` 0.78 s, index
+end **17.3 s**. Index work: parsed 12,297, checked 13,111, resolved 133,761, read 9,106, listed 22,
+settings 263. Server work: resolved 144,689, read 18,245, listed 4,581, settings 263, programs 116. The
+checkout tracks 256 `nvs.toml` files, so 263 is each settings file and its includes parsed once.
+
+A cold index resolves about 15 paths per file it reads and parsed 592 settings files before stage 2. A warm start
 still walks all 116 programs and reads 9,434 files for the survey alone, because each walk reads the
 library its programs share again.
 
@@ -158,7 +163,9 @@ measurement ran by hand twice (AGENTS.md rule 12).
 reads the tree again on every analysis because "a cached set would be a second answer that outlives an
 edit to `nvs.toml`". The cache keeps that promise: it is keyed by the analysed file's directory, and each
 entry holds every settings file it read (and every one it looked for and did not find) with its size and
-modification time. A lookup stats those paths and reuses the entry only when all of them match. Cost: one
+modification time. *As built (stage 2):* every analysis finds its root files again (one or two existence
+tests), and the parsed tree is keyed by that list of root files, not by the directory, so a settings file
+that many directories share is parsed once (`crates/nvs-lsp/src/tree_cache.rs`). A lookup stats those paths and reuses the entry only when all of them match. Cost: one
 entry per directory that holds an analysed file, for the session; a stat per settings path per analysis
 instead of a read and a parse. A settings file written twice within the file system's time resolution
 with the same size is the one case it misses, the same trade the index file's stamp already makes
@@ -254,17 +261,17 @@ than the files). The session writes the items.
 **Does:** caches the settings read per directory, revalidated by modification time, and hands
 `graph_key` the set's digest.
 
-- [ ] The settings cache, keyed and revalidated as § *Standing decisions* says, held by `Documents`.
+- [x] The settings cache, keyed and revalidated as § *Standing decisions* says, held by `Documents`.
   The doc comment of `extension_set` is rewritten to say what it caches and why it is never stale.
   `crates/nvs-lsp/src/document.rs:969`
-- [ ] `graph_key` takes the cached digest. `crates/nvs-lsp/src/document.rs:926`
-- [ ] The three tests the `index-work-bounded` check names, over a scratch tree of many small files
+- [x] `graph_key` takes the cached digest. `crates/nvs-lsp/src/document.rs:926`
+- [x] The three tests the `index-work-bounded` check names, over a scratch tree of many small files
   that share one `nvs.toml`. Each bounds a count per file; none reads a clock.
   `crates/nvs-lsp/tests/index.rs:1`
-- [ ] `rule:ide/the-index-is-incremental-and-persistent` says what the cache costs.
+- [x] `rule:ide/the-index-is-incremental-and-persistent` says what the cache costs.
   `docs/rules/ide/the-index-is-incremental-and-persistent.md:1`
-- [ ] Run the `index-work-bounded` check's command once: green.
-- [ ] `bun nv lsp-start . --cold` from this checkout's root: record the cold figures in § *Why*.
+- [x] Run the `index-work-bounded` check's command once: green.
+- [x] `bun nv lsp-start . --cold` from this checkout's root: record the cold figures in § *Why*.
 
 ### 3. nvs check of a class file, an uncached compile, nvs test of a directory and nvs fmt of a tree learn each file-system fact once
 
@@ -311,6 +318,14 @@ than the files). The session writes the items.
   `Arc`, the stubs path, and a session it owns. It is `Send`. `crates/nvs-lsp/src/document.rs:741`
 - [ ] `absorb` becomes the analysis (returning each reached file's `Indexed` and the entry's reads) and
   the merge (today's first-reach rule). `settle_one` calls both. `crates/nvs-lsp/src/index.rs:1169`
+- [ ] An analysis of a lone class file resolves its own path 14 times. Eight sites make an already
+  canonical path canonical again: `absorb`'s entry, each loaded path and the reads
+  (`crates/nvs-lsp/src/index.rs:1193`, `:1200`, `:1247`), `lender_for`
+  (`crates/nvs-lsp/src/document.rs:377`), `At::of` (`crates/nvs-hir/src/lenders.rs:188`),
+  `SourceMap::place` (`crates/nvs-diagnostics/src/source.rs:451`), the walk
+  (`crates/nvs-hir/src/requires.rs:492`, `:727`) and `crates/nvs-hir/src/autoload.rs:880`. The new
+  analysis function resolves the entry once and hands the key on. Then lower the bound in
+  `an_index_resolves_each_files_path_a_bounded_number_of_times_per_file` to the new figure.
 - [ ] Run `cargo test --test index --test incremental --test autoload`: green, unchanged.
 
 ### 5. the editor settles its index on every core, and the index it builds is the serial one
@@ -339,28 +354,31 @@ than the files). The session writes the items.
 
 ### State
 
-Stage 1 is done and its check `file-system-counts` is green. The five counters are
-`nvs_diagnostics::work` (`crates/nvs-diagnostics/src/work.rs`), printed by `--count` and summed in the
-index's `Work.files`. `bun nv lsp-start` measures the editor (`tools/nv/cmd/lsp-start.ts`). § *Why*
-has every path's figures, and stage 3 has one item per repeated cost. § *Standing decisions* § *How
-stage 1 built them* records what differs from the plan.
+Stages 1 and 2 are done, and their checks `file-system-counts` and `index-work-bounded` are green.
+Stage 2 is `crates/nvs-lsp/src/tree_cache.rs` (`9c8e2e993`): the configuration tree is kept per list
+of root files, and the extension set per list of entries with its digest, each revalidated by the
+size and time of every path its reader touched. `graph_key` hashes the digest. A cold index of this
+checkout went from 24.3 s to 17.3 s and from 592 settings parses to 263, one per settings file
+(§ *Why*). `program_tree` (`crates/nvs-lsp/src/document.rs`) still reads uncached for the grants
+hover and `server.rs:2217`; both are rare requests.
 
-The acceptance sweep's reds were stale: `env-secret-proofs` is defined nowhere in the tree (it comes
-from looper's service), and nightly 41813182715 ran on `f3150b922`, which has neither `a2f451fad`
-(Miri) nor `a8bdf37fb` (the macOS cli test).
+The resolution bound in `an_index_resolves_each_files_path_a_bounded_number_of_times_per_file` is
+today's 14 per file. Stage 4 has a new item that names the eight sites that resolve the entry's path
+again, and lowers that bound.
+
+The acceptance sweep's reds were stale again: no `env-secret-proofs` log exists, and nightly
+41813182715 ran on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (the macOS cli test).
 
 Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs` (an indexing run's `end` is
-now followed by a `window/logMessage`; its reader ignores other methods, so it should hold), and
-`incremental.rs`'s three `Work` assertions, which now take `files: work.files`.
+followed by a `window/logMessage`), `incremental.rs`'s three `Work` assertions, and
+`crates/nvs-lsp/tests/extensions.rs` (it now reads its set through the cache).
 
 ### Next
 
-Stage 2, from its first item: the settings cache in `crates/nvs-lsp/src/document.rs:969`
-(`extension_set`, `program_tree` at `:1020`), then `graph_key` at `:926`. A cold index parses 592
-settings files and resolves about 15 paths per file read (§ *Why*), and the new tests in
-`crates/nvs-lsp/tests/index.rs` read `Work.files.settings` and `.resolved` per file.
-`bun nv lsp-start . --cold` gives the before and after; run `bun nv relink --build` first.
-Stage 3 may run as a side goal: its items now touch `crates/nvs-lsp/src/document.rs:304`
-(`Documents::survey`) too, so a side lane takes that item after stage 2 lands.
+Stage 3, from its first item: `nvs check` of a class file walks each program once
+(`crates/nvs-hir/src/lenders.rs`, `first_lender`), with the test `a_class_file_check_walks_each_program_once`
+in `crates/nvs-cli/tests/check_borrow.rs`. Its items touch `crates/nvs-cli`, `crates/nvs-hir` and
+`Documents::survey` (`crates/nvs-lsp/src/document.rs:304`). Stage 4 follows and edits
+`crates/nvs-lsp/src/index.rs:1169` and `document.rs`, so it waits for stage 3's survey item.
 
 ### Backlog
