@@ -391,36 +391,33 @@ than the files). The session writes the items.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's class-file items are done (`62a917765`), and its check
-`class-file-check` ran green. The lender search now searches the file's own project
-(`nvs_hir::lenders::project_root`), its walks share one `Survey` (a `SourceMap::loading_once` map, one
-parse and one resolved path per file), it resolves a path only when it walks its program, and the
-second check adopts the first check's text (`SourceMap::adopt`). From this checkout's root, a check
-of `apps/registry/src/AccountPage.nvs` went from 8,857 resolved, 120 read and 4,550 listed to 190, 69
-and 5. `packages/rest/tests/ClientTest.nvs` went from 115 programs and 9,067 reads to 1 and 17. The
-editor's survey and resurvey and `nvs pkg audit` share a `Survey` too. The editor's warm start is not
-measured again yet. The rule fragment and `docs/reference/tools/10-cli.md` state the project bound.
-`website/public/llms-full.txt` copies that reference page and is not rendered again: the goal end's
-`bun nv ci --check` names it.
-
-`nvs test <dir>`'s resolution item is done (`5e53c0ada`). Its read item is open, with a design written
-under it.
-
-The acceptance sweep's reds were stale: no `env-secret-proofs` log exists, and nightly 41813182715 ran
-on `f3150b922`, before `a2f451fad` (Miri) and `a8bdf37fb` (the macOS cli test).
+Stages 1 and 2 are done. Stage 3's items are all done but the run's cache key: the class file
+(`62a917765`, `class-file-check` green), `nvs test <dir>` (`5e53c0ada`, `6c13c3390`: one shared
+`loading_once` map, and `SourceMap::forget` drops the walk's entry) and the autoload item
+(`c8d864400`). The `require` walk resolves a directory only at a file's first `require`. The editor's
+warm start is not measured again yet. `website/public/llms-full.txt` is not rendered again since the
+10-cli page changed: the goal end's `bun nv ci --check` names it. The acceptance sweep's reds were
+stale again (no `env-secret-proofs` log; nightly 41813182715 ran on `f3150b922`, before the fixes).
 
 Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs`, `incremental.rs`'s three
 `Work` assertions, `crates/nvs-lsp/tests/extensions.rs`, every test of the editor's survey
 (`crates/nvs-lsp/tests/` cases that borrow a map: the survey now shares one map, so a file it read
-first as plain keeps that load), `check_borrow.rs` as a whole, and `nvs pkg audit`'s tests.
+first as plain keeps that load), `check_borrow.rs` as a whole, `nvs pkg audit`'s tests, and every
+`nvs check`/`nvs test` of a directory (`check_command.rs`, `nvs test`'s runner tests, `--fix` over a
+directory, `nvs test --watch` of a directory: the walk's entry stays in the map as a dead file). Any
+test that counts `resolved=` exactly may shift down, since the walk resolves fewer directories.
 
 ### Next
 
-Stage 3's remaining items, in this order. First, the `nvs test <dir>` read item
-(`crates/nvs-cli/src/main.rs:3337`, design under the item). Second, the autoload item: an autoloaded
-file's path is resolved three times (`crates/nvs-hir/src/autoload.rs:879` `resolved`, the directory
-walk and the name probe). Third, the run's cache key (`crates/nvs-cli/src/script.rs:1905`, and the
-validation sites the item names). Each adds a count test. Then stage 3 is done, and stage 4 starts
-from its snapshot item (`crates/nvs-lsp/src/index.rs:1169`, `document.rs`).
+Stage 3's last open items: the run's cache key, then the "each fix adds a count test" item, which the
+three tests above settle once the cache key's test exists. Anchors found so far:
+`Cache::compile` resolves the entry once as `real` (`crates/nvs-cli/src/script.rs:1436`) and hands
+it to `front_end_looking`; `Self::moved` (`:1194`) resolves it again after the compile;
+`describes_the_disk` (`:1960`) resolves it on each validation, which is a fact that may have changed
+(a switched link) and so stays; `Watched::new` (`:1744`) resolves it again on `nvs test --watch`'s
+path. First measure `nvs run --count` of a one-line program uncached and cached, then read where the
+cache key is built from `written` (from `Compiler::prepared`, `:2057`) and drop each resolution of a
+path the same run already resolved. Then stage 3 is done, and stage 4 starts from its snapshot item
+(`crates/nvs-lsp/src/index.rs:1169`, `document.rs`).
 
 ### Backlog
