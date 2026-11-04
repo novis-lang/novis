@@ -417,7 +417,10 @@ fn without_inert(xml: &str, ids: &[String]) -> Result<String, Error> {
                     continue;
                 };
                 if open.inert || (open.wrapper && !open.kept) {
-                    while edits.last().is_some_and(|(range, _)| range.start >= open.start) {
+                    while edits
+                        .last()
+                        .is_some_and(|(range, _)| range.start >= open.start)
+                    {
                         edits.pop();
                     }
                     edits.push((open.start..at, String::new()));
