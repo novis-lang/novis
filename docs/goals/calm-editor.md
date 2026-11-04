@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/src/settings.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/tests/handshake.rs, editors/vscode/package.json, editors/vscode/test/client/settings.test.ts, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, docs/rules/ide/the-request-set-is-closed.md, website/src/content/docs/tools/editor/index.mdx]
   - id: 3
     title: "a /// doc comment has a faint background from the /// to the end of its text, in the Novis themes"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/redactions.rs, crates/nvs-lsp/tests/redactions.rs, editors/vscode/src/redactions.ts, editors/vscode/src/concealment.ts, editors/vscode/src/extension.ts, docs/rules/ide/redaction-ranges-come-from-the-server.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -269,32 +269,32 @@ them on a change, and documents it.
 client draws it with the contributed colour, both Novis themes set that colour, and the editor pages
 show how to change a Novis colour.
 
-- [ ] Add the `docComment` kind to `for_document`, read from the analysed document's trivia, and the
+- [x] Add the `docComment` kind to `for_document`, read from the analysed document's trivia, and the
   constant beside `SECRET_LITERAL`. The module doc's *two kinds* decision becomes three, and says
   why this one is gated. `crates/nvs-lsp/src/redactions.rs:86`
-- [ ] Read `experimental.redactionKinds` into `Client`, and answer `docComment` only when it is listed.
+- [x] Read `experimental.redactionKinds` into `Client`, and answer `docComment` only when it is listed.
   `crates/nvs-lsp/src/settings.rs:168`
-- [ ] Write the three tests the `doc-comment-ranges` check names. `crates/nvs-lsp/tests/redactions.rs:1`
-- [ ] Declare `redactionKinds: ["docComment"]` beside `commands`. `editors/vscode/src/extension.ts:100`
-- [ ] Add the background group to the partition, and draw it in `redactions.ts` with one decoration
+- [x] Write the three tests the `doc-comment-ranges` check names. `crates/nvs-lsp/tests/redactions.rs:1`
+- [x] Declare `redactionKinds: ["docComment"]` beside `commands`. `editors/vscode/src/extension.ts:100`
+- [x] Add the background group to the partition, and draw it in `redactions.ts` with one decoration
   type whose `backgroundColor` is `new ThemeColor("nvs.docComment.background")`.
   `editors/vscode/src/concealment.ts:64`, `editors/vscode/src/redactions.ts:1`
-- [ ] Contribute `nvs.docComment.background` in `contributes.colors`, and set it in both themes as §
+- [x] Contribute `nvs.docComment.background` in `contributes.colors`, and set it in both themes as §
   *Standing decisions* says. `editors/vscode/package.json:1`
-- [ ] Write the two headless tests the `doc-comment-drawn` check names. The partition test goes in
+- [x] Write the two headless tests the `doc-comment-drawn` check names. The partition test goes in
   `editors/vscode/test/client/concealment.test.ts:1`, the colour test beside stage 1's theme test.
-- [ ] Rules: `rule:ide/redaction-ranges-come-from-the-server` names the third kind and the declared
+- [x] Rules: `rule:ide/redaction-ranges-come-from-the-server` names the third kind and the declared
   list (`docs/rules/ide/redaction-ranges-come-from-the-server.md:1`), and
   `rule:ide/novis-ships-names-not-colours` names the contributed colour id and its transparent default
   (`docs/rules/ide/novis-ships-names-not-colours.md:21`). Then `bun nv rules --render` and
   `bun nv rules --check`.
-- [ ] Docs: a short section *Change a Novis colour* on both editor pages, after the theme paragraph
+- [x] Docs: a short section *Change a Novis colour* on both editor pages, after the theme paragraph
   (`docs/reference/tools/40-editor.md:452`) and near the settings table
   (`website/src/content/docs/tools/editor/index.mdx:180`). It says that VS Code's
   `workbench.colorCustomizations` changes any colour, shows `nvs.docComment.background` under
   `"[Novis Dark]"`, and says `#00000000` turns the background off. The website text follows AGENTS.md
   § *Text an end user reads*.
-- [ ] Run each stage-3 check's command once: green.
+- [x] Run each stage-3 check's command once: green.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -306,26 +306,29 @@ show how to change a Novis colour.
 
 ### State
 
-Stages 1 and 2 are done, and both their checks ran green once. Stage 1: both themes draw
+Stages 1, 2 and 3 are done, and every stage's check ran green once. Stage 1: both themes draw
 brackets and hints as decided, and `RETIRED` keeps the old `#FFC66D` method colour. `theme.ts` passes
 the unchanged settings to `withRules`, so `withRules` drops a retired value itself (see § *Standing
 decisions*). Stage 2: `nvs.inlayHints.parameterNames` is contributed with no `scope`, like
 `nvs.codeLens.enable`. The server drops `PARAMETER` hints in `inlay_hints` and sends
 `workspace/inlayHint/refresh` from `configure`. The two `hints-setting` tests are in
-`crates/nvs-lsp/tests/handshake.rs`, with a `serve_queued` helper of their own. No test is expected to
-go red. The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere, and nightly
-41813182715 ran on `f3150b922`, before `a8bdf37fb` (macOS live edit) and `a2f451fad` (Miri).
+`crates/nvs-lsp/tests/handshake.rs`, with a `serve_queued` helper of their own. Stage 3:
+`redactions::for_document` takes a `doc_comments` flag, which the server passes from
+`Client::doc_comments` (read from `experimental.redactionKinds`) and the `.lspt` runner passes as
+`false`. A range ends at the line's last non-space character, so a CRLF `\r` is not in it. The client
+declares `DECLARED_KINDS` from `concealment.ts`, and `redactions.ts` draws the third decoration on
+every draw, with no setting. Both editor pages have *Change a Novis colour*, and both pages' search
+questions are restamped. No test is expected to go red. The sweep's three reds were stale again:
+`env-secret-proofs` is defined nowhere and has no log, and nightly 41813182715 ran on `f3150b922`,
+before `a8bdf37fb` (macOS live edit) and `a2f451fad` (Miri).
 
 ### Next
 
-Stage 3, from its first item: the `docComment` kind beside `SECRET_LITERAL`
-(`crates/nvs-lsp/src/redactions.rs:92`), added in `for_document` (`crates/nvs-lsp/src/redactions.rs:123`)
-from the trivia, and the module doc's two-kinds decision (`crates/nvs-lsp/src/redactions.rs:10`).
-Then `Client` reads `experimental.redactionKinds` beside `commands`
-(`crates/nvs-lsp/src/settings.rs:171`). Adding a field to `Client` breaks the two test literals at
-`crates/nvs-lsp/tests/completion_edits.rs:38` and in `crates/nvs-lsp/tests/handshake.rs`'s
-`a_command_is_sent_only_to_a_client_that_named_it`. The client half starts at
-`editors/vscode/src/extension.ts:102` and `editors/vscode/src/concealment.ts:64`. The colour test goes
-beside stage 1's theme test (`editors/vscode/test/contributions/contributions.test.ts:586`).
+Stage 4, the gate: `looper verify` with `run_in_background`, then fix every failure in one pass and
+run it once more. Then the goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`,
+`bun nv owners --closes calm-editor`, `bun nv ci --check`. The changed surfaces are `nvs-lsp`
+(`crates/nvs-lsp/src/redactions.rs:121`, `crates/nvs-lsp/src/settings.rs:155`), the extension
+(`editors/vscode/src/redactions.ts:200`, `editors/vscode/src/concealment.ts:66`) and the website page
+(`website/src/content/docs/tools/editor/index.mdx:184`), so `bun nv ci --check`'s website render runs.
 
 ### Backlog
