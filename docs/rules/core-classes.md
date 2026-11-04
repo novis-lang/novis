@@ -5036,6 +5036,11 @@ the cut-off and logged download that was never finished
 (`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
 
+**After a download's body is streamed, the request cannot add to it.** `echo` goes to the context's
+output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs`), a late
+`setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`, so no
+compile-time check is needed. `tests/hostile/novis/Spreadsheet-Export/download/` pins it.
+
 **Declined:**
 - **A request-end hook that calls `Stream::abort()`.** It runs user code after the handler returned,
   which cancellation forbids.
@@ -5098,6 +5103,8 @@ replaces the table's format and never the cell type.
 workbook's `zone` option, and with none the write throws naming the column. A `DateTime` already
 carries its clock time, which is written as it is. On read, `zone` (default `'UTC'`) is the zone a
 read `DateTime` is placed in, and the clock time in the file is kept exactly; no conversion moves it.
+A clock time that `zone`'s daylight-saving change skips or repeats is placed by `Core\DateTime`'s
+`withTime` rule: a skipped time moves forward by the gap, and a repeated one takes the earlier offset.
 
 **The read table:**
 
@@ -5682,7 +5689,16 @@ arena, its text and four bytes per string, counts against the archive's byte cei
 whole does: past what the archive has left, the read throws naming the part and
 `[limits] max_decompressed`. **A part is scanned once:** a token the read-ahead block ends inside is
 scanned on from where the last block stopped, and so is a sheet's row, so a token or a row longer
-than many blocks costs its own length.
+than many blocks costs its own length. Custom number formats are found by a map from their id, and a
+format code is rendered from slices of its text, never copies; each costs one map per read and
+nothing per cell.
+
+**What a part writes loosely is read as Excel reads it.** A zip entry name or a relationship
+`Target` with `\` is read with `/`, and a `Target` is percent-decoded before it is resolved. A
+workbook whose relationships omit the shared strings has them read from `xl/sharedStrings.xml`. An
+escaped surrogate pair, `_xD83D__xDE00_`, is joined into one character. A `$` in a merge
+reference is stripped, and phonetic `<rPh>` text is not part of a note. An external link's
+`location` replaces any fragment its `Target` already has, so the link has one `#`.
 
 The tradeoffs. **Performance:** one host call per read-ahead block, one guest call per batch of rows,
 and no Novis code between blocks. **Usability:** typed values, the header's keys on every row, and row
