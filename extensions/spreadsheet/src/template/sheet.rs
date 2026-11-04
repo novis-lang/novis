@@ -2,10 +2,12 @@
 //! fill copies every byte it does not change (`rule:core-classes/spreadsheet-template-fill`).
 //!
 //! [`Sheet::parse`] finds `<sheetData>`, and in it each row and cell with the byte ranges of
-//! their `r` attributes and of a formula's text, `ref` and shared group. A cell's text, inline or from the
+//! their `r` attributes and of a formula's text, `ref` and shared group, and each shared group's
+//! first cell. A cell's text, inline or from the
 //! shared strings, is kept only when it holds `{{`. A row or a cell `Template::set` adds has no
 //! range, and a cell it fills has its value.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use crate::Error;
@@ -28,6 +30,9 @@ pub struct Cell {
     /// A shared formula's group: the range of its `si` attribute and its number. The cell with
     /// the formula's text is the group's first cell, and the others have no text.
     pub shared: Option<(Range<usize>, u32)>,
+    /// A follower's whole `<f t="shared" si=".."/>` element, which a fill replaces with the
+    /// follower's own formula when sharing would give it the wrong references.
+    pub follower: Option<Range<usize>>,
     /// A value `set` gave the cell.
     pub set: Option<Option<Value>>,
 }
@@ -58,6 +63,8 @@ pub struct Sheet {
     pub rows: Vec<Row>,
     /// One past the highest shared formula group, the first number a new group may take.
     pub next_group: u32,
+    /// Each shared formula group's first cell, by its `si`: its row, its column and its text.
+    pub masters: BTreeMap<u32, (u32, u32, String)>,
     /// The ids of the sheet's relationships to parts the fill drops: its ActiveX controls and
     /// its OLE objects. A `control` or `oleObject` that names one is not written.
     pub inert: Vec<String>,
@@ -119,6 +126,7 @@ impl Sheet {
         let mut reading: Option<&[u8]> = None;
         let mut in_phonetic = false;
         let mut next_group = 0;
+        let mut masters = BTreeMap::new();
         while let Some((token, length)) = xml::next(&bytes[at..])? {
             let start = at;
             at += length;
@@ -169,6 +177,7 @@ impl Sheet {
                             formula: None,
                             formula_ref: None,
                             shared: None,
+                            follower: None,
                             set: None,
                         };
                         if empty {
@@ -182,11 +191,14 @@ impl Sheet {
                         let (made, _, _) = cell.as_mut().expect("checked");
                         made.formula_ref = span(bytes, attrs, b"ref");
                         if xml::attr(attrs, b"t") == Some(b"shared")
-                            && let Some(at) = span(bytes, attrs, b"si")
+                            && let Some(si) = span(bytes, attrs, b"si")
                         {
-                            let group: u32 = xml[at.clone()].parse().map_err(|_| broken(&path))?;
+                            let group: u32 = xml[si.clone()].parse().map_err(|_| broken(&path))?;
                             next_group = next_group.max(group.saturating_add(1));
-                            made.shared = Some((at, group));
+                            made.shared = Some((si, group));
+                            if empty {
+                                made.follower = Some(start..at);
+                            }
                         }
                         if !empty {
                             reading = Some(b"f");
@@ -234,6 +246,15 @@ impl Sheet {
                             if made.formula.is_none() && text.contains("{{") {
                                 made.text = Some(xml::unescape(text));
                             }
+                            if let (Some((_, group)), Some((_, formula))) =
+                                (&made.shared, &made.formula)
+                            {
+                                masters.entry(*group).or_insert((
+                                    current.number,
+                                    made.column,
+                                    formula.clone(),
+                                ));
+                            }
                             current.cells.push(made);
                         }
                     }
@@ -263,6 +284,7 @@ impl Sheet {
             self_closed,
             rows,
             next_group,
+            masters,
             inert: Vec::new(),
         })
     }
@@ -307,6 +329,7 @@ impl Row {
                         formula: None,
                         formula_ref: None,
                         shared: None,
+                        follower: None,
                         set: None,
                     },
                 );

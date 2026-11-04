@@ -6,7 +6,9 @@
 //! an optional sheet (`Items!C5`, `'Q1 sales'!C5`). A whole-column range (`C:D`) names no row
 //! and is left alone. A string literal, a structured reference's brackets and a name or function
 //! that only looks like a cell (`LOG10(`, `TAX1_RATE`) are skipped. A reference with no sheet is
-//! on `home`, the sheet the text belongs to. A 3D reference (`Jan:Mar!C5`) is left alone.
+//! on `home`, the sheet the text belongs to. A column's letters may be in either case (`c5`). A
+//! 3D reference (`Jan:Mar!C5`) and a reference into another workbook (`[1]Shop!C5`,
+//! `'[Book.xlsx]Shop'!C5`) are left alone.
 //!
 //! [`Shift`] is one repeated block's move: rows below it move by `delta`, a range whose end is
 //! in or below it grows, and, inside a copy of the block, a relative row in the block moves with
@@ -47,7 +49,7 @@ fn cell(text: &[u8], at: usize) -> Option<(u32, bool, usize)> {
         i += 1;
     }
     let letters = i;
-    while text.get(i).is_some_and(u8::is_ascii_uppercase) {
+    while text.get(i).is_some_and(u8::is_ascii_alphabetic) {
         i += 1;
     }
     if i == letters || i - letters > 3 {
@@ -153,8 +155,9 @@ pub fn rewrite(text: &str, home: &str, map: &mut dyn FnMut(RowRef<'_>) -> u32) -
             at += 1;
             continue;
         }
-        let starts =
-            at == 0 || !ident(bytes[at - 1]) && !matches!(bytes[at - 1], b'\'' | b':' | b'!');
+        // After `]` comes the sheet of another workbook (`[1]Shop!C5`), which never moves.
+        let starts = at == 0
+            || !ident(bytes[at - 1]) && !matches!(bytes[at - 1], b'\'' | b':' | b'!' | b']');
         if !starts || !(b == b'$' || b == b'\'' || ident(b)) {
             at += 1;
             continue;
@@ -163,6 +166,14 @@ pub fn rewrite(text: &str, home: &str, map: &mut dyn FnMut(RowRef<'_>) -> u32) -
             Some((name, begin)) => (Some(name), begin),
             None => (None, at),
         };
+        // A quoted sheet of another workbook (`'[Book.xlsx]Shop'!C5`) never moves either.
+        if name.as_deref().is_some_and(|name| name.starts_with('[')) {
+            at = begin;
+            while at < bytes.len() && (ident(bytes[at]) || matches!(bytes[at], b'$' | b':')) {
+                at += 1;
+            }
+            continue;
+        }
         let on = name.as_deref().unwrap_or(home);
         // Each part found: where its row digits are, the row, `$`, and which end it is.
         let mut parts: Vec<(usize, usize, u32, bool, End)> = Vec::new();
@@ -235,11 +246,18 @@ pub struct Shift {
 impl Shift {
     /// Where the row `at` goes.
     pub fn row(&self, at: RowRef<'_>) -> u32 {
+        self.row_in(at, true)
+    }
+
+    /// Where the row `at` goes, read from outside the copy when `in_copy` is false: from a row
+    /// above or below the block, which the block's copies move as a whole.
+    pub fn row_in(&self, at: RowRef<'_>, in_copy: bool) -> u32 {
         if !at.sheet.eq_ignore_ascii_case(&self.sheet) {
             return at.row;
         }
         let inside = at.row >= self.top && at.row <= self.bottom;
         if let Some(copy) = self.copy
+            && in_copy
             && inside
         {
             return if at.absolute { at.row } else { at.row + copy };
@@ -263,13 +281,18 @@ impl Shift {
 
 /// `text` with every shift in `shifts` applied, in order.
 pub fn apply(text: &str, home: &str, shifts: &[Shift]) -> String {
+    apply_in(text, home, shifts, true)
+}
+
+/// `text` with every shift applied, read from outside a copy when `in_copy` is false.
+pub fn apply_in(text: &str, home: &str, shifts: &[Shift], in_copy: bool) -> String {
     if shifts.is_empty() {
         return text.to_owned();
     }
     let mut map = |at: RowRef<'_>| {
-        shifts
-            .iter()
-            .fold(at.row, |row, shift| shift.row(RowRef { row, ..at }))
+        shifts.iter().fold(at.row, |row, shift| {
+            shift.row_in(RowRef { row, ..at }, in_copy)
+        })
     };
     rewrite(text, home, &mut map)
 }

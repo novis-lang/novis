@@ -868,3 +868,248 @@ fn two_fills_of_equal_input_are_byte_equal() {
     .unwrap();
     assert_eq!(once, twice);
 }
+
+/// The zip `bytes` with each `(name, text)` in `changes` replacing its part, or added.
+fn with_parts(bytes: &[u8], changes: &[(&str, String)]) -> Vec<u8> {
+    let mut all = parts(bytes);
+    for (name, text) in changes {
+        all.insert((*name).to_owned(), text.clone());
+    }
+    let mut archive = Archive::new();
+    for (part, text) in all {
+        archive.begin(&part).unwrap();
+        archive.write(text.as_bytes()).unwrap();
+        archive.end().unwrap();
+    }
+    archive.close().unwrap();
+    archive.take()
+}
+
+/// The invoice template's `Invoice` sheet with `extra` before its drawing, and its relationships
+/// with `rels` added.
+fn invoice_with(extra: &str, rels: &str, more: &[(&str, String)]) -> BTreeMap<String, String> {
+    let base = template(INVOICE, "", false);
+    let sheet = sheet(INVOICE).replace("<drawing ", &format!("{extra}<drawing "));
+    let rels = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/>{rels}</Relationships>"#
+    );
+    let mut changes = vec![
+        ("xl/worksheets/sheet1.xml", sheet),
+        ("xl/worksheets/_rels/sheet1.xml.rels", rels),
+    ];
+    changes.extend(more.iter().cloned());
+    let items = (1..=3).map(item).collect();
+    let out = fill(
+        &with_parts(&base, &changes),
+        &[],
+        header(),
+        &[("items", items)],
+    )
+    .unwrap();
+    parts(&out)
+}
+
+#[test]
+fn notes_page_breaks_and_link_locations_move_with_their_rows() {
+    // Three items add two rows below row 5, so row 7 becomes row 9.
+    let extra = concat!(
+        r#"<hyperlinks><hyperlink ref="A7" location="Invoice!A6" display="Sum"/><hyperlink ref="B7" location="'Invoice'!B7"/><hyperlink ref="C7" location="Summary!A6"/></hyperlinks>"#,
+        r#"<rowBreaks count="1" manualBreakCount="1"><brk id="6" max="16383" man="1"/></rowBreaks>"#,
+        r#"<colBreaks count="1" manualBreakCount="1"><brk id="6" max="1048575" man="1"/></colBreaks>"#,
+        r#"<legacyDrawing r:id="rId3"/>"#,
+    );
+    let rels = concat!(
+        r#"<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing1.vml"/>"#,
+        r#"<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments1.xml"/>"#,
+    );
+    let comments = r#"<?xml version="1.0" encoding="UTF-8"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Shop</author></authors><commentList><comment ref="A7" authorId="0"><text><t>Check</t></text></comment><comment ref="A1" authorId="0"><text><t>Top</t></text></comment></commentList></comments>"#;
+    let vml = r##"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:x="urn:schemas-microsoft-com:office:excel"><v:shape type="#_x0000_t202"><x:ClientData ObjectType="Note"><x:Anchor>1, 15, 6, 2, 3, 15, 10, 16</x:Anchor><x:Row>6</x:Row><x:Column>0</x:Column></x:ClientData></v:shape></xml>"##;
+    let out = invoice_with(
+        extra,
+        rels,
+        &[
+            ("xl/comments1.xml", comments.to_owned()),
+            ("xl/drawings/vmlDrawing1.vml", vml.to_owned()),
+        ],
+    );
+    let sheet = &out["xl/worksheets/sheet1.xml"];
+    assert!(
+        sheet.contains(r#"<hyperlink ref="A9" location="Invoice!A8" display="Sum"/>"#)
+            && sheet.contains(r#"<hyperlink ref="B9" location="'Invoice'!B9"/>"#)
+            && sheet.contains(r#"<hyperlink ref="C9" location="Summary!A6"/>"#),
+        "{sheet}"
+    );
+    // A row break moves with the row after it, and a column break stays.
+    assert!(
+        sheet.contains(r#"<rowBreaks count="1" manualBreakCount="1"><brk id="8" max="16383""#)
+            && sheet
+                .contains(r#"<colBreaks count="1" manualBreakCount="1"><brk id="6" max="1048575""#),
+        "{sheet}"
+    );
+    let comments = &out["xl/comments1.xml"];
+    assert!(
+        comments.contains(r#"<comment ref="A9" authorId="0">"#)
+            && comments.contains(r#"<comment ref="A1" authorId="0">"#),
+        "{comments}"
+    );
+    let vml = &out["xl/drawings/vmlDrawing1.vml"];
+    assert!(
+        vml.contains("<x:Anchor>1, 15, 8, 2, 3, 15, 12, 16</x:Anchor><x:Row>8</x:Row>"),
+        "{vml}"
+    );
+}
+
+#[test]
+fn threaded_comments_and_pivot_references_move_with_their_rows() {
+    let rels = concat!(
+        r#"<Relationship Id="rId3" Type="http://schemas.microsoft.com/office/2017/10/relationships/threadedComment" Target="../threadedComments/threadedComment1.xml"/>"#,
+        r#"<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/>"#,
+    );
+    let threaded = r#"<?xml version="1.0" encoding="UTF-8"?><ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments"><threadedComment ref="A7" dT="2024-01-15T10:00:00.00" personId="{00000000-0000-0000-0000-000000000001}" id="{00000000-0000-0000-0000-000000000002}"><text>Check</text></threadedComment></ThreadedComments>"#;
+    let pivot = r#"<?xml version="1.0" encoding="UTF-8"?><pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="Pivot" cacheId="1"><location ref="A10:B12" firstHeaderRow="1" firstDataRow="1" firstDataCol="1"/></pivotTableDefinition>"#;
+    let cache = r#"<?xml version="1.0" encoding="UTF-8"?><pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cacheSource type="worksheet"><worksheetSource ref="A4:D6" sheet="Invoice"/></cacheSource></pivotCacheDefinition>"#;
+    let other = r#"<?xml version="1.0" encoding="UTF-8"?><pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cacheSource type="worksheet"><worksheetSource ref="A4:D6" sheet="Summary"/></cacheSource></pivotCacheDefinition>"#;
+    let out = invoice_with(
+        "",
+        rels,
+        &[
+            (
+                "xl/threadedComments/threadedComment1.xml",
+                threaded.to_owned(),
+            ),
+            ("xl/pivotTables/pivotTable1.xml", pivot.to_owned()),
+            ("xl/pivotCache/pivotCacheDefinition1.xml", cache.to_owned()),
+            ("xl/pivotCache/pivotCacheDefinition2.xml", other.to_owned()),
+        ],
+    );
+    let threaded = &out["xl/threadedComments/threadedComment1.xml"];
+    assert!(
+        threaded.contains(r#"<threadedComment ref="A9" "#),
+        "{threaded}"
+    );
+    let pivot = &out["xl/pivotTables/pivotTable1.xml"];
+    assert!(pivot.contains(r#"<location ref="A12:B14" "#), "{pivot}");
+    let cache = &out["xl/pivotCache/pivotCacheDefinition1.xml"];
+    assert!(
+        cache.contains(r#"<worksheetSource ref="A4:D8" sheet="Invoice"/>"#),
+        "{cache}"
+    );
+    let other = &out["xl/pivotCache/pivotCacheDefinition2.xml"];
+    assert!(
+        other.contains(r#"<worksheetSource ref="A4:D6" sheet="Summary"/>"#),
+        "{other}"
+    );
+}
+
+#[test]
+fn a_shared_formula_group_across_the_repeated_block_is_written_unshared() {
+    // E4 shares `D3` over E4:E6, so E5 is `D4` and E6 is `D5`. The block is row 5.
+    let rows = INVOICE
+        .replace(
+            r#"<row r="4"><c r="A4" t="s"><v>4</v></c></row>"#,
+            r#"<row r="4"><c r="A4" t="s"><v>4</v></c><c r="E4"><f t="shared" ref="E4:E6" si="1">D3</f><v>0</v></c></row>"#,
+        )
+        .replace(
+            r#"<f>B5*C5</f><v>0</v></c></row>"#,
+            r#"<f>B5*C5</f><v>0</v></c><c r="E5"><f t="shared" si="1"/><v>0</v></c></row>"#,
+        )
+        .replace(
+            r#"<f>SUM(D5:D5)</f><v>0</v></c></row>"#,
+            r#"<f>SUM(D5:D5)</f><v>0</v></c><c r="E6"><f t="shared" si="1"/><v>0</v></c></row>"#,
+        );
+    let items = (1..=3).map(item).collect();
+    let out = fill(
+        &template(&rows, "", false),
+        &[],
+        header(),
+        &[("items", items)],
+    )
+    .unwrap();
+    let sheet = &parts(&out)["xl/worksheets/sheet1.xml"];
+    // The first copy of E5 still reads `D4`, as sharing gives it, inside the group's range.
+    // Every other follower would read the wrong row from E4, so it has its own formula.
+    for cell in [
+        r#"<c r="E4"><f t="shared" ref="E4:E6" si="1">D3</f>"#,
+        r#"<c r="E5"><f t="shared" si="1"/>"#,
+        r#"<c r="E6"><f>D4</f>"#,
+        r#"<c r="E7"><f>D4</f>"#,
+        r#"<c r="E8"><f>D5</f>"#,
+    ] {
+        assert!(sheet.contains(cell), "{cell} in {sheet}");
+    }
+}
+
+#[test]
+fn a_filled_template_always_recalculates_on_load() {
+    let base = template(INVOICE, "", false);
+    let workbook = parts(&base)["xl/workbook.xml"].replace(
+        r#"<calcPr calcId="191029"/>"#,
+        r#"<calcPr calcId="191029" fullCalcOnLoad="0"/>"#,
+    );
+    let out = fill(
+        &replaced(&base, "xl/workbook.xml", &workbook),
+        &[],
+        header(),
+        &[("items", vec![item(1)])],
+    )
+    .unwrap();
+    let workbook = &parts(&out)["xl/workbook.xml"];
+    assert!(
+        workbook.contains(r#"<calcPr calcId="191029" fullCalcOnLoad="1"/>"#),
+        "{workbook}"
+    );
+    let plain = &invoice(1)["xl/workbook.xml"];
+    assert!(
+        plain.contains(r#"<calcPr calcId="191029" fullCalcOnLoad="1"/>"#),
+        "{plain}"
+    );
+}
+
+#[test]
+fn an_external_reference_is_never_shifted() {
+    let shifts = [Shift {
+        sheet: "Data".to_owned(),
+        top: 5,
+        bottom: 5,
+        delta: 10,
+        copy: None,
+    }];
+    let cases = [
+        ("[1]Data!A6+A6", "[1]Data!A6+A16"),
+        ("SUM([1]Data!A6:A7)*A6", "SUM([1]Data!A6:A7)*A16"),
+        ("'[Book.xlsx]Data'!A6+A6", "'[Book.xlsx]Data'!A6+A16"),
+        (
+            "SUM('[Book.xlsx]Data'!$A$6:A7)",
+            "SUM('[Book.xlsx]Data'!$A$6:A7)",
+        ),
+    ];
+    for (before, after) in cases {
+        assert_eq!(shift::apply(before, "Data", &shifts), after, "{before}");
+    }
+}
+
+#[test]
+fn a_lower_case_reference_in_a_template_formula_is_shifted() {
+    let shifts = [Shift {
+        sheet: "Data".to_owned(),
+        top: 5,
+        bottom: 5,
+        delta: 10,
+        copy: None,
+    }];
+    assert_eq!(
+        shift::apply("a6+$b$6+sum(a5:b6)+log10(c6)", "Data", &shifts),
+        "a16+$b$16+sum(a5:b16)+log10(c16)"
+    );
+    // Row 7's `d6` is the sum row, which three items move to row 8.
+    let rows = INVOICE.replace("<f>D6+Summary!B2</f>", "<f>d6+Summary!b2</f>");
+    let out = fill(
+        &template(&rows, "", false),
+        &[],
+        header(),
+        &[("items", (1..=3).map(item).collect())],
+    )
+    .unwrap();
+    let sheet = &parts(&out)["xl/worksheets/sheet1.xml"];
+    assert!(sheet.contains("<f>d8+Summary!b2</f>"), "{sheet}");
+}

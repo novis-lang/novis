@@ -15,15 +15,17 @@
 //! later page first ends the pages before it: the rest of each sheet, its rows below moved down.
 //! [`Template::finish`] ends the last page and then writes every other part. A part `finish`
 //! writes is copied as it is, or rewritten with each repeated block's [`shift::Shift`] applied
-//! to its references: the worksheets, the workbook's defined names, tables, drawings' anchors and
-//! charts. A sheet cannot be written before its lists are known when a formula above a block
+//! to its references: the worksheets with their links' `location` and row page breaks, the
+//! workbook's defined names, tables, drawings' anchors, notes and their VML rows, threaded
+//! comments, pivot tables, pivot caches' sources and charts. A shared formula follower that
+//! sharing would give the wrong references is written with its own formula ([`unshared`]). A sheet cannot be written before its lists are known when a formula above a block
 //! names a row the block moves, or when a formula or part on it names a row a later page moves.
 //! Such a page keeps its items, records its moves once the fill passes it, and is written at
 //! `finish`: the memory of every item, still under the request's cap. An item whose copy would
 //! end past row 1,048,576 throws naming its list, before any of its rows is written.
 //!
 //! **What changes besides the cells.** `calcChain.xml` names cells by position, so it is
-//! dropped, and the workbook recalculates on open. A sheet with a block loses its `dimension`.
+//! dropped, and the workbook always recalculates on open: `fullCalcOnLoad` is set to `1`. A sheet with a block loses its `dimension`.
 //! An xlsm template gives xlsx: its VBA parts and their relationships and content types are
 //! dropped, and the workbook's content type is the xlsx one
 //! (`rule:core-classes/spreadsheet-output-is-inert`). So are the other parts that can run code
@@ -599,8 +601,44 @@ const FORMULA_ELEMENTS: [&[u8]; 6] = [
     b"calculatedColumnFormula",
 ];
 
+/// A row counted from 0, as a drawing's anchor, a VML note's `x:Row` and a page break's `id`
+/// write it, moved by `shifts` on `home`.
+fn zero_based(row: u32, home: &str, end: shift::End, shifts: &[Shift]) -> u32 {
+    shifts.iter().fold(row + 1, |row, shift| {
+        shift.row(RowRef {
+            sheet: home,
+            row,
+            absolute: false,
+            end,
+        })
+    }) - 1
+}
+
+/// A VML note's `x:Anchor`, eight numbers of which the third is its top row and the seventh its
+/// bottom row, each counted from 0, with those two moved. Each number keeps its spaces.
+fn vml_anchor(raw: &str, home: &str, shifts: &[Shift]) -> String {
+    raw.split(',')
+        .enumerate()
+        .map(|(index, part)| {
+            let end = match index {
+                2 => shift::End::Single,
+                6 => shift::End::End,
+                _ => return part.to_owned(),
+            };
+            match part.trim().parse::<u32>() {
+                Ok(row) => {
+                    part.replace(part.trim(), &zero_based(row, home, end, shifts).to_string())
+                }
+                Err(_) => part.to_owned(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 /// A part's XML with every reference in it moved by `shifts`, `home` the sheet its plain
-/// references are on. A drawing's anchor rows move too.
+/// references are on. A drawing's anchor rows, a VML note's rows, a row page break, a link's
+/// `location` and a pivot cache's source range move too.
 fn rewrite_part(text: &str, home: &str, shifts: &[Shift]) -> Result<String, Error> {
     if shifts.is_empty() {
         return Ok(text.to_owned());
@@ -613,14 +651,48 @@ fn rewrite_part(text: &str, home: &str, shifts: &[Shift]) -> Result<String, Erro
         at += length;
         match token {
             Token::Open { name, attrs, empty } => {
+                let local = xml::local(name);
+                // A pivot cache's source names its sheet in an attribute of its own.
+                let source_sheet = if local == b"worksheetSource" {
+                    xml::attr_text(attrs, b"sheet")?
+                } else {
+                    None
+                };
+                let here = source_sheet.as_deref().unwrap_or(home);
+                let offset = |value: &[u8]| {
+                    let from = value.as_ptr() as usize - bytes.as_ptr() as usize;
+                    from..from + value.len()
+                };
                 for attr in REF_ATTRS {
                     if let Some(value) = xml::attr(attrs, attr) {
                         let raw = String::from_utf8_lossy(value);
-                        let moved = shift::apply_list(&raw, home, shifts);
+                        let moved = shift::apply_list(&raw, here, shifts);
                         if moved != raw {
-                            let from = value.as_ptr() as usize - bytes.as_ptr() as usize;
-                            edits.push((from..from + value.len(), moved));
+                            edits.push((offset(value), moved));
                         }
+                    }
+                }
+                // A link's `location` is one reference, and its sheet may have spaces.
+                if local == b"hyperlink"
+                    && let Some(value) = xml::attr(attrs, b"location")
+                {
+                    let mut decoded = String::new();
+                    xml::decode(value, &mut decoded)?;
+                    let moved = shift::apply(&decoded, here, shifts);
+                    if moved != decoded {
+                        let mut escaped = String::new();
+                        crate::xml::attr(&mut escaped, &moved);
+                        edits.push((offset(value), escaped));
+                    }
+                }
+                if local == b"brk"
+                    && stack.last() == Some(&&b"rowBreaks"[..])
+                    && let Some(value) = xml::attr(attrs, b"id")
+                    && let Ok(row) = String::from_utf8_lossy(value).trim().parse::<u32>()
+                {
+                    let moved = zero_based(row, here, shift::End::Single, shifts);
+                    if moved != row {
+                        edits.push((offset(value), moved.to_string()));
                     }
                 }
                 if !empty {
@@ -663,16 +735,23 @@ fn rewrite_part(text: &str, home: &str, shifts: &[Shift]) -> Result<String, Erro
                     } else {
                         shift::End::End
                     };
-                    let moved = shifts.iter().fold(row + 1, |row, shift| {
-                        shift.row(RowRef {
-                            sheet: home,
-                            row,
-                            absolute: false,
-                            end,
-                        })
-                    }) - 1;
+                    let moved = zero_based(row, home, end, shifts);
                     if moved != row {
                         edits.push((from..from + raw.len(), moved.to_string()));
+                    }
+                } else if parent == b"ClientData" && inner == b"Row" {
+                    let text = String::from_utf8_lossy(raw);
+                    if let Ok(row) = text.trim().parse::<u32>() {
+                        let moved = zero_based(row, home, shift::End::Single, shifts);
+                        if moved != row {
+                            edits.push((from..from + raw.len(), moved.to_string()));
+                        }
+                    }
+                } else if parent == b"ClientData" && inner == b"Anchor" {
+                    let text = String::from_utf8_lossy(raw);
+                    let moved = vml_anchor(&text, home, shifts);
+                    if moved != text {
+                        edits.push((from..from + raw.len(), moved));
                     }
                 }
             }
@@ -715,7 +794,17 @@ fn without(text: &str, needles: &[&str], swaps: &[(&str, &str)]) -> Result<Strin
 fn recalculating(workbook: &str) -> String {
     if let Some(at) = workbook.find("<calcPr") {
         let close = at + workbook[at..].find('>').unwrap_or(0);
-        if workbook[at..close].contains("fullCalcOnLoad") {
+        // A template's own `fullCalcOnLoad="0"` is set to `"1"`, because the cells moved.
+        if let Some(name) = workbook[at..close].find("fullCalcOnLoad") {
+            let name = at + name;
+            if let Some(open) = workbook[name..close].find(['"', '\'']) {
+                let open = name + open;
+                let quote = &workbook[open..=open];
+                if let Some(shut) = workbook[open + 1..close].find(quote) {
+                    let shut = open + 1 + shut;
+                    return format!("{}1{}", &workbook[..=open], &workbook[shut..]);
+                }
+            }
             return workbook.to_owned();
         }
         let insert = if workbook[..close].ends_with('/') {
@@ -1294,14 +1383,21 @@ impl Template {
                 without(&read()?, &DROPPED_SHEET, &[])?
             }
             _ if shifts.is_empty() || lower.ends_with(".rels") => return Ok(None),
-            _ if lower.starts_with("xl/tables/") || lower.starts_with("xl/drawings/") => {
+            _ if lower.starts_with("xl/tables/")
+                || lower.starts_with("xl/drawings/")
+                || lower.starts_with("xl/comments")
+                || lower.starts_with("xl/threadedcomments/")
+                || lower.starts_with("xl/pivottables/") =>
+            {
                 let home = owners
                     .iter()
                     .find(|(part, _)| *part == lower)
                     .map_or("", |(_, sheet)| sheet.as_str());
                 rewrite_part(&read()?, home, shifts)?
             }
-            _ if lower.starts_with("xl/charts/") => rewrite_part(&read()?, "", shifts)?,
+            _ if lower.starts_with("xl/charts/") || lower.starts_with("xl/pivotcache/") => {
+                rewrite_part(&read()?, "", shifts)?
+            }
             _ => return Ok(None),
         }))
     }
@@ -1489,6 +1585,7 @@ fn rows_until(
         let moves = Moves {
             shifts: &filling.shifts,
             groups: &[],
+            block: None,
             formats: &filling.formats,
         };
         write_row(out, sheet, row, number, &moves, &|path| {
@@ -1603,6 +1700,7 @@ fn item_rows(
     let moves = Moves {
         shifts: &shifts,
         groups: &groups,
+        block: Some((from, to)),
         formats: &filling.formats,
     };
     let mut rows = 0;
@@ -1627,11 +1725,64 @@ fn item_rows(
 }
 
 /// What a copied row changes: the moves of its formulas' references, each shared formula
-/// group's new number, old first, and the styles a date, a time or a duration adds.
+/// group's new number, old first, the template rows of the block being copied, if any, and the
+/// styles a date, a time or a duration adds.
 struct Moves<'s> {
     shifts: &'s [Shift],
     groups: &'s [(u32, u32)],
+    block: Option<(u32, u32)>,
     formats: &'s RefCell<Formats>,
+}
+
+/// A shared formula follower's own formula, when the group's first cell, moved as Excel moves
+/// it, would give the follower other references than its own moved by `moves`, or when the
+/// follower moved by other rows than the first cell. `None` when sharing still gives the right
+/// text. A group that crosses a repeated block is so written unshared. Cost: two moves of the
+/// first cell's text per follower, on a sheet with moves.
+fn unshared(
+    sheet: &Sheet,
+    row: &Row,
+    cell: &Cell,
+    number: u32,
+    moves: &Moves<'_>,
+) -> Option<String> {
+    let (_, group) = cell.shared.as_ref()?;
+    cell.follower.as_ref()?;
+    if moves.shifts.is_empty() {
+        return None;
+    }
+    let (master_row, master_column, text) = sheet.masters.get(group)?;
+    let rows = i64::from(row.number) - i64::from(*master_row);
+    let columns = i64::from(cell.column) - i64::from(*master_column);
+    let own = shift::apply(
+        &crate::eval::moved::moved(text, rows, columns)?,
+        &sheet.name,
+        moves.shifts,
+    );
+    // The first cell is written from inside the copy only when it is in the block being copied.
+    let in_copy = moves
+        .block
+        .is_some_and(|(top, bottom)| (top..=bottom).contains(master_row));
+    let master_out = moves.shifts.iter().fold(*master_row, |at, shift| {
+        shift.row_in(
+            RowRef {
+                sheet: &sheet.name,
+                row: at,
+                absolute: false,
+                end: shift::End::Single,
+            },
+            in_copy,
+        )
+    });
+    // A follower that moved by other rows than its first cell may be outside the group's `ref`,
+    // which a sheet that streams wrote before the move was known.
+    if i64::from(number) - i64::from(row.number) != i64::from(master_out) - i64::from(*master_row) {
+        return Some(own);
+    }
+    let written = shift::apply_in(text, &sheet.name, moves.shifts, in_copy);
+    let shared =
+        crate::eval::moved::moved(&written, i64::from(number) - i64::from(master_out), columns);
+    (shared.as_deref() != Some(own.as_str())).then_some(own)
 }
 
 /// Appends `row` as row `number`, its formulas changed by `moves` and its placeholders filled
@@ -1678,6 +1829,7 @@ fn write_cell<'v>(
         shifts,
         groups,
         formats,
+        ..
     } = *moves;
     let reference = crate::cells::reference(cell.column, number);
     let own = cell.style.as_deref();
@@ -1738,7 +1890,14 @@ fn write_cell<'v>(
             edits.push((at.clone(), moved));
         }
     }
-    if let Some((at, group)) = &cell.shared
+    if let Some(own) = unshared(sheet, row, cell, number, moves)
+        && let Some(at) = &cell.follower
+    {
+        let mut element = String::from("<f>");
+        crate::xml::text(&mut element, &own);
+        element.push_str("</f>");
+        edits.push((at.clone(), element));
+    } else if let Some((at, group)) = &cell.shared
         && let Some((_, new)) = groups.iter().find(|(old, _)| old == group)
     {
         edits.push((at.clone(), new.to_string()));
