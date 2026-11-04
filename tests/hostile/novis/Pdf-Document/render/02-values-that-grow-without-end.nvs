@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a request renders CSS values that are too large, a picture that says it is huge, and
+// 10,000 font rules. Then it renders a `var()` chain whose text doubles 30 times.
+// Each render should finish or throw an error. The last one should stop at the memory limit.
+// hostile: ends-early 4 FATAL
+use Novis\Pdf\Document;
+
+class Attack
+{
+    // This method renders `$html` with one PNG asset, and prints the page count or the class of the error.
+    public static function attempt(int $step, string $html, bytes $png): void
+    {
+        try {
+            var $rendered = Document::fromHtml($html)->asset('big.png', $png)->render();
+            echo 'step ', $step, ' ran ', $rendered->pageCount, ' ', Core\Arr::count($rendered->dropped), "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// A PNG file that says it is 60000 by 60000 pixels. Its data has only one row.
+bytes $png = Core\Encoding::fromHex(
+    '89504e470d0a1a0a0000000d494844520000ea600000ea60080600000080d275420000010049444154789cedc13101000000c2a0f54f6d076fa0'
+        . Core\Str::repeat('00', 232)
+        . 'a0df00a9ae000181718a980000000049454e44ae426082',
+);
+
+// 1. Widths, margins, font sizes and a page size that are larger than any number can be.
+Attack::attempt(
+    1,
+    '<style>@page { size: 1e308mm 1e308mm; margin: 1e39pt } '
+        . 'div { width: 1e308px; margin-left: calc(3e38pt * 10); line-height: 1e40 } '
+        . 'span { font-size: 3e38pt } span span { font-size: 1e30em; letter-spacing: 1e38em }</style>'
+        . Core\Str::repeat('<div><span>Shop <span>Shop</span></span></div>', 100),
+    $png,
+);
+
+// 2. The picture of 60000 by 60000 pixels, drawn once and as a background.
+Attack::attempt(2, '<p>Shop</p><img src="big.png" alt="x"><div style="height: 10pt; background: url(big.png)"></div>', $png);
+
+// 3. 10,000 font rules, and a paragraph that names all 10,000 fonts.
+string $faces = '';
+string $names = '';
+for (int $n = 0; $n < 10000; $n++) {
+    $faces .= "@font-face { font-family: Shop{$n}; src: local(Shop{$n}) } ";
+    $names .= "Shop{$n}, ";
+}
+Attack::attempt(3, "<style>{$faces} p { font-family: {$names}serif }</style>" . Core\Str::repeat('<p>Shop 1042</p>', 50), $png);
+
+// 4. Each custom property uses the one before it twice, 30 times. The text does not fit in 64 MB,
+//    so the render stops here.
+echo "step 4\n";
+string $chain = '--v0: Shop; ';
+for (int $step = 1; $step <= 30; $step++) {
+    string $before = ($step - 1) as string;
+    $chain .= "--v{$step}: var(--v{$before}) var(--v{$before}); ";
+}
+Attack::attempt(4, "<style>:root { {$chain}} p { width: var(--v30) }</style><p>Shop</p>", $png);
