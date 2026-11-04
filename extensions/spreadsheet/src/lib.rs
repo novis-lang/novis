@@ -30,7 +30,7 @@
 //! `template`, because a manifest's resource is a class in `Novis\Spreadsheet`, where `Template`
 //! is the Novis class over it.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 1.59 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 1.72 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for
 //! spreadsheets, and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of
 //! the bytes the binary carries.

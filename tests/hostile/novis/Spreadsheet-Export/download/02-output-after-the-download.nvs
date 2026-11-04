@@ -22,26 +22,26 @@ $book->sheet('Orders')->add(['item' => 'Tea', 'qty' => 2]);
 $book->finish();
 
 // 1. Text after the end of the download.
-Attack::step(1, fn (): void => {
-    echo "<script>alert(1)</script>";
+Attack::step(1, fn(): void => {
+    echo '<script>alert(1)</script>';
 });
 
 // 2. A header after the end of the download.
-Attack::step(2, fn (): void => {
+Attack::step(2, fn(): void => {
     Core\Response::setHeader('Location', 'https://example.com/');
 });
 
 // 3. A row after `finish`.
-Attack::step(3, fn (): void => {
+Attack::step(3, fn(): void => {
     $book->sheet('Orders')->add(['item' => 'Cake', 'qty' => 3]);
 });
 
 // 4. A second `finish`.
-Attack::step(4, fn (): void => {
+Attack::step(4, fn(): void => {
     $book->finish();
 });
 
 // 5. A second download in the same request.
-Attack::step(5, fn (): void => {
+Attack::step(5, fn(): void => {
     Workbook::fromRows([['item' => 'Cake']])->download('second.csv');
 });

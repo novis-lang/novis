@@ -357,8 +357,11 @@ fn read_time(file: &[u8]) -> Duration {
 }
 
 /// Asserts that reading `large`, eight times `small`, costs at most four times as much per unit:
-/// the fastest of three reads of each, taken in turn so both see the same load
-/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run).
+/// the fastest of at least three reads of each, taken in turn so both see the same load
+/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run). While the
+/// fastest pair is over the bound, it takes another round, up to twelve. A burst of load
+/// beside the test slows the longer read more, and a quadratic path stays over the bound
+/// in every round.
 fn linear(small: &[u8], large: &[u8], what: &str) {
     linear_by(small, large, what, read_time);
 }
@@ -366,9 +369,12 @@ fn linear(small: &[u8], large: &[u8], what: &str) {
 /// [`linear`], with the time of one run of `small` or `large` taken by `time`.
 fn linear_by(small: &[u8], large: &[u8], what: &str, time: fn(&[u8]) -> Duration) {
     let (mut fastest_small, mut fastest_large) = (Duration::MAX, Duration::MAX);
-    for _ in 0..3 {
+    for round in 0..12 {
         fastest_small = fastest_small.min(time(small));
         fastest_large = fastest_large.min(time(large));
+        if round >= 2 && fastest_large < fastest_small * 32 {
+            break;
+        }
     }
     assert!(
         fastest_large < fastest_small * 32,

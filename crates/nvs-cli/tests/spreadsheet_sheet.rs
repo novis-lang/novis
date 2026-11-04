@@ -226,5 +226,5 @@ echo "{$range}\n";
 echo ($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) as string;
 "##,
     );
-    assert_eq!(out, "B2:B3\nitem,qty\nPen,3\nInk,5\n");
+    assert_eq!(out, "B2:B3\n\u{feff}item,qty␍\nPen,3␍\nInk,5␍\n");
 }

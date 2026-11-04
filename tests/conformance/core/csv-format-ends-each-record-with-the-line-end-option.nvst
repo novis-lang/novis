@@ -27,7 +27,7 @@ foreach ($bads as string $bad) {
         Core\Csv::format($rows, { lineEnd: $bad });
         echo "no error\n";
     } catch (RuntimeError $e) {
-        echo "RuntimeError\n";
+        echo "RuntimeError: ", $e->message, "\n";
     }
 }
 --EXPECT--
@@ -35,6 +35,6 @@ foreach ($bads as string $bad) {
 [Name,Note<CR><LF>Shop,"line one<LF>line two"<CR><LF>Blog,3<CR><LF>]
 Shop: [line one<LF>line two]
 Blog: [3]
-RuntimeError
-RuntimeError
-RuntimeError
+RuntimeError: Core\Csv::format(): the `lineEnd` option is not "\n" or "\r\n". A record ends with one of these two
+RuntimeError: Core\Csv::format(): the `lineEnd` option is not "\n" or "\r\n". A record ends with one of these two
+RuntimeError: Core\Csv::format(): the `lineEnd` option is not "\n" or "\r\n". A record ends with one of these two

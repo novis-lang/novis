@@ -129,11 +129,11 @@ foreach (Reader::open(Core\IO::open("invoice.xlsx", Core\IO::FileMode::Read))->r
     assert_eq!(out, "1 no bytes\n{\"A\":\"Invoice for Shop\"}\n");
     assert_eq!(
         fs::read_to_string(dir.join("people.csv")).unwrap(),
-        "name,city\nAda,London\n"
+        "\u{feff}name,city\r\nAda,London\r\n"
     );
     assert_eq!(
         fs::read_to_string(dir.join("log.csv")).unwrap(),
-        "# orders\norder\n1\n# end\n"
+        "# orders\n\u{feff}order\r\n1\r\n# end\n"
     );
 }
 
@@ -155,7 +155,7 @@ fn a_download_sends_the_export_as_the_body() {
 Workbook::fromRows([["order" => 1042, "note" => "=1+2"]])->download("orders.csv");
 "#,
     );
-    assert_eq!(out, "order,note\n1042,'=1+2\n");
+    assert_eq!(out, "\u{feff}order,note\r\n1042,'=1+2\r\n");
 
     // A workbook is not UTF-8, so `Core\Out::capture` cannot read it back. The program writes
     // the expected bytes and then the download, and the two halves of its output must match.
@@ -234,7 +234,7 @@ echo $cell->value, " ", $cell->style->fields->italic == true ? "italic" : "plain
     );
     assert_eq!(
         out,
-        "{\"A\":\"Pens\",\"B\":\"1,249.50\",\"C\":\"25%\"}\npercent and bold\nitem,price\nPen,1.5\n1042 italic\n"
+        "{\"A\":\"Pens\",\"B\":\"1,249.50\",\"C\":\"25%\"}\npercent and bold\n\u{feff}item,price␍\nPen,1.5␍\n1042 italic\n"
     );
 }
 

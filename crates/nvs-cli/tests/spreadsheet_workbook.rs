@@ -177,7 +177,7 @@ try {
     assert_eq!(out, "refused\n");
     assert_eq!(
         fs::read_to_string(dir.join("out/orders.csv")).unwrap(),
-        "order,customer\n1,\"Example, Ltd\"\n"
+        "\u{feff}order,customer\r\n1,\"Example, Ltd\"\r\n"
     );
     assert!(
         !dir.join("elsewhere.xlsx").exists(),
@@ -204,7 +204,10 @@ $book->sheet("Orders")->addAll([["order" => 1042, "note" => "=1+2"], ["order" =>
 $book->finish();
 "#,
     );
-    assert_eq!(out, "order,note\n1042,'=1+2\n1043,\"a \"\"b\"\"\"\n");
+    assert_eq!(
+        out,
+        "\u{feff}order,note\r\n1042,'=1+2\r\n1043,\"a \"\"b\"\"\"\r\n"
+    );
 }
 
 /// `fromRows` writes one sheet named by `sheet`, and `bytes` returns the whole file.
@@ -221,7 +224,7 @@ foreach (Reader::open($file)->sheets() as var $sheet) {
 echo Workbook::fromRows([["item" => "Pen", "price" => 1.5]], {format: "csv"})->bytes() as string;
 "#,
     );
-    assert_eq!(out, "Prices\nitem,price\nPen,1.5\n");
+    assert_eq!(out, "Prices\n\u{feff}item,price␍\nPen,1.5␍\n");
 }
 
 /// `define` writes the name into `xl/workbook.xml` with its reference escaped, here the `&` of
