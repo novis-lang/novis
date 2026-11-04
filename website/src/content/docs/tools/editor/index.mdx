@@ -191,6 +191,23 @@ extension `0.4.2` works with `nvs` `0.4.0`, and does not work with `nvs` `0.5.0`
 A change to `nvs.path` or `nvs.lsp.enable` restarts the server. After a change to another setting,
 run **Novis: Restart Language Server**.
 
+## Change a Novis colour
+
+The VS Code setting `workbench.colorCustomizations` changes any colour. You can also change a colour
+for one theme only.
+
+The themes Novis Dark and Novis Light draw a light background behind each `///` doc comment line.
+The name of this colour is `nvs.docComment.background`. This setting changes it in Novis Dark:
+
+```json
+"workbench.colorCustomizations": {
+  "[Novis Dark]": { "nvs.docComment.background": "#5F826B33" }
+}
+```
+
+The value `#00000000` is transparent. It turns the background off. In all other themes, the value is
+`#00000000`.
+
 ## Tainted and secret variables
 
 The language server tells VS Code which variables are `tainted` and which are `secret`. A tainted

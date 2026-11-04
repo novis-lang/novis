@@ -451,6 +451,22 @@ Some themes give class names and methods almost the same colour. You can fix tha
 extension has two colour themes, **Novis Dark** and **Novis Light**, and you can pick one. Or you can
 turn on `nvs.highlighting.distinctNames`, which keeps your theme and adds two colours for these names.
 
+### Change a Novis colour
+
+VS Code's `workbench.colorCustomizations` setting changes any colour, also for one theme only. The
+Novis themes draw a faint background behind each `///` doc comment line. Its colour is
+`nvs.docComment.background`. This setting changes it in Novis Dark:
+
+```json
+"workbench.colorCustomizations": {
+  "[Novis Dark]": { "nvs.docComment.background": "#5F826B33" }
+}
+```
+
+The value `#00000000` is transparent, so it turns the background off. Under every other theme, the
+default is `#00000000`. Use `editor.tokenColorCustomizations` and
+`editor.semanticTokenColorCustomizations` the same way to change the colour of a token.
+
 ## The settings it contributes
 
 | Setting | Default | What it does |
