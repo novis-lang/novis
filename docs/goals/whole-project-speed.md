@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/document.rs, crates/nv
 stages:
   - id: 1
     title: "nvs check --count and the editor index report the file-system work they did, and every whole-project path is measured"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/check.rs, crates/nvs-diagnostics/src/source.rs, crates/nvs-hir/src/requires.rs, crates/nvs-cli/tests/check_command.rs, docs/rules/testing/bench-counters.md, crates/nvs-lsp/src/server.rs]
   - id: 2
     title: "the editor reads each settings file once per change, and hashes each extension set once"
@@ -94,6 +94,37 @@ the whole registry app (`apps/registry/public/index.nvs`) about 70 ms. `nvs chec
 that app (`apps/registry/src/AccountPage.nvs`) costs about 400 ms, three times the whole app, because it
 walks the programs under the root to find the one the file belongs to.
 
+Stage 1 measured each whole-project path with `--count`'s file-system counts (debug binary; the
+counts are the same on every machine, and the times are notes from the release binary):
+
+| Path | resolved | read | listed | settings | programs | time |
+|---|---|---|---|---|---|---|
+| `nvs check apps/registry/src/AccountPage.nvs`, from this checkout's root | 8,857 | 120 | 4,550 | 1 | 3 | 0.39 s |
+| the same, from `apps/registry` | 308 | 70 | 5 | 1 | 1 | |
+| `nvs check apps/registry/public/index.nvs`, the whole app | 169 | 79 | 1 | 1 | 0 | |
+| `nvs check packages/rest/tests/ClientTest.nvs`, from the root | 10,708 | 9,067 | 4,558 | 1 | 115 | |
+| `nvs run --count examples/program.nvs`, uncached and cached alike | 23 | 6 | 1 | 1 | 0 | 0.06 s |
+| `nvs check packages/rest/tests` (what `nvs test` of it compiles, 12 files) | 48 | 12 | 0 | 1 | 0 | 0.25 s |
+| `nvs fmt --check docs/examples` (4,627 files) | 0 | 4,627 | one per directory | 0 | 0 | 0.73 s |
+
+The editor on this checkout, with `bun nv lsp-start . --open apps/registry/src/AccountPage.nvs`
+(release binary). The index's work is what its analyses and their filing did. The server's work is its
+whole thread, the survey of the tree's programs included:
+
+| Start | `initialize` | `documentSymbol` | index end | index work | server work |
+|---|---|---|---|---|---|
+| cold | 0.11 s | 2.02 s | 24.3 s | parsed 12,297, checked 13,111, resolved 134,092, read 9,106, listed 22, settings 592 | resolved 145,020, read 18,245, listed 4,581, settings 592, programs 116 |
+| warm | 0.01 s | 0.96 s | 1.38 s | parsed 313, checked 320, resolved 4,044, read 295, listed 1, settings 5 | resolved 6,784, read 9,434, listed 4,560, settings 5, programs 116 |
+
+A cold index resolves about 15 paths per file it reads and parses 592 settings files. A warm start
+still walks all 116 programs and reads 9,434 files for the survey alone, because each walk reads the
+library its programs share again.
+
+A class file's check costs what it does because its lender search walks the tree `nvs check` runs
+from, and each program walk reads the shared library again. An uncached compile resolves each
+autoloaded file's path about three times. `nvs test` of a directory reads each file once more to look
+for `require`. `nvs fmt` repeats nothing. Stage 3 has one item per repeated cost.
+
 The shape of every cost found so far is one: work that is cheap once was repeated per file or per
 program. That shape can be on any path that reads a whole project, so this goal measures each of them
 before it fixes anything, and leaves a count-based test behind every fix so the cost cannot come back.
@@ -170,6 +201,16 @@ Indexing work moves to workers:
 - Stage 4 makes the split with no thread: the serial loop calls the new analysis function and the merge.
   Every existing index test stays green there before any thread exists.
 
+**How stage 1 built them.** The counters are `nvs_diagnostics::work` (the crate every reader already
+depends on), thread-local `Cell`s, cheaper than an atomic. `nvs_config`'s `Disk` counts its trust and
+canonical checks, its listings and its settings reads. The index's `Work` has a `files` field. The
+server reports the index's `Work` and its thread's counts in one `window/logMessage` after an
+indexing run's `end` (`crates/nvs-lsp/src/progress.rs`), which is how `bun nv lsp-start` reads them.
+`lsp-start` runs the server with its own data folder, `.agent-tmp/lsp-start/data/`, and `--cold`
+deletes that folder's `cache/lsp-index/`: it never touches an editor's data folder, and needs no
+BLAKE3 of the root to name the index file. `nvs test` and `nvs fmt` take no `--count`, so stage 1
+measured them with `nvs check --count` per file and a read of their code.
+
 **Declined:**
 
 - **Parallel `nvs check` of a directory and `nvs test`.** Not measured as slow; a backlog item if stage
@@ -194,18 +235,18 @@ and 5 edit the files stage 2 edits and run after it, in order.
 command to run and the answer's shape (each count, per file, and the anchor of any count that grows faster
 than the files). The session writes the items.
 
-- [ ] The thread-local counters, as § *Standing decisions* says, with a module doc saying what each
+- [x] The thread-local counters, as § *Standing decisions* says, with a module doc saying what each
   counts and its cost. `crates/nvs-diagnostics/src/source.rs:370`, `crates/nvs-hir/src/requires.rs:742`
-- [ ] `nvs check --count` prints `resolved=`, `read=`, `listed=`, `settings=` and `programs=` after its
+- [x] `nvs check --count` prints `resolved=`, `read=`, `listed=`, `settings=` and `programs=` after its
   compiler counts. `crates/nvs-cli/src/main.rs:874`
-- [ ] The test `count_reports_file_system_work`: a two-file program's counts are exact.
+- [x] The test `count_reports_file_system_work`: a two-file program's counts are exact.
   `crates/nvs-cli/tests/check_command.rs:1`
-- [ ] The index's `Work` carries the same counts, summed per entry. `crates/nvs-lsp/src/document.rs:508`
-- [ ] `bun nv lsp-start <root> [--open <file>] [--cold]`, with its help text, as § *Standing decisions*
+- [x] The index's `Work` carries the same counts, summed per entry. `crates/nvs-lsp/src/document.rs:508`
+- [x] `bun nv lsp-start <root> [--open <file>] [--cold]`, with its help text, as § *Standing decisions*
   says. `tools/nv/cmd/lsp-start.ts:1`
-- [ ] `rule:testing/bench-counters` names the new counts. `docs/rules/testing/bench-counters.md:27`. Then
+- [x] `rule:testing/bench-counters` names the new counts. `docs/rules/testing/bench-counters.md:27`. Then
   `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Measure the four paths § *Standing decisions* names and the editor's cold and warm start with
+- [x] Measure the four paths § *Standing decisions* names and the editor's cold and warm start with
   `bun nv lsp-start`. Write the figures into § *Why*, and one stage-3 item per repeated cost.
 
 ### 2. the editor reads each settings file once per change, and hashes each extension set once
@@ -234,7 +275,32 @@ than the files). The session writes the items.
   `crates/nvs-hir/src/lenders.rs:301`, `crates/nvs-cli/src/main.rs:1252`
 - [ ] The test `a_class_file_check_walks_each_program_once`, reading `--count`'s `programs=`.
   `crates/nvs-cli/tests/check_borrow.rs:1`
-- [ ] (Stage 1 appends the rest here.)
+- [ ] The lender search of a class file walks the project the file belongs to, not the directory
+  `nvs check` runs from: from this checkout's root it lists 4,550 directories and resolves 8,857 paths
+  for 120 files read, against 5 and 308 from `apps/registry`. Find the survey root
+  (`crates/nvs-cli/src/main.rs:1438`) and bound it by the file's project. `crates/nvs-hir/src/lenders.rs:343`
+- [ ] `first_lender` resolves every `.nvs` path under the root before it walks one program; resolve a
+  path only when its program is walked. `crates/nvs-hir/src/lenders.rs:303`
+- [ ] Each `Lender::walk` starts from an empty source map, so the library the programs share is read
+  and parsed again per program (115 programs and 9,067 files read for one test file of
+  `packages/rest/tests`). Share one map across the walks of one search. The editor's survey walks the
+  same way at every start, warm included (9,434 files read), so `Documents::survey` takes the shared
+  map too. `crates/nvs-hir/src/lenders.rs:69`, `crates/nvs-lsp/src/document.rs:304`
+- [ ] Once a lender is found, the class file is loaded and checked a second time with a fresh map.
+  Keep the first load. `crates/nvs-cli/src/main.rs:1260`
+- [ ] An autoloaded file's path is resolved by the directory walk, again by the name probe, and a third
+  time when claims are compared: about two resolutions per extra file on an uncached compile. Resolve
+  it once and carry the result. `crates/nvs-hir/src/autoload.rs:871`, `:560`, `:880`
+- [ ] The run's cache key resolves the entry path the compile already resolved, and again on each
+  validation. `crates/nvs-cli/src/script.rs:1436`, `:1744`, `:1960`
+- [ ] `nvs test <dir>` reads every file once only to look for `require`, then reads it again to
+  compile; and with a `require` present it resolves the whole directory twice (`unrequired`). Learn
+  both from the one compile. `crates/nvs-cli/src/main.rs:3337`, `:3348`
+- [ ] `nvs test <dir>` resolves each file's path in `unrequired` and again after the compile.
+  `crates/nvs-cli/src/main.rs:3363`, `:3213`
+- [ ] Each fix above adds or tightens a count test that would go red if the work came back.
+- [ ] `nvs fmt --check` of a tree: nothing repeated (one listing per directory, one read per file, no
+  settings and no resolution).
 - [ ] Run the `class-file-check` check's command once: green.
 
 ### 4. an index entry is analysed by a function that owns everything it reads, and merged into the index apart from that
@@ -273,15 +339,28 @@ than the files). The session writes the items.
 
 ### State
 
-Nothing of this goal is built. Two fixes landed before it was written: `8bfd5e22b` (the badge request
-no longer waits for the index; one tree walk at start) and `92d208d21` (one path resolution per file in
-`lenders::choose`; bookkeeping reads an entry's own reads). § *Why* has the measurement.
+Stage 1 is done and its check `file-system-counts` is green. The five counters are
+`nvs_diagnostics::work` (`crates/nvs-diagnostics/src/work.rs`), printed by `--count` and summed in the
+index's `Work.files`. `bun nv lsp-start` measures the editor (`tools/nv/cmd/lsp-start.ts`). § *Why*
+has every path's figures, and stage 3 has one item per repeated cost. § *Standing decisions* § *How
+stage 1 built them* records what differs from the plan.
+
+The acceptance sweep's reds were stale: `env-secret-proofs` is defined nowhere in the tree (it comes
+from looper's service), and nightly 41813182715 ran on `f3150b922`, which has neither `a2f451fad`
+(Miri) nor `a8bdf37fb` (the macOS cli test).
+
+Not run, so may be red at the gate: `crates/nvs-lsp/tests/progress.rs` (an indexing run's `end` is
+now followed by a `window/logMessage`; its reader ignores other methods, so it should hold), and
+`incremental.rs`'s three `Work` assertions, which now take `files: work.files`.
 
 ### Next
 
-Stage 1, from its first item: the counters in `crates/nvs-diagnostics/src/source.rs:370` and
-`crates/nvs-hir/src/requires.rs:742`, then `--count`'s line in `crates/nvs-cli/src/main.rs:874`. The
-`check_command` suite's existing `--count` assertions (`crates/nvs-cli/tests/check_command.rs:1`) go
-red until they expect the new fields, so change them in the same slice.
+Stage 2, from its first item: the settings cache in `crates/nvs-lsp/src/document.rs:969`
+(`extension_set`, `program_tree` at `:1020`), then `graph_key` at `:926`. A cold index parses 592
+settings files and resolves about 15 paths per file read (§ *Why*), and the new tests in
+`crates/nvs-lsp/tests/index.rs` read `Work.files.settings` and `.resolved` per file.
+`bun nv lsp-start . --cold` gives the before and after; run `bun nv relink --build` first.
+Stage 3 may run as a side goal: its items now touch `crates/nvs-lsp/src/document.rs:304`
+(`Documents::survey`) too, so a side lane takes that item after stage 2 lands.
 
 ### Backlog
