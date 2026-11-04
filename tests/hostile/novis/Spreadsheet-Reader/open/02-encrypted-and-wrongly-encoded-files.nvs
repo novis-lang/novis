@@ -1,0 +1,167 @@
+<?nvs
+// Attack: a request uploads files saved with a password and files that are not in UTF-8.
+// It also uploads a row that is repeated to the last row of the sheet.
+// Each file should throw an error or read in the memory of one row. The program should keep running.
+// hostile: timeout-ms 60000
+use Novis\Spreadsheet\Reader;
+
+class Attack
+{
+    // This method opens `$source`, reads up to `$limit` rows of its first sheet and prints how many it read, or the class of the error.
+    public static function attempt(int $step, bytes $source, uint $limit): void
+    {
+        try {
+            int $count = 0;
+            foreach (Reader::open($source)->rows(0, { limit: $limit }) as var $row) {
+                $count++;
+            }
+            echo 'step ', $step, ' read ', $count, " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This method returns a compound file, the container of an xls file, with one stream `$name` that contains `$content`.
+    public static function compound(string $name, bytes $content): bytes
+    {
+        int $none = 0xFFFFFFFF;
+        int $end = 0xFFFFFFFE;
+        bytes $header = Core\Bytes::join([
+            Core\Encoding::fromHex('d0cf11e0a1b11ae1'),
+            Core\Bytes::fill(16, 0),
+            Core\Bytes::pack('VVVVVVVVVVVVVV', 0x0003003E, 0x0009FFFE, 6, 0, 0, 1, 1, 0, 4096, $end, 0, $end, 0, 0),
+            Core\Bytes::fill(432, 255),
+        ]);
+        array<bytes> $table = [Core\Bytes::pack('VV', 0xFFFFFFFD, $end)];
+        for (int $sector = 3; $sector < 18; $sector++) {
+            $table[] = Core\Bytes::pack('V', $sector);
+        }
+        $table[] = Core\Bytes::pack('V', $end);
+        $table[] = Core\Bytes::fill(440, 255);
+        bytes $directory = Core\Bytes::join([
+            Attack::entry('Root Entry', 5, 1, $end, 0),
+            Attack::entry($name, 2, $none, 2, 8192),
+            Core\Bytes::fill(256, 0),
+        ]);
+        bytes $stream = Core\Bytes::join([$content, Core\Bytes::fill(8192 - Core\Bytes::length($content), 0)]);
+        return Core\Bytes::join([$header, Core\Bytes::join($table), $directory, $stream]);
+    }
+
+    // This method returns one entry of a compound file's directory: 128 bytes.
+    public static function entry(string $name, uint $kind, int $child, int $start, int $size): bytes
+    {
+        bytes $units = Core\Encoding::encodeText($name, Core\Charset::Utf16Le);
+        uint $length = Core\Bytes::length($units);
+        return Core\Bytes::join([
+            $units,
+            Core\Bytes::fill(64 - $length, 0),
+            Core\Bytes::pack('v', $length + 2),
+            Core\Bytes::fill(1, $kind),
+            Core\Bytes::fill(1, 0),
+            Core\Bytes::pack('VVV', 0xFFFFFFFF, 0xFFFFFFFF, $child),
+            Core\Bytes::fill(36, 0),
+            Core\Bytes::pack('VVV', $start, $size, 0),
+        ]);
+    }
+
+    // This method returns a zip archive with the files in `$files`, stored without compression.
+    public static function zip(array<bytes> $files): bytes
+    {
+        array<bytes> $locals = [];
+        array<bytes> $records = [];
+        int $offset = 0;
+        foreach ($files as string $name => bytes $data) {
+            bytes $path = $name as bytes;
+            uint $length = Core\Bytes::length($data);
+            uint $nameLength = Core\Bytes::length($path);
+            bytes $crc = Attack::crc($data);
+            bytes $local = Core\Bytes::join([
+                Core\Bytes::pack('Vvvvvv', 0x04034b50, 20, 0, 0, 0, 0),
+                $crc,
+                Core\Bytes::pack('VVvv', $length, $length, $nameLength, 0),
+                $path,
+                $data,
+            ]);
+            $records[] = Core\Bytes::join([
+                Core\Bytes::pack('Vvvvvvv', 0x02014b50, 20, 20, 0, 0, 0, 0),
+                $crc,
+                Core\Bytes::pack('VVvvvvvVV', $length, $length, $nameLength, 0, 0, 0, 0, 0, $offset),
+                $path,
+            ]);
+            $locals[] = $local;
+            $offset += Core\Bytes::length($local) as int;
+        }
+        bytes $directory = Core\Bytes::join($records);
+        int $count = Core\Arr::count($records) as int;
+        return Core\Bytes::join([
+            Core\Bytes::join($locals),
+            $directory,
+            Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, $count, $count, Core\Bytes::length($directory), $offset, 0),
+        ]);
+    }
+
+    // This method returns the CRC-32 checksum of `$data`, low byte first, as a zip archive stores it.
+    public static function crc(bytes $data): bytes
+    {
+        bytes $high = Core\Hash::of($data, Core\Hash::Digest::Crc32);
+        return Core\Bytes::join([
+            Core\Bytes::slice($high, 3, 1),
+            Core\Bytes::slice($high, 2, 1),
+            Core\Bytes::slice($high, 1, 1),
+            Core\Bytes::slice($high, 0, 1),
+        ]);
+    }
+
+    // This method returns a workbook with one sheet, `Orders`, whose part is `$part`.
+    public static function workbook(bytes $part): bytes
+    {
+        string $rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+        string $package = 'http://schemas.openxmlformats.org/package/2006/relationships';
+        array<bytes> $files = [
+            '[Content_Types].xml' => '<Types/>' as bytes,
+            '_rels/.rels' => ('<Relationships xmlns="' . $package . '"><Relationship Id="rId1" Type="' . $rel . '/officeDocument" Target="xl/workbook.xml"/></Relationships>') as bytes,
+            'xl/workbook.xml' => ('<workbook xmlns="' . Attack::MAIN . '" xmlns:r="' . $rel . '"><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets></workbook>') as bytes,
+            'xl/_rels/workbook.xml.rels' => ('<Relationships xmlns="' . $package . '"><Relationship Id="rId1" Type="' . $rel . '/worksheet" Target="worksheets/sheet1.xml"/></Relationships>') as bytes,
+            'xl/worksheets/sheet1.xml' => $part,
+        ];
+        return Attack::zip($files);
+    }
+
+    public const string MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+}
+
+string $sheet = '<?xml version="1.0"?><worksheet xmlns="' . Attack::MAIN . '"><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>';
+
+// 1. An xlsx file saved with a password. The file is a compound file with an `EncryptedPackage` stream.
+Attack::attempt(1, Attack::compound('EncryptedPackage', Core\Bytes::fill(64, 0x5A)), 10);
+
+// 2. An xls file saved with a password. A `FILEPASS` record follows the first record, and the rest is encrypted.
+bytes $records = Core\Bytes::join([
+    Core\Bytes::pack('vvvv', 0x0809, 16, 0x0600, 0x0005),
+    Core\Bytes::fill(12, 0),
+    Core\Bytes::pack('vvvvv', 0x002F, 54, 1, 1, 1),
+    Core\Bytes::fill(48, 0x5A),
+    Core\Bytes::pack('vv', 0x0085, 16),
+    Core\Bytes::fill(16, 0x5A),
+]);
+Attack::attempt(2, Attack::compound('Workbook', $records), 10);
+
+// 3. A sheet part in UTF-16, first with a byte order mark and then without one.
+bytes $utf16 = Core\Encoding::encodeText($sheet, Core\Charset::Utf16Le);
+Attack::attempt(3, Attack::workbook(Core\Bytes::join([Core\Encoding::fromHex('fffe'), $utf16])), 10);
+Attack::attempt(3, Attack::workbook($utf16), 10);
+
+// 4. A sheet part that says it is in Latin-1, and the same part in UTF-8.
+Attack::attempt(4, Attack::workbook(Core\Str::replace($sheet, '<?xml version="1.0"?>', '<?xml version="1.0" encoding="ISO-8859-1"?>') as bytes), 10);
+Attack::attempt(4, Attack::workbook($sheet as bytes), 10);
+
+// 5. A CSV file in UTF-32, and a CSV file with a byte that is not UTF-8 after 8,000 good bytes.
+Attack::attempt(5, Core\Encoding::fromHex('fffe0000610000002c000000620000000a000000'), 10);
+Attack::attempt(5, Core\Bytes::join([Core\Str::repeat("a,b\n", 2000) as bytes, Core\Encoding::fromHex('ff0a')]), 10000);
+
+// 6. An ods file with a row of 16,384 values repeated to row 1,048,575. Reading 5 rows should hold one row in memory.
+string $content = '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"><office:body><office:spreadsheet><table:table table:name="Orders">'
+    . '<table:table-row table:number-rows-repeated="1048575"><table:table-cell office:value-type="float" office:value="1" table:number-columns-repeated="16384"/></table:table-row>'
+    . '</table:table></office:spreadsheet></office:body></office:document-content>';
+array<bytes> $ods = ['mimetype' => 'application/vnd.oasis.opendocument.spreadsheet' as bytes, 'content.xml' => $content as bytes];
+Attack::attempt(6, Attack::zip($ods), 5);

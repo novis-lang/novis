@@ -313,6 +313,9 @@ impl Part {
             Method::Stored => {
                 out.extend_from_slice(&self.input[self.used..]);
                 self.used = self.input.len();
+                // The last block of a stored part ends it here, so its encoding is judged now
+                // even when the caller stops reading at the end of the XML.
+                self.done = self.next >= self.end;
             }
             Method::Deflated(state) => {
                 let mut chunk = vec![0; 64 * 1024];

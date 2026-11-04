@@ -6,7 +6,7 @@ context: [docs/rules/core-classes/spreadsheet-reads-as-a-stream.md, docs/rules/c
 stages:
   - id: 1
     title: "hostile input reads in linear time and memory, an encrypted file throws, a filled template keeps no macro part, and a part in another encoding throws"
-    status: open
+    status: done
     context: [extensions/spreadsheet/src/read/ods.rs, extensions/spreadsheet/src/read/xml.rs, extensions/spreadsheet/src/read/mod.rs, extensions/spreadsheet/src/read/xls.rs, extensions/spreadsheet/src/template/mod.rs, crates/nvs-ext/tests/spreadsheet_hostile.rs, tests/hostile/README.md]
   - id: 2
     title: "xlsx reading resolves odd part names, reads empty and date cells, joins surrogate pairs, and lists a sheet whose part is missing"
@@ -362,7 +362,7 @@ are, one conformance case and one attack.
   `extensions/spreadsheet/nvs/Reader.nvs:486`
   - [x] `open` throws for a UTF-32 mark when no `encoding` is given, and `isUtf8` judges the first 4 KiB
   - [x] `csvText` throws `notUtf8()` for bytes that are not UTF-8 past the first 4 KiB
-- [ ] The rules and pages a user reads say it: an encrypted file, a part in another encoding and a
+- [x] The rules and pages a user reads say it: an encrypted file, a part in another encoding and a
   UTF-32 CSV throw (`docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:1`,
   `docs/examples/novis/Spreadsheet-Reader/open/about.md:1`, the doc comment at
   `extensions/spreadsheet/nvs/Reader.nvs:40`); a fill drops macro parts
@@ -370,15 +370,23 @@ are, one conformance case and one attack.
   copied unchanged, `docs/rules/core-classes/spreadsheet-output-is-inert.md:1`,
   `docs/examples/novis/Spreadsheet-Template/fill/about.md:1`); and decision 2's memory cost is in
   the reads-as-a-stream rule. Then `bun nv rules --render` and `bun nv rules --check`.
+  - [x] the stream rule's *Formats* names the three throws; decision 2's cost was already there
+  - [x] the template-fill and inert rules say what a fill drops and keeps
+  - [x] both `about.md` pages and the `open` doc comment, inside `bun nv proofs --comments`
+  - [x] `bun nv rules --render` and `--check` are clean
 - [x] Write the ten tests the `hostile-input` check names. The cost tests follow decision 41.
   `crates/nvs-ext/tests/spreadsheet_hostile.rs:1022`
 - [x] Write the conformance case the `csv-charset` check names.
   `tests/conformance/novis/spreadsheet-a-utf32-csv-throws-and-a-csv-that-is-not-utf8-names-the-encoding-option.nvst:1`
-- [ ] Attack `tests/hostile/novis/Spreadsheet-Reader/open/02-encrypted-and-wrongly-encoded-files.nvs`:
+- [x] Attack `tests/hostile/novis/Spreadsheet-Reader/open/02-encrypted-and-wrongly-encoded-files.nvs`:
   an encrypted xlsx, an xls with a password, a sheet part in UTF-16, a UTF-32 CSV and an ods row
   repeated to the end of the grid. Build the bytes as `01-files-that-are-not-workbooks.nvs` in the same
   directory does, and follow `tests/hostile/README.md`. Run `bun nv proofs --run --id
   'Novis\Spreadsheet\Reader::open' --show` once: it passes.
+  - [x] the attack builds a compound file and stored zips with `Core\Bytes::pack`
+  - [x] it found a stored XML part shorter than 256 bytes was never judged; `zip::Part::fill`
+    now ends a stored part in its last block, and the encoding test reads stored parts too
+  - [x] the proofs run passes, every step throws or reads as it should
 - [x] Run the `hostile-input` and `csv-charset` checks' commands once: green.
 
 ### 2. xlsx reading resolves odd part names, reads empty and date cells, joins surrogate pairs, and lists a sheet whose part is missing
@@ -629,49 +637,39 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 1 has twelve of its fourteen items done and committed. Every code item is in, and both of
-its checks, `hostile-input` and `csv-charset`, ran once this session and are green.
+Stage 1 is done: every item is ticked, its checks `hostile-input` and `csv-charset` were green
+last session, and the `Reader::open` proofs run passes with the new attack. The two slices this
+session are the docs commit (the three rules, both `about.md` pages and the `open` doc comment) and
+the attack commit.
 
-a8e21e5e4 is the template item: `dropped`, `without_sheets` and `without_inert` in
-`template/mod.rs`, and `Sheet::inert`. 5c84be4f5 is the encodings item: `xml::encoding`, called
-from `zip::Part`. 7ac531677 is RC-03: `isUtf8` and `notUtf8()` in `Reader.nvs`.
+The attack found a real hole: a stored (uncompressed) XML part shorter than 256 bytes was never
+judged by `xml::encoding`, because a stored part set `done` only on the call after its last
+block, and the reader stops at the end of the XML. `zip::Part::fill`
+(`extensions/spreadsheet/src/read/zip.rs:313`) now ends a stored part in its last block, and
+`a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part` reads every case both
+deflated and stored (`xlsx_as` and `zip_as` in `spreadsheet_hostile.rs`).
 
-The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as three handoffs have
-found. The nightly reds on run 41813182715 (f3150b922) are fixed by a8bdf37fb (macOS `live_edit`)
-and a2f451fad (the Miri `openat` skip). The next nightly confirms both.
-
-The tree still holds another session's uncommitted edits in `crates/nvs-lsp/` and
-`crates/nvs-hir/`. They were left unstaged. Workspace `cargo clippy --all-targets` is clean
-with them.
+The sweep's reds: `env-secret-proofs` is stale (defined nowhere, no log), as four handoffs have
+found. The nightly reds on run 41813182715 are fixed by a8bdf37fb and a2f451fad, and the next
+nightly confirms both.
 
 ### Next
 
-Stage 1's last two items, then stage 2.
+Stage 2, from its first item.
 
-1. The docs item. These rules and pages still describe the old behaviour:
-   - `docs/rules/core-classes/spreadsheet-template-fill.md:1` says every part is copied unchanged.
-     Say a fill drops the parts that can run code, and point at the inert rule.
-   - `docs/rules/core-classes/spreadsheet-output-is-inert.md:1` needs a paragraph listing what a
-     fill drops (decision 8), and that embedded packages and images stay.
-   - `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md` § *Formats* needs three facts: an
-     encrypted file throws (decision 7), an XML part not in UTF-8 throws (decision 9), and a UTF-32
-     CSV or a CSV that is not UTF-8 throws (decision 10). It also needs decision 2's cost, one row
-     per repeated ods row.
-   - The pages `docs/examples/novis/Spreadsheet-Reader/open/about.md` and
-     `docs/examples/novis/Spreadsheet-Template/fill/about.md`, and the doc comment at
-     `extensions/spreadsheet/nvs/Reader.nvs:39`, which says what a CSV file is. These are text an
-     end user reads, so AGENTS.md § *Text an end user reads* applies. Run
-     `bun nv proofs --comments` on them.
-   - Then `bun nv rules --render` and `bun nv rules --check`.
-2. The attack `tests/hostile/novis/Spreadsheet-Reader/open/02-encrypted-and-wrongly-encoded-files.nvs`.
-   Build its bytes as `01-files-that-are-not-workbooks.nvs` does. Then run
-   `bun nv proofs --run --id 'Novis\Spreadsheet\Reader::open' --show` once. When it passes, set
-   stage 1 to done in the front matter.
+1. Decision 11 (RX-02): `\` in zip entry names and relationship `Target`s reads as `/`, and a
+   `Target` is percent-decoded. `extensions/spreadsheet/src/read/zip.rs` (`Directory::find`, and
+   where `Entry::name` is stored at `:150`) and `read/mod.rs`'s `resolve` (`:517`).
+2. Decision 12 (RX-03): sharedStrings found at `xl/sharedStrings.xml` with no relationship.
+   `read/mod.rs:717`.
+3. Decision 13 (RX-07, RX-11), decision 14 (RX-10), decisions 15 and 16, then decision 17's
+   optional sizes (three edits: `wit/spreadsheet.wit:496`, the manifest, and
+   `crates/nvs-ext/src/typed/spreadsheet.rs`, see the playbook's first trap), then 21 and 22.
+4. The tests go into `crates/nvs-ext/tests/spreadsheet_read.rs`, whose helpers start at `:96`.
 
-Stage 2 starts at decision 11, in `extensions/spreadsheet/src/read/zip.rs` (`Directory::find`) and
-`read/mod.rs`'s `resolve` (`:517`). No existing test is expected to go red, but these may:
-`spreadsheet-reads-csv-in-another-dialect-and-charset.nvst` (it reads a Latin-1 CSV with the option
-set, so it should still pass), and any template test whose sheet `.rels` is now rewritten by
-`without`.
+No existing test is expected to go red. Decision 17 changes `SheetInfo`'s `rows` and `columns` to
+`?uint`, so an example or conformance case that does arithmetic on them may stop compiling; grep
+`docs/examples/novis/Spreadsheet-Reader/sheets/` and `tests/conformance/novis/` for `->rows` on a
+sheet info.
 
 ### Backlog

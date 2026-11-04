@@ -42,18 +42,28 @@ fn spreadsheet(host: &Host) -> Extension {
 
 /// A zip archive of `parts`, each deflated.
 fn zip(parts: &[(&str, &[u8])]) -> Vec<u8> {
+    zip_as(parts, true)
+}
+
+/// A zip archive of `parts`, each deflated when `deflate` is set and stored when it is not.
+fn zip_as(parts: &[(&str, &[u8])], deflate: bool) -> Vec<u8> {
     let mut out = Vec::new();
     let mut central = Vec::new();
+    let method = if deflate { 8 } else { 0 };
     for (name, data) in parts {
-        let mut encoder =
-            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
-        encoder.write_all(data).unwrap();
-        let packed = encoder.finish().unwrap();
+        let packed = if deflate {
+            let mut encoder =
+                flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+            encoder.write_all(data).unwrap();
+            encoder.finish().unwrap()
+        } else {
+            data.to_vec()
+        };
         let mut crc = flate2::Crc::new();
         crc.update(data);
         let offset = u32::try_from(out.len()).unwrap();
         let sizes = |out: &mut Vec<u8>| {
-            out.extend_from_slice(&[0, 0, 8, 0, 0, 0, 0, 0]);
+            out.extend_from_slice(&[0, 0, method, 0, 0, 0, 0, 0]);
             out.extend_from_slice(&crc.sum().to_le_bytes());
             out.extend_from_slice(&u32::try_from(packed.len()).unwrap().to_le_bytes());
             out.extend_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
@@ -183,6 +193,17 @@ fn xlsx_named(sheet: &[u8], shared: &[u8], names: &str) -> Vec<u8> {
 
 /// [`xlsx_named`] with the styles part `styles`, when there is one.
 fn xlsx_with(sheet: &[u8], shared: &[u8], names: &str, styles: Option<&[u8]>) -> Vec<u8> {
+    xlsx_as(sheet, shared, names, styles, true)
+}
+
+/// [`xlsx_with`] whose parts are deflated when `deflate` is set and stored when it is not.
+fn xlsx_as(
+    sheet: &[u8],
+    shared: &[u8],
+    names: &str,
+    styles: Option<&[u8]>,
+    deflate: bool,
+) -> Vec<u8> {
     let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     let package = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -211,7 +232,7 @@ fn xlsx_with(sheet: &[u8], shared: &[u8], names: &str, styles: Option<&[u8]>) ->
     if let Some(styles) = styles {
         parts.push(("xl/styles.xml", styles));
     }
-    zip(&parts)
+    zip_as(&parts, deflate)
 }
 
 /// A styles part whose custom number formats are `codes`, from id 164 up, each the format of
@@ -1634,12 +1655,18 @@ fn a_part_in_utf16_or_another_declared_encoding_throws_naming_the_part() {
             "declares the encoding `ISO-8859-1`.",
         ),
     ] {
-        let file = xlsx_named(&data, &shared(&[]), "");
-        let failure = read(&file).0.unwrap_or_else(|| panic!("{what} reads"));
-        assert!(
-            failure.contains(&format!("{part} {says} Only UTF-8 is supported.")),
-            "{what}: {failure}"
-        );
+        // A stored part shorter than the bytes the check judges ends in the same block it
+        // starts in, and is judged there too.
+        for deflate in [true, false] {
+            let file = xlsx_as(&data, &shared(&[]), "", None, deflate);
+            let failure = read(&file)
+                .0
+                .unwrap_or_else(|| panic!("{what} reads (deflated: {deflate})"));
+            assert!(
+                failure.contains(&format!("{part} {says} Only UTF-8 is supported.")),
+                "{what} (deflated: {deflate}): {failure}"
+            );
+        }
     }
     let mut marked = vec![0xEF, 0xBB, 0xBF];
     marked.extend(&utf8);
