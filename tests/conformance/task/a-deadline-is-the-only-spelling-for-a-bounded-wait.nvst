@@ -4,27 +4,43 @@
 <?nvs
 // covers: lang:concurrency/limit-and-deadline
 // The neighbouring case pins that `timeout` and `race` do not exist as names.
-// This is the other half: what the surviving spelling actually means at run
-// time. Five children of 150ms under a 700ms deadline is the discriminator —
-// run at once they finish inside it with room for a loaded machine, run one at
-// a time they cannot, and the only thing that changed between the two calls
-// below is `limit`. A `deadline` that were per child would return from both.
+// This is the other half: what the surviving spelling means at run time. No
+// verdict below depends on how fast the machine is
+// (`rule:testing/a-test-holds-at-any-speed`).
 
 array<int> $work = [1, 2, 3, 4, 5];
 
+// The children run at once, by the order of events and not by a clock: each
+// waits on `$go` until all five have arrived, and the fifth closes it. Run one
+// at a time, the first child would wait for good. The 10s deadline is only a
+// hang guard, as large as the hostile timeout.
+class Gate {
+    public static int $arrived = 0;
+}
+
+var $go = new Core\Task\Channel<int>(1);
+
 try {
     Core\Task::map($work, fn (int $n): int => {
-        Core\Time::sleep(150ms);
+        Gate::$arrived += 1;
+        if (Gate::$arrived == 5) {
+            $go->close();
+        }
+        foreach ($go as int $signal) {
+        }
         return $n;
-    }, {deadline: 700ms});
+    }, {deadline: 10s});
     echo "map returned", "\n";
 } catch (TimeoutError $e) {
     echo "map hit the deadline", "\n";
 }
 
-// Same children, same deadline, serialized by `limit`. `rule:concurrency/limit-and-deadline-are-the-only-bounds`: a child past the
-// limit is scheduled rather than refused, so this is five waits end to end and
-// not four refusals.
+// Five children of 150ms, serialized by `limit`, under a 700ms deadline. Each
+// child alone fits inside it, so a deadline per child would return. Together
+// they need at least 750ms, and a sleep never ends early, so a slow machine
+// only moves them further past it. `rule:concurrency/limit-and-deadline-are-the-only-bounds`:
+// a child past the limit is scheduled rather than refused, so this is five
+// waits end to end and not four refusals.
 try {
     Core\Task::map($work, fn (int $n): int => {
         Core\Time::sleep(150ms);

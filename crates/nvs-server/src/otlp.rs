@@ -1566,10 +1566,10 @@ mod tests {
     /// delivered is counted and dropped, and neither the drop nor the collector
     /// being gone is on the path a request takes.
     ///
-    /// The timing half is generous on purpose. What it rules out is a hand-over
-    /// that dials, encodes or waits on anything — every one of which costs
-    /// whole seconds against a collector that is not answering — and not the
-    /// scheduling of a loaded machine.
+    /// The request's half is checked by counts, not by a clock
+    /// (`rule:testing/a-test-holds-at-any-speed`): a hand-over that waited on a
+    /// drain or a collector would never return here, since neither runs, and a
+    /// full queue's room is accounted for span by span.
     #[test]
     fn an_unreachable_collector_drops_and_counts_spans_and_never_delays_a_response() {
         let derived = derived();
@@ -1610,16 +1610,25 @@ mod tests {
         );
 
         // And the request's own half: handing spans over touches the queue and
-        // nothing else, so it costs the same whether or not anything is
-        // answering at the endpoint.
+        // nothing else. No drain runs here, so a hand-over that waited for one
+        // would never return. Each of the 1000 returns with its spans either
+        // queued or counted as dropped, and the queue stays at its bound: a
+        // full queue makes room by dropping, never by waiting. The 10 s bound
+        // is only a hang guard, the size of the hostile timeout.
+        let before = u64::try_from(pending.waiting()).expect("a span count") + pending.dropped();
         let started = Instant::now();
         for _ in 0..1000 {
             pending.hand_over(derived.clone());
         }
         assert!(
-            started.elapsed() < Duration::from_secs(1),
-            "handing spans over waited on something: {:?}",
-            started.elapsed()
+            started.elapsed() < Duration::from_secs(10),
+            "a hand-over waited for a drain that never runs"
+        );
+        assert_eq!(pending.waiting(), spans * 2, "a full queue grew past its bound");
+        assert_eq!(
+            u64::try_from(pending.waiting()).expect("a span count") + pending.dropped() - before,
+            u64::try_from(spans * 1000).expect("a span count"),
+            "a handed-over span was neither queued nor counted as dropped"
         );
     }
 
