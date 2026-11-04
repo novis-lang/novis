@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ext/tests/spreadsheet_hostile.rs, crates/nvs-ext/tests/spreadsheet_read.rs, tests/hostile/README.md]
   - id: 7
     title: "the date, number, format, formula and writing classes are pinned by tests, and every declined class is in its rule's Declined list"
-    status: open
+    status: done
     context: [extensions/spreadsheet/tests/format.rs, extensions/spreadsheet/tests/evaluate.rs, extensions/spreadsheet/tests/template.rs, extensions/spreadsheet/tests/write.rs, extensions/spreadsheet/tests/sheet_end.rs, crates/nvs-ext/tests/spreadsheet_read.rs]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -298,6 +298,8 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 43. **Lanes.** Every stage appends to `crates/nvs-ext/tests/spreadsheet_read.rs`, `crates/nvs-ext/tests/spreadsheet_hostile.rs` or the extension's test files, and stages 1 to 5 share `extensions/spreadsheet/src/read/mod.rs` and the template code, so the stages run in order. No stage runs as a side goal.
 44. **An ods `number:number` with no `decimal-places` shows no decimals when it gives `min-integer-digits` or `grouping`**, so `000` keeps its leading zeros; with neither it stays `General`. An Excel code cannot show "three whole digits and General's decimals", and `000.###` would show `007.` for a whole number, which is the common case for a code. A fraction under such a style is rounded in `text` only. Recorded in `rule:core-classes/spreadsheet-reads-as-a-stream`.
 45. **ST-07 compiles: E0801 does not reach a body opened inside `Workbook::createForDownload`.** It is not needed: on a served request, `echo` after a streamed body goes to the context's output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs:1396`), a late `setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`. The attack is pinned as a passing hostile case without `expect-refusal`.
+46. **An internal link's sheet name that is not in quotes is quoted where Excel quotes it** (`chart::quoted`'s test), so `Shop Data!A1` is written `'Shop Data'!A1`; a name already in quotes is written as given. WX-18's pin was red on this; it costs one string per link. Recorded in `rule:core-classes/spreadsheet-sheet-end-parts`.
+47. **DT-03's Rust pin checks the wall clock the guest returns, not the zone rule.** The zone is applied in `Reader.nvs:710` with `withTime`, whose rule is jiff's "compatible" (a gap time moves forward, an overlap takes the earlier offset); a conformance case pinning it is in § *Backlog*, not a stage item, because the rule is `Core\DateTime`'s, which its own tests own.
 
 ## Stages
 
@@ -584,50 +586,50 @@ Declined list of the rule that owns it.
 `format.rs`, `evaluate.rs`, `template.rs`, and `write.rs` with `sheet_end.rs`. None builds. The session
 writes the Declined entries, then builds and runs both checks once all end.
 
-- [ ] `crates/nvs-ext/tests/spreadsheet_read.rs:4251`, the five tests the `pinned-dates` check names:
+- [x] `crates/nvs-ext/tests/spreadsheet_read.rs:4251`, the five tests the `pinned-dates` check names:
   DT-02 cell values in a 1904 xlsx; DT-03 a wall clock in a daylight-saving gap and one in an overlap;
   DT-04 milliseconds read into a time of day; NM-03 an xlsx percent cell; FE-16 a cached `t="str"`
   result `00123` stays text.
-- [ ] `extensions/spreadsheet/tests/format.rs:265`, four tests: NF-01 `[RED]`, `GENERAL` and
+- [x] `extensions/spreadsheet/tests/format.rs:265`, four tests: NF-01 `[RED]`, `GENERAL` and
   `[<=9999999]###-####;(###) ###-####`; NF-03 `?/0`; NF-06 `[$-F800]`; NF-07 a 50,000-character code
   in linear time (decision 41).
-- [ ] `extensions/spreadsheet/tests/evaluate.rs:784`, twelve tests: FP-01 apostrophe, `!` and
+- [x] `extensions/spreadsheet/tests/evaluate.rs:784`, twelve tests: FP-01 apostrophe, `!` and
   non-Latin sheet names; FP-02 `Sheet!$B:$B` and `A1:B2:C3`; FP-04 `SUM(1,)` and `IF` with an empty
   argument; FP-05 a string that looks like a reference; FP-07 names `A1B`, `R1C`, `x.y` and non-ASCII;
   FP-09 `@` and `A1#` listed; FP-10 `1<2<3`; FE-01 `""=0` is false; FE-02 `#REF!` inside a range; FE-06
   IFS, SWITCH and CHOOSE evaluate only the branch taken; FE-09 `ROUNDDOWN(249.9975,0)` is 249 and
   `ROUNDUP(280.000000000001,0)` is 281; FE-12 SUBTOTAL over hidden rows and a nested SUBTOTAL.
-- [ ] `extensions/spreadsheet/tests/template.rs:1115`, three tests: TP-03 relative and quoted-sheet
+- [x] `extensions/spreadsheet/tests/template.rs:1115`, three tests: TP-03 relative and quoted-sheet
   names; TP-04 a quoted sheet name that looks like a cell; TP-10 media, a header or footer image and
   note VML copied unchanged.
-- [ ] `extensions/spreadsheet/tests/write.rs:964` and `extensions/spreadsheet/tests/sheet_end.rs:1307`,
+- [x] `extensions/spreadsheet/tests/write.rs:964` and `extensions/spreadsheet/tests/sheet_end.rs:1307`,
   six tests: WX-08 one row with gaps written in column order and WX-10 a column-only and a both-axis
   freeze in `write.rs`; WX-18 an internal link to a quoted sheet, WX-19 a note of several lines, WX-28
   a merge over the autofilter row and WX-24 protection XML with no `lockRevision` in `sheet_end.rs`.
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:96`: WX-09
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-writes-as-a-stream.md:96`: WX-09
   `[Content_Types].xml` first in the zip (the parts are known only at finish, OPC does not require
   the order, and writing it first would hold the workbook); WX-25 `<dimension>` (the sheet head is
   written before the row count is known, and the element is optional); WX-12 shared strings (inline
   strings keep the writer O(1) per cell, and Excel, LibreOffice and Sheets read them).
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:103`: WX-21 chart number
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-sheet-end-parts.md:103`: WX-21 chart number
   caches (a chart may name rows already streamed out, caching would hold every charted value, and
   Excel and LibreOffice recompute from the cells); WX-17 `stopIfTrue` and `containsText` (the API does
   not offer them, so nothing is written wrong); SEC-16 non-ASCII protection passwords (the legacy hash
   is documented as no security, and the salted hash would add entropy against
   `rule:core-classes/spreadsheet-output-is-inert`).
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:166`: RX-04 rows with a
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-reads-as-a-stream.md:166`: RX-04 rows with a
   decreasing or duplicate `r` keep throwing "out of order" (a clear error, and the reader stays one
   forward pass); RX-22 bytes before the zip keep the clear "not a spreadsheet" error.
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-template-fill.md:71`: TP-01 3D references
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-template-fill.md:71`: TP-01 3D references
   (`Jan:Mar!C5`) stay unshifted (a fill repeats rows on one sheet, and Excel's own rule for a 3D span
   is per sheet).
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:95`: FE-13, FE-14
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-evaluation-and-roster.md:95`: FE-13, FE-14
   arrays, dynamic arrays, RATE, XIRR and the distributions are listed, never computed.
-- [ ] Declined, in `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:68`: WX-26 auto width
+- [x] Declined, in `docs/rules/core-classes/spreadsheet-styles-and-defaults.md:68`: WX-26 auto width
   from the first 1,000 rows is the stream's design.
-- [ ] Confirm each owner with `bun nv brief --where <keyword>` before writing, then
+- [x] Confirm each owner with `bun nv brief --where <keyword>` before writing, then
   `bun nv rules --render` and `bun nv rules --check`.
-- [ ] Run the `pinned-dates` and `pinned-values` checks' commands once: green.
+- [x] Run the `pinned-dates` and `pinned-values` checks' commands once: green.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -639,39 +641,40 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 6 is done; the `pinned-hostile`, `pinned-reading` and `pinned-csv` checks ran green once.
-Seven tests appended to `crates/nvs-ext/tests/spreadsheet_hostile.rs` (from :1682, helpers first),
-fifteen to `crates/nvs-ext/tests/spreadsheet_read.rs` (from :4775), four CSV conformance cases, and
-the attack `tests/hostile/novis/Spreadsheet-Export/download/02-output-after-the-download.nvs` (with
-its `.nvsr`), which `bun nv proofs --run --id 'Novis\Spreadsheet\Export::download'` ran green.
+Stage 7 is done; the `pinned-dates` and `pinned-values` checks ran green once (5 and 25 tests),
+and clippy is clean over the extension and the workspace. Five writing subagents appended the tests:
+`crates/nvs-ext/tests/spreadsheet_read.rs` from :5456 (with a new `package_styled` helper at :202
+that `package_with` now calls), `extensions/spreadsheet/tests/format.rs` from :268,
+`evaluate.rs` from :787, `template.rs` from :1118 (helper `binary_parts`), `write.rs` from
+:1262 and `sheet_end.rs` from :1310. Every Declined entry is written (ea6db8c4e), and
+`bun nv rules --check` is clean.
 
-One red test was a bug, fixed here: an ods `number:number` with `min-integer-digits` and no
-`decimal-places` rendered as `General` (`extensions/spreadsheet/src/read/ods_styles.rs`'s `digits`).
-Decision 44 and the reads rule say what it does now. ST-07 compiles, unlike the triage said:
-decision 45 records why that is safe (a served streamed body never sends later `echo` output).
+One pin was red and was a bug, fixed in f136bb5ce: an internal link to `Shop Data!B2` was written
+without quotes (`extensions/spreadsheet/src/tail.rs`'s link arm now quotes by `chart::quoted`).
+Decision 46 and the sheet-end rule say what it does now. Decision 47 records that DT-03's Rust pin
+checks only the wall clock the guest returns.
 
-The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as ten
+The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as eleven
 handoffs have found; it comes from looper's service, not from this repository. The nightly reds on
-run 41813182715 are fixed by a8bdf37fb and a2f451fad.
+run 41813182715 are fixed by a8bdf37fb and a2f451fad, which that run predates.
+`cargo clippy --all-targets` fails on an untracked `crates/nvs-host/tests/zz_connect_probe.rs`
+(`eprintln!`), written at 18:44 by another session; this session did not touch it. If it is
+still there at the gate, whoever owns it deletes it, else the gate's clippy is red on it.
 
 ### Next
 
-Stage 7, as its `**Split:**` line says: five writing subagents, each given its list and its file's
-helpers, none building. The stage's anchors are stale; append at the end of each file:
-`crates/nvs-ext/tests/spreadsheet_read.rs:5442`, `extensions/spreadsheet/tests/format.rs:265`,
-`extensions/spreadsheet/tests/evaluate.rs:784`, `extensions/spreadsheet/tests/template.rs:1115`,
-`extensions/spreadsheet/tests/write.rs:1259` and `extensions/spreadsheet/tests/sheet_end.rs:1307`.
-The Declined lists start at `spreadsheet-writes-as-a-stream.md:107`,
-`spreadsheet-sheet-end-parts.md:107`, `spreadsheet-reads-as-a-stream.md:200`,
-`spreadsheet-template-fill.md:81`, `spreadsheet-evaluation-and-roster.md:99` and
-`spreadsheet-styles-and-defaults.md:68` (all under `docs/rules/core-classes/`). The session writes
-those, then builds and runs `pinned-dates` and `pinned-values` once. RX-22's Declined entry is
-pinned by `bytes_before_the_zip_throw_that_it_is_not_a_spreadsheet`.
+Stage 8, the gate: `bun nv affected --run` (`looper verify` in the loop) over the whole goal, every
+failure fixed in one pass, then once more. Then the goal-end gates AGENTS.md § *In the loop* names:
+`bun nv verify --doc`, `bun nv owners --closes spreadsheet-edge-cases`, `bun nv ci --check`.
 
-Expected reds: none known. Stage 8 runs the existing `template` and `evaluate` suites for the first
-time since stage 5; `a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy` and
-`operators_follow_excels_precedence_and_coercion` are the ones the changes reach. It also runs the
-extension's ods style tests for the first time since the `digits` change. The hostile file had two
-rustfmt lines at HEAD near :1494 and :1647; this session's rustfmt run fixed them.
+Expected reds: none known. The `template` and `evaluate` suites run whole for the first time since
+stage 5 (`a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy`,
+`operators_follow_excels_precedence_and_coercion`), and the extension's ods style tests for the
+first time since the `digits` change. The link change reaches any test or conformance case that
+writes a link to an unquoted sheet name with a space or a cell-like name; none was found by grep.
 
 ### Backlog
+
+- A conformance case reading a daylight-saving gap and overlap wall clock through `Reader` with
+  `zone: 'Europe/Vienna'`: the gap time moves forward an hour, the overlap takes the earlier
+  offset (decision 47).
