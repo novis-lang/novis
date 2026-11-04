@@ -38,6 +38,18 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "colors": [
+      {
+        "id": "nvs.docComment.background",
+        "description": "The background behind each /// doc comment line in a Novis file. Set it to #00000000 to draw no background.",
+        "defaults": {
+          "dark": "#00000000",
+          "light": "#00000000",
+          "highContrast": "#00000000",
+          "highContrastLight": "#00000000"
+        }
+      }
+    ],
     "html": {
       "customData": [
         "./data/pdf.html-data.json"

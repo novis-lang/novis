@@ -63,6 +63,7 @@ import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps
 import { revealing } from "./links";
 import * as profile from "./profile";
 import { profileLink } from "./profilelink";
+import { DECLARED_KINDS } from "./concealment";
 import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
@@ -100,6 +101,7 @@ const editorCommands: StaticFeature = {
     capabilities.experimental = {
       ...(capabilities.experimental as object | undefined),
       commands: EDITOR_COMMANDS,
+      redactionKinds: DECLARED_KINDS,
     };
   },
   initialize(): void {},

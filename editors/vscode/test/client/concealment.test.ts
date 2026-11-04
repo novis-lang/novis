@@ -12,7 +12,7 @@
 
 import * as assert from "node:assert/strict";
 
-import { Concealment, Position, Range, Redaction } from "../../src/concealment";
+import { Concealment, DECLARED_KINDS, Position, Range, Redaction } from "../../src/concealment";
 
 const URI = "file:///secrets.nvs";
 const OTHER = "file:///other.nvs";
@@ -101,6 +101,19 @@ describe("what the client marks rather than conceals", () => {
     concealment.hold(URI, [{ range: KEY, kind: "somethingLaterThanThis" }]);
     assert.deepEqual(concealment.concealed(URI), [KEY]);
     assert.deepEqual(concealment.marked(URI), []);
+  });
+
+  it("a docComment range is drawn as a background and never concealed", () => {
+    // A `///` line is drawn behind, not covered, and nothing about it can be revealed. The client
+    // declares the kind, so the server answers it only to a client that knows it.
+    const concealment = new Concealment();
+    const doc: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 17 } };
+    concealment.hold(URI, [...ANSWER, { range: doc, kind: "docComment" }]);
+    assert.deepEqual(concealment.backgrounds(URI), [doc]);
+    assert.deepEqual(concealment.concealed(URI), [KEY, SPARE]);
+    assert.deepEqual(concealment.marked(URI), []);
+    assert.equal(concealment.reveal(URI, { line: 0, character: 4 }), false);
+    assert.deepEqual(DECLARED_KINDS, ["docComment"]);
   });
 });
 

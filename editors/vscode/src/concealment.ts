@@ -15,11 +15,12 @@
 // visible. And an answer of no ranges is an answer: `hold(uri, [])` conceals nothing, while never
 // calling `hold` at all conceals whatever was concealed before.
 //
-// One answer carries two kinds and this module is where they part. A `secretLiteral` is bytes to
-// conceal and a `taintedDeclaration` is a name to mark, so only the first is ever concealed, only
-// the first can be revealed, and a spelling this client has not been taught is treated as the
-// first — the direction where a client that is behind its server covers too much rather than too
-// little (`rule:ide/tainted-has-no-default-decoration`).
+// One answer carries three kinds and this module is where they part. A `secretLiteral` is bytes to
+// conceal, a `taintedDeclaration` is a name to mark and a `docComment` is a line drawn on a
+// background. Only the first is ever concealed, only the first can be revealed, and a spelling this
+// client has not been taught is treated as the first — the direction where a client that is behind
+// its server covers too much rather than too little (`rule:ide/tainted-has-no-default-decoration`).
+// That is why the server answers `docComment` only to a client that lists it in `DECLARED_KINDS`.
 //
 // A reveal is a fact about this window and this range, held nowhere else
 // (`rule:ide/reveal-is-explicit-and-window-local`): there is no workspace state here and no
@@ -62,6 +63,20 @@ export interface Redaction {
  * (`rule:ide/redaction-ranges-come-from-the-server`).
  */
 const MARKERS: ReadonlySet<string> = new Set(["taintedDeclaration"]);
+
+/**
+ * The kinds drawn as a background behind the text, never concealed: a `///` line.
+ *
+ * The same direction as `MARKERS`: listed here, so a kind nobody listed is still concealed.
+ */
+const BACKGROUNDS: ReadonlySet<string> = new Set(["docComment"]);
+
+/**
+ * The kinds that are not concealments, which `extension.ts` declares at `initialize` as
+ * `experimental.redactionKinds`. The server answers such a kind only to a client that declared it,
+ * because an older client would conceal it as unknown (`rule:ide/redaction-ranges-come-from-the-server`).
+ */
+export const DECLARED_KINDS: readonly string[] = [...BACKGROUNDS];
 
 /** Where one range is, as a string, so a reveal can name a range across two answers. */
 function identity(range: Range): string {
@@ -158,9 +173,18 @@ export class Concealment {
     return this.answers.get(uri) ?? [];
   }
 
-  /** Every range of `uri` that is bytes to conceal: everything answered, less the markers. */
+  /** Every range of `uri` that is bytes to conceal: everything answered, less the markers and backgrounds. */
   private concealing(uri: string): Redaction[] {
-    return this.held(uri).filter((redaction) => !MARKERS.has(redaction.kind));
+    return this.held(uri).filter((redaction) =>
+      !MARKERS.has(redaction.kind) && !BACKGROUNDS.has(redaction.kind)
+    );
+  }
+
+  /** The ranges of `uri` drawn on a background, the `///` lines. A reveal does not reach them. */
+  backgrounds(uri: string): Range[] {
+    return this.held(uri)
+      .filter((redaction) => BACKGROUNDS.has(redaction.kind))
+      .map((redaction) => redaction.range);
   }
 
   /**

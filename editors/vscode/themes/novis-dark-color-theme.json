@@ -31,7 +31,8 @@
     "editorInlayHint.parameterBackground": "#00000000",
     "editorInlayHint.parameterForeground": "#7A7E85",
     "editorInlayHint.typeBackground": "#00000000",
-    "editorInlayHint.typeForeground": "#7A7E85"
+    "editorInlayHint.typeForeground": "#7A7E85",
+    "nvs.docComment.background": "#5F826B1A"
   },
   "tokenColors": [
     {

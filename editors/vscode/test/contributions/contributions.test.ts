@@ -65,6 +65,7 @@ interface Manifest {
     }>;
     configurationDefaults?: Record<string, unknown>;
     themes?: unknown[];
+    colors?: { id: string; description: string; defaults: Record<string, string> }[];
     semanticTokenScopes?: { language: string; scopes: Record<string, string[]> }[];
     html?: { customData: string[] };
     css?: { customData: string[] };
@@ -608,6 +609,32 @@ describe("the colour the extension contributes only when the user picks it", () 
         assert.equal(theme.colors[`editorInlayHint.${foreground}`], scoped("comment"),
                      `${file} draws a ${kind || "plain"} hint unlike a comment`);
       }
+    }
+  });
+
+  it("contributes nvs.docComment.background as transparent, and both Novis themes set it", () => {
+    // The colour behind a `///` line is a contributed id. Its default is transparent under every
+    // theme, so only a Novis theme draws it (`rule:ide/novis-ships-names-not-colours`). Each Novis
+    // theme uses its own doc comment green, faint.
+    assert.deepEqual(manifest.contributes.colors?.map((colour) => colour.id), ["nvs.docComment.background"]);
+    const [colour] = manifest.contributes.colors ?? [];
+    assert.deepEqual(colour?.defaults, {
+      dark: "#00000000",
+      light: "#00000000",
+      highContrast: "#00000000",
+      highContrastLight: "#00000000",
+    });
+    for (const file of ["novis-dark", "novis-light"]) {
+      const theme = JSON.parse(readFileSync(join(ROOT, "themes", `${file}-color-theme.json`), "utf8")) as {
+        colors: Record<string, string>;
+        tokenColors: { scope: string[]; settings: { foreground?: string } }[];
+      };
+      const doc = theme.tokenColors.find((rule) => rule.scope.includes("comment.line.documentation"))
+        ?.settings.foreground;
+      const background = theme.colors["nvs.docComment.background"];
+      assert.ok(doc !== undefined && background !== undefined, `${file} sets no doc comment background`);
+      assert.equal(background.slice(0, 7), doc, `${file} draws the background unlike its doc comments`);
+      assert.ok(parseInt(background.slice(7), 16) <= 0x1A, `${file} draws the background above 10%`);
     }
   });
 
