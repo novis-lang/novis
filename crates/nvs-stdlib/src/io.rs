@@ -5238,16 +5238,49 @@ mod tests {
 
     /// SINK-1 and SINK-3's attack: a network, device or verbatim path, a stream, a trailing dot
     /// or space and an 8.3 short name are each refused by `Core\IO::within` on every platform,
-    /// by their text. The network address is one nothing answers, and the whole loop must end
-    /// well under the second a connection attempt would wait, so no packet was sent. Miri
-    /// interprets the loop far slower than that, so under Miri the refusals alone are checked.
+    /// by their text.
+    ///
+    /// The case checks the order of events, not how long the refusals took. Every path is
+    /// resolved on disk only after the grant is asked about it, and `writing()` grants no
+    /// `fs.read`. So if an alias got past the text check, resolving the base would throw the
+    /// `fs.read` denial first. Each alias throws its own refusal under that context, so it was
+    /// refused before the base was resolved: no path was resolved and no packet was sent. The
+    /// granting context then checks that a grant does not change the refusal. The time bound is
+    /// only a hang guard as large as the hostile timeout, and Miri, which interprets the loop
+    /// far slower, skips it.
     #[test]
     fn a_windows_alias_is_refused_by_its_text_before_any_network_attempt() {
         let (_dir, root) = scratch("within-alias");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("a base");
-        let mut ctx = reading("1MiB");
         let started = std::time::Instant::now();
+        for (mut ctx, granted) in [(writing(), false), (reading("1MiB"), true)] {
+            let plain = call_with(nvs_core_io_within, &mut ctx, &[spelled(&root), "x.txt"]).map(
+                |value| {
+                    #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                    unsafe {
+                        value.release();
+                    }
+                },
+            );
+            assert_eq!(
+                plain.is_ok(),
+                granted,
+                "a plain name under the base is answered only with `fs.read`: {plain:?}"
+            );
+            refuse_every_alias(&mut ctx, &root);
+        }
+        assert!(
+            cfg!(miri) || started.elapsed() < std::time::Duration::from_secs(10),
+            "twenty refusals took {:?}, so the case hung on the network",
+            started.elapsed()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Asks `Core\IO::within` under `ctx` about each Windows alias joined to `root`, and checks
+    /// that each one throws the text refusal and never the `fs.read` denial.
+    fn refuse_every_alias(ctx: &mut nvs_runtime::Ctx, root: &std::path::Path) {
         for alias in [
             r"\\10.255.255.1\share\x.txt",
             "//10.255.255.1/share/x.txt",
@@ -5260,7 +5293,7 @@ mod tests {
             "PROBE~1.NVS",
             "PROGRA~12/x.txt",
         ] {
-            let refused = call_with(nvs_core_io_within, &mut ctx, &[spelled(&root), alias])
+            let refused = call_with(nvs_core_io_within, ctx, &[spelled(root), alias])
                 .map(|value| {
                     #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
                     unsafe {
@@ -5269,13 +5302,11 @@ mod tests {
                 })
                 .expect_err(alias);
             assert!(refused.contains("on any platform"), "{alias}: {refused}");
+            assert!(
+                !refused.contains("fs.read"),
+                "the base was resolved before the alias was refused: {alias}: {refused}"
+            );
         }
-        assert!(
-            cfg!(miri) || started.elapsed() < std::time::Duration::from_millis(500),
-            "ten refusals took {:?}, which is a network wait",
-            started.elapsed()
-        );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it

@@ -4337,18 +4337,26 @@ pub(crate) mod tests {
     /// The deadline is not extended
     /// (`rule:http-server/one-deadline-covers-the-whole-call`). A backoff that would end past it
     /// throws immediately rather than sleeping through the budget first.
+    ///
+    /// The case checks the order of two events: the call throws, then its deadline passes. The
+    /// backoff's ceiling is a year, so the jittered draw ends past a ten-second deadline except
+    /// with a chance of about one in three million. An implementation that sleeps, or sleeps up
+    /// to the deadline and then throws, comes back only once the deadline has passed. The ten
+    /// seconds are the hostile timeout, so they are only a hang guard on a loaded machine.
     #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {
         let (at, served) = origin(vec!["HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n"]);
         let mut retried = call(at, "test");
         retried.attempts = 3;
-        retried.backoff = Duration::from_secs(30);
-        retried.deadline = Instant::now() + Duration::from_millis(500);
+        retried.backoff = Duration::from_secs(365 * 24 * 60 * 60);
+        retried.deadline = Instant::now() + Duration::from_secs(10);
 
-        let started = Instant::now();
         let expired = send(&retried, &mut never).expect_err("the deadline, not the backoff");
-        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(
+            Instant::now() < retried.deadline,
+            "the call slept through the backoff before it threw"
+        );
         assert!(format!("{expired:?}").contains("deadline"), "{expired:?}");
         served.join().expect("the origin thread");
     }
