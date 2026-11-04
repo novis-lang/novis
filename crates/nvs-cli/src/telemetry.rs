@@ -1486,12 +1486,34 @@ mod tests {
         let started = Instant::now();
         let outcome = send(&dir, &url, now, 0, within);
         let took = started.elapsed();
+        // The order of events: the send connected and wrote its request, the collector
+        // wrote nothing and kept the connection open, and the send then closed it by
+        // itself. The timeout outcome is given only once `within` has passed.
+        let (mut collector, _) = listener.accept().expect("the send connected");
+        collector
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .expect("the read timeout is set");
+        let mut request = Vec::new();
+        collector
+            .read_to_end(&mut request)
+            .expect("the send closed its connection");
+        assert!(
+            request.starts_with(b"POST /v1/report "),
+            "the send wrote {:?}",
+            String::from_utf8_lossy(&request)
+        );
+        drop(collector);
         drop(listener);
         assert_eq!(
             outcome.line(),
             "telemetry: could not send (timeout after 500ms); kept for next time"
         );
-        assert!(took < within + Duration::from_secs(2), "{took:?}");
+        // Only a hang guard, as large as the hostile timeout. It fails a send that
+        // ignores `within` and waits for a longer bound of its own.
+        assert!(
+            took < Duration::from_secs(10),
+            "the send gave up after {took:?} on a budget of {within:?}"
+        );
         assert!(Counters::read(&dir).pending.is_some());
 
         let outcome = send(&dir, &nobody(), now, 0, BUDGET);

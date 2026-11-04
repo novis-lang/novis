@@ -66,6 +66,33 @@ fn journal_mode(conn: &Connection) -> String {
     }
 }
 
+/// The smallest amount this thread's CPU clock moves by, measured on this
+/// machine. Some platforms add CPU time in whole scheduler ticks, so a reading
+/// can be up to one step behind the time the thread really spent.
+///
+/// The thread spins while it reads, so its clock always moves. The wall-clock
+/// bound only fails a clock that never moves.
+fn clock_step(clock: &nvs_host::cpuclock::ThreadClock) -> Duration {
+    let give_up_at = Instant::now() + Duration::from_secs(10);
+    let read = || {
+        assert!(
+            Instant::now() < give_up_at,
+            "this thread's CPU clock did not move in 10 s"
+        );
+        clock.burned().expect("this thread's clock reads")
+    };
+    let first = read();
+    let mut from = read();
+    while from == first {
+        from = read();
+    }
+    let mut to = read();
+    while to == from {
+        to = read();
+    }
+    to - from
+}
+
 #[test]
 fn fifty_writers_at_once_all_insert() {
     let scratch = nvs_repo::scratch("sqlite-contention");
@@ -153,15 +180,34 @@ fn a_lock_held_past_the_wait_fails_as_deadlock() {
 fn an_endless_statement_stops_near_the_cpu_time_its_request_has_left() {
     // Where the platform has no thread clock there is no CPU ceiling to stop
     // at, and this statement would never end.
-    if nvs_host::cpuclock::ThreadClock::current().is_none() {
+    let Some(clock) = nvs_host::cpuclock::ThreadClock::current() else {
         return;
-    }
+    };
     let scratch = nvs_repo::scratch("sqlite-cpu-time");
     let mut conn = connect(&block(&scratch.join("app.sqlite"), None));
+
+    // What this machine needs, in this run, for the work a stop may run past
+    // its budget: a statement's start and end, and more than one interrupt
+    // check's worth of steps. A thousand rows are many thousand steps. The
+    // wall clock is read, and a thread's CPU time is never more than its wall time.
+    let reference = Instant::now();
+    run(
+        &conn,
+        "with recursive c(x) as (select 1 union all select x + 1 from c where x < 1000) \
+         select count(*) from c",
+        Vec::new(),
+    )
+    .expect("a bounded statement runs to its end");
+    let reference = reference.elapsed();
+    let step = clock_step(&clock);
+
     let budget = Duration::from_millis(300);
     let started = Instant::now();
     conn.set_statement_deadline(None, Some(started + Duration::from_secs(30)), Some(budget))
         .expect("the bounds file");
+    // The statement runs on this thread when no reactor is installed, so this
+    // thread's clock is the one its budget is checked against.
+    let burned_before = clock.burned().expect("this thread's clock reads");
     let refused = run(
         &conn,
         "with recursive c(x) as (select 1 union all select x + 1 from c) \
@@ -169,6 +215,10 @@ fn an_endless_statement_stops_near_the_cpu_time_its_request_has_left() {
         Vec::new(),
     )
     .expect_err("a statement with no end stops at its CPU budget");
+    let charged = clock
+        .burned()
+        .expect("this thread's clock reads")
+        .saturating_sub(burned_before);
 
     let server = ServerError::of(&refused).expect("an interrupt carries a kind");
     assert_eq!(server.kind, DbErrorKind::Timeout);
@@ -178,8 +228,17 @@ fn an_endless_statement_stops_near_the_cpu_time_its_request_has_left() {
         "the statement stopped after {took:?}, before its budget of {budget:?}"
     );
     assert!(
-        took < budget * 20,
-        "the statement ran {took:?} on a budget of {budget:?}"
+        charged >= budget,
+        "the statement was charged {charged:?} of CPU time, less than its budget of {budget:?}"
+    );
+    // Past its budget, the statement runs to the next interrupt check and then
+    // ends. Each of the three clock readings around that can lag by one step.
+    let allowed = budget + reference + step * 3;
+    assert!(
+        charged <= allowed,
+        "the statement was charged {charged:?} of CPU time on a budget of {budget:?}; the \
+         budget, a bounded statement's {reference:?} and three clock steps of {step:?} \
+         allow {allowed:?}"
     );
     // The bound is the statement's: the next one runs to its end.
     conn.set_statement_deadline(None, Some(Instant::now() + Duration::from_secs(30)), None)
