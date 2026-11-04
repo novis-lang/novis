@@ -26,7 +26,7 @@ stages:
     context: [extensions/spreadsheet/src/template/mod.rs, extensions/spreadsheet/src/template/shift.rs, extensions/spreadsheet/src/eval/parse.rs, extensions/spreadsheet/src/eval/value.rs, extensions/spreadsheet/src/eval/mod.rs, extensions/spreadsheet/tests/template.rs, extensions/spreadsheet/tests/evaluate.rs, docs/rules/core-classes/spreadsheet-template-fill.md]
   - id: 6
     title: "the hostile and reading classes the engine already handles are pinned by tests"
-    status: open
+    status: done
     context: [crates/nvs-ext/tests/spreadsheet_hostile.rs, crates/nvs-ext/tests/spreadsheet_read.rs, tests/hostile/README.md]
   - id: 7
     title: "the date, number, format, formula and writing classes are pinned by tests, and every declined class is in its rule's Declined list"
@@ -296,6 +296,8 @@ several reading, writing and evaluation corners are wrong. Stages 1 to 5 fix tho
 41. **Tests.** Each class is a Rust test or a conformance case that asserts values, parts or the thrown message. Cost tests compare the cost per unit at N and 8N measured in the same run, within 4×, as `crates/nvs-ext/tests/spreadsheet_read.rs:886` does (`rule:testing/a-test-holds-at-any-speed`, pattern 4). Test text uses neutral content (`Shop`, `example.com`).
 42. **A pin that already has a test is not written twice.** Before writing one, the session greps the test files for its shape; where a test pins it, the item names that test and the check's name is replaced by it.
 43. **Lanes.** Every stage appends to `crates/nvs-ext/tests/spreadsheet_read.rs`, `crates/nvs-ext/tests/spreadsheet_hostile.rs` or the extension's test files, and stages 1 to 5 share `extensions/spreadsheet/src/read/mod.rs` and the template code, so the stages run in order. No stage runs as a side goal.
+44. **An ods `number:number` with no `decimal-places` shows no decimals when it gives `min-integer-digits` or `grouping`**, so `000` keeps its leading zeros; with neither it stays `General`. An Excel code cannot show "three whole digits and General's decimals", and `000.###` would show `007.` for a whole number, which is the common case for a code. A fraction under such a style is rounded in `text` only. Recorded in `rule:core-classes/spreadsheet-reads-as-a-stream`.
+45. **ST-07 compiles: E0801 does not reach a body opened inside `Workbook::createForDownload`.** It is not needed: on a served request, `echo` after a streamed body goes to the context's output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs:1396`), a late `setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`. The attack is pinned as a passing hostile case without `expect-refusal`.
 
 ## Stages
 
@@ -542,14 +544,14 @@ with its test's name. Decision 42 applies to every item.
 file's helpers. Neither builds. The session writes the four CSV cases and the attack, then builds and
 runs the checks once both end.
 
-- [ ] `crates/nvs-ext/tests/spreadsheet_hostile.rs:1022`, the seven tests the `pinned-hostile` check
+- [x] `crates/nvs-ext/tests/spreadsheet_hostile.rs:1022`, the seven tests the `pinned-hostile` check
   names: SEC-01 an external entity in an ods part and a template part, and in UTF-16, double-encoded
   (`&#38;#60;!DOCTYPE`) and declaration-after-comment forms; SEC-02 nested entities in an ods part;
   SEC-03 a bomb in a relationships part and in an ods `content.xml`; SEC-06 a DIFAT cycle, a mini-FAT
   cycle and a short stream; SEC-07 Targets `../../x`, `/x`, `C:\x`, `file:///x` and `http://x`, none
   read; SEC-09 a relationship cycle and a self reference; SEC-14 a chain of 100,000 cells each naming
   the next, evaluated.
-- [ ] `crates/nvs-ext/tests/spreadsheet_read.rs:4251`, the fifteen tests the `pinned-reading` check
+- [x] `crates/nvs-ext/tests/spreadsheet_read.rs:4251`, the fifteen tests the `pinned-reading` check
   names: RX-01 `x:`-prefixed and Strict OOXML namespaces; RX-04 cells and rows without `r`; RX-05 a
   missing and a wrong dimension; RX-08 `<si/>`, `rPh` and a missing count; RX-09 several `<t>` in
   `<is>`; RX-12 a shared formula whose master is outside the rows read; RX-13 `0`, `1`, `true` and
@@ -558,7 +560,7 @@ runs the checks once both end.
   may already pin it); RL-03 an array constant, a quote in a string and a deleted-sheet reference in
   an xls formula; RL-04 the RK value 0.07, which also pins NM-02; RO-04 an ods without `mimetype`;
   RO-05 a sheet name with `.`; RO-07 a number style with three leading-zero digits.
-- [ ] The four conformance cases the `pinned-csv` check names: SEC-10 a CSV export of `=1+1`, `+1`,
+- [x] The four conformance cases the `pinned-csv` check names: SEC-10 a CSV export of `=1+1`, `+1`,
   `-1`, `@x`, a leading TAB and a leading CR gets the apostrophe `Workbook.nvs:724` adds; RC-01 an
   unterminated quote at the end of the file, RC-02 a backslash read as a literal by default and RC-05
   a bare CR; RC-07 `007`, a 16-digit id, `1E3`, `+49`, `1.10` and `TRUE` stay strings; RC-08 a
@@ -566,12 +568,12 @@ runs the checks once both end.
   `tests/conformance/novis/spreadsheet-reads-csv-quotes-backslashes-and-a-bare-cr-as-written.nvst:1`,
   `tests/conformance/novis/spreadsheet-csv-values-that-look-like-numbers-stay-strings.nvst:1`,
   `tests/conformance/novis/spreadsheet-a-csv-field-of-32767-characters-reads-whole.nvst:1`
-- [ ] ST-07: output after the `finish()` of a download. The triage says the program does not
+- [x] ST-07: output after the `finish()` of a download. The triage says the program does not
   compile; check it once with `bun nv try`. Write the attack
   `tests/hostile/novis/Spreadsheet-Export/download/02-output-after-the-download.nvs`, with
   `// hostile: expect-refusal` if it does not compile, and run `bun nv proofs --run --id
   'Novis\Spreadsheet\Export::download' --show` once: it passes.
-- [ ] Run the `pinned-hostile`, `pinned-reading` and `pinned-csv` checks' commands once: green.
+- [x] Run the `pinned-hostile`, `pinned-reading` and `pinned-csv` checks' commands once: green.
 
 ### 7. the date, number, format, formula and writing classes are pinned by tests, and every declined class is in its rule's Declined list
 
@@ -637,39 +639,39 @@ writes the Declined entries, then builds and runs both checks once all end.
 
 ### State
 
-Stage 5 is done; the `formulas-and-fill` check ran green. Three commits: 2ed6b03a9 (template
-filler), 2defce6c4 (evaluator), 5ff11c2c4 (rules and pages).
+Stage 6 is done; the `pinned-hostile`, `pinned-reading` and `pinned-csv` checks ran green once.
+Seven tests appended to `crates/nvs-ext/tests/spreadsheet_hostile.rs` (from :1682, helpers first),
+fifteen to `crates/nvs-ext/tests/spreadsheet_read.rs` (from :4775), four CSV conformance cases, and
+the attack `tests/hostile/novis/Spreadsheet-Export/download/02-output-after-the-download.nvs` (with
+its `.nvsr`), which `bun nv proofs --run --id 'Novis\Spreadsheet\Export::download'` ran green.
 
-What changed in stage 5, so stage 8 knows it: `template/mod.rs` gains `zero_based`, `vml_anchor`
-and `unshared`; `rewrite_part` moves a `hyperlink`'s `location` (one reference, by `shift::apply`),
-`rowBreaks/brk id`, a VML `ClientData`'s `Row` and `Anchor`, and a `worksheetSource` `ref` on its
-`sheet` attribute; `rewritten` now rewrites `xl/comments*`, `xl/threadedcomments/`,
-`xl/pivottables/` (owner sheet) and `xl/pivotcache/`; `recalculating` sets an existing
-`fullCalcOnLoad` to `1`. `template/sheet.rs` records each group's first cell (`Sheet::masters`) and a
-follower's `<f/>` range (`Cell::follower`). `shift.rs`: column letters in either case, no shift after
-`]` or in a sheet name starting `[`, and `Shift::row_in`/`apply_in` (read from outside a copy).
-Evaluator: `parse::part` takes whether `#` was unescaped; `value::locale_number` and `number_in`
-(1904); `Ctx::arithmetic` for unary and arithmetic binary operands; `Kind::Coercion` (`"coercion"`,
-crosses as a string, so only the WIT comment changed) raised by arithmetic and by `math::ranges`
-and `all_match` for a number criterion. Decision 35 is refined in place. The `fill` and `evaluate`
-`about.md` pages are back under 200 words (`fill` was 218 before this stage).
+One red test was a bug, fixed here: an ods `number:number` with `min-integer-digits` and no
+`decimal-places` rendered as `General` (`extensions/spreadsheet/src/read/ods_styles.rs`'s `digits`).
+Decision 44 and the reads rule say what it does now. ST-07 compiles, unlike the triage said:
+decision 45 records why that is safe (a served streamed body never sends later `echo` output).
 
-The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as nine
+The sweep's reds: `env-secret-proofs` is stale (it is defined nowhere in the tree), as ten
 handoffs have found; it comes from looper's service, not from this repository. The nightly reds on
 run 41813182715 are fixed by a8bdf37fb and a2f451fad.
 
 ### Next
 
-Stage 6, as its `**Split:**` line says: two writing subagents, one for
-`crates/nvs-ext/tests/spreadsheet_hostile.rs` (append at the end, line 1681) and one for
-`crates/nvs-ext/tests/spreadsheet_read.rs` (append at the end, line 4774; the stage's `:4251`
-anchor is stale), each given its list and the file's helpers, neither building. The session
-writes the four CSV conformance cases and the ST-07 attack, then builds and runs the
-`pinned-hostile`, `pinned-reading` and `pinned-csv` checks once. Decision 42 first: grep each
-file for the shape before writing (RB-01 may be pinned by `an_xlsb_record_whose_length_lies_throws`).
+Stage 7, as its `**Split:**` line says: five writing subagents, each given its list and its file's
+helpers, none building. The stage's anchors are stale; append at the end of each file:
+`crates/nvs-ext/tests/spreadsheet_read.rs:5442`, `extensions/spreadsheet/tests/format.rs:265`,
+`extensions/spreadsheet/tests/evaluate.rs:784`, `extensions/spreadsheet/tests/template.rs:1115`,
+`extensions/spreadsheet/tests/write.rs:1259` and `extensions/spreadsheet/tests/sheet_end.rs:1307`.
+The Declined lists start at `spreadsheet-writes-as-a-stream.md:107`,
+`spreadsheet-sheet-end-parts.md:107`, `spreadsheet-reads-as-a-stream.md:200`,
+`spreadsheet-template-fill.md:81`, `spreadsheet-evaluation-and-roster.md:99` and
+`spreadsheet-styles-and-defaults.md:68` (all under `docs/rules/core-classes/`). The session writes
+those, then builds and runs `pinned-dates` and `pinned-values` once. RX-22's Declined entry is
+pinned by `bytes_before_the_zip_throw_that_it_is_not_a_spreadsheet`.
 
 Expected reds: none known. Stage 8 runs the existing `template` and `evaluate` suites for the first
 time since stage 5; `a_shared_formula_in_a_repeated_row_gets_its_own_group_per_copy` and
-`operators_follow_excels_precedence_and_coercion` are the ones the changes reach.
+`operators_follow_excels_precedence_and_coercion` are the ones the changes reach. It also runs the
+extension's ods style tests for the first time since the `digits` change. The hostile file had two
+rustfmt lines at HEAD near :1494 and :1647; this session's rustfmt run fixed them.
 
 ### Backlog
