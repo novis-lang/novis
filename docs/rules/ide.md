@@ -666,6 +666,9 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is not settled. A third shape — a `foreach` variable, a
   chained call's intermediate type, a closure's return — is a decision on the same test a new request
   is.
+- **Parameter-name hints off by default.** A literal argument is the one place a reader cannot see
+  which parameter it fills. The Novis themes draw a hint as dim text, and
+  `nvs.inlayHints.parameterNames` turns it off in one click.
 - **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
   second copy of the compiler's resolution rule, and could disagree with the path the program opens.
 - **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
@@ -1542,6 +1545,12 @@ no other language's highlighting changes, and a user's own `[nvs]` setting wins 
 - **Writing the rules as a default, or for every theme at once.** A default is a colour the user did
   not pick, and one palette cannot suit both a light and a dark theme, so the rules go under one
   theme's block, in the shade that theme is drawn in.
+- **Turning VS Code's bracket colouring off, or setting a line height or a font, in
+  `configurationDefaults`.** Each changes the user's editor under every theme. A theme cannot set
+  either, so the bundled themes draw brackets plainly and leave the rest to the user.
+- **An `nvs.*` setting that copies a colour.** VS Code's `editor.tokenColorCustomizations`,
+  `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations` already set any colour,
+  for one theme too, and the editor pages show how.
 
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
 legend, the `semanticTokenScopes` contribution, the semantic highlighting default, no colour defaults,
@@ -3692,6 +3701,11 @@ apart and two ways for one token to be described.
   completion and hover stop inside such a region.
 - **A client line scan for `///`.** It is a second lexer in the client, and it is wrong inside a string
   and inline HTML.
+- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
+  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
+  cursor and the selection away from the text, and a VS Code update can break it.
+- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
+  most of its lines are empty, not because of its marker.
 - **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
   rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
   and its security rules sit together at its end.

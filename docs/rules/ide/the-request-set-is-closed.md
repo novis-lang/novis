@@ -158,6 +158,9 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is not settled. A third shape — a `foreach` variable, a
   chained call's intermediate type, a closure's return — is a decision on the same test a new request
   is.
+- **Parameter-name hints off by default.** A literal argument is the one place a reader cannot see
+  which parameter it fills. The Novis themes draw a hint as dim text, and
+  `nvs.inlayHints.parameterNames` turns it off in one click.
 - **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
   second copy of the compiler's resolution rule, and could disagree with the path the program opens.
 - **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know

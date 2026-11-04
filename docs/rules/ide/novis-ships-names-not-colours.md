@@ -53,6 +53,12 @@ no other language's highlighting changes, and a user's own `[nvs]` setting wins 
 - **Writing the rules as a default, or for every theme at once.** A default is a colour the user did
   not pick, and one palette cannot suit both a light and a dark theme, so the rules go under one
   theme's block, in the shade that theme is drawn in.
+- **Turning VS Code's bracket colouring off, or setting a line height or a font, in
+  `configurationDefaults`.** Each changes the user's editor under every theme. A theme cannot set
+  either, so the bundled themes draw brackets plainly and leave the rest to the user.
+- **An `nvs.*` setting that copies a colour.** VS Code's `editor.tokenColorCustomizations`,
+  `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations` already set any colour,
+  for one theme too, and the editor pages show how.
 
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
 legend, the `semanticTokenScopes` contribution, the semantic highlighting default, no colour defaults,

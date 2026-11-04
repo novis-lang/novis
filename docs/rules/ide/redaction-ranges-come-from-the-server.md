@@ -74,6 +74,11 @@ apart and two ways for one token to be described.
   completion and hover stop inside such a region.
 - **A client line scan for `///`.** It is a second lexer in the client, and it is wrong inside a string
   and inline HTML.
+- **A smaller font, vertical padding or rounded corners behind a `///` line.** The stable VS Code
+  decoration API has no font size and no line height. The CSS-in-`textDecoration` trick moves the
+  cursor and the selection away from the text, and a VS Code update can break it.
+- **Changing `///` to `/** */` doc comments to look lighter.** A PHP docblock looks lighter because
+  most of its lines are empty, not because of its marker.
 - **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
   rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
   and its security rules sit together at its end.
