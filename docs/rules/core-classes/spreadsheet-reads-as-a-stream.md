@@ -67,7 +67,11 @@ count, and the cursor gives each copy as it reaches it, so it costs one row of m
 repeats. An ods cell's `text` is rendered under the file's own
 `number:*-style`, which the reader translates to a format code
 (`extensions/spreadsheet/src/read/ods_styles.rs`), found through the cell's style, its row's or
-its column's default style, and each style's parents.
+its column's default style, and each style's parents. A `number:number` with no `decimal-places`
+shows no decimals when it gives `min-integer-digits` or `grouping`, so `000` keeps its leading
+zeros; with neither it is `General`. An Excel code cannot show "at least three whole digits and
+the decimals `General` would", so a fraction under such a style is rounded in its `text` and kept
+whole in its value.
 
 **`rows($sheet, {...})`** takes the sheet by name or by position from 0 and yields one `Row` per row:
 its `number` is the **row number in the file**, and its `values` the row's array. The row number is

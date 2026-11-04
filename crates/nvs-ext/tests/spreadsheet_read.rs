@@ -4772,3 +4772,671 @@ fn an_empty_ods_paragraph_is_a_line_of_the_cell() {
     );
     block_on(read.request.end()).expect("the request ends");
 }
+
+/// A one-sheet xlsx whose workbook, sheet and shared strings parts use the spreadsheet namespace
+/// `main`, the relationship namespace `rel`, and the element prefix `prefix` (empty for none).
+fn namespaced_book(main: &str, rel: &str, prefix: &str) -> Vec<u8> {
+    let p = if prefix.is_empty() {
+        String::new()
+    } else {
+        format!("{prefix}:")
+    };
+    let declare = if prefix.is_empty() {
+        format!(r#"xmlns="{main}""#)
+    } else {
+        format!(r#"xmlns:{prefix}="{main}""#)
+    };
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let book = format!(
+        r#"<?xml version="1.0"?><{p}workbook {declare} xmlns:r="{rel}"><{p}sheets><{p}sheet name="Shop" sheetId="1" r:id="rId1"/></{p}sheets></{p}workbook>"#
+    );
+    let data = format!(
+        r#"<{p}row r="1"><{p}c r="A1" t="s"><{p}v>0</{p}v></{p}c><{p}c r="B1" s="1"><{p}v>45306</{p}v></{p}c></{p}row><{p}row r="2"><{p}c r="A2" t="inlineStr"><{p}is><{p}t>Tea</{p}t></{p}is></{p}c><{p}c r="B2"><{p}f>B1+1</{p}f><{p}v>45307</{p}v></{p}c></{p}row>"#
+    );
+    let worksheet = format!(
+        r#"<?xml version="1.0"?><{p}worksheet {declare}><{p}sheetData>{data}</{p}sheetData></{p}worksheet>"#
+    );
+    let sst = format!(
+        r#"<?xml version="1.0"?><{p}sst {declare}><{p}si><{p}t>Shop</{p}t></{p}si></{p}sst>"#
+    );
+    let styles = STYLES.replace(
+        "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+        main,
+    );
+    zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            format!(r#"<?xml version="1.0"?><Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/workbook.xml", book.into_bytes()),
+        (
+            "xl/_rels/workbook.xml.rels",
+            format!(r#"<?xml version="1.0"?><Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rIdS" Type="{rel}/styles" Target="styles.xml"/><Relationship Id="rIdT" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/styles.xml", styles.into_bytes()),
+        ("xl/sharedStrings.xml", sst.into_bytes()),
+        ("xl/worksheets/sheet1.xml", worksheet.into_bytes()),
+    ])
+}
+
+/// An `x:` prefix on the spreadsheet namespace and the Strict namespaces read as the transitional
+/// form does: the same rows, values and formulas.
+#[test]
+fn prefixed_and_strict_namespaces_read_as_the_transitional_ones() {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let strict_main = "http://purl.oclc.org/ooxml/spreadsheetml/main";
+    let strict_rel = "http://purl.oclc.org/ooxml/officeDocument/relationships";
+    let want = vec![
+        (
+            1,
+            vec![
+                (1, text("Shop")),
+                (2, shape(vec![("date", date(2024, 1, 15))])),
+            ],
+        ),
+        (2, vec![(1, text("Tea")), (2, integer(45_307))]),
+    ];
+    for (what, bytes) in [
+        ("transitional", namespaced_book(main, rel, "")),
+        ("prefixed", namespaced_book(main, rel, "x")),
+        ("strict", namespaced_book(strict_main, strict_rel, "")),
+        (
+            "strict and prefixed",
+            namespaced_book(strict_main, strict_rel, "x"),
+        ),
+    ] {
+        let read = Read::open(bytes);
+        let names: Vec<Value> = entries(&read.call("readerSheets", vec![]))
+            .into_iter()
+            .map(|sheet| field(sheet, "name").clone())
+            .collect();
+        assert_eq!(names, vec![string("Shop")], "{what}");
+        assert_eq!(read.all(&options("Shop"), 10), want, "{what}");
+        assert_eq!(
+            formulas_of(&read, "Shop"),
+            vec![
+                vec![Value::Null, Value::Null],
+                vec![Value::Null, string("B1+1")]
+            ],
+            "{what}"
+        );
+        block_on(read.request.end()).expect("the request ends");
+    }
+}
+
+/// A `<c>` with no `r` takes the column after the cell before it, and a `<row>` with no `r` the
+/// row after the one before it.
+#[test]
+fn cells_and_rows_without_a_reference_take_the_next_place() {
+    let data = r#"<row><c><v>1</v></c><c><v>2</v></c></row><row><c r="C2"><v>3</v></c><c><v>4</v></c></row><row r="5"><c><v>5</v></c></row><row><c r="B6"><v>6</v></c><c t="inlineStr"><is><t>Shop</t></is></c></row>"#;
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![
+            (1, vec![(1, integer(1)), (2, integer(2))]),
+            (2, vec![(3, integer(3)), (4, integer(4))]),
+            (5, vec![(1, integer(5))]),
+            (6, vec![(2, integer(6)), (3, text("Shop"))]),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A sheet with no `<dimension>`, and one whose `<dimension>` is smaller than its data, read every
+/// row and cell. `sheets_counts_a_sheet_with_no_dimension` covers the sizes `sheets()` gives.
+#[test]
+fn a_missing_or_wrong_dimension_does_not_limit_the_rows() {
+    let data: String = (1..=3)
+        .map(|n| {
+            let v = format!("<v>{n}</v>");
+            row(n, &[("", 0, &v), ("", 0, &v)])
+        })
+        .collect();
+    let read = Read::open(xlsx(
+        &[
+            sheet("Shop", data.clone()),
+            Sheet {
+                dimension: Some("A1:A1"),
+                ..sheet("Blog", data)
+            },
+        ],
+        &[],
+    ));
+    let want: Vec<(u64, Vec<(u64, Value)>)> = (1..=3u64)
+        .map(|n| {
+            let value = integer(i64::try_from(n).unwrap());
+            (n, vec![(1, value.clone()), (2, value)])
+        })
+        .collect();
+    for name in ["Shop", "Blog"] {
+        assert_eq!(read.all(&options(name), 1), want, "{name}");
+    }
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An empty `<si/>` and `<si></si>` read as empty text, the phonetic text of an `<si>` is not
+/// part of it, and a `<sst>` with no `count` or `uniqueCount` reads.
+#[test]
+fn an_empty_shared_string_phonetic_text_and_a_missing_count_read_as_written() {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let sst = format!(
+        r#"<?xml version="1.0"?><sst xmlns="{main}"><si/><si><t>Shop</t><rPh sb="0" eb="4"><t>shoppu</t></rPh><phoneticPr fontId="1"/></si><si><t>Tea</t></si><si></si></sst>"#
+    );
+    let data = row(
+        1,
+        &[
+            ("s", 0, "<v>0</v>"),
+            ("s", 0, "<v>1</v>"),
+            ("s", 0, "<v>2</v>"),
+            ("s", 0, "<v>3</v>"),
+        ],
+    );
+    let read = Read::open(bare_book(
+        &[("Shop", "worksheets/sheet1.xml")],
+        true,
+        &[
+            ("xl/worksheets/sheet1.xml", sheet_part(&data)),
+            ("xl/sharedStrings.xml", sst.into_bytes()),
+        ],
+    ));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(
+            1,
+            vec![
+                (1, text("")),
+                (2, text("Shop")),
+                (3, text("Tea")),
+                (4, text("")),
+            ]
+        )]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An inline string written as several runs reads as one text.
+#[test]
+fn an_inline_string_of_several_runs_reads_as_one_text() {
+    let data = row(
+        1,
+        &[
+            (
+                "inlineStr",
+                0,
+                "<is><r><t>Sh</t></r><r><rPr><b/></rPr><t>op</t></r></is>",
+            ),
+            (
+                "inlineStr",
+                0,
+                r#"<is><r><t xml:space="preserve">Tea </t></r><r><t>&amp; cake</t></r></is>"#,
+            ),
+        ],
+    );
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Shop")), (2, text("Tea & cake"))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// A shared formula follower read with `from` past the group's first cell still gives the formula
+/// moved to its own cell.
+#[test]
+fn a_shared_formula_whose_master_is_outside_the_read_rows_reads_its_formula() {
+    let data = [
+        row(
+            1,
+            &[
+                ("", 0, "<v>1</v>"),
+                (
+                    "",
+                    0,
+                    r#"<f t="shared" ref="B1:B4" si="0">A1*2</f><v>2</v>"#,
+                ),
+            ],
+        ),
+        row(
+            2,
+            &[
+                ("", 0, "<v>2</v>"),
+                ("", 0, r#"<f t="shared" si="0"/><v>4</v>"#),
+            ],
+        ),
+        row(
+            3,
+            &[
+                ("", 0, "<v>3</v>"),
+                ("", 0, r#"<f t="shared" si="0"/><v>6</v>"#),
+            ],
+        ),
+        row(
+            4,
+            &[
+                ("", 0, "<v>4</v>"),
+                ("", 0, r#"<f t="shared" si="0"/><v>8</v>"#),
+            ],
+        ),
+    ]
+    .concat();
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    let read_from = |from: u64, limit: Option<u64>| -> Vec<(u64, Value, Value)> {
+        let batch = read.batch(
+            Options {
+                from: Some(from),
+                limit,
+                formulas: true,
+                ..options("Shop")
+            }
+            .value(),
+            10,
+        );
+        entries(field(&batch, "rows"))
+            .into_iter()
+            .map(|row| {
+                let Value::Uint(number) = field(row, "number") else {
+                    panic!("a row number is a uint");
+                };
+                let cell = entries(field(row, "cells"))[1];
+                (
+                    *number,
+                    field(cell, "formula").clone(),
+                    field(cell, "value").clone(),
+                )
+            })
+            .collect()
+    };
+    assert_eq!(
+        read_from(3, None),
+        vec![
+            (3, string("A3*2"), integer(6)),
+            (4, string("A4*2"), integer(8)),
+        ]
+    );
+    assert_eq!(read_from(2, Some(1)), vec![(2, string("A2*2"), integer(4))]);
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// The flags the reader reads, a `t="b"` value, a row's `hidden` and the workbook's `date1904`,
+/// read alike written as `1` and `true`, and as `0` and `false`.
+#[test]
+fn flags_written_as_numbers_or_words_read_alike() {
+    let data = [
+        row(
+            1,
+            &[
+                ("b", 0, "<v>1</v>"),
+                ("b", 0, "<v>true</v>"),
+                ("b", 0, "<v>0</v>"),
+                ("b", 0, "<v>false</v>"),
+            ],
+        ),
+        r#"<row r="2" hidden="1"><c r="A2"><v>2</v></c></row>"#.to_owned(),
+        r#"<row r="3" hidden="true"><c r="A3"><v>3</v></c></row>"#.to_owned(),
+        r#"<row r="4" hidden="0"><c r="A4"><v>4</v></c></row>"#.to_owned(),
+        r#"<row r="5" hidden="false"><c r="A5"><v>5</v></c></row>"#.to_owned(),
+    ]
+    .concat();
+    let read = Read::open(xlsx(&[sheet("Shop", data)], &[]));
+    let boolean = |b: bool| shape(vec![("boolean", Value::Bool(b))]);
+    let shown = read.all(
+        &Options {
+            skip_hidden: true,
+            ..options("Shop")
+        },
+        10,
+    );
+    assert_eq!(
+        shown,
+        vec![
+            (
+                1,
+                vec![
+                    (1, boolean(true)),
+                    (2, boolean(true)),
+                    (3, boolean(false)),
+                    (4, boolean(false)),
+                ]
+            ),
+            (4, vec![(1, integer(4))]),
+            (5, vec![(1, integer(5))]),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+
+    // Style 1 is a date. Serial 1 is 1900-01-01, and 1904-01-02 in the 1904 system.
+    for (flag, day) in [
+        ("1", date(1904, 1, 2)),
+        ("true", date(1904, 1, 2)),
+        ("0", date(1900, 1, 1)),
+        ("false", date(1900, 1, 1)),
+    ] {
+        let read = Read::open(package_with(
+            &[sheet("Shop", row(1, &[("", 1, "<v>1</v>")]))],
+            &[],
+            &[],
+            &format!(r#"<workbookPr date1904="{flag}"/>"#),
+        ));
+        assert_eq!(
+            read.all(&options("Shop"), 10),
+            vec![(1, vec![(1, shape(vec![("date", day)]))])],
+            "date1904=\"{flag}\""
+        );
+        block_on(read.request.end()).expect("the request ends");
+    }
+}
+
+/// `sheets()` lists the sheets in the workbook part's order, whatever the order and names of
+/// their parts.
+#[test]
+fn sheets_are_listed_in_workbook_order_not_part_order() {
+    let read = Read::open(bare_book(
+        &[
+            ("Blog", "worksheets/sheet2.xml"),
+            ("Shop", "worksheets/sheet1.xml"),
+        ],
+        false,
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                sheet_part(&row(1, &[("", 0, "<v>1</v>")])),
+            ),
+            (
+                "xl/worksheets/sheet2.xml",
+                sheet_part(&row(1, &[("", 0, "<v>2</v>")])),
+            ),
+        ],
+    ));
+    let listed: Vec<(Value, Value)> = entries(&read.call("readerSheets", vec![]))
+        .into_iter()
+        .map(|sheet| {
+            (
+                field(sheet, "name").clone(),
+                field(sheet, "position").clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        vec![
+            (string("Blog"), Value::Uint(0)),
+            (string("Shop"), Value::Uint(1)),
+        ]
+    );
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, integer(1))])]
+    );
+    assert_eq!(
+        read.all(&options("Blog"), 10),
+        vec![(1, vec![(1, integer(2))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// Bytes before an xlsx's zip make `Reader::open` throw that the file is not a spreadsheet.
+#[test]
+fn bytes_before_the_zip_throw_that_it_is_not_a_spreadsheet() {
+    let book = xlsx(&[sheet("Shop", row(1, &[("", 0, "<v>1</v>")]))], &[]);
+    for junk in [&b"Shop export\n"[..], &[0u8; 512][..], &b"\xEF\xBB\xBF"[..]] {
+        let mut bytes = junk.to_vec();
+        bytes.extend_from_slice(&book);
+        let err = open_failure(bytes, shipped());
+        assert!(
+            err.contains(
+                "The file is not a spreadsheet. `Reader::open` reads xlsx, xlsm, xlsb, xls, ods \
+                 and CSV files."
+            ),
+            "{err}"
+        );
+    }
+    // The same workbook without the bytes reads.
+    let read = Read::open(book);
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, integer(1))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An xlsb of one sheet, `Shop`, whose sheet part is `sheet` as given, with no styles and no
+/// shared strings.
+fn xlsb_of_sheet(sheet: Vec<u8>) -> Vec<u8> {
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let mut book = record(153, &[0; 12]);
+    let mut listed = 0u32.to_le_bytes().to_vec();
+    listed.extend(1u32.to_le_bytes());
+    listed.extend(wide("rId1"));
+    listed.extend(wide("Shop"));
+    book.extend(record(156, &listed));
+    zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        (
+            "_rels/.rels",
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.bin"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/workbook.bin", book),
+        (
+            "xl/_rels/workbook.bin.rels",
+            format!(r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.bin"/></Relationships>"#).into_bytes(),
+        ),
+        ("xl/worksheets/sheet1.bin", sheet),
+    ])
+}
+
+/// An xlsb sheet part that ends inside its last record, in the record's body or in its header,
+/// throws. `an_xlsb_record_whose_length_lies_throws` in the hostile tests covers a length that
+/// runs past the records after it.
+#[test]
+fn a_truncated_xlsb_record_throws() {
+    let start = [
+        record(145, &[]),
+        binary_row(1, false),
+        binary_cell(5, 0, 0, &1.5f64.to_le_bytes()),
+    ]
+    .concat();
+    // The part ends after a whole record, with no end-of-data record, and reads.
+    let read = Read::open(xlsb_of_sheet(start.clone()));
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, number(1.5))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+
+    let mut cut_body = binary_cell(5, 1, 0, &2.5f64.to_le_bytes());
+    cut_body.truncate(cut_body.len() - 3);
+    for (what, cut) in [("body", cut_body), ("header", vec![0x05])] {
+        let read = Read::open(xlsb_of_sheet([start.clone(), cut].concat()));
+        let failed = read.failure("readerRows", vec![options("Shop").value(), Value::Uint(10)]);
+        assert!(
+            failed.contains("a worksheet ends inside a record"),
+            "{what}: {failed}"
+        );
+        block_on(read.request.end()).expect("the request ends");
+    }
+}
+
+/// One xls `FORMULA` record for the cell `row` and `column`, from 0, with the parsed formula
+/// `tokens` and its extra data `extra` after it.
+fn biff_formula_with(row: u16, column: u16, tokens: &[u8], extra: &[u8]) -> Vec<u8> {
+    let mut body = [row.to_le_bytes(), column.to_le_bytes(), 0u16.to_le_bytes()].concat();
+    body.extend(0f64.to_le_bytes());
+    body.extend([0; 6]);
+    body.extend(u16::try_from(tokens.len()).unwrap().to_le_bytes());
+    body.extend_from_slice(tokens);
+    body.extend_from_slice(extra);
+    biff(0x0006, &body)
+}
+
+/// xls formulas read as their text: an array constant from the formula's extra data, a string
+/// with a `"`, a reference to a deleted sheet, and a deleted cell on a sheet that exists.
+#[test]
+fn xls_formulas_with_an_array_constant_a_quote_and_a_deleted_sheet_read() {
+    // The workbook itself as a `SUPBOOK`, and the `XTI`s `Lists` and a deleted sheet.
+    let mut globals = biff(0x01AE, &[2, 0, 0x01, 0x04]);
+    let xti = [2u16, 0, 1, 1, 0, 0xFFFF, 0xFFFF]
+        .map(u16::to_le_bytes)
+        .concat();
+    globals.extend(biff(0x0017, &xti));
+    let a1 = column_bits(0, true, true).to_le_bytes();
+    // `{1,"a""b"}`: one row of two columns, the number 1 and the string `a"b`.
+    let array = [&[0x60][..], &[0; 7]].concat();
+    let mut array_extra = vec![1, 0, 0, 0x01];
+    array_extra.extend(1f64.to_le_bytes());
+    array_extra.extend([0x02, 3, 0, 0]);
+    array_extra.extend(b"a\"b");
+    let quote = [&[0x17, 5, 0][..], b"Sh\"op"].concat();
+    let deleted = [&[0x3A, 1, 0, 0, 0][..], &a1].concat();
+    let gone_cell = [0x3C, 0, 0, 0, 0, 0, 0].to_vec();
+    let lists = [&[0x3A, 0, 0, 0, 0][..], &a1].concat();
+    let shop = [
+        biff_formula_with(3, 0, &array, &array_extra),
+        biff_formula_with(3, 1, &quote, &[]),
+        biff_formula_with(3, 2, &deleted, &[]),
+        biff_formula_with(3, 3, &gone_cell, &[]),
+        biff_formula_with(3, 4, &lists, &[]),
+    ]
+    .concat();
+    let read = Read::open(xls_of(&globals, &shop));
+    let batch = read.batch(
+        Options {
+            formulas: true,
+            ..options("Shop")
+        }
+        .value(),
+        10,
+    );
+    let row = entries(field(&batch, "rows"))
+        .into_iter()
+        .find(|row| field(row, "number") == &Value::Uint(4))
+        .expect("row 4");
+    let formulas: Vec<Value> = entries(field(row, "cells"))
+        .into_iter()
+        .map(|cell| field(cell, "formula").clone())
+        .collect();
+    assert_eq!(
+        formulas,
+        vec![
+            string("{1,\"a\"\"b\"}"),
+            string("\"Sh\"\"op\""),
+            string("#REF!A1"),
+            string("Lists!#REF!"),
+            string("Lists!A1"),
+        ]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An RK value of 0.07, stored as the whole number 7 or the float 7 with the divide-by-100 flag,
+/// reads as exactly 0.07 in xls and in xlsb.
+#[test]
+fn an_rk_value_of_0_07_reads_exactly() {
+    // 7.0 is `0x401C_0000_0000_0000`, so its high 30 bits are the RK float.
+    let as_int = (7u32 << 2) | 3;
+    let as_float = 0x401C_0000u32 | 1;
+    let rk = |column: u16, value: u32| {
+        biff(
+            0x027E,
+            &[
+                &3u16.to_le_bytes()[..],
+                &column.to_le_bytes(),
+                &0u16.to_le_bytes(),
+                &value.to_le_bytes(),
+            ]
+            .concat(),
+        )
+    };
+    let read = Read::open(xls_of(&[], &[rk(0, as_int), rk(1, as_float)].concat()));
+    let rows = read.all(&options("Shop"), 10);
+    let row = rows.iter().find(|(number, _)| *number == 4).expect("row 4");
+    assert_eq!(row.1, vec![(1, number(0.07)), (2, number(0.07))]);
+    block_on(read.request.end()).expect("the request ends");
+
+    let data = [
+        binary_row(1, false),
+        binary_cell(2, 0, 0, &as_int.to_le_bytes()),
+        binary_cell(2, 1, 0, &as_float.to_le_bytes()),
+    ]
+    .concat();
+    let read = Read::open(xlsb(&data, &[]));
+    assert_eq!(
+        read.all(&options("Shop"), 10)[0],
+        (1, vec![(1, number(0.07)), (2, number(0.07))])
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An ods package with no `mimetype` part reads by its `content.xml`.
+#[test]
+fn an_ods_without_a_mimetype_reads() {
+    let content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:body><office:spreadsheet><table:table table:name="Shop"><table:table-row><table:table-cell office:value-type="string"><text:p>Tea</text:p></table:table-cell><table:table-cell office:value-type="float" office:value="7"/></table:table-row></table:table></office:spreadsheet></office:body></office:document-content>"#
+    );
+    let read = Read::open(zip(&[
+        ("META-INF/manifest.xml", b"<manifest:manifest/>".to_vec()),
+        ("content.xml", content.into_bytes()),
+    ]));
+    assert_eq!(sizes(&read), vec![("Shop".to_owned(), 1, 2)]);
+    assert_eq!(
+        read.all(&options("Shop"), 10),
+        vec![(1, vec![(1, text("Tea")), (2, integer(7))])]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An ods sheet whose name has a dot is listed and read by that name.
+#[test]
+fn an_ods_sheet_name_with_a_dot_reads() {
+    let content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:body><office:spreadsheet><table:table table:name="Shop.2024"><table:table-row><table:table-cell office:value-type="float" office:value="7"/></table:table-row></table:table><table:table table:name="Blog"><table:table-row><table:table-cell office:value-type="float" office:value="2"/></table:table-row></table:table></office:spreadsheet></office:body></office:document-content>"#
+    );
+    let read = Read::open(ods_of(&content, &[]));
+    assert_eq!(
+        sizes(&read),
+        vec![("Shop.2024".to_owned(), 1, 1), ("Blog".to_owned(), 1, 1)]
+    );
+    assert_eq!(
+        read.all(&options("Shop.2024"), 10),
+        vec![(1, vec![(1, integer(7))])]
+    );
+    let missing = read.failure("readerRows", vec![options("Shop").value(), Value::Uint(10)]);
+    assert!(missing.contains("no sheet named `Shop`"), "{missing}");
+    block_on(read.request.end()).expect("the request ends");
+}
+
+/// An ods number style of three minimum integer digits displays 7 as `007`, with and without
+/// `decimal-places`.
+#[test]
+fn an_ods_number_style_with_three_leading_zeros_formats_as_written() {
+    let content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content {ODS_NAMESPACES}><office:automatic-styles>
+<number:number-style style:name="N3"><number:number number:min-integer-digits="3"/></number:number-style>
+<number:number-style style:name="N4"><number:number number:decimal-places="0" number:min-integer-digits="3"/></number:number-style>
+<style:style style:name="ce1" style:family="table-cell" style:data-style-name="N3"/>
+<style:style style:name="ce2" style:family="table-cell" style:data-style-name="N4"/>
+</office:automatic-styles><office:body><office:spreadsheet>
+<table:table table:name="Shop"><table:table-row><table:table-cell table:style-name="ce1" office:value-type="float" office:value="7"/><table:table-cell table:style-name="ce2" office:value-type="float" office:value="7"/></table:table-row></table:table>
+</office:spreadsheet></office:body></office:document-content>"#
+    );
+    let read = Read::open(ods_of(&content, &[]));
+    let batch = read.batch(
+        with(&options("Shop"), &[("textAll", Value::Bool(true))]),
+        10,
+    );
+    let cells = entries(field(entries(field(&batch, "rows"))[0], "cells"));
+    let shown: Vec<(&Value, &Value)> = cells
+        .into_iter()
+        .map(|cell| (field(cell, "display"), field(cell, "value")))
+        .collect();
+    assert_eq!(
+        shown,
+        vec![(&string("007"), &integer(7)), (&string("007"), &integer(7)),]
+    );
+    block_on(read.request.end()).expect("the request ends");
+}

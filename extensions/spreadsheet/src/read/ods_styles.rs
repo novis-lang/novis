@@ -98,12 +98,19 @@ fn literal(text: &str, percent: bool, out: &mut String) {
 
 /// Appends the integer and decimal digits a `number:number` or `number:scientific-number` shows.
 fn digits(attrs: &[u8], out: &mut String) {
-    let Some(decimals) = count(attrs, b"decimal-places") else {
-        out.push_str("General");
-        return;
+    let shaped = count(attrs, b"min-integer-digits");
+    let grouped = xml::attr(attrs, b"grouping") == Some(b"true");
+    // With no decimal places, an element that shapes the whole part has none; a bare one is General.
+    let decimals = match count(attrs, b"decimal-places") {
+        Some(decimals) => decimals,
+        None if shaped.is_some() || grouped => 0,
+        None => {
+            out.push_str("General");
+            return;
+        }
     };
-    let integers = count(attrs, b"min-integer-digits").unwrap_or(1);
-    if xml::attr(attrs, b"grouping") == Some(b"true") {
+    let integers = shaped.unwrap_or(1);
+    if grouped {
         out.push_str("#,");
         out.extend(std::iter::repeat_n('#', 3usize.saturating_sub(integers)));
     } else if integers == 0 {
