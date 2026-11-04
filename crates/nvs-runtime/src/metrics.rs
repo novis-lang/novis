@@ -60,8 +60,11 @@
 //! latency cannot tell two designs apart.
 //!
 //! A handle is **weak**, so the roster is O(cores serving) rather than O(threads
-//! this process has ever started): a core that ended has already released its
-//! registry, and the next gather drops the empty handle.
+//! this process has ever started). A core that ends sets its meter's `ended`
+//! flag and then releases its handle. The next gather skips a meter with the
+//! flag set and drops its handle. The flag is what makes this exact: a gather
+//! running on another thread may still hold the meter for a moment, and the
+//! flag keeps every later gather from reading it.
 //!
 //! # Refuse the new, never evict the old
 //!
@@ -117,7 +120,7 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::atomic::{self, AtomicU64};
+use std::sync::atomic::{self, AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
@@ -901,6 +904,10 @@ struct Meter {
     /// `nvs_deferred_trees`'s term for this core:
     /// [`crate::deferred::trees_in_flight`].
     trees: AtomicU64,
+    /// Set by [`ThisCore`]'s drop as the core's thread ends, before it
+    /// releases its handle. A gather skips a meter with this set, even while
+    /// another gather still holds it.
+    ended: AtomicBool,
 }
 
 impl Meter {
@@ -909,7 +916,26 @@ impl Meter {
             registry: Mutex::new(registry),
             tasks: AtomicU64::new(0),
             trees: AtomicU64::new(0),
+            ended: AtomicBool::new(false),
         })
+    }
+}
+
+/// The strong handle onto this thread's meter, as the thread-local [`CORE`]
+/// keeps it.
+///
+/// Its drop runs as the thread ends. It sets the meter's `ended` flag and then
+/// releases the handle. A thread's destructors finish before a
+/// `JoinHandle::join` on it returns, so a gather after the join never reads
+/// the meter. Without the flag, a gather on another thread that upgraded the
+/// handle first would keep the meter alive, and the next gather would read it.
+struct ThisCore(Option<Arc<Meter>>);
+
+impl Drop for ThisCore {
+    fn drop(&mut self) {
+        if let Some(meter) = self.0.take() {
+            meter.ended.store(true, atomic::Ordering::Release);
+        }
     }
 }
 
@@ -939,7 +965,7 @@ pub fn read_cache_bytes_with(reader: fn() -> u64) {
 /// core with no meter.
 pub fn publish_tasks(live: usize) {
     CORE.with_borrow(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             meter.tasks.store(
                 u64::try_from(live).unwrap_or(u64::MAX),
                 atomic::Ordering::Relaxed,
@@ -952,7 +978,7 @@ pub fn publish_tasks(live: usize) {
 /// `nvs_deferred_trees`. As [`publish_tasks`].
 pub(crate) fn publish_trees(open: u64) {
     CORE.with_borrow(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             meter.trees.store(open, atomic::Ordering::Relaxed);
         }
     });
@@ -971,11 +997,11 @@ thread_local! {
     /// core's counters between two sockets.
     ///
     /// This is the **strong** handle, so dropping this cell at thread exit is
-    /// what takes a core out of [`CORES`].
+    /// what takes a core out of [`CORES`] ([`ThisCore`]).
     ///
     /// `None` on every thread that is not serving, and on every core of a
     /// process whose `[metrics]` names no exporter.
-    static CORE: RefCell<Option<Arc<Meter>>> = const { RefCell::new(None) };
+    static CORE: RefCell<ThisCore> = const { RefCell::new(ThisCore(None)) };
 }
 
 /// A lock taken past a poisoning.
@@ -1012,7 +1038,7 @@ pub fn meter_this_core(config: &Config) {
         return;
     };
     CORE.with_borrow_mut(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             held(&meter.registry).adopt(metering);
             return;
         }
@@ -1021,7 +1047,7 @@ pub fn meter_this_core(config: &Config) {
             metering.max_series,
         ));
         held(&CORES).push(Arc::downgrade(&meter));
-        *core = Some(meter);
+        core.0 = Some(meter);
     });
 }
 
@@ -1032,7 +1058,7 @@ pub fn meter_this_core(config: &Config) {
 /// case is the ordinary one and is a borrow and a branch.
 pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Duration) {
     CORE.with_borrow(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             held(&meter.registry).request(method, status, route, took);
         }
     });
@@ -1046,7 +1072,7 @@ pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Durat
 /// handler.
 pub fn count_handler_dropped() {
     CORE.with_borrow(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             let _ = held(&meter.registry).increment("nvs_log_handler_dropped_total", 1, &[]);
         }
     });
@@ -1061,7 +1087,7 @@ pub fn count_handler_dropped() {
 /// never holds it.
 pub fn count_request_peak(route: Option<&str>, peak: usize) {
     CORE.with_borrow(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             held(&meter.registry).request_peak(route, peak);
         }
     });
@@ -1082,12 +1108,12 @@ pub fn count_request_peak(route: Option<&str>, peak: usize) {
 /// counted.
 fn this_core() -> Arc<Meter> {
     CORE.with_borrow_mut(|core| {
-        if let Some(meter) = core.as_ref() {
+        if let Some(meter) = core.0.as_ref() {
             return Arc::clone(meter);
         }
         let meter = Meter::new(Registry::new(DEFAULT_MAX_SERIES));
         held(&CORES).push(Arc::downgrade(&meter));
-        *core = Some(Arc::clone(&meter));
+        core.0 = Some(Arc::clone(&meter));
         meter
     })
 }
@@ -1131,7 +1157,8 @@ pub fn record(
 #[must_use]
 pub fn fixed_at(name: &str) -> Option<String> {
     CORE.with_borrow(|core| {
-        core.as_ref()
+        core.0
+            .as_ref()
             .and_then(|meter| held(&meter.registry).fixed_at(name).map(str::to_owned))
     })
 }
@@ -1145,7 +1172,7 @@ pub fn fixed_at(name: &str) -> Option<String> {
 /// built none.
 #[must_use]
 pub fn on_this_core() -> Option<Registry> {
-    CORE.with_borrow(|core| core.as_ref().map(|meter| held(&meter.registry).clone()))
+    CORE.with_borrow(|core| core.0.as_ref().map(|meter| held(&meter.registry).clone()))
 }
 
 /// A copy of every serving core's series, in no particular order — the one
@@ -1154,7 +1181,9 @@ pub fn on_this_core() -> Option<Registry> {
 /// Each core's handle is upgraded under the roster's lock and copied outside
 /// it, so a core that is counting never waits behind the roster and the roster
 /// never waits behind a copy. A handle whose core has ended is dropped on the
-/// way past, which is the only thing that ever shortens the roster.
+/// way past, which is the only thing that ever shortens the roster. A core has
+/// ended when its handle no longer upgrades or its meter's `ended` flag is set
+/// ([`ThisCore`]).
 ///
 /// Empty in a process whose `[metrics]` names no exporter, because no core
 /// there built a registry to file.
@@ -1170,11 +1199,25 @@ pub fn on_this_core() -> Option<Registry> {
 ///   mark, which is one system call per gather.
 #[must_use]
 pub fn every_core() -> Vec<Registry> {
-    let serving: Vec<Arc<Meter>> = {
+    let mut serving: Vec<Arc<Meter>> = Vec::new();
+    // A meter this gather upgraded but that has ended is freed after the
+    // roster's lock is released, so the roster never waits behind a free.
+    let mut ended: Vec<Arc<Meter>> = Vec::new();
+    {
         let mut roster = held(&CORES);
-        roster.retain(|core| core.strong_count() > 0);
-        roster.iter().filter_map(Weak::upgrade).collect()
-    };
+        roster.retain(|core| match core.upgrade() {
+            Some(meter) if meter.ended.load(atomic::Ordering::Acquire) => {
+                ended.push(meter);
+                false
+            }
+            Some(meter) => {
+                serving.push(meter);
+                true
+            }
+            None => false,
+        });
+    }
+    drop(ended);
     let mut copies: Vec<Registry> = serving
         .iter()
         .map(|meter| {
@@ -1753,6 +1796,12 @@ mod tests {
     /// alongside. The barrier is what holds both cores alive across the gather:
     /// a thread that had already exited would be indistinguishable from one the
     /// roster never reached.
+    ///
+    /// The second gather runs after each core's `join` returns. A thread's
+    /// destructors finish before that, so each core's `ended` flag is set by
+    /// then. That flag is the event the second half waits on. A gather in
+    /// another test may still hold one of these meters at that moment, and the
+    /// flag keeps this gather from reading it.
     #[test]
     #[cfg_attr(
         miri,
