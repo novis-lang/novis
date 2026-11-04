@@ -805,7 +805,10 @@ impl SymbolIndex {
         let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
         let (mut session, mut trees) = documents.caches();
         let files = &self.files;
-        let at = Entry { path: entry, key: entry };
+        let at = Entry {
+            path: entry,
+            key: entry,
+        };
         let analysed = analyse_entry(&snapshot, &mut session, &mut trees, at, version, |key| {
             files.contains_key(key)
         });
@@ -843,7 +846,9 @@ impl SymbolIndex {
     /// How many worker threads run now. A settled index has none.
     #[must_use]
     pub fn workers_running(&self) -> usize {
-        self.workers.as_ref().map_or(0, crate::workers::Pool::running)
+        self.workers
+            .as_ref()
+            .map_or(0, crate::workers::Pool::running)
     }
 
     /// One step of settling without waiting: files every worker result whose
@@ -994,7 +999,11 @@ impl SymbolIndex {
         let Some(mut analysis) = analysis else {
             return;
         };
-        if analysis.skipped.iter().any(|key| !self.files.contains_key(key)) {
+        if analysis
+            .skipped
+            .iter()
+            .any(|key| !self.files.contains_key(key))
+        {
             self.analyse_here(documents, &entry);
             return;
         }

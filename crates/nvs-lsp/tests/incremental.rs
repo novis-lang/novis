@@ -1099,9 +1099,11 @@ fn an_edit_during_a_parallel_index_requeues_the_entries_that_read_it() {
     // method. The open file's own analysis borrows the map of `App3`, the
     // first program, so it does not index `App4`'s files: only a stale result
     // could file them with the old name.
-    let renamed = fs::read_to_string(&path)
-        .expect("a fixture file")
-        .replacen("public function next(", "public function after(", 1);
+    let renamed = fs::read_to_string(&path).expect("a fixture file").replacen(
+        "public function next(",
+        "public function after(",
+        1,
+    );
     let edit = |documents: &mut Documents, index: &mut SymbolIndex| {
         documents.open(
             uri_of(&path).expect("a temp path is UTF-8"),

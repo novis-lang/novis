@@ -138,9 +138,7 @@ impl Pool {
     /// then the job is not in flight.
     pub(crate) fn send(&mut self, job: Job) -> bool {
         self.in_flight.insert(job.entry.clone(), (job.change, None));
-        let (sender, receiver) = self
-            .jobs
-            .get_or_insert_with(crossbeam_channel::unbounded);
+        let (sender, receiver) = self.jobs.get_or_insert_with(crossbeam_channel::unbounded);
         if self.threads.len() < self.in_flight.len() {
             let receiver = receiver.clone();
             let done = self.done.clone();
@@ -255,8 +253,15 @@ fn work(jobs: &Receiver<Job>, done: &Sender<Done>) {
         // could not be loaded, and not a server that waits for ever. The
         // caches it may have left half written are started again.
         let analysis = catch_unwind(AssertUnwindSafe(|| {
-            analyse_entry(&job.snapshot, &mut session, &mut trees, at, job.version, indexed)
-                .map(|(_, analysis)| analysis)
+            analyse_entry(
+                &job.snapshot,
+                &mut session,
+                &mut trees,
+                at,
+                job.version,
+                indexed,
+            )
+            .map(|(_, analysis)| analysis)
         }))
         .unwrap_or_else(|_| {
             session = Session::default();
