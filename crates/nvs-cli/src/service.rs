@@ -6132,14 +6132,25 @@ mod tests {
     /// and a case may not set those out from under another running beside it.
     #[test]
     fn the_watchdog_ping_is_sent_while_the_fleet_turns_and_stops_when_it_does_not() {
-        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
         let (told, sent) = recording();
         let turning = Arc::new(AtomicBool::new(true));
         let gate = Arc::clone(&turning);
+        // How many times the gate has said no. The pinging thread asks the gate
+        // and then pings, one beat after the other, so a gate that has said no
+        // is a beat whose ping, had there been one, is already in the log.
+        let refusals = Arc::new(AtomicUsize::new(0));
+        let refused = Arc::clone(&refusals);
         let interval = Duration::from_millis(5);
-        let beat = Heartbeat::every(&told, interval, move || gate.load(Ordering::Relaxed))
-            .expect("the thread that answers `WatchdogSec`");
+        let beat = Heartbeat::every(&told, interval, move || {
+            let on = gate.load(Ordering::SeqCst);
+            if !on {
+                refused.fetch_add(1, Ordering::SeqCst);
+            }
+            on
+        })
+        .expect("the thread that answers `WatchdogSec`");
         let pings = || {
             sent.lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -6157,13 +6168,24 @@ mod tests {
         }
         assert!(pings() >= 2, "a turning fleet's manager was told nothing");
 
-        // No core turning, so the process stops saying otherwise. Counted twice
-        // with intervals in between rather than once, so that a ping already
-        // past the gate when the fleet stopped is not read as a live one.
-        turning.store(false, Ordering::Relaxed);
-        std::thread::sleep(interval * 20);
+        // No core turning, so the process stops saying otherwise. The count is
+        // taken once the gate has first said no, so that a ping already past
+        // the gate when the fleet stopped is not read as a live one. Two more
+        // refusals are two more beats, and neither may add a ping.
+        turning.store(false, Ordering::SeqCst);
+        let until_refused = |count: usize| {
+            let deadline = std::time::Instant::now() + patience;
+            while refusals.load(Ordering::SeqCst) < count && std::time::Instant::now() < deadline {
+                std::thread::sleep(interval);
+            }
+            assert!(
+                refusals.load(Ordering::SeqCst) >= count,
+                "the pinging thread stopped asking the gate"
+            );
+        };
+        until_refused(1);
         let last = pings();
-        std::thread::sleep(interval * 20);
+        until_refused(3);
         assert_eq!(
             pings(),
             last,
@@ -6172,20 +6194,21 @@ mod tests {
 
         // And a fleet that comes back is reported again, rather than left
         // condemned by the sweep that found it wedged.
-        turning.store(true, Ordering::Relaxed);
+        turning.store(true, Ordering::SeqCst);
         let deadline = std::time::Instant::now() + patience;
         while pings() == last && std::time::Instant::now() < deadline {
             std::thread::sleep(interval);
         }
         assert!(pings() > last, "a fleet that came back was not reported");
 
+        // The gate is owned by the pinging thread alone, so once the drop has
+        // returned the gate's last copy is the test's own exactly when that
+        // thread has ended and can send nothing more.
         drop(beat);
-        let stopped = pings();
-        std::thread::sleep(interval * 20);
         assert_eq!(
-            pings(),
-            stopped,
-            "the thread outlived the handle that owns it and is still pinging"
+            Arc::strong_count(&turning),
+            1,
+            "the thread outlived the handle that owns it and can still ping"
         );
     }
 

@@ -134,6 +134,16 @@ const MYSQL_QUIET: &str = "SELECT CAST(SLEEP(0.5) AS CHAR)";
 /// is making.
 const TURN: Duration = Duration::from_millis(10);
 
+/// How long the companion task keeps turning before it gives up on the
+/// statement ever finishing.
+///
+/// A hang guard and nothing else: the companion stops when the statement's
+/// task says it is done, and this bound only ends a case whose statement never
+/// is. It is wall time rather than a count of [`TURN`]s, because a loaded
+/// machine wakes late and a count would end the watch early there, before the
+/// handshake, which may itself take [`DEADLINE`], had even finished.
+const PATIENCE: Duration = Duration::from_secs(60);
+
 /// The handshake budget the cases that outlive one hand their driver.
 ///
 /// Short where [`DEADLINE`] is generous, because those cases wait it out before
@@ -245,14 +255,17 @@ fn upgrades(leg: &Leg) -> bool {
 /// asserts: the two calls differ in that field alone, so what the server
 /// refuses is the credential and nothing else about the connection.
 fn connect_as(leg: &Leg, password: &str) -> io::Result<PgConn> {
-    connect_within(leg, password, DEADLINE)
+    connect_within(leg, password, Instant::now() + DEADLINE)
 }
 
-/// [`connect_as`], with the handshake's own budget named by the caller.
+/// [`connect_as`], with the instant the handshake's budget ends named by the
+/// caller.
 ///
 /// A parameter because the case that outlives a budget has to wait one out, and
-/// [`DEADLINE`] is deliberately too generous to wait out.
-fn connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Result<PgConn> {
+/// [`DEADLINE`] is deliberately too generous to wait out. The caller holds the
+/// instant itself rather than a span, so it can wait for the very instant the
+/// driver filed — see [`wait_out`].
+fn connect_within(leg: &Leg, password: &str, deadline: Instant) -> io::Result<PgConn> {
     let target = PgTarget {
         host: &leg.host,
         user: &leg.user,
@@ -263,7 +276,23 @@ fn connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Result<PgC
         statement_cache: 8,
     };
 
-    PgConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
+    PgConn::connect(leg.endpoint.clone(), &target, Some(deadline))
+}
+
+/// Returns once `deadline` has passed on the clock the drivers read.
+///
+/// The event a budget case waits for is that instant passing, and it is read
+/// on the same [`Instant`] clock the driver filed it on. So the wait ends at
+/// that instant on any machine, and a slow one only starts the statement later
+/// past it, which asks the same question.
+fn wait_out(deadline: Instant) {
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            return;
+        }
+        std::thread::sleep(deadline - now);
+    }
 }
 
 /// Where the harness published `server`, as the address a driver connects to.
@@ -326,11 +355,11 @@ fn mysql() -> Option<Leg> {
 /// reason: the refused credential below differs from the accepted one in that
 /// field alone.
 fn mysql_connect_as(leg: &Leg, password: &str) -> io::Result<MySqlConn> {
-    mysql_connect_within(leg, password, DEADLINE)
+    mysql_connect_within(leg, password, Instant::now() + DEADLINE)
 }
 
 /// [`connect_within`]'s twin on this driver.
-fn mysql_connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Result<MySqlConn> {
+fn mysql_connect_within(leg: &Leg, password: &str, deadline: Instant) -> io::Result<MySqlConn> {
     let target = MySqlTarget {
         host: &leg.host,
         user: &leg.user,
@@ -341,7 +370,7 @@ fn mysql_connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Resu
         statement_cache: 8,
     };
 
-    MySqlConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
+    MySqlConn::connect(leg.endpoint.clone(), &target, Some(deadline))
 }
 
 /// A MySQL connection to `leg`, as a request that found the pool empty opens
@@ -443,7 +472,7 @@ const ZONE: i32 = 5_400;
 /// same reason the password is one: the two cases below differ in exactly one
 /// field each, so what the server then reports is attributable to that field.
 fn mariadb_connect_as(leg: &Leg, password: &str, time_zone: i32) -> io::Result<MariaConn> {
-    mariadb_connect_within(leg, password, time_zone, DEADLINE)
+    mariadb_connect_within(leg, password, time_zone, Instant::now() + DEADLINE)
 }
 
 /// [`connect_within`]'s twin on this driver.
@@ -451,7 +480,7 @@ fn mariadb_connect_within(
     leg: &Leg,
     password: &str,
     time_zone: i32,
-    budget: Duration,
+    deadline: Instant,
 ) -> io::Result<MariaConn> {
     let target = MariaTarget {
         host: &leg.host,
@@ -463,7 +492,7 @@ fn mariadb_connect_within(
         statement_cache: 8,
     };
 
-    MariaConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
+    MariaConn::connect(leg.endpoint.clone(), &target, Some(deadline))
 }
 
 /// A MariaDB connection that opened, in UTC.
@@ -523,11 +552,11 @@ fn mssql() -> Option<Server> {
 /// alone, so a case that varied it would be asking this process a question
 /// rather than the server.
 fn mssql_connect_as(server: &Server, password: &str) -> io::Result<TdsConn> {
-    mssql_connect_within(server, password, DEADLINE)
+    mssql_connect_within(server, password, Instant::now() + DEADLINE)
 }
 
 /// [`connect_within`]'s twin on this driver.
-fn mssql_connect_within(server: &Server, password: &str, budget: Duration) -> io::Result<TdsConn> {
+fn mssql_connect_within(server: &Server, password: &str, deadline: Instant) -> io::Result<TdsConn> {
     let target = TdsTarget {
         host: &server.host,
         user: &server.user,
@@ -538,7 +567,7 @@ fn mssql_connect_within(server: &Server, password: &str, budget: Duration) -> io
         statement_cache: 8,
     };
 
-    TdsConn::connect(address(server), &target, Some(Instant::now() + budget))
+    TdsConn::connect(address(server), &target, Some(deadline))
 }
 
 /// A SQL Server connection to `server`, as a request that found the pool empty
@@ -693,13 +722,12 @@ fn a_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
     let in_flight = Rc::clone(&running);
     let finished = Rc::clone(&done);
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
-        // Bounded rather than `while !finished`: a first task that never
-        // completes must not turn this one into a scheduler that never goes
-        // idle, and the count below says what happened either way.
-        for _ in 0..400 {
-            if finished.get() {
-                break;
-            }
+        // The statement finishing ends this loop. [`PATIENCE`] is only a hang
+        // guard: a first task that never completes must not turn this one into
+        // a scheduler that never goes idle, and the asserts below say what
+        // happened either way.
+        let give_up = Instant::now() + PATIENCE;
+        while !finished.get() && Instant::now() < give_up {
             if in_flight.get() {
                 observed.set(observed.get() + 1);
             }
@@ -936,13 +964,12 @@ fn a_mysql_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
     let in_flight = Rc::clone(&running);
     let finished = Rc::clone(&done);
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
-        // Bounded rather than `while !finished`: a first task that never
-        // completes must not turn this one into a scheduler that never goes
-        // idle, and the count below says what happened either way.
-        for _ in 0..400 {
-            if finished.get() {
-                break;
-            }
+        // The statement finishing ends this loop. [`PATIENCE`] is only a hang
+        // guard: a first task that never completes must not turn this one into
+        // a scheduler that never goes idle, and the asserts below say what
+        // happened either way.
+        let give_up = Instant::now() + PATIENCE;
+        while !finished.get() && Instant::now() < give_up {
             if in_flight.get() {
                 observed.set(observed.get() + 1);
             }
@@ -1488,9 +1515,10 @@ fn a_connection_outlives_the_budget_its_handshake_was_given() {
         return;
     };
 
-    let mut conn = connect_within(&leg, &leg.password, BRIEF)
+    let budget_ends = Instant::now() + BRIEF;
+    let mut conn = connect_within(&leg, &leg.password, budget_ends)
         .expect("the matrix server accepts a handshake on the leg the harness published");
-    std::thread::sleep(BRIEF);
+    wait_out(budget_ends);
 
     let ran = conn.query(QUIET, &[]).and_then(|mut rows| {
         while rows.next_row()?.is_some() {}
@@ -1511,9 +1539,10 @@ fn a_mysql_connection_outlives_the_budget_its_handshake_was_given() {
         return;
     };
 
-    let mut conn = mysql_connect_within(&leg, &leg.password, BRIEF)
+    let budget_ends = Instant::now() + BRIEF;
+    let mut conn = mysql_connect_within(&leg, &leg.password, budget_ends)
         .expect("the matrix server accepts a handshake on the leg the harness published");
-    std::thread::sleep(BRIEF);
+    wait_out(budget_ends);
 
     let ran = mysql_try(&mut conn, MYSQL_QUIET);
     assert!(
@@ -1531,9 +1560,10 @@ fn a_mariadb_connection_outlives_the_budget_its_handshake_was_given() {
         return;
     };
 
-    let mut conn = mariadb_connect_within(&leg, &leg.password, 0, BRIEF)
+    let budget_ends = Instant::now() + BRIEF;
+    let mut conn = mariadb_connect_within(&leg, &leg.password, 0, budget_ends)
         .expect("the matrix server accepts a handshake on the leg the harness published");
-    std::thread::sleep(BRIEF);
+    wait_out(budget_ends);
 
     let ran = conn.query(MYSQL_QUIET, &[]).and_then(|mut rows| {
         while rows.next_row()?.is_some() {}
@@ -1554,9 +1584,10 @@ fn a_mssql_connection_outlives_the_budget_its_handshake_was_given() {
         return;
     };
 
-    let mut conn = mssql_connect_within(&server, &server.password, BRIEF)
+    let budget_ends = Instant::now() + BRIEF;
+    let mut conn = mssql_connect_within(&server, &server.password, budget_ends)
         .expect("the matrix server accepts a handshake verified against its own anchor");
-    std::thread::sleep(BRIEF);
+    wait_out(budget_ends);
 
     let ran = conn.execute_many(MSSQL_QUIET, &[&[]]);
     assert!(
