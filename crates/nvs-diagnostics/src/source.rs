@@ -548,6 +548,18 @@ impl SourceMap {
         }
     }
 
+    /// In a map made by [`loading_once`](Self::loading_once), makes the next
+    /// [`load`](Self::load) of `path` read it again, under a new id.
+    ///
+    /// `nvs test` of a directory walks a generated entry to learn which file
+    /// requires which, then compiles in the same map with a different entry
+    /// text at the same path. The file the first load added stays in the map.
+    pub fn forget(&mut self, path: &Path) {
+        if let Some(once) = &mut self.once {
+            once.remove(path);
+        }
+    }
+
     /// Reads a file from disk and adds it.
     ///
     /// In a map made by [`loading_once`](Self::loading_once), a path read

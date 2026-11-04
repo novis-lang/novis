@@ -320,17 +320,16 @@ than the files). The session writes the items.
   it once and carry the result. `crates/nvs-hir/src/autoload.rs:871`, `:560`, `:880`
 - [ ] The run's cache key resolves the entry path the compile already resolved, and again on each
   validation. `crates/nvs-cli/src/script.rs:1436`, `:1744`, `:1960`
-- [ ] `nvs test <dir>` reads every file once only to look for `require` (`std::fs::read_to_string`,
+- [x] `nvs test <dir>` reads every file once only to look for `require` (`std::fs::read_to_string`,
   which `read=` does not count), then the `unrequired` walk reads it again when a `require` is present,
   then the compile reads it a third time. `crates/nvs-cli/src/main.rs:3337`. The resolution half is done
-  (next item). *Design for the read half:* the entry's text depends on the walk's edges, so the walk
-  cannot be the compile. Read the texts once into the compile's map: `unrequired` takes a
-  `SourceMap::loading_once` map, loads each file under the spelling the walk will ask for
-  (`nvs_hir::requires::canonicalize` of `dir.join(rel)`, one resolution the walk makes anyway), tests
-  `contains("require")` on the loaded text, and hands the map's files to `Program::front_end` with
-  `SourceMap::adopt` plus the `once` table. The entry is an overlay and must not be kept in `once`,
-  because its text changes between the walk and the compile. Count test: `read=` of a directory check
-  equals the file count, in `crates/nvs-cli/tests/check_command.rs`.
+  (next item). *As built:* `Program::entry` makes one `SourceMap::loading_once` map, `unrequired` loads
+  each file into it under its resolved path and tests the loaded text, and the compile starts from that
+  map. The walk's entry is dropped from the `once` table with `SourceMap::forget`, because the
+  compile's entry has other text at the same path. The walk no longer resolves the directory of a file
+  that requires nothing. `nvs check --fix` uses the map for its first pass only. Test
+  `a_directory_check_reads_each_file_once`; `a_directory_check_resolves_only_what_a_file_requires`
+  went from six resolutions per test file to three.
 - [x] `nvs test <dir>` resolves each file's path in `unrequired` and again after the compile.
   `crates/nvs-cli/src/main.rs:3363`, `:3213` *As built (`5e53c0ada`):* both resolve only a file whose
   name matches, compared without case. Test `a_directory_check_resolves_only_what_a_file_requires`

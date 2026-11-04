@@ -1452,9 +1452,16 @@ fn run_check(
     } else {
         None
     };
+    // The first front end starts from the map the directory's entry was found
+    // with. A later one, after `--fix` wrote files, reads them again.
+    let (directory, first_map) = match directory {
+        Some((entry, text, map)) => (Some((entry, text)), Some(map)),
+        None => (None, None),
+    };
+    let first_map = std::cell::Cell::new(first_map);
     let front = |sink: Sink| match &directory {
         Some((entry, text)) => {
-            let mut map = SourceMap::new();
+            let mut map = first_map.take().unwrap_or_default();
             map.overlay(entry, text);
             front_end_in(
                 map,
@@ -3187,8 +3194,7 @@ impl Program {
         let (map, entry) = match self {
             Self::File(path) => (SourceMap::new(), path.clone()),
             Self::Directory { dir, files } => {
-                let (entry, text) = Self::entry(dir, files);
-                let mut map = SourceMap::new();
+                let (entry, text, mut map) = Self::entry(dir, files);
                 map.overlay(&entry, &text);
                 (map, entry)
             }
@@ -3262,11 +3268,16 @@ impl Program {
     /// The entry a directory of programs runs from: where it would sit, and
     /// its text, one `require` per file of `files` that no other one requires.
     /// It never exists on disk, and `nvs test` and `nvs check` both read it.
-    fn entry(dir: &std::path::Path, files: &[PathBuf]) -> (PathBuf, String) {
+    ///
+    /// The map is the one the compile starts from: it has every file of
+    /// `files` that loaded, under the path the compile loads it by, so the
+    /// compile reads none of them again.
+    fn entry(dir: &std::path::Path, files: &[PathBuf]) -> (PathBuf, String, SourceMap) {
         let entry = Self::entry_path(dir, files);
-        let roots = unrequired(&entry, dir, files);
+        let mut map = SourceMap::loading_once();
+        let roots = unrequired(&entry, dir, files, &mut map);
         let text = directory_entry(dir, &roots);
-        (entry, text)
+        (entry, text, map)
     }
 }
 
@@ -3334,26 +3345,39 @@ fn holds_cases(path: &std::path::Path) -> bool {
 /// path names. A directory where no file's text holds `require` has no edge
 /// to find and walks nothing; any other pays one walk without the type phase,
 /// and its diagnostics are dropped because the real compile reports them.
-fn unrequired(entry: &std::path::Path, dir: &std::path::Path, files: &[PathBuf]) -> Vec<PathBuf> {
-    let requires =
-        |file: &PathBuf| std::fs::read_to_string(file).is_ok_and(|text| text.contains("require"));
-    if !files.iter().any(requires) {
+///
+/// `map` is a [`SourceMap::loading_once`] map, and each file is loaded into it
+/// under its resolved path, which is the path the walk and the compile load it
+/// by. So each file is read once for this test, the walk and the compile. The
+/// entry is forgotten again, because the compile's entry has other text.
+fn unrequired(
+    entry: &std::path::Path,
+    dir: &std::path::Path,
+    files: &[PathBuf],
+    map: &mut SourceMap,
+) -> Vec<PathBuf> {
+    // Every file is loaded, not only those up to the first that requires
+    // something, so the compile reads none of them again.
+    let requiring = files
+        .iter()
+        .filter(|file| {
+            nvs_hir::requires::canonicalize(file)
+                .and_then(|path| map.load(path).ok())
+                .is_some_and(|id| map.file(id).text().contains("require"))
+        })
+        .count();
+    if requiring == 0 {
         return files.to_vec();
     }
-    let mut map = SourceMap::new();
     map.overlay(entry, directory_entry(dir, files));
     let Ok(id) = map.load(entry) else {
         return files.to_vec();
     };
+    map.forget(entry);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
-    let (_, loaded, _) = nvs_hir::resolve_program(
-        id,
-        stmts,
-        &mut map,
-        nvs_hir::CoreRoster::Trusted,
-        &mut diags,
-    );
+    let (_, loaded, _) =
+        nvs_hir::resolve_program(id, stmts, map, nvs_hir::CoreRoster::Trusted, &mut diags);
     // A file is resolved only when its name is the name of a file another one
     // requires, so a directory where one file requires the bootstrap resolves
     // two paths, not one per file.

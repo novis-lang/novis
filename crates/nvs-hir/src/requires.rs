@@ -488,8 +488,10 @@ fn walk(
                 // against each target's own canonical path. An entry file named
                 // on the command line as `tests/main.nvs` has a relative,
                 // as-typed parent; every other file in the graph was already
-                // loaded by its canonical path.
-                let canonical_base = canonicalize(&base_dir);
+                // loaded by its canonical path. Resolved at the first target
+                // that resolves, so a file that requires nothing resolves no
+                // directory.
+                let mut canonical_base: Option<Option<PathBuf>> = None;
                 for (segments, span) in targets {
                     // Folded one target at a time rather than all of them
                     // before the loop: a constant declared in the file a
@@ -512,7 +514,9 @@ fn walk(
                         );
                         continue;
                     };
-                    if let Some(base) = &canonical_base {
+                    if let Some(base) =
+                        canonical_base.get_or_insert_with(|| canonicalize(&base_dir))
+                    {
                         check_path_case(base, &literal, &canonical, span, diags);
                     }
                     if on_chain.contains(&canonical) {
