@@ -114,7 +114,13 @@ the cut-off and logged download that was never finished
   `std::fs::File`, which a guest with no preopen cannot open; it is a source of chart XML and of
   Excel-made fixtures only.
 - **A shared-string table.** It grows with every distinct string, so a text-heavy export would hold
-  all its text; inline strings cost a few bytes per cell on disk and nothing in memory.
+  all its text; inline strings cost a few bytes per cell on disk and nothing in memory, and Excel,
+  LibreOffice and Sheets read them.
+- **`[Content_Types].xml` as the first entry of the zip.** The parts are known only at `finish()`,
+  so writing it first would hold the whole workbook. OPC does not require the order, and Excel,
+  LibreOffice and Sheets find it anywhere in the zip.
+- **A `<dimension>` element in each sheet.** The sheet's head is written before its row count is
+  known, and the element is optional; a reader that trusts it over the rows is wrong on any file.
 - **Several sheets open at once.** Each would hold its own pending XML and compressor, and xlsx puts
   sheets in separate entries of one stream, so interleaving would buffer all but one.
 - **Writing xls, and encrypted or password-protected files.** xls is a 1997 format nothing should

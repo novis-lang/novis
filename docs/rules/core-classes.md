@@ -5046,7 +5046,13 @@ the cut-off and logged download that was never finished
   `std::fs::File`, which a guest with no preopen cannot open; it is a source of chart XML and of
   Excel-made fixtures only.
 - **A shared-string table.** It grows with every distinct string, so a text-heavy export would hold
-  all its text; inline strings cost a few bytes per cell on disk and nothing in memory.
+  all its text; inline strings cost a few bytes per cell on disk and nothing in memory, and Excel,
+  LibreOffice and Sheets read them.
+- **`[Content_Types].xml` as the first entry of the zip.** The parts are known only at `finish()`,
+  so writing it first would hold the whole workbook. OPC does not require the order, and Excel,
+  LibreOffice and Sheets find it anywhere in the zip.
+- **A `<dimension>` element in each sheet.** The sheet's head is written before its row count is
+  known, and the element is optional; a reader that trusts it over the rows is wrong on any file.
 - **Several sheets open at once.** Each would hold its own pending XML and compressor, and xlsx puts
   sheets in separate entries of one stream, so interleaving would buffer all but one.
 - **Writing xls, and encrypted or password-protected files.** xls is a 1997 format nothing should
@@ -5282,7 +5288,8 @@ number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
 - **Unstyled by default.** The common export is a table with a header, and the four defaults are
   what every user would otherwise add by hand.
 - **Auto width over every row of a stream.** It would hold the sheet until the end, which is the memory
-  streaming exists to avoid.
+  streaming exists to avoid. A column whose widest text is past row 1,000 is narrower than it, and
+  `fromRows` given an array measures every row.
 - **Font metrics for auto width.** It needs every font's tables in the guest for a width a reader
   changes with one drag; characters as displayed are close enough, and the cap keeps one long cell
   from taking the screen.
@@ -5404,6 +5411,13 @@ written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
   a feature a reader builds in Excel from the data in seconds.
+- **`stopIfTrue` and the `containsText` rule in conditional formats.** The API does not offer them,
+  so nothing is written wrong; a program shows text matches with a `formula` rule.
+- **The salted SHA-512 protection hash, which Excel uses for a non-ASCII password.** The 16-bit hash
+  is taken over the password's UTF-8 bytes, so Excel may not accept a non-ASCII password to lift the
+  protection. Sheet protection is no security, as the reference card says, and a salted hash would
+  add random bytes to output that is otherwise the same for the same input
+  ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)).
 - **Every chart type outside the subset, trendlines, error bars, secondary axes beyond the
   combination, chartsheets and 3D.** The subset is what reports use; the rest is Excel's to add.
 - **An image that is not PNG, JPEG or GIF converted on the way in.** `Novis\Image` converts it in one
@@ -5506,6 +5520,8 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
   designs; a program that needs it writes the sheet with `Workbook`.
+- **Shifting a 3D reference (`Jan:Mar!C5`).** A fill repeats rows on one sheet, and Excel moves a
+  3D span sheet by sheet, so the shifter leaves it as written.
 - **Placeholders inside formula text.** A formula that names a filled cell does the same job, and
   text substituted into a formula is the injection the formula rule closes.
 - **`umya-spreadsheet` as the filler.** It loads the whole workbook into an editable model, which is
@@ -5735,6 +5751,11 @@ spends: every extra and each picture's bytes, held with the rows until the reade
   on a lent value grants nothing ([`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority)).
 - **Whole-sheet reads into one block.** A large sheet would cost its size; a batch of rows costs the
   same for every size.
+- **Rows with a decreasing or repeated `r` read in some order.** They throw "a worksheet's rows are
+  out of order", a clear error, and the reader stays one forward pass with no row held back.
+- **Bytes before a zip skipped to find it.** Such a file is not one any spreadsheet program wrote,
+  and it throws that it is not a spreadsheet, naming the formats the reader reads
+  (`bytes_before_the_zip_throw_that_it_is_not_a_spreadsheet`).
 - **A per-cell accessor.** [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary) declines it for good.
 
 <sub>See also [`core-classes/spreadsheet-value-types`](core-classes.md#core-classes-spreadsheet-value-types), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles).</sub>
@@ -5891,6 +5912,9 @@ match Excel is listed for that cell, and never computed differently.
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+- **Computing arrays, dynamic-array spills, `RATE`, `XIRR` and the statistical distributions.** Each
+  has an iteration or a shape whose result Excel defines only by its own implementation; such a
+  cell is listed and keeps its stored value, never computed differently.
 - **An option to compute `TODAY` and `NOW` from a given instant.** A program that needs one fills a
   cell with the instant.
 - **Writing xls, xlsb or xlsm.** Legacy and binary formats nothing should produce, and a macro-enabled

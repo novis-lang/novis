@@ -107,6 +107,13 @@ written by `extensions/spreadsheet/src/tail.rs`, `table.rs`, `conditional.rs`, `
 **Declined:**
 - **Pivot tables, sparklines and threaded comments.** Each is a part with its own cache or model, for
   a feature a reader builds in Excel from the data in seconds.
+- **`stopIfTrue` and the `containsText` rule in conditional formats.** The API does not offer them,
+  so nothing is written wrong; a program shows text matches with a `formula` rule.
+- **The salted SHA-512 protection hash, which Excel uses for a non-ASCII password.** The 16-bit hash
+  is taken over the password's UTF-8 bytes, so Excel may not accept a non-ASCII password to lift the
+  protection. Sheet protection is no security, as the reference card says, and a salted hash would
+  add random bytes to output that is otherwise the same for the same input
+  (`rule:core-classes/spreadsheet-output-is-inert`).
 - **Every chart type outside the subset, trendlines, error bars, secondary axes beyond the
   combination, chartsheets and 3D.** The subset is what reports use; the rest is Excel's to add.
 - **An image that is not PNG, JPEG or GIF converted on the way in.** `Novis\Image` converts it in one

@@ -99,6 +99,9 @@ match Excel is listed for that cell, and never computed differently.
 **Declined:**
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program (`rule:core-classes/spreadsheet-has-no-io`).
+- **Computing arrays, dynamic-array spills, `RATE`, `XIRR` and the statistical distributions.** Each
+  has an iteration or a shape whose result Excel defines only by its own implementation; such a
+  cell is listed and keeps its stored value, never computed differently.
 - **An option to compute `TODAY` and `NOW` from a given instant.** A program that needs one fills a
   cell with the instant.
 - **Writing xls, xlsb or xlsm.** Legacy and binary formats nothing should produce, and a macro-enabled

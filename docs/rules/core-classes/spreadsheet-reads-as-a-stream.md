@@ -209,4 +209,9 @@ spends: every extra and each picture's bytes, held with the rows until the reade
   on a lent value grants nothing (`rule:packaging/a-guest-has-no-ambient-authority`).
 - **Whole-sheet reads into one block.** A large sheet would cost its size; a batch of rows costs the
   same for every size.
+- **Rows with a decreasing or repeated `r` read in some order.** They throw "a worksheet's rows are
+  out of order", a clear error, and the reader stays one forward pass with no row held back.
+- **Bytes before a zip skipped to find it.** Such a file is not one any spreadsheet program wrote,
+  and it throws that it is not a spreadsheet, naming the formats the reader reads
+  (`bytes_before_the_zip_throw_that_it_is_not_a_spreadsheet`).
 - **A per-cell accessor.** `rule:core-classes/spreadsheet-bulk-boundary` declines it for good.

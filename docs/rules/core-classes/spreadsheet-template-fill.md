@@ -81,6 +81,8 @@ memory:** the repeated rows stream, so a template of a thousand items costs what
 **Declined:**
 - **A list inside a list.** It needs nested blocks whose shifts compound, for a layout almost nobody
   designs; a program that needs it writes the sheet with `Workbook`.
+- **Shifting a 3D reference (`Jan:Mar!C5`).** A fill repeats rows on one sheet, and Excel moves a
+  3D span sheet by sheet, so the shifter leaves it as written.
 - **Placeholders inside formula text.** A formula that names a filled cell does the same job, and
   text substituted into a formula is the injection the formula rule closes.
 - **`umya-spreadsheet` as the filler.** It loads the whole workbook into an editable model, which is

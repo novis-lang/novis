@@ -71,7 +71,8 @@ number-format renderer (`extensions/spreadsheet/nvs/Workbook.nvs`, `Style.nvs`,
 - **Unstyled by default.** The common export is a table with a header, and the four defaults are
   what every user would otherwise add by hand.
 - **Auto width over every row of a stream.** It would hold the sheet until the end, which is the memory
-  streaming exists to avoid.
+  streaming exists to avoid. A column whose widest text is past row 1,000 is narrower than it, and
+  `fromRows` given an array measures every row.
 - **Font metrics for auto width.** It needs every font's tables in the guest for a width a reader
   changes with one drag; characters as displayed are close enough, and the cap keeps one long cell
   from taking the screen.
