@@ -26,7 +26,12 @@
 //! dropped, and the workbook recalculates on open. A sheet with a block loses its `dimension`.
 //! An xlsm template gives xlsx: its VBA parts and their relationships and content types are
 //! dropped, and the workbook's content type is the xlsx one
-//! (`rule:core-classes/spreadsheet-output-is-inert`).
+//! (`rule:core-classes/spreadsheet-output-is-inert`). So are the other parts that can run code
+//! ([`dropped`]): XLM macro sheets, `xl/vbaData.xml`, ActiveX controls, `customUI` ribbons and
+//! `oleObject*.bin` embeddings. A macro sheet's `<sheet>` leaves the workbook with the defined
+//! names local to it or naming it ([`without_sheets`]), and a worksheet's `control` and
+//! `oleObject` that name a dropped part leave the sheet ([`without_inert`]). An embedded
+//! package, such as an xlsx or a docx, and every image are kept.
 //!
 //! **What `fill` checks first.** Every placeholder outside a list's rows is in the values, no
 //! path has two values, and no list is named twice, so a fill that cannot finish writes no byte.
@@ -212,10 +217,220 @@ fn missing(sheet: &Sheet, row: &Row, cell: &Cell, path: &str) -> Error {
     ))
 }
 
-/// A part the fill leaves out of what it writes.
+/// A part the fill leaves out of what it writes: the calculation chain, and every part that
+/// can run code, with the relationships of each.
 fn dropped(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    lower == "xl/calcchain.xml" || lower.contains("vbaproject")
+    lower == "xl/calcchain.xml"
+        || lower.contains("vbaproject")
+        || lower.contains("vbadata.xml")
+        || lower.starts_with("xl/macrosheets/")
+        || lower.starts_with("xl/activex/")
+        || lower.starts_with("customui/")
+        || (lower.starts_with("xl/embeddings/oleobject") && lower.ends_with(".bin"))
+}
+
+/// The content types, package relationships, workbook relationships and sheet relationships
+/// of the parts [`dropped`] names. Each needle is in a part's path, so a `Default` content
+/// type, which other parts may still use, is kept.
+const DROPPED_TYPES: [&str; 7] = [
+    "vbaproject",
+    "calcchain",
+    "/xl/macrosheets/",
+    "/xl/vbadata.xml",
+    "/xl/activex/",
+    "/customui/",
+    "/xl/embeddings/oleobject",
+];
+const DROPPED_ROOT: [&str; 1] = ["customui/"];
+const DROPPED_BOOK: [&str; 3] = ["vbaproject", "calcchain", "macrosheets/"];
+const DROPPED_SHEET: [&str; 2] = ["activex/", "embeddings/oleobject"];
+
+/// The ids of the relationships in `rels`, of the part `from`, that name a dropped part.
+fn dropped_ids(rels: &str, from: &str) -> Result<Vec<String>, Error> {
+    Ok(relationships(rels, from)?
+        .into_iter()
+        .filter(|(_, part)| dropped(part))
+        .map(|(id, _)| id)
+        .collect())
+}
+
+/// The workbook's XML without the `<sheet>` of each relationship in `ids`. A defined name local
+/// to such a sheet or naming it is removed, each higher `localSheetId` is lowered, and the
+/// view's `activeTab` and `firstSheet` stay on a sheet that is kept.
+fn without_sheets(workbook: &str, ids: &[String]) -> Result<String, Error> {
+    let bytes = workbook.as_bytes();
+    let mut edits = Vec::new();
+    let (mut gone, mut names, mut count) = (Vec::new(), Vec::new(), 0u32);
+    let mut at = 0;
+    while let Some((token, length)) = xml::next(&bytes[at..])? {
+        let start = at;
+        at += length;
+        if let Token::Open { name, attrs, .. } = token
+            && xml::local(name) == b"sheet"
+        {
+            if xml::attr_text(attrs, b"id")?.is_some_and(|id| ids.contains(&id)) {
+                gone.push(count);
+                names.push(xml::attr_text(attrs, b"name")?.unwrap_or_default());
+                edits.push((start..at, String::new()));
+            }
+            count += 1;
+        }
+    }
+    if gone.is_empty() {
+        return Ok(workbook.to_owned());
+    }
+    let last = count.saturating_sub(u32::try_from(gone.len()).unwrap_or(count) + 1);
+    let moved = |index: u32| {
+        let below = gone.iter().filter(|&&sheet| sheet < index).count();
+        index.saturating_sub(u32::try_from(below).unwrap_or(index))
+    };
+    let number = |attrs: &[u8], key: &[u8]| {
+        xml::attr(attrs, key)
+            .and_then(|raw| std::str::from_utf8(raw).ok())
+            .and_then(|raw| raw.trim().parse::<u32>().ok())
+    };
+    // The open tag of the defined name being read, its sheet, and its text.
+    let mut naming: Option<(std::ops::Range<usize>, Option<u32>, String)> = None;
+    at = 0;
+    while let Some((token, length)) = xml::next(&bytes[at..])? {
+        let start = at;
+        at += length;
+        match token {
+            Token::Open { name, attrs, empty } => match xml::local(name) {
+                b"workbookView" => {
+                    let mut element = workbook[start..at].to_owned();
+                    for key in ["activeTab", "firstSheet"] {
+                        if let Some(index) = number(attrs, key.as_bytes()) {
+                            element = with_attr(&element, key, moved(index).min(last));
+                        }
+                    }
+                    edits.push((start..at, element));
+                }
+                b"definedName" if !empty => {
+                    naming = Some((start..at, number(attrs, b"localSheetId"), String::new()));
+                }
+                _ => {}
+            },
+            Token::Text(raw) => {
+                if let Some((_, _, text)) = naming.as_mut() {
+                    xml::decode(raw, text)?;
+                }
+            }
+            Token::Close(name) if xml::local(name) == b"definedName" => {
+                let Some((open, local, text)) = naming.take() else {
+                    continue;
+                };
+                if local.is_some_and(|index| gone.contains(&index))
+                    || names.iter().any(|sheet| names_sheet(&text, sheet))
+                {
+                    edits.push((open.start..at, String::new()));
+                } else if let Some(index) = local
+                    && moved(index) != index
+                {
+                    let element = with_attr(&workbook[open.clone()], "localSheetId", moved(index));
+                    edits.push((open, element));
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = String::with_capacity(workbook.len());
+    splice(&mut out, workbook, 0..workbook.len(), &mut edits);
+    Ok(out)
+}
+
+/// `element`, an open tag, with the attribute `key` set to `value` where it has one.
+fn with_attr(element: &str, key: &str, value: u32) -> String {
+    let needle = format!("{key}=\"");
+    let found = element.match_indices(&needle).find(|(at, _)| {
+        element[..*at]
+            .chars()
+            .next_back()
+            .is_some_and(char::is_whitespace)
+    });
+    let Some((at, _)) = found else {
+        return element.to_owned();
+    };
+    let from = at + needle.len();
+    let to = from + element[from..].find('"').unwrap_or(0);
+    format!("{}{value}{}", &element[..from], &element[to..])
+}
+
+/// Whether the formula `text` names the sheet `sheet`, quoted or bare.
+fn names_sheet(text: &str, sheet: &str) -> bool {
+    if text.contains(&format!("'{}'!", sheet.replace('\'', "''"))) {
+        return true;
+    }
+    text.match_indices(&format!("{sheet}!")).any(|(at, _)| {
+        text[..at]
+            .chars()
+            .next_back()
+            .is_none_or(|before| !(before.is_alphanumeric() || "_.'\\".contains(before)))
+    })
+}
+
+/// A worksheet's XML without each `control` and `oleObject` whose relationship is in `ids`, and
+/// without each `controls`, `oleObjects` or markup-compatibility wrapper that is left empty.
+fn without_inert(xml: &str, ids: &[String]) -> Result<String, Error> {
+    const WRAPPERS: [&[u8]; 5] = [
+        b"controls",
+        b"oleObjects",
+        b"AlternateContent",
+        b"Choice",
+        b"Fallback",
+    ];
+    struct Open {
+        start: usize,
+        inert: bool,
+        wrapper: bool,
+        kept: bool,
+    }
+    let bytes = xml.as_bytes();
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    let mut stack: Vec<Open> = Vec::new();
+    let mut at = 0;
+    while let Some((token, length)) = xml::next(&bytes[at..])? {
+        let start = at;
+        at += length;
+        match token {
+            Token::Open { name, attrs, empty } => {
+                let local = xml::local(name);
+                let inert = matches!(local, b"control" | b"oleObject")
+                    && xml::attr_text(attrs, b"id")?.is_some_and(|id| ids.contains(&id));
+                if !empty {
+                    stack.push(Open {
+                        start,
+                        inert,
+                        wrapper: WRAPPERS.contains(&local),
+                        kept: false,
+                    });
+                } else if inert {
+                    edits.push((start..at, String::new()));
+                } else if let Some(parent) = stack.last_mut() {
+                    parent.kept = true;
+                }
+            }
+            Token::Close(_) => {
+                // The tail starts inside `sheetData` and ends inside `worksheet`.
+                let Some(open) = stack.pop() else {
+                    continue;
+                };
+                if open.inert || (open.wrapper && !open.kept) {
+                    while edits.last().is_some_and(|(range, _)| range.start >= open.start) {
+                        edits.pop();
+                    }
+                    edits.push((open.start..at, String::new()));
+                } else if let Some(parent) = stack.last_mut() {
+                    parent.kept = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = String::with_capacity(xml.len());
+    splice(&mut out, xml, 0..xml.len(), &mut edits);
+    Ok(out)
 }
 
 /// The text a value shows inside other text.
@@ -559,7 +774,11 @@ impl Template {
                     }
                     let xml = read(&directory, source, path)?
                         .ok_or_else(|| broken(&format!("the sheet `{sheet}` has no part")))?;
-                    sheets.push(Sheet::parse(sheet, path.clone(), xml, &strings)?);
+                    let mut parsed = Sheet::parse(sheet, path.clone(), xml, &strings)?;
+                    if let Some(rels) = read(&directory, source, &rels_of(path))? {
+                        parsed.inert = dropped_ids(&rels, path)?;
+                    }
+                    sheets.push(parsed);
                 }
                 Token::Open {
                     name,
@@ -1050,14 +1269,27 @@ impl Template {
         Ok(Some(match lower.as_str() {
             "[content_types].xml" => without(
                 &read()?,
-                &["vbaproject", "calcchain"],
+                &DROPPED_TYPES,
                 &[(
                     "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
                 )],
             )?,
-            "xl/_rels/workbook.xml.rels" => without(&read()?, &["vbaproject", "calcchain"], &[])?,
-            "xl/workbook.xml" => recalculating(&rewrite_part(&read()?, "", shifts)?),
+            "_rels/.rels" => without(&read()?, &DROPPED_ROOT, &[])?,
+            "xl/_rels/workbook.xml.rels" => without(&read()?, &DROPPED_BOOK, &[])?,
+            "xl/workbook.xml" => {
+                let rels = self::read(&self.directory, source, "xl/_rels/workbook.xml.rels")?
+                    .unwrap_or_default();
+                let gone = dropped_ids(&rels, "xl/workbook.xml")?;
+                recalculating(&rewrite_part(
+                    &without_sheets(&read()?, &gone)?,
+                    "",
+                    shifts,
+                )?)
+            }
+            _ if lower.starts_with("xl/worksheets/_rels/") => {
+                without(&read()?, &DROPPED_SHEET, &[])?
+            }
             _ if shifts.is_empty() || lower.ends_with(".rels") => return Ok(None),
             _ if lower.starts_with("xl/tables/") || lower.starts_with("xl/drawings/") => {
                 let home = owners
@@ -1220,6 +1452,11 @@ fn tail(out: &mut String, sheet: &Sheet, shifts: &[Shift]) -> Result<(), Error> 
     if sheet.self_closed {
         out.push_str("</sheetData>");
         rest = &rest[rest.find("/>").map_or(0, |at| at + 2)..];
+    }
+    let pruned;
+    if !sheet.inert.is_empty() {
+        pruned = without_inert(rest, &sheet.inert)?;
+        rest = &pruned;
     }
     out.push_str(&rewrite_part(rest, &sheet.name, shifts)?);
     Ok(())

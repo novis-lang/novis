@@ -344,10 +344,15 @@ are, one conformance case and one attack.
   `extensions/spreadsheet/src/read/xls.rs:330`, `extensions/spreadsheet/src/read/xls.rs:344`
   - [x] `xls::read` throws `encrypted()` for a `cfb::File::has("EncryptedPackage")` and at `FILEPASS`
   - [x] `an_encrypted_xlsx_and_an_xls_with_a_password_throw_that_encryption_is_not_supported` passes
-- [ ] SEC-15, TP-09: a template fill keeps XLM macro sheets, `xl/vbaData.xml`, `xl/activeX`,
+- [x] SEC-15, TP-09: a template fill keeps XLM macro sheets, `xl/vbaData.xml`, `xl/activeX`,
   `customUI` and `oleObject*.bin` against `rule:core-classes/spreadsheet-output-is-inert`. Drop them
   with their relationships and content types (decision 8). `extensions/spreadsheet/src/template/mod.rs:216`,
   `extensions/spreadsheet/src/template/mod.rs:1046`
+  - [x] `dropped` names the parts; the content types, root, workbook and sheet relationships lose them
+  - [x] `without_sheets` removes a macro sheet's `<sheet>` and its names, and moves `localSheetId`,
+    `activeTab` and `firstSheet`
+  - [x] `without_inert` removes a `control` or `oleObject` naming a dropped part, and its empty wrappers
+  - [x] `a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keeps_images` passes
 - [ ] A part declared or encoded as UTF-16 or UTF-32 is lexed as garbage with no error; throw naming
   the part (decision 9). `extensions/spreadsheet/src/read/xml.rs:1`
 - [ ] RC-03: a UTF-32LE byte order mark (`FF FE 00 00`) is read as UTF-16LE, and invalid UTF-8 in the

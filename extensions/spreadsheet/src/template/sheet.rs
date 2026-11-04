@@ -58,6 +58,9 @@ pub struct Sheet {
     pub rows: Vec<Row>,
     /// One past the highest shared formula group, the first number a new group may take.
     pub next_group: u32,
+    /// The ids of the sheet's relationships to parts the fill drops: its ActiveX controls and
+    /// its OLE objects. A `control` or `oleObject` that names one is not written.
+    pub inert: Vec<String>,
 }
 
 fn broken(path: &str) -> Error {
@@ -260,6 +263,7 @@ impl Sheet {
             self_closed,
             rows,
             next_group,
+            inert: Vec::new(),
         })
     }
 

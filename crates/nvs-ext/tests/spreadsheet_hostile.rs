@@ -1407,3 +1407,187 @@ fn an_encrypted_xlsx_and_an_xls_with_a_password_throw_that_encryption_is_not_sup
         );
     }
 }
+
+/// The bytes in the field `data` of the record `value`.
+fn data_of(value: Value) -> Vec<u8> {
+    let Value::Array(fields) = value else {
+        panic!("a record is a shape");
+    };
+    match fields
+        .into_iter()
+        .find(|(key, _)| *key == Key::String("data".to_owned()))
+    {
+        Some((_, Value::Bytes(data))) => data,
+        _ => panic!("the record has its bytes in `data`"),
+    }
+}
+
+/// The names of the entries in the zip archive `archive`, from its central directory.
+fn entry_names(archive: &[u8]) -> Vec<String> {
+    let u16_at = |at: usize| usize::from(u16::from_le_bytes([archive[at], archive[at + 1]]));
+    let end = archive.len() - 22;
+    let mut at = u32::from_le_bytes(archive[end + 16..end + 20].try_into().unwrap()) as usize;
+    let mut names = Vec::new();
+    for _ in 0..u16_at(end + 10) {
+        let length = u16_at(at + 28);
+        names.push(String::from_utf8_lossy(&archive[at + 46..at + 46 + length]).into_owned());
+        at += 46 + length + u16_at(at + 30) + u16_at(at + 32);
+    }
+    names
+}
+
+/// A template with an XLM macro sheet, VBA data, an ActiveX control, a ribbon and an OLE object
+/// is filled. None of them is in the result, and nothing names them: not the content types, the
+/// relationships, the workbook or the sheet. The embedded xlsx and the image are kept, and the
+/// defined names and the view move to the sheets that are left.
+#[test]
+fn a_filled_template_drops_macro_sheets_activex_ribbons_and_ole_objects_and_keeps_images() {
+    let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    let rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    let package = "http://schemas.openxmlformats.org/package/2006/relationships";
+    let mc = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+    let types = r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="png" ContentType="image/png"/><Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/><Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/><Override PartName="/xl/macrosheets/sheet1.xml" ContentType="application/vnd.ms-excel.macrosheet+xml"/><Override PartName="/xl/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/><Override PartName="/xl/activeX/activeX1.xml" ContentType="application/vnd.ms-office.activeX+xml"/><Override PartName="/xl/activeX/activeX1.bin" ContentType="application/vnd.ms-office.activeX"/><Override PartName="/xl/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/><Override PartName="/customUI/customUI14.xml" ContentType="application/xml"/></Types>"#;
+    let root = format!(
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/ui/extensibility" Target="customUI/customUI14.xml"/></Relationships>"#
+    );
+    let book = format!(
+        r#"<workbook xmlns="{main}" xmlns:r="{rel}"><bookViews><workbookView firstSheet="2" activeTab="2"/></bookViews><sheets><sheet name="Orders" sheetId="1" r:id="rId1"/><sheet name="Macro1" sheetId="2" r:id="rId5"/><sheet name="Summary" sheetId="3" r:id="rId6"/></sheets><definedNames><definedName name="_xlnm.Auto_Open">Macro1!$A$1</definedName><definedName name="start" localSheetId="1">Macro1!$B$1</definedName><definedName name="total" localSheetId="2">Summary!$A$1</definedName></definedNames></workbook>"#
+    );
+    let book_rels = format!(
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="{rel}/sharedStrings" Target="sharedStrings.xml"/><Relationship Id="rId5" Type="http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet" Target="macrosheets/sheet1.xml"/><Relationship Id="rId6" Type="{rel}/worksheet" Target="worksheets/sheet2.xml"/></Relationships>"#
+    );
+    let orders = format!(
+        r#"<worksheet xmlns="{main}" xmlns:r="{rel}" xmlns:mc="{mc}"><sheetData><row r="2"><c r="A2" t="inlineStr"><is><t>{{{{items.name}}}}</t></is></c></row></sheetData><drawing r:id="rId1"/><oleObjects><mc:AlternateContent><mc:Choice Requires="x14"><oleObject progId="Package" shapeId="1026" r:id="rId4"><objectPr r:id="rId6"/></oleObject></mc:Choice><mc:Fallback><oleObject progId="Package" shapeId="1026" r:id="rId4"/></mc:Fallback></mc:AlternateContent><oleObject progId="Excel.Sheet.12" shapeId="1027" r:id="rId5"/></oleObjects><mc:AlternateContent><mc:Choice Requires="x14"><controls><mc:AlternateContent><mc:Choice Requires="x14"><control shapeId="1025" r:id="rId3" name="Order"><controlPr/></control></mc:Choice><mc:Fallback><control shapeId="1025" r:id="rId3" name="Order"/></mc:Fallback></mc:AlternateContent></controls></mc:Choice></mc:AlternateContent></worksheet>"#
+    );
+    let orders_rels = format!(
+        r#"<Relationships xmlns="{package}"><Relationship Id="rId1" Type="{rel}/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rId3" Type="{rel}/control" Target="../activeX/activeX1.xml"/><Relationship Id="rId4" Type="{rel}/oleObject" Target="../embeddings/oleObject1.bin"/><Relationship Id="rId5" Type="{rel}/package" Target="../embeddings/Shop.xlsx"/><Relationship Id="rId6" Type="{rel}/image" Target="../media/image1.png"/></Relationships>"#
+    );
+    let summary = sheet(r#"<row r="1"><c r="A1"><v>1</v></c></row>"#);
+    let macro_sheet = format!(r#"<xm:macrosheet xmlns:xm="{main}"><sheetData/></xm:macrosheet>"#);
+    let strings = shared(&[]);
+    let template = zip(&[
+        ("[Content_Types].xml", types.as_bytes()),
+        ("_rels/.rels", root.as_bytes()),
+        ("customUI/customUI14.xml", b"<customUI/>"),
+        ("xl/workbook.xml", book.as_bytes()),
+        ("xl/_rels/workbook.xml.rels", book_rels.as_bytes()),
+        ("xl/sharedStrings.xml", &strings),
+        ("xl/worksheets/sheet1.xml", orders.as_bytes()),
+        ("xl/worksheets/_rels/sheet1.xml.rels", orders_rels.as_bytes()),
+        ("xl/worksheets/sheet2.xml", &summary),
+        ("xl/macrosheets/sheet1.xml", macro_sheet.as_bytes()),
+        ("xl/vbaData.xml", b"<wne:vbaSuppData/>"),
+        ("xl/activeX/activeX1.xml", b"<ax:ocx/>"),
+        ("xl/activeX/_rels/activeX1.xml.rels", b"<Relationships/>"),
+        ("xl/activeX/activeX1.bin", b"control"),
+        ("xl/embeddings/oleObject1.bin", b"ole object"),
+        ("xl/embeddings/Shop.xlsx", b"PK embedded"),
+        ("xl/media/image1.png", b"\x89PNG\r\n\x1a\n"),
+        ("xl/drawings/drawing1.xml", b"<xdr:wsDr/>"),
+    ]);
+
+    let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    let extension = spreadsheet(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), Some(CAP))));
+    let call = |method: &str, args: Vec<Value>| {
+        block_on(request.call_values(&extension, method, args))
+            .unwrap_or_else(|err| panic!("`{method}`: {err}"))
+            .unwrap_or(Value::Null)
+    };
+    let filled = call(
+        "templateOpen",
+        vec![Value::Bytes(template.clone()), bound(None, None)],
+    );
+    let mut archive = data_of(call(
+        "templateFill",
+        vec![
+            filled.clone(),
+            list(Vec::new()),
+            list(vec![Value::String("items".to_owned())]),
+        ],
+    ));
+    let Value::Bytes(batch) = call("templateItems", vec![filled.clone(), items(0, 2)]) else {
+        panic!("`templateItems` returns bytes");
+    };
+    archive.extend(batch);
+    archive.extend(data_of(call(
+        "templateFinish",
+        vec![filled, Value::Bytes(template)],
+    )));
+    drop(block_on(request.end()));
+
+    let names = entry_names(&archive);
+    for gone in [
+        "customUI/customUI14.xml",
+        "xl/macrosheets/sheet1.xml",
+        "xl/vbaData.xml",
+        "xl/activeX/activeX1.xml",
+        "xl/activeX/_rels/activeX1.xml.rels",
+        "xl/activeX/activeX1.bin",
+        "xl/embeddings/oleObject1.bin",
+    ] {
+        assert!(!names.iter().any(|name| name == gone), "{gone}: {names:?}");
+    }
+    for kept in [
+        "xl/embeddings/Shop.xlsx",
+        "xl/media/image1.png",
+        "xl/drawings/drawing1.xml",
+        "xl/worksheets/sheet2.xml",
+    ] {
+        assert!(names.iter().any(|name| name == kept), "{kept}: {names:?}");
+    }
+
+    let types = entry(&archive, "[Content_Types].xml");
+    for gone in [
+        "macrosheet",
+        "vbaData",
+        "activeX1",
+        "oleObject1",
+        "customUI",
+        "macroEnabled",
+    ] {
+        assert!(!types.contains(gone), "{gone}: {types}");
+    }
+    assert!(types.contains(r#"Extension="bin""#), "{types}");
+    let root = entry(&archive, "_rels/.rels");
+    assert!(
+        !root.contains("customUI") && root.contains("officeDocument"),
+        "{root}"
+    );
+    let book_rels = entry(&archive, "xl/_rels/workbook.xml.rels");
+    assert!(!book_rels.contains("macrosheets/"), "{book_rels}");
+    assert!(book_rels.contains("worksheets/sheet2.xml"), "{book_rels}");
+    let orders_rels = entry(&archive, "xl/worksheets/_rels/sheet1.xml.rels");
+    assert!(
+        !orders_rels.contains("activeX") && !orders_rels.contains("oleObject1"),
+        "{orders_rels}"
+    );
+    assert!(
+        orders_rels.contains("Shop.xlsx") && orders_rels.contains("image1.png"),
+        "{orders_rels}"
+    );
+
+    let book = entry(&archive, "xl/workbook.xml");
+    assert!(!book.contains("Macro1"), "{book}");
+    assert!(book.contains(r#"<sheet name="Summary""#), "{book}");
+    assert!(
+        book.contains(r#"firstSheet="1""#) && book.contains(r#"activeTab="1""#),
+        "{book}"
+    );
+    assert!(
+        book.contains(r#"<definedName name="total" localSheetId="1">"#),
+        "{book}"
+    );
+
+    let orders = entry(&archive, "xl/worksheets/sheet1.xml");
+    assert!(
+        !orders.contains("<control") && !orders.contains(r#"r:id="rId4""#),
+        "{orders}"
+    );
+    assert!(
+        orders.contains(r#"<oleObject progId="Excel.Sheet.12""#),
+        "{orders}"
+    );
+    assert!(orders.contains(r#"<drawing r:id="rId1"/>"#), "{orders}");
+    assert_eq!(orders.matches("Shop item number").count(), 2, "{orders}");
+}
