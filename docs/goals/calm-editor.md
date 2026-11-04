@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/redactions.rs, crates/nvs-lsp/tests/redactions.rs, editors/vscode/src/redactions.ts, editors/vscode/src/concealment.ts, editors/vscode/src/extension.ts, docs/rules/ide/redaction-ranges-come-from-the-server.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: themes-calm
@@ -298,37 +298,29 @@ show how to change a Novis colour.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done, and every stage's check ran green once. Stage 1: both themes draw
-brackets and hints as decided, and `RETIRED` keeps the old `#FFC66D` method colour. `theme.ts` passes
-the unchanged settings to `withRules`, so `withRules` drops a retired value itself (see § *Standing
-decisions*). Stage 2: `nvs.inlayHints.parameterNames` is contributed with no `scope`, like
-`nvs.codeLens.enable`. The server drops `PARAMETER` hints in `inlay_hints` and sends
-`workspace/inlayHint/refresh` from `configure`. The two `hints-setting` tests are in
-`crates/nvs-lsp/tests/handshake.rs`, with a `serve_queued` helper of their own. Stage 3:
-`redactions::for_document` takes a `doc_comments` flag, which the server passes from
-`Client::doc_comments` (read from `experimental.redactionKinds`) and the `.lspt` runner passes as
-`false`. A range ends at the line's last non-space character, so a CRLF `\r` is not in it. The client
-declares `DECLARED_KINDS` from `concealment.ts`, and `redactions.ts` draws the third decoration on
-every draw, with no setting. Both editor pages have *Change a Novis colour*, and both pages' search
-questions are restamped. No test is expected to go red. The sweep's three reds were stale again:
+Every stage is done. Stages 1 to 3 built the themes, `nvs.inlayHints.parameterNames` and the
+`docComment` background as § *Standing decisions* says, and each stage's check ran green once. Stage 4: `looper verify` was green on its first run and again after the fix
+pass. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes calm-editor` (no
+gap) and `bun nv ci --check`. `bun nv ci --check` was red twice. The editor page's feature stamp was
+stale, and `website/public/llms-full.txt` was not rendered. `bun nv site --stamp
+tools/editor/index.mdx` and `bun nv render --website` fixed both. The declined choices that only the
+goal file held are now in `rule:ide/novis-ships-names-not-colours`,
+`rule:ide/redaction-ranges-come-from-the-server` and `rule:ide/the-request-set-is-closed`, so the
+file can be deleted. No test is expected to go red. The sweep's three reds were stale again:
 `env-secret-proofs` is defined nowhere and has no log, and nightly 41813182715 ran on `f3150b922`,
 before `a8bdf37fb` (macOS live edit) and `a2f451fad` (Miri).
 
 ### Next
 
-Stage 4, the gate: `looper verify` with `run_in_background`, then fix every failure in one pass and
-run it once more. Then the goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`,
-`bun nv owners --closes calm-editor`, `bun nv ci --check`. The changed surfaces are `nvs-lsp`
-(`crates/nvs-lsp/src/redactions.rs:121`, `crates/nvs-lsp/src/settings.rs:155`), the extension
-(`editors/vscode/src/redactions.ts:200`, `editors/vscode/src/concealment.ts:66`) and the website page
-(`website/src/content/docs/tools/editor/index.mdx:184`), so `bun nv ci --check`'s website render runs.
+Nothing. The goal is reached. The driver runs the acceptance checks and retires it, and
+`pdf-edge-cases` is next on the chain.
 
 ### Backlog
