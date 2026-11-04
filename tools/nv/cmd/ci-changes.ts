@@ -76,29 +76,53 @@ export const EMBEDDED_TEXT = [
   "LICENSE", "README.md", "CHANGELOG.md", "THIRD-PARTY-LICENSES.txt",
 ];
 
+// `ci.yml` is in every lane: a run that edits it is the one run where the lanes themselves are what
+// needs proving. The other workflows are in none. No job of `ci.yml` runs them, and each one proves
+// itself when it runs: `dev-build.yml` with `build.yml` and `image.yml` at every push that changes
+// them, `pages.yml` at its own push, and `release.yml` and `release-promote.yml` in `bun nv ci
+// --dispatch dry-run`. A full suite on four platforms for an edit to one of them proves nothing
+// about it.
+export const CI_WORKFLOW = ".github/workflows/ci.yml";
+
+// The `bun nv` commands the jobs `code` gates run: `test` runs `checkout-acl`, and through
+// `nvs-ir`'s refusal roster `holes`; `lint` runs `lints`. `ci-changes.test.ts` walks each one's
+// imports from `main.ts` and fails when a module it loads is missing from `CODE_TOOLS`.
+export const CODE_COMMANDS = ["checkout-acl", "holes", "lints"];
+
+// The files under `tools/` that the jobs `code` gates read: what cargo compiles or embeds from
+// `tools/build/` and `tools/data/`, `gaps.ts`, which `nvs-stdlib`'s conformance coverage test reads
+// as text, and the modules `CODE_COMMANDS` load. The rest of `tools/` runs in no job this lane
+// gates, so a change there alone runs no platform matrix. `package.json` and `bun.lock` are here
+// because both jobs install the tools' dependencies and run them.
+export const CODE_TOOLS = [
+  "tools/build/", "tools/data/", "tools/nv/cmd/gaps.ts",
+  "tools/nv/main.ts", "tools/nv/cmd/checkout-acl.ts", "tools/nv/cmd/holes.ts", "tools/nv/cmd/lints.ts",
+  "tools/nv/lib/chain.ts", "tools/nv/lib/hang.ts", "tools/nv/lib/paths.ts", "tools/nv/lib/proc.ts",
+  "tools/nv/lib/proctree.ts", "tools/nv/lib/progress.ts", "tools/nv/lib/py.ts", "tools/nv/lib/reads.ts",
+  "tools/nv/lib/tty.ts",
+  "package.json", "bun.lock",
+];
+
 // One entry per gate a job in ci.yml spells as `needs.changes.outputs.<name> == 'true'`. A prefix
 // ending in `/` matches everything beneath it; anything else matches that one path exactly.
-//
-// `.github/workflows/` is in every lane on purpose: a run that edits the workflows is the one run
-// where the lanes themselves are what needs proving.
 export const LANES: Record<string, string[]> = {
   // Any input to a cargo build. Gates the Linux build/test/conformance leg and `lint`.
   code: [
-    "crates/", "benches/", "tests/", "examples/", "fuzz/", "tools/",
+    "crates/", "benches/", "tests/", "examples/", "fuzz/",
     "Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml", "deny.toml",
-    ...COMPILED_INPUTS, ".github/workflows/",
+    ...COMPILED_INPUTS, ...CODE_TOOLS, CI_WORKFLOW,
   ],
-  // The crates that emit or execute machine code, plus the probes that measure them. These are where
-  // a use-after-free lives, and they are the only inputs a cost baseline has, so this gates ASAN and
-  // the `cost-guards` job. It never narrows the platform matrix: every platform runs whenever
+  // The crates that emit or execute machine code, plus the probes that measure them and the script
+  // the sanitizer jobs run. These are where a use-after-free lives, and they are the only inputs a
+  // cost baseline has, so this gates ASAN, TSAN and the `cost-guards` job. It never narrows the platform matrix: every platform runs whenever
   // any code changes, because which host a contributor pushes from is unknowable.
   native: [
     "crates/nvs-runtime/", "crates/nvs-codegen/", "crates/nvs-stdlib/", "crates/nvs-host/",
-    "benches/abi-probe/", "Cargo.lock", "rust-toolchain.toml",
-    ".github/workflows/",
+    "benches/abi-probe/", "Cargo.lock", "rust-toolchain.toml", "tools/tsan.sh",
+    CI_WORKFLOW,
   ],
   // Where `wasmtime` enters the tree, and so the only thing `extension-sandbox` can observe.
-  probe: ["benches/abi-probe/", ".github/workflows/"],
+  probe: ["benches/abi-probe/", CI_WORKFLOW],
   // What the `nvs ext new` templates and the extension guide's example are built from and loaded
   // by: the extension host, the `nvs ext` command and the templates it writes, the world's WIT, the
   // example's project, the tool that drives them and the toolchain that lists `wasm32-wasip2`; and
@@ -106,19 +130,19 @@ export const LANES: Record<string, string[]> = {
   ext: [
     "crates/nvs-ext/", "crates/nvs-cli/src/ext.rs", "crates/nvs-cli/src/ext/", "crates/nvs-cli/templates/ext/",
     "wit/nvs-ext/", "website/guides/markdown-extension/", "tools/nv/cmd/ext-templates.ts", "rust-toolchain.toml",
-    ".github/workflows/", "extensions/image/libwebp/", "tools/nv/cmd/webp-lib.ts",
+    CI_WORKFLOW, "extensions/image/libwebp/", "tools/nv/cmd/webp-lib.ts",
   ],
   // The VS Code client, and every crate with it: the protocol suite spawns the real `nvs lsp` and the
   // host suite points a throwaway profile at the binary the same run built
   // (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in the
   // workspace can change what either of them answers. Gates `extension` and `extension-host`.
-  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ...COMPILED_INPUTS, ".github/workflows/"],
+  editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ...COMPILED_INPUTS, CI_WORKFLOW],
   // What `cargo deny` and the attribution diff read, the other lockfiles' manifests among them. Their
   // answer cannot differ in a run that changed none of these
   // (`rule:packaging/a-dependency-move-proves-two-things`).
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
-    "tools/nv/cmd/gen-attribution.ts", "viewer/package.json", "bun.lock", ".github/workflows/",
+    "tools/nv/cmd/gen-attribution.ts", "viewer/package.json", "bun.lock", CI_WORKFLOW,
     "editors/vscode/package.json", "editors/vscode/package-lock.json", "editors/vscode/THIRD-PARTY-NOTICES.txt",
     "editors/vscode/.vscodeignore", "editors/vscode/scripts/viewer.mjs", "editors/vscode/src/",
     "tools/nv/test/attribution-vscode.test.ts", "wit/nvs-ext/deps/README.md",
@@ -128,7 +152,7 @@ export const LANES: Record<string, string[]> = {
   // chapters, so either side moving can make a committed file stale. Gates `reference`.
   refdoc: [
     "crates/", "docs/reference/", "tools/nv/cmd/reference.ts",
-    "website/", "tools/nv/renderers/", ".github/workflows/",
+    "website/", "tools/nv/renderers/", CI_WORKFLOW,
   ],
   // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
   // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names,
@@ -137,7 +161,7 @@ export const LANES: Record<string, string[]> = {
   proofs: [
     "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
     "docs/examples/", "docs/reference/", "data/perf/", "data/proofs/", "data/gaps/",
-    "website/", ...COMPILED_INPUTS, ".github/workflows/",
+    "website/", ...COMPILED_INPUTS, CI_WORKFLOW,
   ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package
@@ -147,7 +171,7 @@ export const LANES: Record<string, string[]> = {
   // compiled against is one `nvs-db` is compiled against too.
   db: [
     "tests/db/", "tools/nv/cmd/db-matrix.ts", "crates/nvs-ldap/", "Cargo.toml", "Cargo.lock",
-    ".github/workflows/",
+    CI_WORKFLOW,
   ],
   // The slotted response's polyfill and trigger, a website replay's modules and component, the debug
   // viewer and the command that builds and checks it, the Chromium tests that run them and their
@@ -160,12 +184,12 @@ export const LANES: Record<string, string[]> = {
     "website/config/replay-frames.mjs", "website/config/replay-narrow.mjs", "website/config/replay-player.mjs",
     "website/src/components/Replay.astro", "viewer/", "tools/nv/cmd/viewer.ts",
     "tools/nv/test/replay-browser.test.ts", "tools/nv/test/chromium.ts",
-    "package.json", "bun.lock", "bunfig.toml", ".github/workflows/",
+    "package.json", "bun.lock", "bunfig.toml", CI_WORKFLOW,
   ],
   // The release images' Dockerfile and the smoke test that runs them. A change in the binary
   // itself reaches the images through the nightly's full run, and through the release, which
   // smoke-tests every variant before it pushes one. Gates `docker`.
-  docker: ["docker/", "tests/docker/", ".github/workflows/"],
+  docker: ["docker/", "tests/docker/", CI_WORKFLOW],
 };
 
 // The paths no part of the dev build reads: not the release binaries, the VS Code extension or the

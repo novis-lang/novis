@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
-import { type CiRun, EMBEDDED_TEXT, greenBase, LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
+import { CI_WORKFLOW, type CiRun, CODE_COMMANDS, CODE_TOOLS, EMBEDDED_TEXT, greenBase, LANES, lanesFor, manifestGraph, releaseNeeded, UNBUILT } from "../cmd/ci-changes.ts";
 import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -71,6 +71,62 @@ test("every file a crate embeds is in the code lane or on the embedded text list
   const files = embedded();
   expect(files.filter((path) => !inCode(path) && !EMBEDDED_TEXT.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p)))).toEqual([]);
   expect(EMBEDDED_TEXT.filter((path) => inCode(path))).toEqual([]);
+});
+
+/** The jobs of `ci.yml` that gate on `lane`, each with the text of its block. */
+function jobsGatedOn(lane: string): Map<string, string> {
+  const jobs = new Map<string, string>();
+  const text = readFileSync(posix.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+  for (const block of text.split(/\n(?=  [a-z0-9-]+:\n)/)) {
+    const id = /^ {2}([a-z0-9-]+):\n/.exec(block)?.[1];
+    if (id && new RegExp(`needs\\.changes\\.outputs\\.${lane} == 'true'`).test(block)) jobs.set(id, block);
+  }
+  return jobs;
+}
+
+/** The repository files `entry` loads through its static imports, `entry` included. A type-only import
+ * loads nothing, and `main.ts` loads each command through a dynamic import, so neither is followed. */
+function importClosure(entry: string, seen = new Set<string>()): Set<string> {
+  if (seen.has(entry)) return seen;
+  seen.add(entry);
+  const source = readFileSync(posix.join(ROOT, entry), "utf8");
+  const imports = /^\s*(?:import|export)\s+(?!type\b)(?:[^;"]*?\sfrom\s+)?"(\.[^"]+)"/gm;
+  for (const m of source.matchAll(imports)) importClosure(posix.normalize(posix.join(posix.dirname(entry), m[1]!)), seen);
+  return seen;
+}
+
+// A `bun nv` command a code-gated job runs, or a Rust test spawns, is listed, and every module it
+// loads is in the `code` lane. Otherwise a push could change what that job runs and skip the job.
+test("the code lane covers every bun nv command its jobs run and every module those load", () => {
+  const jobs = jobsGatedOn("code");
+  expect([...jobs.keys()].sort()).toEqual(["lint", "test"]);
+  const run = [...jobs.values()].flatMap((block) => [...block.matchAll(/\bbun nv ([a-z][a-z-]*)/g)].map((m) => m[1]!));
+  const spawned = named("crates/**/*.rs", /"nv",\s*"([a-z][a-z-]*)"/g).map((path) => posix.basename(path));
+  expect(run.length).toBeGreaterThan(0);
+  expect(spawned).toContain("holes");
+  expect([...new Set([...run, ...spawned])].filter((cmd) => !CODE_COMMANDS.includes(cmd))).toEqual([]);
+  // No job this lane gates runs a `bun test` file, which could read any part of the tree.
+  expect([...jobs.values()].filter((block) => /\bbun test\b/.test(block))).toEqual([]);
+  const loaded = new Set<string>();
+  for (const cmd of ["tools/nv/main.ts", ...CODE_COMMANDS.map((cmd) => `tools/nv/cmd/${cmd}.ts`)]) importClosure(cmd, loaded);
+  expect([...loaded].filter((path) => !inCode(path))).toEqual([]);
+  // A `tools/nv/` change outside that set runs no platform matrix.
+  expect(inCode("tools/nv/cmd/release.ts")).toBe(false);
+  expect(inCode("tools/nv/test/ci.test.ts")).toBe(false);
+});
+
+test("every path the code lane names under tools/ is on disk", () => {
+  expect(CODE_TOOLS.filter((path) => !existsSync(posix.join(ROOT, path)))).toEqual([]);
+});
+
+// `ci.yml` is the one workflow file whose jobs the lanes gate, so it is the one a lane names.
+test("every lane names ci.yml, and no lane names another workflow", () => {
+  for (const [lane, paths] of Object.entries(LANES)) {
+    expect([lane, paths.includes(CI_WORKFLOW)]).toEqual([lane, true]);
+    expect(paths.filter((path) => path.startsWith(".github/") && path !== CI_WORKFLOW)).toEqual([]);
+  }
+  expect(lanesFor(LANES, [".github/workflows/release-promote.yml"]).filter(([, on]) => on)).toEqual([]);
+  expect(lanesFor(LANES, [CI_WORKFLOW]).every(([, on]) => on)).toBe(true);
 });
 
 // A file the binary embeds under a path `UNBUILT` names would leave the dev build stale after a push

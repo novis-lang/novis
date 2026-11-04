@@ -10,6 +10,17 @@ spread over the workflow, and not a third-party action on the critical path of e
 `bun nv ci-changes --base HEAD~1` answers "what would CI have run for this commit" without
 pushing anything.
 
+A lane names the inputs its jobs read, and no wider prefix. `ci.yml` is in every lane, because an
+edit to it is the run where the lanes themselves need proving. No other workflow file is in a lane:
+no job of `ci.yml` runs one, and each proves itself when it runs (the dev build at every push that
+changes it, `release.yml` in `bun nv ci --dispatch dry-run`). The `code` lane names only the files
+under `tools/` that its jobs read: what cargo compiles or embeds, and the modules of the `bun nv`
+commands `test` and `lint` run. `ci-changes.test.ts` walks those commands' imports and fails when a
+module they load is missing. A check that reads all of `tools/nv/`, such as the echo-loop grep, runs
+in the always-on `docs` job instead. What that spends: a workflow edit outside `ci.yml` gets no push
+check of its own until the workflow runs, and a new `bun nv` command in a code-gated job is one entry
+in `CODE_COMMANDS`.
+
 **The platform matrix is not one of the gates.** Whenever any build input changed, all three
 platform legs run. This is a public repository and nothing here may assume which host a contributor
 develops or pushes from, so no platform's coverage is ever traded away by a path rule — the
