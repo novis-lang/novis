@@ -2687,6 +2687,11 @@ mod tests {
     /// The case above with the slice clock running. A slice asks the running
     /// request to yield, and the switch that follows still charges each
     /// request only for the time this thread ran it.
+    ///
+    /// A slice is a span of wall time, so on a loaded machine it can end
+    /// before the thread has run 20 ms. Each charge is therefore compared
+    /// with this thread's own CPU clock, read inside the same span
+    /// (`rule:testing/a-test-holds-at-any-speed`, two readings of one clock).
     #[test]
     fn a_thread_charges_each_request_for_its_own_time_with_slices_on() {
         use nvs_runtime::SafepointFlags;
@@ -2710,11 +2715,19 @@ mod tests {
                 .expect("a published request was not readable")
         };
         let asked = |request: &Ctx| request.safepoint_flags().contains(SafepointFlags::YIELD);
+        let own = ThreadClock::current().expect("this thread has a clock");
+        // Burns at least once, then until the slice asks `request` to yield,
+        // and returns the CPU time this thread's own clock saw meanwhile.
         let spin_until_asked = |request: &Ctx| {
+            let from = own.burned().expect("this thread's own clock did not read");
             let bound = std::time::Instant::now() + Duration::from_secs(10);
-            while !asked(request) && std::time::Instant::now() < bound {
+            loop {
                 burn_a_charge();
+                if asked(request) || std::time::Instant::now() >= bound {
+                    break;
+                }
             }
+            own.burned().expect("this thread's own clock did not read") - from
         };
         registered.publish(first.safepoint_view());
         registered.publish(second.safepoint_view());
@@ -2724,14 +2737,14 @@ mod tests {
         switch_to(first.tree_key());
         let first_before = charged(&first);
         let second_left = charged(&second);
-        spin_until_asked(&first);
+        let first_ran = spin_until_asked(&first);
         assert!(
             asked(&first),
             "a request that ran for a slice was not asked to yield"
         );
         assert!(!asked(&second), "a parked request was asked to yield");
         assert!(
-            charged(&first) >= first_before + Duration::from_millis(20),
+            charged(&first) >= first_before + first_ran,
             "the request asked to yield was not charged for its slice"
         );
         assert_eq!(
@@ -2742,13 +2755,13 @@ mod tests {
 
         switch_to(second.tree_key());
         let first_left = charged(&first);
-        spin_until_asked(&second);
+        let second_ran = spin_until_asked(&second);
         assert!(
             asked(&second),
             "the request switched to was not asked to yield"
         );
         assert!(
-            charged(&second) >= second_left + Duration::from_millis(20),
+            charged(&second) >= second_left + second_ran,
             "the request switched to was not charged for its slice"
         );
         assert_eq!(
