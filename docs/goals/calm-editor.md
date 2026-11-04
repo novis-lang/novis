@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: a .nvs file in VS Code reads as calmly as the same code in PhpStorm
-summary: "the Novis themes draw brackets in the text colour, methods in PhpStorm's blue, variables in its muted purple and parameter hints without a box, and a setting turns the parameter-name hints off"
+summary: "the Novis themes draw brackets in the text colour, methods in PhpStorm's blue, variables in its muted purple, parameter hints without a box and each /// doc comment on a faint background, and a setting turns the parameter-name hints off"
 context: [editors/vscode/themes/novis-dark-color-theme.json, editors/vscode/themes/novis-light-color-theme.json, editors/vscode/src/colours.ts, editors/vscode/test/contributions/contributions.test.ts]
 stages:
   - id: 1
@@ -13,6 +13,10 @@ stages:
     status: open
     context: [crates/nvs-lsp/src/settings.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/tests/handshake.rs, editors/vscode/package.json, editors/vscode/test/client/settings.test.ts, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, docs/rules/ide/the-request-set-is-closed.md, website/src/content/docs/tools/editor/index.mdx]
   - id: 3
+    title: "a /// doc comment has a faint background from the /// to the end of its text, in the Novis themes"
+    status: open
+    context: [crates/nvs-lsp/src/redactions.rs, crates/nvs-lsp/tests/redactions.rs, editors/vscode/src/redactions.ts, editors/vscode/src/concealment.ts, editors/vscode/src/extension.ts, docs/rules/ide/redaction-ranges-come-from-the-server.md]
+  - id: 4
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -33,6 +37,23 @@ checks:
     tests:
       - parameter_name_hints_turned_off_leave_only_the_type_hints
       - parameter_name_hints_turned_off_ask_the_client_to_fetch_hints_again
+  - id: doc-comment-ranges
+    stage: 3
+    name: the server answers a docComment range per /// line, only to a client that declared the kind, and none for /// inside a string or inline HTML
+    run: [cargo, test, --test, redactions, --, doc_comment]
+    timeout: 1800
+    tests:
+      - a_doc_comment_line_is_answered_from_its_slashes_to_the_end_of_its_text
+      - a_doc_comment_is_answered_only_to_a_client_that_declared_the_kind
+      - slashes_inside_a_string_or_inline_html_are_no_doc_comment
+  - id: doc-comment-drawn
+    stage: 3
+    name: the client declares docComment, never conceals it, and both Novis themes set its colour
+    run: [npm, --prefix, editors/vscode, run, test:headless]
+    timeout: 900
+    tests:
+      - a docComment range is drawn as a background and never concealed
+      - contributes nvs.docComment.background as transparent, and both Novis themes set it
 ---
 
 # a .nvs file in VS Code reads as calmly as the same code in PhpStorm
@@ -60,6 +81,10 @@ use the same font at the same size (about 7.6 px per character). The line pitch 
    grey box. The server already shows hints only before a literal, which is the same set PhpStorm
    shows. The extension has no setting to turn them off. Only VS Code's own `editor.inlayHints.enabled`
    does, and only for all hints at once.
+
+5. **Doc comments blend into the code.** A PHP docblock sits apart from the code by its empty `/**`
+   and `*/` lines. A `///` run sits right against the declaration. The user asked for a faint
+   background behind it, so the eye can skip it.
 
 Not this goal's: the VS Code machine draws `==`, `!=` and `->` as ligatures (`editor.fontLigatures`),
 and PhpStorm does not. That is the user's own editor setting. The example file also writes
@@ -121,8 +146,52 @@ It is read by the server, like `nvs.codeLens.enable`:
   spelled the way VS Code's own settings group hints: `inlayHints.*`. A later type-hint switch would be
   `nvs.inlayHints.types`. That one is not added now: nobody asked for it.
 
+**The doc comment background (stage 3).** The user's design: a faint background behind each `///`
+line, starting at the `///` and ending at the end of that line's text. No rounded corners, no
+padding, no straight right edge, no smaller font.
+
+- **The ranges come from the server, on `nvs/redactions`.** The lexer already marks each `///` line
+  (`TriviaKind::DocComment`), so the client runs no line scan of its own. A scan would also be wrong
+  for a `///` inside a multi-line string or inline HTML. `nvs/redactions` is the request whose ranges
+  the client already holds per document and draws (`editors/vscode/src/redactions.ts`), and its `kind`
+  is an open string. A new kind `docComment` adds no request to
+  `rule:ide/the-request-set-is-closed`. One range per `///` line, from the first `/` to the last
+  character of the line before the line break.
+- **Only a client that declared the kind gets it.** An older client conceals every kind it does not
+  know (`crates/nvs-lsp/src/redactions.rs:21`), so an old extension with a newer `nvs` would blur
+  every doc comment. The client declares `capabilities.experimental.redactionKinds: ["docComment"]`
+  beside `commands` (`editors/vscode/src/extension.ts:100`). `Client` reads it the way it reads
+  `commands` (`crates/nvs-lsp/src/settings.rs:171`). A later kind that is not a concealment uses the
+  same list. The `.lspt` runner declares nothing, so no existing `tests/lsp/redactions/` case changes.
+- **The client never conceals `docComment`.** `concealment.ts` gets a third group beside `MARKERS`
+  (`editors/vscode/src/concealment.ts:64`): kinds drawn as a background. The rule "an unknown kind is
+  concealed" stays for every other kind.
+- **The colour is a contributed colour id, `nvs.docComment.background`**, in `contributes.colors`,
+  with `#00000000` as the default for dark, light and both high-contrast themes. So under any other
+  theme nothing is drawn, as `rule:ide/novis-ships-names-not-colours` requires. Novis Dark sets it to
+  `#5F826B1A` (its doc comment green at 10% opacity), Novis Light to `#5F7F6414` (its own doc
+  comment green at 8%). A user changes or removes it in `workbench.colorCustomizations`.
+- **No `nvs.*` setting for it.** The transparent colour is the off switch, and VS Code's own colour
+  setting is where a user changes it. A boolean beside it would be two switches for one thing.
+- **Cost.** One range per doc comment line in each `nvs/redactions` answer, which the client already
+  holds per open document. Nothing on the request path.
+
+**Colours are documented, not wrapped in settings.** The extension adds no `nvs.*` setting that
+copies a colour: VS Code's `editor.tokenColorCustomizations`, `editor.semanticTokenColorCustomizations`
+and `workbench.colorCustomizations` already set any colour, also for one theme only (`"[Novis Dark]"`).
+The editor pages get one short section that shows how, with `nvs.docComment.background` as the
+example. An `nvs.*` setting only turns on or off something Novis itself draws.
+
 **Declined:**
 
+- **Doc comment ranges on `nvs/regions`.** That request means "these bytes are not Novis", and the
+  server and client stop Novis completion and hover inside such a region. It is also asked per
+  request and never drawn.
+- **A client line scan for `///`.** A second lexer in the client, wrong inside strings and inline HTML.
+- **A smaller font, vertical padding and rounded corners for doc comments.** The stable VS Code API
+  (1.136) has no font size and no line height for a decoration. The CSS-in-`textDecoration` trick
+  moves the cursor and the selection away from the text, and a VS Code update can break it. The user
+  asked for the background and the left edge only.
 - **Turning VS Code's bracket colouring off in `configurationDefaults`.** That changes a user's editor
   under every theme, which `rule:ide/novis-ships-names-not-colours` forbids. Under another theme the
   user keeps VS Code's default.
@@ -133,11 +202,12 @@ It is read by the server, like `nvs.codeLens.enable`:
 - **Changing `///` to `/** */` doc comments.** Doc comments already use PhpStorm's colour. The PHP file
   looks lighter because its docblocks have mostly empty lines, not because of the marker.
 
-**What this goal spends.** Nothing on the request path, and no memory. One boolean per server.
-Activation compares each written rule with one more palette entry.
+**What this goal spends.** Nothing on the request path. One boolean and one declared kind list per
+server. One range per doc comment line in each redaction answer the client holds. Activation compares
+each written rule with one more palette entry.
 
-**Lanes.** Both stages edit `editors/vscode/test/contributions/contributions.test.ts`, so they run in
-order. The goal is small enough that stage 2 may follow stage 1 in the same session.
+**Lanes.** All three stages edit `editors/vscode/test/contributions/contributions.test.ts` or a theme
+file, so they run in order. The goal is small enough that a session may take more than one stage.
 
 ## Stages
 
@@ -189,7 +259,40 @@ them on a change, and documents it.
   With `false`, only the type hints stay."
 - [ ] Run the `hints-setting` check's command once: green.
 
-### 3. the goal is verified once, and every failure is fixed
+### 3. a /// doc comment has a faint background from the /// to the end of its text, in the Novis themes
+
+**Does:** the server answers a `docComment` range per `///` line to a client that declared it, the
+client draws it with the contributed colour, both Novis themes set that colour, and the editor pages
+show how to change a Novis colour.
+
+- [ ] Add the `docComment` kind to `for_document`, read from the analysed document's trivia, and the
+  constant beside `SECRET_LITERAL`. The module doc's *two kinds* decision becomes three, and says
+  why this one is gated. `crates/nvs-lsp/src/redactions.rs:86`
+- [ ] Read `experimental.redactionKinds` into `Client`, and answer `docComment` only when it is listed.
+  `crates/nvs-lsp/src/settings.rs:168`
+- [ ] Write the three tests the `doc-comment-ranges` check names. `crates/nvs-lsp/tests/redactions.rs:1`
+- [ ] Declare `redactionKinds: ["docComment"]` beside `commands`. `editors/vscode/src/extension.ts:100`
+- [ ] Add the background group to the partition, and draw it in `redactions.ts` with one decoration
+  type whose `backgroundColor` is `new ThemeColor("nvs.docComment.background")`.
+  `editors/vscode/src/concealment.ts:64`, `editors/vscode/src/redactions.ts:1`
+- [ ] Contribute `nvs.docComment.background` in `contributes.colors`, and set it in both themes as §
+  *Standing decisions* says. `editors/vscode/package.json:1`
+- [ ] Write the two headless tests the `doc-comment-drawn` check names. The partition test goes in
+  `editors/vscode/test/client/concealment.test.ts:1`, the colour test beside stage 1's theme test.
+- [ ] Rules: `rule:ide/redaction-ranges-come-from-the-server` names the third kind and the declared
+  list (`docs/rules/ide/redaction-ranges-come-from-the-server.md:1`), and
+  `rule:ide/novis-ships-names-not-colours` names the contributed colour id and its transparent default
+  (`docs/rules/ide/novis-ships-names-not-colours.md:21`). Then `bun nv rules --render` and
+  `bun nv rules --check`.
+- [ ] Docs: a short section *Change a Novis colour* on both editor pages, after the theme paragraph
+  (`docs/reference/tools/40-editor.md:452`) and near the settings table
+  (`website/src/content/docs/tools/editor/index.mdx:180`). It says that VS Code's
+  `workbench.colorCustomizations` changes any colour, shows `nvs.docComment.background` under
+  `"[Novis Dark]"`, and says `#00000000` turns the background off. The website text follows AGENTS.md
+  § *Text an end user reads*.
+- [ ] Run each stage-3 check's command once: green.
+
+### 4. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
