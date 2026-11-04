@@ -403,7 +403,9 @@ fn a_class_file_check_walks_each_program_once() {
     let library = ["Alpha", "Beta", "Gamma", "Delta"];
     for (at, name) in library.iter().enumerate() {
         let next = library.get(at + 1).map_or_else(String::new, |next| {
-            format!("\n    public function next(): {next} {{\n        return new {next}();\n    }}\n")
+            format!(
+                "\n    public function next(): {next} {{\n        return new {next}();\n    }}\n"
+            )
         });
         project.write(
             &format!("lib/Framework/{name}.nvs"),

@@ -3396,15 +3396,14 @@ fn unrequired(
                     .file_name()
                     .zip(file.file_name())
                     .is_some_and(|(target, file)| target.eq_ignore_ascii_case(file))
-            })
-                || !required
-                    .get_or_insert_with(|| {
-                        targets
-                            .iter()
-                            .map(|target| nvs_diagnostics::canonical_key(target))
-                            .collect()
-                    })
-                    .contains(&nvs_diagnostics::canonical_key(file))
+            }) || !required
+                .get_or_insert_with(|| {
+                    targets
+                        .iter()
+                        .map(|target| nvs_diagnostics::canonical_key(target))
+                        .collect()
+                })
+                .contains(&nvs_diagnostics::canonical_key(file))
         })
         .cloned()
         .collect()

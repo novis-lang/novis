@@ -37,8 +37,8 @@ use lsp_types::notification::{LogMessage, Notification as _, Progress};
 use lsp_types::request::{Request as _, WorkDoneProgressCreate};
 use lsp_types::{
     LogMessageParams, MessageType, NumberOrString, ProgressParams, ProgressParamsValue,
-    WorkDoneProgress, WorkDoneProgressBegin,
-    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressReport,
+    WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
+    WorkDoneProgressReport,
 };
 
 use crate::server::ServerError;

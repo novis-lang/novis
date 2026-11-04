@@ -147,7 +147,11 @@ impl TreeCache {
         let nvs_config::Roots::Files(files) = roots(&[], dir, data, &Unowned) else {
             return built_in().clone();
         };
-        if !self.trees.get(&files).is_some_and(|kept| current(&kept.stamps)) {
+        if !self
+            .trees
+            .get(&files)
+            .is_some_and(|kept| current(&kept.stamps))
+        {
             let kept = read_tree(files.clone());
             self.trees.insert(files.clone(), kept);
         }

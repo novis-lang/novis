@@ -882,8 +882,8 @@ mod work_per_file {
         let source = format!(
             "{{\"source\": 1, \"files\": [{{\"path\": \"Ledger/Receipt.nvs\", \"text\": {receipt:?}}}]}}"
         );
-        let component =
-            wat::parse_str("(component (import \"missing\" (func)))").expect("the component parses");
+        let component = wat::parse_str("(component (import \"missing\" (func)))")
+            .expect("the component parses");
         let nvsx = nvs_ext::pack::append_section(component, nvs_ext::section::MANIFEST, &manifest);
         let nvsx = nvs_ext::pack::append_section(nvsx, nvs_ext::section::SOURCE, source.as_bytes());
         fs::write(dir.at("shop.nvsx"), &nvsx).expect("a writable scratch file");
