@@ -1199,12 +1199,13 @@ mod tests {
     ///
     /// The peer is alive and answering the protocol for the whole of it, which
     /// is what makes this a case about the bound: a connection that had gone
-    /// away is a failure any wait would have noticed. What says the bound fired
-    /// rather than the peer's own clock is the time it took.
+    /// away is a failure any wait would have noticed. The peer stays quiet for
+    /// a minute and goes away only when the client drops the socket, so a wait
+    /// that ends at all ended at `idle`. The ten-second bound is a hang guard.
     // covers: Core\Http\Socket::receive
     #[test]
     fn socket_idle_ends_a_silent_peer() {
-        let (at, served) = talking_origin(None, vec![Say::Quiet(Duration::from_secs(3))]);
+        let (at, served) = talking_origin(None, vec![Say::Quiet(Duration::from_secs(60))]);
         let mut open = opened(
             at,
             Duration::from_millis(200),
@@ -1228,7 +1229,7 @@ mod tests {
             "the refusal names the silence rather than the lifetime: {why}"
         );
         assert!(
-            took < Duration::from_secs(3),
+            took < Duration::from_secs(10),
             "the wait ended at `idle` and not when the peer gave up: {took:?}"
         );
 
@@ -1262,22 +1263,23 @@ mod tests {
         let mut open = opened(at, idle, Duration::from_secs(30), 1 << 20);
         open.ping = Some(ping);
 
-        let began = Instant::now();
         let message = heard(&mut open).expect("the message a quiet peer sent when it had one");
-        let took = began.elapsed();
 
         assert_eq!(
             message.tag(),
             Some(Tag::Object),
             "what a live peer eventually said is a message and not the end of the conversation"
         );
-        assert!(
-            took > idle,
-            "the wait outlived an `idle` a pong is what carried it past: {took:?}"
-        );
 
         drop(open);
-        served.join().expect("the origin thread");
+        // The pings the peer answered are what measure the silence: at least
+        // `ping` apart, `pings` of them span more than `idle`.
+        let peer = served.join().expect("the origin thread");
+        assert!(
+            peer.pinged >= pings,
+            "the peer answered {} pings before it spoke, and the silence needs {pings}",
+            peer.pinged
+        );
     }
 
     /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:

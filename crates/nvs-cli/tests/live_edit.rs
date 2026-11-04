@@ -882,10 +882,13 @@ fn a_change_is_compiled_before_it_is_swapped_in() {
 }
 
 /// An edit reaches a server that gets no request at all: the background check
-/// compiles it within `revalidate_freq` plus `settle`. The five seconds on top
-/// are for the compile itself on a slow machine.
+/// compiles it, and the test sends no request until the compile's warning is
+/// written. The compile comes within `revalidate_freq` plus `settle` plus one
+/// compile, and one compile is judged by how long this run took to boot, which
+/// compiled the program once.
 #[test]
-fn an_idle_server_takes_an_edit_within_revalidate_freq_and_settle() {
+fn an_idle_server_takes_an_edit_without_a_request() {
+    let booting = Instant::now();
     let server = Server::start(
         "idle",
         &[
@@ -894,14 +897,15 @@ fn an_idle_server_takes_an_edit_within_revalidate_freq_and_settle() {
         ],
     );
     server.awaits_body("/", "first");
+    let bound = Duration::from_millis(100 + 200) + booting.elapsed();
 
     server.write("app.nvs", &warned("Compiled second.", "second"));
-    let started = Instant::now();
+    let written = Instant::now();
     server.awaits_said("Compiled second.");
-    let took = started.elapsed();
     assert!(
-        took < Duration::from_millis(300) + Duration::from_secs(5),
-        "the edit took {took:?} to be compiled"
+        written.elapsed() <= bound,
+        "the edit was not compiled within {bound:?}, the check interval, `settle` and this run's boot: {}",
+        server.said()
     );
 
     server.awaits_body("/", "second");
