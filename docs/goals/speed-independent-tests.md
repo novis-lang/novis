@@ -350,6 +350,10 @@ tonight's run is the first to check `a2f451fad`.
   case-insensitive `indexOf` near miss: a step count through `find_counted` in
   `crates/nvs-stdlib/src/str.rs`.
 - The sweep's `env-secret-proofs` red is stale: it is defined nowhere and has no log.
+- **The refused DONE.** `floor-debt` paid every atom but one: `test:nvs-cli test code`. Run alone,
+  `cargo test --test code` passes 45 of 45, and `looper check --name floor-debt` is green. The tree
+  then held another session's uncommitted `nvs-lsp` edits, which `nvs-cli` builds against, and the red
+  matches a build of those edits while they were still being made.
 
 ### Next
 
