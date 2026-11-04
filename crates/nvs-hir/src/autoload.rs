@@ -499,7 +499,13 @@ impl AutoloadMap {
     /// resolves through, and this asks which program a *file* belongs to.
     #[must_use]
     pub fn claims(&self, path: &Path) -> bool {
-        let path = crate::requires::canonicalize(path).unwrap_or_else(|| path.to_path_buf());
+        self.claims_resolved(&resolved(path))
+    }
+
+    /// [`claims`](Self::claims) for a path [`resolved`] already made
+    /// canonical, so a caller asking many maps about one file resolves it
+    /// once.
+    pub(crate) fn claims_resolved(&self, path: &Path) -> bool {
         self.entries
             .iter()
             .filter(|entry| !entry.borrowed)
@@ -868,6 +874,12 @@ fn collect_declared(
 }
 
 /// The last component of `path`, as text.
+/// `path` made canonical the way [`AutoloadMap::claims`] compares it: the
+/// canonical path, or `path` as it is when it cannot be made canonical.
+pub(crate) fn resolved(path: &Path) -> PathBuf {
+    crate::requires::canonicalize(path).unwrap_or_else(|| path.to_path_buf())
+}
+
 fn entry_name(path: &Path) -> String {
     path.file_name()
         .unwrap_or_default()

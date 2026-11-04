@@ -759,7 +759,7 @@ impl SymbolIndex {
         let Some(entry) = self.pending.pop_first() else {
             return false;
         };
-        let owns = self.files.values().any(|indexed| indexed.entry == entry);
+        let owns = !self.owned_by(&entry).is_empty();
         if owns || !self.files.contains_key(&entry) {
             self.drop_owned(std::slice::from_ref(&entry));
             let version = open_document(documents, &entry).map_or(NO_BUFFER, |open| open.version());
@@ -802,12 +802,12 @@ impl SymbolIndex {
     /// Drops every file the entries in `entries` indexed, and their reads, and
     /// returns the files in path order.
     fn drop_owned(&mut self, entries: &[PathBuf]) -> Vec<PathBuf> {
-        let stale: Vec<PathBuf> = self
-            .files
+        let mut stale: Vec<PathBuf> = entries
             .iter()
-            .filter(|(_, indexed)| entries.contains(&indexed.entry))
-            .map(|(path, _)| path.clone())
+            .flat_map(|entry| self.owned_by(entry))
             .collect();
+        stale.sort();
+        stale.dedup();
         for path in &stale {
             if let Some(indexed) = self.files.remove(path) {
                 self.unpost(path, &indexed);
@@ -817,6 +817,27 @@ impl SymbolIndex {
             self.reads.remove(entry);
         }
         stale
+    }
+
+    /// The files `entry` indexed, in path order.
+    ///
+    /// Every file an entry indexed is one its analysis read, so its reads are
+    /// the only files to look at, and an entry that indexed none has no reads
+    /// kept. Looking through every file of the index instead cost one pass
+    /// over the whole index per settled entry, which grows with the square of
+    /// the tree.
+    fn owned_by(&self, entry: &Path) -> Vec<PathBuf> {
+        self.reads.get(entry).map_or_else(Vec::new, |reads| {
+            reads
+                .iter()
+                .filter(|read| {
+                    self.files
+                        .get(*read)
+                        .is_some_and(|indexed| indexed.entry == entry)
+                })
+                .cloned()
+                .collect()
+        })
     }
 
     /// The entry points whose analysis read `path`, in path order.

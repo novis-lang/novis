@@ -146,7 +146,12 @@ impl Lender {
     /// needs it, so a caller can read the text lazily. Whether `path` is itself
     /// a lender is the caller's question: a lender never borrows.
     pub fn lends_to(&self, path: &Path, plain: impl FnOnce() -> bool) -> bool {
-        self.owns(path) || (canonical_key(path).starts_with(&self.dir) && plain())
+        self.lends_to_at(&At::of(path), plain)
+    }
+
+    /// [`lends_to`](Self::lends_to) for a path [`At::of`] already resolved.
+    fn lends_to_at(&self, at: &At, plain: impl FnOnce() -> bool) -> bool {
+        self.owns_at(at) || (at.key.starts_with(&self.dir) && plain())
     }
 
     /// Whether `path` belongs to this program by name rather than by place:
@@ -155,7 +160,33 @@ impl Lender {
     /// only by the directory test ([`choose`]).
     #[must_use]
     pub fn owns(&self, path: &Path) -> bool {
-        self.reads.binary_search(&canonical_key(path)).is_ok() || self.map.claims(path)
+        self.owns_at(&At::of(path))
+    }
+
+    /// [`owns`](Self::owns) for a path [`At::of`] already resolved.
+    fn owns_at(&self, at: &At) -> bool {
+        self.reads.binary_search(&at.key).is_ok() || self.map.claims_resolved(&at.claimed)
+    }
+}
+
+/// One path, resolved once for every lender [`choose`] asks about it.
+///
+/// Resolving a path is a system call, and on Windows it opens the file. A
+/// tree with many lenders asked about each of many files paid it once per
+/// lender, several times over.
+struct At {
+    /// The path under `canonical_key`, as `reads` and `dir` hold paths.
+    key: PathBuf,
+    /// The path as [`AutoloadMap::claims`] compares it with its roots.
+    claimed: PathBuf,
+}
+
+impl At {
+    fn of(path: &Path) -> Self {
+        Self {
+            key: canonical_key(path),
+            claimed: crate::autoload::resolved(path),
+        }
     }
 }
 
@@ -180,18 +211,19 @@ pub fn choose<L: Borrow<Lender>>(
     path: &Path,
     plain: impl FnOnce() -> bool,
 ) -> Option<L> {
+    let at = At::of(path);
     let mut plain = Some(plain);
     let mut is_plain = None;
     let mut by_place = None;
     for lender in lenders {
-        if lender.borrow().owns(path) {
+        if lender.borrow().owns_at(&at) {
             return Some(lender);
         }
         let nearer = by_place.as_ref().is_none_or(|held: &L| {
             lender.borrow().dir.components().count() > held.borrow().dir.components().count()
         });
         if nearer
-            && lender.borrow().lends_to(path, || {
+            && lender.borrow().lends_to_at(&at, || {
                 *is_plain.get_or_insert_with(|| plain.take().is_some_and(|plain| plain()))
             })
         {
