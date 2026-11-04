@@ -17,13 +17,14 @@ class Flow {
 }
 
 var $chan = new Core\Task\Channel<int>(4);
+var $consumerReady = new Core\Task\Channel<int>(1);
 
 Core\Task::all({
-    // The sleep is what makes the assertion a bound rather than a coincidence: the
-    // consumer reaches its `foreach` and suspends on an empty channel before the first
-    // `send`, so what wakes it afterwards is the channel and not its own scheduling.
+    // `produce` waits until `consume` closes `$consumerReady`. Then `consume`
+    // waits on the empty `$chan` before the first `send`, so the channel wakes it.
     produce: fn(): void => {
-        Core\Time::sleep(10ms);
+        foreach ($consumerReady as int $signal) {
+        }
         Flow::$waitingWhenSendingBegan = Flow::$waiting;
         foreach (Core\Arr::range(1, 3) as int $n) {
             $chan->send($n);
@@ -35,6 +36,7 @@ Core\Task::all({
     },
     consume: fn(): void => {
         Flow::$waiting = true;
+        $consumerReady->close();
         foreach ($chan as int $n) {
             echo "got ", $n, "\n";
             Flow::$received += 1;
@@ -47,18 +49,20 @@ echo "waiting on an empty channel before the first send: ", Flow::$waitingWhenSe
 echo "the loop ended after close: ", Flow::$loopEnded ? "yes" : "no", "\n";
 echo "values delivered: ", Flow::$received, "\n";
 
-// The empty case is the one a channel that ended the loop on its buffer running dry
-// would pass anyway, so it is asserted on its own: nothing is ever sent here, and the
-// receiver is suspended the whole time `closeOnly` sleeps.
+// Nothing is ever sent to `$empty`. `closeOnly` waits until `waitOnly` closes
+// `$receiverReady`, and then `waitOnly` waits on `$empty` until it is closed.
 var $empty = new Core\Task\Channel<int>(4);
+var $receiverReady = new Core\Task\Channel<int>(1);
 
 Core\Task::all({
     closeOnly: fn(): void => {
-        Core\Time::sleep(10ms);
+        foreach ($receiverReady as int $signal) {
+        }
         $empty->close();
     },
     waitOnly: fn(): void => {
         int $seen = 0;
+        $receiverReady->close();
         foreach ($empty as int $n) {
             $seen += 1;
         }

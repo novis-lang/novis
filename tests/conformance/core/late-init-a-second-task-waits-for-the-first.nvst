@@ -31,14 +31,13 @@ final class Draft implements LateInit {
     }
 }
 
-// The first task sleeps inside `initProperty`. The second task reads the same
-// property in that time, waits, and then reads the value the first task wrote.
+// The second task runs while the first one sleeps inside `initProperty`.
+// It reads the property, waits, and then gets the value the first task wrote.
 Log $log = new Log();
 Post $p = new Post($log);
 var $read = Core\Task::all({
     first: fn (): string => $p->author,
     second: fn (): string => {
-        Core\Time::sleep(5ms);
         $log->lines[] = "second task reads";
         return $p->author;
     },

@@ -3,13 +3,12 @@ A member that waits parks only the calling task: a sibling runs while it sleeps 
 --FILE--
 <?nvs
 // covers: lang:concurrency/no-colouring-i-o-just-waits
-// The trace is a static string and not `echo` on purpose: output written inside a
-// task is collected and emitted one whole task at a time, so an `echo` trace reads
-// `long, long, short, short` whatever the two tasks actually did. This is the
-// discriminator for the whole no-colouring claim — a `sleep` that parked the
-// scheduler rather than the task would order the trace the same way `echo` does.
+// The trace is a string and not `echo`. Output from a task is printed one
+// whole task at a time, so `echo` would not show the order the tasks ran in.
 class Trace {
     public static string $steps = "";
+    public static bool $shortStarted = false;
+    public static bool $shortRanWhileLongSlept = false;
 
     public static function note(string $what): void
     {
@@ -18,8 +17,8 @@ class Trace {
 }
 
 class Slow {
-    // An ordinary static method. Nothing about it is coloured by the wait inside it:
-    // no `async`, and no promise at the call site below.
+    // An ordinary static method. It has no `async`, and the call below
+    // needs no promise.
     public static function value(): int
     {
         Core\Time::sleep(5ms);
@@ -27,27 +26,37 @@ class Slow {
     }
 }
 
+// `long` waits on `$shortDone` until `short` closes it.
+// So `short` always wakes before `long`, on a fast or a slow machine.
+var $shortDone = new Core\Task\Channel<int>(1);
+
 Core\Task::all({
     long: fn(): void => {
         Trace::note("long starts");
-        Core\Time::sleep(40ms);
+        Core\Time::sleep(5ms);
+        // `short` started while `long` slept. If the sleep stopped every task,
+        // this would be `false`.
+        Trace::$shortRanWhileLongSlept = Trace::$shortStarted;
+        foreach ($shortDone as int $signal) {
+        }
         Trace::note("long wakes");
     },
     short: fn(): void => {
         Trace::note("short starts");
+        Trace::$shortStarted = true;
         Core\Time::sleep(5ms);
         Trace::note("short wakes");
+        $shortDone->close();
     },
 });
 
-// Both tasks start before either one wakes, and `short` — which waits for an eighth
-// of the time — wakes first, so the sleep in `long` parked that one task and nothing
-// else. Each task's own two lines keep their order, which is the sequential half:
-// neither task ran its second statement before its first.
+// Both tasks start before either one wakes, and each task's two lines keep
+// their order.
 echo Trace::$steps;
+echo "short ran while long slept: ", Trace::$shortRanWhileLongSlept ? "yes" : "no", "\n";
 
-// The value half: `$n` is an `int` here and not a handle, so it is multiplied in the
-// same expression with no `await` and no callback.
+// `$n` is an `int` and not a handle, so it is used in the same expression
+// with no `await` and no callback.
 int $n = Slow::value();
 echo "a waiting call answers a value: ", $n * 2, "\n";
 --EXPECT--
@@ -55,4 +64,5 @@ long starts
 short starts
 short wakes
 long wakes
+short ran while long slept: yes
 a waiting call answers a value: 14

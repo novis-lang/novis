@@ -42,12 +42,23 @@ try {
 
 echo Deadlock::$reached, " children waited, ", Deadlock::$past, " ran past the wait", "\n";
 
-// "Leaves no child running", asserted rather than assumed: a child still
-// parked on `$a` would be woken by this send and would run the body of its
-// `foreach`. The capacity is one and the channel is empty, so the send itself
-// does not wait, and the sleep gives any survivor a turn to prove it exists.
+// A child that still waited on `$a` would wake on this send and run its loop.
+// The channel is empty, so the send does not wait.
 $a->send(1);
-Core\Time::sleep(20ms);
+
+var $turn = new Core\Task\Channel<int>(1);
+
+// `receive` wakes when `send` closes `$turn`. It runs after every task that
+// was already waiting to run, so a child that still waited would run first.
+Core\Task::all({
+    receive: fn(): void => {
+        foreach ($turn as int $n) {
+        }
+    },
+    send: fn(): void => {
+        $turn->close();
+    },
+});
 
 echo Deadlock::$past, " ran past the wait after the group returned", "\n";
 --EXPECT--

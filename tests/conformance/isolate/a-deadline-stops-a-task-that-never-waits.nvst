@@ -25,9 +25,21 @@ try {
     echo "the deadline stopped the child", "\n";
 }
 
-// The child was torn down before the call returned, so nothing still counts.
+// The child was stopped before the call returned, so nothing still counts.
 int $before = Spins::$count;
-Core\Time::sleep(20ms);
+var $turn = new Core\Task\Channel<int>(1);
+
+// `receive` wakes when `send` closes `$turn`. It runs after every task that
+// was already waiting to run, so a child that still ran would count first.
+Core\Task::all({
+    receive: fn(): void => {
+        foreach ($turn as int $n) {
+        }
+    },
+    send: fn(): void => {
+        $turn->close();
+    },
+});
 echo Spins::$count == $before ? "the child is gone" : "the child still runs", "\n";
 --EXPECT--
 the deadline stopped the child
