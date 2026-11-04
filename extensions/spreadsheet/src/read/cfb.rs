@@ -218,6 +218,14 @@ impl<'a> File<'a> {
         cut(out, Some(size))
     }
 
+    /// Whether the file has a stream named `name` in any storage, compared without case. Nothing
+    /// of the stream is read.
+    pub fn has(&self, name: &str) -> bool {
+        self.streams
+            .iter()
+            .any(|s| s.kind == STREAM && s.name.eq_ignore_ascii_case(name))
+    }
+
     /// The stream named `name` in any storage, compared without case, or `None` when the file has
     /// none.
     pub fn stream(&self, name: &str) -> Result<Option<Vec<u8>>, Error> {

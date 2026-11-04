@@ -6,6 +6,8 @@
 //! the [`RawRow`]s the xlsx cursor gives, so `super::Reader::value` reads every format the same
 //! way. A sheet holds at most 65,536 rows. A text cell is the kind `text`, and a number has its
 //! cell style's index. The streams of an older Excel, BIFF5 and before, are [`Error::Runtime`].
+//! So is an encrypted file: an xls with a `FILEPASS` record, and an xlsx saved with a password,
+//! which is a compound file with an `EncryptedPackage` stream. No cipher text is decoded.
 //! A sheet's merged ranges are its `MERGEDCELLS` records, read with its cells, and so are its
 //! hyperlinks, notes and pictures and the workbook's names and properties ([`xls_extras`]).
 //!
@@ -40,6 +42,7 @@ const NAME: u16 = 0x0018;
 const EXTERN_NAME: u16 = 0x0023;
 const NOTE: u16 = 0x001C;
 const DATE_MODE: u16 = 0x0022;
+const FILE_PASS: u16 = 0x002F;
 const OBJ: u16 = 0x005D;
 const MSO_DRAWING_GROUP: u16 = 0x00EB;
 const MSO_DRAWING: u16 = 0x00EC;
@@ -317,9 +320,21 @@ pub struct Book {
     pub extras: xls_extras::Extras,
 }
 
+/// The error an encrypted xlsx or a password-protected xls throws.
+fn encrypted() -> Error {
+    Error::Runtime(
+        "This file is encrypted with a password. Encrypted files are not supported.".to_owned(),
+    )
+}
+
 /// Reads the xls `bytes` whole.
 pub fn read(bytes: &[u8]) -> Result<Book, Error> {
     let file = cfb::File::open(bytes)?;
+    // An xlsx saved with a password is a compound file whose package is the encrypted stream
+    // `EncryptedPackage`, described by `EncryptionInfo`.
+    if file.has("EncryptedPackage") {
+        return Err(encrypted());
+    }
     let stream = match file.stream("Workbook")? {
         Some(stream) => stream,
         None if file.stream("Book")?.is_some() => {
@@ -351,6 +366,8 @@ pub fn read(bytes: &[u8]) -> Result<Book, Error> {
                     "This xls file was written by Excel 95 or earlier. Novis reads xls files from Excel 97 onwards.".to_owned(),
                 ));
             }
+            // Every record after `FILEPASS` is cipher text.
+            FILE_PASS => return Err(encrypted()),
             DATE_MODE => date1904 = u16_at(body, 0)? == 1,
             FORMAT => {
                 let (code, _) = string_at(body, 2, 2)?;

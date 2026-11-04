@@ -783,6 +783,11 @@ fn an_xlsb_record_whose_length_lies_throws() {
 /// A compound file of 512-byte sectors: the header, the sector table `table` in sector 0, the
 /// directory in sector 1, and the stream `Workbook` of 8,192 bytes starting at sector 2.
 fn compound(table: &[u32]) -> Vec<u8> {
+    compound_of(table, "Workbook", &[])
+}
+
+/// [`compound`] whose stream is named `name` and starts with `content`, the rest zeros.
+fn compound_of(table: &[u32], name: &str, content: &[u8]) -> Vec<u8> {
     const NONE: u32 = 0xFFFF_FFFF;
     const END: u32 = 0xFFFF_FFFE;
     let mut header = vec![0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
@@ -826,9 +831,11 @@ fn compound(table: &[u32]) -> Vec<u8> {
         out
     };
     let mut directory = entry("Root Entry", 5, 1, END, 0);
-    directory.extend(entry("Workbook", 2, NONE, 2, 8192));
+    directory.extend(entry(name, 2, NONE, 2, 8192));
     directory.resize(512, 0);
-    [header, fat, directory, vec![0; 512 * 16]].concat()
+    let mut stream = content.to_vec();
+    stream.resize(512 * 16, 0);
+    [header, fat, directory, stream].concat()
 }
 
 /// A sector chain that comes back to a sector it already read is refused at the repeat, in a
@@ -1359,4 +1366,44 @@ fn a_whole_column_reference_visits_only_that_column() {
         "whole-column references",
         evaluate_time,
     );
+}
+
+/// An xlsx saved with a password is a compound file with an `EncryptedPackage` stream. An xls
+/// saved with a password has a `FILEPASS` record after its first `BOF`, and every record after it
+/// is cipher text. Both throw that the file is encrypted, and neither is read as a workbook.
+#[test]
+fn an_encrypted_xlsx_and_an_xls_with_a_password_throw_that_encryption_is_not_supported() {
+    const END: u32 = 0xFFFF_FFFE;
+    const TABLE: u32 = 0xFFFF_FFFD;
+    let table: Vec<u32> = [TABLE, END].into_iter().chain(3..18).chain([END]).collect();
+    let encrypted_xlsx = compound_of(&table, "EncryptedPackage", &[0x5A; 64]);
+    let mut stream = Vec::new();
+    let mut record = |kind: u16, body: &[u8]| {
+        stream.extend(kind.to_le_bytes());
+        stream.extend(
+            u16::try_from(body.len())
+                .expect("a short record")
+                .to_le_bytes(),
+        );
+        stream.extend(body);
+    };
+    let mut bof = vec![0u8; 16];
+    bof[..2].copy_from_slice(&0x0600u16.to_le_bytes());
+    bof[2..4].copy_from_slice(&0x0005u16.to_le_bytes());
+    record(0x0809, &bof);
+    // FILEPASS: RC4 encryption, then its salt and verifier.
+    let mut pass = vec![0x01, 0x00, 0x01, 0x00, 0x01, 0x00];
+    pass.extend([0x5A; 48]);
+    record(0x002F, &pass);
+    record(0x0085, &[0x5A; 16]);
+    let protected_xls = compound_of(&table, "Workbook", &stream);
+    for (what, file) in [("xlsx", encrypted_xlsx), ("xls", protected_xls)] {
+        let failure = read(&file).0.unwrap_or_else(|| panic!("the {what} reads"));
+        assert!(
+            failure.contains(
+                "This file is encrypted with a password. Encrypted files are not supported."
+            ),
+            "{what}: {failure}"
+        );
+    }
 }

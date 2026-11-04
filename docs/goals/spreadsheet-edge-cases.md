@@ -339,9 +339,11 @@ are, one conformance case and one attack.
   - [x] the evaluator's cells and formulas are each a `Grid` with a by-column row list, and a
     rect taller than it is wide walks its columns (`Stored`); `precedents` walks it too
   - [x] `a_whole_column_reference_visits_only_that_column` passes
-- [ ] SEC-13, RL-06: an encrypted xlsx says "it has no workbook stream", and an xls with FILEPASS is
+- [x] SEC-13, RL-06: an encrypted xlsx says "it has no workbook stream", and an xls with FILEPASS is
   not detected and decodes cipher text. Both throw the message in decision 7.
   `extensions/spreadsheet/src/read/xls.rs:330`, `extensions/spreadsheet/src/read/xls.rs:344`
+  - [x] `xls::read` throws `encrypted()` for a `cfb::File::has("EncryptedPackage")` and at `FILEPASS`
+  - [x] `an_encrypted_xlsx_and_an_xls_with_a_password_throw_that_encryption_is_not_supported` passes
 - [ ] SEC-15, TP-09: a template fill keeps XLM macro sheets, `xl/vbaData.xml`, `xl/activeX`,
   `customUI` and `oleObject*.bin` against `rule:core-classes/spreadsheet-output-is-inert`. Drop them
   with their relationships and content types (decision 8). `extensions/spreadsheet/src/template/mod.rs:216`,
