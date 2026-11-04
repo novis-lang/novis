@@ -98,7 +98,7 @@
     "tools/looper/src/verify/select.ts": "7107ad3bb7ee366f72ce7bf0564cc4e5084842ff4f94c6048879a4c3a69ffae5",
     "tools/looper/src/verify/shared.ts": "795778cd479e81d78d2a42bd99277c20a89edd080fe9d4cf69bc8df06e23212f",
     "tools/looper/src/verify/verify.ts": "d89fc97400046489ba2b35f61d2e691913f78f824be4021ea1eb1300155774e4",
-    "tools/looper/templates.json": "5d0ced91908622e8d62cdee81c89bd99db1052e641af7569a8d2d3695b71276e",
+    "tools/looper/templates.json": "1aec492e07553f1d8999ca11c40006c1aecd50236415c92eae6d497394a089c9",
     "tools/loop": "cba052266cdcce84ac445efe46a18f510344a9d41312f69210f893f7e611a24e",
     "tools/loop.cmd": "700ce79b882cd5724199e1caa544f63427cf627952f8bd9769190015cd769b42"
   }
