@@ -326,17 +326,19 @@ export function overshoot(reading: MemoryReading): string | null {
  * (`nvs_runtime::SWEEP_LINES_ENV`). `spawnTimed` takes those lines out of stderr into `Ran.sweeps`. */
 export const SWEEP_ENV = "NVS_PROOF_SWEEPS";
 const SWEEP_PREFIX = "nvs-proof-sweep: ";
-const SWEEP_RE = /^nvs-proof-sweep: (cpu|wall) late_us=([0-9]+) interval_us=([0-9]+) poll_us=([0-9]+) threads=([0-9]+)$/;
+const SWEEP_RE = /^nvs-proof-sweep: (cpu|wall) late_us=([0-9]+) interval_us=([0-9]+) poll_us=([0-9]+) threads=([0-9]+)(?: tick_us=([0-9]+))?$/;
 
 /** One stop's figures, as `nvs_runtime::write_sweep_line` writes them: how late the clock that stopped
- * the request woke, the most CPU time one thread spends between two on-time sweeps, one poll gap, and
- * the threads the tree was charged on. */
+ * the request woke, the most CPU time one thread spends between two on-time sweeps, one poll gap, the
+ * threads the tree was charged on, and how far one reading of a thread's CPU clock may trail what it
+ * spent (`cpu_clock_tick` in `nvs-runtime`'s `ctx/safepoint.rs`, zero for a wall-time stop and on the Unix clocks). */
 export interface SweepLine {
   kind: "cpu" | "wall";
   lateUs: number;
   intervalUs: number;
   pollUs: number;
   threads: number;
+  tickUs?: number;
 }
 
 /** The sweep lines of a run's stderr, and the stderr without them. */
@@ -350,7 +352,7 @@ export function takeSweeps(stderr: string): { stderr: string; sweeps: SweepLine[
       kept.push(line);
       continue;
     }
-    sweeps.push({ kind: m[1] as "cpu" | "wall", lateUs: Number(m[2]), intervalUs: Number(m[3]), pollUs: Number(m[4]), threads: Number(m[5]) });
+    sweeps.push({ kind: m[1] as "cpu" | "wall", lateUs: Number(m[2]), intervalUs: Number(m[3]), pollUs: Number(m[4]), threads: Number(m[5]), tickUs: Number(m[6] ?? 0) });
   }
   return { stderr: kept.join("\n"), sweeps };
 }
@@ -390,7 +392,8 @@ export function timeReading(out: Pick<Ran, "stdout" | "stderr" | "sweeps">): Tim
  *
  * - A CPU stop: each of the tree's threads runs at most one sweep interval past the crossing before
  *   an on-time sweep reads it, plus how late each sweep that stopped it woke, plus one poll gap before it
- *   reaches a poll. So the bound is `threads * (interval + sum of late + poll)`.
+ *   reaches a poll, plus one tick of its CPU clock, which a reading may trail by. So the bound is
+ *   `threads * (interval + sum of late + poll + tick)`.
  * - A wall-time stop: its line's `late` counts from the deadline itself, so the bound is the latest
  *   claim's `late` plus one poll gap.
  * - A run with no line of the reading's kind: nothing explains an overshoot, so the bound is zero.
@@ -406,7 +409,8 @@ export function explainedMs(reading: TimeReading): number {
   const threads = Math.max(1, ...lines.map((s) => s.threads));
   const interval = Math.max(...lines.map((s) => s.intervalUs));
   const late = lines.reduce((sum, s) => sum + s.lateUs, 0);
-  return (threads * (interval + late + poll)) / 1000;
+  const tick = Math.max(...lines.map((s) => s.tickUs ?? 0));
+  return (threads * (interval + late + poll + tick)) / 1000;
 }
 
 /** Why a time reading is red, or null when what the run measured explains how far it got past `crossed`

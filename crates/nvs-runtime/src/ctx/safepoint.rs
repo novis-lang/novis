@@ -1433,13 +1433,14 @@ pub const POLL_GAP: std::time::Duration = std::time::Duration::from_millis(50);
 
 /// Writes the line the proofs runner explains a time stop's overshoot by, when
 /// [`SWEEP_LINES_ENV`] is set:
-/// `nvs-proof-sweep: <kind> late_us=<late> interval_us=<interval> poll_us=<poll> threads=<threads>`.
+/// `nvs-proof-sweep: <kind> late_us=<late> interval_us=<interval> poll_us=<poll> threads=<threads> tick_us=<tick>`.
 ///
 /// `late` is how much later than it should have the stop's clock woke, measured
 /// on the clock's own thread. `interval` is the most CPU time a tree's thread can
 /// spend between two sweeps that are on time, which is zero for a wall-time stop
 /// whose `late` already counts from the deadline. `threads` is how many threads
-/// the tree was charged on. `tools/nv/proofs/run.ts`'s `timeOvershoot` reads it.
+/// the tree was charged on. `tick` is [`cpu_clock_tick`] for a CPU stop and zero
+/// for a wall-time stop. `tools/nv/proofs/run.ts`'s `timeOvershoot` reads it.
 ///
 /// What it spends: one environment read per process, and a line per stop only
 /// when the variable is set. A request's `FATAL` does not change.
@@ -1454,15 +1455,63 @@ pub fn write_sweep_line(
     if !*ON.get_or_init(|| std::env::var_os(SWEEP_LINES_ENV).is_some()) {
         return;
     }
+    let tick = if kind == "cpu" {
+        cpu_clock_tick()
+    } else {
+        std::time::Duration::ZERO
+    };
     // Through the handle, as every other floor write is: `eprintln!` would
     // panic on a closed pipe.
     let _ = writeln!(
         std::io::stderr(),
-        "nvs-proof-sweep: {kind} late_us={} interval_us={} poll_us={} threads={threads}",
+        "nvs-proof-sweep: {kind} late_us={} interval_us={} poll_us={} threads={threads} tick_us={}",
         late.as_micros(),
         interval.as_micros(),
-        POLL_GAP.as_micros()
+        POLL_GAP.as_micros(),
+        tick.as_micros()
     );
+}
+
+/// How far one reading of a thread's CPU clock may trail the CPU time the
+/// thread has spent.
+///
+/// On Windows, `GetThreadTimes` moves only at the system clock interrupt, so a
+/// reading is up to one clock interval old: 15.625 ms on a default system.
+/// A sweep that reads a thread just short of the limit sees the crossing one
+/// interval late, so the proofs runner counts one tick per thread. The Unix
+/// thread clocks read to the microsecond or better, and the tick is zero.
+///
+/// Only [`write_sweep_line`] calls it, so only a proofs run reads it.
+#[must_use]
+fn cpu_clock_tick() -> std::time::Duration {
+    #[cfg(windows)]
+    {
+        let mut adjustment: u32 = 0;
+        let mut increment: u32 = 0;
+        let mut disabled: windows_sys::core::BOOL = 0;
+        #[expect(
+            unsafe_code,
+            reason = "`GetSystemTimeAdjustment` writes three plain integers through \
+                      out-pointers to locals this frame owns, and reads nothing else"
+        )]
+        let read = unsafe {
+            windows_sys::Win32::System::SystemInformation::GetSystemTimeAdjustment(
+                &raw mut adjustment,
+                &raw mut increment,
+                &raw mut disabled,
+            )
+        };
+        if read == 0 {
+            // The default clock interval, when the system did not say.
+            return std::time::Duration::from_micros(15_625);
+        }
+        // `increment` counts 100-nanosecond units.
+        std::time::Duration::from_nanos(u64::from(increment) * 100)
+    }
+    #[cfg(not(windows))]
+    {
+        std::time::Duration::ZERO
+    }
 }
 
 /// The calling thread's stack pointer, read from the register.

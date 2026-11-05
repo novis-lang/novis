@@ -21,6 +21,16 @@ describe("a time stop is judged by what its run measured", () => {
     expect(timeOvershoot(reading(320, [wall], "wall"))).toBeNull();
   });
 
+  test("a CPU clock that moves in ticks adds one tick per thread", () => {
+    // Windows reads a thread's CPU time at the clock interrupt, 15.625 ms apart, so a sweep may see
+    // the crossing one tick late on each thread.
+    const ticked: SweepLine = { ...cpu(12_000), tickUs: 15_625 };
+    expect(explainedMs(reading(327, [ticked]))).toBeCloseTo(127.625);
+    expect(timeOvershoot(reading(327, [ticked]))).toBeNull();
+    expect(timeOvershoot(reading(328, [ticked]))).toContain("128 ms over");
+    expect(explainedMs(reading(400, [{ ...ticked, threads: 2 }]))).toBeCloseTo(255.25);
+  });
+
   test("an overshoot past the interval, the lateness and one poll is red", () => {
     const why = timeOvershoot(reading(313, [cpu(12_000)]));
     expect(why).toContain("used 313 ms against a CPU-time limit of 200 ms, 113 ms over");
