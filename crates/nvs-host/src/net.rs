@@ -1236,9 +1236,10 @@ impl Connecting for mio::net::UnixStream {
 ///   failed is not connected, so an `Ok` here is never a dead stream. A local
 ///   socket whose peer has already hung up answers `BrokenPipe`, which is a
 ///   connect that is up, and `Connecting::connected_then_closed` names it.
-/// - **`SO_ERROR`** only when the write said "not yet", because a failed
-///   connect reports writable exactly as a completed one does, and on Windows
-///   this is the only place the refusal ever appears. It is second because it
+/// - **`SO_ERROR`** only when the write failed, because a failed connect
+///   reports writable exactly as a completed one does. On Windows this is the
+///   only place the refusal ever appears, and on macOS the write answers a
+///   refused connect with `BrokenPipe` and leaves the refusal here. It is second because it
 ///   is the expensive one: on Windows the first `SO_ERROR` read of a socket
 ///   that has just connected took 7 to 16 ms on a loopback connect whose
 ///   handshake was already up, against microseconds for the write, and asking
@@ -1262,23 +1263,28 @@ impl Connecting for mio::net::UnixStream {
 /// The connection's own failure — refused, unreachable, reset while it was
 /// being established — or the platform refusing to answer for the descriptor.
 fn ask_connected<S: Connecting>(inner: &mut S) -> io::Result<bool> {
-    match inner.write(&[]) {
-        Ok(_) => Ok(true),
-        // "Not yet" or "failed": only `SO_ERROR` tells the two apart, and "not
-        // yet" is rule 2's shape asked of a different question.
-        Err(err)
-            if matches!(
-                err.kind(),
-                io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
-            ) =>
+    let err = match inner.write(&[]) {
+        Ok(_) => return Ok(true),
+        Err(err) => err,
+    };
+    if S::connected_then_closed(&err) {
+        return Ok(true);
+    }
+    // Any other answer is "not yet" or "failed", and only `SO_ERROR` tells the
+    // two apart. It is asked for every error, not only "not yet": on macOS a
+    // refused connect answers the write with `BrokenPipe` and leaves the
+    // refusal itself in `SO_ERROR`.
+    match inner.take_error()? {
+        Some(failed) => Err(failed),
+        // "Not yet" is rule 2's shape asked of a different question.
+        None if matches!(
+            err.kind(),
+            io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
+        ) =>
         {
-            match inner.take_error()? {
-                Some(failed) => Err(failed),
-                None => Ok(false),
-            }
+            Ok(false)
         }
-        Err(err) if S::connected_then_closed(&err) => Ok(true),
-        Err(err) => Err(err),
+        None => Err(err),
     }
 }
 

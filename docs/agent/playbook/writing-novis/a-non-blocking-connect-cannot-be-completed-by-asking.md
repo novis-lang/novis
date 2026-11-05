@@ -3,6 +3,7 @@
   succeeds, and `take_error` is `Ok(None)` too until the attempt actually ends, so a connect built
   on either alone reports success and hands back a stream that is writable and dead. The pair sound
   on both platforms is `take_error` plus a zero-length write — `Ok(0)` when connected,
-  `NotConnected`/`WouldBlock` in flight, the refusal itself on Linux — and
+  `NotConnected`/`WouldBlock` in flight, the refusal itself on Linux, `BrokenPipe` on macOS with the
+  refusal still in `SO_ERROR`, so `take_error` is asked after every failed write — and
   `crates/nvs-host/src/net.rs`'s `finish_connecting` is the worked shape.
   `until: gone crates/nvs-host/src/net.rs:finish_connecting`
