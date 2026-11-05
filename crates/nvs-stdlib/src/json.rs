@@ -2652,6 +2652,12 @@ type Shared<'c, 'a> = &'c std::cell::RefCell<Builder<'a>>;
 /// The message of the error a parse ends with once a build raised a fault.
 /// [`decode_as`] returns [`Builder::fault`] in its place, so no program sees
 /// it.
+///
+/// So a fault a build raised wins over a parse error later in the text, and
+/// constructors run in document order: of two that throw, the first in the
+/// document is the one thrown. A constructor may also run before a later part
+/// of the document fails to parse. Every instance built is then freed, and the
+/// `ParseError` and its message are the ones a tree-first decode would give.
 const BUILD_FAULT: &str = "the decode stopped at a fault its build raised";
 
 impl<'a> Builder<'a> {

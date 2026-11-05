@@ -21,7 +21,7 @@ stages:
     context: [benches/members/README.md, benches/compare/profile.sh]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: writer-fast-path
@@ -219,40 +219,33 @@ tree.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`, and stage 4's
-are in its commit message.
+Every stage is done, and the goal is reached. Verify is green over the whole goal, 23 of 23 steps,
+and `bun nv verify --doc`, `bun nv owners --closes json-one-pass` and `bun nv ci --check` pass.
+`one-pass-decode` and `writer-fast-path` pass.
 
-- The member ledger counts per operation now: `Core\Json::decodeAs` 6 (was 7), `Core\Request::jsonAs`
-  28 (was 32), `Core\Http\Response::jsonAs` 5 (was 6), `Core\Test\Response::jsonAs` 6 (was 7),
-  `Core\Json::encode` 18 and `Core\Response::json` 9, both unchanged. The decodeAs and jsonAs benches
-  declare their counts. The 46 other figures the gate named stale (`json.rs`, `request.rs`,
-  `response.rs`) were recorded again, and `bun nv proofs --gate` owes nothing.
-- `json-api` served 23,135 requests a second (was 18,041). `Found`'s drop is gone from the profile
-  and `ByteWriter::put` no longer shows as a frame of its own.
-- A typed decode makes no tree: each object is built at its closing brace by `build_object`
-  (`crates/nvs-stdlib/src/json.rs:2743`). The `one-pass-decode` tests start at `json.rs:6561`.
+- The gate named one failure: `build_object`'s fallback memory message was an error path no case
+  asserts. It is declared at the site, and
+  `a_typed_decode_past_the_memory_limit_reports_the_limit` asserts what the program sees. One
+  conformance case, `novis\image-an-svg-opens-as-an-image`, failed once because the host's page file
+  was full (os error 1455). It passes alone and in the next verify run, and this goal does not touch it.
+- Decisions 14 and 15 now live in `BUILD_FAULT`'s doc. The rest live in the docs of `Builder`,
+  `build_object`, `Inbound::held`, `Ctx::write_body_owned` and `ByteWriter::put`.
+
+- The member ledger's counts and the `json-api` figures are in stage 4's commit message.
 - The sweep's `env-secret-proofs` red is stale: no goal or floor names it, and it has no log.
 
-No test is expected to go red. Two shapes could: a test whose two constructors both throw now gets the
-first in document order (decision 15), and a `.nvs` case whose constructor has a side effect now
-runs it before a later parse error.
+No test is expected to go red.
 
 ### Next
 
-**Stage 5**, the gate. One pass of fixes between two verify runs.
-
-- [ ] Run `looper verify` over the whole goal, in the background. `docs/agent/commands.md:1`
-- [ ] Fix every failure it names in one pass. `crates/nvs-stdlib/src/json.rs:2632`
-  Decision 2 holds: no expected message changes, and no test is loosened.
-- [ ] Run `looper verify` once more, green, then the goal-end gates. `docs/agent/commands.md:1`
-  Those are `bun nv verify --doc`, `bun nv owners --closes json-one-pass` and `bun nv ci --check`.
+Nothing. The goal is reached and waits to be retired. The next goal on the chain is `json-any-size`.
 
 ### Backlog
