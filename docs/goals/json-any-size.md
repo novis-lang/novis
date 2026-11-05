@@ -254,8 +254,14 @@ The three `CoreTest` benches that missed their bound did not grow. `test.rs`'s c
 swung between 0.86 and 1.60 from run to run. At 2048 the counts agree from a batch of 512, and all
 three record as flat. All 31 stale records are measured and committed.
 
-The sweep's `env-secret-proofs` red is stale, a fifth time: no log for it exists under
-`.looper/loops/main/checks/`, and no goal or floor names it.
+The DONE refusal's `size-bounds` red was real, and is fixed in `d6910ac5a6`.
+`a_failure_after_built_objects_frees_every_one_of_them` failed whenever it ran first in the
+process: the first failed `decodeAs` built `instance.rs`'s shape table on the request path and
+charged its 2 KiB to the request. `shapes()` now builds it inside a `Detached` bracket, and
+`descriptors()` builds it, so the compile has it before any request. `size-bounds` is green.
+
+The sweep's `env-secret-proofs` red is stale, a sixth time: `looper check --name
+env-secret-proofs` says no check matches, and no goal or floor names it.
 
 No test is expected to go red.
 
