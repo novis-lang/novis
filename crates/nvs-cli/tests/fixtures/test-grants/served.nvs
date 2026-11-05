@@ -1,0 +1,52 @@
+<?nvs
+// A `#[Test(server: true)]` whose program uses a grant of the tree's while it
+// answers the wire: an ordinary request and an upgraded connection each open
+// the database `served.toml` names, and say whether they could.
+class Live
+{
+    public static function run(): void
+    {
+        Core\Socket $socket = Core\Socket::current();
+        $socket->send(Served::opens());
+    }
+}
+
+class Served
+{
+    public static function opens(): string
+    {
+        try {
+            Core\Db::connect('notes')->query('select 1', []);
+            return 'connected';
+        } catch (RuntimeError $denied) {
+            return $denied->message;
+        }
+    }
+}
+
+class ServedTest
+{
+    #[Core\Test(server: true)]
+    public function aRequestOffTheWireHoldsTheTreesGrant(): void
+    {
+        string $base = Core\Test::serverUrl() ?? '';
+        Core\Test::assertSame(Core\Http\Client::get($base . '/db')->text(), 'connected');
+    }
+
+    #[Core\Test(server: true)]
+    public function anUpgradedConnectionHoldsTheTreesGrant(): void
+    {
+        string $base = Core\Test::serverUrl() ?? '';
+        var $socket = Core\Http\Client::openSocket('ws' . Core\Str::slice($base, 4) . '/socket', { idle: 5s });
+        Core\Test::assertSame($socket->receive()?->text(), 'connected');
+        $socket->close();
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Request::path() == '/socket') {
+        Core\Socket::upgrade(Live::run);
+    } else {
+        echo Served::opens();
+    }
+}

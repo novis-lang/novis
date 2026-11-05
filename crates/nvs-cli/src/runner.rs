@@ -3375,7 +3375,13 @@ fn run_the_test(
     // nothing has run.
     let served = match wants_server(case) {
         false => None,
-        true => match TestServer::bind(unit, routes, Door::of(ctx), ctx.stmt_hits().cloned()) {
+        true => match TestServer::bind(
+            unit,
+            routes,
+            Door::of(ctx),
+            Tree::of(ctx),
+            ctx.stmt_hits().cloned(),
+        ) {
             Ok(server) => Some(server),
             Err(refused) => {
                 return Outcome::failed(format!(
@@ -3720,11 +3726,13 @@ impl TestServer {
     /// `hits` is the run's coverage table, or `None` when the run does not
     /// measure coverage. Each request's own context gets it in
     /// [`answer_on_the_wire`], because the server starts every connection
-    /// from a fresh context that copies nothing from this one.
+    /// from a fresh context that copies nothing from this one. `tree` reaches
+    /// each request the same way, for the same reason ([`Tree`]).
     fn bind(
         unit: &Arc<nvs_codegen::Unit>,
         routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
         door: Door,
+        tree: Tree,
         hits: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
     ) -> Result<Self, String> {
         let wanted = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
@@ -3738,7 +3746,7 @@ impl TestServer {
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   origin: nvs_server::Origin| {
-                answer_on_the_wire(&held, &carried, &door, hits.as_ref(), request, origin)
+                answer_on_the_wire(&held, &carried, &door, &tree, hits.as_ref(), request, origin)
             },
         );
         let serving = nvs_server::Serving::new(
@@ -3886,6 +3894,37 @@ impl Door {
     }
 }
 
+/// The run's configuration and app folder, read off the suite's context once
+/// at bind time and handed to every request the listener answers.
+///
+/// A served request runs on a fresh context that copies nothing from the
+/// test's, and a context with no snapshot grants nothing. Without this, the
+/// program under test would answer a request off the wire, and every
+/// connection it upgrades, with none of the `[capabilities]` its tree names,
+/// where `rule:testing/in-process-request`'s first mechanism and `nvs serve`
+/// both grant them. It is the program's tree and not a serving policy, so
+/// [`TestServer::bind`]'s defaults are untouched by it. **What it spends:** two
+/// reference counts per request; the snapshot is the run's one copy.
+#[derive(Clone)]
+struct Tree {
+    /// The run's snapshot, or `None` for a case with no configuration at all.
+    config: Option<std::sync::Arc<nvs_config::Snapshot>>,
+    /// The run's app folder, which a capability default reads.
+    folder: Option<std::sync::Arc<std::path::Path>>,
+}
+
+impl Tree {
+    /// What the suite's context was given by its own `set_config` and
+    /// `set_app_folder`.
+    fn of(ctx: &nvs_runtime::Ctx) -> Self {
+        let request = ctx.config();
+        Self {
+            config: request.map(|request| std::sync::Arc::clone(request.snapshot())),
+            folder: request.and_then(nvs_config::Request::folder).cloned(),
+        }
+    }
+}
+
 /// One request off the wire, answered by the program under test — the same
 /// shape `UnderTest::answer` builds for `rule:testing/in-process-request`'s first mechanism, over a
 /// carrier `hyper` filled instead of one a `Core` member wrote.
@@ -3897,6 +3936,7 @@ fn answer_on_the_wire(
     held: &std::sync::Weak<nvs_codegen::Unit>,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     door: &Door,
+    tree: &Tree,
     hits: Option<&std::sync::Arc<nvs_runtime::StmtHits>>,
     request: nvs_server::Request<nvs_server::Incoming>,
     origin: nvs_server::Origin,
@@ -4005,16 +4045,20 @@ fn answer_on_the_wire(
         ),
         _ => program,
     };
-    nvs_server::Reply::Run(
-        nvs_host::Isolate::new(
-            program,
-            nvs_runtime::Value::null(),
-            nvs_runtime::host::Output::Capture,
-        )
-        .answering(inbound),
-        supply,
-        None,
+    // The run's tree, handed over where `crate::serve` hands a mount's: the
+    // folder on the isolate and the snapshot as the reply's, which the door
+    // writes onto the connection's context, so a connection this request
+    // upgrades starts under it too ([`Tree`]).
+    let mut isolate = nvs_host::Isolate::new(
+        program,
+        nvs_runtime::Value::null(),
+        nvs_runtime::host::Output::Capture,
     )
+    .answering(inbound);
+    if let Some(folder) = &tree.folder {
+        isolate = isolate.in_folder(std::sync::Arc::clone(folder));
+    }
+    nvs_server::Reply::Run(isolate, supply, tree.config.clone())
 }
 
 /// One attempt at one test: a fresh instance of the test's class, its method

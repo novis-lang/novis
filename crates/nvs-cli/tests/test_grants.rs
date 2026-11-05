@@ -5,7 +5,8 @@
 //! The subject is `Core\Test::serverUrl`'s listener, because that is the test
 //! that cannot exist without a grant: reaching `127.0.0.1` needs the
 //! `net.connect` and `net.internal` pair, and a suite whose context carried no
-//! snapshot denied both whatever the file said.
+//! snapshot denied both whatever the file said. The program that answers the
+//! listener holds the same grants, for the same reason.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -25,6 +26,11 @@ fn fixture(name: &str) -> PathBuf {
 
 /// `nvs test --config <config> wire.nvs`, as `(report, success)`.
 fn run_under(config: &str) -> (String, bool) {
+    run_file_under(config, "wire.nvs")
+}
+
+/// `nvs test --config <config> <file>`, as `(report, success)`.
+fn run_file_under(config: &str, file: &str) -> (String, bool) {
     let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("--data")
@@ -33,7 +39,7 @@ fn run_under(config: &str) -> (String, bool) {
         .arg("test")
         .arg("--config")
         .arg(fixture(config))
-        .arg(fixture("wire.nvs"))
+        .arg(fixture(file))
         .output()
         .expect("the `nvs` binary this test was built beside runs");
     let report = format!(
@@ -64,5 +70,21 @@ fn a_server_test_reaches_its_listener_only_under_the_grant_its_configuration_nam
     assert!(
         report.contains("needs the capability `net.connect` for 127.0.0.1"),
         "the failure names the missing grant:\n{report}"
+    );
+}
+
+/// The other side of the listener: the program that answers it holds the
+/// tree's grants too, in an ordinary request and in a connection that request
+/// upgrades. A served request runs on a fresh context, so a listener that did
+/// not hand it the run's configuration denied the database `served.toml` names
+/// where `Core\Test::request` and `nvs serve` grant it.
+// covers: Core\Test::serverUrl
+#[test]
+fn a_server_tests_program_answers_the_wire_under_the_trees_grants() {
+    let (report, passed) = run_file_under("served.toml", "served.nvs");
+    assert!(passed, "the served program was denied its grant:\n{report}");
+    assert!(
+        report.contains("0 failed, 2 passed"),
+        "both tests passed under the tree's grant:\n{report}"
     );
 }

@@ -841,7 +841,13 @@ is the operating system's and the address is loopback, so two suites on one mach
 and no suite serves the program under test to a network. The listener is a **sibling** of the test's
 isolate rather than a child — leftover work is read off the test's own task — and it is retired when
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
-reading a deployment's configuration would make the test's subject the deployment. The two
+reading a deployment's configuration would make the test's subject the deployment. That policy is
+the server's — its headers, its CORS, its waits and its trusted proxies. The program it runs is the
+tree's, so a request it answers, and every connection that request upgrades, holds the
+`[capabilities]` the run's configuration names, as a request `Core\Test::request` sends does. A
+served request runs on a fresh context that copies nothing from the test's, so the listener hands
+each one the run's snapshot and app folder; without them an app that opens its database could not be
+tested over the wire at all. **What it spends:** two reference counts per request. The two
 mechanisms are both kept because they answer measurably different questions: the in-process path
 never builds a response head, so the wire is not something it can be asked about.
 

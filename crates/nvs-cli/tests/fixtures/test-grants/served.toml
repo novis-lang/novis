@@ -1,0 +1,6 @@
+[db.notes]
+driver = "sqlite"
+path = ":memory:"
+
+[capabilities.db]
+connect = ["notes"]
