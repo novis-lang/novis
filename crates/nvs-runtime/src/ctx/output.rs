@@ -390,6 +390,38 @@ impl Ctx {
         self.write_output(&rendered)
     }
 
+    /// [`Self::write_body`] for a body its writer built in a buffer of its own,
+    /// such as `Core\Response::json`'s document.
+    ///
+    /// Where the bytes would go out unchanged into an in-memory body that is
+    /// still empty, the buffer becomes the body and nothing is copied. That is
+    /// the common case: a request answers with one body member and writes
+    /// nothing before it. Every other case is [`Self::write_body`]'s, with the
+    /// same rendering. Both charge `[limits] max_output` the same bytes.
+    /// **What it spends:** nothing beyond [`Self::write_body`]. It saves one
+    /// copy of the body, and the body keeps the writer's spare capacity, which
+    /// is at most the body's own size.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::write_output`]'s.
+    pub fn write_body_owned(&mut self, bytes: Vec<u8>) -> io::Result<()> {
+        let unchanged_into_empty = self.run_kind() != RunKind::Isolate
+            && self.captures.is_empty()
+            && matches!(
+                &self.output,
+                OutputSink::Buffer(buffer) | OutputSink::Body(buffer) if buffer.is_empty()
+            );
+        if !unchanged_into_empty {
+            return self.write_body(&bytes);
+        }
+        self.charge_output(bytes.len());
+        if let OutputSink::Buffer(buffer) | OutputSink::Body(buffer) = &mut self.output {
+            *buffer = bytes;
+        }
+        Ok(())
+    }
+
     /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`.
     ///
     /// Deliberately **not** routed through [`Self::captures`]: a
@@ -1403,6 +1435,43 @@ fn style_nonce() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`Ctx::write_body_owned`] takes the buffer itself into a body that is
+    /// still empty, and appends to one that is not. Both are charged to
+    /// `[limits] max_output`, and a child's body is still escaped.
+    #[test]
+    fn an_owned_body_is_taken_whole_into_an_empty_body_and_appended_otherwise() {
+        let mut request = Ctx::new(OutputSink::Body(Vec::new()));
+        let before = crate::budget::written_bytes();
+        let document = b"{\"a\":1}".to_vec();
+        let at = document.as_ptr();
+        request
+            .write_body_owned(document)
+            .expect("a body sink never fails");
+        let OutputSink::Body(body) = &request.output else {
+            panic!("the sink is still the body");
+        };
+        assert_eq!(body.as_ptr(), at, "the empty body copied the buffer");
+        request
+            .write_body_owned(b"<b>".to_vec())
+            .expect("a body sink never fails");
+        assert_eq!(crate::budget::written_bytes() - before, 10);
+        assert_eq!(
+            request.take_buffered_output().as_deref(),
+            Some(&b"{\"a\":1}<b>"[..]),
+            "a body with bytes in it keeps them and appends the next"
+        );
+
+        let mut child = request.isolate(OutputSink::Body(Vec::new()));
+        child
+            .write_body_owned(b"<b>".to_vec())
+            .expect("a body sink never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some(&b"&lt;b&gt;"[..]),
+            "a child's body becomes its parent's markup, so it is escaped once"
+        );
+    }
 
     /// [`Ctx::write_body`] under the HTML sink: a request's own body goes out
     /// verbatim, and a `spawn script` child's or a capture's is escaped, because
