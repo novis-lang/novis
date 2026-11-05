@@ -460,6 +460,25 @@ impl Drop for Detached {
     }
 }
 
+/// Runs every write to the footprint log inside a [`Detached`] bracket, from the first call on.
+///
+/// The log is the recording tool's store, and it lives as long as the process, so it is a store this
+/// bracket exists for: what it keeps is counted against the process, never the request that
+/// happened to read a path. A program then reaches its memory limit at the same step whether a log
+/// is written or not. Every write the log makes is inside the bracket, which keeps it symmetric.
+/// [`crate::Ctx`]'s constructor calls this, so it is installed before any program runs.
+///
+/// **Cost:** one atomic load per context made. Without a log, a write is never reached.
+pub(crate) fn keep_footprint_outside() {
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(|| {
+        nvs_footprint::keep_outside(|write| {
+            let _process = Detached::begin();
+            write();
+        });
+    });
+}
+
 /// What a request tree holds, and has written, on cores other than the one its
 /// root runs on — the module doc's *the part a thread cannot hold*.
 ///

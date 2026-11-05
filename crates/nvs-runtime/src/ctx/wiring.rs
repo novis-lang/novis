@@ -126,6 +126,7 @@ impl Ctx {
         // what this thread did before: a compile draws first, a cache load does
         // not (`rule:testing/bench-counters`).
         let trace_context = crate::trace_context::TraceContext::started();
+        crate::budget::keep_footprint_outside();
         let mut ctx = Self {
             safepoint: std::ptr::from_ref(&tree.word),
             debug: super::trace::starting_debug_flags(),

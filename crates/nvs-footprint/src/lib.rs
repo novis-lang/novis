@@ -268,12 +268,33 @@ fn write(kind: Kind, value: &str) {
     if captured {
         return;
     }
-    let Some(log) = log() else { return };
-    let mut log = log.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Err(error) = log.record(kind, value) {
-        let path = log.path.display().to_string();
-        stop(&format!("could not write to {path}: {error}"));
+    let mut record = || {
+        let Some(log) = log() else { return };
+        let mut log = log.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Err(error) = log.record(kind, value) {
+            let path = log.path.display().to_string();
+            stop(&format!("could not write to {path}: {error}"));
+        }
+    };
+    match OUTSIDE.get() {
+        Some(outside) => outside(&mut record),
+        None => record(),
     }
+}
+
+/// What runs each write to the log, once [`keep_outside`] installed it.
+static OUTSIDE: OnceLock<fn(&mut dyn FnMut())> = OnceLock::new();
+
+/// Installs `outside` to run every write to the log, so the log's own bytes are not charged to the
+/// program that is running.
+///
+/// The log keeps each line it wrote, so it grows with every distinct path a program reads or tests.
+/// Those bytes belong to the recording, not to the program. A program that tests many paths would
+/// otherwise reach its memory limit sooner with a log than without one, and its recorded run would
+/// end differently from its judged run. `nvs-runtime` installs a function that counts what its
+/// argument allocates against the process. The first install is kept, and a later one does nothing.
+pub fn keep_outside(outside: fn(&mut dyn FnMut())) {
+    let _ = OUTSIDE.set(outside);
 }
 
 /// Whether a log is being written, for a caller that would otherwise build a value for nothing.
