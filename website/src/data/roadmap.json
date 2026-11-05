@@ -12,6 +12,13 @@
         "strings-in-place",
         "compare-recorded"
       ]
+    },
+    {
+      "title": "JSON of any size",
+      "text": "`Core\\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.",
+      "goals": [
+        "json-streaming"
+      ]
     }
   ]
 }

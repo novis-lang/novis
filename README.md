@@ -131,6 +131,7 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Faster requests.** *Working on it now.* A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. JSON costs the same per byte at every size up to the limits. Every security limit stays as it is. The comparison with PHP, Bun and Go is then measured again.
+2. **JSON of any size.** `Core\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.
 <!-- roadmap:end -->
 
 ## Contributing
