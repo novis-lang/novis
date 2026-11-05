@@ -621,10 +621,12 @@ jobs:
       # The website's stale guard, against the same binary: the nav and sidebars, every snippet run
       # against its `.out`, no broken id or stale page, every page's search questions, every language
       # and type feature on a Syntax page, the Guides, Tools and In depth sections' shape, every goal
-      # on the chain in the roadmap, and the countable prose bounds. `tools/nv/cmd/site.ts` is what
-      # each part asserts. `reference` needs the built site, and `apps` serves every app, so neither runs here.
+      # on the chain in the roadmap, the countable prose bounds, and every example app: its `nvs test .`,
+      # its server answering `/`, and each file the website stores from it, such as Paperwork's PDFs, being
+      # what the server returns now. `tools/nv/cmd/site.ts` is what each part asserts. `reference` needs
+      # the built site, so it does not run here.
       - name: Website stale guard
-        run: bun nv site --check structure snippets stale questions syntax guides tools in-depth roadmap prose --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: bun nv site --check structure snippets stale questions syntax guides tools in-depth roadmap prose apps --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
       # Every website screenshot taken again from a real run against the same binary, and its
       # `.shot.out` compared (`rule:testing/a-screenshot-is-taken-from-a-real-run`). Linux only, like
