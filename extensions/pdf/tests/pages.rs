@@ -58,7 +58,9 @@ fn ends(laid: &Laid, text: &str) -> (f32, f32) {
                 x,
                 glyphs,
                 ..
-            } if run.trim() == text => Some((*x, x + glyphs.iter().map(|g| g.advance).sum::<f32>())),
+            } if run.trim() == text => {
+                Some((*x, x + glyphs.iter().map(|g| g.advance).sum::<f32>()))
+            }
             _ => None,
         })
         .unwrap_or_else(|| panic!("no run {text}"))
@@ -147,7 +149,14 @@ fn a_media_query_is_applied_by_type_and_page_size_and_an_unknown_feature_is_repo
     for class in ["print", "not-screen", "landscape", "wide", "exact"] {
         assert!(applied(class), "{class} is not applied");
     }
-    for class in ["screen", "portrait", "narrow", "color", "hover", "attribute"] {
+    for class in [
+        "screen",
+        "portrait",
+        "narrow",
+        "color",
+        "hover",
+        "attribute",
+    ] {
         assert!(!applied(class), "{class} is applied");
     }
     assert_eq!(
