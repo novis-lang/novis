@@ -252,6 +252,15 @@ All stale perf records are measured and committed. The shape-table charge that t
 `size-bounds` red is fixed in `d6910ac5a6`. The sweep's `env-secret-proofs` red is stale: no goal
 or floor names that check, and it has no log.
 
+The floor checks `floor-debt` and `proofs-gate` refused four DONE claims, and a repair fixed both.
+`proofs-gate` owed 35 `Core\Test` perf records that `8e83304fbe` made stale; they are measured
+in `bcd795c5fa`, and `bun nv proofs --gate --limit 0` is green. `floor-debt` kept one atom owed,
+`Core\IO::list`'s second attack, because its recording run stopped one step early. The footprint
+log's `seen` set grew on the program's own balance. `b1c8ea401e` runs every log write inside a
+`Detached` bracket, and `bun nv proofs --id 'Core\IO::list' --run` no longer reports a
+divergence. That change reaches `Ctx`'s constructor, so the next `floor-debt` run owes many
+atoms again and takes about half an hour.
+
 Two DONE refusals voided `size-bounds` because uncommitted work outside this goal, under
 `apps/chat/`, `apps/poll/` and the example-apps pages, changed while it ran. With that work at
 rest, `looper check --name size-bounds` is green. None of those files is this goal's, and no
