@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-stdlib/src/response.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 2
     title: "a typed decode parses with the context in hand, and an object of scalar fields is built as it is read"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-runtime/src/ctx/inbound.rs, docs/rules/http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it.md]
   - id: 3
     title: "nested objects and lists are built as they are read, and the Found tree is gone"
@@ -121,6 +121,17 @@ writes a payload: JSON, CSV, compression, JWT, I/O and the output buffer.
 14. **A constructor may run before a later part of the document fails to parse.** That follows from
     decision 3. What a failure owes is decision 4: every instance built is freed, and the
     `ParseError` and its message are unchanged.
+15. **A fault a build raised wins over a later parse error.** It ends the parse with `BUILD_FAULT`,
+    and `decode_as` returns the fault. So constructors run in document order, and of two throwing
+    constructors the first in the document is the one thrown. Before, the walk's field order chose.
+    No test pins that order, and the faults it reaches are a throwing constructor and the memory limit.
+16. **An array a built object's slots held is kept until the decode returns** (`Builder::kept`).
+    `Lists` knows a JSON list by its address, so freeing it would let a later JSON object take that
+    address and read as a list. It spends one `Found` per such array, which the tree spent before.
+17. **The slots are borrowed for the build through a raw slice** (`build_flat`). Nothing pushes,
+    pops or writes them while `decode_fields` runs, and nothing it returns borrows them. Two
+    lifetimes on `Object` and `Fields` were the safe option, and they touch every frame of the walk
+    that stage 3 rewrites anyway.
 
 ## Stages
 
@@ -157,9 +168,14 @@ tree.
   `crates/nvs-stdlib/src/json.rs:2146` `crates/nvs-stdlib/src/request.rs:3171`
   - [x] `decode_as` parses and builds in one body. `read_as`, `ReadAs` and `Parsed` are deleted.
   - [x] `jsonAs` and the test helper `refused_in_one_pass` call `decode_as`.
-- [ ] Add the slot stack of decision 3, and let `Fill` build an object whose fields are all scalars or
+- [x] Add the slot stack of decision 3, and let `Fill` build an object whose fields are all scalars or
   strings when its closing brace is read. `crates/nvs-stdlib/src/json.rs:2574`
   `crates/nvs-stdlib/src/json.rs:3708`
+  - [x] `Builder` holds the context, the slot stack, the kept arrays and the first fault, and every
+    `Fill`, `FillList` and `Typed` reaches it as a `Shared` reference.
+  - [x] `build_flat` builds a flat object at its closing brace into `Found::Built` or `Found::Failed`.
+  - [x] `taken` lets `decode_object`, `decode_nested` and `decode_element` take a built value.
+  - [x] A parse on the spare stack arms the context with its bounds (`TaskBounds`), decision 13.
 
 ### 3. nested objects and lists are built as they are read, and the Found tree is gone
 
@@ -197,39 +213,43 @@ tree.
 
 ### State
 
-Stage 1 is done. Stage 2's first two items are done. The figures in *Why* were taken on 2026-11-05
-at `293a3b9b9`.
+Stages 1 and 2 are done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
 
-- `Inbound::held` is `Rc<Box<[u8]>>` (decision 12), and `Inbound::held_handle` returns a handle.
-  `request.rs`'s `held_handle` fills the hold and returns that handle.
-- `json::decode_as` parses and builds in one call. `read_as`, `ReadAs` and `Parsed` are deleted.
-  `Core\Request::jsonAs` holds the handle, takes `&str` from it, and calls `decode_as`. The callers
-  are `json.rs` (`nvs_core_json_decode_as` and seven tests), `http.rs:5162`, `test.rs:3446`,
-  `jwt.rs:2179` and `request.rs` (`jsonAs` and the test helper `refused_in_one_pass`).
-- `jsonAs` now runs `check_codec` twice: once before the claim, and once inside `decode_as`. It is a
-  descriptor read, and stage 3 may give `decode_as` a checked variant if the bench shows it.
-- The sweep's `env-secret-proofs` red is stale. No goal and no floor names that check, and
-  `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
+- `decode_as` makes one `Builder` (`crates/nvs-stdlib/src/json.rs:2702`): the `&mut Ctx`, the slot
+  stack, the kept arrays (decision 16) and the first fault. The parse takes it as `Shared`, and
+  `decode_as` takes the context back with `into_inner` once the parse has ended.
+- `Fill::visit_map` (`json.rs:2594`) asks `nests` (`json.rs:2850`) of every field. An object no field
+  of which nests is *flat*: its slots go on the stack (`Builder::open`), and `build_flat`
+  (`json.rs:2794`) builds it at its closing brace with `decode_fields`, into `Found::Built` or
+  `Found::Failed`. Any other object is still a `Read`, built by the walk after the parse.
+- `taken` (`json.rs:2375`) gives the walk a built value: `decode_object`, `decode_nested` and
+  `decode_element` call it first. `decode_object`'s tree half is now `decode_document`.
+- `nvs_host::on_spare_stack_within` hands the closure the spare stack's bounds, and
+  `Ctx::restore_stack_bounds` puts the task's back. `read_against`'s `TaskBounds` does both.
+- `build_flat` checks the memory crossing in front of each object, as `decode_each` does per row.
+- The new test `a_scalar_object_is_built_at_its_closing_brace_and_freed_by_a_later_failure` passed.
+- The sweep's `env-secret-proofs` red is stale. No goal and no floor names that check, its log does
+  not exist, and `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
 
-No test is expected to go red. `refused_in_one_pass` now also runs `check_codec`, and its class has a
-codec, so its messages are unchanged.
+No test is expected to go red. Two shapes could: a test whose two constructors both throw now gets the
+first in document order (decision 15), and a test that counts allocations of a flat decode
+(`a_decode_as_builds_no_array_for_the_object_it_fills` asserts fewer than the field count, which
+should still hold).
 
 ### Next
 
-**Stage 2, its last item**, in the decode half of `crates/nvs-stdlib/src/json.rs`. No gate. Read
-decisions 3, 4, 6, 13 and 14 first. It is one slice and a large one: start it fresh.
+**Stage 3**, in the decode half of `crates/nvs-stdlib/src/json.rs`. No gate. Read decisions 3, 4, 15,
+16 and 17 first. Take the first two items as one slice.
 
-- [ ] The slot stack, and `Fill` building a scalar-only object. `crates/nvs-stdlib/src/json.rs:2514`
-  A shared builder reaches every `Fill` as a `&RefCell<...>` (Fill stays `Copy`). It has the
-  `&mut Ctx`, the slot stack, and the first `Fault` a build raised. A `Fault` ends the parse with a
-  marker `serde_json::Error`, and `decode_as` returns the stored `Fault` in its place.
-  `crates/nvs-stdlib/src/json.rs:2813`
-- [ ] A scalar-only object is built at its closing brace. `crates/nvs-stdlib/src/json.rs:3810`
-  A contract whose fields all read through `Decode` is built with `decode_fields(ctx, contract,
-  Object::Read(..))`. Its result goes in a new `Found::Built(Value)` or a failed arm that keeps its
-  issues. `decode_field` and `decode_object` take a built value as done.
-  `crates/nvs-stdlib/src/json.rs:4354`
-- [ ] The spare-stack bounds of decision 13. `crates/nvs-stdlib/src/json.rs:4054`
-  `crates/nvs-host/src/stack.rs:230`
+- [ ] A nested object builds into its parent's slot. `crates/nvs-stdlib/src/json.rs:2594`
+  Drop the `flat` test in `Fill::visit_map`, so every object goes on the slot stack and
+  `build_flat` builds it. A nested field's `Found::Built` then sits in the parent's stack slot, and
+  `decode_nested` already takes it through `taken`. `crates/nvs-stdlib/src/json.rs:4948`
+- [ ] `FillList` builds each element the same way. `crates/nvs-stdlib/src/json.rs:2874`
+  `decode_each` and `decode_element` take them through `taken`.
+  `crates/nvs-stdlib/src/json.rs:3886` `crates/nvs-stdlib/src/json.rs:5304`
+- [ ] The tree goes, and the three tests are written. `crates/nvs-stdlib/src/json.rs:2271`
+  `Read`, `Seen::Object` and the walk's tree arms go, and the raw slice of decision 17 is the one
+  borrow left. The three tests are the ones the `one-pass-decode` check names.
 
 ### Backlog

@@ -2145,11 +2145,14 @@ nvs_runtime::nvs_helper! {
 /// or, for `list`, one per element of a JSON array.
 ///
 /// The text is read in one pass against the contract ([`Fill`]): an object
-/// the class fills is read into one slot per field ([`Read`]), and never into
-/// an array. Every check [`Decode`] makes still applies, at the same place,
-/// with the same message. Once the parse has ended, [`walk`] builds the
-/// instances out of that tree, so no constructor runs before the whole
-/// document has parsed. A class that wrote [`DECODE`] is handed the document
+/// the class fills is read into one slot per field, and never into an array.
+/// Every check [`Decode`] makes still applies, at the same place, with the
+/// same message. An object whose fields all read through [`Decode`] is built
+/// when its closing brace is read, from slots on one stack the whole decode
+/// shares ([`Builder`]). So a constructor may run before a later part of the
+/// document fails to parse, and that failure frees every instance built. An
+/// object that nests another is read into a [`Read`], and once the parse has
+/// ended, [`walk`] builds it out of that tree. A class that wrote [`DECODE`] is handed the document
 /// as it arrived, so its text is read by [`read_marked`] and built by
 /// [`hydrate`]. The context is in hand for the whole call, so a caller whose
 /// text is the request's body holds a handle on the bytes and not a borrow of
@@ -2214,7 +2217,18 @@ pub(crate) unsafe fn decode_as(
         )]
         return unsafe { hydrate(ctx, class, shape, document, list, reading, member) };
     }
-    let tree = read_against(text, max, contract, list).map_err(unparsed)?;
+    let build = std::cell::RefCell::new(Builder::new(&mut *ctx));
+    let read = read_against(text, max, contract, list, &build);
+    // The slots of an object the parse left open, and the arrays kept for
+    // `Lists`, drop with this and release what they hold.
+    let Builder {
+        ctx, fault, kept, ..
+    } = build.into_inner();
+    // A fault a build raised ends the parse, and is what the call throws.
+    if let Some(fault) = fault {
+        return Err(fault);
+    }
+    let tree = read.map_err(unparsed)?;
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for, and a tree this \
@@ -2231,6 +2245,7 @@ pub(crate) unsafe fn decode_as(
     // own on the way past, so dropping the tree frees exactly what nothing
     // else holds.
     drop(tree);
+    drop(kept);
     decoded
 }
 
@@ -2246,16 +2261,26 @@ pub(crate) unsafe fn decode_as(
 /// an object. Everything else is a [`Found::Value`], so the walk meets every
 /// value it judges in the same form [`hydrate`]'s callers hand it.
 ///
+/// An object whose fields all read through [`Decode`] is built while the parse
+/// reads its closing brace ([`build_flat`]), so it arrives as
+/// [`Found::Built`] or [`Found::Failed`] and never as a [`Read`].
+///
 /// Dropping one releases every value under it. The drop takes no native frame
 /// per level: it moves each container's children onto one heap list and frees
 /// them from there, so a tree nested to [`DEPTH_CEILING`] frees on any stack.
-enum Found {
+enum Found<'a> {
     /// A value [`Decode`] read, with the one reference that read made.
     Value(Value),
     /// A JSON object read against a field list.
-    Object(Read),
+    Object(Read<'a>),
     /// A JSON list whose elements were read against a list field's element.
-    List(Vec<Found>),
+    List(Vec<Found<'a>>),
+    /// An instance built at its closing brace, with the one reference the
+    /// build made.
+    Built(Value),
+    /// An object built at its closing brace whose fields did not match, with
+    /// the issues the build found, each path relative to the object.
+    Failed(Vec<Issue<'a>>),
 }
 
 /// One JSON object read against a contract's field list.
@@ -2264,26 +2289,28 @@ enum Found {
 /// the contract, per object filled. The keys are not kept: a key the contract
 /// declares is the slot's index, and a key it does not declare is checked and
 /// dropped while the object is read.
-struct Read {
+struct Read<'a> {
     /// One slot per entry of [`Contract::fields`], at that field's index, and
     /// `None` where the object has no such key.
-    found: Box<[Option<Found>]>,
+    found: Box<[Option<Found<'a>>]>,
 }
 
-impl Found {
+impl<'a> Found<'a> {
     /// This value as the walk reads it.
     fn seen(&self) -> Seen<'_> {
         match self {
             Self::Value(value) => Seen::Value(*value),
-            Self::Object(read) => Seen::Object(read),
+            Self::Object(read) => Seen::Object(&read.found),
             Self::List(items) => Seen::List(items),
+            Self::Built(value) => Seen::Built(*value),
+            Self::Failed(issues) => Seen::Failed(issues),
         }
     }
 
     /// Moves this value's children onto `pending`, and leaves it with none.
     fn drain_into(&mut self, pending: &mut Vec<Self>) {
         match self {
-            Self::Value(_) => {}
+            Self::Value(_) | Self::Built(_) | Self::Failed(_) => {}
             Self::Object(read) => {
                 pending.extend(
                     std::mem::take(&mut read.found)
@@ -2297,13 +2324,14 @@ impl Found {
     }
 }
 
-impl Drop for Found {
+impl Drop for Found<'_> {
     fn drop(&mut self) {
-        if let Self::Value(value) = self {
+        if let Self::Value(value) | Self::Built(value) = self {
             #[expect(
                 unsafe_code,
-                reason = "a `Found::Value` owns the one reference its read made, and \
-                          the walk took its own reference to anything it kept"
+                reason = "a `Found::Value` owns the one reference its read made, a \
+                          `Found::Built` the one its build made, and the walk took its \
+                          own reference to anything it kept"
             )]
             unsafe {
                 value.release();
@@ -2329,18 +2357,46 @@ impl Drop for Found {
 enum Seen<'a> {
     /// A value, borrowed from whoever owns the document.
     Value(Value),
-    /// An object read against the contract the walk is filling.
-    Object(&'a Read),
+    /// An object read against the contract the walk is filling: its slots,
+    /// one per field.
+    Object(&'a [Option<Found<'a>>]),
     /// A list whose elements were read against the field's element.
-    List(&'a [Found]),
+    List(&'a [Found<'a>]),
+    /// An instance the parse built, borrowed. [`taken`] takes a reference of
+    /// its own.
+    Built(Value),
+    /// The issues of an object the parse built and that did not match.
+    Failed(&'a [Issue<'a>]),
+}
+
+/// A value the parse already built, as the walk takes it: the instance with a
+/// reference of its own, or a copy of its issues. `None` for every other
+/// value, which the walk still has to build.
+fn taken<'a>(found: Seen<'a>) -> Option<Result<Value, DecodeFailure<'a>>> {
+    match found {
+        Seen::Built(value) => {
+            #[expect(
+                unsafe_code,
+                reason = "the tree owns this instance until the decode returns, and \
+                          the reference taken here is the walk's own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            Some(Ok(value))
+        }
+        Seen::Failed(issues) => Some(Err(DecodeFailure::Issues(issues.to_vec()))),
+        Seen::Value(_) | Seen::Object(_) | Seen::List(_) => None,
+    }
 }
 
 /// The object one [`Fields`] frame reads its fields from.
 enum Object<'a> {
     /// An array the document built, borrowed. A field is found by its key.
     Array(std::mem::ManuallyDrop<NvsArray>),
-    /// An object [`Fill`] read. A field is found by its index.
-    Read(&'a Read),
+    /// The slots of an object [`Fill`] read, one per field. A field is found
+    /// by its index.
+    Read(&'a [Option<Found<'a>>]),
 }
 
 impl<'a> Object<'a> {
@@ -2349,9 +2405,9 @@ impl<'a> Object<'a> {
     fn field(&self, index: usize, key: &str) -> Option<Seen<'a>> {
         match self {
             Self::Array(array) => array.get(key.as_bytes()).map(Seen::Value),
-            Self::Read(read) => {
-                let read: &'a Read = read;
-                read.found.get(index)?.as_ref().map(Found::seen)
+            Self::Read(slots) => {
+                let slots: &'a [Option<Found<'a>>] = slots;
+                slots.get(index)?.as_ref().map(Found::seen)
             }
         }
     }
@@ -2369,7 +2425,7 @@ enum Sequence<'a> {
         items: std::mem::ManuallyDrop<NvsArray>,
     },
     /// A list [`Fill`] read.
-    Read(&'a [Found]),
+    Read(&'a [Found<'a>]),
 }
 
 impl<'a> Sequence<'a> {
@@ -2390,7 +2446,7 @@ impl<'a> Sequence<'a> {
                 .and_then(|position| items.get_index(position))
                 .map(Seen::Value),
             Self::Read(items) => {
-                let items: &'a [Found] = items;
+                let items: &'a [Found<'a>] = items;
                 items.get(at).map(Found::seen)
             }
         }
@@ -2452,77 +2508,120 @@ macro_rules! decoded_scalars {
             f.write_str("a JSON value")
         }
 
-        fn visit_unit<E: serde::de::Error>(self) -> Result<Found, E> {
+        fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
             Visitor::visit_unit(self.decode).map(Found::Value)
         }
 
-        fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Found, E> {
+        fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Self::Value, E> {
             Visitor::visit_bool(self.decode, value).map(Found::Value)
         }
 
-        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Found, E> {
+        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
             Visitor::visit_i64(self.decode, value).map(Found::Value)
         }
 
-        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Found, E> {
+        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
             Visitor::visit_u64(self.decode, value).map(Found::Value)
         }
 
-        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Found, E> {
+        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Self::Value, E> {
             Visitor::visit_f64(self.decode, value).map(Found::Value)
         }
 
-        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Found, E> {
+        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
             Visitor::visit_str(self.decode, value).map(Found::Value)
         }
     };
 }
 
 /// The visitor that reads one value where `contract` fills an object: a JSON
-/// object becomes a [`Read`], and every other value is [`Decode`]'s.
+/// object becomes an instance built at its closing brace, or a [`Read`] where
+/// a field nests another object or list, and every other value is
+/// [`Decode`]'s.
 ///
 /// `Copy`, as [`Decode`] is, and small, because the parse takes one native
 /// frame of it per nesting level. The slots live on the heap.
 #[derive(Clone, Copy)]
-struct Fill<'a> {
+struct Fill<'a, 'c> {
     /// This value's level, its cap, and the lists the parse notes.
     decode: Decode<'a>,
     /// The class or shape the object fills.
     contract: Contract<'a>,
+    /// The decode's context, slot stack and first fault.
+    build: Shared<'c, 'a>,
 }
 
-impl<'de> DeserializeSeed<'de> for Fill<'_> {
-    type Value = Found;
+impl<'de, 'a> DeserializeSeed<'de> for Fill<'a, '_> {
+    type Value = Found<'a>;
 
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Found, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
         deserializer.deserialize_any(self)
     }
 }
 
-impl<'de> Visitor<'de> for Fill<'_> {
-    type Value = Found;
+/// Where one object's field values wait until its closing brace: on the
+/// decode's slot stack for an object [`build_flat`] builds, and in a [`Read`]
+/// for one the walk builds.
+enum Slots<'a> {
+    /// The slots from this position of [`Builder::slots`] on.
+    Stacked(usize),
+    /// A slot array of the object's own.
+    Boxed(Read<'a>),
+}
+
+/// Writes `found` into `slot`, or returns `true` where the slot is filled
+/// already, which is a key written twice. On `true`, `found` is released.
+fn fill_slot<'a>(slot: &mut Option<Found<'a>>, found: Found<'a>) -> bool {
+    if slot.is_some() {
+        return true;
+    }
+    *slot = Some(found);
+    false
+}
+
+impl<'de, 'a> Visitor<'de> for Fill<'a, '_> {
+    type Value = Found<'a>;
 
     decoded_scalars!();
 
-    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Found, A::Error> {
+    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
         Visitor::visit_seq(self.decode, seq).map(Found::Value)
     }
 
     /// [`Decode::visit_map`]'s checks in the same order, with the same
     /// messages: the depth first, the memory asked for in front of each step,
     /// and a repeated key refused once its value is read.
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Found, A::Error> {
-        let Self { decode, contract } = self;
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let Self {
+            decode,
+            contract,
+            build,
+        } = self;
         if decode.depth >= decode.max {
             return Err(decode.too_deep());
         }
         let fields = contract.fields();
-        let slots = size_of::<Option<Found>>().saturating_mul(fields.len());
-        if !nvs_runtime::budget::affords(size_of::<Read>().saturating_add(slots)) {
-            return Err(over_memory());
-        }
-        let mut read = Read {
-            found: std::iter::repeat_with(|| None).take(fields.len()).collect(),
+        #[expect(
+            unsafe_code,
+            reason = "every descriptor under a decode is the caller's or one \
+                      `nvs-codegen` resolved out of the same class table"
+        )]
+        let flat = (0..fields.len()).all(|index| !unsafe { nests(contract, index) });
+        let mut read = if flat {
+            Slots::Stacked(
+                build
+                    .borrow_mut()
+                    .open(fields.len())
+                    .ok_or_else(over_memory)?,
+            )
+        } else {
+            let slots = size_of::<Option<Found<'_>>>().saturating_mul(fields.len());
+            if !nvs_runtime::budget::affords(size_of::<Read<'_>>().saturating_add(slots)) {
+                return Err(over_memory());
+            }
+            Slots::Boxed(Read {
+                found: std::iter::repeat_with(|| None).take(fields.len()).collect(),
+            })
         };
         // The keys the contract does not declare, kept only to refuse a
         // repeat, and made only once the first one appears.
@@ -2533,14 +2632,18 @@ impl<'de> Visitor<'de> for Fill<'_> {
             }
             let child = decode.child();
             if let Some(index) = fields.iter().position(|field| field.key == *key) {
-                let found = map.next_value_seed(Typed::field(child, contract, index))?;
-                // `read.found` has one slot per field. On the refusal,
-                // dropping `found` releases what it read.
-                let slot = &mut read.found[index];
-                if slot.is_some() {
+                let found = map.next_value_seed(Typed::field(child, contract, index, build))?;
+                // Each object has one slot per field. On the refusal, dropping
+                // `found` releases what it read.
+                let twice = match &mut read {
+                    Slots::Boxed(read) => fill_slot(&mut read.found[index], found),
+                    Slots::Stacked(base) => {
+                        fill_slot(&mut build.borrow_mut().slots[*base + index], found)
+                    }
+                };
+                if twice {
                     return Err(repeated(&key));
                 }
-                *slot = Some(found);
             } else {
                 // Read in full, so every check on it is made, and then
                 // released: no field takes it. Its lists are not noted,
@@ -2581,7 +2684,182 @@ impl<'de> Visitor<'de> for Fill<'_> {
                 seen.insert(key);
             }
         }
-        Ok(Found::Object(read))
+        match read {
+            Slots::Boxed(read) => Ok(Found::Object(read)),
+            Slots::Stacked(base) => build_flat(build, contract, base),
+        }
+    }
+}
+
+/// The decode's state that every [`Fill`] reaches: the context, the slot
+/// stack, and the first fault a build raised.
+///
+/// One per typed decode, shared as a [`Shared`] so that [`Fill`] stays `Copy`.
+///
+/// **What it spends:** the slot stack, `size_of::<Option<Found>>()` per field
+/// of the objects open on it at once, and the arrays [`Builder::close`] keeps.
+/// Both are freed when the decode returns.
+struct Builder<'a> {
+    /// The context a constructor runs with. [`decode_as`] takes it back
+    /// once the parse has ended.
+    ctx: &'a mut nvs_runtime::Ctx,
+    /// The field values of every object [`build_flat`] builds that is open,
+    /// each object's slots after its parent's, one per field.
+    slots: Vec<Option<Found<'a>>>,
+    /// Each array a closed object's slots held. They live until the decode
+    /// returns, because [`Lists`] knows a JSON list by its address, and a freed
+    /// address may be given to an array the parse builds later.
+    kept: Vec<Found<'a>>,
+    /// The fault a build raised. The parse ends with [`BUILD_FAULT`], and the
+    /// decode returns this in its place.
+    fault: Option<Fault>,
+}
+
+/// The decode's [`Builder`], as every [`Fill`], [`FillList`] and [`Typed`]
+/// holds it.
+type Shared<'c, 'a> = &'c std::cell::RefCell<Builder<'a>>;
+
+/// The message of the error a parse ends with once a build raised a fault.
+/// [`decode_as`] returns [`Builder::fault`] in its place, so no program sees
+/// it.
+const BUILD_FAULT: &str = "the decode stopped at a fault its build raised";
+
+impl<'a> Builder<'a> {
+    /// A builder over `ctx`, with an empty slot stack.
+    const fn new(ctx: &'a mut nvs_runtime::Ctx) -> Self {
+        Self {
+            ctx,
+            slots: Vec::new(),
+            kept: Vec::new(),
+            fault: None,
+        }
+    }
+
+    /// Pushes `count` empty slots, and returns where they start. `None` where
+    /// the request cannot afford them. The ask is in front of the push, and is
+    /// never zero.
+    fn open(&mut self, count: usize) -> Option<usize> {
+        let base = self.slots.len();
+        let wanted = base.saturating_add(count);
+        let grow = if wanted > self.slots.capacity() {
+            wanted
+                .max(self.slots.capacity().saturating_mul(2))
+                .max(4)
+                .saturating_mul(size_of::<Option<Found<'_>>>())
+        } else {
+            0
+        };
+        let ask = size_of::<Option<Found<'_>>>()
+            .saturating_mul(count.max(1))
+            .saturating_add(grow);
+        if !nvs_runtime::budget::affords(ask) {
+            return None;
+        }
+        self.slots.resize_with(wanted, || None);
+        Some(base)
+    }
+
+    /// Pops the slots from `base` on. A value that is an array moves to
+    /// [`Builder::kept`], and every other value is released. `false` where the
+    /// request cannot afford the place an array needs.
+    fn close(&mut self, base: usize) -> bool {
+        let Self { slots, kept, .. } = self;
+        for found in slots.drain(base..).flatten() {
+            if !matches!(&found, Found::Value(value) if value.array_ptr().is_some()) {
+                continue;
+            }
+            let grow = if kept.len() == kept.capacity() {
+                kept.capacity()
+                    .max(4)
+                    .saturating_mul(size_of::<Found<'_>>())
+            } else {
+                0
+            };
+            if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
+                return false;
+            }
+            kept.push(found);
+        }
+        true
+    }
+}
+
+/// Builds the object whose field values are on the slot stack from `base` on,
+/// at its closing brace, and pops its slots.
+///
+/// The build is [`decode_fields`], so every check and every message is the
+/// walk's. Its issues are kept in a [`Found::Failed`], so the enclosing object
+/// reports them in the walk's order. A fault ends the parse with
+/// [`BUILD_FAULT`], and [`decode_as`] returns the fault.
+fn build_flat<'a, E: serde::de::Error>(
+    build: Shared<'_, 'a>,
+    contract: Contract<'a>,
+    base: usize,
+) -> Result<Found<'a>, E> {
+    let mut builder = build.borrow_mut();
+    let builder = &mut *builder;
+    // [`decode_each`]'s check, in front of each object: an instance is several
+    // allocations that ask nothing, so this stops the parse at the crossing.
+    // Two thread-local reads per object.
+    if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
+        builder.fault = Some(builder.ctx.memory_breach().unwrap_or_else(|| {
+            Fault::fatal("the decoded document does not fit in the request's memory limit")
+        }));
+        return Err(E::custom(BUILD_FAULT));
+    }
+    let open = &builder.slots[base..];
+    #[expect(
+        unsafe_code,
+        reason = "the slots are not pushed, popped or written until `decode_fields` \
+                  returns, and nothing it returns borrows them: a value it keeps has a \
+                  reference of its own, and an issue borrows its key from the contract"
+    )]
+    let source: &'a [Option<Found<'a>>] =
+        unsafe { std::slice::from_raw_parts(open.as_ptr(), open.len()) };
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is the caller's or one `nvs-codegen` resolved out of the \
+                  same class table, and the slots live across the call"
+    )]
+    let outcome = unsafe { decode_fields(builder.ctx, contract, Object::Read(source)) };
+    let found = match outcome {
+        Ok(value) => Found::Built(value),
+        Err(DecodeFailure::Issues(issues)) => Found::Failed(issues),
+        Err(DecodeFailure::Fault(fault)) => {
+            builder.fault = Some(fault);
+            return Err(E::custom(BUILD_FAULT));
+        }
+    };
+    if !builder.close(base) {
+        return Err(over_memory());
+    }
+    Ok(found)
+}
+
+/// Whether the `index`th field's value is read by [`Fill`] or [`FillList`]:
+/// an object or a list of objects the contract fills. Every other field's
+/// value is read by [`Decode`]. [`Typed`] asks the same question.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the descriptor the field names.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn nests(contract: Contract<'_>, index: usize) -> bool {
+    let field = &contract.fields()[index];
+    match field.ty {
+        CodecTy::Class | CodecTy::Shape => {
+            #[expect(unsafe_code, reason = "the caller's descriptor")]
+            let nested = unsafe { filled(contract, index) };
+            nested.is_some()
+        }
+        CodecTy::List => field
+            .element
+            .as_ref()
+            .is_some_and(|element| matches!(element.terminal(), CodecTy::Class | CodecTy::Shape)),
+        _ => false,
     }
 }
 
@@ -2593,7 +2871,7 @@ impl<'de> Visitor<'de> for Fill<'_> {
 /// against, and `None` for a document that is an `array<T>`, whose every
 /// element is an object of `contract` itself.
 #[derive(Clone, Copy)]
-struct FillList<'a> {
+struct FillList<'a, 'c> {
     /// This value's level, its cap, and the lists the parse notes.
     decode: Decode<'a>,
     /// The contract whose field this list is, or whose objects it lists.
@@ -2602,21 +2880,24 @@ struct FillList<'a> {
     index: usize,
     /// The element each position is read against.
     element: Option<&'a nvs_runtime::CodecElement>,
+    /// The decode's context, slot stack and first fault.
+    build: Shared<'c, 'a>,
 }
 
-impl<'de> Visitor<'de> for FillList<'_> {
-    type Value = Found;
+impl<'de, 'a> Visitor<'de> for FillList<'a, '_> {
+    type Value = Found<'a>;
 
     decoded_scalars!();
 
     /// [`Decode::visit_seq`]'s checks in the same order, with the same
     /// messages.
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Found, A::Error> {
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
         let Self {
             decode,
             contract,
             index,
             element,
+            build,
         } = self;
         if decode.depth >= decode.max {
             return Err(decode.too_deep());
@@ -2627,11 +2908,14 @@ impl<'de> Visitor<'de> for FillList<'_> {
             // are asked for in front of the push that allocates them. The
             // first growth is the vector itself.
             let grow = if items.len() == items.capacity() {
-                items.capacity().max(4).saturating_mul(size_of::<Found>())
+                items
+                    .capacity()
+                    .max(4)
+                    .saturating_mul(size_of::<Found<'_>>())
             } else {
                 0
             };
-            if !nvs_runtime::budget::affords(size_of::<Found>().saturating_add(grow)) {
+            if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
                 return Err(over_memory());
             }
             let child = decode.child();
@@ -2639,9 +2923,10 @@ impl<'de> Visitor<'de> for FillList<'_> {
                 None => seq.next_element_seed(Fill {
                     decode: child,
                     contract,
+                    build,
                 })?,
                 Some(element) => {
-                    seq.next_element_seed(Typed::link(child, contract, index, element))?
+                    seq.next_element_seed(Typed::link(child, contract, index, element, build))?
                 }
             };
             let Some(found) = next else {
@@ -2652,7 +2937,7 @@ impl<'de> Visitor<'de> for FillList<'_> {
         Ok(Found::List(items))
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Found, A::Error> {
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
         Visitor::visit_map(self.decode, map).map(Found::Value)
     }
 }
@@ -2664,7 +2949,7 @@ impl<'de> Visitor<'de> for FillList<'_> {
 /// chain ends in one by [`FillList`]. Everything else is read by [`Decode`],
 /// whose own visitor, unchanged, makes every check on it.
 #[derive(Clone, Copy)]
-struct Typed<'a> {
+struct Typed<'a, 'c> {
     /// This value's level, its cap, and the lists the parse notes.
     decode: Decode<'a>,
     /// The contract whose field this value is.
@@ -2675,11 +2960,18 @@ struct Typed<'a> {
     ty: CodecTy,
     /// The element of a list, where `ty` is one.
     element: Option<&'a nvs_runtime::CodecElement>,
+    /// The decode's context, slot stack and first fault.
+    build: Shared<'c, 'a>,
 }
 
-impl<'a> Typed<'a> {
+impl<'a, 'c> Typed<'a, 'c> {
     /// The seed for the `index`th field's value.
-    fn field(decode: Decode<'a>, contract: Contract<'a>, index: usize) -> Self {
+    fn field(
+        decode: Decode<'a>,
+        contract: Contract<'a>,
+        index: usize,
+        build: Shared<'c, 'a>,
+    ) -> Self {
         let field = &contract.fields()[index];
         Self {
             decode,
@@ -2687,6 +2979,7 @@ impl<'a> Typed<'a> {
             index,
             ty: field.ty,
             element: field.element.as_ref(),
+            build,
         }
     }
 
@@ -2696,6 +2989,7 @@ impl<'a> Typed<'a> {
         contract: Contract<'a>,
         index: usize,
         element: &'a nvs_runtime::CodecElement,
+        build: Shared<'c, 'a>,
     ) -> Self {
         Self {
             decode,
@@ -2703,20 +2997,22 @@ impl<'a> Typed<'a> {
             index,
             ty: element.ty,
             element: element.element.as_deref(),
+            build,
         }
     }
 }
 
-impl<'de> DeserializeSeed<'de> for Typed<'_> {
-    type Value = Found;
+impl<'de, 'a> DeserializeSeed<'de> for Typed<'a, '_> {
+    type Value = Found<'a>;
 
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Found, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
         let Self {
             decode,
             contract,
             index,
             ty,
             element,
+            build,
         } = self;
         match ty {
             CodecTy::Class | CodecTy::Shape => {
@@ -2730,6 +3026,7 @@ impl<'de> DeserializeSeed<'de> for Typed<'_> {
                     return deserializer.deserialize_any(Fill {
                         decode,
                         contract: nested,
+                        build,
                     });
                 }
             }
@@ -2742,6 +3039,7 @@ impl<'de> DeserializeSeed<'de> for Typed<'_> {
                         contract,
                         index,
                         element: Some(element),
+                        build,
                     });
                 }
             }
@@ -2795,27 +3093,63 @@ fn repeated<E: serde::de::Error>(key: &str) -> E {
 /// `list` reads an `array<T>` document, whose elements are each an object of
 /// `contract`. The contract's reading is [`Reading::Wire`], and its lists are
 /// where the parse notes each JSON list [`Decode`] builds.
-fn read_against(
+///
+/// The parse builds objects as it reads them, and a constructor is compiled
+/// code. So a parse on the spare stack arms the context with that stack's
+/// bounds while it runs, and [`TaskBounds`] arms the task's again on every way
+/// out.
+fn read_against<'a>(
     text: &str,
     max: u32,
-    contract: Contract<'_>,
+    contract: Contract<'a>,
     list: bool,
-) -> Result<Found, serde_json::Error> {
+    build: Shared<'_, 'a>,
+) -> Result<Found<'a>, serde_json::Error> {
     if text.len() <= IN_PLACE_BYTES {
-        parse_against(text, max, contract, list)
+        parse_against(text, max, contract, list, build)
     } else {
-        nvs_host::on_spare_stack(|| parse_against(text, max, contract, list))
+        nvs_host::on_spare_stack_within(|base, ceiling| {
+            let _task = TaskBounds::arm(build, base, ceiling);
+            parse_against(text, max, contract, list, build)
+        })
+    }
+}
+
+/// The task's stack bounds, set aside while a parse runs on the spare stack,
+/// and armed on the context again when this drops.
+struct TaskBounds<'b, 'a> {
+    /// The decode's builder, which holds the context.
+    build: Shared<'b, 'a>,
+    /// The pair [`nvs_runtime::Ctx::stack_bounds`] returned before the parse.
+    saved: (usize, usize),
+}
+
+impl<'b, 'a> TaskBounds<'b, 'a> {
+    /// Arms the context with the stack from `base` down `ceiling` bytes, and
+    /// keeps the pair it had.
+    fn arm(build: Shared<'b, 'a>, base: usize, ceiling: usize) -> Self {
+        let mut builder = build.borrow_mut();
+        let saved = builder.ctx.stack_bounds();
+        builder.ctx.arm_stack_limit(base, ceiling);
+        Self { build, saved }
+    }
+}
+
+impl Drop for TaskBounds<'_, '_> {
+    fn drop(&mut self) {
+        self.build.borrow_mut().ctx.restore_stack_bounds(self.saved);
     }
 }
 
 /// [`read_against`]'s parse, on whatever stack it is called on, with
 /// [`parse`]'s reason for `disable_recursion_limit`.
-fn parse_against(
+fn parse_against<'a>(
     text: &str,
     max: u32,
-    contract: Contract<'_>,
+    contract: Contract<'a>,
     list: bool,
-) -> Result<Found, serde_json::Error> {
+    build: Shared<'_, 'a>,
+) -> Result<Found<'a>, serde_json::Error> {
     let lists = match contract.reading {
         Reading::Wire(lists) => Some(lists),
         Reading::Values => None,
@@ -2833,9 +3167,14 @@ fn parse_against(
             contract,
             index: 0,
             element: None,
+            build,
         })?
     } else {
-        (&mut deserializer).deserialize_any(Fill { decode, contract })?
+        (&mut deserializer).deserialize_any(Fill {
+            decode,
+            contract,
+            build,
+        })?
     };
     // On an error, `found` drops here and releases everything it read.
     deserializer.end()?;
@@ -3567,7 +3906,9 @@ unsafe fn decode_each<'a>(
             },
             None => return Err(refusal()),
         },
-        Seen::Object(_) => return Err(misread(contract, None)),
+        Seen::Object(_) | Seen::Built(_) | Seen::Failed(_) => {
+            return Err(misread(contract, None));
+        }
     };
     // Sized once, so the list is never copied into a doubled backing. The
     // allocation asks the request's budget, as every growth of an array does.
@@ -3640,39 +3981,16 @@ unsafe fn decode_object<'a>(
         )]
         return unsafe { hand_written(ctx, contract, document, member) };
     }
-    let found = match document {
-        Seen::Object(read) => Some(Object::Read(read)),
-        Seen::Value(document) => contract
-            .object_of(document)
-            .map(|ptr| Object::Array(crate::arr::borrowed(ptr))),
-        Seen::List(_) => return Err(misread(contract, None)),
-    };
-    let Some(source) = found else {
-        let message = match at {
-            None => format!(
-                "{member}(): a `{}` decodes from a JSON object",
-                contract.name()
-            ),
-            Some(index) => format!(
-                "{member}(): element {index} is not a JSON object, and a `{}` \
-                 decodes from one",
-                contract.name()
-            ),
-        };
-        let path = at.map(|index| index.to_string()).unwrap_or_default();
-        let issues = crate::issue::list([(path.as_str(), message.as_str())]);
-        return Err(Fault::thrown_with_issues(
-            ThrownClass::Parse,
-            message,
-            issues,
-        ));
-    };
-
+    // An object the parse already built is taken as it is, issues and all.
     #[expect(
         unsafe_code,
         reason = "the same live descriptor, and a borrow of the document's own object"
     )]
-    match unsafe { decode_fields(ctx, contract, source) } {
+    let outcome = match taken(document) {
+        Some(outcome) => outcome,
+        None => unsafe { decode_document(ctx, contract, document, at, member)? },
+    };
+    match outcome {
         Ok(value) => Ok(value),
         Err(DecodeFailure::Fault(fault)) => Err(fault),
         Err(DecodeFailure::Issues(issues)) => {
@@ -3703,6 +4021,61 @@ unsafe fn decode_object<'a>(
             ))
         }
     }
+}
+
+/// [`decode_object`]'s build of an object the parse did not build: the
+/// object found, and its fields decoded. The outer `Err` is a fault that ends
+/// the decode, and the inner result is [`decode_fields`]'s.
+///
+/// # Safety
+///
+/// As [`decode_object`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_document<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'a>,
+    document: Seen<'a>,
+    at: Option<usize>,
+    member: &str,
+) -> Result<Result<Value, DecodeFailure<'a>>, Fault> {
+    let found = match document {
+        Seen::Object(slots) => Some(Object::Read(slots)),
+        Seen::Value(document) => contract
+            .object_of(document)
+            .map(|ptr| Object::Array(crate::arr::borrowed(ptr))),
+        Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => {
+            return Err(misread(contract, None));
+        }
+    };
+    let Some(source) = found else {
+        let message = match at {
+            None => format!(
+                "{member}(): a `{}` decodes from a JSON object",
+                contract.name()
+            ),
+            Some(index) => format!(
+                "{member}(): element {index} is not a JSON object, and a `{}` \
+                 decodes from one",
+                contract.name()
+            ),
+        };
+        let path = at.map(|index| index.to_string()).unwrap_or_default();
+        let issues = crate::issue::list([(path.as_str(), message.as_str())]);
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            message,
+            issues,
+        ));
+    };
+
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor, and a borrow of the document's own object"
+    )]
+    Ok(unsafe { decode_fields(ctx, contract, source) })
 }
 
 /// How one field, or one whole nested object, failed.
@@ -3739,6 +4112,7 @@ enum Segment<'a> {
 /// ([`Fields::place`], [`Positions::receive`]). So an issue at depth d costs d
 /// pushes, every key is borrowed from the contract rather than copied, and no
 /// frame holds a path of its own. [`decode_object`] renders each path once.
+#[derive(Clone)]
 struct Issue<'a> {
     /// The segments, innermost first.
     path: Vec<Segment<'a>>,
@@ -4455,7 +4829,7 @@ unsafe fn convert_field<'a>(
     // return first below, so every scalar arm has the document's own value.
     let held = match found {
         Seen::Value(value) => Some(value),
-        Seen::Object(_) | Seen::List(_) => None,
+        Seen::Object(_) | Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => None,
     };
     let wrong_form = || {
         Step::Done(Err(DecodeFailure::Fault(misread(
@@ -4630,12 +5004,15 @@ unsafe fn decode_nested<'a>(
             nested.name()
         )))));
     }
+    if let Some(outcome) = taken(found) {
+        return Step::Done(outcome);
+    }
     let found = match found {
-        Seen::Object(read) => {
-            return Step::Enter(Build::Fields(Fields::new(nested, Object::Read(read))));
+        Seen::Object(slots) => {
+            return Step::Enter(Build::Fields(Fields::new(nested, Object::Read(slots))));
         }
         Seen::Value(found) => found,
-        Seen::List(_) => return wrong_form(),
+        Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => return wrong_form(),
     };
     let Some(ptr) = contract.object_of(found) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
@@ -4876,7 +5253,7 @@ fn decode_positions<'a>(
                 items: crate::arr::borrowed(ptr),
             }
         }
-        Seen::Object(_) => {
+        Seen::Object(_) | Seen::Built(_) | Seen::Failed(_) => {
             return Step::Done(Err(DecodeFailure::Fault(misread(
                 contract,
                 Some(&field.key),
@@ -4984,12 +5361,15 @@ unsafe fn decode_element<'a>(
             element.name()
         )))));
     }
+    if let Some(outcome) = taken(item) {
+        return Step::Done(outcome);
+    }
     let item = match item {
-        Seen::Object(read) => {
-            return Step::Enter(Build::Fields(Fields::new(element, Object::Read(read))));
+        Seen::Object(slots) => {
+            return Step::Enter(Build::Fields(Fields::new(element, Object::Read(slots))));
         }
         Seen::Value(item) => item,
-        Seen::List(_) => return wrong_form(),
+        Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => return wrong_form(),
     };
     let Some(ptr) = contract.object_of(item) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
@@ -5278,7 +5658,9 @@ mod tests {
                               outlives the parse"
                 )]
                 let contract = unsafe { Contract::new(class, None) }.over(Reading::Wire(&lists));
-                read_against(&text, max, contract, false)
+                let mut ctx = nvs_runtime::Ctx::buffered();
+                let build = std::cell::RefCell::new(Builder::new(&mut ctx));
+                read_against(&text, max, contract, false, &build)
                     .map(drop)
                     .map_err(|why| why.to_string())
             })
@@ -5434,6 +5816,57 @@ mod tests {
         unsafe {
             value.release();
         }
+    }
+
+    /// An object whose fields are all scalars arrives from the parse already
+    /// built, and its slots are popped at its closing brace. A parse that fails
+    /// after such an object frees it, so the thread's balance is back where it
+    /// started.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_scalar_object_is_built_at_its_closing_brace_and_freed_by_a_later_failure() {
+        let keys = ["a", "b"];
+        let (class, shape) = int_shape(&keys);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let lists = Lists::default();
+        #[expect(
+            unsafe_code,
+            reason = "`int_shape` leaks its table, so both addresses outlive the parse"
+        )]
+        let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
+        let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            let build = std::cell::RefCell::new(Builder::new(ctx));
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &build);
+            let open = build.borrow().slots.len();
+            (
+                found.map(|found| match found {
+                    Found::List(ref items) => items
+                        .iter()
+                        .map(|item| matches!(item, Found::Built(_)))
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                }),
+                open,
+            )
+        };
+
+        let (built, open) = read(&mut ctx, r#"[{"a":1,"b":2},{"b":4,"a":3}]"#);
+        assert_eq!(
+            built.ok(),
+            Some(vec![true, true]),
+            "each object arrives built"
+        );
+        assert_eq!(open, 0, "each object's slots are popped");
+
+        let before = nvs_runtime::budget::live_bytes();
+        let (failed, _) = read(&mut ctx, r#"[{"a":1,"b":2},{"b":4,"a":3},{"a":"#);
+        assert!(failed.is_err(), "an unclosed object is not a document");
+        drop(failed);
+        assert_eq!(
+            nvs_runtime::budget::live_bytes(),
+            before,
+            "the two instances built before the failure are freed"
+        );
     }
 
     /// `decodeAs` refuses a key written twice in one object as

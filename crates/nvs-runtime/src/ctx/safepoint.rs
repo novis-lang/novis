@@ -35,6 +35,15 @@ impl Ctx {
         (self.stack_limit, self.stack_floor)
     }
 
+    /// Sets the armed pair to `bounds`, a pair [`Ctx::stack_bounds`] returned.
+    ///
+    /// A native helper that runs compiled code on a second stack arms the
+    /// context for that stack with [`Ctx::arm_stack_limit`], and gives the
+    /// task's pair back with this on every way out.
+    pub fn restore_stack_bounds(&mut self, bounds: (usize, usize)) {
+        (self.stack_limit, self.stack_floor) = bounds;
+    }
+
     /// Whether native code may take one more recursive step: an `Err` with
     /// the [`crate::FATAL`] [`nvs_stack_check`] gives below the floor, once the
     /// stack pointer is within [`NATIVE_STEP_ROOM`] of the hard floor.

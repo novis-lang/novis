@@ -169,7 +169,7 @@ pub use scheduler::{
     suspend, suspend_current,
 };
 pub use slice::SliceClock;
-pub use stack::{SPARE_STACK_SIZE, TASK_STACK_SIZE, on_spare_stack};
+pub use stack::{SPARE_STACK_SIZE, TASK_STACK_SIZE, on_spare_stack, on_spare_stack_within};
 pub use timer::{DeadlineView, Timers, park_until, sleep};
 pub use watchdog::{Registration, RunningRequest, Shed, Stall, Watchdog, this_core_is_wedged};
 

@@ -228,14 +228,30 @@ thread_local! {
 ///
 /// If `f` panics, or if the OS refuses to reserve the stack.
 pub fn on_spare_stack<R>(f: impl FnOnce() -> R) -> R {
+    on_spare_stack_within(|_, _| f())
+}
+
+/// [`on_spare_stack`], handing `f` the `(base, ceiling)` pair of the stack it
+/// runs on, which is what `Ctx::arm_stack_limit` takes.
+///
+/// `f` may call compiled Novis code once it has armed the context with that
+/// pair, and it must arm the task's pair again before it returns. A decode that
+/// builds instances while it parses is the caller: a constructor is compiled
+/// code. The ceiling is [`SPARE_STACK_SIZE`] for [`bounds`]'s reason.
+///
+/// # Panics
+///
+/// As [`on_spare_stack`]'s.
+pub fn on_spare_stack_within<R>(f: impl FnOnce(usize, usize) -> R) -> R {
     let mut stack = SPARE
         .with(|spare| spare.borrow_mut().take())
         .unwrap_or_else(|| {
             DefaultStack::new(SPARE_STACK_SIZE).expect("a thread could not reserve its spare stack")
         });
+    let base = stack.base().get();
     // In its own frame, so a panic out of `f` runs its cleanups under the
     // platform's convention: `native_frame` owns why.
-    let result = corosensei::on_stack(&mut stack, || native_frame(f));
+    let result = corosensei::on_stack(&mut stack, || native_frame(|| f(base, SPARE_STACK_SIZE)));
     SPARE.with(|spare| {
         let mut slot = spare.borrow_mut();
         if slot.is_none() {
