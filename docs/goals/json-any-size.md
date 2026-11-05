@@ -257,8 +257,11 @@ roadmap theme and five pages' questions.
 path now names the `#[test]` that asserts it, and the test is green. The debt is paid, so the
 next `floor-debt` run reruns only what changed since.
 
-The sweep's `env-secret-proofs` red is the running driver's stale state. No file in the tree names
-that check, `looper check --name env-secret` finds none, and it has no log.
+The sweep's `env-secret-proofs` red is the running driver's stale state. `defaults-that-work`
+defined it (`456ad49850`) and retired with it, so no file in the tree defines it, `looper check
+--name env-secret-proofs` finds none, and it has no log. Its command, `bun nv proofs --gate --only
+'Core\Env::secret'`, exits 0 with nothing owed. The driver (running since before the last retire)
+runs the kit, not `tools/looper/`, and a fix to it belongs in looper's kit.
 
 No test is expected to go red.
 
