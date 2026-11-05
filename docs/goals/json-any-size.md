@@ -126,11 +126,19 @@ time per byte, allocations per byte and peak per byte at each size.
 **Does:** brings every member under decision 1. Decision 3 is built whatever the ladder shows,
 because the three-times peak follows from how the buffer grows.
 
-- [ ] Write `Core\Response::json`'s document in 64 KiB chunks that the body takes, as decision 3 says.
+- [x] Write `Core\Response::json`'s document in 64 KiB chunks that the body takes, as decision 3 says.
   `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
   `crates/nvs-stdlib/src/response.rs:1976` `crates/nvs-runtime/src/ctx/output.rs:353`
-- [ ] Read a body with a known length into one buffer of that length, as decision 4 says.
+  - [x] `Ctx::write_body_chunks` keeps the chunks as the body's leading part, and a later write follows them.
+  - [x] `Completion::output` is a `Written`: one chunk keeps its one buffer, and a reader that needs
+    one buffer joins once (`into_bytes`, `to_bytes`).
+  - [x] The server's `Answer::Whole` sends one frame per chunk, with an exact `Content-Length`.
+  - [x] An 8 MiB response peaks at the document plus one chunk plus about 4 KiB.
+- [x] Read a body with a known length into one buffer of that length, as decision 4 says.
   `crates/nvs-stdlib/src/request.rs:3382`
+  - [x] `RequestBody::declared_len`, which the server's `Pull` answers from `Content-Length`.
+  - [x] A declared length past `request_body` is refused before a byte is read.
+  - [x] A 64 KiB body read peaked at three times its size without the reservation, and once with it.
 - [ ] Fix each cliff stage 1 added here, at its cause.
 - [x] Encoding an `int` or a `float` allocates once per number (0.17 to 0.30 allocations per byte on
   the `ints` and `floats` shapes, where `ByteWriter::put` allocates nothing per write). Find the
@@ -161,8 +169,12 @@ because the three-times peak follows from how the buffer grows.
   and the cache's: run the reference ladder with the values released at the end, not per rung. If
   serde_json's own parse is the cause, decision 5 sends it to its own goal, and the miss is
   recorded here with the figures. `crates/nvs-stdlib/src/json.rs:1913`
-- [ ] Write the three tests the `size-bounds` check names. Each measures the request's peak and
+- [x] Write the three tests the `size-bounds` check names. Each measures the request's peak and
   allocation count at 64 KiB and at 8 MiB. `crates/nvs-stdlib/src/json.rs:1`
+  - [x] `a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk` and
+    `allocations_per_document_byte_do_not_grow_with_the_document` in `json::tests`.
+  - [x] `a_decoded_body_of_any_size_is_held_once` in `request::tests::json`, beside the body helper.
+  - [x] `looper check --name size-bounds` is green.
 
 ### 3. the ladders are bounds: linear growth and a peak per document byte
 
@@ -183,37 +195,38 @@ because the three-times peak follows from how the buffer grows.
 
 ### State
 
-Stage 2 is under way. The encoder no longer allocates per element: its list test rendered every
-key. It writes into `budget::ChunkWriter`, and `Core\Json::encode` copies the chunks once into its
-`string`, so encode peaks at twice the document. `Core\Response::json` and the other `written`
-callers join the chunks once into one buffer (twice the document, plus up to one chunk). A
-document of one chunk is handed on with no copy, as before. The figures are in the stage's items and
-in the commit. The ladder's times move by up to 30% from run to run on this machine, so judge a time
-ratio over two runs.
+Stage 2's memory half is done, and only its time items are open. `Core\Response::json` hands the
+encoder's 64 KiB chunks to the body (`Ctx::write_body_chunks`), `Completion::output` carries them as
+a `nvs_runtime::host::Written`, and the server sends one frame per chunk. A body that is not empty,
+a capture or a child joins them and renders as before. A body with a `Content-Length` is read into
+one buffer of that length. The three `size-bounds` tests exist, and the check is green.
 
-Rerun the ladder with `cargo test --profile proof --lib json::tests::serde_reference -- --ignored
+The ladder's times move by up to 30% from run to run on this machine, so judge a time ratio over two
+runs. Rerun it with `cargo test --profile proof --lib json::tests::serde_reference -- --ignored
 --nocapture`. It takes about two minutes once built.
 
-The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` finds no such
-check, and no goal or floor names it.
+The sweep's `env-secret-proofs` red is stale, again: `looper check --name env-secret-proofs` finds no
+such check, no log exists under `.looper/loops/main/checks/`, and no goal or floor names it. The
+sweep's list lives in looper's service, outside the tree.
 
-No test is expected to go red. A test that pins the encoder's allocation count or peak may move.
-Each such count is lower now.
+Tests that may go red at the gate, none of them run: a test that pins `size_of::<Ctx>()` or
+`Completion`'s size (`Ctx` gained `body_chunks`, three words); a server test that matches
+`Answer::Whole` or reads `Answer::bytes()` as a slice (it returns a `Cow` now); any test that reads
+`completion.output` as a `Vec<u8>` outside the crates clippy builds.
 
 ### Next
 
-**Stage 2, the body takes the chunks.** Files: `crates/nvs-runtime/src/ctx/output.rs`,
-`crates/nvs-runtime/src/host.rs`, `crates/nvs-server/src/serve.rs`, `crates/nvs-stdlib/src/response.rs`.
+**Stage 2, the time items.** Files: `crates/nvs-stdlib/src/json.rs`, `crates/nvs-runtime/src/array.rs`.
 
-- [ ] `Ctx::write_body_chunks` at `crates/nvs-runtime/src/ctx/output.rs:408`: an empty in-memory
-  body takes a `ChunkWriter`'s chunks with no join, so `Core\Response::json` peaks at the document plus one chunk (decision 3). The body is one
-  `Vec<u8>` from `OutputSink::Body` through `Completion::output` to `Answer::new`, and about 50
-  sites read it. Hand a reader that needs one buffer a join, and keep the chunks to the server's
-  `Answer`. `crates/nvs-runtime/src/ctx/output.rs:408` `crates/nvs-runtime/src/host.rs:467`
-  `crates/nvs-server/src/serve.rs:2874` `crates/nvs-stdlib/src/response.rs:1976`
-  `crates/nvs-stdlib/src/json.rs:1794`
-- [ ] Decision 4's known-length body read. `crates/nvs-stdlib/src/request.rs:3382`
-- [ ] Profile the `keys` and `wide` decode growth. `crates/nvs-stdlib/src/json.rs:1939`
-- [ ] The three `size-bounds` tests. `crates/nvs-stdlib/src/json.rs:1`
+- [ ] `crates/nvs-stdlib/src/json.rs:7644` Encode's time per byte from 64 KiB to 32 MiB, over two
+  quiet runs of the reference ladder (`wide` 2.2, `non-ascii` 1.75, `deep` 2.8 on one noisy run).
+- [ ] Profile the `keys` decode growth before any change. `crates/nvs-stdlib/src/json.rs:1939`
+  `crates/nvs-runtime/src/array.rs:312`
+- [ ] `crates/nvs-stdlib/src/json.rs:1913` Run the ladder with the values released at the end, to
+  see whether the `wide` and `deep` decode growth is the allocator's and the cache's. If serde_json's
+  own parse is the cause, record the miss here with the figures (decision 5).
+- [ ] `crates/nvs-stdlib/src/json.rs:1724` Then stage 3: `// bench: complexity linear` on every
+  ladder, and each member's peak per document byte in its "What it spends" line.
+  `crates/nvs-stdlib/src/response.rs:1976`
 
 ### Backlog
