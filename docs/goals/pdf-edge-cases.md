@@ -34,7 +34,7 @@ stages:
     context: [extensions/pdf/src/layout/margin.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/src/css/mod.rs, extensions/pdf/src/lib.rs]
   - id: 8
     title: "the pagination and table classes the engine already handles are pinned by tests"
-    status: open
+    status: done
     context: [extensions/pdf/tests/paginate.rs, extensions/pdf/tests/tables.rs]
   - id: 9
     title: "the text, image, CSS and output classes the engine already handles are pinned by tests"
@@ -323,6 +323,15 @@ handled but untested.
     reported as `<link>` with its `href`, never guessed. Corner boxes align by css-page-3: a left
     corner `right`, a right corner `left`, both `middle`. Cost: a second parse of the sheets for
     a document that tests a page size it changes; nothing per request otherwise.
+19. **Table widths CSS 2.1 leaves open follow browsers.** A cell's percentage `width` is its
+    column's widest width and its content the narrowest, so percentages over 100% shrink by
+    `distribute`'s interpolation and the columns fill the table; the cell then fills its
+    columns. Equal percentages may end a point apart when their content differs. An absolute
+    cell `width` stays a minimum, as CSS 2.1 §17.5.2.2 says, and `table-layout: fixed` keeps
+    widths past the table's. A float counts toward its cell's width: its margin box at the
+    narrowest, and beside the next line at the widest. A cell laid out a second time puts back
+    the nested boxes the first pass took (`Cx::keep`, `Cx::put_back` in `table.rs`). Cost: a
+    copy of a cell's nested boxes' blocks while its table is laid out.
 
 ## Stages
 
@@ -507,7 +516,7 @@ cause in this stage, or, if the fix does not fit, add it to § *Backlog* with it
 the helpers at `extensions/pdf/tests/paginate.rs:8`. Neither builds; the session builds and runs the
 check once both end.
 
-- [ ] `extensions/pdf/tests/edge_pagination.rs:1`, the first thirteen tests the `pinned-pagination`
+- [x] `extensions/pdf/tests/edge_pagination.rs:1`, the first thirteen tests the `pinned-pagination`
   check names. The behaviour each pins: adjacent breaks merge (`block.rs:753`), a trailing break adds
   no page (`block.rs:539`), a break at the page top adds none (`block.rs:480`), a break inside a fixed
   element is ignored (`block.rs:477`), a break passes up through wrappers (`block.rs:809`), the margin
@@ -515,11 +524,11 @@ check once both end.
   (room for 4 lines, 7 lines: `2/2` → 4+3, `orphans:5` → 0+7, `widows:4` → 3+4, `4/4` → 0+7), text
   split across pages joins back to the source, a marker on the first fragment only, numbering and
   counters across pages, fixed content on forced-break pages, and the blank page between named groups.
-- [ ] `extensions/pdf/tests/edge_tables.rs:1`, the last seven tests the check names: a two-row `thead`
+- [x] `extensions/pdf/tests/edge_tables.rs:1`, the last seven tests the check names: a two-row `thead`
   repeats whole, an empty table, an empty `tr` and a zero-width table do not panic, `table-layout:
   fixed` and percentages over 100%, a rowspan cell's `vertical-align`, a nested table across pages,
   a float inside a cell, and a link in a repeated header.
-- [ ] Run the `pinned-pagination` check's command once: green.
+- [x] Run the `pinned-pagination` check's command once: green.
 
 ### 9. the text, image, CSS and output classes the engine already handles are pinned by tests
 
@@ -550,33 +559,33 @@ check once both end.
 
 ### State
 
-Stages 1 to 7 are done; `pages` ran once, 6 of 6 green. Decision 18 records stage 7's calls.
+Stages 1 to 8 are done; `pinned-pagination` ran once, 20 of 20 green. Decision 19 records
+stage 8's calls.
 
-- `@media`: `Collector::media` (`extensions/pdf/src/css/mod.rs`) with `queries`,
-  `query_parts` and `feature`; `media_applies` is gone. `cascade` calls `collect` (the sheet
-  walk, now a function of its own) at A4, and again at `first_page_size` when
-  `Collector::sized`; `computed` is the rest of the old `cascade`. `@import` reads its media
-  list from the raw text after the reference, so a feature in it is read.
-- `@page` selectors: `paginate::selector_reads`, checked in `Collector::at_rule`.
-- A non-UTF-8 `<link>` sheet: dropped as `("", href, "<link>")` in `collect`.
-- `counter-reset: page`: `Builder::count` (`inline.rs`) pushes a `Fact::Counter` named `page`
-  for every element, and `Index::restart` (`margin.rs`) gives `collect` each page's number.
-- Margin overflow: `Page::overflows` (`layout.rs`), filled in `margin::draw`, emptied per side by
-  `overlay`, and read by `lib.rs` `margin_overflows` into `first` and `finish`.
-- Corners: `paginate::alignment`.
+- `edge_pagination.rs` was green as written: the engine already handled all thirteen classes.
+- `edge_tables.rs` found three bugs, all fixed. A percent cell: `Cell::percent`, set from
+  `TablePart::Cell` in `inline.rs`, gives `column_ranges` its content's least width
+  (`Cx::least_width` in `flex.rs`), and the table sets such a cell's `fill` so `fit` sizes it
+  to its columns. A float in a cell: `Cx::widest` (`text.rs`) counts `Block::Float` and a text
+  block's `floats`. A nested table: `Cx::keep` and `Cx::put_back` (`table.rs`) restore the
+  nested atoms' `waiting` before a cell is laid out again.
+- `crates/nvs-ext` was not built this session; only `extensions/pdf` changed.
 - The sweep's reds were stale again: `env-secret-proofs` has no log, and nightly 41813182715 is
   the run already traced to fixed commits.
 
 ### Next
 
-Stage 8, by its `**Split:**` line: two writing subagents side by side, one writing
-`extensions/pdf/tests/edge_pagination.rs` (the first thirteen `pinned-pagination` tests) and one
-`extensions/pdf/tests/edge_tables.rs` (the last seven), each given the helpers at
-`extensions/pdf/tests/paginate.rs:8` and `extensions/pdf/tests/pages.rs:10`. Then the session
-builds, runs the check once, and fixes a red test's cause or backlogs it. Stage 9 the same way,
-then stage 10.
+Stage 9, by its `**Split:**` line: two writing subagents side by side, one writing
+`extensions/pdf/tests/edge_text.rs` (the first ten `pinned-text-output` tests) and one
+`extensions/pdf/tests/edge_output.rs` (the last eight), each given the helpers at
+`extensions/pdf/tests/paginate.rs:8` and `extensions/pdf/tests/pages.rs:10`. Each may run its
+own file once and report a red test with its cause, never loosening one; the session then fixes
+each cause or backlogs it, and runs the check once. Then stage 10.
 
-Tests that may go red at stage 10, from stage 7: a test whose `<style media>`, `<link media>`
+Tests that may go red at stage 10, from stage 8: a table test with percentage cell widths
+summing over 100% now sees the columns fill the table, and one whose percent cell is narrower
+than its column sees the cell fill the column. A test that measured an auto table with a float
+in a cell now sees the column wide enough for the float. From stage 7: a test whose `<style media>`, `<link media>`
 or `@import` list has a feature such as `(color)` now sees it in `dropped`, and one with
 `@media print and (…)` of width, height or orientation now sees the rules applied when they
 hold. A test of an `@page :nth(…)` selector now sees it in `dropped`. A test that rendered a
