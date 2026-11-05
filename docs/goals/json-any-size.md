@@ -132,18 +132,30 @@ because the three-times peak follows from how the buffer grows.
 - [ ] Read a body with a known length into one buffer of that length, as decision 4 says.
   `crates/nvs-stdlib/src/request.rs:3382`
 - [ ] Fix each cliff stage 1 added here, at its cause.
-- [ ] Encoding an `int` or a `float` allocates once per number (0.17 to 0.30 allocations per byte on
+- [x] Encoding an `int` or a `float` allocates once per number (0.17 to 0.30 allocations per byte on
   the `ints` and `floats` shapes, where `ByteWriter::put` allocates nothing per write). Find the
   allocation in the walk and remove it. `crates/nvs-stdlib/src/json.rs:1239`
   `crates/nvs-stdlib/src/json.rs:815`
+  - [x] The cause: `Stack::array`'s list test rendered every key with `key_at`.
+  - [x] It reads `arr::is_list` now, and an object-shaped array's key reads `slot_key`.
+  - [x] Encode allocations per byte are 0.0000 on every shape at 1 MiB and up (`deep` was 1.49).
 - [ ] `written`'s buffer peaks at three times the document, the old and the doubled buffer side by
   side, and encode's time per byte grows 1.7 to 2.1 times from 64 KiB to 32 MiB on `wide`, `ascii`,
   `non-ascii` and `deep`. Write `Core\Json::encode` through the same chunk list as decision 3 and
   join it once into the `string`, so the peak is the document twice. `crates/nvs-stdlib/src/json.rs:936`
   `crates/nvs-runtime/src/budget.rs:1402` `crates/nvs-stdlib/src/json.rs:1808`
+  - [x] `budget::ChunkWriter`: a first chunk that doubles to 64 KiB, then 64 KiB chunks, each asked.
+  - [x] The encoder writes into it, and `Core\Json::encode` copies it once into its `string`.
+  - [x] Encode peak per byte is 2.00 at 8 and 32 MiB, down from 3.00.
+  - [ ] Encode time per byte still grows from 64 KiB to 32 MiB: `wide` 2.2, `non-ascii` 1.75 and
+    `deep` 2.8 on one noisy run. Measure it on a quiet machine before you look for a cause.
 - [ ] Decode's time per byte grows 2.05 times on `keys` while serde_json's grows 1.36 times: one
   object's key index is rebuilt as it doubles. Size it once or grow it by less.
   `crates/nvs-stdlib/src/json.rs:1939`
+  - [x] Tried: the index bucket keeps each key's digest, so a growth reads no key. It showed no
+    clear gain (10.5 against 11.6 ns/B at 8 MiB, 17.7 against 12.7 at 32 MiB, serde_json moving as
+    much), and it cost 8 bytes per key, so it was reverted. `crates/nvs-runtime/src/array.rs:312`
+  - [ ] Find where the time goes with a profiler before the next change.
 - [ ] Decode's time per byte grows 1.75 times on `wide` and 2.46 times on `deep`, and serde_json's
   own parse grows 2.0 and 2.5 times on the same bytes. Measure whether the growth is the allocator's
   and the cache's: run the reference ladder with the values released at the end, not per rung. If
@@ -171,26 +183,37 @@ because the three-times peak follows from how the buffer grows.
 
 ### State
 
-Stage 1 is done. The five members' `.scale.nvs` ladders grow the document in bytes from 1 KiB
-(decision 9), and all five record `size flat` in `data/perf/members.ndjson`.
-`json::tests::serde_reference_ladder` prints the per-shape table at the five sizes; its figures and
-the misses against decision 1 are in the commit `test(stdlib): a reference ladder times serde_json
-beside Core\Json's read and write`. Rerun it with `cargo test --profile proof --lib
-json::tests::serde_reference -- --ignored --nocapture`, about two minutes once built.
+Stage 2 is under way. The encoder no longer allocates per element: its list test rendered every
+key. It writes into `budget::ChunkWriter`, and `Core\Json::encode` copies the chunks once into its
+`string`, so encode peaks at twice the document. `Core\Response::json` and the other `written`
+callers join the chunks once into one buffer (twice the document, plus up to one chunk). A
+document of one chunk is handed on with no copy, as before. The figures are in the stage's items and
+in the commit. The ladder's times move by up to 30% from run to run on this machine, so judge a time
+ratio over two runs.
+
+Rerun the ladder with `cargo test --profile proof --lib json::tests::serde_reference -- --ignored
+--nocapture`. It takes about two minutes once built.
 
 The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` finds no such
 check, and no goal or floor names it.
 
-No test is expected to go red.
+No test is expected to go red. A test that pins the encoder's allocation count or peak may move.
+Each such count is lower now.
 
 ### Next
 
-**Stage 2.** Files: `crates/nvs-stdlib/src/json.rs`, `crates/nvs-runtime/src/budget.rs`,
-`crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/ctx/output.rs`.
+**Stage 2, the body takes the chunks.** Files: `crates/nvs-runtime/src/ctx/output.rs`,
+`crates/nvs-runtime/src/host.rs`, `crates/nvs-server/src/serve.rs`, `crates/nvs-stdlib/src/response.rs`.
 
-- [ ] The per-number allocation in encode, first. `crates/nvs-stdlib/src/json.rs:1239`
-- [ ] The chunk list for `Core\Response::json`, then for `Core\Json::encode`. `crates/nvs-stdlib/src/json.rs:936`
-- [ ] The `keys` decode growth. `crates/nvs-stdlib/src/json.rs:1939`
-- [ ] Rerun the reference ladder after each fix, beside stage 1's table. `crates/nvs-stdlib/src/json.rs:7595`
+- [ ] `Ctx::write_body_chunks` at `crates/nvs-runtime/src/ctx/output.rs:408`: an empty in-memory
+  body takes a `ChunkWriter`'s chunks with no join, so `Core\Response::json` peaks at the document plus one chunk (decision 3). The body is one
+  `Vec<u8>` from `OutputSink::Body` through `Completion::output` to `Answer::new`, and about 50
+  sites read it. Hand a reader that needs one buffer a join, and keep the chunks to the server's
+  `Answer`. `crates/nvs-runtime/src/ctx/output.rs:408` `crates/nvs-runtime/src/host.rs:467`
+  `crates/nvs-server/src/serve.rs:2874` `crates/nvs-stdlib/src/response.rs:1976`
+  `crates/nvs-stdlib/src/json.rs:1794`
+- [ ] Decision 4's known-length body read. `crates/nvs-stdlib/src/request.rs:3382`
+- [ ] Profile the `keys` and `wide` decode growth. `crates/nvs-stdlib/src/json.rs:1939`
+- [ ] The three `size-bounds` tests. `crates/nvs-stdlib/src/json.rs:1`
 
 ### Backlog
