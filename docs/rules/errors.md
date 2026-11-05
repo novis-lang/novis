@@ -257,6 +257,16 @@ security and its report is not, so the bound stays as it is (`Ctx::run_limit_han
   boot.
 - **Killing the core a runaway request is wedging.** No point exists at which another thread may
   unwind a core running compiled code ([`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed)).
+- **`QueryThreadCycleTime` for a Windows core's CPU clock.** It is fine and counts the run in
+  progress, but the watchdog's read of a core that is running costs 7.5 to 10 times a
+  `GetThreadTimes` read, about 10 µs, measured on CI's Windows runners. The likely cause is that
+  Windows interrupts the running core to read its count, so the request would pay too. A Windows CPU stop stays up to one
+  15.625 ms clock step late, and the proofs runner allows that step. The figures are in
+  `crates/nvs-host/src/cpuclock.rs`'s module doc.
+- **`timeBeginPeriod(1)` or `NtSetTimerResolution` to make `GetThreadTimes` finer.** They make the
+  clock interrupt fire every millisecond for as long as the server runs, which costs power on the
+  whole machine. Windows 10 2004 and later limit what one process's request changes, and nothing
+  shows that `GetThreadTimes` gets finer with them.
 
 <sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
