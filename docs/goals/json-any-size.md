@@ -17,7 +17,7 @@ stages:
     status: done
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: size-bounds
@@ -229,57 +229,39 @@ because the three-times peak follows from how the buffer grows.
   - [x] The test holds the cache's write lock, so the edit's compile stays in flight until every
     reader is answered twice more. It waits on events, not on scheduling.
 - [x] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates: `bun nv verify --doc` and `bun nv owners --closes json-any-size` are green.
-  `bun nv ci --check` is red on 86 stale perf records only.
+- [x] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes json-any-size` and
+  `bun nv ci --check` are green.
   - [x] Decision 10: a body read reserves a declared length only up to 64 KiB. Found at the gate,
     where `request.rs`'s doc still argued against the reservation decision 4 built.
   - [x] `looper verify` once more, over decision 10's change: green.
-  - [ ] Record the stale perf groups again, then `bun nv ci --check` is green.
+  - [x] Record the stale perf groups again, then `bun nv ci --check` is green.
+  - [x] `Core\Test::assertCount`, `::assertEquals` and `::assertNull` ramp to 2048, where their
+    counts agree. At 256 their per-op instructions were lost in the start-up, so callgrind's slope
+    was noise.
 
 ## Handoff
 
 ### State
 
-The gate stage is almost done. The first `looper verify` had one red, a scheduling-dependent
-`nvs-cli` test, now rewritten to wait on events. The second was green. `json.rs`'s module doc now
-has § *What a document costs per byte, at every size*, which holds decisions 1, 3 and 5. Decision 3's
-chunks were already in `budget::ChunkWriter`'s and `Core\Response::json`'s docs. `size-bounds` stays
-an ordinary check, not a floor check: its three tests run in every `bun nv verify`, so a floor copy
-would prove nothing more.
+Every stage is done, and every goal-end gate is green. `looper verify` was green over the whole goal
+and again over decision 10. `bun nv verify --doc`, `bun nv owners --closes json-any-size` and
+`bun nv ci --check` are green. Decisions 1, 3 and 5 live in `json.rs`'s module doc, and decision
+10 in `request.rs`'s body doc.
 
-At the goal-end gates, `request.rs`'s body doc still argued against decision 4's reservation, and it
-was right. Decision 10 records the fix, which is committed, and a third `looper verify` over it is
-green.
+The three `CoreTest` benches that missed their bound did not grow. `test.rs`'s change in
+`f4dc58dd76` touches only a test response's body. At 256 iterations the ramp stopped at a batch of
+128, where about 4k instructions per assertion sit under 380M of start-up, so callgrind's slope
+swung between 0.86 and 1.60 from run to run. At 2048 the counts agree from a batch of 512, and all
+three record as flat. All 31 stale records are measured and committed.
 
-`bun nv verify --doc` and `bun nv owners --closes json-any-size` are green. `bun nv ci --check` was
-red only on 86 stale perf records, in `Core\Json`, `Core\Request`, `Core\Response`, `Core\Script` and
-`Core\Test`, whose sources this goal changed. `--record-perf` over those groups appended 56 records,
-which are committed. Three `Core\Test` benches failed their linear bound and were not recorded:
-instructions per op grow with slope 1.60 for `assertCount`, 1.34 for `assertEquals` and 1.58 for
-`assertNull`, from batches of 32 to 128. This goal changed `test.rs` in `f4dc58dd76`, when
-`Completion::output` became a `Written`. That is the first suspect: something that joins or copies
-the whole output on each assertion would grow with the batch.
-
-The sweep's `env-secret-proofs` red is stale, a fourth time: no log for it exists under
+The sweep's `env-secret-proofs` red is stale, a fifth time: no log for it exists under
 `.looper/loops/main/checks/`, and no goal or floor names it.
 
-No test is expected to go red. If one does, look at a test that reads a request body's peak against
-its size, which decision 10 changed.
+No test is expected to go red.
 
 ### Next
 
-**Finish stage 4.** Each item is one call.
-
-- [ ] Find why `Core\Test::assertCount`, `::assertEquals` and `::assertNull` grow per op with the
-  batch. Diff `crates/nvs-stdlib/src/test.rs` in `f4dc58dd76` first, and fix it at its cause.
-  `benches/members/core/Test/assertCount.nvs:1` `crates/nvs-stdlib/src/test.rs:1`
-- [ ] Record the rest, run in the background: `bun nv proofs --record-perf --group 'Core\Test'
-  --group 'Core\Test\Response' --group 'Core\Test\SentRequest' --group 'Core\Request\Mount'
-  --group 'Core\Request\Part' --group 'Core\Response\Stream' --group 'Core\Script\ExitReport'`.
-  A parent's `--group` does not include its nested classes, and these 31 are still stale. Commit
-  `data/perf/members.ndjson`.
-- [ ] `bun nv ci --check` is green, then tick the last stage 4 item, set stage 4 to `done`, and
-  claim `DONE`.
+Nothing. The goal is reached, and the loop retires it.
 
 ### Backlog
 
