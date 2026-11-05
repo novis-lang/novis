@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/json.rs, docs/rules/core-classes/derive-reports-
 stages:
   - id: 1
     title: "a byte writer's write that fits asks nothing, and Response::json hands its document to the body"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-stdlib/src/response.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 2
     title: "a typed decode parses with the context in hand, and an object of scalar fields is built as it is read"
@@ -116,13 +116,13 @@ writes a payload: JSON, CSV, compression, JWT, I/O and the output buffer.
 **Does:** makes the encode side cheaper for every payload writer, and removes one copy from
 `Core\Response::json`.
 
-- [ ] Split `ByteWriter::put` into decision 8's inline fast path and an out-of-line growth path. Write
+- [x] Split `ByteWriter::put` into decision 8's inline fast path and an out-of-line growth path. Write
   the two tests the `writer-fast-path` check names. Rewrite the struct's doc as a whole.
   `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
   `crates/nvs-runtime/src/budget.rs:1388`
-- [ ] Add `Ctx::write_body_owned` beside `write_body`, with its "What it spends" line.
+- [x] Add `Ctx::write_body_owned` beside `write_body`, with its "What it spends" line.
   `crates/nvs-runtime/src/ctx/output.rs:353`
-- [ ] Let the encoder return its `Vec<u8>` (`Encodable::written`), and have `Core\Response::json` pass
+- [x] Let the encoder return its `Vec<u8>` (`Encodable::written`), and have `Core\Response::json` pass
   it to `write_body_owned`. `crates/nvs-stdlib/src/json.rs:923` `crates/nvs-stdlib/src/response.rs:1976`
 
 ### 2. a typed decode parses with the context in hand, and an object of scalar fields is built as it is read
@@ -180,17 +180,30 @@ tree.
 
 ### State
 
-Nothing is built yet. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+Stage 1 is done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+
+- `ByteWriter::put` is an `#[inline]` fast path (not stopped, fits the room, fits the limit) and a
+  `#[cold]` `grow_and_put` that asks the budget first. The `writer-fast-path` check is green.
+- `Ctx::write_body_owned` takes the buffer whole into an empty `Buffer` or `Body` sink outside an
+  isolate and a capture, and otherwise calls `write_body`. Its test is
+  `an_owned_body_is_taken_whole_into_an_empty_body_and_appended_otherwise`, and it passes.
+- `Encodable::written` returns `Vec<u8>`. `rendered_bytes` and `written_bytes` give the buffer, and
+  `rendered` is the one place it becomes a `String`. `Core\Response::json` uses `written_bytes` and
+  `write_body_owned`.
+- The sweep's `env-secret-proofs` red is stale again. It belonged to the retired `defaults-that-work`
+  goal, and `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
+
+No test is expected to go red from stage 1.
 
 ### Next
 
-**Stage 1**, files `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/output.rs`,
-`crates/nvs-stdlib/src/json.rs` (encode half) and `crates/nvs-stdlib/src/response.rs`. No gate.
+**Stage 2**, files `crates/nvs-runtime/src/ctx/inbound.rs`, `crates/nvs-stdlib/src/request.rs` and
+the decode half of `crates/nvs-stdlib/src/json.rs`. Follow the stage's **Split:** line first. No gate.
 
-- [ ] The fast path and its two tests. `crates/nvs-runtime/src/budget.rs:1388`
-  `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
-- [ ] `Ctx::write_body_owned`. `crates/nvs-runtime/src/ctx/output.rs:353`
-- [ ] The encoder returns its buffer. `crates/nvs-stdlib/src/json.rs:923`
-- [ ] `Core\Response::json` hands it to the body. `crates/nvs-stdlib/src/response.rs:1976`
+- [ ] The body as `Arc<[u8]>`. `crates/nvs-runtime/src/ctx/inbound.rs:1048`
+  A `held_octets` variant returns a handle. `crates/nvs-stdlib/src/request.rs:3345`
+- [ ] `decode_as` as one call with the context in hand. `crates/nvs-stdlib/src/json.rs:2179`
+  Every caller moves onto it, and `read_as` goes. `crates/nvs-stdlib/src/json.rs:2226`
+- [ ] The slot stack, and `Fill` building a scalar-only object. `crates/nvs-stdlib/src/json.rs:2607`
 
 ### Backlog

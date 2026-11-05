@@ -1975,13 +1975,16 @@ nvs_runtime::nvs_helper! {
     /// no body for a `Content-Type` to have described.
     fn nvs_core_response_json(ctx, args: [1]) {
         head_open(ctx, "Core\\Response::json")?;
-        let written = crate::json::written(ctx, args[0], "Core\\Response::json")?;
+        let written = crate::json::written_bytes(ctx, args[0], "Core\\Response::json")?;
         ctx.declare_content_type(JSON_MEDIA_TYPE);
+        // The encoder's buffer is handed to the body whole, so a body that is
+        // still empty takes it with no copy.
+        //
         // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
-        ctx.write_body(written.as_bytes())
+        ctx.write_body_owned(written)
             .map_err(|error| Fault::fatal(format!("Core\\Response::json could not write: {error}")))?;
         Ok(Value::null())
     }

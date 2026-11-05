@@ -918,9 +918,13 @@ impl<'a> Encodable<'a> {
     /// what refused, its [`Fault`] is on [`Reentry`] for [`rendered`] to
     /// prefer, and this is the message nobody reads.
     ///
-    /// A document the request's memory ceiling refused is the empty string.
-    /// The breach is already recorded, and the request's next poll stops it.
-    fn written<F: Formatter>(self, fmt: F) -> Result<String, serde_json::Error> {
+    /// A document the request's memory ceiling refused is empty. The breach is
+    /// already recorded, and the request's next poll stops it.
+    ///
+    /// The bytes are UTF-8, because every one of them came from `serde_json`.
+    /// They are the writer's own buffer, so a caller that hands them on, such
+    /// as `Core\Response::json`, copies nothing.
+    fn written<F: Formatter>(self, fmt: F) -> Result<Vec<u8>, serde_json::Error> {
         let mut sink = Sink {
             out: ByteWriter::new(),
             fmt,
@@ -931,7 +935,7 @@ impl<'a> Encodable<'a> {
             // A refusal stops the work and not only the writes, so a graph
             // that shares one array many times costs no more visits.
             if sink.out.stopped().is_some() {
-                return Ok(String::new());
+                return Ok(Vec::new());
             }
             if let Some(value) = next.take() {
                 if !stack.value(self.walk, value, &mut sink)? {
@@ -946,18 +950,7 @@ impl<'a> Encodable<'a> {
                 stack.finished(&mut sink);
             }
         }
-        let Ok(out) = sink.out.finish() else {
-            return Ok(String::new());
-        };
-        #[expect(
-            unsafe_code,
-            clippy::disallowed_methods,
-            reason = "every byte above came from `serde_json`, which emits UTF-8 \
-                      — the same step and the same reason as that crate's own \
-                      `to_string`"
-        )]
-        let written = unsafe { String::from_utf8_unchecked(out) };
-        Ok(written)
+        Ok(sink.out.finish().unwrap_or_default())
     }
 }
 
@@ -1720,6 +1713,23 @@ pub(crate) fn document(
     rendered(ctx, value, false, refused)
 }
 
+/// [`written`] as the encoder's own buffer, for a caller that hands the bytes
+/// on whole. `Core\Response::json` passes them to the body this way, so the
+/// document is never copied into a `String` first.
+///
+/// # Errors
+///
+/// As [`written`]'s.
+pub(crate) fn written_bytes(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    rendered_bytes(ctx, value, false, |why| {
+        Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
+    })
+}
+
 /// The whole encoding half in one call: the walk, the option that frames it,
 /// and the one place a [`Fault`] a member raised is preferred to `serde`'s
 /// error.
@@ -1738,6 +1748,29 @@ fn rendered(
     pretty: bool,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<String, Fault> {
+    let out = rendered_bytes(ctx, value, pretty, refused)?;
+    #[expect(
+        unsafe_code,
+        clippy::disallowed_methods,
+        reason = "every byte came from `serde_json`, which emits UTF-8 \
+                  — the same step and the same reason as that crate's own \
+                  `to_string`"
+    )]
+    let written = unsafe { String::from_utf8_unchecked(out) };
+    Ok(written)
+}
+
+/// [`rendered`] as the encoder's own buffer of UTF-8 bytes.
+///
+/// # Errors
+///
+/// As [`document`]'s.
+fn rendered_bytes(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    pretty: bool,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<Vec<u8>, Fault> {
     let walk = Reentry::new(ctx);
     let subject = Encodable::document(&walk, value);
     let written = if pretty {
@@ -5889,6 +5922,7 @@ mod tests {
         let walk = Reentry::new(&mut ctx);
         Encodable::document(&walk, value)
             .written(CompactFormatter)
+            .map(|out| String::from_utf8(out).expect("the encoder writes UTF-8"))
             .map_err(|why| why.to_string())
     }
 
