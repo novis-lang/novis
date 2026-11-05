@@ -7484,4 +7484,168 @@ mod tests {
         );
         assert_eq!(plain_multipart, Some(Vec::new()));
     }
+
+    /// The document sizes the size ladders measure, 1 KiB to 32 MiB.
+    const LADDER_SIZES: [usize; 5] = [1 << 10, 64 << 10, 1 << 20, 8 << 20, 32 << 20];
+
+    /// One JSON document of at least `size` bytes in each of the shapes the
+    /// size ladders measure, named.
+    ///
+    /// Each shape repeats one unit until the document reaches `size`, so a
+    /// document's bytes grow and its kind of work does not. The deep shape
+    /// repeats a unit 64 levels deep: its depth stays under the default
+    /// `maxDepth`, and its share of brackets stays the same at every size.
+    fn ladder_documents(size: usize) -> Vec<(&'static str, String)> {
+        fn list(size: usize, unit: impl Fn(usize) -> String) -> String {
+            let mut out = String::with_capacity(size + 64);
+            out.push('[');
+            let mut at = 0;
+            while out.len() < size {
+                if at > 0 {
+                    out.push(',');
+                }
+                out.push_str(&unit(at));
+                at += 1;
+            }
+            out.push(']');
+            out
+        }
+        fn one_string(size: usize, unit: &str) -> String {
+            let mut out = String::with_capacity(size + 64);
+            out.push_str("[\"");
+            while out.len() < size {
+                out.push_str(unit);
+            }
+            out.push_str("\"]");
+            out
+        }
+        let mut keys = String::with_capacity(size + 64);
+        keys.push('{');
+        let mut at = 0;
+        while keys.len() < size {
+            if at > 0 {
+                keys.push(',');
+            }
+            keys.push_str(&format!("\"key-{at}\":{at}"));
+            at += 1;
+        }
+        keys.push('}');
+        let deep = format!("{}7{}", "[".repeat(64), "]".repeat(64));
+        vec![
+            (
+                "wide",
+                list(size, |at| {
+                    format!("{{\"id\":{at},\"name\":\"item-{at}\",\"paid\":true}}")
+                }),
+            ),
+            ("keys", keys),
+            ("ascii", one_string(size, "abcdefghijklmnop")),
+            ("escapes", one_string(size, r#"a\"b\\c\nd\te\u0001"#)),
+            ("non-ascii", one_string(size, "grüße ünïcödé 日本語 ")),
+            ("ints", list(size, |at| (at * 7919).to_string())),
+            (
+                "floats",
+                list(size, |at| {
+                    format!(
+                        "{}.{}e{}",
+                        at % 1000,
+                        at % 97,
+                        i32::try_from(at % 9).unwrap_or(0) - 4
+                    )
+                }),
+            ),
+            ("deep", list(size, |_| deep.clone())),
+        ]
+    }
+
+    /// How many times a rung runs, so each takes about the same total time.
+    fn ladder_reps(size: usize) -> u32 {
+        u32::try_from((64usize << 20) / size).map_or(3, |reps| reps.clamp(3, 2000))
+    }
+
+    /// The fastest of `reps` runs of `work`, in nanoseconds per document byte.
+    fn ns_per_byte(bytes: usize, reps: u32, mut work: impl FnMut()) -> f64 {
+        let mut best = std::time::Duration::MAX;
+        for _ in 0..reps {
+            let started = std::time::Instant::now();
+            work();
+            best = best.min(started.elapsed());
+        }
+        #[expect(clippy::cast_precision_loss, reason = "a printed figure")]
+        let per_byte = best.as_nanos() as f64 / bytes as f64;
+        per_byte
+    }
+
+    /// `n` per document byte, as a printed figure.
+    fn per_byte(n: usize, bytes: usize) -> f64 {
+        #[expect(clippy::cast_precision_loss, reason = "a printed figure")]
+        let ratio = n as f64 / bytes as f64;
+        ratio
+    }
+
+    /// The size ladders' reference: serde_json's own parse of each shape and
+    /// size into its own `Value`, beside `Core\Json::decode`'s read and
+    /// `Core\Json::encode`'s write of the same document. Per document byte, it
+    /// prints the time of each, and the allocations and peak memory of the
+    /// decode and the encode. Run it on an optimized build:
+    /// `cargo test --profile proof --lib json::tests::serde_reference -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement that prints its figures, run by hand"]
+    #[expect(clippy::print_stderr, reason = "the figures are this test's output")]
+    fn serde_reference_ladder() {
+        eprintln!(
+            "shape      size      serde ns/B  decode ns/B  decode allocs/B  decode peak/B  encode ns/B  encode allocs/B  encode peak/B"
+        );
+        for size in LADDER_SIZES {
+            let reps = ladder_reps(size);
+            for (shape, text) in ladder_documents(size) {
+                let bytes = text.len();
+                let serde = ns_per_byte(bytes, reps, || {
+                    let value: serde_json::Value =
+                        serde_json::from_str(&text).expect("a ladder document parses");
+                    drop(std::hint::black_box(value));
+                });
+                let decode = ns_per_byte(bytes, reps, || {
+                    let value =
+                        read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
+                    #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                    unsafe {
+                        std::hint::black_box(value).release();
+                    }
+                });
+                let ctx = nvs_runtime::Ctx::buffered();
+                let before = nvs_runtime::budget::allocations();
+                let value = read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
+                let decode_allocs = nvs_runtime::budget::allocations() - before;
+                let decode_peak = ctx.memory_peak();
+                drop(ctx);
+                let mut ctx = nvs_runtime::Ctx::buffered();
+                let encode = ns_per_byte(bytes, reps, || {
+                    let written = written(&mut ctx, value, r"Core\Json::encode")
+                        .expect("a decoded value encodes");
+                    drop(std::hint::black_box(written));
+                });
+                drop(ctx);
+                let mut ctx = nvs_runtime::Ctx::buffered();
+                let before = nvs_runtime::budget::allocations();
+                let written = written(&mut ctx, value, r"Core\Json::encode")
+                    .expect("a decoded value encodes");
+                let encode_allocs = nvs_runtime::budget::allocations() - before;
+                let encode_peak = ctx.memory_peak();
+                drop(written);
+                drop(ctx);
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                eprintln!(
+                    "{shape:<10} {bytes:>9} {serde:>11.2} {decode:>12.2} {:>16.4} {:>14.2} {encode:>12.2} {:>16.4} {:>14.2}",
+                    per_byte(decode_allocs, bytes),
+                    per_byte(decode_peak, bytes),
+                    per_byte(encode_allocs, bytes),
+                    per_byte(encode_peak, bytes),
+                );
+            }
+        }
+    }
 }
