@@ -1,0 +1,59 @@
+<?nvs
+namespace Poll;
+
+use Core\Arr;
+use Core\Str;
+
+// A new poll from the form, before it is saved.
+// The text comes from the user, so it is `tainted`.
+#[Core\Json\Derive]
+final class Draft
+{
+    // The question, such as "Where do we eat on Friday?".
+    public tainted string $question;
+    // The answers, one on each line.
+    public tainted string $answers;
+
+    public function constructor(tainted string $question, tainted string $answers)
+    {
+        $this->question = $question;
+        $this->answers = $answers;
+    }
+
+    // Returns the answers without the spaces around them. Empty lines are left out.
+    public function choices(): array<tainted string>
+    {
+        array<tainted string> $choices = [];
+        foreach (Str::lines($this->answers) as tainted string $line) {
+            tainted string $label = Str::trim($line);
+            if ($label != '') {
+                $choices[] = $label;
+            }
+        }
+        return $choices;
+    }
+
+    // Returns one message for each problem. An empty array means the draft is valid.
+    public function problems(): array<string>
+    {
+        array<string> $problems = [];
+        if (Str::trim($this->question) == '') {
+            $problems[] = 'Please enter a question.';
+        } elseif (Str::length($this->question) > 200) {
+            $problems[] = 'The question can have at most 200 characters.';
+        }
+        var $choices = $this->choices();
+        if (Arr::count($choices) < 2) {
+            $problems[] = 'Please enter at least two answers, one on each line.';
+        } elseif (Arr::count($choices) > 6) {
+            $problems[] = 'A poll can have at most six answers.';
+        }
+        foreach ($choices as tainted string $choice) {
+            if (Str::length($choice) > 80) {
+                $problems[] = 'An answer can have at most 80 characters.';
+                break;
+            }
+        }
+        return $problems;
+    }
+}

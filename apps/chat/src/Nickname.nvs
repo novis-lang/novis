@@ -1,0 +1,26 @@
+<?nvs
+namespace Chat;
+
+use Core\Str;
+use Core\Validate;
+
+// The checks on the name that a visitor chooses.
+final class Nickname
+{
+    // Returns the problem with a name, or `null` when the name is valid.
+    public static function problem(tainted string $name): ?string
+    {
+        tainted string $trimmed = Str::trim($name);
+        if ($trimmed == '') {
+            return 'Please enter a name.';
+        }
+        if (Str::length($trimmed) > 20) {
+            return 'A name can have at most 20 characters.';
+        }
+        // A name with a new line or a tab could look like two lines in the chat.
+        if (!Validate::isPrintable($trimmed)) {
+            return 'A name can only have letters, digits, spaces and punctuation.';
+        }
+        return null;
+    }
+}

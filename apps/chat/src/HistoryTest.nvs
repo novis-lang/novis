@@ -1,0 +1,51 @@
+<?nvs
+namespace Chat;
+
+use Core\Db;
+use Core\Test;
+
+// Tests the saved lines. They use the database `scratch`, which is kept in memory.
+final class HistoryTest
+{
+    #[Test]
+    public function theNewestLinesComeInTheOrderTheyWereWritten(): void
+    {
+        var $history = HistoryTest::empty();
+        $history->add('lobby', 'Ana', 'one');
+        $history->add('lobby', 'Ben', 'two');
+        $history->add('lobby', 'Ana', 'three');
+        array<Line> $lines = $history->recent('lobby', 2);
+        Test::assertCount($lines, 2);
+        Test::assertSame($lines[0]->text, 'two');
+        Test::assertSame($lines[1]->text, 'three');
+    }
+
+    #[Test]
+    public function eachRoomHasItsOwnLines(): void
+    {
+        var $history = HistoryTest::empty();
+        $history->add('lobby', 'Ana', 'hello');
+        Test::assertCount($history->recent('help', 50), 0);
+    }
+
+    #[Test]
+    public function aRoomKeepsItsNewest100Lines(): void
+    {
+        var $history = HistoryTest::empty();
+        for (uint $i = 1; $i <= 105; $i++) {
+            $history->add('lobby', 'Ana', 'line ' . $i);
+        }
+        array<Line> $lines = $history->recent('lobby', 500);
+        Test::assertCount($lines, 100);
+        Test::assertSame($lines[0]->text, 'line 6');
+    }
+
+    private static function empty(): History
+    {
+        var $db = Db::connect('scratch');
+        $db->execute('drop table if exists lines', []);
+        var $history = new History($db);
+        $history->setUp();
+        return $history;
+    }
+}

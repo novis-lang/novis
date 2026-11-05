@@ -1,0 +1,109 @@
+<?nvs
+namespace Poll;
+
+use Core\Arr;
+use Core\Html\Markup;
+use Core\Router;
+
+// Builds the HTML pages. Each `{$name}` in an `html` literal is escaped, so a `<` in a question prints as `&lt;`.
+final class Pages
+{
+    // The home page: every poll, then a form for a new poll.
+    public static function home(array<Question> $polls, Draft $draft, array<string> $problems): Markup
+    {
+        var $list = html``;
+        foreach ($polls as Question $poll) {
+            string $link = Router::url(App::show, ['id' => $poll->id]);
+            tainted string $text = $poll->text;
+            $list = $list + html`<li><a href="{$link}">{$text}</a></li>`;
+        }
+        tainted string $question = $draft->question;
+        tainted string $answers = $draft->answers;
+        var $form = html`<form method="post" action="/polls">
+<h2>New poll</h2>
+<?= Pages::errorList($problems) ?>
+<p><label>Question <input name="question" value="{$question}"></label></p>
+<p><label>Answers, one on each line <textarea name="answers" rows="6">{$answers}</textarea></label></p>
+<p><button>Create the poll</button></p>
+</form>`;
+        return Pages::layout('Polls', html`<h1>Polls</h1><ul>{$list}</ul>{$form}`);
+    }
+
+    // The page of one poll. Each answer is a button that sends the form, so voting works without JavaScript.
+    // `$chosen` is the answer this browser voted for, or `null`. Its button has the class `chosen`.
+    public static function poll(Question $poll, ?uint $chosen): Markup
+    {
+        uint $total = $poll->total();
+        // A progress bar needs a maximum above 0, also before the first vote.
+        uint $max = $total > 0 ? $total : 1;
+        var $items = html``;
+        foreach ($poll->answers as Answer $answer) {
+            tainted string $label = $answer->label;
+            uint $votes = $answer->votes;
+            uint $answerId = $answer->id;
+            var $button = $answerId == $chosen
+                ? html`<button name="answer" value="{$answerId}" class="chosen">{$label}</button>`
+                : html`<button name="answer" value="{$answerId}">{$label}</button>`;
+            $items = $items + html`<li data-answer="{$answerId}">
+{$button}
+<progress max="{$max}" value="{$votes}"></progress> <span class="votes">{$votes}</span>
+</li>`;
+        }
+        string $vote = Router::url(App::vote, ['id' => $poll->id]);
+        // `poll.js` reads `data-events` and updates the numbers while the page is open.
+        string $events = Router::url(App::events, ['id' => $poll->id]);
+        tainted string $question = $poll->text;
+        return Pages::layout($question, html`<h1>{$question}</h1>
+<form method="post" action="{$vote}" id="vote" data-events="{$events}">
+<ul class="answers">{$items}</ul>
+</form>
+<p><span id="total">{$total}</span> votes. Click another answer to change your vote. <span id="status"></span></p>
+<p><a href="/">All polls</a></p>
+<script src="/poll.js" defer></script>`);
+    }
+
+    // The page for a path that has no route, or for a poll that does not exist.
+    public static function notFound(): Markup
+    {
+        return Pages::problem('Not found', 'There is no page at this address.');
+    }
+
+    // The page for an error in the app.
+    public static function failed(): Markup
+    {
+        return Pages::problem('Something went wrong', 'Please try again later.');
+    }
+
+    // A page with a title, one sentence and a link to the home page.
+    public static function problem(string $title, string $text): Markup
+    {
+        return Pages::layout($title, html`<h1>{$title}</h1><p>{$text}</p><p><a href="/">All polls</a></p>`);
+    }
+
+    // Returns a list of the problems, or nothing when there are none.
+    private static function errorList(array<string> $problems): Markup
+    {
+        if (Arr::count($problems) == 0) {
+            return html``;
+        }
+        var $items = html``;
+        foreach ($problems as string $problem) {
+            $items = $items + html`<li>{$problem}</li>`;
+        }
+        return html`<ul class="errors">{$items}</ul>`;
+    }
+
+    private static function layout(tainted string $title, Markup $content): Markup
+    {
+        return html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{$title}</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>{$content}</body>
+</html>`;
+    }
+}

@@ -1,0 +1,45 @@
+# The settings for a server on the internet, behind a proxy on the same machine.
+# Start the server with `--config nvs.toml --config deploy/production.toml`.
+# The server reads the two files in this order. Each setting below replaces the one from `nvs.toml`.
+
+# Production is the default mode. This line makes the choice visible.
+# An error page then says only that something went wrong.
+[mode]
+default = "production"
+
+[server]
+# Novis listens on a Unix socket. Only the proxy may connect to it.
+# On Windows, write `listen = ["127.0.0.1:8145"]` here, and change the proxy to match.
+listen = ["/run/poll/nvs.sock"]
+# The account of the server and the members of its group may connect.
+# Add the account of the proxy to that group.
+socket_mode = "0660"
+# Novis reads `X-Forwarded-For` and `X-Forwarded-Proto` from the proxy.
+# Without this line, every vote from a browser gets the status 403.
+trusted_proxies = ["127.0.0.1"]
+
+# The votes are kept outside the folder of the code, so a new version of the code does not touch them.
+# The account of the server must be able to write to this folder.
+[db.poll]
+driver = "sqlite"
+path = "/var/lib/poll/poll.sqlite"
+
+# The server opens only the database of the polls. The tests use `scratch`, and they do not run here.
+[capabilities.db]
+connect = ["poll"]
+
+# Each request and each event stream may use at most 32 MB of memory and 5 seconds of CPU time.
+# A program cannot raise these limits. Each stream also has its own memory limit of 8 MB.
+# There is no `wall_time` here: it would also close every event stream after that time.
+[limits]
+memory = "32M"
+cpu_time = "5s"
+
+[limits.hard]
+memory = "32M"
+cpu_time = "5s"
+
+# A failure that Novis reports itself goes to this file. Read it after each deploy.
+# The account of the server must be able to write to this folder.
+[log]
+target = "file:/var/log/poll/nvs.log"

@@ -1,0 +1,29 @@
+<?nvs
+namespace Poll;
+
+use Core\Sse;
+use Core\Topic;
+
+// The event stream of one poll. `App::events` starts it, and it runs until the browser leaves.
+final class Results
+{
+    // `args:` in `App::events` gives `$id`, the number of the poll.
+    public static function run(uint $id): void
+    {
+        Sse $sse = Sse::current();
+        // The stream joins the topic first, so a vote that arrives during the next lines is not lost.
+        Topic::subscribe('poll:' . $id);
+
+        // The first event has the results as they are now.
+        // A browser that connects again gets them too, so it never misses a vote.
+        $sse->send(App::store()->results($id), event: 'results');
+
+        // `receive` waits for the next results that `App::vote` publishes.
+        // It returns `null` when the browser closes the page.
+        ?Core\Sse\Message $message = $sse->receive();
+        while ($message != null) {
+            $sse->send($message->value(), event: 'results');
+            $message = $sse->receive();
+        }
+    }
+}

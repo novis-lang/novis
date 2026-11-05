@@ -1,0 +1,137 @@
+<?nvs
+namespace Chat;
+
+use Core\Db;
+use Core\Http\Client;
+use Core\Http\Socket;
+use Core\Str;
+use Core\Test;
+use RuntimeError;
+
+// Tests with real WebSocket connections. `server: true` starts a server for each test.
+// The tests write lines into `chat.sqlite`, and each test deletes its own lines at the end.
+final class LiveTest
+{
+    #[Test(server: true)]
+    public function twoVisitorsTalkInOneRoom(): void
+    {
+        string $ana = LiveTest::name();
+        string $ben = LiveTest::name();
+        Socket $first = LiveTest::open('random', $ana);
+        LiveTest::waitFor($first, 'history');
+        Socket $second = LiveTest::open('random', $ben);
+        // When the history arrives, the connection of Ben is in the room.
+        LiveTest::waitFor($second, 'history');
+        // Ana first gets her own `joined` message, and then the one for Ben.
+        LiveTest::waitFor($first, 'joined', $ben);
+
+        $first->send('{"kind": "say", "text": "Hello, Ben!"}');
+        // Other tests use the same room at the same time, so the test waits for its own line.
+        tainted string $line = LiveTest::waitFor($second, 'line', 'Hello, Ben!');
+        Test::assertTrue(Str::contains($line, '"text":"Hello, Ben!"'));
+        Test::assertTrue(Str::contains($line, $ana));
+
+        // When Ben closes the page, Ana gets a `left` message.
+        $second->close();
+        LiveTest::waitFor($first, 'left', $ben);
+        $first->close();
+        LiveTest::forget($ana);
+    }
+
+    #[Test(server: true)]
+    public function aNewVisitorGetsTheHistory(): void
+    {
+        string $ana = LiveTest::name();
+        Socket $first = LiveTest::open('random', $ana);
+        LiveTest::waitFor($first, 'history');
+        $first->send('{"kind": "say", "text": "Is anybody here?"}');
+        LiveTest::waitFor($first, 'line', 'Is anybody here?');
+        $first->close();
+
+        Socket $later = LiveTest::open('random', LiveTest::name());
+        Test::assertTrue(Str::contains(LiveTest::waitFor($later, 'history'), '"text":"Is anybody here?"'));
+        $later->close();
+        LiveTest::forget($ana);
+    }
+
+    #[Test(server: true)]
+    public function aWrongMessageGetsAProblemOnlyForItsSender(): void
+    {
+        Socket $socket = LiveTest::open('random', LiveTest::name());
+        LiveTest::waitFor($socket, 'history');
+        $socket->send('hello');
+        Test::assertTrue(Str::contains(LiveTest::waitFor($socket, 'problem'), 'must be JSON text'));
+        $socket->send('{"kind": "say", "text": ""}');
+        Test::assertTrue(Str::contains(LiveTest::waitFor($socket, 'problem'), 'cannot be empty'));
+        $socket->close();
+    }
+
+    #[Test(server: true)]
+    public function aVisitorWhoSendsTooFastMustWait(): void
+    {
+        string $ana = LiveTest::name();
+        Socket $socket = LiveTest::open('random', $ana);
+        LiveTest::waitFor($socket, 'history');
+        for (uint $i = 1; $i <= 6; $i++) {
+            $socket->send('{"kind": "say", "text": "line ' . $i . '"}');
+        }
+        Test::assertTrue(Str::contains(LiveTest::waitFor($socket, 'problem'), 'You are sending too fast.'));
+        $socket->close();
+        LiveTest::forget($ana);
+    }
+
+    #[Test(server: true)]
+    public function aSocketFromAnotherWebsiteIsNotAllowed(): void
+    {
+        // A browser sends the `Origin` header with the address of the page that opens the socket.
+        // The session is valid, so only the other website stops this request, with the status 403.
+        array<string> $headers = AppTest::signedIn('Ana');
+        $headers['origin'] = 'https://example.com';
+        Test::assertThrows(fn() => Client::openSocket(LiveTest::address('random'), { headers: $headers, idle: 5s }), RuntimeError::class);
+        // The same session from this website opens the socket.
+        Socket $socket = Client::openSocket(LiveTest::address('random'), { headers: AppTest::signedIn('Ana'), idle: 5s });
+        LiveTest::waitFor($socket, 'history');
+        $socket->close();
+    }
+
+    // Opens a WebSocket to the test server, the same way the room page does.
+    // The browser sends its session cookie, and the test sends it as a header.
+    private static function open(string $room, string $name): Socket
+    {
+        return Client::openSocket(LiveTest::address($room), { headers: AppTest::signedIn($name), idle: 5s });
+    }
+
+    // The test server's address starts with `http`. A WebSocket address starts with `ws`.
+    private static function address(string $room): string
+    {
+        string $base = Test::serverUrl() ?? '';
+        return 'ws' . Str::slice($base, 4) . '/rooms/' . $room . '/socket';
+    }
+
+    // Reads messages until one of this kind arrives that contains `$with`, and returns it as JSON text.
+    // When no message arrives for 5 seconds, `receive()` throws an error and the test fails.
+    private static function waitFor(Socket $socket, string $kind, string $with = ''): tainted string
+    {
+        ?Core\Socket\Message $message = $socket->receive();
+        while ($message != null) {
+            tainted string $text = $message->text() ?? '';
+            if (Str::startsWith($text, '{"kind":"' . $kind . '"') && Str::contains($text, $with)) {
+                return $text;
+            }
+            $message = $socket->receive();
+        }
+        throw new RuntimeError('The connection closed before a "' . $kind . '" message arrived.');
+    }
+
+    // A name that no other test uses, such as `Test 482193`.
+    private static function name(): string
+    {
+        return 'Test ' . Core\Random::int(100000, 999999);
+    }
+
+    // Deletes the lines that a test wrote.
+    private static function forget(string $name): void
+    {
+        Db::connect('chat')->execute('delete from lines where name = ?', [$name]);
+    }
+}

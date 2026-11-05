@@ -1,0 +1,163 @@
+<?nvs
+namespace Poll;
+
+use Core\Db;
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+// Tests that send requests to the app. `Test::request` runs the app without a server.
+final class AppTest
+{
+    #[Test]
+    public function theHomePageShowsTheForm(): void
+    {
+        var $response = Test::request(Method::Get, '/');
+        Test::assertEquals($response->status(), 200);
+        Test::assertTrue(Str::contains($response->body(), "<form method=\"post\" action=\"/polls\">"));
+    }
+
+    #[Test]
+    public function aPollWithOneAnswerShowsTheProblem(): void
+    {
+        array<string> $headers = ['content-type' => 'application/x-www-form-urlencoded'];
+        var $response = Test::request(Method::Post, '/polls', { headers: $headers, body: 'question=Lunch%3F&answers=Pizza' });
+        Test::assertEquals($response->status(), 422);
+        Test::assertTrue(Str::contains($response->body(), 'Please enter at least two answers'));
+    }
+
+    #[Test]
+    public function aMissingPollIsNotFound(): void
+    {
+        Test::assertEquals(Test::request(Method::Get, '/polls/999999')->status(), 404);
+        // A stream for a poll that does not exist is not opened.
+        Test::assertEquals(Test::request(Method::Get, '/polls/999999/events')->status(), 404);
+    }
+
+    #[Test]
+    public function thePollPageShowsAButtonForEachAnswer(): void
+    {
+        uint $id = AppTest::addPoll();
+        var $response = Test::request(Method::Get, '/polls/' . $id);
+        AppTest::removePoll($id);
+        Test::assertEquals($response->status(), 200);
+        Test::assertEquals(Str::countOf($response->body(), '<button name="answer"'), 2);
+        Test::assertTrue(Str::contains($response->body(), "data-events=\"/polls/{$id}/events\""));
+    }
+
+    #[Test]
+    public function aVoteGoesBackToThePollAndGivesTheBrowserAnId(): void
+    {
+        uint $id = AppTest::addPoll();
+        uint $first = AppTest::answerIds(App::store(), $id)[0];
+        var $response = Test::request(Method::Post, "/polls/{$id}/vote", { headers: AppTest::form(''), body: "answer={$first}" });
+        uint $total = App::store()->find($id)?->total() ?? 0;
+        AppTest::removePoll($id);
+        Test::assertEquals($response->status(), 303);
+        Test::assertEquals($response->header('location'), "/polls/{$id}");
+        Test::assertEquals($total, 1);
+        // The browser had no cookie `voter`, so the response gives it a new id of 32 characters.
+        Test::assertEquals(Str::length($response->cookies()['voter'] ?? ''), 32);
+    }
+
+    #[Test]
+    public function aSecondVoteFromTheSameBrowserChangesItsVote(): void
+    {
+        uint $id = AppTest::addPoll();
+        array<uint> $answers = AppTest::answerIds(App::store(), $id);
+        string $voter = '0123456789abcdef0123456789abcdef';
+        Test::request(Method::Post, "/polls/{$id}/vote", { headers: AppTest::form($voter), body: "answer={$answers[0]}" });
+        var $second = Test::request(Method::Post, "/polls/{$id}/vote", { headers: AppTest::form($voter), body: "answer={$answers[1]}" });
+        var $page = Test::request(Method::Get, "/polls/{$id}", { headers: ['cookie' => 'voter=' . $voter] });
+        var $results = App::store()->results($id);
+        AppTest::removePoll($id);
+        Test::assertEquals($second->status(), 303);
+        // The browser keeps its id, so the second response sets no new cookie.
+        Test::assertNull($second->cookies()['voter'] ?? null);
+        Test::assertEquals($results['total'], 1);
+        // The page marks the answer this browser chose.
+        Test::assertTrue(Str::contains($page->body(), "value=\"{$answers[1]}\" class=\"chosen\""));
+    }
+
+    #[Test]
+    public function everyPageHasAStrictContentSecurityPolicy(): void
+    {
+        var $response = Test::request(Method::Get, '/');
+        Test::assertSame($response->header('content-security-policy'), "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+    }
+
+    #[Test]
+    public function theScriptAndTheStylesAreSent(): void
+    {
+        var $script = Test::request(Method::Get, '/poll.js');
+        Test::assertEquals($script->status(), 200);
+        Test::assertSame($script->header('content-type'), 'text/javascript; charset=utf-8');
+        Test::assertTrue(Str::contains($script->body(), 'new EventSource('));
+        Test::assertSame(Test::request(Method::Get, '/style.css')->header('content-type'), 'text/css; charset=utf-8');
+    }
+
+    #[Test]
+    public function aVoteForAnAnswerThatDoesNotExistIsNotFound(): void
+    {
+        uint $id = AppTest::addPoll();
+        array<string> $headers = ['content-type' => 'application/x-www-form-urlencoded'];
+        var $response = Test::request(Method::Post, "/polls/{$id}/vote", { headers: $headers, body: 'answer=abc' });
+        AppTest::removePoll($id);
+        Test::assertEquals($response->status(), 404);
+    }
+
+    #[Test]
+    public function aVoteFromAnotherSiteIsRefused(): void
+    {
+        uint $id = AppTest::addPoll();
+        uint $first = AppTest::answerIds(App::store(), $id)[0];
+        // The `origin` header shows that another website sent the form.
+        array<string> $headers = [
+            'content-type' => 'application/x-www-form-urlencoded',
+            'origin' => 'https://example.com',
+        ];
+        var $response = Test::request(Method::Post, "/polls/{$id}/vote", { headers: $headers, body: "answer={$first}" });
+        uint $total = App::store()->find($id)?->total() ?? 0;
+        AppTest::removePoll($id);
+        Test::assertEquals($response->status(), 403);
+        Test::assertEquals($total, 0);
+    }
+
+    // Saves a poll with two answers in the database `poll` and returns its number.
+    public static function addPoll(): uint
+    {
+        return App::store()->add(new Draft('Lunch?', "Pizza\nSoup"));
+    }
+
+    // Returns the numbers of the answers of a poll, in their order.
+    public static function answerIds(Store $store, uint $id): array<uint>
+    {
+        array<uint> $ids = [];
+        ?Question $poll = $store->find($id);
+        if ($poll != null) {
+            foreach ($poll->answers as Answer $answer) {
+                $ids[] = $answer->id;
+            }
+        }
+        return $ids;
+    }
+
+    // The headers of a form that a browser sends. `$voter` is the id in the cookie `voter`, or empty for no cookie.
+    private static function form(string $voter): array<string>
+    {
+        array<string> $headers = ['content-type' => 'application/x-www-form-urlencoded'];
+        if ($voter != '') {
+            $headers['cookie'] = 'voter=' . $voter;
+        }
+        return $headers;
+    }
+
+    // Deletes the poll that `addPoll` saved and its votes, so the tests leave no poll behind.
+    public static function removePoll(uint $id): void
+    {
+        var $db = Db::connect('poll');
+        $db->execute('delete from votes where poll_id = ?', [$id]);
+        $db->execute('delete from answers where poll_id = ?', [$id]);
+        $db->execute('delete from polls where id = ?', [$id]);
+    }
+}

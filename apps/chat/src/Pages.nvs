@@ -1,0 +1,76 @@
+<?nvs
+namespace Chat;
+
+use Core\Html\Markup;
+
+// Builds the HTML pages. Each `{$name}` in an `html` literal is escaped, so a `<` in a name prints as `&lt;`.
+final class Pages
+{
+    // The home page: a form for the name and the room.
+    public static function home(tainted string $name, string $room, ?string $problem): Markup
+    {
+        var $options = html``;
+        foreach (Rooms::all() as string $slug => string $title) {
+            $options = $options + ($slug == $room
+                ? html`<option value="{$slug}" selected>{$title}</option>`
+                : html`<option value="{$slug}">{$title}</option>`);
+        }
+        var $error = $problem == null ? html`` : html`<p class="problem">{$problem}</p>`;
+        return Pages::layout('Chat', html`<h1>Chat</h1>
+<form method="post" action="/join">
+{$error}
+<p><label>Your name <input name="name" value="{$name}" maxlength="20" required></label></p>
+<p><label>Room <select name="room">{$options}</select></label></p>
+<p><button>Join</button></p>
+</form>`);
+    }
+
+    // The page of one room. `data-socket` is the address of its WebSocket, and `chat.js` reads it.
+    public static function room(string $room, tainted string $name, string $socket): Markup
+    {
+        string $title = Rooms::title($room);
+        var $links = html``;
+        foreach (Rooms::all() as string $slug => string $other) {
+            if ($slug != $room) {
+                string $href = Core\Router::url(App::room, ['room' => $slug]);
+                $links = $links + html` <a href="{$href}">{$other}</a>`;
+            }
+        }
+        return Pages::layout($title, html`<main data-socket="{$socket}">
+<h1>{$title}</h1>
+<p class="status">You are <b>{$name}</b>. <span id="status">Connecting …</span> Other rooms:{$links}</p>
+<ol id="lines"></ol>
+<form id="say">
+<input name="text" maxlength="500" autocomplete="off" placeholder="Write a message" required>
+<button>Send</button>
+</form>
+</main>
+<script src="/chat.js" defer></script>`);
+    }
+
+    // The page for a path that has no route, or for a room that does not exist.
+    public static function notFound(): Markup
+    {
+        return Pages::problem('Not found', 'There is no page at this address.');
+    }
+
+    // A page with a title, one sentence and a link to the home page.
+    public static function problem(string $title, string $text): Markup
+    {
+        return Pages::layout($title, html`<h1>{$title}</h1><p>{$text}</p><p><a href="/">Choose a room</a></p>`);
+    }
+
+    private static function layout(string $title, Markup $content): Markup
+    {
+        return html`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{$title}</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>{$content}</body>
+</html>`;
+    }
+}

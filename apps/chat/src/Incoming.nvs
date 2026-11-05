@@ -1,0 +1,31 @@
+<?nvs
+namespace Chat;
+
+use Core\Str;
+
+// A JSON message from the browser: `{"kind": "say", "text": "Hello"}` is a chat line.
+// `{"kind": "ping"}` keeps a quiet connection open, and the server sends nothing back.
+#[Core\Json\Derive]
+final class Incoming
+{
+    public tainted string $kind;
+    public tainted string $text;
+
+    public function constructor(tainted string $kind, tainted string $text = '')
+    {
+        $this->kind = $kind;
+        $this->text = $text;
+    }
+
+    // Returns the problem with a chat line, or `null` when the line is valid.
+    public function problem(): ?string
+    {
+        if (Str::trim($this->text) == '') {
+            return 'A chat line cannot be empty.';
+        }
+        if (Str::length($this->text) > 500) {
+            return 'A chat line can have at most 500 characters.';
+        }
+        return null;
+    }
+}

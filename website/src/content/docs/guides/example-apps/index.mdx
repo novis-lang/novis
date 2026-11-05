@@ -15,6 +15,14 @@ Novis, so it always runs with the current version.
   small JSON API. It also checks the form and has tests.
 - [PDF documents](/guides/example-apps/paperwork/) makes an invoice, an encrypted report and event
   tickets as PDF files. You can see the three files on its page.
+- [Chat](/guides/example-apps/chat/) is a chat with rooms. The browser and the server send each
+  other messages over a WebSocket.
+- [Poll](/guides/example-apps/poll/) is a live poll. Every open page shows each new vote at once,
+  through server-sent events.
+
+Chat and Poll show the live features of Novis. The same `nvs serve` sends the pages and runs every
+WebSocket and every event stream. You need no second server and no JavaScript library. Each of the
+two pages also shows the proxy configuration for the app.
 
 Before you start, [install Novis](/install/). Then read the [Tour](/guides/tour/) if you have not
 written Novis before.

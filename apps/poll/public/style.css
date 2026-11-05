@@ -1,0 +1,38 @@
+/* The styles of every page of the poll. */
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+.answers {
+  list-style: none;
+  padding: 0;
+}
+.answers li {
+  display: grid;
+  grid-template-columns: 12rem 1fr 3rem;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+.answers button {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+}
+/* The answer that this browser voted for. */
+.answers button.chosen {
+  font-weight: bold;
+  outline: 2px solid #1a73e8;
+}
+progress {
+  width: 100%;
+}
+textarea,
+input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.errors {
+  color: #b00020;
+}

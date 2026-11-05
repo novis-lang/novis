@@ -1,0 +1,31 @@
+# The server listens on port 8144. The other apps in this repository use other ports,
+# so all of them can run at the same time.
+[server]
+listen = ["127.0.0.1:8144"]
+
+# These limits are for each WebSocket connection. A chat line is short, so a message from
+# the browser may have at most 16 KB. A connection with no message for 5 minutes is closed.
+[server.connection]
+max_message = 16384
+idle_timeout = "5m"
+
+# The browser may load scripts, styles and images only from this server, and open
+# connections only to this server. The pages have no inline script, so this strict policy works.
+# Novis adds `frame-ancestors 'none'` by itself, so no other website can show the pages in a frame.
+[http.headers]
+content_security_policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'"
+
+# The last lines of each room are kept in the SQLite file `chat.sqlite`, next to this file.
+# Novis creates the file when the first connection opens the database.
+[db.chat]
+driver = "sqlite"
+path = "chat.sqlite"
+
+# The tests use this database. It is kept in memory and deleted when the tests end.
+[db.scratch]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open these two databases and no other.
+[capabilities.db]
+connect = ["chat", "scratch"]

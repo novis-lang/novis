@@ -1,0 +1,52 @@
+<?nvs
+namespace Chat;
+
+use Core\Test;
+
+// Tests the checks on names, rooms, chat lines and the speed of a visitor.
+final class CheckTest
+{
+    #[Test]
+    public function aShortNameIsValid(): void
+    {
+        Test::assertNull(Nickname::problem('Ana'));
+        Test::assertNull(Nickname::problem('  Ana  '));
+    }
+
+    #[Test]
+    public function anEmptyOrLongNameIsNotValid(): void
+    {
+        Test::assertSame(Nickname::problem('   '), 'Please enter a name.');
+        Test::assertSame(Nickname::problem('Anastasia Alexandrovna'), 'A name can have at most 20 characters.');
+        Test::assertSame(Nickname::problem("Ana\nBen"), 'A name can only have letters, digits, spaces and punctuation.');
+    }
+
+    #[Test]
+    public function onlyTheListedRoomsExist(): void
+    {
+        Test::assertSame(Rooms::find('help'), 'help');
+        Test::assertNull(Rooms::find('kitchen'));
+        Test::assertSame(Rooms::topic('help'), 'room:help');
+    }
+
+    #[Test]
+    public function aChatLineMustHaveText(): void
+    {
+        Test::assertNull((new Incoming('say', 'Hello'))->problem());
+        Test::assertSame((new Incoming('say', '  '))->problem(), 'A chat line cannot be empty.');
+        Test::assertSame((new Incoming('say', Core\Str::repeat('a', 501)))->problem(), 'A chat line can have at most 500 characters.');
+    }
+
+    // The clock of this test is fixed, and `Test::advance` moves it without waiting.
+    #[Test(at: '2026-03-01T09:00:00Z')]
+    public function theLimiterAllowsFiveLinesInTenSeconds(): void
+    {
+        Limiter $limiter = new Limiter(5, 10s);
+        for (uint $i = 0; $i < 5; $i++) {
+            Test::assertTrue($limiter->allow());
+        }
+        Test::assertSame($limiter->allow(), false);
+        Test::advance(10s);
+        Test::assertTrue($limiter->allow());
+    }
+}

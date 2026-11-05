@@ -1,0 +1,12 @@
+<?nvs
+// This is the entry file. `nvs serve public/index.nvs` runs it once for each request.
+// The `autoload` line reads each class `Poll\...` from the folder `src`.
+autoload 'Poll' from '../src';
+
+// The pages may load scripts, styles and event streams from this website only.
+// A script that somebody puts into a page from outside does not run.
+Core\Response::setHeader('content-security-policy', "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+
+// `dispatch` finds the route for the request and calls its method.
+// `Poll\Gate` decides if the method may run, and it shows the error pages.
+Core\Router::dispatch(new Poll\Gate());

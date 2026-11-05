@@ -1,0 +1,21 @@
+<?nvs
+namespace Chat;
+
+// One saved chat line. `at` is the time it was written, in milliseconds since 1970,
+// so each browser can show it in the time zone of its visitor.
+#[Core\Json\Derive]
+final class Line
+{
+    public uint $id;
+    public tainted string $name;
+    public tainted string $text;
+    public int $at;
+
+    public function constructor(uint $id, tainted string $name, tainted string $text, int $at)
+    {
+        $this->id = $id;
+        $this->name = $name;
+        $this->text = $text;
+        $this->at = $at;
+    }
+}

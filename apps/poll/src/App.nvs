@@ -1,0 +1,131 @@
+<?nvs
+namespace Poll;
+
+use Core\Access;
+use Core\Audience;
+use Core\Db;
+use Core\Http\Method;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+use Core\Router;
+use Core\Sse;
+use Core\Topic;
+use ParseError;
+
+// The routes of the app. Each method with a `Route` handles one kind of request.
+final class App
+{
+    // Shows every poll and the form for a new one.
+    #[Route(path: '/', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function home(): void
+    {
+        Response::html(Pages::home(App::store()->all(), new Draft('', ''), []));
+    }
+
+    // Saves the poll from the form and goes to its page.
+    // If the form is not valid, it shows the form again with the problems.
+    #[Route(path: '/polls', method: Method::Post)]
+    #[Access(allow: Audience::Public)]
+    public static function create(): void
+    {
+        var $store = App::store();
+        Draft $draft = new Draft('', '');
+        array<string> $problems = [];
+        try {
+            $draft = Request::postAs<Draft>();
+            $problems = $draft->problems();
+        } catch (ParseError $error) {
+            $problems = ['Please fill in the form.'];
+        }
+        if (Core\Arr::count($problems) > 0) {
+            Response::setStatus(422);
+            Response::html(Pages::home($store->all(), $draft, $problems));
+            return;
+        }
+        uint $id = $store->add($draft);
+        Response::redirect(Router::url(App::show, ['id' => $id]));
+    }
+
+    // Shows one poll: a button for each answer and the results.
+    #[Route(path: '/polls/{id}', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function show(uint $id): void
+    {
+        var $store = App::store();
+        ?Question $poll = $store->find($id);
+        if ($poll == null) {
+            App::notFound();
+            return;
+        }
+        // A browser that already voted sees its own choice. This page does not set a cookie.
+        ?tainted string $voter = Voter::current();
+        ?uint $chosen = $voter == null ? null : $store->choiceOf($id, $voter);
+        Response::html(Pages::poll($poll, $chosen));
+    }
+
+    // Saves the vote of this browser, tells every open page of this poll, and goes back to the poll.
+    // A second vote from the same browser changes its vote and does not add one.
+    #[Route(path: '/polls/{id}/vote', method: Method::Post)]
+    #[Access(allow: Audience::Public)]
+    public static function vote(uint $id): void
+    {
+        var $store = App::store();
+        // The form sends the number of the answer in the field `answer`.
+        ?uint $answer = Request::post('answer') as ?uint;
+        if ($answer == null || !$store->vote($id, $answer, Voter::currentOrNew())) {
+            App::notFound();
+            return;
+        }
+        // Every event stream of this poll subscribed to this topic, and each one receives the new results.
+        // `$id` is a number from the route, so the topic name contains nothing the user typed.
+        Topic::publish('poll:' . $id, $store->results($id));
+        Response::redirect(Router::url(App::show, ['id' => $id]));
+    }
+
+    // Opens an event stream with the results of one poll.
+    // The stream starts when this request ends, and runs `Results::run` until the browser leaves.
+    #[Route(path: '/polls/{id}/events', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function events(uint $id): void
+    {
+        if (App::store()->find($id) == null) {
+            App::notFound();
+            return;
+        }
+        // Each open stream may use at most 8 MB of memory.
+        Sse::upgrade(Results::run, args: ['id' => $id], limits: { memory: '8M' });
+    }
+
+    // Sends the script of the poll page. A server in production mode sends no file by itself, so this route sends it.
+    #[Route(path: '/poll.js', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function script(): void
+    {
+        // The path starts at the folder of this file. A request may read the files in `public`.
+        Response::sendFile('../public/poll.js');
+    }
+
+    // Sends the style sheet of every page.
+    #[Route(path: '/style.css', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function style(): void
+    {
+        Response::sendFile('../public/style.css');
+    }
+
+    // Opens the database `poll` from `nvs.toml` and creates the tables when they are missing.
+    public static function store(): Store
+    {
+        var $store = new Store(Db::connect('poll'));
+        $store->setUp();
+        return $store;
+    }
+
+    private static function notFound(): void
+    {
+        Response::setStatus(404);
+        Response::html(Pages::notFound());
+    }
+}

@@ -1,0 +1,331 @@
+---
+title: Chat
+covers: []
+description: A chat app with rooms, WebSockets and SQLite. One Novis server sends the pages and runs every connection, with no separate WebSocket server and no library.
+shows: ['Core\Socket', 'Core\Topic', 'Core\Session', 'Core\Db', 'Core\Router', 'Core\Json']
+---
+
+import AppFiles from '@components/AppFiles.astro'
+
+Chat is a small chat app with three rooms. A visitor chooses a name and a room. Each line they
+write appears at once on the page of every visitor in the same room. A new visitor sees the last
+50 lines of the room, which the app keeps in a SQLite database.
+
+The chat uses WebSockets. A WebSocket is a connection that stays open, so the browser and the
+server can send each other messages at any time. The browser opens it with `new WebSocket(...)`,
+which every browser has. Novis sends the pages and runs every WebSocket connection from one process.
+You need no separate WebSocket server, no message queue and no JavaScript library.
+
+The app shows how these parts work together:
+
+- `Core\Session` keeps the name of each visitor on the server.
+- `Core\Socket::upgrade` turns a request into a WebSocket connection.
+- Each connection runs its own small program, `Connection::run`, with its own memory limit.
+- `Core\Topic` sends each chat line to every connection in the room.
+- The connection checks every message from the browser, and it limits how fast a visitor can write.
+- Novis checks the `Origin` header, so another website cannot open a connection with the cookies of
+  your visitor.
+- The browser script connects again by itself when the connection breaks.
+- The folder `deploy` has the production configuration and the proxy configuration.
+
+## The code
+
+Each tab shows one file of the app. These are the same files that you download below.
+
+<AppFiles app="chat" />
+
+## Get it running
+
+[Install Novis](/install/) first. Then download only the folder `apps/chat` of the Novis
+repository. A sparse clone (a clone that checks out only the folders you name) does this:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
+cd novis
+git sparse-checkout set apps/chat
+cd apps/chat
+```
+
+Start the server from the folder `apps/chat`:
+
+```sh
+nvs serve public/index.nvs
+```
+
+Open `http://127.0.0.1:8144/`, enter a name and join the lobby. Then open the same address in a
+second browser, or in a private window, and join with another name. Each line you write in one
+window appears at once in the other.
+
+The first connection creates the file `chat.sqlite` in the same folder. The last lines of each room
+are kept there, so they are still there after a restart.
+
+## Run the tests
+
+```sh
+nvs test .
+```
+
+`nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
+
+```txt
+  Chat\AppTest
+    ✓ theHomePageShowsTheForm          2.3 ms
+    ✓ joiningWithoutANameShowsTheProblem 1.5 ms
+    ✓ joiningStartsASessionAndOpensTheRoom 11.1 ms
+    ✓ theRoomPageHasTheAddressOfItsSocket 2.6 ms
+    ✓ aVisitorWithoutASessionGoesToTheForm 0.7 ms
+    ✓ anUnknownRoomIsNotFound          4.4 ms
+    ✓ aPageRequestToTheSocketGets426   10.4 ms
+    ✓ theScriptAndTheStylesAreSent     1.1 ms
+    ✓ thePagesMayLoadFilesOnlyFromThisServer 0.1 ms
+  Chat\CheckTest
+    ✓ aShortNameIsValid                0.3 ms
+    ✓ anEmptyOrLongNameIsNotValid      0.2 ms
+    ✓ onlyTheListedRoomsExist          0.2 ms
+    ✓ aChatLineMustHaveText            0.3 ms
+    ✓ theLimiterAllowsFiveLinesInTenSeconds 0.3 ms
+  Chat\HistoryTest
+    ✓ theNewestLinesComeInTheOrderTheyWereWritten 4.7 ms
+    ✓ eachRoomHasItsOwnLines           4.0 ms
+    ✓ aRoomKeepsItsNewest100Lines      33.9 ms
+  Chat\LiveTest
+    ✓ twoVisitorsTalkInOneRoom         151.7 ms
+    ✓ aNewVisitorGetsTheHistory        130.3 ms
+    ✓ aWrongMessageGetsAProblemOnlyForItsSender 31.3 ms
+    ✓ aVisitorWhoSendsTooFastMustWait  82.2 ms
+    ✓ aSocketFromAnotherWebsiteIsNotAllowed 7.3 ms
+
+  0 failed, 22 passed, 0 skipped, 0 flaky in 165 ms
+```
+
+The tests in `LiveTest` open real WebSocket connections. `#[Test(server: true)]` starts a server
+for each of these tests, and `Core\Http\Client::openSocket` connects to it the way a browser does.
+Each test joins first, and sends the session cookie with its WebSocket request.
+
+## What each file does
+
+```txt
+chat/
+  nvs.toml             the configuration: the port, the limits of a connection, the security policy and the databases
+  deploy/
+    production.toml    the configuration for a production server: reads nvs.toml and then server.toml
+    server.toml        the settings that change in production
+    Caddyfile          the configuration of Caddy, if Caddy is your proxy
+    nginx.conf         the configuration of nginx, if nginx is your proxy
+  public/
+    index.nvs          the entry file: every request starts here
+    chat.js            the browser script: opens the WebSocket and shows the messages
+    style.css          the styles of the pages
+  src/
+    App.nvs            the routes: one method for each kind of request
+    AppTest.nvs        sends requests to the app and checks the responses
+    CheckTest.nvs      tests the checks on names, rooms, lines and speed
+    Connection.nvs     the program of one WebSocket connection
+    Gate.nvs           decides which routes may run, and shows the error pages
+    History.nvs        saves the lines of each room in the database
+    HistoryTest.nvs    tests saving and reading lines
+    Incoming.nvs       a message from the browser, and the checks on it
+    Limiter.nvs        counts the lines of one connection
+    Line.nvs           one saved chat line
+    LiveTest.nvs       tests with real WebSocket connections
+    Nickname.nvs       the checks on a name
+    Pages.nvs          the HTML pages
+    Rooms.nvs          the list of rooms
+```
+
+`[server] listen` in `nvs.toml` sets the port of the server to 8144. The other example apps use
+other ports, so you can run them at the same time. `[server.connection]` sets two limits for each
+WebSocket. A message from the browser may have at most 16 KB. A connection with no message for 5
+minutes is closed.
+
+`[http.headers]` sets a strict `Content-Security-Policy`. The browser may load scripts and styles
+only from this server, and it may open connections only to this server. The pages have no inline
+script, so the policy breaks nothing. If somebody finds a way to put HTML into a page, the browser
+still runs no script from it.
+
+`src/App.nvs` has one method for each route. `App::join` checks the form and saves the name in the
+session. The browser gets only the random identifier of the session, in the cookie `nvsid`.
+`App::socket` reads the name from the session, checks the room again, and calls
+`Core\Socket::upgrade`.
+
+The request ends, and the connection stays open. It runs `Connection::run`
+in its own isolate (a separate copy of the program that shares no memory with the request). The
+isolate gets the room and the name through `args:`, and nothing else from the request.
+
+`src/Connection.nvs` is the program of one connection. It joins the topic of its room first. Then
+it sends the last 50 lines of the room.
+
+After that, one loop handles every message. `receive()` returns the next message from the browser
+or from the room. `topic()` is `null` for a message from the browser, and it is the name of the
+topic for a message from the room. When the visitor closes the page, `receive()` returns `null`,
+and the connection tells the room that the visitor left.
+
+`src/Rooms.nvs` has the list of rooms. The name of a room in the address is `tainted`, because it
+comes from the request. `Rooms::find` returns the name from its own list, which is not `tainted`.
+Only that name is used for the topic.
+
+`public/chat.js` opens the WebSocket and shows each message. It writes text with `textContent` and
+`append`, so no chat line can become HTML. When the connection breaks, the script waits and
+connects again. The wait doubles each time, up to 30 seconds. Each minute, it sends a `ping`
+message, so a quiet connection stays open.
+
+`App::script` and `App::style` send `chat.js` and `style.css`. In development, `nvs serve` also
+sends files from `public` by itself. A server in production mode sends no file by itself, so the
+routes are needed there.
+
+## The messages
+
+Every message is JSON text. The browser sends two kinds:
+
+| Message | What the server does |
+|---|---|
+| `{"kind": "say", "text": "Hello"}` | Checks the line, saves it and sends it to the room. |
+| `{"kind": "ping"}` | Nothing. The message only keeps the connection open. |
+
+The server sends five kinds:
+
+| Message | When |
+|---|---|
+| `{"kind": "history", "lines": [...]}` | Once, when the connection opens: the last 50 lines of the room. |
+| `{"kind": "line", "line": {"id": 7, "name": "Ana", "text": "Hello", "at": 1793000000000}}` | A visitor in the room wrote a line. `at` is the time in milliseconds since 1970. |
+| `{"kind": "joined", "name": "Ana"}` | A visitor opened the room. |
+| `{"kind": "left", "name": "Ana"}` | A visitor closed the room. |
+| `{"kind": "problem", "text": "..."}` | The last message from this browser was not valid. Only this browser gets it. |
+
+A line can arrive twice: in the history and as a `line` message. So each line has an `id`, and the
+script skips a line whose `id` it already shows.
+
+## The routes
+
+| Method and path | What it does |
+|---|---|
+| `GET /` | Shows the form for the name and the room. |
+| `POST /join` | Checks the form, saves the name in the session, then goes to the room. If the form is not valid, it shows the form again with the status `422`. |
+| `GET /rooms/{room}` | Shows the page of a room. Without a name in the session, it goes back to `/`. A room that does not exist gets the status `404`. |
+| `GET /rooms/{room}/socket` | Opens the WebSocket of the room. A normal page request gets the status `426`. |
+| `GET /chat.js` | Sends the browser script. |
+| `GET /style.css` | Sends the styles. |
+
+## How a line reaches the room
+
+These five steps send a chat line to the room:
+
+1. Ana's browser sends `{"kind": "say", "text": "Hello"}` on her WebSocket.
+2. Ana's connection checks the line, saves it, and calls `Topic::publish('room:lobby', ...)`.
+3. Every connection in the lobby receives a copy, Ana's own connection too.
+4. Each connection sends the line to its browser.
+5. `chat.js` in each browser adds the line to the page.
+
+All five steps happen in one Novis process. `Topic::publish` returns at once and never waits for a
+slow browser. The connection publishes the JSON text, so each connection only forwards it.
+
+Each connection has a queue for the messages it has not sent yet. A browser that reads too slowly
+fills its queue. Novis then closes that one connection, and the other visitors are not affected.
+The script connects again and gets the history of the room.
+
+## Deploy it
+
+The folder `deploy` has everything a production server needs. On a Linux server, these steps put
+the app at `https://chat.example.com`.
+
+1. Copy the folder `chat` to the server, for example to `/srv/chat`. Only an administrator should
+   be able to change the files in it.
+2. Read `deploy/server.toml`. It sets production mode, the address of the server, the address of
+   the proxy, the memory limits and the path of the database. On Linux, a Unix socket is better
+   than a port. The comments in the file show the two lines for it.
+3. Create the account `chat` and the folder `/var/lib/chat`, and let only that account write to the
+   folder. The database is kept there.
+4. Install the server as a service. It then starts at every boot, and again after a failure.
+   `--account chat` runs it as the account `chat`.
+   [Run as a service](/guides/production/run-as-a-service/) explains each part of this command:
+
+   ```sh
+   nvs service install --account chat chat -- serve /srv/chat/public/index.nvs --config /srv/chat/deploy/production.toml
+   ```
+
+5. Copy `deploy/Caddyfile` or `deploy/nginx.conf` to your proxy, and write your own host name in
+   place of `chat.example.com`.
+
+`deploy/production.toml` reads `../nvs.toml` first and then `server.toml`. When two files set
+the same setting, the later file wins. So `nvs.toml` stays the same on your computer and on the
+server, and `server.toml` has only the settings that change.
+
+`server.toml` sets no `wall_time`. That limit also applies to every WebSocket connection, so it
+would close each chat after that time. The memory limit, the size limit of a message and the
+5 minutes without a message bound each connection.
+
+### The proxy
+
+A WebSocket starts as a normal `GET` request with the headers `Upgrade: websocket` and
+`Connection: Upgrade`. The proxy must send both headers to Novis. Caddy does this by itself.
+`deploy/nginx.conf` has the lines nginx needs:
+
+- `proxy_http_version 1.1`, because a WebSocket starts from an HTTP/1.1 request.
+- The `map` block, which sends `Connection: upgrade` only for a WebSocket request.
+- `proxy_read_timeout 6m`. By default, nginx closes a connection that sends nothing for 60
+  seconds. 6 minutes is longer than the 5 minutes of Novis, so Novis closes a quiet connection first.
+- `limit_conn`, which counts each open room page as one connection.
+
+[Behind a reverse proxy](/guides/production/reverse-proxy/) explains the other settings.
+
+### Why `trusted_proxies` matters
+
+The browser sends the header `Origin: https://chat.example.com` with each WebSocket request. Novis
+compares it with the scheme and the host of the request. The proxy ends HTTPS, so the request
+reaches Novis over plain HTTP.
+
+Novis reads `X-Forwarded-Proto: https` only from an address in `trusted_proxies`. Without that
+line, Novis sees `http`. The two do not match, and every WebSocket gets the status `403`. The proxy
+must also send the `Host` header unchanged. Both proxy files do this.
+
+## Limits and security
+
+- **Each connection has its own memory limit.** `Socket::upgrade` gets `limits: { memory: '8M' }`.
+  A connection that needs more is closed, and the other connections keep running.
+- **Each message has a size limit.** `[server.connection] max_message` is 16 KB. A larger message
+  closes the connection.
+- **Each visitor has a speed limit.** `Limiter` allows 5 lines in 10 seconds. A faster visitor gets
+  a `problem` message, and the line is not sent.
+- **Another website cannot open a connection.** A browser sends cookies with a WebSocket request
+  from any page. So Novis checks the `Origin` header first, and a request from another website gets
+  the status `403`. `LiveTest` tests this.
+- **A topic name never contains user input.** The room in the address is `tainted`, and a topic
+  name that is `tainted` is not allowed. `Rooms::find` returns a name from its own list.
+- **The name stays on the server.** The session has the name, and the cookie has only a random
+  identifier. A visitor cannot change the name by changing the cookie. `App::join` gives the session
+  a new identifier, as a login does.
+- **The connection gets only what it needs.** It gets the room and the name through `args:`. It does
+  not see the session, the cookies or the other headers of the request.
+- **Two visitors can choose the same name.** The chat has no accounts, so a name is not proof of a
+  person. For a real chat, add a login. Check it in `App::socket`, and pass the id of the user to
+  the connection through `args:`.
+- **The browser loads files only from this server.** The `Content-Security-Policy` in `nvs.toml`
+  allows no inline script and no other host.
+- **Topics work inside one process.** All connections of a room must reach the same `nvs serve`. If
+  you run your app on several machines, send each line to the other machines in your own code. A
+  message queue such as Redis or NATS can do this.
+
+## Start your own app from it
+
+1. Copy the folder `apps/chat` and give it the name of your app.
+2. Choose a namespace for your app, for example `Support`. Change `namespace Chat;` in each file
+   under `src/`, and the `autoload` line and `Chat\Gate` in `public/index.nvs`.
+3. In `nvs.toml`, rename the database `chat` and its file. Change the name in
+   `[capabilities.db]` and in the call to `Core\Db::connect` in `src/History.nvs`.
+4. Change the port in `nvs.toml` and `deploy/server.toml`, and the host name and the port in the
+   two proxy files.
+5. Use the same pattern for each live part of your app. An ordinary request checks who the visitor
+   is and calls `Socket::upgrade`. The connection joins its topics, and one loop handles every message.
+6. Run `nvs test .` after each change.
+
+When the server only sends updates and the browser only reads them, an event stream is simpler.
+The [Poll](/guides/example-apps/poll/) app shows one.
+
+## Read more
+
+- [`Core\Socket::upgrade`](/reference/core/socket/upgrade/) explains the connection and its options.
+- [`Core\Socket::receive`](/reference/core/socket/receive/) explains the loop of a connection.
+- [`Core\Topic::publish`](/reference/core/topic/publish/) explains what happens to each subscriber.
+- [`Core\Session::start`](/reference/core/session/start/) explains where a session is kept.
+- [Security checklist](/guides/production/security-checklist/) lists what to check before the first request.
+- [Poll](/guides/example-apps/poll/) is a live poll with server-sent events.

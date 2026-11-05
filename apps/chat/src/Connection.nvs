@@ -1,0 +1,78 @@
+<?nvs
+namespace Chat;
+
+use Core\Json;
+use Core\Socket;
+use Core\Socket\Message;
+use Core\Str;
+use Core\Topic;
+use ParseError;
+
+// The program of one WebSocket connection. `App::socket` starts it for each visitor in a room.
+// It runs until the visitor closes the page. It knows only the room and the name it was given.
+final class Connection
+{
+    public static function run(string $room, tainted string $name): void
+    {
+        Socket $socket = Socket::current();
+        History $history = History::open();
+        Limiter $limiter = new Limiter(5, 10s);
+        string $topic = Rooms::topic($room);
+
+        // The connection joins the room first. Then it sends the last 50 lines of the room.
+        // A line that arrives in between can come twice, so the browser skips a line it already has.
+        Topic::subscribe($topic);
+        $socket->send(Json::encode({ kind: 'history', lines: $history->recent($room, 50) }));
+        Topic::publish($topic, Json::encode({ kind: 'joined', name: $name }));
+
+        // `receive()` waits for the next message from the browser or from the room.
+        // It returns `null` when the visitor closes the page, and then the loop ends.
+        ?Message $message = $socket->receive();
+        while ($message != null) {
+            if ($message->topic() != null) {
+                // A message from the room is JSON text already, so it goes to the browser as it is.
+                $socket->send($message->value() as string);
+            } else {
+                Connection::fromBrowser($socket, $message, $room, $name, $history, $limiter);
+            }
+            $message = $socket->receive();
+        }
+        Topic::publish($topic, Json::encode({ kind: 'left', name: $name }));
+    }
+
+    // Handles one message from the browser. A valid chat line is saved and sent to the whole room.
+    // For a message that is not valid, only this browser gets a `problem` message.
+    private static function fromBrowser(Socket $socket, Message $message, string $room, tainted string $name, History $history, Limiter $limiter): void
+    {
+        try {
+            Incoming $incoming = Json::decodeAs<Incoming>($message->text() ?? '');
+        } catch (ParseError $error) {
+            Connection::problem($socket, 'The message must be JSON text, such as {"kind": "say", "text": "Hello"}.');
+            return;
+        }
+        if ($incoming->kind == 'ping') {
+            return;
+        }
+        if ($incoming->kind != 'say') {
+            Connection::problem($socket, 'The kind of a message must be "say" or "ping".');
+            return;
+        }
+        ?string $problem = $incoming->problem();
+        if ($problem != null) {
+            Connection::problem($socket, $problem);
+            return;
+        }
+        if (!$limiter->allow()) {
+            Connection::problem($socket, 'You are sending too fast. Please wait a few seconds.');
+            return;
+        }
+        Line $line = $history->add($room, $name, Str::trim($incoming->text));
+        Topic::publish(Rooms::topic($room), Json::encode({ kind: 'line', line: $line }));
+    }
+
+    // Sends a problem to this browser only.
+    private static function problem(Socket $socket, string $text): void
+    {
+        $socket->send(Json::encode({ kind: 'problem', text: $text }));
+    }
+}

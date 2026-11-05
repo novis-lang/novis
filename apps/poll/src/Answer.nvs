@@ -1,0 +1,17 @@
+<?nvs
+namespace Poll;
+
+// One answer of a poll and the number of votes it has.
+final class Answer
+{
+    public uint $id;
+    public tainted string $label;
+    public uint $votes;
+
+    public function constructor(uint $id, tainted string $label, uint $votes)
+    {
+        $this->id = $id;
+        $this->label = $label;
+        $this->votes = $votes;
+    }
+}

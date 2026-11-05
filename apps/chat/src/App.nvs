@@ -1,0 +1,116 @@
+<?nvs
+namespace Chat;
+
+use Core\Access;
+use Core\Audience;
+use Core\Http\Method;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+use Core\Router;
+use Core\Session;
+use Core\Str;
+
+// The routes of the app. Each method with a `Route` handles one kind of request.
+// `Core\Router::dispatch` in `public/index.nvs` calls the method of the route that matches.
+final class App
+{
+    // Shows the form where a visitor chooses a name and a room.
+    #[Route(path: '/', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function home(): void
+    {
+        Response::html(Pages::home('', 'lobby', null));
+    }
+
+    // Checks the form, saves the name in the session, then opens the page of the room.
+    #[Route(path: '/join', method: Method::Post)]
+    #[Access(allow: Audience::Public)]
+    public static function join(): void
+    {
+        tainted string $name = Str::trim(Request::post('name') ?? '');
+        ?string $room = Rooms::find(Request::post('room') ?? '');
+        ?string $problem = $room == null ? 'Please choose a room.' : Nickname::problem($name);
+        if ($room == null || $problem != null) {
+            // 422 means the server understood the request, but the data is not valid.
+            Response::setStatus(422);
+            Response::html(Pages::home($name, $room ?? 'lobby', $problem));
+            return;
+        }
+        // The session keeps the name on the server. The browser only gets a random identifier in a cookie.
+        // `regenerate` gives the session a new identifier, as after a sign-in.
+        Session::start();
+        Session::regenerate();
+        Session::set('name', $name);
+        Response::redirect(Router::url(App::room, ['room' => $room]));
+    }
+
+    // Shows the page of one room. Its script opens the WebSocket at `/rooms/{room}/socket`.
+    #[Route(path: '/rooms/{room}', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function room(tainted string $room): void
+    {
+        ?string $found = Rooms::find($room);
+        if ($found == null) {
+            Response::setStatus(404);
+            Response::html(Pages::notFound());
+            return;
+        }
+        ?tainted string $name = App::name();
+        if ($name == null) {
+            // Without a valid name, the visitor goes back to the form.
+            Response::redirect(Router::url(App::home));
+            return;
+        }
+        Response::html(Pages::room($found, $name, Router::url(App::socket, ['room' => $found])));
+    }
+
+    // Turns the request into a WebSocket connection.
+    // The connection runs `Connection::run` with the room and the name, and with at most 8 MB of memory.
+    #[Route(path: '/rooms/{room}/socket', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function socket(tainted string $room): void
+    {
+        // The room and the name are checked again here. A WebSocket client does not have to use the form.
+        ?string $found = Rooms::find($room);
+        ?tainted string $name = App::name();
+        if ($found == null || $name == null) {
+            Response::setStatus(404);
+            Response::text("There is no such room, or you have no valid name.\n");
+            return;
+        }
+        // A normal page request to this address gets the status 426: it must ask for a WebSocket.
+        if (Str::lower(Request::header('upgrade') ?? '') != 'websocket') {
+            Response::setStatus(426);
+            Response::text("This address is for a WebSocket connection.\n");
+            return;
+        }
+        Core\Socket::upgrade(Connection::run, args: ['room' => $found, 'name' => $name], limits: { memory: '8M' });
+    }
+
+    // Sends the script of the room page. A server in production mode sends no file by itself, so this route sends it.
+    // The path starts at the folder of this file. A request may read the files in `public`.
+    #[Route(path: '/chat.js', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function script(): void
+    {
+        Response::sendFile('../public/chat.js');
+    }
+
+    // Sends the style sheet of every page.
+    #[Route(path: '/style.css', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function style(): void
+    {
+        Response::sendFile('../public/style.css');
+    }
+
+    // Returns the name that `App::join` saved in the session, or `null` when the visitor has none.
+    private static function name(): ?tainted string
+    {
+        Session::start();
+        // The default comes before the conversion, because `null as string` is an empty string.
+        tainted string $name = (Session::get('name') ?? '') as string;
+        return $name == '' ? null : $name;
+    }
+}

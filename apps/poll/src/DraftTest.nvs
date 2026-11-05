@@ -1,0 +1,49 @@
+<?nvs
+namespace Poll;
+
+use Core\Str;
+use Core\Test;
+
+// Tests for the checks on a new poll.
+final class DraftTest
+{
+    #[Test]
+    public function aQuestionAndTwoAnswersAreValid(): void
+    {
+        Test::assertCount((new Draft('Lunch?', "Pizza\nSoup"))->problems(), 0);
+    }
+
+    #[Test]
+    public function emptyLinesAndSpacesAreLeftOut(): void
+    {
+        var $draft = new Draft('Lunch?', "  Pizza \n\n   \nSoup\n");
+        Test::assertEqualsDeep($draft->choices() as array<string>, ['Pizza', 'Soup']);
+    }
+
+    #[Test]
+    public function aQuestionWithOnlySpacesIsNotValid(): void
+    {
+        Test::assertEqualsDeep((new Draft('   ', "Pizza\nSoup"))->problems(), ['Please enter a question.']);
+    }
+
+    #[Test]
+    public function oneAnswerIsNotEnough(): void
+    {
+        var $problems = (new Draft('Lunch?', 'Pizza'))->problems();
+        Test::assertEqualsDeep($problems, ['Please enter at least two answers, one on each line.']);
+    }
+
+    #[Test]
+    public function sevenAnswersAreTooMany(): void
+    {
+        var $problems = (new Draft('Day?', "Mon\nTue\nWed\nThu\nFri\nSat\nSun"))->problems();
+        Test::assertEqualsDeep($problems, ['A poll can have at most six answers.']);
+    }
+
+    #[Test]
+    public function aLongAnswerIsNotValid(): void
+    {
+        var $problems = (new Draft('Lunch?', "Pizza\n" . Str::repeat('a', 81)))->problems();
+        Test::assertEqualsDeep($problems, ['An answer can have at most 80 characters.']);
+    }
+}

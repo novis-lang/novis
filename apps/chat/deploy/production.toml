@@ -1,0 +1,12 @@
+# The configuration of Chat on a production server. Start the server with it:
+#
+#     nvs serve public/index.nvs --config deploy/production.toml
+#
+# It reads `../nvs.toml` first and then `server.toml`. A setting in the later file wins,
+# so `server.toml` changes only what production needs.
+
+[[include]]
+path = "../nvs.toml"
+
+[[include]]
+path = "server.toml"

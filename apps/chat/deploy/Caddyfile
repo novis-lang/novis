@@ -1,0 +1,28 @@
+# Caddy in front of Chat. Copy this file to /etc/caddy/Caddyfile and write your own
+# host name in place of chat.example.com. Caddy gets the certificate from Let's Encrypt,
+# redirects HTTP to HTTPS, and speaks HTTP/2 and HTTP/3.
+{
+	servers {
+		timeouts {
+			# A client has 10 seconds to send the request headers, the same as Novis.
+			read_header 10s
+		}
+	}
+}
+
+chat.example.com {
+	# The forms of Chat are small. A larger body gets the status 413.
+	request_body {
+		max_size 64KB
+	}
+
+	# Caddy passes WebSocket requests to Novis without any setting. It sends the `Host`
+	# unchanged and sets `X-Forwarded-For` and `X-Forwarded-Proto`.
+	reverse_proxy 127.0.0.1:8144 {
+		# With a Unix socket, write `reverse_proxy unix//run/chat/nvs.sock` in place of the address.
+		transport http {
+			# Shorter than the 75 seconds after which Novis closes an unused connection.
+			keepalive 60s
+		}
+	}
+}

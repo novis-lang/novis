@@ -1,0 +1,41 @@
+<?nvs
+namespace Poll;
+
+use Core\Http\Client;
+use Core\Http\Event;
+use Core\Http\Method;
+use Core\Test;
+
+// A test of the live results over a real network connection.
+// `server: true` starts a server for the test. The test reads the event stream like a browser does.
+final class LiveTest
+{
+    #[Test(server: true)]
+    public function aVoteReachesAnOpenStream(): void
+    {
+        string $base = Test::serverUrl() ?? '';
+        uint $id = AppTest::addPoll();
+        uint $soup = AppTest::answerIds(App::store(), $id)[1];
+        array<tainted string> $seen = [];
+        try {
+            // `idle: 5s` stops the test if no event arrives for 5 seconds.
+            var $stream = Client::stream(Method::Get, "{$base}/polls/{$id}/events", { headers: ['accept' => 'text/event-stream'], idle: 5s });
+            foreach ($stream->events() as Event $event) {
+                $seen[] = $event->data();
+                if (Core\Arr::count($seen) == 1) {
+                    // The first event is the results when the stream opens. Now the test votes.
+                    Client::post("{$base}/polls/{$id}/vote", { form: ['answer' => $soup as string] });
+                } else {
+                    break;
+                }
+            }
+        } finally {
+            AppTest::removePoll($id);
+        }
+        uint $pizza = $soup - 1;
+        Test::assertEqualsDeep($seen, [
+            "{\"total\":0,\"answers\":[{\"id\":{$pizza},\"votes\":0},{\"id\":{$soup},\"votes\":0}]}",
+            "{\"total\":1,\"answers\":[{\"id\":{$pizza},\"votes\":0},{\"id\":{$soup},\"votes\":1}]}",
+        ]);
+    }
+}

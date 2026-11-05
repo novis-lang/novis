@@ -1,0 +1,76 @@
+<?nvs
+namespace Poll;
+
+use Core\Db;
+use Core\Test;
+
+// Tests for saving polls and counting votes. They use the database `scratch`, which is kept in memory.
+final class StoreTest
+{
+    #[Test]
+    public function aSavedPollHasItsAnswersInOrder(): void
+    {
+        var $store = StoreTest::emptyStore();
+        uint $id = $store->add(new Draft(' Lunch? ', "Pizza\nSoup"));
+        Question $poll = $store->find($id) ?? new Question(0, '', []);
+        // `add` removes the spaces around the question.
+        Test::assertSame($poll->text as string, 'Lunch?');
+        Test::assertCount($poll->answers, 2);
+        Test::assertSame($poll->answers[1]->label as string, 'Soup');
+    }
+
+    #[Test]
+    public function twoBrowsersCountTwice(): void
+    {
+        var $store = StoreTest::emptyStore();
+        uint $id = $store->add(new Draft('Lunch?', "Pizza\nSoup"));
+        uint $soup = AppTest::answerIds($store, $id)[1];
+        Test::assertTrue($store->vote($id, $soup, 'browser-a'));
+        Test::assertTrue($store->vote($id, $soup, 'browser-b'));
+        Test::assertEqualsDeep($store->results($id), ['total' => 2, 'answers' => [['id' => $soup - 1, 'votes' => 0], ['id' => $soup, 'votes' => 2]]]);
+    }
+
+    #[Test]
+    public function aSecondVoteFromTheSameBrowserChangesIt(): void
+    {
+        var $store = StoreTest::emptyStore();
+        uint $id = $store->add(new Draft('Lunch?', "Pizza\nSoup"));
+        uint $pizza = AppTest::answerIds($store, $id)[0];
+        uint $soup = AppTest::answerIds($store, $id)[1];
+        $store->vote($id, $pizza, 'browser-a');
+        $store->vote($id, $soup, 'browser-a');
+        // The total stays 1, and the vote moved from Pizza to Soup.
+        Test::assertEqualsDeep($store->results($id), ['total' => 1, 'answers' => [['id' => $pizza, 'votes' => 0], ['id' => $soup, 'votes' => 1]]]);
+        Test::assertEquals($store->choiceOf($id, 'browser-a'), $soup);
+        Test::assertNull($store->choiceOf($id, 'browser-b'));
+    }
+
+    #[Test]
+    public function aVoteForAnAnswerOfAnotherPollIsNotCounted(): void
+    {
+        var $store = StoreTest::emptyStore();
+        uint $lunch = $store->add(new Draft('Lunch?', "Pizza\nSoup"));
+        uint $day = $store->add(new Draft('Day?', "Monday\nFriday"));
+        uint $pizza = AppTest::answerIds($store, $lunch)[0];
+        Test::assertTrue(!$store->vote($day, $pizza, 'browser-a'));
+        Test::assertEquals($store->find($lunch)?->total(), 0);
+    }
+
+    #[Test]
+    public function aMissingPollIsNull(): void
+    {
+        Test::assertNull(StoreTest::emptyStore()->find(42));
+    }
+
+    // Returns a store with no polls. All tests share the `scratch` database, so this deletes the polls of the last test.
+    private static function emptyStore(): Store
+    {
+        var $db = Db::connect('scratch');
+        var $store = new Store($db);
+        $store->setUp();
+        $db->execute('delete from votes', []);
+        $db->execute('delete from answers', []);
+        $db->execute('delete from polls', []);
+        return $store;
+    }
+}

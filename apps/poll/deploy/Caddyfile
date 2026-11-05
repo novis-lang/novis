@@ -1,0 +1,16 @@
+# The proxy for the poll on Caddy. Copy this file to /etc/caddy/Caddyfile.
+# Change poll.example.com to the host name of your server.
+# Caddy gets a certificate from Let's Encrypt, sends HTTP to HTTPS, and speaks HTTP/2 and HTTP/3.
+poll.example.com {
+	# Novis listens on this Unix socket. It is `listen` in deploy/production.toml.
+	# For a server on TCP, write `reverse_proxy 127.0.0.1:8145` here.
+	reverse_proxy unix//run/poll/nvs.sock {
+		transport http {
+			# Shorter than the 75 seconds after which Novis closes an unused connection.
+			keepalive 60s
+		}
+	}
+}
+
+# Caddy sends `Host`, `X-Forwarded-For` and `X-Forwarded-Proto` to Novis.
+# Caddy sends each event of a stream to the browser at once, with no setting.

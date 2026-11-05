@@ -1,0 +1,28 @@
+<?nvs
+namespace Poll;
+
+// A saved poll: its number, its question and its answers.
+// A user wrote the question, so it is `tainted`, also after it is saved.
+final class Question
+{
+    public uint $id;
+    public tainted string $text;
+    public array<Answer> $answers;
+
+    public function constructor(uint $id, tainted string $text, array<Answer> $answers)
+    {
+        $this->id = $id;
+        $this->text = $text;
+        $this->answers = $answers;
+    }
+
+    // Returns the number of votes for all answers together.
+    public function total(): uint
+    {
+        uint $total = 0;
+        foreach ($this->answers as Answer $answer) {
+            $total = $total + $answer->votes;
+        }
+        return $total;
+    }
+}

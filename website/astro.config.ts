@@ -529,6 +529,16 @@ export default defineConfig({
                   link: '/guides/example-apps/paperwork/',
                   attrs: { 'data-subtext': 'An invoice, an encrypted report and event tickets' },
                 },
+                {
+                  label: 'Chat',
+                  link: '/guides/example-apps/chat/',
+                  attrs: { 'data-subtext': 'Chat rooms over WebSockets, with history in SQLite' },
+                },
+                {
+                  label: 'Poll',
+                  link: '/guides/example-apps/poll/',
+                  attrs: { 'data-subtext': 'Live results through server-sent events' },
+                },
               ],
             },
             {

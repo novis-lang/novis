@@ -1,0 +1,40 @@
+<?nvs
+namespace Chat;
+
+use Core\Time;
+use Core\Time\Duration;
+use Core\Time\Instant;
+
+// Counts the chat lines of one connection. It allows at most `$max` lines in each `$window`.
+// One visitor who sends too fast cannot fill the room for everybody else.
+final class Limiter
+{
+    private uint $max;
+    private Duration $window;
+    private Instant $start;
+    private uint $count = 0;
+
+    public function constructor(uint $max, Duration $window)
+    {
+        $this->max = $max;
+        $this->window = $window;
+        $this->start = Time::now();
+    }
+
+    // Returns `true` and counts the line when one more line is allowed now.
+    // Returns `false` when the visitor must wait.
+    public function allow(): bool
+    {
+        Instant $now = Time::now();
+        // A new window starts when the old one is over. Then the count starts again at 0.
+        if ($now->since($this->start)->compareTo($this->window) >= 0) {
+            $this->start = $now;
+            $this->count = 0;
+        }
+        if ($this->count >= $this->max) {
+            return false;
+        }
+        $this->count = $this->count + 1;
+        return true;
+    }
+}

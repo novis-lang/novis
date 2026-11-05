@@ -1,0 +1,36 @@
+<?nvs
+namespace Poll;
+
+use Core\Random;
+use Core\Regex;
+use Core\Request;
+use Core\Response;
+
+// The id of one browser, kept in the cookie `voter`. The app counts one vote for each id in each poll.
+// A browser that deletes its cookies gets a new id. A login is the way to count one vote for each person.
+final class Voter
+{
+    // Returns the id from the cookie, or `null` when the browser has no valid id.
+    // A valid id has 32 characters from `0` to `9` and `a` to `f`. Any other value is ignored.
+    public static function current(): ?tainted string
+    {
+        ?tainted string $id = Request::cookie('voter');
+        if ($id == null || !Regex::matches($id, Regex::compile('^[0-9a-f]{32}$'))) {
+            return null;
+        }
+        return $id;
+    }
+
+    // Returns the id of this browser. A browser without a valid id gets a new one.
+    // The cookie is kept for one year. Nobody can guess an id, because `Random::token` makes it.
+    public static function currentOrNew(): tainted string
+    {
+        ?tainted string $id = Voter::current();
+        if ($id != null) {
+            return $id;
+        }
+        string $new = Random::token(16);
+        Response::addCookie('voter', $new, { maxAge: 365d });
+        return $new;
+    }
+}

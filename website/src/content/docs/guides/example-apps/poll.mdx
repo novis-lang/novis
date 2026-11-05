@@ -1,0 +1,324 @@
+---
+title: Poll
+covers: []
+description: A live poll with SQLite and server-sent events. Every open page shows each new vote at once, with no extra server and no library.
+shows: ['Core\Sse', 'Core\Topic', 'Core\Db', 'Core\Router', 'Core\Response']
+---
+
+import AppFiles from '@components/AppFiles.astro'
+
+Poll is a small web app for live polls. You write a question and its answers, and the app saves
+them in a SQLite database. Each visitor clicks an answer to vote. Every open page of the poll then
+shows the new results at once, without a reload.
+
+The live results use server-sent events. An event stream is a response that stays open, so the
+server can send new data whenever it has some. The browser reads it with `EventSource`, which every
+browser has. Novis serves the pages, the votes and the event streams from one process. You need no
+separate push server, no message queue and no JavaScript library.
+
+The app shows how these parts work together:
+
+- An ordinary request saves the vote and tells every open page with `Core\Topic::publish`.
+- `Core\Sse::upgrade` turns a request into an event stream that stays open.
+- Each stream joins the topic of its poll and sends every update to its browser.
+- The browser script uses `EventSource` and changes only the numbers on the page.
+- Voting also works without JavaScript, because each answer is a normal form button.
+
+## The code
+
+Each tab shows one file of the app. These are the same files that you download below.
+
+<AppFiles app="poll" />
+
+## Get it running
+
+[Install Novis](/install/) first. Then download only the folder `apps/poll` of the Novis
+repository. A sparse clone (a clone that checks out only the folders you name) does this:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
+cd novis
+git sparse-checkout set apps/poll
+cd apps/poll
+```
+
+Start the server from the folder `apps/poll`:
+
+```sh
+nvs serve public/index.nvs
+```
+
+Open `http://127.0.0.1:8145/` and create a poll. Then open the poll in a second browser window and
+vote in the first one. The second window shows the vote at once.
+
+The first request creates the file `poll.sqlite` in the same folder. Your polls are kept there, so
+they are still there after a restart.
+
+## Run the tests
+
+```sh
+nvs test .
+```
+
+`nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
+
+```txt
+  Poll\AppTest
+    ✓ theHomePageShowsTheForm          86.3 ms
+    ✓ aPollWithOneAnswerShowsTheProblem 85.6 ms
+    ✓ aMissingPollIsNotFound           97.1 ms
+    ✓ thePollPageShowsAButtonForEachAnswer 207.6 ms
+    ✓ aVoteGoesBackToThePollAndGivesTheBrowserAnId 177.8 ms
+    ✓ aSecondVoteFromTheSameBrowserChangesItsVote 55.2 ms
+    ✓ everyPageHasAStrictContentSecurityPolicy 48.4 ms
+    ✓ theScriptAndTheStylesAreSent     1.7 ms
+    ✓ aVoteForAnAnswerThatDoesNotExistIsNotFound 254.0 ms
+    ✓ aVoteFromAnotherSiteIsRefused    95.3 ms
+  Poll\DraftTest
+    ✓ aQuestionAndTwoAnswersAreValid   2.1 ms
+    ✓ emptyLinesAndSpacesAreLeftOut    2.2 ms
+    ✓ aQuestionWithOnlySpacesIsNotValid 0.2 ms
+    ✓ oneAnswerIsNotEnough             0.2 ms
+    ✓ sevenAnswersAreTooMany           0.2 ms
+    ✓ aLongAnswerIsNotValid            0.5 ms
+  Poll\LiveTest
+    ✓ aVoteReachesAnOpenStream         41.6 ms
+  Poll\StoreTest
+    ✓ aSavedPollHasItsAnswersInOrder   4.0 ms
+    ✓ twoBrowsersCountTwice            3.0 ms
+    ✓ aSecondVoteFromTheSameBrowserChangesIt 2.8 ms
+    ✓ aVoteForAnAnswerOfAnotherPollIsNotCounted 13.7 ms
+    ✓ aMissingPollIsNull               30.2 ms
+
+  0 failed, 22 passed, 0 skipped, 0 flaky in 301 ms
+```
+
+The tests in `AppTest` and `LiveTest` save a poll in `poll.sqlite` and delete it again at the end.
+`LiveTest` reads a real event stream. `#[Test(server: true)]` starts a server for the test, and
+`Core\Http\Client::stream` reads the events the way a browser does. The test votes, and then
+checks that the new results arrive on the stream.
+
+## What each file does
+
+```txt
+poll/
+  nvs.toml             the configuration: the port, the two databases and the permission to open them
+  public/
+    index.nvs          the entry file: every request starts here
+    poll.js            the browser script: opens the event stream and updates the numbers
+    style.css          the styles of the pages
+  deploy/
+    production.toml    the settings for a server on the internet
+    Caddyfile          the proxy configuration for Caddy
+    nginx.conf         the proxy configuration for nginx
+  src/
+    Answer.nvs         one answer of a poll and its votes
+    App.nvs            the routes: one method for each kind of request
+    AppTest.nvs        sends requests to the app and checks the responses
+    Draft.nvs          a new poll from the form, and the checks on it
+    DraftTest.nvs      tests the checks on a new poll
+    Gate.nvs           decides which routes may run, and shows the error pages
+    LiveTest.nvs       reads a real event stream and votes
+    Pages.nvs          the HTML pages
+    Question.nvs       a saved poll with its answers
+    Results.nvs        the event stream of one poll
+    Store.nvs          reads and saves polls and votes in the database
+    StoreTest.nvs      tests saving polls and counting votes
+    Voter.nvs          the id of a browser, kept in the cookie `voter`
+```
+
+`[server] listen` in `nvs.toml` sets the port of the server to 8145. The other example apps use
+other ports, so you can run them at the same time.
+
+`src/App.nvs` has one method for each route. `App::vote` saves the vote in the database. Then it
+calls `Topic::publish` with the new results of the poll. A topic is a name that open streams can
+join, here `poll:` and the number of the poll.
+
+`src/Voter.nvs` gives each browser an id: 32 random characters in the cookie `voter`, kept for one
+year. The table `votes` has one row for each browser in each poll. A second vote from the same
+browser changes that row, so the browser changes its vote and does not add one. The poll page marks
+the answer that this browser chose.
+
+`App::events` checks that the poll exists. Then it calls `Sse::upgrade`. The request ends, and the
+connection stays open as an event stream. The stream runs `Results::run` in its own isolate (a
+separate copy of the program that shares no memory with the request).
+
+`src/Results.nvs` is the event stream. It joins the topic of its poll first. Then it sends the
+results as they are now. After that, `receive()` waits for the next update and the stream sends it
+to the browser. When the browser closes the page, `receive()` returns `null` and the stream ends.
+
+`public/poll.js` opens the stream with `new EventSource(...)`. For each `results` event, it changes
+the numbers and the bars on the page. It writes only with `textContent`, so no text from the server
+can become HTML. A click on an answer sends the vote with `fetch`, so the page stays open.
+
+`App::script` and `App::style` send `poll.js` and `style.css`. In development, `nvs serve` also
+sends files from `public` by itself. A server in production mode sends no file by itself, so the
+routes are needed there.
+
+`public/index.nvs` sets the header `Content-Security-Policy` on every response. The browser then
+loads scripts, styles and event streams from this website only. The pages have no inline script and
+no inline style, so this strict policy works. A script that an attacker puts into a page does not run.
+
+## The routes
+
+| Method and path | What it does |
+|---|---|
+| `GET /` | Shows every poll, newest first, and the form for a new poll. |
+| `POST /polls` | Saves the poll from the form, then goes to its page. If the form is not valid, it shows the form again with the status `422`. |
+| `GET /polls/{id}` | Shows one poll, with a button for each answer and the results. |
+| `POST /polls/{id}/vote` | Saves the vote of this browser, sends the new results to every open page, then goes back to the poll. A browser without the cookie `voter` gets one. |
+| `GET /polls/{id}/events` | Opens the event stream of the poll. A poll that does not exist gets the status `404`. |
+| `GET /poll.js` | Sends the browser script. |
+| `GET /style.css` | Sends the styles. |
+
+You can read the stream with `curl` while the server runs. `-N` prints each event as it arrives:
+
+```sh
+curl -N http://127.0.0.1:8145/polls/1/events
+```
+
+Vote in the browser, and a new `results` event appears in the terminal:
+
+```txt
+retry: 2238
+
+event: results
+data: {"total":0,"answers":[{"id":1,"votes":0},{"id":2,"votes":0}]}
+
+event: results
+data: {"total":1,"answers":[{"id":1,"votes":0},{"id":2,"votes":1}]}
+```
+
+## How the live updates work
+
+These five steps send a vote to every open page:
+
+1. The browser sends `POST /polls/7/vote`. This is an ordinary request.
+2. `App::vote` saves the vote and calls `Topic::publish('poll:7', $results)`.
+3. Every stream that joined `poll:7` receives a copy of the results.
+4. Each stream sends the results to its browser as a `results` event.
+5. `poll.js` in each browser reads the event and changes the numbers.
+
+All five steps happen in one Novis process. `Topic::publish` returns at once and never waits for a
+slow browser.
+
+`EventSource` connects again by itself when the connection breaks. The `retry:` line tells the
+browser how many milliseconds to wait first. Novis chooses a slightly different time for each
+stream. So after a restart, the browsers do not all come back at the same moment.
+
+A stream always sends the current results first. So a browser that connects again never misses a
+vote, even a vote that happened while it was away. The stream joins the topic before it reads the
+database. A vote that arrives between the two steps is then still sent.
+
+Each stream has a queue for the updates that it has not sent yet. A browser that reads too slowly
+fills its queue. Novis then closes that one stream, and the other streams are not affected. The
+browser connects again and gets the current results.
+
+## Deploy it
+
+The folder `deploy` has the files for a server on the internet. They are written for Linux with
+systemd, a proxy on the same machine and the app in `/srv/poll`. Change these names for your server.
+
+| File | What it does |
+|---|---|
+| `deploy/production.toml` | Changes the settings of `nvs.toml` for production: a Unix socket, `trusted_proxies`, the database and the log outside the folder of the code, and the limits. |
+| `deploy/Caddyfile` | The proxy for Caddy. Caddy also gets the certificate. |
+| `deploy/nginx.conf` | The proxy for nginx. |
+
+Novis reads both configuration files when you name each with `--config`. It reads them in that order,
+so each setting in `production.toml` replaces the one in `nvs.toml`.
+
+1. Copy the folder of the app to `/srv/poll`. Only `root` may change the files, so the service cannot
+   change its own code or settings.
+2. Create the account of the service and its folders. `/run` is empty after each boot, so
+   `tmpfiles.d` creates the folder of the socket again at every boot:
+
+   ```sh
+   useradd --system --no-create-home poll
+   mkdir -p /var/lib/poll /var/log/poll
+   chown poll:poll /var/lib/poll /var/log/poll
+   echo 'd /run/poll 0750 poll poll -' > /etc/tmpfiles.d/poll.conf
+   systemd-tmpfiles --create
+   ```
+
+3. Check the settings. The command reports each problem, and it starts nothing:
+
+   ```sh
+   nvs config check --config /srv/poll/nvs.toml --config /srv/poll/deploy/production.toml
+   ```
+
+4. Install the service and start it. [Run as a service](/guides/production/run-as-a-service/)
+   explains each option:
+
+   ```sh
+   nvs service install poll --account poll -- serve /srv/poll/public/index.nvs --config /srv/poll/nvs.toml --config /srv/poll/deploy/production.toml
+   nvs service start poll
+   ```
+
+5. Add the account of the proxy to the group `poll`, so the proxy may open the socket. Then copy the
+   configuration of your proxy and restart it:
+
+   ```sh
+   usermod -aG poll caddy                          # for Caddy
+   cp /srv/poll/deploy/Caddyfile /etc/caddy/Caddyfile
+   usermod -aG poll www-data                       # for nginx on Debian and Ubuntu
+   cp /srv/poll/deploy/nginx.conf /etc/nginx/conf.d/poll.conf
+   ```
+
+Event streams need no special setting in the proxy. Novis sends the header `X-Accel-Buffering: no`
+with each stream, so nginx sends each event at once. On a quiet stream, Novis writes a small
+keep-alive line every 15 seconds. So the proxy does not close a stream when nobody votes for a while.
+
+`trusted_proxies` in `production.toml` is important. The browser sends the header `Origin:
+https://poll.example.com` with each vote. Novis compares it with the scheme and the host of the
+request. Without `trusted_proxies`, Novis does not read `X-Forwarded-Proto`, so it sees `http`. The
+two do not match, and every vote gets the status `403`.
+
+`production.toml` sets no `wall_time`. That limit also closes every event stream when it is reached.
+The browser then connects again, so a stream would end and start again all the time.
+
+With HTTP/1.1, a browser opens at most six connections to one host. Each open poll page uses one of
+them. Through HTTP/2, all pages share one connection, so a visitor can open many polls at once. Both
+proxy files turn on HTTP/2.
+
+[Behind a reverse proxy](/guides/production/reverse-proxy/) explains each proxy setting, and the
+[security checklist](/guides/production/security-checklist/) lists what to check before the first
+request.
+
+## Limits and security
+
+- **Each stream has its own memory limit.** `Sse::upgrade` gets `limits: { memory: '8M' }`. A
+  stream that needs more is stopped, and the other streams keep running.
+- **A topic name never contains user input.** `$id` is a number from the route, so `'poll:' . $id`
+  can only be the topic of a poll. A topic name that is `tainted` is not allowed.
+- **A published value has only numbers.** The results are the number of each answer and its votes.
+  No text that a user wrote is sent to the streams.
+- **A form from another website is not accepted.** Novis checks the `Origin` header of each `POST`.
+  A vote sent from another website gets the status `403`, and `Gate::refused` shows the page.
+- **The pages run only their own scripts.** The header `Content-Security-Policy` allows scripts,
+  styles and event streams from this website only.
+- **Each browser has one vote in each poll.** A browser that deletes its cookies gets a new id and
+  a new vote. A second browser does too. So this is good for a team poll, and not for an election.
+  For a real vote, add a login, and use the id of the user in place of the cookie.
+- **Topics work inside one process.** All streams and all votes must reach the same `nvs serve`.
+  If you run your app on several machines, send each update to the other machines in your own code.
+  A message queue such as Redis or NATS can do this.
+
+## Start your own app from it
+
+1. Copy the folder `apps/poll` and give it the name of your app.
+2. Choose a namespace for your app, for example `Board`. Change `namespace Poll;` in each file
+   under `src/`, and the `autoload` line and `Poll\Gate` in `public/index.nvs`.
+3. In `nvs.toml` and `deploy/production.toml`, rename the database `poll` and its file. Change the
+   name in `[capabilities.db]` and in the call to `Core\Db::connect` in `src/App.nvs`.
+4. In the files under `deploy`, change `poll` in the paths and `poll.example.com` to your names.
+5. Use the same pattern for each live part of your app. A request saves the change and publishes it.
+   A stream sends the current state first, and then each update.
+6. Run `nvs test .` after each change.
+
+## Read more
+
+- [`Core\Sse::upgrade`](/reference/core/sse/upgrade/) explains the event stream and its options.
+- [`Core\Topic::publish`](/reference/core/topic/publish/) explains what happens to each subscriber.
+- [Chat](/guides/example-apps/chat/) is a chat app with WebSockets. A WebSocket can also send
+  messages from the browser to the server.

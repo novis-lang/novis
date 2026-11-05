@@ -1,0 +1,39 @@
+/* The styles of every page of the chat. */
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+.problem {
+  color: #b00020;
+}
+.status {
+  color: #555;
+}
+#lines {
+  list-style: none;
+  padding: 0;
+  height: 60vh;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+#lines li {
+  padding: 0.25rem 0.5rem;
+}
+#lines time {
+  color: #777;
+  font-size: 0.85em;
+}
+#lines .notice {
+  color: #777;
+  font-style: italic;
+}
+#say {
+  display: flex;
+  gap: 0.5rem;
+}
+#say input {
+  flex: 1;
+}

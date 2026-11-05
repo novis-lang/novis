@@ -1,0 +1,111 @@
+<?nvs
+namespace Chat;
+
+use Core\Config;
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+// Tests that send requests to the app. `Test::request` runs the app without a server.
+final class AppTest
+{
+    #[Test]
+    public function theHomePageShowsTheForm(): void
+    {
+        var $response = Test::request(Method::Get, '/');
+        Test::assertEquals($response->status(), 200);
+        Test::assertTrue(Str::contains($response->body(), '<form method="post" action="/join">'));
+    }
+
+    #[Test]
+    public function joiningWithoutANameShowsTheProblem(): void
+    {
+        var $response = AppTest::join('lobby', '');
+        Test::assertEquals($response->status(), 422);
+        Test::assertTrue(Str::contains($response->body(), 'Please enter a name.'));
+    }
+
+    #[Test]
+    public function joiningStartsASessionAndOpensTheRoom(): void
+    {
+        var $response = AppTest::join('help', 'Ana Lee');
+        Test::assertEquals($response->status(), 303);
+        Test::assertEquals($response->header('location'), '/rooms/help');
+        // The cookie has the random identifier of the session. The name stays on the server.
+        string $session = $response->cookies()['nvsid'] ?? '';
+        Test::assertTrue(Str::length($session) >= 20);
+        Test::assertSame(Str::contains($session, 'Ana'), false);
+    }
+
+    #[Test]
+    public function theRoomPageHasTheAddressOfItsSocket(): void
+    {
+        var $response = Test::request(Method::Get, '/rooms/help', { headers: AppTest::signedIn('Ana') });
+        Test::assertEquals($response->status(), 200);
+        Test::assertTrue(Str::contains($response->body(), 'data-socket="/rooms/help/socket"'));
+        Test::assertTrue(Str::contains($response->body(), '<b>Ana</b>'));
+    }
+
+    #[Test]
+    public function aVisitorWithoutASessionGoesToTheForm(): void
+    {
+        var $response = Test::request(Method::Get, '/rooms/help');
+        Test::assertEquals($response->status(), 303);
+        Test::assertEquals($response->header('location'), '/');
+        // A made-up session identifier finds no session, so it gives the same result.
+        var $guessed = Test::request(Method::Get, '/rooms/help', { headers: ['cookie' => 'nvsid=made-up'] });
+        Test::assertEquals($guessed->status(), 303);
+    }
+
+    #[Test]
+    public function anUnknownRoomIsNotFound(): void
+    {
+        array<string> $headers = AppTest::signedIn('Ana');
+        Test::assertEquals(Test::request(Method::Get, '/rooms/kitchen', { headers: $headers })->status(), 404);
+        Test::assertEquals(Test::request(Method::Get, '/rooms/kitchen/socket', { headers: $headers })->status(), 404);
+    }
+
+    #[Test]
+    public function aPageRequestToTheSocketGets426(): void
+    {
+        // 426 means "upgrade required": this address only accepts a WebSocket.
+        var $response = Test::request(Method::Get, '/rooms/lobby/socket', { headers: AppTest::signedIn('Ana') });
+        Test::assertEquals($response->status(), 426);
+    }
+
+    #[Test]
+    public function theScriptAndTheStylesAreSent(): void
+    {
+        var $script = Test::request(Method::Get, '/chat.js');
+        Test::assertEquals($script->status(), 200);
+        Test::assertEquals($script->header('content-type'), 'text/javascript; charset=utf-8');
+        Test::assertTrue(Str::contains($script->body(), 'new WebSocket(url)'));
+        Test::assertEquals(Test::request(Method::Get, '/style.css')->status(), 200);
+    }
+
+    #[Test]
+    public function thePagesMayLoadFilesOnlyFromThisServer(): void
+    {
+        // The server adds this header to every response. `Test::request` returns only the headers
+        // that the program sets, so the test reads the setting from `nvs.toml`.
+        string $policy = Config::get('http.headers.content_security_policy') ?? '';
+        Test::assertTrue(Str::contains($policy, "script-src 'self'"));
+        Test::assertTrue(Str::contains($policy, "connect-src 'self'"));
+        Test::assertSame(Str::contains($policy, 'unsafe-inline'), false);
+    }
+
+    // Sends the form of the home page with this room and name.
+    public static function join(string $room, string $name): Core\Test\Response
+    {
+        array<string> $headers = ['content-type' => 'application/x-www-form-urlencoded'];
+        string $body = Core\Uri::buildQuery(['room' => $room, 'name' => $name]);
+        return Test::request(Method::Post, '/join', { headers: $headers, body: $body });
+    }
+
+    // The headers of a browser that joined with this name. Its cookie `nvsid` has the identifier of its session.
+    public static function signedIn(string $name): array<string>
+    {
+        string $session = AppTest::join('lobby', $name)->cookies()['nvsid'] ?? '';
+        return ['cookie' => 'nvsid=' . $session];
+    }
+}

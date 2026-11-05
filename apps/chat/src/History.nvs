@@ -1,0 +1,56 @@
+<?nvs
+namespace Chat;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Time;
+
+// Saves the chat lines of each room, so a new visitor can read what was said before.
+// Only the newest 100 lines of a room are kept, so the file does not grow forever.
+final class History
+{
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Opens the database `chat` from `nvs.toml` and creates the table when it is missing.
+    public static function open(): History
+    {
+        var $history = new History(Db::connect('chat'));
+        $history->setUp();
+        return $history;
+    }
+
+    // Creates the table `lines` if it does not exist yet.
+    public function setUp(): void
+    {
+        $this->db->execute('create table if not exists lines (id integer primary key, room text not null, name text not null, text text not null, at integer not null)', []);
+    }
+
+    // Saves a new line in a room and returns it.
+    // Each `?` is a placeholder. The database gets the text apart from the SQL, so the text cannot change the SQL.
+    public function add(string $room, tainted string $name, tainted string $text): Line
+    {
+        int $at = Time::now()->toEpochMillis();
+        var $write = $this->db->execute('insert into lines (room, name, text, at) values (?, ?, ?, ?)', [$room, $name, $text, $at]);
+        uint $id = $write->lastId() ?? 0;
+        // Deletes the lines of this room that are older than the newest 100.
+        $this->db->execute('delete from lines where room = ? and id not in (select id from lines where room = ? order by id desc limit 100)', [$room, $room]);
+        return new Line($id, $name, $text, $at);
+    }
+
+    // Returns the newest lines of a room, at most `$count` of them. The oldest line is first.
+    public function recent(string $room, uint $count): array<Line>
+    {
+        array<Line> $lines = [];
+        var $rows = $this->db->query('select id, name, text, at from (select * from lines where room = ? order by id desc limit ?) order by id', [$room, $count]);
+        foreach ($rows as Row $row) {
+            $lines[] = new Line($row->uint('id') ?? 0, $row->string('name') ?? '', $row->string('text') ?? '', $row->int('at') ?? 0);
+        }
+        return $lines;
+    }
+}

@@ -1,0 +1,109 @@
+<?nvs
+namespace Poll;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Str;
+
+// Reads and saves polls and votes in a database.
+// Each `?` in the SQL is a placeholder. The database gets the values apart from the SQL.
+final class Store
+{
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Creates the tables `polls`, `answers` and `votes` if they do not exist yet.
+    // `votes` has one row for each browser in each poll. The primary key makes sure of that.
+    public function setUp(): void
+    {
+        $this->db->execute('create table if not exists polls (id integer primary key, question text not null)', []);
+        $this->db->execute('create table if not exists answers (id integer primary key, poll_id integer not null, label text not null)', []);
+        $this->db->execute('create table if not exists votes (poll_id integer not null, voter text not null, answer_id integer not null, primary key (poll_id, voter))', []);
+        $this->db->execute('create index if not exists votes_by_answer on votes (answer_id)', []);
+    }
+
+    // Returns every poll without its answers. The newest poll is first.
+    public function all(): array<Question>
+    {
+        array<Question> $polls = [];
+        foreach ($this->db->query('select id, question from polls order by id desc', []) as Row $row) {
+            $polls[] = new Question($row->uint('id') ?? 0, $row->string('question') ?? '', []);
+        }
+        return $polls;
+    }
+
+    // Returns the poll with this number and its answers. If there is none, the result is `null`.
+    public function find(uint $id): ?Question
+    {
+        foreach ($this->db->query('select id, question from polls where id = ?', [$id]) as Row $row) {
+            array<Answer> $answers = [];
+            foreach ($this->counts($id) as Row $answer) {
+                $answers[] = new Answer($answer->uint('id') ?? 0, $answer->string('label') ?? '', $answer->uint('votes') ?? 0);
+            }
+            return new Question($id, $row->string('question') ?? '', $answers);
+        }
+        return null;
+    }
+
+    // Saves a valid draft and returns the number of the new poll.
+    // The poll and its answers are saved in one transaction, so either all of them are saved or none.
+    public function add(Draft $draft): uint
+    {
+        tainted string $question = Str::trim($draft->question);
+        var $choices = $draft->choices();
+        return $this->db->transaction(fn(Transaction $tx): uint => {
+            uint $id = $tx->execute('insert into polls (question) values (?)', [$question])->lastId() ?? 0;
+            foreach ($choices as tainted string $label) {
+                $tx->execute('insert into answers (poll_id, label) values (?, ?)', [$id, $label]);
+            }
+            return $id;
+        });
+    }
+
+    // Saves the vote of one browser. A second vote from the same browser replaces its first vote.
+    // Returns `false` when the poll has no such answer.
+    public function vote(uint $poll, uint $answer, tainted string $voter): bool
+    {
+        var $found = $this->db->query('select id from answers where id = ? and poll_id = ?', [$answer, $poll]);
+        foreach ($found as Row $row) {
+            // `on conflict` changes the row of this browser if it already has one.
+            $this->db->execute('insert into votes (poll_id, voter, answer_id) values (?, ?, ?) on conflict (poll_id, voter) do update set answer_id = excluded.answer_id', [$poll, $voter, $answer]);
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the answer that this browser chose in a poll, or `null` when it has not voted.
+    public function choiceOf(uint $poll, tainted string $voter): ?uint
+    {
+        foreach ($this->db->query('select answer_id from votes where poll_id = ? and voter = ?', [$poll, $voter]) as Row $row) {
+            return $row->uint('answer_id');
+        }
+        return null;
+    }
+
+    // Returns the votes of a poll as numbers only, such as
+    // `{"total": 3, "answers": [{"id": 1, "votes": 2}, {"id": 2, "votes": 1}]}`.
+    public function results(uint $poll): array<mixed>
+    {
+        uint $total = 0;
+        array<mixed> $answers = [];
+        foreach ($this->counts($poll) as Row $row) {
+            uint $votes = $row->uint('votes') ?? 0;
+            $answers[] = ['id' => $row->uint('id') ?? 0, 'votes' => $votes];
+            $total = $total + $votes;
+        }
+        return ['total' => $total, 'answers' => $answers];
+    }
+
+    // Returns each answer of a poll with its label and its number of votes, in the order of the answers.
+    private function counts(uint $poll): Core\Db\Rows<Row>
+    {
+        return $this->db->query('select a.id, a.label, count(v.voter) as votes from answers a left join votes v on v.answer_id = a.id and v.poll_id = a.poll_id where a.poll_id = ? group by a.id order by a.id', [$poll]);
+    }
+}

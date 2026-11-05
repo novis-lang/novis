@@ -1,0 +1,19 @@
+# The server listens on port 8145. The other apps in this repository use other ports,
+# so all of them can run at the same time.
+[server]
+listen = ["127.0.0.1:8145"]
+
+# The polls and the votes are kept in the SQLite file `poll.sqlite`, next to this file.
+# Novis creates the file when the first request opens the database.
+[db.poll]
+driver = "sqlite"
+path = "poll.sqlite"
+
+# The tests use this database. It is kept in memory and deleted when the tests end.
+[db.scratch]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open these two databases and no other.
+[capabilities.db]
+connect = ["poll", "scratch"]
