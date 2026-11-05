@@ -274,22 +274,32 @@
 //! # `decodeAs` reads the text against the class
 //!
 //! `Core\Json::decodeAs` and `Core\Request::jsonAs` parse once, through
-//! [`decode_as`], with [`Fill`] driven by the class's
-//! field list, and [`walk`] builds the instances from what it read. A JSON
-//! object the class fills becomes a [`Read`]: one slot per field, at the
-//! field's index. Its keys are matched against the field list as they are
-//! read, borrowed from the text, so no key string and no array is built for
-//! it. Every other value is read by [`Decode`] unchanged, so each check that
-//! visitor makes is made at the same place, with the same message. That
-//! covers a key the class does not declare, a `mixed` field, a class that
-//! wrote its own `fromJson`, and a value of the wrong JSON type, whose issue
-//! names what it found.
+//! [`decode_as`], with [`Fill`] driven by the class's field list, and build
+//! every instance while they parse. A JSON object the class fills pushes one
+//! slot per field onto a stack the whole decode shares ([`Builder`]). Its keys
+//! are matched against the field list as they are read, borrowed from the
+//! text, so no key string and no array is built for it. At its closing brace,
+//! [`build_object`] runs [`decode_fields`] over those slots and pops them, so
+//! the object's parent finds a built instance, or the object's issues, in its
+//! own slot. No tree of the document is ever made. Every other value is read
+//! by [`Decode`] unchanged, so each check that visitor makes is made at the
+//! same place, with the same message. That covers a key the class does not
+//! declare, a `mixed` field, a class that wrote its own `fromJson`, and a value
+//! of the wrong JSON type, whose issue names what it found.
 //!
-//! **What it spends:** per object filled, one slot vector of
-//! `size_of::<Option<Found>>()` times the field count. A set of undeclared
-//! keys is made only once an object has one, and lives until that object is
-//! read. Generic arrays are built only for the values above that [`Decode`]
-//! reads. The tree is freed with the call, once the instances are built.
+//! A constructor may run before a later part of the text fails to parse. That
+//! failure frees every slot still on the stack and every instance built, and
+//! throws the same `ParseError`. A fault a constructor raised ends the parse,
+//! and is what the call throws, so of two throwing constructors the first in
+//! the document wins.
+//!
+//! **What it spends:** one slot stack per decode, `size_of::<Option<Found>>()`
+//! times the fields of the objects open at once, so depth × fields and never
+//! the document's size. A list field's elements wait in one vector until the
+//! list's object is built. A set of undeclared keys is made only once an object
+//! has one, and lives until that object is read. Generic arrays are built only
+//! for the values above that [`Decode`] reads, and each one a built object's
+//! slots held is kept until the call returns ([`Builder::kept`]).
 //!
 //! `Core\Request::queryAs`, `postAs` and `Core\Arr::shapeAs` hold their
 //! values already, and [`hydrate`] runs the same walk over those.
@@ -2147,12 +2157,11 @@ nvs_runtime::nvs_helper! {
 /// The text is read in one pass against the contract ([`Fill`]): an object
 /// the class fills is read into one slot per field, and never into an array.
 /// Every check [`Decode`] makes still applies, at the same place, with the
-/// same message. An object whose fields all read through [`Decode`] is built
-/// when its closing brace is read, from slots on one stack the whole decode
-/// shares ([`Builder`]). So a constructor may run before a later part of the
-/// document fails to parse, and that failure frees every instance built. An
-/// object that nests another is read into a [`Read`], and once the parse has
-/// ended, [`walk`] builds it out of that tree. A class that wrote [`DECODE`] is handed the document
+/// same message. Each object is built when its closing brace is read, from
+/// slots on one stack the whole decode shares ([`Builder`]), so the parse ends
+/// with the document's outermost value already built. A constructor may run
+/// before a later part of the document fails to parse, and that failure frees
+/// every instance built. A class that wrote [`DECODE`] is handed the document
 /// as it arrived, so its text is read by [`read_marked`] and built by
 /// [`hydrate`]. The context is in hand for the whole call, so a caller whose
 /// text is the request's body holds a handle on the bytes and not a borrow of
@@ -2228,23 +2237,24 @@ pub(crate) unsafe fn decode_as(
     if let Some(fault) = fault {
         return Err(fault);
     }
-    let tree = read.map_err(unparsed)?;
+    // The outermost value: an instance or its issues, a list of those, or a
+    // value of the wrong JSON type, which the calls below report.
+    let found = read.map_err(unparsed)?;
     #[expect(
         unsafe_code,
-        reason = "the same live descriptor the caller vouched for, and a tree this \
-                  frame keeps alive across the walk"
+        reason = "the same live descriptor the caller vouched for, and a value this \
+                  frame keeps alive across the call"
     )]
     let decoded = unsafe {
         if list {
-            decode_each(ctx, contract, tree.seen(), member)
+            decode_each(ctx, contract, found.seen(), member)
         } else {
-            decode_object(ctx, contract, tree.seen(), None, member)
+            decode_object(ctx, contract, found.seen(), None, member)
         }
     };
-    // Every value an instance kept out of the tree took a reference of its
-    // own on the way past, so dropping the tree frees exactly what nothing
-    // else holds.
-    drop(tree);
+    // What the calls above returned took a reference of its own, so this
+    // frees exactly what nothing else holds.
+    drop(found);
     drop(kept);
     decoded
 }
@@ -2253,26 +2263,21 @@ pub(crate) unsafe fn decode_as(
 // Reading a document against a contract — `decodeAs`'s one pass
 // ============================================================================
 
-/// One value [`Fill`] read: the generic value [`Decode`] builds, or an object
-/// or a list read against the contract.
+/// One value [`Fill`] read: the generic value [`Decode`] builds, an object
+/// built against the contract, or a list of such objects.
 ///
-/// The read builds an [`Found::Object`] only for a contract the walk fills
-/// field by field, and a [`Found::List`] only where a list's elements nest such
-/// an object. Everything else is a [`Found::Value`], so the walk meets every
-/// value it judges in the same form [`hydrate`]'s callers hand it.
+/// An object the contract fills is built while the parse reads its closing
+/// brace ([`build_object`]), so it arrives as [`Found::Built`] or
+/// [`Found::Failed`]. A [`Found::List`] is made only where a list's elements
+/// nest such an object. Everything else is a [`Found::Value`], so the walk
+/// meets every value it judges in the same form [`hydrate`]'s callers hand it.
 ///
-/// An object whose fields all read through [`Decode`] is built while the parse
-/// reads its closing brace ([`build_flat`]), so it arrives as
-/// [`Found::Built`] or [`Found::Failed`] and never as a [`Read`].
-///
-/// Dropping one releases every value under it. The drop takes no native frame
-/// per level: it moves each container's children onto one heap list and frees
-/// them from there, so a tree nested to [`DEPTH_CEILING`] frees on any stack.
+/// Dropping one releases every value under it. Only a [`Found::List`] holds
+/// others, and lists nest only as deep as the field's declared element chain,
+/// so the drop's depth is the program's and never the document's.
 enum Found<'a> {
     /// A value [`Decode`] read, with the one reference that read made.
     Value(Value),
-    /// A JSON object read against a field list.
-    Object(Read<'a>),
     /// A JSON list whose elements were read against a list field's element.
     List(Vec<Found<'a>>),
     /// An instance built at its closing brace, with the one reference the
@@ -2283,43 +2288,14 @@ enum Found<'a> {
     Failed(Vec<Issue<'a>>),
 }
 
-/// One JSON object read against a contract's field list.
-///
-/// **What it spends:** one slot of `size_of::<Option<Found>>()` per field of
-/// the contract, per object filled. The keys are not kept: a key the contract
-/// declares is the slot's index, and a key it does not declare is checked and
-/// dropped while the object is read.
-struct Read<'a> {
-    /// One slot per entry of [`Contract::fields`], at that field's index, and
-    /// `None` where the object has no such key.
-    found: Box<[Option<Found<'a>>]>,
-}
-
-impl<'a> Found<'a> {
+impl Found<'_> {
     /// This value as the walk reads it.
     fn seen(&self) -> Seen<'_> {
         match self {
             Self::Value(value) => Seen::Value(*value),
-            Self::Object(read) => Seen::Object(&read.found),
             Self::List(items) => Seen::List(items),
             Self::Built(value) => Seen::Built(*value),
             Self::Failed(issues) => Seen::Failed(issues),
-        }
-    }
-
-    /// Moves this value's children onto `pending`, and leaves it with none.
-    fn drain_into(&mut self, pending: &mut Vec<Self>) {
-        match self {
-            Self::Value(_) | Self::Built(_) | Self::Failed(_) => {}
-            Self::Object(read) => {
-                pending.extend(
-                    std::mem::take(&mut read.found)
-                        .into_vec()
-                        .into_iter()
-                        .flatten(),
-                );
-            }
-            Self::List(items) => pending.append(items),
         }
     }
 }
@@ -2336,30 +2312,20 @@ impl Drop for Found<'_> {
             unsafe {
                 value.release();
             }
-            return;
-        }
-        // Each child is emptied before it drops, so the drop below never
-        // recurses.
-        let mut pending = Vec::new();
-        self.drain_into(&mut pending);
-        while let Some(mut next) = pending.pop() {
-            next.drain_into(&mut pending);
         }
     }
 }
 
 /// One value the walk reads: the document's own value, or an object or a list
-/// [`Fill`] read against the contract.
+/// [`Fill`] built against the contract.
 ///
 /// The walk is one walk over both. [`hydrate`]'s callers hand it values, and
-/// [`decode_as`] hands it the tree [`Fill`] read.
+/// [`build_object`] hands it the slots of the object whose closing brace the
+/// parse just read.
 #[derive(Clone, Copy)]
 enum Seen<'a> {
     /// A value, borrowed from whoever owns the document.
     Value(Value),
-    /// An object read against the contract the walk is filling: its slots,
-    /// one per field.
-    Object(&'a [Option<Found<'a>>]),
     /// A list whose elements were read against the field's element.
     List(&'a [Found<'a>]),
     /// An instance the parse built, borrowed. [`taken`] takes a reference of
@@ -2377,7 +2343,7 @@ fn taken<'a>(found: Seen<'a>) -> Option<Result<Value, DecodeFailure<'a>>> {
         Seen::Built(value) => {
             #[expect(
                 unsafe_code,
-                reason = "the tree owns this instance until the decode returns, and \
+                reason = "a slot or a list owns this instance until it drops, and \
                           the reference taken here is the walk's own"
             )]
             unsafe {
@@ -2386,7 +2352,7 @@ fn taken<'a>(found: Seen<'a>) -> Option<Result<Value, DecodeFailure<'a>>> {
             Some(Ok(value))
         }
         Seen::Failed(issues) => Some(Err(DecodeFailure::Issues(issues.to_vec()))),
-        Seen::Value(_) | Seen::Object(_) | Seen::List(_) => None,
+        Seen::Value(_) | Seen::List(_) => None,
     }
 }
 
@@ -2394,9 +2360,9 @@ fn taken<'a>(found: Seen<'a>) -> Option<Result<Value, DecodeFailure<'a>>> {
 enum Object<'a> {
     /// An array the document built, borrowed. A field is found by its key.
     Array(std::mem::ManuallyDrop<NvsArray>),
-    /// The slots of an object [`Fill`] read, one per field. A field is found
-    /// by its index.
-    Read(&'a [Option<Found<'a>>]),
+    /// The slots of an object [`Fill`] read, one per field, on the decode's
+    /// slot stack. A field is found by its index.
+    Slots(&'a [Option<Found<'a>>]),
 }
 
 impl<'a> Object<'a> {
@@ -2405,7 +2371,7 @@ impl<'a> Object<'a> {
     fn field(&self, index: usize, key: &str) -> Option<Seen<'a>> {
         match self {
             Self::Array(array) => array.get(key.as_bytes()).map(Seen::Value),
-            Self::Read(slots) => {
+            Self::Slots(slots) => {
                 let slots: &'a [Option<Found<'a>>] = slots;
                 slots.get(index)?.as_ref().map(Found::seen)
             }
@@ -2535,9 +2501,8 @@ macro_rules! decoded_scalars {
 }
 
 /// The visitor that reads one value where `contract` fills an object: a JSON
-/// object becomes an instance built at its closing brace, or a [`Read`] where
-/// a field nests another object or list, and every other value is
-/// [`Decode`]'s.
+/// object becomes an instance built at its closing brace, and every other
+/// value is [`Decode`]'s.
 ///
 /// `Copy`, as [`Decode`] is, and small, because the parse takes one native
 /// frame of it per nesting level. The slots live on the heap.
@@ -2557,16 +2522,6 @@ impl<'de, 'a> DeserializeSeed<'de> for Fill<'a, '_> {
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
         deserializer.deserialize_any(self)
     }
-}
-
-/// Where one object's field values wait until its closing brace: on the
-/// decode's slot stack for an object [`build_flat`] builds, and in a [`Read`]
-/// for one the walk builds.
-enum Slots<'a> {
-    /// The slots from this position of [`Builder::slots`] on.
-    Stacked(usize),
-    /// A slot array of the object's own.
-    Boxed(Read<'a>),
 }
 
 /// Writes `found` into `slot`, or returns `true` where the slot is filled
@@ -2601,28 +2556,11 @@ impl<'de, 'a> Visitor<'de> for Fill<'a, '_> {
             return Err(decode.too_deep());
         }
         let fields = contract.fields();
-        #[expect(
-            unsafe_code,
-            reason = "every descriptor under a decode is the caller's or one \
-                      `nvs-codegen` resolved out of the same class table"
-        )]
-        let flat = (0..fields.len()).all(|index| !unsafe { nests(contract, index) });
-        let mut read = if flat {
-            Slots::Stacked(
-                build
-                    .borrow_mut()
-                    .open(fields.len())
-                    .ok_or_else(over_memory)?,
-            )
-        } else {
-            let slots = size_of::<Option<Found<'_>>>().saturating_mul(fields.len());
-            if !nvs_runtime::budget::affords(size_of::<Read<'_>>().saturating_add(slots)) {
-                return Err(over_memory());
-            }
-            Slots::Boxed(Read {
-                found: std::iter::repeat_with(|| None).take(fields.len()).collect(),
-            })
-        };
+        // The object's slots go on the decode's stack, after its parent's.
+        let base = build
+            .borrow_mut()
+            .open(fields.len())
+            .ok_or_else(over_memory)?;
         // The keys the contract does not declare, kept only to refuse a
         // repeat, and made only once the first one appears.
         let mut undeclared: Option<std::collections::HashSet<Cow<'de, str>>> = None;
@@ -2635,12 +2573,7 @@ impl<'de, 'a> Visitor<'de> for Fill<'a, '_> {
                 let found = map.next_value_seed(Typed::field(child, contract, index, build))?;
                 // Each object has one slot per field. On the refusal, dropping
                 // `found` releases what it read.
-                let twice = match &mut read {
-                    Slots::Boxed(read) => fill_slot(&mut read.found[index], found),
-                    Slots::Stacked(base) => {
-                        fill_slot(&mut build.borrow_mut().slots[*base + index], found)
-                    }
-                };
+                let twice = fill_slot(&mut build.borrow_mut().slots[base + index], found);
                 if twice {
                     return Err(repeated(&key));
                 }
@@ -2684,10 +2617,7 @@ impl<'de, 'a> Visitor<'de> for Fill<'a, '_> {
                 seen.insert(key);
             }
         }
-        match read {
-            Slots::Boxed(read) => Ok(Found::Object(read)),
-            Slots::Stacked(base) => build_flat(build, contract, base),
-        }
+        build_object(build, contract, base)
     }
 }
 
@@ -2703,7 +2633,7 @@ struct Builder<'a> {
     /// The context a constructor runs with. [`decode_as`] takes it back
     /// once the parse has ended.
     ctx: &'a mut nvs_runtime::Ctx,
-    /// The field values of every object [`build_flat`] builds that is open,
+    /// The field values of every object the parse is inside,
     /// each object's slots after its parent's, one per field.
     slots: Vec<Option<Found<'a>>>,
     /// Each array a closed object's slots held. They live until the decode
@@ -2759,39 +2689,58 @@ impl<'a> Builder<'a> {
         Some(base)
     }
 
-    /// Pops the slots from `base` on. A value that is an array moves to
-    /// [`Builder::kept`], and every other value is released. `false` where the
-    /// request cannot afford the place an array needs.
+    /// Pops the slots from `base` on. A value that is an array, there or in a
+    /// list a slot holds, moves to [`Builder::kept`], and every other value is
+    /// released. `false` where the request cannot afford the place an array
+    /// needs.
     fn close(&mut self, base: usize) -> bool {
         let Self { slots, kept, .. } = self;
-        for found in slots.drain(base..).flatten() {
-            if !matches!(&found, Found::Value(value) if value.array_ptr().is_some()) {
-                continue;
-            }
-            let grow = if kept.len() == kept.capacity() {
-                kept.capacity()
-                    .max(4)
-                    .saturating_mul(size_of::<Found<'_>>())
-            } else {
-                0
-            };
-            if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
-                return false;
-            }
-            kept.push(found);
-        }
-        true
+        slots
+            .drain(base..)
+            .flatten()
+            .all(|found| keep_arrays(kept, found))
     }
+}
+
+/// Moves `found` to `kept` where it is an array, and each array in it where
+/// it is a list. Every other value is released. `false` where the request
+/// cannot afford the place an array needs.
+///
+/// A list nests only as deep as its field's declared element chain, so the
+/// recursion's depth is the program's and never the document's.
+fn keep_arrays<'a>(kept: &mut Vec<Found<'a>>, mut found: Found<'a>) -> bool {
+    if let Found::List(items) = &mut found {
+        return std::mem::take(items)
+            .into_iter()
+            .all(|item| keep_arrays(kept, item));
+    }
+    if !matches!(&found, Found::Value(value) if value.array_ptr().is_some()) {
+        return true;
+    }
+    let grow = if kept.len() == kept.capacity() {
+        kept.capacity()
+            .max(4)
+            .saturating_mul(size_of::<Found<'_>>())
+    } else {
+        0
+    };
+    if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
+        return false;
+    }
+    kept.push(found);
+    true
 }
 
 /// Builds the object whose field values are on the slot stack from `base` on,
 /// at its closing brace, and pops its slots.
 ///
 /// The build is [`decode_fields`], so every check and every message is the
-/// walk's. Its issues are kept in a [`Found::Failed`], so the enclosing object
-/// reports them in the walk's order. A fault ends the parse with
-/// [`BUILD_FAULT`], and [`decode_as`] returns the fault.
-fn build_flat<'a, E: serde::de::Error>(
+/// walk's. A field that nests an object or a list of them already holds what
+/// its own closing brace built, and [`taken`] takes it from there. Its issues
+/// are kept in a [`Found::Failed`], so the enclosing object reports them in the
+/// walk's order. A fault ends the parse with [`BUILD_FAULT`], and
+/// [`decode_as`] returns the fault.
+fn build_object<'a, E: serde::de::Error>(
     build: Shared<'_, 'a>,
     contract: Contract<'a>,
     base: usize,
@@ -2821,7 +2770,7 @@ fn build_flat<'a, E: serde::de::Error>(
         reason = "the descriptor is the caller's or one `nvs-codegen` resolved out of the \
                   same class table, and the slots live across the call"
     )]
-    let outcome = unsafe { decode_fields(builder.ctx, contract, Object::Read(source)) };
+    let outcome = unsafe { decode_fields(builder.ctx, contract, Object::Slots(source)) };
     let found = match outcome {
         Ok(value) => Found::Built(value),
         Err(DecodeFailure::Issues(issues)) => Found::Failed(issues),
@@ -2836,36 +2785,10 @@ fn build_flat<'a, E: serde::de::Error>(
     Ok(found)
 }
 
-/// Whether the `index`th field's value is read by [`Fill`] or [`FillList`]:
-/// an object or a list of objects the contract fills. Every other field's
-/// value is read by [`Decode`]. [`Typed`] asks the same question.
-///
-/// # Safety
-///
-/// As [`decode_as`]'s, for the descriptor the field names.
-#[expect(
-    unsafe_code,
-    reason = "the caller owes the liveness of a descriptor no signature can express"
-)]
-unsafe fn nests(contract: Contract<'_>, index: usize) -> bool {
-    let field = &contract.fields()[index];
-    match field.ty {
-        CodecTy::Class | CodecTy::Shape => {
-            #[expect(unsafe_code, reason = "the caller's descriptor")]
-            let nested = unsafe { filled(contract, index) };
-            nested.is_some()
-        }
-        CodecTy::List => field
-            .element
-            .as_ref()
-            .is_some_and(|element| matches!(element.terminal(), CodecTy::Class | CodecTy::Shape)),
-        _ => false,
-    }
-}
-
 /// The visitor that reads one value where a JSON list is expected whose
 /// elements nest an object the contract fills: a JSON list becomes a
-/// [`Found::List`], and every other value is [`Decode`]'s.
+/// [`Found::List`] of what each element built, and every other value is
+/// [`Decode`]'s.
 ///
 /// `element` is the link of the field's element chain each element is read
 /// against, and `None` for a document that is an `array<T>`, whose every
@@ -3906,7 +3829,7 @@ unsafe fn decode_each<'a>(
             },
             None => return Err(refusal()),
         },
-        Seen::Object(_) | Seen::Built(_) | Seen::Failed(_) => {
+        Seen::Built(_) | Seen::Failed(_) => {
             return Err(misread(contract, None));
         }
     };
@@ -4042,7 +3965,6 @@ unsafe fn decode_document<'a>(
     member: &str,
 ) -> Result<Result<Value, DecodeFailure<'a>>, Fault> {
     let found = match document {
-        Seen::Object(slots) => Some(Object::Read(slots)),
         Seen::Value(document) => contract
             .object_of(document)
             .map(|ptr| Object::Array(crate::arr::borrowed(ptr))),
@@ -4829,7 +4751,7 @@ unsafe fn convert_field<'a>(
     // return first below, so every scalar arm has the document's own value.
     let held = match found {
         Seen::Value(value) => Some(value),
-        Seen::Object(_) | Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => None,
+        Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => None,
     };
     let wrong_form = || {
         Step::Done(Err(DecodeFailure::Fault(misread(
@@ -5008,9 +4930,6 @@ unsafe fn decode_nested<'a>(
         return Step::Done(outcome);
     }
     let found = match found {
-        Seen::Object(slots) => {
-            return Step::Enter(Build::Fields(Fields::new(nested, Object::Read(slots))));
-        }
         Seen::Value(found) => found,
         Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => return wrong_form(),
     };
@@ -5253,7 +5172,7 @@ fn decode_positions<'a>(
                 items: crate::arr::borrowed(ptr),
             }
         }
-        Seen::Object(_) | Seen::Built(_) | Seen::Failed(_) => {
+        Seen::Built(_) | Seen::Failed(_) => {
             return Step::Done(Err(DecodeFailure::Fault(misread(
                 contract,
                 Some(&field.key),
@@ -5365,9 +5284,6 @@ unsafe fn decode_element<'a>(
         return Step::Done(outcome);
     }
     let item = match item {
-        Seen::Object(slots) => {
-            return Step::Enter(Build::Fields(Fields::new(element, Object::Read(slots))));
-        }
         Seen::Value(item) => item,
         Seen::List(_) | Seen::Built(_) | Seen::Failed(_) => return wrong_form(),
     };
@@ -5610,8 +5526,8 @@ mod tests {
     /// directly, or through a list of them where `through_a_list`. The key is
     /// empty so a text nests as many levels per byte as a class can.
     ///
-    /// Leaked for [`holder_class`]'s reason. Only [`read_against`] reads it,
-    /// so it needs no compiled constructor.
+    /// Leaked for [`holder_class`]'s reason. The parse builds each `Node` at
+    /// its closing brace, so its constructor is [`drops_its_argument`].
     fn self_nesting_class(through_a_list: bool) -> *const ClassDesc {
         let field = CodecField {
             key: String::new(),
@@ -5634,13 +5550,51 @@ mod tests {
         let id = table.define("Node", &[""], &[]);
         let desc = table.desc(id);
         table.set_codec(id, vec![field], 1, vec![desc], vec![std::ptr::null()]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CONSTRUCTOR.to_owned(),
+                code: (drops_its_argument as *const ()).cast::<u8>(),
+                arity: 1,
+                param_tags: 0,
+                param_names: vec![String::new()],
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
         let table: &'static ClassTable = Box::leak(Box::new(table));
         table.desc(id)
     }
 
+    /// A constructor in the shape `nvs-codegen` emits one, which keeps
+    /// nothing: it releases the receiver and its one argument, as an emitted
+    /// epilogue releases the parameters it owns. So an instance never holds
+    /// the one inside it, and a chain nested to the ceiling frees one level at
+    /// a time.
+    #[expect(unsafe_code, reason = "as `answers_a_number`'s")]
+    unsafe extern "C" fn drops_its_argument(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`construct` passes the receiver and one argument, both live, and a \
+                      writable out-pointer"
+        )]
+        unsafe {
+            (*args).release();
+            (*args.add(1)).release();
+            *out = Value::null();
+        }
+        nvs_runtime::OK
+    }
+
     /// Parses `text` against [`self_nesting_class`] at the ceiling, on a
-    /// thread whose own stack is `stack` bytes. The tree is dropped inside
-    /// that thread, because a refcount is a per-thread fact.
+    /// thread whose own stack is `stack` bytes. What it built is dropped
+    /// inside that thread, because a refcount is a per-thread fact.
     fn read_against_on_a_thread(
         through_a_list: bool,
         text: String,
@@ -6507,6 +6461,184 @@ mod tests {
         );
         let table: &'static ClassTable = Box::leak(Box::new(table));
         (table.desc(outer_id), outer)
+    }
+
+    /// [`nested_shape_class`] with a list between the two: a shape whose one
+    /// field, `items`, is a list of `{n: int}` shapes.
+    ///
+    /// Leaked for [`holder_class`]'s reason.
+    fn listed_shape_class() -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let mut table = ClassTable::new();
+        let inner_id = table.define("$shape{n}", &["n"], &[]);
+        let inner = table.define_shape_codec(
+            vec![CodecField {
+                key: "n".to_owned(),
+                slot: 0,
+                param: 0,
+                ty: CodecTy::Int,
+                element: None,
+                class: None,
+                cases: None,
+                shape: None,
+                nullable: false,
+                required: true,
+                default: None,
+            }],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let outer_id = table.define("$shape{items}", &["items"], &[]);
+        let inner_desc = table.desc(inner_id);
+        let outer = table.define_shape_codec(
+            vec![CodecField {
+                key: "items".to_owned(),
+                slot: 0,
+                param: 0,
+                ty: CodecTy::List,
+                element: Some(nvs_runtime::CodecElement::leaf(CodecTy::Shape)),
+                class: Some("$shape{n}".to_owned()),
+                cases: None,
+                shape: Some("$codec{n:Int}".to_owned()),
+                nullable: false,
+                required: true,
+                default: None,
+            }],
+            vec![inner_desc],
+            vec![inner],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(outer_id), outer)
+    }
+
+    /// Decodes `text` against `class` and `shape`, and returns whether it
+    /// decoded. The value or the fault is dropped before this returns.
+    fn decodes(class: *const ClassDesc, shape: *const nvs_runtime::ShapeCodec, text: &str) -> bool {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "every helper here leaks its table, so both addresses outlive the decode"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                text,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        match decoded {
+            Ok(value) => {
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                true
+            }
+            Err(fault) => {
+                // A fault's slots are released by whoever throws it, and this
+                // frame throws nothing.
+                if let Fault::ThrownWithSlots(_, _, slots) = fault {
+                    for (_, value) in slots {
+                        #[expect(unsafe_code, reason = "the fault owned its one reference")]
+                        unsafe {
+                            value.release();
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    /// An object that nests another, directly or through a list, arrives from
+    /// the parse already built, and every slot is popped by the time the parse
+    /// ends. The inner instance is the outer one's property.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_typed_decode_builds_each_object_when_its_closing_brace_is_read() {
+        let lists = Lists::default();
+        for ((class, shape), text) in [
+            (nested_shape_class(), r#"{"meta":{"n":1}}"#),
+            (listed_shape_class(), r#"{"items":[{"n":1},{"n":2}]}"#),
+        ] {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            #[expect(
+                unsafe_code,
+                reason = "both helpers leak their tables, so the addresses outlive the parse"
+            )]
+            let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
+            let build = std::cell::RefCell::new(Builder::new(&mut ctx));
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &build)
+                .expect("the document parses");
+            assert_eq!(build.borrow().slots.len(), 0, "{text} leaves no slot open");
+            let Found::Built(value) = &found else {
+                panic!("{text} arrives built");
+            };
+            let ptr = value.obj_ptr().expect("a built shape is an object");
+            #[expect(
+                unsafe_code,
+                reason = "the value owns a reference to a live allocation, and the rebuilt \
+                          handle is never dropped, so nothing is released twice"
+            )]
+            let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+            let inner = object.field(0);
+            assert!(
+                inner.obj_ptr().is_some() || inner.array_ptr().is_some(),
+                "{text}'s property is the inner instance or a list of them"
+            );
+            drop(found);
+        }
+        let (class, shape) = nested_shape_class();
+        assert!(decodes(class, shape, r#"{"meta":{"n":1}}"#));
+    }
+
+    /// A parse that fails after objects were built frees every one of them,
+    /// whether it fails at the end of the text or at a repeated key. The
+    /// thread's balance is back where it started.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_failure_after_built_objects_frees_every_one_of_them() {
+        let (class, shape) = nested_shape_class();
+        assert!(decodes(class, shape, r#"{"meta":{"n":1}}"#));
+        let before = nvs_runtime::budget::live_bytes();
+        for text in [
+            r#"{"meta":{"n":1},"x":"#,
+            r#"{"meta":{"n":1},"meta":{"n":2}}"#,
+        ] {
+            assert!(!decodes(class, shape, text), "{text} does not decode");
+            assert_eq!(
+                nvs_runtime::budget::live_bytes(),
+                before,
+                "{text}: every instance built before the failure is freed"
+            );
+        }
+    }
+
+    /// A parse that fails inside a list frees the elements built before the
+    /// failure, and the list that held them.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_failure_inside_a_list_frees_the_elements_built_before_it() {
+        let (class, shape) = listed_shape_class();
+        assert!(decodes(class, shape, r#"{"items":[{"n":1},{"n":2}]}"#));
+        // The first parse error after a list's comma allocates once for the
+        // thread, so it is made before the balance is read.
+        assert!(!decodes(class, shape, r#"{"items":[{"n":1},"#));
+        let before = nvs_runtime::budget::live_bytes();
+        for text in [
+            r#"{"items":[{"n":1},{"n":2},{"n":"#,
+            r#"{"items":[{"n":1},{"n":2},{"n":3,"n":4}]}"#,
+        ] {
+            assert!(!decodes(class, shape, text), "{text} does not decode");
+            assert_eq!(
+                nvs_runtime::budget::live_bytes(),
+                before,
+                "{text}: every element built before the failure is freed"
+            );
+        }
     }
 
     /// `rule:types/decimal`'s exactness reaches roughly 29 significant digits and
