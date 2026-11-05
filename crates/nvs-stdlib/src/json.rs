@@ -5478,7 +5478,7 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use nvs_runtime::{ClassDesc, ClassTable, CodecField};
 
     use super::*;
@@ -7699,7 +7699,7 @@ mod tests {
     }
 
     /// The ladder's `wide` document of at least `size` bytes.
-    fn wide_document(size: usize) -> String {
+    pub(crate) fn wide_document(size: usize) -> String {
         ladder_documents(size)
             .into_iter()
             .find_map(|(shape, text)| (shape == "wide").then_some(text))

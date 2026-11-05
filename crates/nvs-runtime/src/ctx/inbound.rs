@@ -1990,6 +1990,17 @@ pub trait RequestBody {
     /// body read from a file, ignores it, which is the default.
     fn allow_total(&mut self, _total: u64) {}
 
+    /// The length the body declared before its first byte, such as its
+    /// `Content-Length`, or `None` where it declared none.
+    ///
+    /// A reader that keeps the whole body checks it against its cap and
+    /// allocates one buffer of that length, so the body is never copied as it
+    /// grows. The supplier ends the body at that length, or fails it short of
+    /// it, so the buffer never grows past it.
+    fn declared_len(&self) -> Option<u64> {
+        None
+    }
+
     /// Whether the bytes pulled are recorded for the debug spool
     /// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). A reader
     /// that finds a `secret` field asks this first, so a body nobody records costs nothing more.

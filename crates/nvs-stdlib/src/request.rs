@@ -3406,6 +3406,34 @@ fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass
     let Some(body) = inbound.body() else {
         return Ok(whole);
     };
+    let over_cap = || {
+        (
+            ThrownClass::Runtime,
+            format!(
+                "this request's body is larger than `[limits] request_body` \
+                 ({cap} bytes), so it is refused rather than held. That \
+                 directive bounds what a body may cost in memory; a body bigger \
+                 than it is one to stream rather than to read whole"
+            ),
+        )
+    };
+    // A body that declared its length is read into one buffer of that length,
+    // checked against the cap before it is allocated, so the body is held once
+    // and never copied as it grows. A body that declared none grows by
+    // doubling. A length the budget cannot afford is not reserved, and the
+    // growth meets the ceiling as it would without one.
+    // **What it spends:** nothing more. It saves the growth's copies and the
+    // spare room a doubling leaves, up to the body's own size.
+    if let Some(declared) = body.declared_len() {
+        let declared = usize::try_from(declared).unwrap_or(usize::MAX);
+        if declared > cap {
+            // Asserted by `a_declared_length_past_the_cap_is_refused_before_a_byte_is_read`.
+            return Err(over_cap());
+        }
+        if nvs_runtime::budget::affords(declared) {
+            whole.reserve_exact(declared);
+        }
+    }
     loop {
         match body.next_chunk() {
             Ok(None) => return Ok(whole),
@@ -3416,15 +3444,7 @@ fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass
                     // Asserted by
                     // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
                     // below, on both sides of the bound.
-                    return Err((
-                        ThrownClass::Runtime,
-                        format!(
-                            "this request's body is larger than `[limits] request_body` \
-                             ({cap} bytes), so it is refused rather than held. That \
-                             directive bounds what a body may cost in memory; a body bigger \
-                             than it is one to stream rather than to read whole"
-                        ),
-                    ));
+                    return Err(over_cap());
                 }
                 whole.extend_from_slice(chunk);
             }
@@ -4307,6 +4327,9 @@ mod tests {
         chunks: Vec<Vec<u8>>,
         at: usize,
         fails_at: Option<usize>,
+        /// The `Content-Length` the body declared, or `None` for a body sent
+        /// in chunks.
+        declared: Option<u64>,
     }
 
     impl Chunks {
@@ -4315,6 +4338,14 @@ mod tests {
                 chunks: pieces.iter().map(|piece| piece.to_vec()).collect(),
                 at: 0,
                 fails_at: None,
+                declared: None,
+            }
+        }
+
+        fn declaring(pieces: &[&[u8]], declared: usize) -> Self {
+            Self {
+                declared: Some(u64::try_from(declared).expect("a length fits a u64")),
+                ..Self::of(pieces)
             }
         }
 
@@ -4327,6 +4358,10 @@ mod tests {
     }
 
     impl RequestBody for Chunks {
+        fn declared_len(&self) -> Option<u64> {
+            self.declared
+        }
+
         fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
             if self.fails_at == Some(self.at) {
                 return Err("the connection failed under it".into());
@@ -5365,6 +5400,81 @@ mod tests {
             nvs_runtime::call(nvs_core_request_body, &mut over_it, &[]).is_err(),
             "one byte past `[limits] request_body` is still past it"
         );
+    }
+
+    /// A body that declared a length past `[limits] request_body` is refused
+    /// before a byte is read and before its buffer is allocated. The body here
+    /// sends one byte, which a read would have accepted.
+    // covers: Core\Request::body
+    #[test]
+    fn a_declared_length_past_the_cap_is_refused_before_a_byte_is_read() {
+        let mut over_it = answering(Some(Chunks::declaring(&[&b"x"[..]], request_body() + 1)));
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut over_it, &[]).is_err(),
+            "a declared length past the cap is refused"
+        );
+
+        let mut at_the_bound = answering(Some(Chunks::declaring(&[&b"x"[..]], request_body())));
+        let answer = nvs_runtime::call(nvs_core_request_body, &mut at_the_bound, &[])
+            .expect("a declared length of exactly the cap is read");
+        assert_eq!(answer.as_text(), Some("x"));
+        #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+        unsafe {
+            answer.release();
+        }
+    }
+
+    /// `Core\Request::json` from 64 KiB to near 8 MiB holds the body once. A
+    /// body that declared its length is read into one buffer of that length, so
+    /// the request's peak is the body, plus what the parse builds, which a parse
+    /// of the same text alone measures. Each body is just past a power of two,
+    /// where a buffer grown by doubling would be nearly twice the body. The
+    /// test's name is the `size-bounds` check's, and the module path keeps
+    /// `json::` in it.
+    mod json {
+        use super::*;
+
+        #[test]
+        fn a_decoded_body_of_any_size_is_held_once() {
+            for size in [64 << 10, (4 << 20) + (64 << 10), (8 << 20) - (64 << 10)] {
+                let text = crate::json::tests::wide_document(size);
+                let alone = Ctx::buffered();
+                let value = crate::json::read(&text, crate::json::DEFAULT_MAX_DEPTH_U32)
+                    .expect("a ladder document decodes");
+                let parse = alone.memory_peak();
+                drop(alone);
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+
+                let pieces: Vec<&[u8]> = text.as_bytes().chunks(16 << 10).collect();
+                let mut ctx = answering(Some(Chunks::declaring(&pieces, text.len())));
+                let body = super::super::held_octets(&mut ctx, "json")
+                    .expect("the body arrives whole")
+                    .len();
+                let read = ctx.memory_peak();
+                let answer = read_json(&mut ctx).expect("the body is one JSON document");
+                let peak = ctx.memory_peak();
+                #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+                unsafe {
+                    answer.release();
+                }
+                drop(ctx);
+                assert_eq!(body, text.len(), "{size}: the whole body is held");
+                let once = body + 4096;
+                assert!(
+                    read <= once,
+                    "{size}: reading a body of {body} bytes peaked at {read}, past {once}"
+                );
+                let bound = body + parse + 4096;
+                assert!(
+                    peak <= bound,
+                    "{size}: the request peaked at {peak} bytes for a body of {body} and a \
+                     parse of {parse}, past {bound}"
+                );
+            }
+        }
     }
 
     /// A body that stops short is a throw and not a shorter body. `next_chunk`'s

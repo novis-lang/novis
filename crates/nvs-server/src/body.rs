@@ -119,6 +119,7 @@ pub fn of(headers: &HeaderMap, incoming: Incoming, upload_total: u64) -> Arrived
     let pull = Pull {
         wire,
         held: Bytes::new(),
+        declared,
     };
     Arrived::Streaming(supply, Box::new(pull))
 }
@@ -306,6 +307,8 @@ pub struct Pull {
     /// The chunk this pull answered, held for exactly as long as the slice it
     /// lent out is valid — until the next pull replaces it.
     held: Bytes,
+    /// The body's `Content-Length`, or `None` for a body sent in chunks.
+    declared: Option<u64>,
 }
 
 /// What one turn of the wait resolved to, with no borrow of `self` in it: the
@@ -318,6 +321,10 @@ enum Landed {
 }
 
 impl RequestBody for Pull {
+    fn declared_len(&self) -> Option<u64> {
+        self.declared
+    }
+
     fn records(&self) -> bool {
         self.wire.borrow().recording.is_some()
     }
@@ -443,6 +450,7 @@ mod tests {
         let mut pull = Pull {
             wire,
             held: Bytes::new(),
+            declared: None,
         };
         for read in ["the first read", "a second read", "a third read"] {
             assert_eq!(
