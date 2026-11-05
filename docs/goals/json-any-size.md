@@ -248,20 +248,9 @@ and again over decision 10. `bun nv verify --doc`, `bun nv owners --closes json-
 `bun nv ci --check` are green. Decisions 1, 3 and 5 live in `json.rs`'s module doc, and decision
 10 in `request.rs`'s body doc.
 
-The three `CoreTest` benches that missed their bound did not grow. `test.rs`'s change in
-`f4dc58dd76` touches only a test response's body. At 256 iterations the ramp stopped at a batch of
-128, where about 4k instructions per assertion sit under 380M of start-up, so callgrind's slope
-swung between 0.86 and 1.60 from run to run. At 2048 the counts agree from a batch of 512, and all
-three record as flat. All 31 stale records are measured and committed.
-
-The DONE refusal's `size-bounds` red was real, and is fixed in `d6910ac5a6`.
-`a_failure_after_built_objects_frees_every_one_of_them` failed whenever it ran first in the
-process: the first failed `decodeAs` built `instance.rs`'s shape table on the request path and
-charged its 2 KiB to the request. `shapes()` now builds it inside a `Detached` bracket, and
-`descriptors()` builds it, so the compile has it before any request. `size-bounds` is green.
-
-The sweep's `env-secret-proofs` red is stale, a sixth time: `looper check --name
-env-secret-proofs` says no check matches, and no goal or floor names it.
+All stale perf records are measured and committed. The shape-table charge that turned
+`size-bounds` red is fixed in `d6910ac5a6`. The sweep's `env-secret-proofs` red is stale: no goal
+or floor names that check, and it has no log.
 
 The last DONE refusal voided `size-bounds` because uncommitted work outside this goal, under
 `apps/chat/`, `apps/poll/` and the reverse-proxy page, changed while it ran. A rerun was voided the
