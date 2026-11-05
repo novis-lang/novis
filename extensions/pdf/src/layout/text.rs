@@ -1101,9 +1101,13 @@ impl Cx<'_> {
                             continue;
                         }
                         let line = shaped.get(i).expect("a line at each index below the count");
+                        let height = heights[i];
+                        // A line the floats leave no room starts below them, as `beside` put it.
+                        if !is_marker && flow.has_floats() {
+                            flow.lower(flow.roomy(flow.next_top(), height, left, width));
+                        }
                         let (left, width) = bands.get(i).copied().unwrap_or((left, width));
                         let metrics = line.metrics();
-                        let height = heights[i];
                         // A marker is drawn on baseline 0 and moved down to the next line's.
                         let top = if is_marker { 0.0 } else { flow.place(height) };
                         let page_number = flow.pages.len() as u64;
@@ -1488,7 +1492,8 @@ fn place_float(placed: &mut [Placed], missing: &mut Vec<Missing>, flow: &mut Flo
 
 /// The left edge and width of each line of `shaped` beside the floats of `flow`: `kept` for
 /// the lines before, and from there each line placed from the flow's next top in the content
-/// box at `left`, `width` wide.
+/// box at `left`, `width` wide. A line the floats leave no room goes below them, as the
+/// placing of the lines does.
 fn beside(
     shaped: &Layout<usize>,
     flow: &Flow,
@@ -1499,7 +1504,9 @@ fn beside(
     let mut top = flow.next_top();
     let rest = shaped.lines().skip(kept.len()).map(|line| {
         let m = line.metrics();
-        let bottom = top + m.block_max_coord - m.block_min_coord;
+        let height = m.block_max_coord - m.block_min_coord;
+        top = flow.roomy(top, height, left, width);
+        let bottom = top + height;
         let band = flow.band(top, bottom, left, width);
         top = bottom;
         band

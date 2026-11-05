@@ -745,6 +745,36 @@ impl Flow {
         (lo, (hi - lo).max(0.0))
     }
 
+    /// The top, from `top` down, where a line `height` tall has room beside the floats in the
+    /// content box at `x`, `width` wide: `top` itself, or the bottom of the floats that leave
+    /// it none (CSS 2.1 §9.5). A content box with no width keeps `top`.
+    pub(super) fn roomy(&self, mut top: f32, height: f32, x: f32, width: f32) -> f32 {
+        loop {
+            if self.band(top, top + height, x, width).1 > FIT {
+                return top;
+            }
+            let next = self
+                .floats
+                .iter()
+                .filter(|f| f.top < top + height && f.bottom > top)
+                .map(|f| f.bottom)
+                .fold(f32::INFINITY, f32::min);
+            if !next.is_finite() || next <= top {
+                return top;
+            }
+            top = next;
+        }
+    }
+
+    /// Moves the next box's top down to `top`, dropping the margin above it, when `top` is
+    /// lower than where it would be.
+    pub(super) fn lower(&mut self, top: f32) {
+        if top > self.next_top() + FIT {
+            self.pending = Margin::default();
+            self.cursor = top;
+        }
+    }
+
     /// Whether any float is on the last page.
     pub(super) fn has_floats(&self) -> bool {
         !self.floats.is_empty()
