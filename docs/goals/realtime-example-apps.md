@@ -17,6 +17,10 @@ stages:
     status: open
     context: [website/src/content/docs/guides/how-to-use/index.mdx, website/astro.config.ts]
   - id: 4
+    title: "a request's wall_time no longer ends a WebSocket or an event stream it upgraded"
+    status: open
+    context: [docs/rules/concurrency/a-connection-is-a-root-isolate.md, docs/rules/http-server/connection-bounds-are-finite.md, website/src/content/docs/guides/production/security-checklist.mdx]
+  - id: 5
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -66,17 +70,25 @@ says which of the two features to pick.
    the scripts write the page only with `textContent` and `append`.
 3. **A strict `Content-Security-Policy`** through `[http.headers] content_security_policy` in each
    app's `nvs.toml`: `default-src 'none'`, scripts, styles and connections from `'self'` only. No
-   inline script or style is added to either app.
+   inline script or style is added to either app. One line of configuration covers every response,
+   error pages and static files too, where a `Response::setHeader` covers only the responses the
+   program writes. The test reads the setting with `Core\Config::get`, because `Test::request`
+   returns only the headers the program sets (`apps/chat/src/AppTest.nvs:87`). Poll sets its policy
+   with `setHeader` in `apps/poll/public/index.nvs` and moves to this.
 4. **Identity:** chat keeps the visitor's name in `Core\Session`, read by the upgrade request, and
    passes only the name and the room to the connection through `args:`. Poll gives each browser a
    long-lived voter id, and a second vote from the same browser moves that vote. A login is the
    reader's to add, and each page says so.
 5. **Topic names are built from checked values only** (a room from the app's own list, a poll id from
    a `uint` route parameter), and the published value carries no secret.
-6. **`deploy/` is one shape in both apps:** `deploy/Caddyfile`, `deploy/nginx.conf` and one
-   production configuration file the operator passes. Stage 1 makes the two apps agree on it; the
-   shape the two writers chose independently is reconciled to the simpler one, and the page's
-   `## Deploy it` walks through exactly those files.
+6. **`deploy/` is one shape in both apps:** `deploy/Caddyfile`, `deploy/nginx.conf` and
+   `deploy/production.toml`, which holds only what production changes and is passed after the base:
+   `nvs serve public/index.nvs --config nvs.toml --config deploy/production.toml`. This is poll's
+   shape. Chat's `production.toml` is two `[[include]]` lines over `deploy/server.toml`, because an
+   included file overrides the file that includes it (`nvs config dump --origin` shows it). That is
+   three files to read where two flags do, so chat's `server.toml` becomes its `production.toml`, and
+   its page, README and `nvs service install` line follow. Each page's `## Deploy it` walks through
+   exactly these files.
 7. **Topics stay in one process.** Neither app adds a broker. Each page says that several machines
    need a message queue in application code (`rule:core-classes/topic`).
 8. **Tests:** unit tests use the in-memory `scratch` database; a live test (`#[Test(server: true)]`)
@@ -86,7 +98,7 @@ says which of the two features to pick.
    `.agent-tmp/`, served by `nvs serve` on a free port, `NVS_BIN` honoured, skipped without Chromium
    unless `NV_BROWSER` is set. It is added to CI's `browser` job and to the `browser` list in
    `tools/nv/cmd/ci-changes.ts`, with `apps/chat/` and `apps/poll/`.
-10. **Lanes:** stage 1 first. Stages 2 and 3 touch disjoint files and may run as side goals once
+10. **Lanes:** stage 1 first. Stages 2, 3 and 4 touch disjoint files and may run as side goals once
     stage 1 is committed.
 
 ## Stages
@@ -97,7 +109,9 @@ says which of the two features to pick.
 the apps with their pages.
 
 - [ ] Make `apps/chat/deploy/` and `apps/poll/deploy/` the same shape (decision 6), and each page's
-  `## Deploy it` match its files. `apps/chat/deploy/Caddyfile:1`, `apps/poll/deploy/Caddyfile:1`
+  `## Deploy it` match its files. `apps/chat/deploy/production.toml:1`, `apps/poll/deploy/production.toml:1`
+- [ ] Move poll's policy to `[http.headers]`, and its test to `Core\Config::get` (decision 3).
+  `apps/poll/public/index.nvs:1`
 - [ ] `bun nv site --check apps --nvs target/release/nvs.exe` is green; it runs `nvs test .` and
   serves `/` for every app. `tools/nv/cmd/site.ts:1913`
 - [ ] `bun nv site --check structure guides prose stale` and `bun nv proofs --comments` over every
@@ -135,7 +149,30 @@ the apps with their pages.
 - [ ] Add it to the `how-to-use` sidebar group in `website/astro.config.ts:1` and its index.
 - [ ] Link it from the two app pages' `## Read more`.
 
-### 4. the goal is verified once, and every failure is fixed
+### 4. a request's wall_time no longer ends a WebSocket or an event stream it upgraded
+
+**Does:** settles which bound ends a long-lived connection, so the security checklist's advice and the
+two apps work together.
+
+Found on 2026-11-05: with `[limits] wall_time = "2s"`, `curl -N /polls/1/events` closes after 2.1
+seconds, and every `EventSource` reconnects over and over. The security checklist tells operators to
+set `wall_time`, and `limits:` on an upgrade only narrows, so an app cannot exempt its streams. A
+connection already has its own finite bounds, `[server.connection] idle_timeout` and `max_lifetime`
+(`rule:http-server/connection-bounds-are-finite`), and is a root isolate with its own budget
+(`rule:concurrency/a-connection-is-a-root-isolate`). The session decides by the priority ordering and
+records the decision in those rules. The safe default: `wall_time` bounds the request that upgrades,
+`max_lifetime` bounds the connection, and `memory` and CPU time apply to both.
+
+- [ ] Reproduce it with a Rust test over a served event stream and a WebSocket under a short
+  `wall_time`. `crates/nvs-server/src/serve.rs:2539`
+- [ ] Fix it, or record why it stays, in both rule fragments, and run `bun nv rules --render`.
+  `docs/rules/concurrency/a-connection-is-a-root-isolate.md:1`
+- [ ] Make the checklist say what bounds a connection.
+  `website/src/content/docs/guides/production/security-checklist.mdx:25`
+- [ ] Remove the note in each app's `deploy/production.toml` that explains why it sets no `wall_time`,
+  once the fix makes the note untrue. `apps/poll/deploy/production.toml:1`
+
+### 5. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
@@ -145,22 +182,30 @@ the apps with their pages.
 
 ### State
 
-Written by the interactive session of 2026-11-05. `apps/chat`, `apps/poll`, their pages and
-`website/src/lib/apps.ts` are on disk and may still be uncommitted; `git status -- apps website`
-says which. Two writers were making both apps production-ready (decisions 3, 4 and 6) when this goal
-was written. The three Novis fixes in *Why* are committed apart from the apps.
+Both apps and their pages are committed with production setups: a session (chat), one vote per
+browser (poll), a strict CSP, and `deploy/` with Caddy, nginx and production settings. Each passes
+`nvs test .` with 22 tests, real WebSocket and event-stream tests among them, and `bun nv site
+--check apps` passes for both. Its only red is Paperwork's three PDF copies, which a binary built
+after `d6910ac5a6` writes differently; that is not this goal's. The two apps still differ in where
+the CSP is set and in the shape of `deploy/` (decisions 3 and 6).
 
 ### Next
 
 **Stage 1**, over `apps/chat/`, `apps/poll/` and the two pages; no gate.
 
-- [ ] Reconcile `deploy/`. `apps/chat/deploy/Caddyfile:1`
-- [ ] `bun nv site --check apps --nvs target/release/nvs.exe`. `tools/nv/cmd/site.ts:1913`
-- [ ] The prose and website checks. `website/src/content/docs/guides/example-apps/chat.mdx:1`
-- [ ] The real test output on each page. `website/src/content/docs/guides/example-apps/poll.mdx:66`
-- [ ] Commit. `website/src/content/docs/guides/example-apps/index.mdx:1`
+- [ ] Chat's `deploy/` takes decision 6's shape. `apps/chat/deploy/production.toml:1`
+- [ ] Poll's policy takes decision 3's place. `apps/poll/public/index.nvs:1`
+- [ ] `bun nv site --check apps` and the prose and website checks. `tools/nv/cmd/site.ts:1913`
+- [ ] The real test output on each page. `website/src/content/docs/guides/example-apps/chat.mdx:1`
+- [ ] Commit. `website/src/content/docs/guides/example-apps/poll.mdx:1`
 
 ### Backlog
+
+- `[http.headers] content_security_policy` that already names `frame-ancestors 'none'` is sent with
+  Novis's own `frame-ancestors 'none'` appended a second time; harmless, and both apps leave it out
+  of their policy for now (`crates/nvs-server/src/secure.rs:1`).
+- Whether `connect-src 'self'` allows `wss:` to the same host in every supported browser; CSP Level 3
+  says it does, and stage 2's Chromium test shows it for Chromium (`apps/chat/nvs.toml:14`).
 
 - A screenshot of each app on its page, if `bun nv site --shoot` grows an app shot that is not the
   debug viewer (`tools/nv/cmd/site.ts:200`).
