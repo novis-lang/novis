@@ -30,7 +30,7 @@ stages:
     context: [extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/boxes.rs, extensions/pdf/src/css/mod.rs]
   - id: 7
     title: "page counters restart, unknown page selectors and @media features are reported, and margin boxes report their overflow"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/margin.rs, extensions/pdf/src/paginate/mod.rs, extensions/pdf/src/css/mod.rs, extensions/pdf/src/lib.rs]
   - id: 8
     title: "the pagination and table classes the engine already handles are pinned by tests"
@@ -310,6 +310,19 @@ handled but untested.
     presentational hints that sort under every author rule. Parley 0.12 takes `line-height` and
     `TextWrapMode` per span and `last_line_alignment`, so decision 9's three are implemented.
     Cost: one layout pass for a monolithic box, freed when it is placed.
+18. **Page-level reading.** `@media` size features test the first page's box (the whole page,
+    as Media Queries says for paged media), from the last readable `size` of the unnamed
+    `@page` rules, `:first` over the rest. The cascade reads the sheets at A4, and once more at
+    that size when a query tested a size and the size differs; a `size` set inside a feature
+    query is not read a third time, so the reading never loops. Range syntax (`width >= 10cm`)
+    is reported as an unknown feature. `counter-reset: page` with no number restarts at 1, the
+    first reset on a page wins, and `target-counter(…, page)` and a header function's page
+    number keep counting physical pages. A margin box's overflow is listed as `@<box name>`, as
+    `wit/pdf.wit` already said, with its text or `element(name)`, and a box that header markup
+    replaces is not listed. A sheet with a UTF-8 byte order mark is UTF-8; any other encoding is
+    reported as `<link>` with its `href`, never guessed. Corner boxes align by css-page-3: a left
+    corner `right`, a right corner `left`, both `middle`. Cost: a second parse of the sheets for
+    a document that tests a page size it changes; nothing per request otherwise.
 
 ## Stages
 
@@ -470,20 +483,20 @@ with tests in the new `extensions/pdf/tests/boxes.rs`.
 
 **Does:** finishes the page-level findings, with tests in the new `extensions/pdf/tests/pages.rs`.
 
-- [ ] `counter-reset: page N` on an element restarts the page number on the page that element starts.
+- [x] `counter-reset: page N` on an element restarts the page number on the page that element starts.
   `counter(pages)` stays the total. `extensions/pdf/src/layout/margin.rs:187`
-- [ ] An `@page` pseudo-class outside `:first`, `:left`, `:right` and `:blank` is reported in
+- [x] An `@page` pseudo-class outside `:first`, `:left`, `:right` and `:blank` is reported in
   `dropped`. `extensions/pdf/src/paginate/mod.rs:147`, `extensions/pdf/src/css/mod.rs:421`
-- [ ] `@media` evaluates its type and the `width`, `height` and `orientation` features against the
+- [x] `@media` evaluates its type and the `width`, `height` and `orientation` features against the
   page size, and reports any other feature. `extensions/pdf/src/css/mod.rs:318`
-- [ ] A linked stylesheet that is not UTF-8 is reported. `extensions/pdf/src/css/mod.rs:674`
-- [ ] A CSS margin box or `element()` taller than its margin is listed in `Rendered::overflows`.
+- [x] A linked stylesheet that is not UTF-8 is reported. `extensions/pdf/src/css/mod.rs:674`
+- [x] A CSS margin box or `element()` taller than its margin is listed in `Rendered::overflows`.
   `extensions/pdf/src/layout/margin.rs:9`
-- [ ] Corner margin boxes take the css-page-3 default alignment. Read the spec's table first; the audit
+- [x] Corner margin boxes take the css-page-3 default alignment. Read the spec's table first; the audit
   remembered top-left and bottom-left as right, and top-right and bottom-right as left.
   `extensions/pdf/src/paginate/mod.rs:264`
-- [ ] Write the six tests the `pages` check names. `extensions/pdf/tests/pages.rs:1`
-- [ ] Run the `pages` check's command once: green.
+- [x] Write the six tests the `pages` check names. `extensions/pdf/tests/pages.rs:1`
+- [x] Run the `pages` check's command once: green.
 
 ### 8. the pagination and table classes the engine already handles are pinned by tests
 
@@ -537,41 +550,39 @@ check once both end.
 
 ### State
 
-Stages 1 to 6 are done; `boxes` ran once, 8 of 8 green. Decision 17 records stage 6's calls.
+Stages 1 to 7 are done; `pages` ran once, 6 of 6 green. Decision 18 records stage 7's calls.
 
-- Negative margins: `block::Margin` (`extensions/pdf/src/layout/block.rs`) is `Flow::pending`,
-  the largest positive margin plus the most negative one; flex, table and text read it with
-  `get()`.
-- `overflow`: `BoxGeometry::clip` and `BoxGeometry::height`, read in `block::geometry`.
-  `Flow::close` wraps a clipping box's content in an `Item::Begin` clipped to its padding box
-  per page slice (`UNCUT` reaches past the page on the side it does not clip) and caps its
-  height. `Cx::run` sends a box `Flow::whole` names to `Cx::monolith` (`text.rs`), which lays
-  it out with `Cx::lay` and places it with `Flow::monolith`. `Flow::open` is now `enter` and
-  `open_at`.
-- `visibility`: `Span::hidden` skips a run's glyphs, decorations and links, `Decor::visible`
-  makes `boxes::paint` draw nothing, and a hidden image gets an empty draw rectangle
-  (`image.rs`), which the flow skips. `Row::collapsed` leaves a row out of `order` in `Cx::table`.
-- `Span::line_height` and `Span::wrap` go to parley per span (`text.rs` `properties`), and
-  `Para::options` passes `text-align-last` as `last_line_alignment`.
-- `<ol type>`: `Decl::hint` and `list_type_hint` (`extensions/pdf/src/css/mod.rs`), sorted under
-  every author rule in `Cascade::matched`. `reversed`: `Counter::step`, `Counters::reverse`
-  (`inline.rs`).
+- `@media`: `Collector::media` (`extensions/pdf/src/css/mod.rs`) with `queries`,
+  `query_parts` and `feature`; `media_applies` is gone. `cascade` calls `collect` (the sheet
+  walk, now a function of its own) at A4, and again at `first_page_size` when
+  `Collector::sized`; `computed` is the rest of the old `cascade`. `@import` reads its media
+  list from the raw text after the reference, so a feature in it is read.
+- `@page` selectors: `paginate::selector_reads`, checked in `Collector::at_rule`.
+- A non-UTF-8 `<link>` sheet: dropped as `("", href, "<link>")` in `collect`.
+- `counter-reset: page`: `Builder::count` (`inline.rs`) pushes a `Fact::Counter` named `page`
+  for every element, and `Index::restart` (`margin.rs`) gives `collect` each page's number.
+- Margin overflow: `Page::overflows` (`layout.rs`), filled in `margin::draw`, emptied per side by
+  `overlay`, and read by `lib.rs` `margin_overflows` into `first` and `finish`.
+- Corners: `paginate::alignment`.
 - The sweep's reds were stale again: `env-secret-proofs` has no log, and nightly 41813182715 is
   the run already traced to fixed commits.
 
 ### Next
 
-Stage 7, in item order, tests in the new `extensions/pdf/tests/pages.rs`. First
-`counter-reset: page N` (`extensions/pdf/src/paginate/mod.rs:368`, the page and pages numbers at
-`paginate/mod.rs:391`), then unknown `@page` pseudo-classes reported (`paginate/mod.rs:147`,
-`extensions/pdf/src/css/mod.rs:421`), then `@media` by type and the `width`, `height` and
-`orientation` features against the page size (`css/mod.rs:352` `media_applies`), then a linked
-sheet that is not UTF-8 reported (`css/mod.rs:710`), then a tall margin box or `element()` in
-`Rendered::overflows` (`extensions/pdf/src/layout/margin.rs:9`), then the corner alignment from
-css-page-3's table (`paginate/mod.rs:264`), the six `pages` tests and one run of the `pages`
-check.
+Stage 8, by its `**Split:**` line: two writing subagents side by side, one writing
+`extensions/pdf/tests/edge_pagination.rs` (the first thirteen `pinned-pagination` tests) and one
+`extensions/pdf/tests/edge_tables.rs` (the last seven), each given the helpers at
+`extensions/pdf/tests/paginate.rs:8` and `extensions/pdf/tests/pages.rs:10`. Then the session
+builds, runs the check once, and fixes a red test's cause or backlogs it. Stage 9 the same way,
+then stage 10.
 
-Tests that may go red at stage 10, from stage 6: a test with a box whose `overflow` is not
+Tests that may go red at stage 10, from stage 7: a test whose `<style media>`, `<link media>`
+or `@import` list has a feature such as `(color)` now sees it in `dropped`, and one with
+`@media print and (…)` of width, height or orientation now sees the rules applied when they
+hold. A test of an `@page :nth(…)` selector now sees it in `dropped`. A test that rendered a
+margin box taller than its margin now sees an entry in `overflows` (`crates/nvs-ext/tests/pdf.rs`
+asserts exact `overflows` lists). A test that read a corner box's text position now sees it
+aligned toward the page. From stage 6: a test with a box whose `overflow` is not
 `visible` now sees the margins inside it held, with no collapse through its top or bottom, and
 one with a clipped box with a `height` sees it moved whole to the next page. A test with
 negative margins now sees them pull the box up. A test that relied on `<ol type>` being ignored
@@ -592,3 +603,7 @@ and does not fit under it now sees the box split there, not moved whole to the n
 with a flex row taller than a page now sees its items split and not stretched.
 
 ### Backlog
+
+- `target-counter(…, page)` and a header function's page number count physical pages and do
+  not follow `counter-reset: page` (decision 18). Following it needs the restart map before the
+  last layout pass. `extensions/pdf/src/layout/inline.rs:556`
