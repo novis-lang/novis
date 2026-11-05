@@ -114,8 +114,8 @@ pub struct PageFacts {
     pub marks: Vec<(String, String)>,
 }
 
-/// Markup taller than its area: the page from 1, `header`, `footer` or a slot's name, and the
-/// markup.
+/// Markup taller than its area: the page from 1, `header`, `footer`, a margin box's at-rule
+/// name such as `@top-center`, or a slot's name, and the markup, or a margin box's text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Overflow {
     pub page: u64,
@@ -253,7 +253,7 @@ fn lay_out(document: &Document, heights: &Heights) -> Result<(Kept, Rendered), E
         pages: facts(&laid),
         dropped: styles.dropped.clone(),
         missing_glyphs: laid.missing.clone(),
-        overflows: Vec::new(),
+        overflows: margin_overflows(&laid),
     };
     let kept = Kept {
         laid,
@@ -372,16 +372,35 @@ pub fn draw(kept: Kept, pages: &[Markup]) -> Result<(Kept, Vec<Overflow>), Error
     Ok((kept, overflows))
 }
 
-/// The file of `kept`'s pages, with `overflows`.
+/// The file of `kept`'s pages, with its margin boxes taller than their areas and then
+/// `overflows`.
 fn finish(kept: Kept, overflows: Vec<Overflow>) -> Result<Rendered, Error> {
     let data = write::write(&kept.laid, &kept.info, &kept.options, kept.invoice)?;
+    let mut all = margin_overflows(&kept.laid);
+    all.extend(overflows);
     Ok(Rendered {
         data,
         pages: facts(&kept.laid),
         dropped: kept.dropped,
         missing_glyphs: kept.laid.missing,
-        overflows,
+        overflows: all,
     })
+}
+
+/// Each margin box of `laid` taller than its area, by page. Its area is the box's name with
+/// an `@`, such as `@top-center`.
+fn margin_overflows(laid: &layout::Laid) -> Vec<Overflow> {
+    let mut out = Vec::new();
+    for (index, page) in laid.pages.iter().enumerate() {
+        for (name, text) in &page.overflows {
+            out.push(Overflow {
+                page: index as u64 + 1,
+                area: format!("@{name}"),
+                text: text.clone(),
+            });
+        }
+    }
+    out
 }
 
 fn facts(laid: &layout::Laid) -> Vec<PageFacts> {

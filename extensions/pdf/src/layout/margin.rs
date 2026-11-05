@@ -4,10 +4,12 @@
 //! A margin box is made when its `content` is not `none` or `normal`. Its text is laid out as a
 //! block of its own, with the box's own margins, borders, padding and background, and with the
 //! text properties the box gives or else the root element's. A box along the top or the bottom is
-//! aligned to its own end of the side, `center` in the middle, and every other box is centred,
-//! unless it gives a `text-align`. It sits at the top, middle or bottom of its area by its
-//! `vertical-align`: in the middle unless it is at an end of the left or right side. Text taller
-//! than its area is drawn past it.
+//! aligned to its own end of the side, `center` in the middle, a corner box toward the page's
+//! content, and every other box is centred, unless it gives a `text-align` (css-page-3's table,
+//! [`paginate::alignment`]). It sits at the top, middle or bottom of its area by its
+//! `vertical-align`: in the middle unless it is at an end of the left or right side. A box, or
+//! a running element, taller than its area is drawn past it and listed in the page's
+//! [`Page::overflows`], unless markup over that margin replaces it ([`overlay`]).
 //!
 //! **Running elements.** An element under `position: running(name)` is laid out as an
 //! inline-block is, at the width of the first page's content box, and takes no room in the flow.
@@ -27,6 +29,12 @@
 //! records a change only for the names the `@page` margin boxes read, at the element that
 //! resets or increments the counter, or where an inner counter of the name ends. A counter
 //! keeps its last value when its last scope ends.
+//!
+//! `counter(page)` is the page's number: 1 on the first page and one more on each page after,
+//! unless an element on the page resets it. The first `counter-reset: page N` of an element
+//! that starts on a page sets that page's number to N, or to 1 when it gives no number, and the
+//! pages after it count on from there. `counter(pages)` is always the number of pages in the
+//! file. `target-counter(…, page)` counts every page from 1, with no reset.
 //!
 //! **Page facts.** Each page carries its named strings, each name's value as `string(name)`
 //! reads it there, and the `data-mark` marks set on it, from the top of the page down. A mark is
@@ -216,6 +224,13 @@ impl<'a> Index<'a> {
             .unwrap_or(0)
     }
 
+    /// The number the first `counter-reset: page` on the page at `page` restarts it at.
+    fn restart(&self, page: usize) -> Option<i64> {
+        self.reads.set(self.reads.get() + 1);
+        let first = *self.counters.get("page")?.on(page).first()?;
+        self.strings[first].value.parse().ok()
+    }
+
     /// The running element named `name` that `which` takes on the page at `page`, as
     /// [`Index::string`] takes a named string.
     fn pick(&self, name: &str, page: usize, which: Which) -> Option<&'a Running> {
@@ -237,13 +252,14 @@ enum Content {
 }
 
 /// A margin box ready to lay out: its name, its page, its area's left edge, top, width and
-/// height, where it sits in the area's height, and what it draws.
+/// height, where it sits in the area's height, what it draws, and the text an overflow lists.
 pub(super) struct MarginBox {
     name: &'static str,
     page: usize,
     rect: [f32; 4],
     vertical: &'static str,
     content: Content,
+    text: String,
 }
 
 /// What fills a margin box before it is placed: its text, or the running element it draws.
@@ -263,7 +279,11 @@ pub(super) fn collect<'a>(
 ) -> Vec<MarginBox> {
     let count = pages.len() as i64;
     let mut out = Vec::new();
+    let mut number = 0i64;
     for (index, page) in pages.iter().enumerate() {
+        number = found
+            .restart(index)
+            .unwrap_or_else(|| number.saturating_add(1));
         let matched = sheet.matched(index, page.blank, page.name.as_deref());
         let named = |name: &str, which| found.string(name, index, which);
         let counted = |name: &str| found.counter(name, index);
@@ -276,7 +296,6 @@ pub(super) fn collect<'a>(
                     let one = found.pick(&element, index, which)?;
                     return Some((*name, Fill::Element(one)));
                 }
-                let number = index as i64 + 1;
                 let text =
                     paginate::content(content, number, count, &counter_text, &named, &counted)?;
                 Some((*name, Fill::Text(text)))
@@ -318,6 +337,7 @@ pub(super) fn collect<'a>(
                             align,
                             missing: one.missing.clone(),
                         },
+                        text: format!("element({})", one.name),
                     });
                     continue;
                 }
@@ -359,6 +379,7 @@ pub(super) fn collect<'a>(
                     .flatten()
                     .collect(),
                 ),
+                text: text.clone(),
             });
         }
     }
@@ -398,6 +419,9 @@ pub(super) fn draw(cx: &mut Cx<'_>, boxes: Vec<MarginBox>, pages: &mut [Page]) {
         };
         carry(&mut cx.missing, lost, one.page as u64 + 1);
         let page = &mut pages[one.page];
+        if size[1] > height + 0.01 {
+            page.overflows.push((one.name, one.text));
+        }
         let start = page.items.len();
         page.items
             .extend(items.into_iter().map(|item| shift(item, x + dx, y + dy)));
@@ -555,6 +579,7 @@ fn clear(page: &mut Page, side: &str) {
         !gone.iter().any(|range| range.contains(&(at - 1)))
     });
     page.boxes.retain(|(name, _)| !name.starts_with(side));
+    page.overflows.retain(|(name, _)| !name.starts_with(side));
     for (_, range) in &mut page.boxes {
         let before: usize = gone
             .iter()

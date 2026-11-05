@@ -398,7 +398,18 @@ impl Builder<'_, '_> {
     /// or `list_item` changes, and of each other one in scope whose value changed since its
     /// last record, as when an inner counter of the name ends. A counter whose last scope ends
     /// keeps its last value. A document whose margin boxes read no counter skips this.
+    ///
+    /// A `counter-reset` of `page` is recorded whatever the margin boxes read: it restarts the
+    /// page numbers at its number, or at 1 when it gives none, on the page the element starts.
     fn count(&mut self, counters: &Counters, style: Option<&Style>, list_item: bool) {
+        let restart = style.map(|s| counter_list(s, "counter-reset", 1));
+        for (_, value) in restart.iter().flatten().filter(|(name, _)| name == "page") {
+            self.blocks.push(Block::String {
+                name: "page".to_owned(),
+                value: value.to_string(),
+                fact: Fact::Counter,
+            });
+        }
         if self.read.is_empty() {
             return;
         }

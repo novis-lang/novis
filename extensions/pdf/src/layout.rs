@@ -384,6 +384,9 @@ pub struct Page {
     pub marks: Vec<(String, String)>,
     /// Each margin box drawn on it: its name and its items' range in [`Page::items`].
     pub boxes: Vec<(&'static str, Range<usize>)>,
+    /// Each margin box drawn on it that is taller than its area: its name and its text, or
+    /// `element(name)` for a running element.
+    pub overflows: Vec<(&'static str, String)>,
     /// Each `<slot name>` of a table row drawn on it: its name, and its cell's content box as
     /// its left edge, top, width and height on the page.
     pub slots: Vec<(String, [f32; 4])>,

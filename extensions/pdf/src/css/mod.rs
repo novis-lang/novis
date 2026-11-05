@@ -3,10 +3,17 @@
 //! attributes (`rule:core-classes/pdf-css-subset`).
 //!
 //! The engine has its own cascade over `cssparser` and `selectors`. A sheet is read into rules,
-//! each a selector list and its declarations. `@media` applies its rules when a query names
-//! `print` or `all`, and never `screen`; a query with a media feature does not apply. `@page`
-//! and `@font-face` are kept for the stages that lay pages out and load fonts, with `@page`'s
-//! margin boxes beside its declarations. Any other at-rule, a selector outside the subset, a
+//! each a selector list and its declarations. `@media`, an `@import`'s media list and a
+//! `media` attribute apply when one query does: its type is `print`, `all` or none, never
+//! `screen`, and each of its `width`, `height`, `min-` and `max-` forms and `orientation`
+//! features holds for the first page's box, from the `size` of the `@page` rules without a page
+//! name ([`Collector::media`]). Any other feature is reported, and its query does not apply. A
+//! document that tests a size and sets another is read a second time at that size, and a size
+//! a rule inside a feature query sets is not read a third time. `@page`, with a selector the
+//! engine reads (`paginate::selector_reads`), and `@font-face` are kept for the stages that lay
+//! pages out and load fonts, with `@page`'s margin boxes beside its declarations. A linked sheet
+//! is read as UTF-8, and one that is not is reported as its `<link>` with its `href`. Any
+//! other at-rule, an `@page` selector the engine does not read, a selector outside the subset, a
 //! property outside it, and a value its property does not take are dropped and reported in
 //! [`Styles::dropped`] with the selector and the source position, never guessed at. A number that
 //! is not finite is a value no property takes, read as written or computed: `1e39px`, a `calc()`
@@ -33,7 +40,9 @@
 //! reference is not found that way, and its declarations are reported at the position the search
 //! reached. A position in a linked or imported sheet counts in that sheet.
 //!
-//! Cost: the selectors are filed once by the id, class or tag their rightmost compound needs, and
+//! Cost: a document whose `@media` tests a page size it then changes parses its sheets twice,
+//! and the first reading is freed before the second. The selectors are filed once by the id,
+//! class or tag their rightmost compound needs, and
 //! each element is tested only against the selectors of its own id, classes and tag and those
 //! that need none of them ([`Styles::rule_tests`] counts the tests). The pseudo-element passes
 //! test only selectors that end in one. Memory: one [`Style`] per element, holding its declared
@@ -332,6 +341,10 @@ struct Collector<'a, 'b> {
     pages: Vec<CollectedPage>,
     font_faces: Vec<Vec<(String, String)>>,
     dropped: Vec<Dropped>,
+    /// The page box's width and height in points that `@media`'s size features test.
+    page: (f32, f32),
+    /// Whether a query tested `width`, `height` or `orientation`.
+    sized: bool,
 }
 
 type Error = ParseError<()>;
@@ -348,32 +361,158 @@ fn prelude(p: &mut Parser<'_>) -> (String, bool) {
     (text, block)
 }
 
-/// Whether a media query list applies to print.
-fn media_applies(list: &str) -> bool {
-    if list.trim().is_empty() {
-        return true;
+/// One media query's words outside parentheses, lower-cased, and the text inside each pair of
+/// parentheses, its features.
+fn query_parts(query: &str) -> (Vec<String>, Vec<String>) {
+    let (mut words, mut features) = (Vec::new(), Vec::new());
+    let (mut word, mut depth) = (String::new(), 0usize);
+    for c in query.chars() {
+        match c {
+            '(' => {
+                if depth == 0 && !word.is_empty() {
+                    words.push(std::mem::take(&mut word).to_ascii_lowercase());
+                }
+                if depth > 0 {
+                    word.push(c);
+                }
+                depth += 1;
+            }
+            ')' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    features.push(std::mem::take(&mut word));
+                } else {
+                    word.push(c);
+                }
+            }
+            c if depth == 0 && c.is_whitespace() => {
+                if !word.is_empty() {
+                    words.push(std::mem::take(&mut word).to_ascii_lowercase());
+                }
+            }
+            c => word.push(c),
+        }
     }
-    list.split(',').any(|query| {
-        let words: Vec<String> = query
-            .split_ascii_whitespace()
-            .map(str::to_ascii_lowercase)
-            .collect();
-        let mut words = words.as_slice();
-        if words.first().is_some_and(|w| w == "only") {
-            words = &words[1..];
+    if !word.is_empty() && depth == 0 {
+        words.push(word.to_ascii_lowercase());
+    }
+    (words, features)
+}
+
+/// Splits a media query list at its top-level commas.
+fn queries(list: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut start, mut depth) = (0, 0usize);
+    for (i, c) in list.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                out.push(&list[start..i]);
+                start = i + 1;
+            }
+            _ => {}
         }
-        let not = words.first().is_some_and(|w| w == "not");
-        if not {
-            words = &words[1..];
-        }
-        match words {
-            [kind] if !kind.starts_with('(') => (kind == "print" || kind == "all") != not,
-            _ => false,
-        }
+    }
+    out.push(&list[start..]);
+    out
+}
+
+/// Whether the media feature `text`, such as `min-width: 15cm`, holds for a page box of
+/// `page`'s width and height in points, or `None` for a feature the engine does not read. A
+/// length is compared with the same 0.01 pt tolerance as a fit test.
+fn feature((width, height): (f32, f32), text: &str) -> Option<bool> {
+    let (name, value) = text.split_once(':')?;
+    let name = name.trim().to_ascii_lowercase();
+    if name == "orientation" {
+        return match value.trim().to_ascii_lowercase().as_str() {
+            "portrait" => Some(height >= width),
+            "landscape" => Some(width > height),
+            _ => None,
+        };
+    }
+    let (range, side) = match name.split_once('-') {
+        Some((range @ ("min" | "max"), side)) => (range, side),
+        None => ("", name.as_str()),
+        _ => return None,
+    };
+    let actual = match side {
+        "width" => width,
+        "height" => height,
+        _ => return None,
+    };
+    let [one] = value::components(value)?.try_into().ok()?;
+    let sum = value::length(&one)?;
+    let wanted = sum.compute(DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE);
+    if sum.percent != 0.0 || !wanted.pt.is_finite() {
+        return None;
+    }
+    Some(match range {
+        "min" => actual + 0.01 >= wanted.pt,
+        "max" => actual <= wanted.pt + 0.01,
+        _ => (actual - wanted.pt).abs() <= 0.01,
     })
 }
 
 impl Collector<'_, '_> {
+    /// Whether the media query list `list` applies to a printed page of [`Collector::page`]'s
+    /// size. A query applies when its type is `print`, `all` or none, and each of its features
+    /// holds, and `not` turns that round. A feature outside `width`, `height`, their `min-` and
+    /// `max-` forms and `orientation`, and a query that does not read, are reported at the
+    /// position `at` gives, and that query does not apply.
+    fn media(&mut self, list: &str, at: &mut dyn FnMut() -> (u64, u64)) -> bool {
+        if list.trim().is_empty() {
+            return true;
+        }
+        let mut applies = false;
+        for query in queries(list) {
+            let (words, features) = query_parts(query);
+            let mut words = words.as_slice();
+            if words.first().is_some_and(|w| w == "only") {
+                words = &words[1..];
+            }
+            let not = words.first().is_some_and(|w| w == "not");
+            if not {
+                words = &words[1..];
+            }
+            let (kind, rest) = match words.split_first() {
+                Some((kind, rest)) if kind != "and" => (Some(kind.as_str()), rest),
+                _ => (None, words),
+            };
+            // `print and (a) and (b)` has as many `and`s as features, and `(a) and (b)` one
+            // fewer.
+            let ands = match kind {
+                Some(_) => features.len(),
+                None => features.len().saturating_sub(1),
+            };
+            let joined = rest.iter().all(|w| w == "and")
+                && rest.len() == ands
+                && (kind.is_some() || !features.is_empty());
+            if !joined {
+                let place = at();
+                self.drop("@media", query.trim(), "", place);
+                continue;
+            }
+            let mut holds = kind.is_none_or(|kind| kind == "print" || kind == "all");
+            let mut known = true;
+            for one in &features {
+                match feature(self.page, one) {
+                    Some(result) => {
+                        self.sized = true;
+                        holds &= result;
+                    }
+                    None => {
+                        known = false;
+                        let place = at();
+                        self.drop("@media", &format!("({})", one.trim()), "", place);
+                    }
+                }
+            }
+            applies |= known && holds != not;
+        }
+        applies
+    }
+
     fn drop(&mut self, property: &str, value: &str, selector: &str, (line, column): (u64, u64)) {
         self.dropped.push(Dropped {
             property: property.to_owned(),
@@ -444,7 +583,7 @@ impl Collector<'_, '_> {
         let (text, block) = prelude(p);
         match (name, block) {
             ("media", true) => {
-                if media_applies(&text) {
+                if self.media(&text, &mut || at) {
                     let _ = p.parse_nested_block(|p| {
                         self.rules(p, origin, depth);
                         Ok::<_, Error>(())
@@ -452,6 +591,9 @@ impl Collector<'_, '_> {
                 }
             }
             ("import", false) => self.import(&text, at, depth),
+            ("page", true) if !crate::paginate::selector_reads(&text) => {
+                self.drop("", "", &format!("@page {text}"), at);
+            }
             ("page", true) => {
                 let mut boxes = Vec::new();
                 let selector = format!("@page {text}");
@@ -492,21 +634,21 @@ impl Collector<'_, '_> {
     }
 
     fn import(&mut self, text: &str, at: (u64, u64), depth: usize) {
-        let comps = value::components(text).unwrap_or_default();
-        let (reference, media) = match comps.split_first() {
-            Some((value::Comp::Url(r) | value::Comp::Str(r), rest)) => (r.clone(), rest),
+        // The reference is the first token, or a `url()` function whole, and the media query
+        // list is the text after it.
+        let mut parser = Parser::new(text);
+        if matches!(parser.next(), Ok(Token::Function(_))) {
+            let _ = parser.parse_nested_block(|p| {
+                while p.next().is_ok() {}
+                Ok::<_, Error>(())
+            });
+        }
+        let end = parser.position().byte_index();
+        let reference = match value::components(&text[..end]).as_deref() {
+            Some([value::Comp::Url(r) | value::Comp::Str(r)]) => r.clone(),
             _ => return self.drop("@import", text, "", at),
         };
-        let media_text = media
-            .iter()
-            .map(|c| match c {
-                value::Comp::Ident(w) => w.as_str(),
-                value::Comp::Comma => ",",
-                _ => "(",
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-        if !media_applies(&media_text) {
+        if !self.media(&text[end..], &mut || at) {
             return;
         }
         let css = match self.assets.resolve(&reference) {
@@ -657,6 +799,49 @@ fn split_important(raw: &str) -> (String, bool) {
 /// The computed styles of every element in `dom`, from its sheets in document order and its
 /// `style` attributes. `html` is the document's text, for the positions in [`Styles::dropped`].
 pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
+    let order = rendered_order(dom);
+    let a4 = (crate::layout::PAGE_WIDTH, crate::layout::PAGE_HEIGHT);
+    let (mut collector, mut attributes, mut user_agent) = collect(dom, html, assets, &order, a4);
+    // An `@media` size feature is tested against the first page's size, which the `@page`
+    // rules give, so a document that tests one and sets another size is read once more.
+    if collector.sized
+        && let Some(page) = first_page_size(&collector.pages)
+        && page != collector.page
+    {
+        (collector, attributes, user_agent) = collect(dom, html, assets, &order, page);
+    }
+    computed(dom, &order, &attributes, collector, user_agent)
+}
+
+/// The size the `size` of the `@page` rules without a page name gives the first page, a rule
+/// for `:first` over one for every page, or `None` when no such `size` reads.
+fn first_page_size(pages: &[CollectedPage]) -> Option<(f32, f32)> {
+    let mut found = None;
+    for wanted in ["", ":first"] {
+        for (selector, decls, _) in pages {
+            if !selector.trim().eq_ignore_ascii_case(wanted) {
+                continue;
+            }
+            for decl in decls.iter().filter(|d| d.property == "size") {
+                if let Some(size) = crate::paginate::read_size(&decl.value) {
+                    found = Some(size);
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The user-agent sheet, then the document's sheets and `style` attributes in document
+/// `order`, with `@media` size features tested against a page box of `page`'s size. Returns
+/// them with each element's attribute declarations and the user-agent sheet's rule count.
+fn collect<'a, 'b>(
+    dom: &Dom,
+    html: &str,
+    assets: &'a Assets<'b>,
+    order: &[usize],
+    page: (f32, f32),
+) -> (Collector<'a, 'b>, BTreeMap<usize, Vec<Decl>>, usize) {
     let mut source = Source::new(html);
     let mut collector = Collector {
         assets,
@@ -664,12 +849,13 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
         pages: Vec::new(),
         font_faces: Vec::new(),
         dropped: Vec::new(),
+        page,
+        sized: false,
     };
     collector.sheet(USER_AGENT, Origin::START, 0);
     let user_agent = collector.rules.len();
-    let order = rendered_order(dom);
     let mut attributes: BTreeMap<usize, Vec<Decl>> = BTreeMap::new();
-    for &at in &order {
+    for &at in order {
         let node = &dom.nodes[at];
         let Kind::Element { name, space, .. } = &node.kind else {
             continue;
@@ -684,10 +870,20 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
                 column: origin.column,
             });
         }
-        if *space != Space::Other
-            && name == "style"
-            && media_applies(node.attr("media").unwrap_or(""))
-        {
+        let sheet = (*space != Space::Other && name == "style")
+            || (*space == Space::Html
+                && name == "link"
+                && node.attr("rel").is_some_and(|rel| {
+                    rel.split_ascii_whitespace()
+                        .any(|w| w.eq_ignore_ascii_case("stylesheet"))
+                }));
+        // A query of a `media` attribute that is reported is reported at its element.
+        let applies = sheet
+            && collector.media(node.attr("media").unwrap_or(""), &mut || {
+                let origin = source.find(&format!("<{name}"));
+                (origin.line, origin.column)
+            });
+        if applies && name == "style" {
             let text: String = node
                 .children
                 .iter()
@@ -698,18 +894,19 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
                 .collect();
             let origin = source.find(&text);
             collector.sheet(&text, origin, 0);
-        } else if *space == Space::Html
-            && name == "link"
-            && node.attr("rel").is_some_and(|rel| {
-                rel.split_ascii_whitespace()
-                    .any(|w| w.eq_ignore_ascii_case("stylesheet"))
-            })
-            && media_applies(node.attr("media").unwrap_or(""))
+        } else if applies
             && let Some(href) = node.attr("href")
             && let Ok(bytes) = assets.resolve(href)
-            && let Ok(css) = std::str::from_utf8(&bytes)
         {
-            collector.sheet(css, Origin::START, 0);
+            // A sheet is read as UTF-8, with or without its byte order mark. A sheet in any
+            // other encoding is reported at its `<link>`, with its `href` as the value.
+            match std::str::from_utf8(&bytes) {
+                Ok(css) => collector.sheet(css.trim_start_matches('\u{feff}'), Origin::START, 0),
+                Err(_) => {
+                    let origin = source.find("<link");
+                    collector.drop("", href, "<link>", (origin.line, origin.column));
+                }
+            }
         }
         if *space == Space::Html
             && let Some(kind) = list_type_hint(name, node.attr("type"))
@@ -732,6 +929,18 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
             attributes.entry(at).or_default().extend(decls);
         }
     }
+    (collector, attributes, user_agent)
+}
+
+/// Each element's computed style in document `order`, from `collector`'s sheets and the
+/// attribute declarations, with the `@page` rules and font faces.
+fn computed(
+    dom: &Dom,
+    order: &[usize],
+    attributes: &BTreeMap<usize, Vec<Decl>>,
+    mut collector: Collector<'_, '_>,
+    user_agent: usize,
+) -> Styles {
     let mut cascade = Cascade {
         tree: Tree::new(dom),
         rules: &collector.rules,
@@ -748,7 +957,7 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
         ..Styles::default()
     };
     let empty = Style::default();
-    for &at in &order {
+    for &at in order {
         if !matches!(dom.nodes[at].kind, Kind::Element { .. }) {
             continue;
         }

@@ -9,7 +9,7 @@ What the subset holds, by family — the file is the list, this is the decision:
 
 | Family | In the subset |
 |---|---|
-| Cascade | type, class, id, attribute, descendant, child and sibling selectors, the structural pseudo-classes, `::before` and `::after`, specificity, inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` (never `screen`), `@font-face` |
+| Cascade | type, class, id, attribute, descendant, child and sibling selectors, the structural pseudo-classes, `::before` and `::after`, specificity, inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` (never `screen`) with the `width`, `height` and `orientation` features of the page, `@font-face` |
 | Text | fonts and the font chain, alignment with `justify`, `line-height`, indent, decoration, transform, spacing, `white-space`, `word-break`, `overflow-wrap`, `text-overflow: ellipsis`, `vertical-align`, `font-feature-settings`, bidi, CJK line breaking, `hyphens: auto` |
 | Boxes | margin, padding, borders (solid, dashed, dotted, double), `border-radius`, sizes with min and max, `box-sizing`, background colours, images and gradients, `outline`, `opacity`, `inline-block`, `display: none` |
 | Lists | markers (decimal, roman, alpha, disc), `counter-reset`, `counter-increment`, `content` |

@@ -4139,8 +4139,19 @@ drops with its selector and position, and each element the subset does not rende
 start tag, and `Rendered::missingGlyphs` lists each character no font has
 (`extensions/pdf/tests/layout.rs`). A length, a number or a page `size` that is not finite, as
 written or once computed, is dropped and listed like any value its property does not take, and a
-`var()` chain resolves each custom property once per element (`extensions/pdf/tests/hostile_input.rs`). `Rendered::overflows` lists margin, header, footer and slot
-markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). A `data-mark`, a `string-set`, a
+`var()` chain resolves each custom property once per element (`extensions/pdf/tests/hostile_input.rs`).
+`overflow` clips a box's content to its padding box, and a clipped box with a `height` is placed
+whole, so its clipped content adds no page. `visibility: hidden` keeps the space and draws
+nothing, `collapse` on a table row takes no space, negative margins collapse with the positive
+ones, a span's `white-space` and `line-height` and a block's `text-align-last` are applied, and
+`<ol type>` and `reversed` set the markers (`extensions/pdf/tests/boxes.rs`). `Rendered::overflows` lists margin, header, footer and slot
+markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). An `@page` selector with a
+pseudo-class other than `:first`, `:left`, `:right` and `:blank`, an `@media` feature other than
+`width`, `height` and `orientation` and their `min-` and `max-` forms, and a linked sheet that is not
+UTF-8 are dropped and listed. `@media` tests its features against the first page's size.
+`counter-reset: page` restarts the page numbers, a CSS margin box or running element taller than
+its margin is listed in `Rendered::overflows` under its at-rule name, and the corner boxes align
+toward the page by css-page-3's table (`extensions/pdf/tests/pages.rs`). A `data-mark`, a `string-set`, a
 running element and an `id` inside a table cell, an inline-block, a float or a flex item are on the
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width
@@ -4178,7 +4189,7 @@ What the subset holds, by family — the file is the list, this is the decision:
 
 | Family | In the subset |
 |---|---|
-| Cascade | type, class, id, attribute, descendant, child and sibling selectors, the structural pseudo-classes, `::before` and `::after`, specificity, inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` (never `screen`), `@font-face` |
+| Cascade | type, class, id, attribute, descendant, child and sibling selectors, the structural pseudo-classes, `::before` and `::after`, specificity, inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` (never `screen`) with the `width`, `height` and `orientation` features of the page, `@font-face` |
 | Text | fonts and the font chain, alignment with `justify`, `line-height`, indent, decoration, transform, spacing, `white-space`, `word-break`, `overflow-wrap`, `text-overflow: ellipsis`, `vertical-align`, `font-feature-settings`, bidi, CJK line breaking, `hyphens: auto` |
 | Boxes | margin, padding, borders (solid, dashed, dotted, double), `border-radius`, sizes with min and max, `box-sizing`, background colours, images and gradients, `outline`, `opacity`, `inline-block`, `display: none` |
 | Lists | markers (decimal, roman, alpha, disc), `counter-reset`, `counter-increment`, `content` |

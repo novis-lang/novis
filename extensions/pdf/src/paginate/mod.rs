@@ -8,7 +8,8 @@
 //! root element's `direction` is `ltr` and a left page when it is `rtl`, and the pages alternate
 //! from there. A page is `:blank` when a forced break to a `left`, `right`, `recto` or `verso`
 //! page left it empty (`layout`'s module doc). A selector with a page name matches a page
-//! of that name only. A page's name is the `page` of the first block box placed on it, or of the
+//! of that name only. A selector with any other pseudo-class, such as `:nth(2)`, is dropped and
+//! reported by the cascade ([`selector_reads`]). A page's name is the `page` of the first block box placed on it, or of the
 //! box it goes on with, and a block box whose `page` is `auto` has its parent's. A block box
 //! whose page name differs from the block box before it starts a new page.
 //!
@@ -88,6 +89,12 @@ struct Selector {
     blank: bool,
     left: bool,
     right: bool,
+}
+
+/// Whether `text` is a page selector the engine reads: a page name or none, then any of
+/// `:first`, `:blank`, `:left` and `:right`. The cascade drops and reports any other.
+pub fn selector_reads(text: &str) -> bool {
+    Selector::read(text).is_some()
 }
 
 impl Selector {
@@ -268,11 +275,13 @@ pub fn rect(name: &str, page: &PageBox, present: &dyn Fn(&str) -> bool) -> Optio
     })
 }
 
-/// The `text-align` and `vertical-align` the margin box `name` has when it gives none.
+/// The `text-align` and `vertical-align` the margin box `name` has when it gives none, from
+/// css-page-3's table: a corner box is aligned toward the page's content, so a left corner to
+/// its right and a right corner to its left.
 pub fn alignment(name: &str) -> (&'static str, &'static str) {
     let horizontal = match name {
-        "top-left" | "bottom-left" => "left",
-        "top-right" | "bottom-right" => "right",
+        "top-left" | "bottom-left" | "top-right-corner" | "bottom-right-corner" => "left",
+        "top-right" | "bottom-right" | "top-left-corner" | "bottom-left-corner" => "right",
         _ => "center",
     };
     let vertical = match name {

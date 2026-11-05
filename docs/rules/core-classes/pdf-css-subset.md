@@ -34,7 +34,13 @@ whole, so its clipped content adds no page. `visibility: hidden` keeps the space
 nothing, `collapse` on a table row takes no space, negative margins collapse with the positive
 ones, a span's `white-space` and `line-height` and a block's `text-align-last` are applied, and
 `<ol type>` and `reversed` set the markers (`extensions/pdf/tests/boxes.rs`). `Rendered::overflows` lists margin, header, footer and slot
-markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). A `data-mark`, a `string-set`, a
+markup taller than its area (`crates/nvs-ext/tests/pdf.rs`). An `@page` selector with a
+pseudo-class other than `:first`, `:left`, `:right` and `:blank`, an `@media` feature other than
+`width`, `height` and `orientation` and their `min-` and `max-` forms, and a linked sheet that is not
+UTF-8 are dropped and listed. `@media` tests its features against the first page's size.
+`counter-reset: page` restarts the page numbers, a CSS margin box or running element taller than
+its margin is listed in `Rendered::overflows` under its at-rule name, and the corner boxes align
+toward the page by css-page-3's table (`extensions/pdf/tests/pages.rs`). A `data-mark`, a `string-set`, a
 running element and an `id` inside a table cell, an inline-block, a float or a flex item are on the
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width

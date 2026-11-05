@@ -4,8 +4,8 @@ Makes the PDF file of a document, and returns it with its page count.
 or attaches to an email. `pageCount` is the number of pages.
 
 The render also lists what it could not draw. `dropped` is the CSS it does not support, and
-`missingGlyphs` is the text that no font has. `overflows` is a header, a footer or a slot that did
-not fit. A render does not throw for these, so check the lists in a test.
+`missingGlyphs` is the text that no font has. `overflows` is a header, a footer, a slot or an
+`@page` margin box, such as `@top-center`, that did not fit. A render does not throw for these, so check the lists in a test.
 
 A render reads no file, no network and no clock. The same document always gives the same bytes. A
 very large document is limited by the memory and the time that one request may use. Tables, flex
