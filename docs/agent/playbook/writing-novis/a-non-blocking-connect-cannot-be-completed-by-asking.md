@@ -1,9 +1,6 @@
 - **A non-blocking `connect` cannot be completed by asking `peer_addr`, whatever `mio`'s own example
-  says.** On Windows that call answers `Ok(the target address)` for a socket whose connect never
-  succeeds, and `take_error` is `Ok(None)` too until the attempt actually ends, so a connect built
-  on either alone reports success and hands back a stream that is writable and dead. The pair sound
-  on both platforms is `take_error` plus a zero-length write — `Ok(0)` when connected,
-  `NotConnected`/`WouldBlock` in flight, the refusal itself on Linux, `BrokenPipe` on macOS with the
-  refusal still in `SO_ERROR`, so `take_error` is asked after every failed write — and
-  `crates/nvs-host/src/net.rs`'s `finish_connecting` is the worked shape.
+  says.** On Windows it answers `Ok(the target address)` for a connect that never succeeds, and
+  `take_error` is `Ok(None)` until the attempt ends. Ask a zero-length write, then `take_error` after
+  any failed write: macOS answers a refused connect with `BrokenPipe` and leaves the refusal in
+  `SO_ERROR`. `crates/nvs-host/src/net.rs`'s `finish_connecting` is the worked shape.
   `until: gone crates/nvs-host/src/net.rs:finish_connecting`
