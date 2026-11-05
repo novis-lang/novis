@@ -9411,13 +9411,13 @@
   },
   "/reference/core/novis-pdf-document/render/": {
     "feature": "Novis\\Pdf\\Document::render",
-    "hash": "df02df45ff4b4334",
+    "hash": "bff34f16441b7ede",
     "questions": [
       "How do I get the PDF bytes to send in a response?",
       "Count the pages of a generated PDF",
       "Find CSS the PDF renderer does not support",
       "Check for text that no font can draw",
-      "Make a shipping label PDF with a barcode",
+      "Find an @page margin box whose text does not fit",
       "How deeply can tables be nested in a PDF?"
     ]
   },
