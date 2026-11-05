@@ -263,6 +263,11 @@ charged its 2 KiB to the request. `shapes()` now builds it inside a `Detached` b
 The sweep's `env-secret-proofs` red is stale, a sixth time: `looper check --name
 env-secret-proofs` says no check matches, and no goal or floor names it.
 
+The last DONE refusal voided `size-bounds` because uncommitted work outside this goal, under
+`apps/chat/`, `apps/poll/` and the reverse-proxy page, changed while it ran. A rerun was voided the
+same way by `apps/chat/src/LiveTest.nvs`, and its log shows all three named tests `ok` with 43
+passed and 0 failed. None of those files is this goal's, and this session left them alone.
+
 No test is expected to go red.
 
 ### Next
