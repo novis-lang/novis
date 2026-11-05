@@ -252,10 +252,10 @@ All stale perf records are measured and committed. The shape-table charge that t
 `size-bounds` red is fixed in `d6910ac5a6`. The sweep's `env-secret-proofs` red is stale: no goal
 or floor names that check, and it has no log.
 
-The last DONE refusal voided `size-bounds` because uncommitted work outside this goal, under
-`apps/chat/`, `apps/poll/` and the reverse-proxy page, changed while it ran. A rerun was voided the
-same way by `apps/chat/src/LiveTest.nvs`, and its log shows all three named tests `ok` with 43
-passed and 0 failed. None of those files is this goal's, and this session left them alone.
+Two DONE refusals voided `size-bounds` because uncommitted work outside this goal, under
+`apps/chat/`, `apps/poll/` and the example-apps pages, changed while it ran. With that work at
+rest, `looper check --name size-bounds` is green. None of those files is this goal's, and no
+session of this goal touched them.
 
 No test is expected to go red.
 
