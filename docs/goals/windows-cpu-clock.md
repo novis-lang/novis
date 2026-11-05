@@ -174,8 +174,11 @@ them exist already. This stage writes the third and runs the check.
 Stages 1 and 2 are done. `GetThreadTimes` stays (decision 12). `nvs_runtime::cpu_clock_tick` is
 `pub` and its doc names the `Declined` bullet. `a_cpu_clock_steps_no_further_than_its_tick` bounds a
 step by the tick, twice it on Windows, and 1 ms where the tick is zero. Both stage-2 checks ran once,
-green on this machine (`fine-cpu-clock` 5 passed, `sweep-bound` 4 passed). The sweep's two reds were
-stale again: `env-secret-proofs` is defined nowhere, and nightly 41813182715 ran on `f3150b922`.
+green on this machine (`fine-cpu-clock` 5 passed, `sweep-bound` 4 passed). The sweep's reds are
+stale: `env-secret-proofs` is defined nowhere and has no log. Nightly 41813182715 ran on `f3150b922`.
+Its macOS red, `an_idle_server_takes_an_edit_without_a_request`, is fixed by `a8bdf37fb`. Its Miri
+red, an `openat` flag Miri cannot run, is fixed by `a2f451fad`. Stage 3's first `looper verify` was
+started in the background by the session that wrote this.
 
 ### Next
 
