@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/limits.rs, benches/compare/profile.sh]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: first-limit-wake
@@ -105,34 +105,29 @@ This cost is paid by every served request in every program, including `hello`.
 
 ### 2. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 1 is done. `CpuLowered` is `fn(u64, bool)`: the time left and whether an earlier limit stood
-(`crates/nvs-runtime/src/ctx/safepoint.rs:1387`). `wakes_for` in `crates/nvs-host/src/watchdog.rs`
-holds decision 1's rule. Decision 7 covers a first limit set mid-run. The three `first-limit-wake`
-tests pass, run once by name. The before and after counts are in the stage's commit message. Futex
-calls per request fell from 2.07 to 0.07 on `hello` and from 2.16 to 0.19 on `json-api`, and the
-wake and the watchdog thread left both profiles. Decision 3 changed no code. No clock read repeats
-another, and the module doc's *Charging a request for the time it runs* has the count. `strace -k`
-gave the read stacks, but `addr2line` named wrong functions in the bench image's binary. So the
-"no repeat" verdict rests on reading `Meter::switch` and its callers, not on named call sites.
+Both stages are done, and the goal is reached. `looper verify` was green on its first run (589 s), so
+the fix pass had nothing to fix. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners
+--closes ceiling-wake` (no gap) and `bun nv ci --check`. `looper check` passed `first-limit-wake` and
+the floor's `no-overshoot`.
 
-The acceptance sweep's reds were stale again: nightly 41813182715 ran on `f3150b922`, before
-`a2f451fad` and `a8bdf37fb`, and nightly 42008540593 on `399ce1d2` is green. `env-secret-proofs` is
-defined nowhere in the tree.
+Decisions 1, 2 and 7 live in the code: `wake_for_lowered_ceiling` and `wakes_for` in
+`crates/nvs-host/src/watchdog.rs`, the `CpuLowered` doc in `crates/nvs-runtime/src/ctx/safepoint.rs`,
+and the comment in `refresh_limits_at_run_time` (`crates/nvs-runtime/src/ctx/limits.rs`). Decision
+3's count is in the watchdog module doc. Stage 1's commit message has the before and after counts.
+
+The sweep's `env-secret-proofs` red was stale. That check belonged to the retired
+`defaults-that-work` goal, and `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
 
 ### Next
 
-**Stage 2**, the gate: `looper verify` over the whole goal, then the goal-end gates in AGENTS.md
-§ *In the loop*. Tests that might go red: any watchdog or hostile CPU-limit case that counted on a
-first limit waking the sampler at once. `bun nv proofs --overshoot` (`no-overshoot`, the floor) must
-stay green, and `tests/hostile/` CPU-limit cases must stop within their bound. macOS runs on CI at the
-goal-end push.
+Nothing in this goal. macOS runs on CI at the goal-end push. Next on the chain is `json-one-pass`.
 
 ### Backlog
