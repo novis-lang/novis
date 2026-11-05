@@ -301,3 +301,17 @@ fn an_svg_with_entities_and_a_use_cycle_renders_or_throws() {
         Err(other) => panic!("inline: {other:?}"),
     }
 }
+
+/// Tables nested past the depth bound return the depth error. Each level copies only its own
+/// cells, so the attack in `tests/hostile/novis/Pdf-Document/fromHtml/` ends within its memory.
+#[test]
+fn tables_nested_past_the_depth_bound_return_an_error() {
+    let result = render(&Document {
+        html: "<table><tr><td>".repeat(2000) + "deep",
+        ..Document::default()
+    });
+    match result {
+        Err(Error::Invalid(message)) => assert!(message.contains("32 levels"), "{message}"),
+        other => panic!("{:?}", other.map(|r| r.pages.len())),
+    }
+}

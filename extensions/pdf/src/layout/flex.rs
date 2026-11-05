@@ -247,10 +247,12 @@ fn measure(
 impl Cx<'_> {
     /// Lays the items of `flex` out with `taffy` and places them down `flow` in bands.
     pub(super) fn flex(&mut self, flex: Flex, flow: &mut Flow) {
+        // Each item's blocks are copied and stay waiting, so a table cell around this
+        // container that is laid out a second time lays it out again whole.
         let blocks: Vec<Vec<Block>> = flex
             .items
             .iter()
-            .map(|(atom, _)| self.waiting[*atom].take().unwrap_or_default())
+            .map(|(atom, _)| self.waiting[*atom].clone().unwrap_or_default())
             .collect();
         let widths: Vec<[f32; 2]> = blocks
             .iter()

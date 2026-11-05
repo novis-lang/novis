@@ -715,9 +715,6 @@ fn latest(a: At, b: At) -> At {
     if (b.0, b.1) > (a.0, a.1) { b } else { a }
 }
 
-/// The nested boxes in a cell, each with the blocks it waits as.
-type Kept = Vec<(usize, Option<Vec<Block>>)>;
-
 impl Cx<'_> {
     /// Lays the rows of `table` out with the same columns throughout, and places them down
     /// `flow` with its header and footer rows on each page it is on.
@@ -739,12 +736,15 @@ impl Cx<'_> {
             group_edges,
             edges,
         } = table;
+        // Each cell's blocks are copied and stay waiting, so a cell around this table that is
+        // laid out a second time lays it out again whole. Cost: a copy of this table's cells'
+        // blocks while it is laid out, freed with it.
         let mut blocks: Vec<Vec<Vec<Block>>> = rows
             .iter()
             .map(|row| {
                 row.cells
                     .iter()
-                    .map(|c| self.waiting[c.atom].take().unwrap_or_default())
+                    .map(|c| self.waiting[c.atom].clone().unwrap_or_default())
                     .collect()
             })
             .collect();
@@ -844,13 +844,6 @@ impl Cx<'_> {
             widths[from..end].iter().sum::<f32>() + gx * (end - from).saturating_sub(1) as f32
         };
 
-        // The blocks each cell's nested boxes wait as, such as an inner table's cells. Laying
-        // a cell out takes them, so a cell laid out again puts them back first. Cost: a copy
-        // of the nested boxes' blocks while the table is laid out, nothing for a cell with none.
-        let kept: Vec<Vec<Kept>> = blocks
-            .iter()
-            .map(|row| row.iter().map(|cell| self.keep(cell)).collect())
-            .collect();
         // Each cell at its width, and each row's height from the cells that span only it.
         let mut measured: Vec<Vec<Placed>> = Vec::with_capacity(rows.len());
         let mut heights = vec![0.0f32; rows.len()];
@@ -920,9 +913,6 @@ impl Cx<'_> {
                 }
                 .clamp(0.0, free);
                 let width = cell_width(starts[r][c], cell.span);
-                if down > 0.01 || free > 0.01 {
-                    self.put_back(&kept[r][c]);
-                }
                 let placed = if down > 0.01 {
                     let mut moved = blocks[r][c].clone();
                     if let Some(Block::Open(g)) = moved.first_mut() {
@@ -1207,7 +1197,6 @@ impl Cx<'_> {
                             Box::new(move |page, _| rooms[usize::from(page > 0)]),
                             None,
                         );
-                        self.put_back(&kept[r][c]);
                         let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
                         let count = pages.pages.len();
                         let bottom = pages.cursor + pages.pending.get();
@@ -1482,7 +1471,7 @@ impl Cx<'_> {
 
     /// Lays the caption at `atom` out at the table's content width and places it.
     fn caption(&mut self, atom: usize, x: f32, width: f32, flow: &mut Flow) {
-        let blocks = self.waiting[atom].take().unwrap_or_default();
+        let blocks = self.waiting[atom].clone().unwrap_or_default();
         let mut laid = self.item_at(&blocks, width, None);
         let top = flow.place(laid.height);
         let page = flow.pages.len() as u64;
@@ -1497,24 +1486,6 @@ impl Cx<'_> {
     /// The width `table`'s rows need from its content box's left edge: with each cell
     /// unbroken when `max` is true, and broken at every chance when it is false. A table with
     /// a `width` of its own needs no more than it has.
-    /// Each nested box in `blocks` and the blocks it waits as now.
-    fn keep(&self, blocks: &[Block]) -> Kept {
-        let mut atoms = Vec::new();
-        self.atoms_in(blocks, &mut atoms);
-        atoms
-            .into_iter()
-            .map(|atom| (atom, self.waiting[atom].clone()))
-            .collect()
-    }
-
-    /// Sets each nested box in `kept` waiting as it was when [`Cx::keep`] read it, so its
-    /// cell can be laid out again.
-    fn put_back(&mut self, kept: &Kept) {
-        for (atom, waiting) in kept {
-            self.waiting[*atom].clone_from(waiting);
-        }
-    }
-
     pub(super) fn table_need(&mut self, table: &Table, max: bool) -> f32 {
         let blocks: Vec<Vec<Vec<Block>>> = table
             .rows

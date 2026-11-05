@@ -680,7 +680,7 @@ impl Cx<'_> {
     }
 
     /// Pushes onto `out` the index of every atom `blocks` lay out, a flex item's own included.
-    pub(super) fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
+    fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
         for block in blocks {
             match block {
                 Block::Float { atom, .. }
