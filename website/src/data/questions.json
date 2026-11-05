@@ -146,12 +146,25 @@
   },
   "/guides/example-apps/": {
     "feature": "guides/example-apps/index.mdx",
-    "hash": "fe8109b0e67ec6e4",
+    "hash": "71c67aaec5428615",
     "questions": [
       "Complete example projects I can download and run",
       "Where can I find a full Novis app to copy?",
       "A starter project for my own web app",
-      "Sample applications with tests and configuration"
+      "Sample applications with tests and configuration",
+      "Example app with WebSockets or live updates in the browser"
+    ]
+  },
+  "/guides/example-apps/chat/": {
+    "feature": "guides/example-apps/chat.mdx",
+    "hash": "c62d37080ca304c9",
+    "questions": [
+      "Example chat app with rooms over WebSockets",
+      "How do I send messages from the server to every browser in a room?",
+      "Do I need a separate WebSocket server next to Novis?",
+      "Stop another website from opening a WebSocket with my visitor's cookies",
+      "Limit how fast a visitor can send chat messages",
+      "Configure nginx or Caddy to forward WebSocket connections"
     ]
   },
   "/guides/example-apps/notes/": {
@@ -176,6 +189,18 @@
       "Invoice PDF with a payment QR code and Factur-X XML",
       "Start a PDF project from a working example",
       "Join several PDF files into one, with a QR code on each ticket"
+    ]
+  },
+  "/guides/example-apps/poll/": {
+    "feature": "guides/example-apps/poll.mdx",
+    "hash": "6421e9a5744b1831",
+    "questions": [
+      "Example live poll app with server-sent events",
+      "Show new votes on every open page without a reload",
+      "How do I use EventSource with a Novis server?",
+      "Send updates to every open page when the database changes",
+      "Make voting work without JavaScript",
+      "Keep an event stream open behind nginx or Caddy"
     ]
   },
   "/guides/extensions/": {
@@ -325,14 +350,14 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "d5f0b42b2abd47d9",
+    "hash": "fd1d9b332adefd40",
     "questions": [
-      "How do I run Novis behind nginx with HTTPS?",
-      "Example Caddy configuration for a Novis server",
+      "How do I run Novis behind nginx or Caddy with HTTPS?",
       "Does Novis support HTTP/2 or HTTP/3?",
       "Get the real client IP address behind a proxy",
       "Rate limit requests and login attempts for each IP address",
-      "Listen on a Unix socket so only the proxy can connect"
+      "Listen on a Unix socket so only the proxy can connect",
+      "Why do forms and WebSockets return 403 behind a proxy?"
     ]
   },
   "/guides/production/run-as-a-service/": {
@@ -1575,13 +1600,14 @@
   },
   "/reference/config/include/": {
     "feature": "tools:config/include-a-tree-of-files",
-    "hash": "6407f18c4710fa83",
+    "hash": "d163ed059268045d",
     "questions": [
       "How do I split configuration across several files?",
       "Load every settings file from a conf.d directory",
       "Keep machine-specific secrets out of the shared config file",
       "Include an optional file that may not exist",
-      "Which value wins when two config files set the same key?"
+      "Which value wins when two config files set the same key?",
+      "Why does the server stop when another account can change an included file?"
     ]
   },
   "/reference/config/io/": {
