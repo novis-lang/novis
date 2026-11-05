@@ -108,6 +108,19 @@ writes a payload: JSON, CSV, compression, JWT, I/O and the output buffer.
 11. **Lanes.** Stage 1 touches the encode half of `json.rs` and stages 2 and 3 its decode half, so all
     three run in order in one lane. The goal shares no file with `strings-in-place`, which may run as a
     side goal beside it.
+12. **The hold is `Rc<Box<[u8]>>`, not `Arc<[u8]>`.** `Inbound` already holds `Rc`s, so it never
+    crosses a thread, and an `Rc` costs no atomic. `Arc<[u8]>::from(Box<[u8]>)` allocates a new block
+    and copies the body, while an `Rc` around the reader's `Box` copies nothing. The cost is one
+    pointer more per read of the hold.
+13. **A build on the spare stack checks the spare stack's bounds.** `Fields::finish` throws a
+    `RecursionError` when `nvs_runtime::stack_pointer() < ctx.stack_bounds().0`, and those are the
+    task's bounds. A text over `IN_PLACE_BYTES` parses on `nvs_host::on_spare_stack`, so a constructor
+    run there compares against the wrong region. The build sets the context's bounds to the spare
+    stack's while it runs there, and restores them on every way out. If `nvs_host` does not expose the
+    spare stack's bounds, it gets a function that does.
+14. **A constructor may run before a later part of the document fails to parse.** That follows from
+    decision 3. What a failure owes is decision 4: every instance built is freed, and the
+    `ParseError` and its message are unchanged.
 
 ## Stages
 
@@ -134,12 +147,16 @@ tree.
 `held_body`, as `file:line` with one line each. Six files reach them today: `arr.rs`, `http.rs`,
 `json.rs`, `jwt.rs`, `request.rs` and `test.rs` under `crates/nvs-stdlib/src/`.
 
-- [ ] Hold the request body as `Arc<[u8]>`, and give `held_octets` a variant that returns a handle.
+- [x] Hold the request body as `Arc<[u8]>`, and give `held_octets` a variant that returns a handle.
   `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
   `crates/nvs-runtime/src/ctx/inbound.rs:315` `crates/nvs-stdlib/src/request.rs:3345`
-- [ ] Make `decode_as` one call that parses with the context in hand, and move `jsonAs` and every
+  - [x] `Inbound::held` is `Rc<Box<[u8]>>`, and `held_handle` returns it (decision 12).
+  - [x] `request.rs`'s `held_handle` fills the hold and returns the handle.
+- [x] Make `decode_as` one call that parses with the context in hand, and move `jsonAs` and every
   other caller onto it. `read_as` and `ReadAs` go, unless decision 5's fallback applies.
   `crates/nvs-stdlib/src/json.rs:2146` `crates/nvs-stdlib/src/request.rs:3171`
+  - [x] `decode_as` parses and builds in one body. `read_as`, `ReadAs` and `Parsed` are deleted.
+  - [x] `jsonAs` and the test helper `refused_in_one_pass` call `decode_as`.
 - [ ] Add the slot stack of decision 3, and let `Fill` build an object whose fields are all scalars or
   strings when its closing brace is read. `crates/nvs-stdlib/src/json.rs:2574`
   `crates/nvs-stdlib/src/json.rs:3708`
@@ -180,30 +197,39 @@ tree.
 
 ### State
 
-Stage 1 is done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+Stage 1 is done. Stage 2's first two items are done. The figures in *Why* were taken on 2026-11-05
+at `293a3b9b9`.
 
-- `ByteWriter::put` is an `#[inline]` fast path (not stopped, fits the room, fits the limit) and a
-  `#[cold]` `grow_and_put` that asks the budget first. The `writer-fast-path` check is green.
-- `Ctx::write_body_owned` takes the buffer whole into an empty `Buffer` or `Body` sink outside an
-  isolate and a capture, and otherwise calls `write_body`. Its test is
-  `an_owned_body_is_taken_whole_into_an_empty_body_and_appended_otherwise`, and it passes.
-- `Encodable::written` returns `Vec<u8>`. `rendered_bytes` and `written_bytes` give the buffer, and
-  `rendered` is the one place it becomes a `String`. `Core\Response::json` uses `written_bytes` and
-  `write_body_owned`.
-- The sweep's `env-secret-proofs` red is stale again. It belonged to the retired `defaults-that-work`
-  goal, and `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
+- `Inbound::held` is `Rc<Box<[u8]>>` (decision 12), and `Inbound::held_handle` returns a handle.
+  `request.rs`'s `held_handle` fills the hold and returns that handle.
+- `json::decode_as` parses and builds in one call. `read_as`, `ReadAs` and `Parsed` are deleted.
+  `Core\Request::jsonAs` holds the handle, takes `&str` from it, and calls `decode_as`. The callers
+  are `json.rs` (`nvs_core_json_decode_as` and seven tests), `http.rs:5162`, `test.rs:3446`,
+  `jwt.rs:2179` and `request.rs` (`jsonAs` and the test helper `refused_in_one_pass`).
+- `jsonAs` now runs `check_codec` twice: once before the claim, and once inside `decode_as`. It is a
+  descriptor read, and stage 3 may give `decode_as` a checked variant if the bench shows it.
+- The sweep's `env-secret-proofs` red is stale. No goal and no floor names that check, and
+  `bun nv proofs --gate --only "Core\Env::secret"` is green on this tree.
 
-No test is expected to go red from stage 1.
+No test is expected to go red. `refused_in_one_pass` now also runs `check_codec`, and its class has a
+codec, so its messages are unchanged.
 
 ### Next
 
-**Stage 2**, files `crates/nvs-runtime/src/ctx/inbound.rs`, `crates/nvs-stdlib/src/request.rs` and
-the decode half of `crates/nvs-stdlib/src/json.rs`. Follow the stage's **Split:** line first. No gate.
+**Stage 2, its last item**, in the decode half of `crates/nvs-stdlib/src/json.rs`. No gate. Read
+decisions 3, 4, 6, 13 and 14 first. It is one slice and a large one: start it fresh.
 
-- [ ] The body as `Arc<[u8]>`. `crates/nvs-runtime/src/ctx/inbound.rs:1048`
-  A `held_octets` variant returns a handle. `crates/nvs-stdlib/src/request.rs:3345`
-- [ ] `decode_as` as one call with the context in hand. `crates/nvs-stdlib/src/json.rs:2179`
-  Every caller moves onto it, and `read_as` goes. `crates/nvs-stdlib/src/json.rs:2226`
-- [ ] The slot stack, and `Fill` building a scalar-only object. `crates/nvs-stdlib/src/json.rs:2607`
+- [ ] The slot stack, and `Fill` building a scalar-only object. `crates/nvs-stdlib/src/json.rs:2514`
+  A shared builder reaches every `Fill` as a `&RefCell<...>` (Fill stays `Copy`). It has the
+  `&mut Ctx`, the slot stack, and the first `Fault` a build raised. A `Fault` ends the parse with a
+  marker `serde_json::Error`, and `decode_as` returns the stored `Fault` in its place.
+  `crates/nvs-stdlib/src/json.rs:2813`
+- [ ] A scalar-only object is built at its closing brace. `crates/nvs-stdlib/src/json.rs:3810`
+  A contract whose fields all read through `Decode` is built with `decode_fields(ctx, contract,
+  Object::Read(..))`. Its result goes in a new `Found::Built(Value)` or a failed arm that keeps its
+  issues. `decode_field` and `decode_object` take a built value as done.
+  `crates/nvs-stdlib/src/json.rs:4354`
+- [ ] The spare-stack bounds of decision 13. `crates/nvs-stdlib/src/json.rs:4054`
+  `crates/nvs-host/src/stack.rs:230`
 
 ### Backlog
