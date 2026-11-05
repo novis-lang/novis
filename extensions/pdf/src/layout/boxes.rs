@@ -258,6 +258,9 @@ pub(super) struct Decor {
     pub outline: Option<Outline>,
     pub opacity: f32,
     pub transform: Option<Transform>,
+    /// Whether its `visibility` is `visible`. A box that is not draws no background, border or
+    /// outline, and still takes its space.
+    pub visible: bool,
 }
 
 impl Decor {
@@ -314,6 +317,7 @@ pub(super) fn decor(style: &Style) -> Decor {
             _ => 1.0,
         },
         transform: None,
+        visible: !matches!(keyword(style, "visibility"), Some("hidden" | "collapse")),
     }
 }
 
@@ -986,7 +990,7 @@ pub(super) fn edges(
 pub(super) fn paint(g: &BoxGeometry, y: f32, h: f32, closed: [bool; 4]) -> Vec<Item> {
     let (x, w, d) = (g.x, g.width, &g.decor);
     let mut out = Vec::new();
-    if w <= 0.0 || h <= 0.0 {
+    if w <= 0.0 || h <= 0.0 || !d.visible {
         return out;
     }
     let [top, right, bottom, left] = closed;

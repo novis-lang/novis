@@ -62,6 +62,9 @@ pub(super) fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Sp
         strike: has("line-through").or(parent.and_then(|p| p.strike)),
         align: vertical_align(style, parent),
         link: parent.and_then(|p| p.link.clone()),
+        hidden: matches!(keyword(style, "visibility"), Some("hidden" | "collapse")),
+        line_height: line_height_of(style),
+        wrap: wrap_of(style),
         hyphen: match style.get("hyphenate-character") {
             Some(Value::Text(t)) => match components(t).as_deref() {
                 Some([Comp::Str(s)]) if !s.is_empty() => s.clone(),
@@ -118,32 +121,16 @@ pub(super) fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAl
 /// `style`'s paragraph, in a content box `width` wide, whose own text style is the span at
 /// `span`.
 pub(super) fn para_of(style: &Style, width: f32, span: usize) -> Para {
-    let size = style.font_size();
-    let white = keyword(style, "white-space");
     Para {
         direction: match (keyword(style, "unicode-bidi"), keyword(style, "direction")) {
             (Some("plaintext"), _) => BaseDirection::Auto,
             (_, Some("rtl")) => BaseDirection::Rtl,
             _ => BaseDirection::Ltr,
         },
-        align: match keyword(style, "text-align") {
-            Some("left") => Alignment::Left,
-            Some("right") => Alignment::Right,
-            Some("center") => Alignment::Center,
-            Some("justify") => Alignment::Justify,
-            Some("end") => Alignment::End,
-            _ => Alignment::Start,
-        },
-        line_height: match style.get("line-height") {
-            Some(Value::Number(n)) => LineHeight::FontSizeRelative(*n),
-            Some(Value::Length(l)) => LineHeight::Absolute(l.pt + l.percent / 100.0 * size),
-            _ => LineHeight::MetricsRelative(1.0),
-        },
-        wrap: if matches!(white, Some("nowrap" | "pre")) {
-            TextWrapMode::NoWrap
-        } else {
-            TextWrapMode::Wrap
-        },
+        align: alignment(keyword(style, "text-align")).unwrap_or(Alignment::Start),
+        align_last: alignment(keyword(style, "text-align-last")),
+        line_height: line_height_of(style),
+        wrap: wrap_of(style),
         word_break: match keyword(style, "word-break") {
             Some("break-all") => WordBreak::BreakAll,
             Some("keep-all") => WordBreak::KeepAll,
@@ -161,6 +148,40 @@ pub(super) fn para_of(style: &Style, width: f32, span: usize) -> Para {
         orphans: lines(style, "orphans"),
         widows: lines(style, "widows"),
         span,
+    }
+}
+
+/// The alignment a `text-align` or `text-align-last` keyword names, or `None` for `auto` and
+/// for none.
+fn alignment(word: Option<&str>) -> Option<Alignment> {
+    Some(match word? {
+        "left" => Alignment::Left,
+        "right" => Alignment::Right,
+        "center" => Alignment::Center,
+        "justify" => Alignment::Justify,
+        "end" => Alignment::End,
+        "start" => Alignment::Start,
+        _ => return None,
+    })
+}
+
+/// `style`'s `line-height`.
+fn line_height_of(style: &Style) -> LineHeight {
+    match style.get("line-height") {
+        Some(Value::Number(n)) => LineHeight::FontSizeRelative(*n),
+        Some(Value::Length(l)) => {
+            LineHeight::Absolute(l.pt + l.percent / 100.0 * style.font_size())
+        }
+        _ => LineHeight::MetricsRelative(1.0),
+    }
+}
+
+/// Whether `style`'s `white-space` lets a line break between words.
+fn wrap_of(style: &Style) -> TextWrapMode {
+    if matches!(keyword(style, "white-space"), Some("nowrap" | "pre")) {
+        TextWrapMode::NoWrap
+    } else {
+        TextWrapMode::Wrap
     }
 }
 
@@ -279,6 +300,8 @@ struct Counter {
     name: String,
     value: i64,
     scope: usize,
+    /// What a list item adds to it: 1, or -1 for the counter of an `<ol reversed>`.
+    step: i64,
 }
 
 /// The counters in scope, outermost first.
@@ -293,11 +316,15 @@ impl Counters {
             .iter_mut()
             .rfind(|c| c.name == name && c.scope == scope)
         {
-            Some(c) => c.value = value,
+            Some(c) => {
+                c.value = value;
+                c.step = 1;
+            }
             None => self.0.push(Counter {
                 name: name.to_owned(),
                 value,
                 scope,
+                step: 1,
             }),
         }
     }
@@ -331,6 +358,25 @@ impl Counters {
     }
 
     /// Ends the counters of a frame deeper than `depth`.
+    /// Makes the counter `name` that the frame at `scope` sees count down from each list item.
+    fn reverse(&mut self, name: &str, scope: usize) {
+        if let Some(c) = self
+            .0
+            .iter_mut()
+            .rfind(|c| c.name == name && c.scope == scope)
+        {
+            c.step = -1;
+        }
+    }
+
+    /// What a list item adds to the innermost counter `name`.
+    fn step(&self, name: &str) -> i64 {
+        self.0
+            .iter()
+            .rfind(|c| c.name == name)
+            .map_or(1, |c| c.step)
+    }
+
     fn leave(&mut self, depth: usize) {
         self.0.retain(|c| c.scope <= depth);
     }
@@ -1140,6 +1186,7 @@ impl Builder<'_, '_> {
         marks: Vec<(String, String)>,
         (decor, edges): (Option<BoxGeometry>, [Edge; 4]),
         breaks: [bool; 2],
+        collapsed: bool,
     ) {
         let Some(t) = self.tables.last_mut() else {
             return;
@@ -1167,6 +1214,7 @@ impl Builder<'_, '_> {
                     decor,
                     edges,
                     breaks: [breaks[0] || before, breaks[1]],
+                    collapsed,
                 });
                 t.row = true;
                 t.depths.push((depth, true));
@@ -1326,6 +1374,7 @@ impl Builder<'_, '_> {
                     decor: None,
                     edges: [Edge::NONE; 4],
                     breaks: [std::mem::take(&mut t.group_breaks[0]), false],
+                    collapsed: false,
                 });
                 t.row = true;
             }
@@ -2003,19 +2052,32 @@ pub(super) fn blocks(
                 }
                 let depth = frames.len();
                 counters.apply(style, depth);
-                if name == "ol"
-                    && let Some(start) = node
+                if name == "ol" {
+                    let start = node
                         .attr("start")
-                        .and_then(|s| s.trim().parse::<i64>().ok())
-                {
-                    counters.reset("list-item", start.saturating_sub(1), depth);
+                        .and_then(|s| s.trim().parse::<i64>().ok());
+                    if node.attr("reversed").is_some() {
+                        // A reversed list counts down from its `start`, or from its number of
+                        // items.
+                        let items = node
+                            .children
+                            .iter()
+                            .filter(|&&c| dom.nodes[c].element(Space::Html) == Some("li"))
+                            .count();
+                        let first = start.unwrap_or(i64::try_from(items).unwrap_or(i64::MAX));
+                        counters.reset("list-item", first.saturating_add(1), depth);
+                        counters.reverse("list-item", depth);
+                    } else if let Some(start) = start {
+                        counters.reset("list-item", start.saturating_sub(1), depth);
+                    }
                 }
                 if display == "list-item" {
                     if !counter_list(style, "counter-increment", 1)
                         .iter()
                         .any(|(name, _)| name == "list-item")
                     {
-                        counters.change("list-item", 1, false, depth);
+                        let step = counters.step("list-item");
+                        counters.change("list-item", step, false, depth);
                     }
                     if let Some(value) = node.attr("value").and_then(|v| v.trim().parse().ok()) {
                         counters.change("list-item", value, true, depth);
@@ -2094,7 +2156,8 @@ pub(super) fn blocks(
                         let decor = builder.part_box(style)?;
                         let breaks = ["break-before", "break-after"]
                             .map(|name| forced(style, name).is_some());
-                        builder.open_part(p, frames.len(), row_marks, decor, breaks);
+                        let collapsed = keyword(style, "visibility") == Some("collapse");
+                        builder.open_part(p, frames.len(), row_marks, decor, breaks, collapsed);
                     }
                     _ => {}
                 }

@@ -453,6 +453,13 @@ struct Span {
     link: Option<Href>,
     /// The text drawn after a line broken at a soft hyphen: its `hyphenate-character`.
     hyphen: String,
+    /// Whether its `visibility` is `hidden` or `collapse`: the text takes its space and draws
+    /// nothing, no decoration and no link.
+    hidden: bool,
+    /// Its `line-height`. A line is as tall as the tallest of its spans makes it.
+    line_height: LineHeight,
+    /// Whether its `white-space` lets a line break between its words.
+    wrap: TextWrapMode,
 }
 
 /// What a block's lines are broken and aligned with.
@@ -460,6 +467,9 @@ struct Span {
 struct Para {
     direction: BaseDirection,
     align: Alignment,
+    /// The alignment of its last line and of each line before a forced break, from
+    /// `text-align-last`, or `None` for `auto`.
+    align_last: Option<Alignment>,
     line_height: LineHeight,
     wrap: TextWrapMode,
     word_break: WordBreak,
@@ -475,6 +485,17 @@ struct Para {
     widows: usize,
     /// The index in [`inline::Builder::spans`] of the block's own text style.
     span: usize,
+}
+
+impl Para {
+    /// What `parley` aligns the lines with besides [`Para::align`]: the last line's
+    /// alignment.
+    fn options(&self) -> parley::AlignmentOptions {
+        parley::AlignmentOptions {
+            last_line_alignment: self.align_last,
+            ..parley::AlignmentOptions::default()
+        }
+    }
 }
 
 /// How a text node's whitespace is kept.

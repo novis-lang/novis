@@ -10,6 +10,12 @@
 //! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
 //! its floats: its own flow ends below them ([`Flow::contain`]).
 //!
+//! Adjoining margins collapse to the largest positive one plus the most negative one
+//! ([`Margin`]), so a negative margin pulls the next box up. A box whose `overflow` is not
+//! `visible` holds the margins inside it, and draws its content in a group clipped to its
+//! padding box. One clipped down with a `height` is that tall, and is laid out on a page of its
+//! own and placed whole ([`Flow::monolith`]), so its clipped content adds no page.
+//!
 //! A box cut by a page break is painted on each page it is on, and a box whose `height` or
 //! `min-height` is more than the room left goes on over the next pages for the rest. CSS's `slice` leaves its bottom
 //! edge open before the break and its top edge open after it. A table and a table cell are
@@ -49,6 +55,13 @@ pub(super) struct BoxGeometry {
     pub(super) padding: [f32; 4],
     /// The content box's least height, from `height` and `min-height`.
     pub(super) min_content: f32,
+    /// The content box's height when `height` gives one in points, never less than
+    /// `min-height`.
+    pub(super) height: Option<f32>,
+    /// Whether its content is cut off at its padding box across and down, by `overflow-x` and
+    /// `overflow-y`. A box cut off down with a `height` is that tall, and is placed whole, as
+    /// one piece that no page break goes through.
+    pub(super) clip: [bool; 2],
     /// Whether its width is its containing block's less its margins, so it narrows when that
     /// block does.
     pub(super) fill: bool,
@@ -137,6 +150,10 @@ pub(super) fn forced(style: &Style, name: &str) -> Option<Break> {
 /// How much more than a page's content height a fit test lets through, so heights that add up
 /// to the page in another order still fit.
 pub(super) const FIT: f32 = 0.01;
+
+/// How far past the padding box a box that cuts off its content in one direction lets it reach
+/// in the other: past any page, and inside the range of a number PDF/A allows.
+const UNCUT: f32 = 10_000.0;
 
 /// An absolute box's `top`, `right`, `bottom` and `left`, each as points and a percentage of
 /// its containing block, or `None` for `auto`.
@@ -234,6 +251,16 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
     let min_content = fixed("height")
         .unwrap_or(0.0)
         .max(fixed("min-height").unwrap_or(0.0));
+    let height = fixed("height").map(|h| h.max(min_content));
+    // `visible` beside a value that scrolls computes to `auto`, which a page cuts off as
+    // `hidden` does.
+    let overflow = |name: &str| keyword(style, name).unwrap_or("visible");
+    let scrolls = |v: &str| matches!(v, "hidden" | "auto" | "scroll");
+    let (across, down) = (overflow("overflow-x"), overflow("overflow-y"));
+    let clip = [
+        across != "visible" || scrolls(down),
+        down != "visible" || scrolls(across),
+    ];
     // A relative offset's percentage counts against a height the containing block does not
     // have, so only `left` and `right` read one.
     let offset = |start: &str, end: &str, basis: f32| {
@@ -256,6 +283,8 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         border,
         padding,
         min_content,
+        height,
+        clip,
         fill,
         clear: sides(style, "clear"),
         position,
@@ -332,11 +361,42 @@ struct Area {
 /// The content height of the page at an index, named by a page name or by none.
 pub(super) type Heights = Box<dyn Fn(usize, Option<&str>) -> f32>;
 
+/// The adjoining margins met since the last block was placed, collapsed as CSS 2.1 §8.3.1
+/// says: the largest positive one plus the most negative one, so a negative margin pulls the
+/// next box up.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Margin {
+    most: f32,
+    least: f32,
+}
+
+impl Margin {
+    /// Collapses one more margin into these.
+    pub(super) fn add(&mut self, margin: f32) {
+        if margin > 0.0 {
+            self.most = self.most.max(margin);
+        } else {
+            self.least = self.least.min(margin);
+        }
+    }
+
+    /// These margins with one more collapsed into them.
+    pub(super) fn with(mut self, margin: f32) -> Margin {
+        self.add(margin);
+        self
+    }
+
+    /// The space the collapsed margins take.
+    pub(super) fn get(self) -> f32 {
+        self.most + self.least
+    }
+}
+
 /// The vertical flow: the pages so far and where the next block goes.
 pub(super) struct Flow {
     pub(super) pages: Vec<Page>,
     pub(super) cursor: f32,
-    pub(super) pending: f32,
+    pub(super) pending: Margin,
     pub(super) open: Vec<Open>,
     /// How tall each page's content is, or unbounded for an inline-block's one page.
     limits: Vec<f32>,
@@ -396,7 +456,7 @@ impl Flow {
         Flow {
             pages: vec![Page::default()],
             cursor: 0.0,
-            pending: 0.0,
+            pending: Margin::default(),
             open: Vec::new(),
             limits: vec![limit],
             heights: None,
@@ -528,7 +588,7 @@ impl Flow {
             self.page().blank = true;
             self.new_page();
         }
-        self.pending = 0.0;
+        self.pending = Margin::default();
         self.kept = true;
     }
 
@@ -568,7 +628,7 @@ impl Flow {
         if self.forced.is_some() || self.empty() {
             return;
         }
-        let top = self.cursor + self.pending.max(margin);
+        let top = self.cursor + self.pending.with(margin).get();
         let name = self.pages.last().and_then(|p| p.name.as_deref());
         if top + height > self.limit() + FIT && height <= heights(self.pages.len(), name) + FIT {
             self.new_page();
@@ -611,7 +671,7 @@ impl Flow {
         if self.empty() && self.pages.len() > 1 && !self.kept {
             0.0
         } else {
-            self.pending
+            self.pending.get()
         }
     }
 
@@ -749,7 +809,7 @@ impl Flow {
         let bottom = self.cleared([true, true]);
         if bottom > self.cursor {
             self.cursor = bottom;
-            self.pending = 0.0;
+            self.pending = Margin::default();
         }
     }
 
@@ -768,7 +828,7 @@ impl Flow {
         } else {
             self.cursor += margin;
         }
-        self.pending = 0.0;
+        self.pending = Margin::default();
         let top = self.cursor;
         let page = self.pages.len() - 1;
         let item = self.pages[page].items.len();
@@ -789,7 +849,7 @@ impl Flow {
             self.place(inset);
             return;
         }
-        self.pending = 0.0;
+        self.pending = Margin::default();
         self.cursor = self.cursor.max(self.limit());
     }
 
@@ -813,7 +873,32 @@ impl Flow {
         }
     }
 
+    /// Whether a box is laid out on a page of its own and placed whole with
+    /// [`Flow::monolith`]: its content is cut off down at its `height`, in a flow of pages.
+    pub(super) fn whole(&self, geometry: &BoxGeometry) -> bool {
+        self.heights.is_some() && geometry.clip[1] && geometry.height.is_some()
+    }
+
+    /// Places a box laid out on a page of its own, `height` tall from its top border edge to
+    /// its bottom one, as one piece, and returns its top. Its margins collapse with those
+    /// around it, and its forced breaks are taken as an open box's are.
+    pub(super) fn monolith(&mut self, geometry: &BoxGeometry, height: f32) -> f32 {
+        self.enter(geometry);
+        let top = self.place(height);
+        self.pending.add(geometry.margin[2]);
+        self.forced = geometry.breaks[1];
+        top
+    }
+
     pub(super) fn open(&mut self, geometry: BoxGeometry) {
+        self.enter(&geometry);
+        let inset = geometry.border[0] + geometry.padding[0];
+        self.open_at(geometry, inset);
+    }
+
+    /// Takes a box's forced `break-before`, names the page when the box is the first on it,
+    /// collapses its top margin and moves below the floats it clears.
+    fn enter(&mut self, geometry: &BoxGeometry) {
         let after = self.forced.take();
         if let Some(side) = Break::meet(after, geometry.breaks[0]) {
             self.force(side);
@@ -828,17 +913,21 @@ impl Flow {
             *self.limits.last_mut().expect("a limit for each page") = limit;
             self.pages[last].name.clone_from(&geometry.page);
         }
-        self.pending = self.pending.max(geometry.margin[0]);
+        self.pending.add(geometry.margin[0]);
         // A box that clears a float starts with its border edge below it.
         let below = self.cleared(geometry.clear);
         if self.next_top() < below {
             self.cursor = below;
-            self.pending = 0.0;
+            self.pending = Margin::default();
         }
-        let inset = geometry.border[0] + geometry.padding[0];
+    }
+
+    /// Opens a box entered with [`Flow::enter`], placing its top border and padding, `inset`.
+    fn open_at(&mut self, geometry: BoxGeometry, inset: f32) {
         // A transformed box is a containing block and stacks as `z-index: 0` does, so the
         // absolute boxes inside it turn with it.
         let transformed = geometry.decor.transform.is_some();
+        let clip = geometry.clip.contains(&true);
         let stack = (geometry.position != Position::Static || transformed).then(|| {
             self.order += 1;
             Stack {
@@ -854,7 +943,9 @@ impl Flow {
             stack,
             cuts: Vec::new(),
         });
-        if inset > 0.0 {
+        // A box that cuts off its content holds the margins inside it, so none collapses
+        // through its top.
+        if inset > 0.0 || clip {
             self.place(inset);
         }
     }
@@ -884,13 +975,26 @@ impl Flow {
             self.place(0.0);
             top = self.open.pop().and_then(|o| o.top);
         }
+        let clip = g.clip.contains(&true);
+        if clip && top.is_some() {
+            // The bottom margin of the last box inside stays inside.
+            self.place(0.0);
+        }
+        if let Some((page, _, at)) = top
+            && page == self.pages.len() - 1
+            && g.clip[1]
+            && let Some(height) = g.height
+        {
+            // Content cut off down ends at the box's height, and takes no more room.
+            self.cursor = self.cursor.min(at + g.border[0] + g.padding[0] + height);
+        }
         if let Some((page, _, at)) = top
             && page == self.pages.len() - 1
         {
             let want = at + g.border[0] + g.padding[0] + g.min_content;
             if want > self.cursor {
-                self.cursor += self.pending.min(want - self.cursor);
-                self.pending = 0.0;
+                self.cursor += self.pending.get().clamp(0.0, want - self.cursor);
+                self.pending = Margin::default();
                 if want > self.cursor {
                     // The height left over goes on the pages after this one, each page's room
                     // at a time, so the box is sliced across every page it is on.
@@ -976,8 +1080,33 @@ impl Flow {
                 }
                 let under = if page == first { item } else { 0 };
                 painted.push(items.len());
+                if clip {
+                    // The content is drawn only inside the padding box: across and down where
+                    // `clip` says, and as far as a page reaches where it does not.
+                    let shown = [page == first || g.closed, page == last || g.closed];
+                    let mut y = MARGIN + top + if shown[0] { g.border[0] } else { 0.0 };
+                    let mut h = bottom
+                        - top
+                        - if shown[0] { g.border[0] } else { 0.0 }
+                        - if shown[1] { g.border[2] } else { 0.0 };
+                    let (mut x, mut w) = (g.x + g.border[3], g.width - g.border[1] - g.border[3]);
+                    if !g.clip[0] {
+                        (x, w) = (x - UNCUT, w + 2.0 * UNCUT);
+                    }
+                    if !g.clip[1] {
+                        (y, h) = (y - UNCUT, h + 2.0 * UNCUT);
+                    }
+                    items.push(Item::Begin {
+                        opacity: 1.0,
+                        clip: Some(boxes::rect(x, y, w.max(0.0), h.max(0.0))),
+                        transform: None,
+                    });
+                }
                 let page = &mut self.pages[page].items;
                 page.splice(under..under, items);
+                if clip {
+                    page.push(Item::End);
+                }
                 if grouped {
                     page.push(Item::End);
                 }
@@ -986,7 +1115,7 @@ impl Flow {
         if let Some(stack) = stack {
             self.lift(g, top, stack, &painted);
         }
-        self.pending = self.pending.max(geometry.margin[2]);
+        self.pending.add(geometry.margin[2]);
         self.forced = geometry.breaks[1].or(inner);
     }
 

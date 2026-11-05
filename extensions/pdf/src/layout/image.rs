@@ -313,6 +313,11 @@ impl Builder<'_, '_> {
             }
             None => [0.0, 0.0, width, height],
         };
+        // A hidden image keeps its space and draws nothing.
+        let draw = match keyword(style, "visibility") {
+            Some("hidden" | "collapse") => [0.0; 4],
+            _ => draw,
+        };
         self.blocks.push(Block::Image {
             image,
             x: frame.x,

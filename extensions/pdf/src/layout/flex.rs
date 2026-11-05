@@ -345,7 +345,7 @@ impl Cx<'_> {
                 above
             } else {
                 let lead = (placed[members[0]].1 - above).max(0.0);
-                flow.pending = flow.pending.max(lead);
+                flow.pending.add(lead);
                 above + lead
             };
             if flow.paginates() && bottom - from > flow.next_limit() + 0.01 {
@@ -412,7 +412,7 @@ impl Cx<'_> {
             let pages = Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]), None);
             let (pages, missing) = self.down(fit(&blocks[i], width, None), pages);
             let n = pages.pages.len();
-            let bottom = pages.cursor + pages.pending + if n == 1 { dy } else { 0.0 };
+            let bottom = pages.cursor + pages.pending.get() + if n == 1 { dy } else { 0.0 };
             if n > count {
                 (count, tail) = (n, bottom);
             } else if n == count {

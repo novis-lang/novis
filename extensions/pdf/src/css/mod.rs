@@ -19,7 +19,9 @@
 //!
 //! For each element, the declarations that apply are sorted by `!important`, then the document
 //! over the user-agent sheet, then a `style` attribute over a sheet, then specificity, then source
-//! order, and the last one sets each longhand. `font-weight` computes to a number, so `bolder`
+//! order, and the last one sets each longhand. A presentational hint, the `list-style-type` of
+//! an `<ol type>`, `<ul type>` or `<li type>`, sorts over the user-agent sheet and under every
+//! rule of the document. `font-weight` computes to a number, so `bolder`
 //! counts from the parent's. A shorthand sets all of its longhands (`properties`' module doc). Custom
 //! properties inherit, and a `var()` is substituted when the element is computed. A value that is
 //! no longer valid after substitution is reported once and leaves its longhands unset. An
@@ -226,12 +228,36 @@ struct Decl {
     line: u64,
     column: u64,
     has_var: bool,
+    /// Whether it is an HTML attribute's presentational hint, such as `<ol type>`, which sorts
+    /// below every rule of the document's sheets.
+    hint: bool,
 }
 
 struct Rule {
     selectors: SelectorList<Impl>,
     text: String,
     decls: Vec<Decl>,
+}
+
+/// The `list-style-type` an `<ol type>`, `<ul type>` or `<li type>` attribute gives, as HTML's
+/// presentational hints say. The letters and numerals are case-sensitive, and the bullet names
+/// are not.
+fn list_type_hint(element: &str, value: Option<&str>) -> Option<&'static str> {
+    if !matches!(element, "ol" | "ul" | "li") {
+        return None;
+    }
+    let value = value?.trim();
+    Some(match value {
+        "1" => "decimal",
+        "a" => "lower-alpha",
+        "A" => "upper-alpha",
+        "i" => "lower-roman",
+        "I" => "upper-roman",
+        _ if value.eq_ignore_ascii_case("disc") => "disc",
+        _ if value.eq_ignore_ascii_case("circle") => "circle",
+        _ if value.eq_ignore_ascii_case("square") => "square",
+        _ => return None,
+    })
 }
 
 /// Where a sheet's text starts, so a position inside it can be given in the file it came from.
@@ -576,6 +602,7 @@ impl Collector<'_, '_> {
                         important,
                         line: at.0,
                         column: at.1,
+                        hint: false,
                     });
                 }
                 Token::AtKeyword(name) => {
@@ -684,12 +711,25 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
         {
             collector.sheet(css, Origin::START, 0);
         }
+        if *space == Space::Html
+            && let Some(kind) = list_type_hint(name, node.attr("type"))
+        {
+            attributes.entry(at).or_default().push(Decl {
+                property: "list-style-type".to_owned(),
+                value: kind.to_owned(),
+                important: false,
+                line: 0,
+                column: 0,
+                has_var: false,
+                hint: true,
+            });
+        }
         if let Some(style) = node.attr("style") {
             let origin = source.find(style);
             let selector = format!("<{name} style>");
             let mut parser = Parser::new(style);
             let decls = collector.declarations(&mut parser, origin, &selector, None);
-            attributes.insert(at, decls);
+            attributes.entry(at).or_default().extend(decls);
         }
     }
     let mut cascade = Cascade {
@@ -912,7 +952,10 @@ impl<'r> Cascade<'_, 'r> {
             }
         }
         for (n, decl) in attribute.iter().enumerate() {
-            out.push(((decl.important, true, true, 0, usize::MAX, n), decl));
+            out.push(match decl.hint {
+                true => ((false, true, false, 0, 0, n), decl),
+                false => ((decl.important, true, true, 0, usize::MAX, n), decl),
+            });
         }
         out.sort_by_key(|(key, _)| *key);
         out

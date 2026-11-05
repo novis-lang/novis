@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 
 use parley::{
-    AlignmentOptions, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
-    IndentOptions, InlineBox, InlineBoxKind, Layout, LayoutContext, PositionedLayoutItem,
-    RangedBuilder, StyleProperty, VerticalAlign, YieldData,
+    FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight, IndentOptions, InlineBox,
+    InlineBoxKind, Layout, LayoutContext, PositionedLayoutItem, RangedBuilder, StyleProperty,
+    VerticalAlign, YieldData,
 };
 
 use super::block::Flow;
@@ -380,12 +380,30 @@ impl Cx<'_> {
                 .map(|item| shift(item, 0.0, -MARGIN))
                 .collect(),
             width,
-            height: flow.cursor + flow.pending,
+            height: flow.cursor + flow.pending.get(),
             baseline: flow.baseline,
             first: flow.first,
             align,
             missing,
         }
+    }
+
+    /// Lays the blocks of one box that cuts off its content at its `height` out on a page of
+    /// their own, and places the box whole on `flow`. What is cut off adds no page.
+    fn monolith(&mut self, group: Vec<Block>, flow: &mut Flow) {
+        let Some(Block::Open(g)) = group.first() else {
+            return;
+        };
+        let g = g.clone();
+        let placed = self.lay(group, VerticalAlign::BASELINE);
+        let height =
+            g.border[0] + g.padding[0] + g.height.unwrap_or(0.0) + g.padding[2] + g.border[2];
+        let top = flow.monolith(&g, height);
+        let page = flow.pages.len();
+        let dy = MARGIN + top - g.margin[0];
+        let items = &mut flow.page().items;
+        items.extend(placed.items.into_iter().map(|item| shift(item, 0.0, dy)));
+        carry(&mut self.missing, placed.missing, page as u64);
     }
 
     /// Lays the blocks of one box, from its opening to its close, down `flow`, its margin box's
@@ -801,6 +819,11 @@ impl Cx<'_> {
             }
             grouped = false;
             match block {
+                Block::Open(geometry) if flow.whole(&geometry) => {
+                    let mut group = vec![Block::Open(geometry)];
+                    rest_of_box(&mut group, &mut ahead, &mut blocks);
+                    self.monolith(group, flow);
+                }
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(*flex, flow),
@@ -851,6 +874,10 @@ impl Cx<'_> {
                     draw: [dx, dy, w, h],
                 } => {
                     let y = MARGIN + flow.place(height);
+                    // A hidden picture has nothing to draw.
+                    if w <= 0.0 || h <= 0.0 {
+                        continue;
+                    }
                     // A picture past any edge of its box is drawn in a group clipped to the box.
                     let outside =
                         dx < -0.01 || dy < -0.01 || dx + w > width + 0.01 || dy + h > height + 0.01;
@@ -982,7 +1009,7 @@ impl Cx<'_> {
                         placed,
                         ..
                     } = &mut *self;
-                    shaped.align(para.align, AlignmentOptions::default());
+                    shaped.align(para.align, para.options());
                     let rtl = shaped.is_rtl();
                     let mut heights = line_heights(&shaped);
                     // The line the next page starts with, chosen at the paragraph's first line
@@ -1004,7 +1031,7 @@ impl Cx<'_> {
                                         .collect();
                                     width = now;
                                     break_lines(&mut shaped, &text, width, &bands, widest);
-                                    shaped.align(para.align, AlignmentOptions::default());
+                                    shaped.align(para.align, para.options());
                                     heights = line_heights(&shaped);
                                 }
                             }
@@ -1040,7 +1067,7 @@ impl Cx<'_> {
                                 bands = next;
                                 break_lines(&mut shaped, &text, width, &bands, widest);
                             }
-                            shaped.align(para.align, AlignmentOptions::default());
+                            shaped.align(para.align, para.options());
                             heights = line_heights(&shaped);
                             plan = true;
                             continue;
@@ -1131,6 +1158,9 @@ impl Cx<'_> {
                                         return;
                                     };
                                     let span = &spans[index];
+                                    if span.hidden {
+                                        return;
+                                    }
                                     let baseline = baseline_of(index);
                                     for (color, offset, size) in [
                                         (
@@ -1638,6 +1668,8 @@ fn properties(span: &Span, index: usize) -> Vec<StyleProperty<'_, usize>> {
     if span.align != VerticalAlign::BASELINE {
         out.push(StyleProperty::VerticalAlign(span.align));
     }
+    out.push(StyleProperty::LineHeight(span.line_height));
+    out.push(StyleProperty::TextWrapMode(span.wrap));
     out.push(StyleProperty::Brush(index));
     out
 }

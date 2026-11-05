@@ -163,6 +163,9 @@ pub(super) struct Row {
     /// Whether a forced page break comes before it and after it, from its own `break-before`
     /// and `break-after` or its group's.
     pub(super) breaks: [bool; 2],
+    /// Whether its `visibility` is `collapse`: it takes no space and draws nothing, and its
+    /// cells still count toward the column widths.
+    pub(super) collapsed: bool,
 }
 
 /// A cell: its index in the list of atoms, its `colspan`, its `rowspan` and its
@@ -966,7 +969,9 @@ impl Cx<'_> {
         }
 
         let order = |part: Part| -> Vec<usize> {
-            (0..rows.len()).filter(|r| rows[*r].part == part).collect()
+            (0..rows.len())
+                .filter(|r| rows[*r].part == part && !rows[*r].collapsed)
+                .collect()
         };
         let (head, body, foot) = (order(Part::Head), order(Part::Body), order(Part::Foot));
         // The body rows in pieces: each piece runs on to the last row a `rowspan` in it reaches.
@@ -1177,7 +1182,7 @@ impl Cx<'_> {
                         );
                         let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
                         let count = pages.pages.len();
-                        let bottom = pages.cursor + pages.pending;
+                        let bottom = pages.cursor + pages.pending.get();
                         let done = if count == 1 {
                             (start.0, start.1 + bottom)
                         } else {
