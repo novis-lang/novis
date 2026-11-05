@@ -3155,19 +3155,16 @@ nvs_runtime::nvs_helper! {
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
     /// table says so on this member's row.
     ///
-    /// **The reading and the build are two calls** because the octets are
-    /// borrowed from the request and the build needs a `&mut Ctx` on the
-    /// carrier they are borrowed from. [`crate::json::read_as`] reads the text
-    /// against `T` while that borrow is live, in `decodeAs`'s one pass, and
-    /// [`crate::json::ReadAs::build`] takes the context once it is not. So
-    /// every check `decodeAs` makes is made here with the same message: the
-    /// depth, the repeated key, the budget and the integer range.
+    /// **It is `decodeAs` over the held octets, in one call.** The decode needs
+    /// `&mut Ctx` while it reads, so this takes a handle on the hold
+    /// ([`held_handle`]) and not a borrow of it. So every check `decodeAs`
+    /// makes is made here with the same message: the depth, the repeated key,
+    /// the budget and the integer range.
     ///
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
     /// `[limits] request_body`, plus the instances this call hands back. Both are
-    /// O(in-flight). The read in between is `decodeAs`'s tree, one slot per
-    /// field per object, freed before the call returns.
+    /// O(in-flight). The handle is a reference count, and copies no byte.
     fn nvs_core_request_json_as(ctx, args: [4]) {
         // In `json`'s order, and for `body`'s reasons: the request first, so
         // "no request arrived" stays a different fact from what the body says.
@@ -3222,31 +3219,14 @@ nvs_runtime::nvs_helper! {
             spans.map(|spans| (spans, crate::json::REDACTED_JSON))
         });
         held?;
-        let lists = crate::json::Lists::default();
-        #[expect(
-            unsafe_code,
-            reason = "the same descriptor and contract, still owned by the compiled unit"
-        )]
-        let read = {
-            let text = body_text(held_octets(ctx, "jsonAs")?, "jsonAs")?;
-            unsafe {
-                crate::json::read_as(
-                    class,
-                    shape,
-                    text,
-                    max,
-                    list,
-                    &lists,
-                    "Core\\Request::jsonAs",
-                )
-            }?
-        };
+        let held = held_handle(ctx, "jsonAs")?;
+        let text = body_text(&held, "jsonAs")?;
         #[expect(
             unsafe_code,
             reason = "the same descriptor and contract, still owned by the compiled unit"
         )]
         unsafe {
-            read.build(ctx, "Core\\Request::jsonAs")
+            crate::json::decode_as(ctx, class, shape, text, max, list, "Core\\Request::jsonAs")
         }
     }
 }
@@ -3359,6 +3339,21 @@ fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
         .expect("the caller reads the request before it reads the body")
         .held_body()
         .expect("the branch above holds the body before the first read of it"))
+}
+
+/// [`held_octets`], as a handle on the hold rather than a borrow of the
+/// context. A reader that needs `&mut Ctx` while it reads the bytes takes this.
+///
+/// # Errors
+///
+/// [`held_octets`]'s.
+fn held_handle(ctx: &mut Ctx, member: &str) -> Result<std::rc::Rc<Box<[u8]>>, Fault> {
+    held_octets(ctx, member)?;
+    Ok(ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the body")
+        .held_handle()
+        .expect("`held_octets` holds the body before it returns"))
 }
 
 /// This request's body, pulled to its end into one buffer under
@@ -7391,29 +7386,27 @@ mod tests {
     }
 
     /// The message a bad body is refused with by the one pass `jsonAs<T>()`
-    /// reads its text in: `crate::json::read_as`, then `build`.
+    /// reads its text in: `crate::json::decode_as`.
     ///
     /// The fault is read here and not off a context, because a context with
     /// no program behind it has no `ParseError` class to build, so its pending
     /// message is empty for either route.
     fn refused_in_one_pass(class: *const ClassDesc, text: &str, max: u32) -> String {
-        let lists = crate::json::Lists::default();
         let mut ctx = Ctx::buffered();
         #[expect(
             unsafe_code,
             reason = "`reading_class` leaks its table, so the descriptor outlives the call"
         )]
         let fault = unsafe {
-            crate::json::read_as(
+            crate::json::decode_as(
+                &mut ctx,
                 class,
                 None,
                 text,
                 max,
                 false,
-                &lists,
                 "Core\\Request::jsonAs",
             )
-            .and_then(|read| read.build(&mut ctx, "Core\\Request::jsonAs"))
         }
         .expect_err("every body this is asked about is a bad one");
         fault_message(fault)

@@ -274,7 +274,7 @@
 //! # `decodeAs` reads the text against the class
 //!
 //! `Core\Json::decodeAs` and `Core\Request::jsonAs` parse once, through
-//! [`read_as`], with [`Fill`] driven by the class's
+//! [`decode_as`], with [`Fill`] driven by the class's
 //! field list, and [`walk`] builds the instances from what it read. A JSON
 //! object the class fills becomes a [`Read`]: one slot per field, at the
 //! field's index. Its keys are matched against the field list as they are
@@ -332,8 +332,7 @@ use crate::registry::{
 /// `decodeAs` is one of the rows whose helper takes arguments its `params` does
 /// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
 /// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
-/// same decode over a request body and reaches it through [`check_codec`] and
-/// [`read_as`] rather than through [`decode_as`].
+/// same decode over a request body and calls [`decode_as`] too.
 // rank: 100
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
@@ -2152,8 +2151,14 @@ nvs_runtime::nvs_helper! {
 /// instances out of that tree, so no constructor runs before the whole
 /// document has parsed. A class that wrote [`DECODE`] is handed the document
 /// as it arrived, so its text is read by [`read_marked`] and built by
-/// [`hydrate`]. The read is [`read_as`] and the build [`ReadAs::build`], two
-/// calls a caller holding borrowed text makes itself.
+/// [`hydrate`]. The context is in hand for the whole call, so a caller whose
+/// text is the request's body holds a handle on the bytes and not a borrow of
+/// the context (`Core\Request::jsonAs`).
+///
+/// # Errors
+///
+/// `ParseError`, worded `{member}(): ...`, where `text` is not one document
+/// [`Fill`] reads against the class at `max`, and every issue the build finds.
 ///
 /// The two shapes share this frame because the codec questions are the
 /// contract's and not the document's: an `Opaque` field is a decoder this crate
@@ -2189,169 +2194,44 @@ pub(crate) unsafe fn decode_as(
     unsafe {
         check_codec(class, shape, member)?;
     }
-    let lists = Lists::default();
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees the descriptor and the contract are live"
-    )]
-    let read = unsafe { read_as(class, shape, text, max, list, &lists, member) }?;
-    #[expect(
-        unsafe_code,
-        reason = "the same live descriptor and contract the caller vouched for"
-    )]
-    unsafe {
-        read.build(ctx, member)
-    }
-}
-
-/// [`decode_as`]'s parse, without the `&mut Ctx` its build needs:
-/// `Core\Request::jsonAs` reads text borrowed from the request, and takes the
-/// context again only once that borrow is over. The read owns nothing of
-/// `text`, so [`ReadAs::build`] runs after it.
-///
-/// The caller owes [`check_codec`] first, as [`decode_as`] makes it.
-///
-/// # Safety
-///
-/// As [`decode_as`]'s. The two must stay live until [`ReadAs::build`] ends.
-///
-/// # Errors
-///
-/// `ParseError`, worded `{member}(): ...`, where `text` is not one document
-/// [`Fill`] reads against the class at `max`.
-#[expect(
-    unsafe_code,
-    reason = "the caller owes the liveness of a descriptor no signature can express"
-)]
-pub(crate) unsafe fn read_as<'a>(
-    class: *const nvs_runtime::ClassDesc,
-    shape: Option<*const nvs_runtime::ShapeCodec>,
-    text: &str,
-    max: u32,
-    list: bool,
-    lists: &'a Lists,
-    member: &str,
-) -> Result<ReadAs<'a>, Fault> {
     let unparsed = |why: serde_json::Error| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
     };
+    let lists = Lists::default();
+    let reading = Reading::Wire(&lists);
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the descriptor and the contract are live"
     )]
-    let contract = unsafe { Contract::new(class, shape) }.over(Reading::Wire(lists));
-    let read = if contract.writes_decoder() {
-        Parsed::Document(read_marked(text, max, lists).map_err(unparsed)?)
-    } else {
-        Parsed::Tree(read_against(text, max, contract, list).map_err(unparsed)?)
-    };
-    Ok(ReadAs {
-        class,
-        shape,
-        list,
-        lists,
-        read: Some(read),
-    })
-}
-
-/// One document [`read_as`] read, waiting for the context its instances are
-/// built in.
-///
-/// Dropping one that was never built releases what it read.
-pub(crate) struct ReadAs<'a> {
-    /// The class the build makes, as the caller of [`read_as`] vouched for it.
-    class: *const nvs_runtime::ClassDesc,
-    /// The inline shape's wire contract, where the call site wrote one.
-    shape: Option<*const nvs_runtime::ShapeCodec>,
-    /// Whether the document is an `array<T>`.
-    list: bool,
-    /// The lists the parse noted.
-    lists: &'a Lists,
-    /// What the parse read. `None` only once [`ReadAs::build`] took it.
-    read: Option<Parsed>,
-}
-
-/// What [`read_as`] read: a document for a class that wrote [`DECODE`], or a
-/// tree read against the class for every other one.
-enum Parsed {
-    /// [`read_marked`]'s document, with the one reference that read made.
-    Document(Value),
-    /// [`read_against`]'s tree.
-    Tree(Found),
-}
-
-impl ReadAs<'_> {
-    /// The instance, or for a list one per element, built out of what was
-    /// read.
-    ///
-    /// # Safety
-    ///
-    /// As [`read_as`]'s.
+    let contract = unsafe { Contract::new(class, shape) }.over(reading);
+    if contract.writes_decoder() {
+        let document = read_marked(text, max, &lists).map_err(unparsed)?;
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor the caller vouched for"
+        )]
+        return unsafe { hydrate(ctx, class, shape, document, list, reading, member) };
+    }
+    let tree = read_against(text, max, contract, list).map_err(unparsed)?;
     #[expect(
         unsafe_code,
-        reason = "the caller owes the liveness of a descriptor no signature can express"
+        reason = "the same live descriptor the caller vouched for, and a tree this \
+                  frame keeps alive across the walk"
     )]
-    pub(crate) unsafe fn build(
-        mut self,
-        ctx: &mut nvs_runtime::Ctx,
-        member: &str,
-    ) -> Result<Value, Fault> {
-        let reading = Reading::Wire(self.lists);
-        match self.read.take() {
-            Some(Parsed::Document(document)) => {
-                #[expect(
-                    unsafe_code,
-                    reason = "the same live descriptor the caller vouched for"
-                )]
-                unsafe {
-                    hydrate(
-                        ctx, self.class, self.shape, document, self.list, reading, member,
-                    )
-                }
-            }
-            Some(Parsed::Tree(tree)) => {
-                #[expect(
-                    unsafe_code,
-                    reason = "the same live descriptor the caller vouched for, and a \
-                              tree this frame keeps alive across the walk"
-                )]
-                let decoded = unsafe {
-                    let contract = Contract::new(self.class, self.shape).over(reading);
-                    if self.list {
-                        decode_each(ctx, contract, tree.seen(), member)
-                    } else {
-                        decode_object(ctx, contract, tree.seen(), None, member)
-                    }
-                };
-                // Every value an instance kept out of the tree took a
-                // reference of its own on the way past, so dropping the tree
-                // frees exactly what nothing else holds.
-                drop(tree);
-                decoded
-            }
-            // `build` takes the read by value and [`read_as`] always fills
-            // it, so this arm is unreachable from source.
-            None => Err(Fault::fatal(format!(
-                "internal error: `{member}` built one read twice"
-            ))),
+    let decoded = unsafe {
+        if list {
+            decode_each(ctx, contract, tree.seen(), member)
+        } else {
+            decode_object(ctx, contract, tree.seen(), None, member)
         }
-    }
-}
-
-impl Drop for ReadAs<'_> {
-    fn drop(&mut self) {
-        if let Some(Parsed::Document(document)) = self.read.take() {
-            #[expect(
-                unsafe_code,
-                reason = "a document not yet built owns the one reference its read made"
-            )]
-            unsafe {
-                document.release();
-            }
-        }
-    }
+    };
+    // Every value an instance kept out of the tree took a reference of its
+    // own on the way past, so dropping the tree frees exactly what nothing
+    // else holds.
+    drop(tree);
+    decoded
 }
 
 // ============================================================================
