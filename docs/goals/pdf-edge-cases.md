@@ -26,7 +26,7 @@ stages:
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/flex.rs, extensions/pdf/tests/tables.rs, docs/rules/core-classes/pdf-tables-across-pages.md]
   - id: 6
     title: "every text and box property the subset accepts is applied: overflow clips, visibility hides, margins go negative, span-level white-space and line-height, list types"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/boxes.rs, extensions/pdf/src/css/mod.rs]
   - id: 7
     title: "page counters restart, unknown page selectors and @media features are reported, and margin boxes report their overflow"
@@ -301,6 +301,15 @@ handled but untested.
     slice` does not open a collapsed edge. A repeated header or a footer meeting a body row that
     is not its source neighbour draws the stronger of the two edges, per column. Cost: one grid
     slot per row and column while the table is laid out.
+17. **A box clipped down with a `height` is monolithic**, as CSS Fragmentation §4.1 allows: it is
+    laid out on a page of its own and placed whole, so no break goes through it and clipped
+    content adds no page. A box clipped only across, or with no `height`, splits as any box
+    does, its content clipped per page slice. Any `overflow` other than `visible` holds the
+    margins inside the box. `visibility: collapse` leaves a row out of the pieces, and its cells
+    still count toward the column widths. `<ol type>`, `<ul type>` and `<li type>` are
+    presentational hints that sort under every author rule. Parley 0.12 takes `line-height` and
+    `TextWrapMode` per span and `last_line_alignment`, so decision 9's three are implemented.
+    Cost: one layout pass for a monolithic box, freed when it is placed.
 
 ## Stages
 
@@ -441,21 +450,21 @@ handled but untested.
 **Does:** applies or reports each property the cascade accepts and layout ignores (decisions 1 and 9),
 with tests in the new `extensions/pdf/tests/boxes.rs`.
 
-- [ ] `overflow: hidden` (and `overflow-x`/`overflow-y`) clips a box's content to its padding box, and
+- [x] `overflow: hidden` (and `overflow-x`/`overflow-y`) clips a box's content to its padding box, and
   clipped content adds no page. `extensions/pdf/src/layout/block.rs:826`, `extensions/pdf/src/layout/boxes.rs:1038`
-- [ ] `visibility: hidden` draws nothing and keeps the space, `collapse` on a table row takes no space.
+- [x] `visibility: hidden` draws nothing and keeps the space, `collapse` on a table row takes no space.
   `extensions/pdf/src/css/properties.rs:330`
-- [ ] Margins collapse to the largest positive plus the most negative, so a negative margin pulls the
+- [x] Margins collapse to the largest positive plus the most negative, so a negative margin pulls the
   box up. `extensions/pdf/src/layout/block.rs:766`, `extensions/pdf/src/layout/block.rs:911`
-- [ ] `white-space` and `line-height` on an inline element, and `text-align-last`: applied per span if
+- [x] `white-space` and `line-height` on an inline element, and `text-align-last`: applied per span if
   parley 0.12 takes them, else removed from `subset.json` (decision 9).
   `extensions/pdf/src/layout/text.rs:478`, `extensions/pdf/src/layout/inline.rs:135`
-- [ ] `<ol type>` maps to `list-style-type` as a presentational hint, and `reversed` counts down.
+- [x] `<ol type>` maps to `list-style-type` as a presentational hint, and `reversed` counts down.
   `extensions/pdf/src/layout/inline.rs:274`
-- [ ] Each `subset.json` description that changed says what the property now does.
+- [x] Each `subset.json` description that changed says what the property now does.
   `extensions/pdf/subset.json:87`
-- [ ] Write the eight tests the `boxes` check names. `extensions/pdf/tests/boxes.rs:1`
-- [ ] Run the `boxes` check's command once: green.
+- [x] Write the eight tests the `boxes` check names. `extensions/pdf/tests/boxes.rs:1`
+- [x] Run the `boxes` check's command once: green.
 
 ### 7. page counters restart, unknown page selectors and @media features are reported, and margin boxes report their overflow
 
@@ -528,40 +537,45 @@ check once both end.
 
 ### State
 
-Stages 1 to 5 are done. The `tables` check ran once: 28 of 28 green.
+Stages 1 to 6 are done; `boxes` ran once, 8 of 8 green. Decision 17 records stage 6's calls.
 
-- Collapsed borders (decision 16): `table::Edge` (`extensions/pdf/src/layout/table.rs`) is one
-  side with its owner rank; `Edge::max` and `Edge::resolve` apply decision 8.
-  `resolve_edges` moves each cell's border into its padding and resolves every row's top and
-  bottom edge per column, against its neighbours (`TOP`, `BOTTOM`) and against the table
-  (`OUTER_TOP`, `OUTER_BOTTOM`), and its side at each column line. `Rim` is those edges at
-  their x positions; `rim_items` draws them with `boxes::edges` (now `pub(super)`).
-  `Cx::rows` draws a row's sides and top after its cells and leaves its bottom owed in
-  `Drawing::pending`; `close_rim` draws it, as the outer edge at a turn.
-- `Decor::hidden` (`extensions/pdf/src/layout/boxes.rs`) records a `hidden` side. Rows and
-  groups carry `edges`, `Table` carries `col_edges`, `group_edges` and the table's `edges`,
-  filled in `Builder::part_box`, `Builder::columns` and `Builder::open_table`
-  (`extensions/pdf/src/layout/inline.rs`). Under collapse the table's own box draws no border.
-- `borders_are_closed_at_every_break` now gives its collapsed table a 2pt border, so the table
-  wins the outer edges; at 1pt the cells win by owner order.
-- The sweep's reds were stale again: `env-secret-proofs` has no definition and no log, and
-  nightly 41813182715 is the run already traced to fixed commits.
+- Negative margins: `block::Margin` (`extensions/pdf/src/layout/block.rs`) is `Flow::pending`,
+  the largest positive margin plus the most negative one; flex, table and text read it with
+  `get()`.
+- `overflow`: `BoxGeometry::clip` and `BoxGeometry::height`, read in `block::geometry`.
+  `Flow::close` wraps a clipping box's content in an `Item::Begin` clipped to its padding box
+  per page slice (`UNCUT` reaches past the page on the side it does not clip) and caps its
+  height. `Cx::run` sends a box `Flow::whole` names to `Cx::monolith` (`text.rs`), which lays
+  it out with `Cx::lay` and places it with `Flow::monolith`. `Flow::open` is now `enter` and
+  `open_at`.
+- `visibility`: `Span::hidden` skips a run's glyphs, decorations and links, `Decor::visible`
+  makes `boxes::paint` draw nothing, and a hidden image gets an empty draw rectangle
+  (`image.rs`), which the flow skips. `Row::collapsed` leaves a row out of `order` in `Cx::table`.
+- `Span::line_height` and `Span::wrap` go to parley per span (`text.rs` `properties`), and
+  `Para::options` passes `text-align-last` as `last_line_alignment`.
+- `<ol type>`: `Decl::hint` and `list_type_hint` (`extensions/pdf/src/css/mod.rs`), sorted under
+  every author rule in `Cascade::matched`. `reversed`: `Counter::step`, `Counters::reverse`
+  (`inline.rs`).
+- The sweep's reds were stale again: `env-secret-proofs` has no log, and nightly 41813182715 is
+  the run already traced to fixed commits.
 
 ### Next
 
-Stage 6, in item order, tests in the new `extensions/pdf/tests/boxes.rs`. First
-`overflow: hidden` (and `overflow-x`/`overflow-y`): clip a box's content to its padding box
-(`extensions/pdf/src/layout/block.rs:826`, the clip item beside `boxes.rs:1038`), and content
-clipped away adds no page. Then `visibility: hidden` draws nothing and keeps the space, and
-`collapse` on a table row takes no space (`extensions/pdf/src/css/properties.rs:330`; a row's
-`Row` gets a flag the piece list in `Cx::table` skips). Then negative margins
-(`block.rs:766`, `block.rs:911`): collapsing adds the largest positive and the most negative.
-Then check parley 0.12's `StyleProperty` and `AlignmentOptions` in the installed source before
-deciding span-level `white-space`, `line-height` and `text-align-last` (decision 9). Then
-`<ol type>` and `reversed` (`inline.rs:274`), the `subset.json` descriptions, the eight
-`boxes` tests, and one run of the `boxes` check.
+Stage 7, in item order, tests in the new `extensions/pdf/tests/pages.rs`. First
+`counter-reset: page N` (`extensions/pdf/src/paginate/mod.rs:368`, the page and pages numbers at
+`paginate/mod.rs:391`), then unknown `@page` pseudo-classes reported (`paginate/mod.rs:147`,
+`extensions/pdf/src/css/mod.rs:421`), then `@media` by type and the `width`, `height` and
+`orientation` features against the page size (`css/mod.rs:352` `media_applies`), then a linked
+sheet that is not UTF-8 reported (`css/mod.rs:710`), then a tall margin box or `element()` in
+`Rendered::overflows` (`extensions/pdf/src/layout/margin.rs:9`), then the corner alignment from
+css-page-3's table (`paginate/mod.rs:264`), the six `pages` tests and one run of the `pages`
+check.
 
-Tests that may go red at stage 10: a collapsed table whose cells and table border are equally
+Tests that may go red at stage 10, from stage 6: a test with a box whose `overflow` is not
+`visible` now sees the margins inside it held, with no collapse through its top or bottom, and
+one with a clipped box with a `height` sees it moved whole to the next page. A test with
+negative margins now sees them pull the box up. A test that relied on `<ol type>` being ignored
+now sees its markers change. From earlier stages: A collapsed table whose cells and table border are equally
 wide now draws the cells' border on its outer edges, and a collapsed table with only a table
 border now overlaps its cells by that border's width. A collapsed table under
 `box-decoration-break: slice` is closed at each break. A test with a table whose header and footer
