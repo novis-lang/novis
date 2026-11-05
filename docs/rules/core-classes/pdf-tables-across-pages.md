@@ -30,14 +30,26 @@ tool. Each rule is the reading a person expects, so none needs a setting.
 Inside a page, a table follows CSS 2.1. A cell's `vertical-align` takes `top`, `middle`, `bottom`
 and `baseline`, which aligns each cell's first line. A row's and a group's background is drawn
 under its cells, and their borders only under `border-collapse: collapse`. A `display: table`
-element directly in a table, a group or a row is wrapped in an anonymous cell.
+element directly in a table, a group or a row is wrapped in an anonymous cell. Under
+`border-collapse: collapse` each edge is one border, resolved by CSS 2.1 §17.6.2.1 from every
+box on it: `hidden` wins, then the wider border, then `double`, `solid`, `dashed`, `dotted`,
+then the cell, row, row group, column, column group and table in that order. The edge at a page
+break is resolved as the table's own edge, so rule 4 holds for the collapsed model too.
 
 - **Memory:** nothing more. A `vertical-align` other than `top` and a group's box each cost one
-  more layout pass over the cell or the box, freed when the table is placed.
+  more layout pass over the cell or the box, freed when the table is placed. A collapsed table
+  holds one grid slot per row and column and each row's resolved edges while it is laid out.
 
 **On disk.** `extensions/pdf/src/layout/table.rs` lays a table out by the eight rules, and its
 module doc names what it does not do yet. A closed edge takes its border and padding from each
-page it is drawn on.
+page it is drawn on. A `col` or `colgroup` width, with `span`, sets its columns' widths; a
+`colspan`, `rowspan` or `span` is read by HTML's rules for non-negative integers, so `2x` is 2,
+and `rowspan="0"` runs to the end of its row group; a forced `break-before` or `break-after` on
+a body row or a row group starts a new page between two pieces; the header and footer rows are
+left off where no row fits with them; and a `direction: rtl` table and flex row run from the
+right (`extensions/pdf/tests/tables.rs`). Collapsed borders resolve one border per edge, at a
+page break and under a repeated header too
+(`collapsed_borders_resolve_by_width_then_style_then_owner`).
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,

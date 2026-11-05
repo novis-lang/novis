@@ -249,6 +249,9 @@ pub(super) struct Decor {
     pub background: Option<Color>,
     pub layer: Option<Layer>,
     pub line: [Line; 4],
+    /// Whether each side's style is `hidden`, which wins over every other border of a
+    /// collapsed table edge.
+    pub hidden: [bool; 4],
     pub border_color: [Color; 4],
     /// Each corner's radius across, then down.
     pub radius: [(Length, Length); 4],
@@ -295,6 +298,7 @@ pub(super) fn decor(style: &Style) -> Decor {
         layer: None,
         line: sides
             .map(|s| line_of(keyword(style, &format!("border-{s}-style"))).unwrap_or(Line::Solid)),
+        hidden: sides.map(|s| keyword(style, &format!("border-{s}-style")) == Some("hidden")),
         border_color: sides
             .map(|s| color(style, &format!("border-{s}-color")).unwrap_or(text_color)),
         radius: ["top-left", "top-right", "bottom-right", "bottom-left"].map(|c| {
@@ -853,7 +857,7 @@ fn dash(line: Line, width: f32) -> (Vec<f32>, bool) {
 
 /// The edges of the box `x`, `y`, `w`, `h` with corners `r`: each side `width` wide, in its line
 /// style and colour.
-fn edges(
+pub(super) fn edges(
     out: &mut Vec<Item>,
     (x, y, w, h): (f32, f32, f32, f32),
     width: [f32; 4],

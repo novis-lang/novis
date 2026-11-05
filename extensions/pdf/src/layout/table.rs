@@ -33,7 +33,7 @@
 //! row level with the lowest of them. The content moves down by more top padding, so the
 //! cell's box keeps its place. A row's background is drawn under its cells, and a group's
 //! under its rows, once on each page they are on. Their borders are drawn only under
-//! `border-collapse: collapse`, as CSS 2.1 says, and are not resolved against the cells'.
+//! `border-collapse: collapse`, as CSS 2.1 says, where they win an edge.
 //! The rows are drawn in
 //! this order: the header rows, the body rows in source order, then the footer rows. A body row
 //! is placed as one piece, so a row that fits on a page is never split, and rows a `rowspan`
@@ -61,11 +61,24 @@
 //! taller, so a page never holds them and no row.
 //!
 //! **Borders at a break.** The table's box and each cell of a split row are closed at every
-//! page break, as `block`'s module doc says, unless `box-decoration-break` is `slice`. Under
-//! `border-collapse: collapse`, cells that meet overlap by the widest cell border and the
-//! outer cells' borders lie on the table's, so two borders that meet are drawn as one. Each
-//! cell keeps all four sides, so the last row before a break and the first after it are both
-//! closed. `border-spacing` is not used, and the borders are not resolved by style or width.
+//! page break, as `block`'s module doc says, unless `box-decoration-break` is `slice`.
+//!
+//! **Collapsed borders.** Under `border-collapse: collapse`, each edge of the grid is one
+//! border, resolved by CSS 2.1 §17.6.2.1 from the borders of every box on it: the cells, the
+//! rows, the row groups, the columns, the column groups and the table. A `hidden` border wins,
+//! then the wider one, then the style `double`, `solid`, `dashed`, `dotted`, then the box
+//! nearer the cell in that list, then the box further up and further toward the start side.
+//! The cells, rows, groups and the table draw no border of their own: each width moves into
+//! the box's padding, so its content stays where it is. Cells that meet overlap by the widest
+//! resolved edge, and each edge is drawn centred in that strip, after the cells of its row,
+//! so no background covers it. Where a repeated header row or a footer row meets a body row
+//! it is not next to in the source, the stronger of their two edges is drawn. The edge at a
+//! page break is resolved as the table's own top or bottom edge, so each page is closed by
+//! the table's border where it wins, whatever `box-decoration-break` says. `border-spacing`
+//! is not used.
+//!
+//! Cost: one grid slot per row and column, and the resolved edges of each row, while the
+//! table is laid out.
 //!
 //! **Slots and marks.** A `<slot name>` in a cell draws nothing, and its content is left out.
 //! Each page its row is drawn on records the cell's content box under the slot's name
@@ -89,10 +102,11 @@
 //! numbers for each body piece while the table is paged.
 
 use super::block::{BoxGeometry, FIT, Flow};
+use super::boxes::{Line, edges};
 use super::flex::fit;
 use super::text::{Cx, Here, Placed, carry, shift};
-use super::{Block, Fact, Item, MARGIN, Role, keyword};
-use crate::css::{Style, Value, value};
+use super::{BLACK, Block, Fact, Item, MARGIN, Role, keyword};
+use crate::css::{Color, Style, Value, value};
 
 /// A table's content box, its `border-spacing`, its `table-layout`, and what it holds.
 #[derive(Clone)]
@@ -116,9 +130,17 @@ pub(super) struct Table {
     /// The `width` of each column a `col` or `colgroup` sets, in order, `None` where it sets
     /// none.
     pub(super) cols: Vec<Option<f32>>,
+    /// The border of each column, with its column group's where that group's side is the
+    /// column's, in order. Read only under `border-collapse: collapse`.
+    pub(super) col_edges: Vec<[Edge; 4]>,
     pub(super) rows: Vec<Row>,
     /// The box each group element draws under its rows, by the group's number less one.
     pub(super) groups: Vec<Option<BoxGeometry>>,
+    /// The border of each group element, by the group's number less one.
+    pub(super) group_edges: Vec<[Edge; 4]>,
+    /// The table's own border. Under `border-collapse: collapse` its box draws none, and its
+    /// cells draw it where it wins.
+    pub(super) edges: [Edge; 4],
 }
 
 /// A row: the group it is in, when it shows, and its cells.
@@ -136,6 +158,8 @@ pub(super) struct Row {
     pub(super) marks: Vec<(String, String)>,
     /// The box it draws under its cells: its background, and its borders when they collapse.
     pub(super) decor: Option<BoxGeometry>,
+    /// Its border, which is drawn only where it wins a collapsed edge.
+    pub(super) edges: [Edge; 4],
     /// Whether a forced page break comes before it and after it, from its own `break-before`
     /// and `break-after` or its group's.
     pub(super) breaks: [bool; 2],
@@ -267,6 +291,310 @@ pub(super) fn span_to_group_end(rows: &mut [Row]) {
     }
 }
 
+/// One side of a box in a collapsed table: its width, line, colour, whether it is `hidden`, and
+/// its owner's rank in CSS 2.1's order, from 0 for a cell to 5 for the table.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Edge {
+    pub(super) width: f32,
+    pub(super) line: Line,
+    pub(super) color: Color,
+    pub(super) hidden: bool,
+    pub(super) owner: u8,
+}
+
+/// The owners of a collapsed edge, in CSS 2.1's order.
+pub(super) const CELL: u8 = 0;
+pub(super) const ROW: u8 = 1;
+pub(super) const GROUP: u8 = 2;
+pub(super) const COLUMN: u8 = 3;
+pub(super) const COLUMN_GROUP: u8 = 4;
+pub(super) const TABLE: u8 = 5;
+
+impl Edge {
+    /// No border.
+    pub(super) const NONE: Edge = Edge {
+        width: 0.0,
+        line: Line::Solid,
+        color: BLACK,
+        hidden: false,
+        owner: TABLE,
+    };
+
+    /// The four sides of the box `g`, owned by `owner`.
+    pub(super) fn sides(g: &BoxGeometry, owner: u8) -> [Edge; 4] {
+        [0, 1, 2, 3].map(|s| Edge {
+            width: g.border[s],
+            line: g.decor.line[s],
+            color: g.decor.border_color[s],
+            hidden: g.decor.hidden[s],
+            owner,
+        })
+    }
+
+    /// Whether this edge wins over `other` by CSS 2.1 §17.6.2.1: `hidden`, then the wider,
+    /// then the style double, solid, dashed, dotted, then the owner nearer the cell. A tie is
+    /// lost, so the edge met first wins it.
+    fn beats(&self, other: &Edge) -> bool {
+        if self.hidden || other.hidden {
+            return self.hidden && !other.hidden;
+        }
+        let rank = |e: &Edge| match e.line {
+            Line::Double => 4,
+            Line::Solid => 3,
+            Line::Dashed => 2,
+            Line::Dotted => 1,
+        };
+        if (self.width - other.width).abs() > FIT {
+            return self.width > other.width;
+        }
+        if self.width <= 0.0 {
+            return false;
+        }
+        if rank(self) != rank(other) {
+            return rank(self) > rank(other);
+        }
+        self.owner < other.owner
+    }
+
+    /// The stronger of this edge and `other`, this one on a tie.
+    pub(super) fn max(self, other: Edge) -> Edge {
+        if other.beats(&self) { other } else { self }
+    }
+
+    /// The edge `edges` resolve to, `None` when it draws nothing: the winner is `hidden` or
+    /// has no width.
+    fn resolve(edges: impl IntoIterator<Item = Edge>) -> Option<Edge> {
+        let won = edges.into_iter().reduce(Edge::max)?;
+        (!won.hidden && won.width > 0.0).then_some(won)
+    }
+}
+
+/// The edges of a collapsed row, resolved: its top and bottom edge over each column, as the
+/// column's left edge, its width and the edge, by [`TOP`], [`BOTTOM`], [`OUTER_TOP`] and
+/// [`OUTER_BOTTOM`], and its sides, each a column line's left edge and its edge.
+#[derive(Default, Clone)]
+struct Rim {
+    across: [Vec<Option<(f32, f32, Edge)>>; 4],
+    sides: Vec<(f32, Edge)>,
+}
+
+/// A row's top edge against the row above it, and its bottom edge against the row under it.
+const TOP: usize = 0;
+const BOTTOM: usize = 1;
+/// A row's top edge and its bottom edge against the table's, as at a page break.
+const OUTER_TOP: usize = 2;
+const OUTER_BOTTOM: usize = 3;
+
+/// Each grid slot's cell, row by row, as its row and its index in that row: a `rowspan` cell
+/// covers its rows below, and a `colspan` cell its columns.
+fn cover(rows: &[Row], starts: &[Vec<usize>], columns: usize) -> Vec<Vec<Option<(usize, usize)>>> {
+    let mut cover = vec![vec![None; columns]; rows.len()];
+    for (r, row) in rows.iter().enumerate() {
+        for (c, cell) in row.cells.iter().enumerate() {
+            let from = starts[r][c].min(columns);
+            let end = (from + cell.span).min(columns);
+            for line in cover.iter_mut().skip(r).take(cell.rows.max(1)) {
+                for slot in &mut line[from..end] {
+                    slot.get_or_insert((r, c));
+                }
+            }
+        }
+    }
+    cover
+}
+
+/// The collapsed edges of each row, in source order: its top and bottom edge over each column,
+/// against the rows beside it and against the table's, and its side at each column line,
+/// `None` where nothing is drawn or a cell goes on across it. A row's edge at a page break is
+/// resolved as the table's edge, so the table is closed on every page. `seq` is the rows top
+/// to bottom, and `owners` the columns', the groups' and the
+/// table's borders. Each cell's border moves into its padding, so its content stays where it
+/// is and the cell draws no border of its own.
+///
+/// Cost: one slot per row and column while the table is laid out.
+fn resolve_edges(
+    rows: &[Row],
+    blocks: &mut [Vec<Vec<Block>>],
+    starts: &[Vec<usize>],
+    columns: usize,
+    seq: &[usize],
+    owners: (&[[Edge; 4]], &[[Edge; 4]], [Edge; 4]),
+    rtl: bool,
+) -> Vec<Resolved> {
+    let (cols, groups, table) = owners;
+    let cells: Vec<Vec<[Edge; 4]>> = blocks
+        .iter_mut()
+        .map(|row| {
+            row.iter_mut()
+                .map(|cell| match cell.first_mut() {
+                    Some(Block::Open(g)) => {
+                        let sides = Edge::sides(g, CELL);
+                        for s in 0..4 {
+                            g.padding[s] += g.border[s];
+                            g.border[s] = 0.0;
+                        }
+                        sides
+                    }
+                    _ => [Edge::NONE; 4],
+                })
+                .collect()
+        })
+        .collect();
+    let cover = cover(rows, starts, columns);
+    let cell = |r: usize, col: usize, side: usize| {
+        cover[r][col].map_or(Edge::NONE, |(r0, c)| cells[r0][c][side])
+    };
+    let group = |r: usize, side: usize| {
+        rows[r]
+            .group
+            .and_then(|g| groups.get(g - 1))
+            .map_or(Edge::NONE, |e| e[side])
+    };
+    let col = |c: usize, side: usize| cols.get(c).map_or(Edge::NONE, |e| e[side]);
+    // The physical side a row starts on and the one it ends on.
+    let (start, end) = if rtl { (1, 3) } else { (3, 1) };
+    let mut out = vec![Resolved::default(); rows.len()];
+    for (k, &r) in seq.iter().enumerate() {
+        let near = [k.checked_sub(1).map(|p| seq[p]), seq.get(k + 1).copied()];
+        // The top edge (0) and the bottom edge (2) over each column.
+        let across = |side: usize, other: Option<usize>| -> Vec<Option<Edge>> {
+            (0..columns)
+                .map(|c| match other {
+                    Some(o) if cover[r][c].is_some() && cover[o][c] == cover[r][c] => None,
+                    Some(o) => {
+                        // The upper box comes first, so it wins a tie.
+                        let (up, down) = if side == 0 { (o, r) } else { (r, o) };
+                        let mut all = vec![
+                            cell(up, c, 2),
+                            cell(down, c, 0),
+                            rows[up].edges[2],
+                            rows[down].edges[0],
+                        ];
+                        if rows[o].group != rows[r].group || rows[o].part != rows[r].part {
+                            all.extend([group(up, 2), group(down, 0)]);
+                        }
+                        Edge::resolve(all)
+                    }
+                    None => Edge::resolve([
+                        cell(r, c, side),
+                        rows[r].edges[side],
+                        group(r, side),
+                        col(c, side),
+                        table[side],
+                    ]),
+                })
+                .collect()
+        };
+        let across = [
+            across(0, near[0]),
+            across(2, near[1]),
+            across(0, None),
+            across(2, None),
+        ];
+        let sides = (0..=columns)
+            .map(|line| {
+                let before = line.checked_sub(1);
+                let after = (line < columns).then_some(line);
+                match (before, after) {
+                    (Some(b), Some(a)) if cover[r][b].is_some() && cover[r][b] == cover[r][a] => {
+                        None
+                    }
+                    (Some(b), Some(a)) => Edge::resolve([
+                        cell(r, b, end),
+                        cell(r, a, start),
+                        col(b, end),
+                        col(a, start),
+                    ]),
+                    (None, Some(a)) => Edge::resolve([
+                        cell(r, a, start),
+                        rows[r].edges[start],
+                        group(r, start),
+                        col(a, start),
+                        table[start],
+                    ]),
+                    (Some(b), None) => Edge::resolve([
+                        cell(r, b, end),
+                        rows[r].edges[end],
+                        group(r, end),
+                        col(b, end),
+                        table[end],
+                    ]),
+                    (None, None) => None,
+                }
+            })
+            .collect();
+        out[r] = Resolved { across, sides };
+    }
+    out
+}
+
+/// A row's resolved edges: its top and bottom edges over each column, by [`TOP`],
+/// [`BOTTOM`], [`OUTER_TOP`] and [`OUTER_BOTTOM`], and its side at each column line.
+#[derive(Default, Clone)]
+struct Resolved {
+    across: [Vec<Option<Edge>>; 4],
+    sides: Vec<Option<Edge>>,
+}
+
+/// The items of a collapsed row's edges, drawn in strips `strip` wide, between `top` and
+/// `bottom` on the page: its sides when `sides`, the top edge `head` and the bottom edge
+/// `foot`, each one of [`TOP`] to [`OUTER_BOTTOM`]. Each edge is centred in its strip.
+fn rim_items(
+    rim: &Rim,
+    strip: f32,
+    (top, bottom): (f32, f32),
+    sides: bool,
+    head: Option<usize>,
+    foot: Option<usize>,
+) -> Vec<Item> {
+    let mut out = Vec::new();
+    let flat = [(0.0, 0.0); 4];
+    let inset = |e: &Edge| ((strip - e.width) / 2.0).max(0.0);
+    for (x, e) in rim.sides.iter().filter(|_| sides) {
+        let size = (x + inset(e), top, e.width, (bottom - top).max(0.0));
+        edges(
+            &mut out,
+            size,
+            [0.0, 0.0, 0.0, e.width],
+            [e.line; 4],
+            [e.color; 4],
+            flat,
+        );
+    }
+    let mut across = |run: &[Option<(f32, f32, Edge)>], y: f32| {
+        for (x, w, e) in run.iter().flatten() {
+            let size = (*x, y + inset(e), *w, e.width);
+            edges(
+                &mut out,
+                size,
+                [e.width, 0.0, 0.0, 0.0],
+                [e.line; 4],
+                [e.color; 4],
+                flat,
+            );
+        }
+    };
+    if let Some(head) = head {
+        across(&rim.across[head], top);
+    }
+    if let Some(foot) = foot {
+        across(&rim.across[foot], bottom - strip);
+    }
+    out
+}
+
+/// Draws the bottom edge of the collapsed row drawn last, on its page, if it is still owed:
+/// against the table's when `outer`, at a page break.
+fn close_rim(laid: &[Laid], flow: &mut Flow, drawing: &mut Drawing, outer: bool) {
+    if let Some((r, page)) = drawing.pending.take() {
+        let bottom = MARGIN + drawing.bottom;
+        let ends = (bottom - drawing.strip, bottom);
+        let which = if outer { OUTER_BOTTOM } else { BOTTOM };
+        let items = rim_items(&laid[r].rim, drawing.strip, ends, false, None, Some(which));
+        flow.pages[page].items.extend(items);
+    }
+}
+
 /// The first column of each cell, row by row, and the number of columns. A cell starts at the
 /// first column no `rowspan` from a row above still covers.
 fn grid(rows: &[Row]) -> (Vec<Vec<usize>>, usize) {
@@ -344,15 +672,23 @@ struct Laid {
     marks: Vec<(String, String)>,
     under: Option<BoxGeometry>,
     group: Option<usize>,
+    /// Its collapsed edges, empty when the borders are separate.
+    rim: Rim,
 }
 
 /// What a table has drawn so far: whether each row is drawn, the left edge and the width of
-/// its rows, and each run of one group's rows on one page.
+/// its rows, each run of one group's rows on one page, the width of a collapsed edge's
+/// strip, and the collapsed row whose bottom edge is still owed, with its page and its bottom.
 struct Drawing {
     drawn: Vec<bool>,
     left: f32,
     width: f32,
     runs: Vec<Run>,
+    strip: f32,
+    pending: Option<(usize, usize)>,
+    bottom: f32,
+    /// The last page a row was drawn on.
+    page: Option<usize>,
 }
 
 /// Rows of one group drawn on one page: the group's number, the page's index, the index of
@@ -388,10 +724,13 @@ impl Cx<'_> {
             widows,
             captions,
             cols,
+            col_edges,
             rows,
             groups,
+            group_edges,
+            edges,
         } = table;
-        let blocks: Vec<Vec<Vec<Block>>> = rows
+        let mut blocks: Vec<Vec<Vec<Block>>> = rows
             .iter()
             .map(|row| {
                 row.cells
@@ -400,23 +739,37 @@ impl Cx<'_> {
                     .collect()
             })
             .collect();
-        // Under `border-collapse: collapse`, cells that meet overlap by the widest cell border,
-        // so two borders that meet are drawn as one, and the outer cells' borders lie on the
-        // table's. Each cell keeps all four, so a row is closed on both sides of a page break.
-        let [gx, gy] = if collapse {
-            let widest = blocks
-                .iter()
-                .flatten()
-                .filter_map(|cell| match cell.first() {
-                    Some(Block::Open(g)) => g.border.into_iter().reduce(f32::max),
-                    _ => None,
-                })
-                .fold(0.0, f32::max);
-            [-widest; 2]
-        } else {
-            spacing
-        };
         let (starts, columns) = grid(&rows);
+        // The rows top to bottom: the header rows, the body rows, then the footer rows.
+        let seq: Vec<usize> = {
+            let rows = &rows;
+            [Part::Head, Part::Body, Part::Foot]
+                .into_iter()
+                .flat_map(|part| (0..rows.len()).filter(move |r| rows[*r].part == part))
+                .collect()
+        };
+        // Under `border-collapse: collapse`, each edge is resolved once, and cells that meet
+        // overlap by the widest resolved edge: that strip is where the edge is drawn.
+        let resolved = if collapse {
+            resolve_edges(
+                &rows,
+                &mut blocks,
+                &starts,
+                columns,
+                &seq,
+                (&col_edges, &group_edges, edges),
+                rtl,
+            )
+        } else {
+            Vec::new()
+        };
+        let strip = resolved
+            .iter()
+            .flat_map(|r| r.across.iter().flatten().chain(&r.sides))
+            .flatten()
+            .map(|e| e.width)
+            .fold(0.0, f32::max);
+        let [gx, gy] = if collapse { [-strip; 2] } else { spacing };
         let gaps = gx * (columns as f32 + 1.0);
         // A table with no `width` is as wide as its columns laid out unbroken, up to its
         // containing block, and its layout is `auto`, as CSS 2.1 says.
@@ -448,6 +801,10 @@ impl Cx<'_> {
             left: lefts[0],
             width: at - gx - lefts[0],
             runs: Vec::new(),
+            strip,
+            pending: None,
+            bottom: 0.0,
+            page: None,
         };
         // A right-to-left table has its columns mirrored in its content box.
         if rtl {
@@ -571,6 +928,32 @@ impl Cx<'_> {
                     (name.clone(), area)
                 })
                 .collect();
+            // The collapsed edges at their places: each column's left edge and width, and
+            // each column line's strip.
+            let rim = resolved.get(r).map_or_else(Rim::default, |resolved| {
+                let run = |edges: &[Option<Edge>]| {
+                    edges
+                        .iter()
+                        .enumerate()
+                        .map(|(c, e)| e.map(|e| (lefts[c], widths[c], e)))
+                        .collect()
+                };
+                let line_x = |line: usize| match (rtl, line < columns) {
+                    (false, true) => lefts[line],
+                    (false, false) => lefts[columns - 1] + widths[columns - 1] - strip,
+                    (true, true) => lefts[line] + widths[line] - strip,
+                    (true, false) => lefts[columns - 1],
+                };
+                Rim {
+                    across: [0, 1, 2, 3].map(|i| run(&resolved.across[i])),
+                    sides: resolved
+                        .sides
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(line, e)| e.map(|e| (line_x(line), e)))
+                        .collect(),
+                }
+            });
             laid.push(Laid {
                 cells,
                 height: heights[r],
@@ -578,6 +961,7 @@ impl Cx<'_> {
                 marks: row.marks.clone(),
                 under: row.decor.clone(),
                 group: row.group,
+                rim,
             });
         }
 
@@ -692,6 +1076,7 @@ impl Cx<'_> {
                     from: usize,
                     extra: f32| {
             cx.rows(&shown(&foot, *first, false), &laid, gy, flow, drawing);
+            close_rim(&laid, flow, drawing, true);
             // Collapsed borders end on the table's bottom edge, as they do on the last page.
             if gy < 0.0 {
                 flow.place(gy);
@@ -765,6 +1150,7 @@ impl Cx<'_> {
                 if room(flow, first) <= 0.0 {
                     turn(self, flow, &mut drawing, &mut first, i, 0.0);
                 }
+                close_rim(&laid, flow, &mut drawing, false);
                 let now = room(flow, first);
                 let part_room = |part: usize| if part == 0 { now } else { later };
                 // Each row starts under the row before it, in the part that row ends in, and
@@ -839,6 +1225,16 @@ impl Cx<'_> {
                             let bottom = if part == own.0 { own.1 } else { height };
                             self.under(&laid[r], y + top, y + bottom, flow, &mut drawing);
                         }
+                        // Each part of a collapsed row is closed by its top and bottom edges.
+                        let ends = if part <= own.0 {
+                            let top = if part == start.0 { start.1 } else { 0.0 };
+                            let bottom = if part == own.0 { own.1 } else { height };
+                            let head = if part == start.0 { TOP } else { OUTER_TOP };
+                            let foot = if part == own.0 { BOTTOM } else { OUTER_BOTTOM };
+                            Some(((MARGIN + y + top, MARGIN + y + bottom), head, foot))
+                        } else {
+                            None
+                        };
                         // A cell's tags do not close on the page it starts on, so each piece
                         // of it is a cell of its own.
                         flow.page().items.push(Item::Tag(Role::Row));
@@ -860,6 +1256,12 @@ impl Cx<'_> {
                             page.items.push(Item::Untag);
                         }
                         flow.page().items.push(Item::Untag);
+                        if let Some((ends, head, foot)) = ends {
+                            let rim = &laid[r].rim;
+                            let items = rim_items(rim, strip, ends, true, Some(head), Some(foot));
+                            flow.page().items.extend(items);
+                            drawing.page = Some(flow.pages.len() - 1);
+                        }
                     }
                 }
                 for missing in lost {
@@ -882,6 +1284,7 @@ impl Cx<'_> {
             here += piece.len();
         }
         self.rows(&shown(&foot, first, true), &laid, gy, flow, &mut drawing);
+        close_rim(&laid, flow, &mut drawing, false);
         self.work.table_reads += reads.get();
         if !rows.is_empty() {
             flow.place(gy);
@@ -945,6 +1348,43 @@ impl Cx<'_> {
                 }
             }
             flow.page().items.push(Item::Untag);
+            // The edge under the row drawn last on this page, when it meets this row, is one
+            // edge with this row's top: the stronger of the two over each column. It is the
+            // same edge unless a header row repeats above this row or a footer row follows it.
+            // An edge still owed elsewhere is drawn first. Each is drawn after this row's
+            // cells, so no background covers it.
+            // The first row on a page has its top edge against the table's.
+            let page = flow.pages.len() - 1;
+            let head = if drawing.page == Some(page) {
+                TOP
+            } else {
+                OUTER_TOP
+            };
+            drawing.page = Some(page);
+            let mut rim = laid[r].rim.clone();
+            if let Some((above, on)) = drawing.pending
+                && on == page
+                && (drawing.bottom - drawing.strip - y).abs() < FIT
+            {
+                drawing.pending = None;
+                let under = &laid[above].rim.across[BOTTOM];
+                for (top, under) in rim.across[head].iter_mut().zip(under) {
+                    *top = match (*top, *under) {
+                        (Some((x, w, a)), Some((_, _, b))) => Some((x, w, a.max(b))),
+                        (a, b) => a.or(b),
+                    };
+                }
+            }
+            close_rim(laid, flow, drawing, false);
+            let ends = (MARGIN + y, MARGIN + y + laid[r].height);
+            let items = rim_items(&rim, drawing.strip, ends, true, Some(head), None);
+            flow.page().items.extend(items);
+            if laid[r].rim.across[BOTTOM].iter().any(Option::is_some)
+                || laid[r].rim.across[OUTER_BOTTOM].iter().any(Option::is_some)
+            {
+                drawing.pending = Some((r, flow.pages.len() - 1));
+                drawing.bottom = y + laid[r].height;
+            }
             for (name, [x, top, width, height]) in &laid[r].slots {
                 let area = [*x, MARGIN + y + top, *width, *height];
                 flow.page().slots.push((name.clone(), area));

@@ -275,11 +275,11 @@ fn borders_are_closed_at_every_break() {
         assert_eq!(pages_of(&laid, &format!("Tea{n}")).len(), 1, "Tea{n}");
     }
 
-    // Collapsed cell borders: rows that meet share one edge, and the first and last row on
-    // each page have theirs.
+    // Collapsed cell borders: rows that meet share one edge, and the wider table border closes
+    // the first and the last row on each page.
     let laid = lay(&format!(
         "{PAGE}<style>td {{ border: 1pt solid blue }}</style>
-        <table style='border-collapse: collapse; border: 1pt solid red'>{rows}</table>"
+        <table style='border-collapse: collapse; border: 2pt solid red'>{rows}</table>"
     ));
     let pages = laid.pages.len();
     assert!(pages >= 3, "{pages} pages");
@@ -288,23 +288,17 @@ fn borders_are_closed_at_every_break() {
             .iter()
             .filter(|(t, ..)| t.starts_with("Tea"))
             .count();
-        let mut lines: Vec<f32> = edges(&laid, p, BLUE).iter().map(|e| e.0).collect();
-        lines.dedup_by(|a, b| (*a - *b).abs() < 0.01);
-        assert_eq!(lines.len(), count + 1, "page {p}: {lines:?}");
+        let lines: Vec<f32> = edges(&laid, p, BLUE).iter().map(|e| e.0).collect();
+        assert_eq!(lines.len(), count - 1, "page {p}: {lines:?}");
         let (high, low) = span(&laid, p, "Tea");
-        assert!(
-            lines[0] < high - 6.0 && lines[count] > low,
-            "page {p}: {lines:?}"
-        );
-        // The table's edges lie on the outer rows' edges.
         let red = edges(&laid, p, RED);
         assert_eq!(red.len(), 2, "page {p}: {red:?}");
         assert!(
-            (red[0].0 - lines[0]).abs() < 0.01,
-            "page {p}: {red:?} {lines:?}"
+            red[0].1 < high - 6.0 && red[1].0 > low,
+            "page {p}: {red:?} {high} {low}"
         );
         assert!(
-            (red[1].0 - lines[count]).abs() < 0.01,
+            lines.iter().all(|y| red[0].1 < *y && *y < red[1].0),
             "page {p}: {red:?} {lines:?}"
         );
     }
@@ -952,4 +946,104 @@ fn a_right_to_left_flex_row_runs_from_the_right() {
     let three = at(&laid, 0, "Three").0;
     assert!(one > two && two > three, "{one} {two} {three}");
     assert!(three > MIDDLE, "{three}");
+}
+
+/// The box of each solid fill on `page` in the colour `rgb` that is wider than it is tall:
+/// left, top, right, bottom, top to bottom.
+fn across(laid: &Laid, page: usize, rgb: (u8, u8, u8)) -> Vec<[f32; 4]> {
+    let mut out: Vec<[f32; 4]> = laid.pages[page]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Path {
+                path,
+                paint: Paint::Color(c),
+                stroke: None,
+            } if (c.r, c.g, c.b) == rgb => {
+                let (left, top, right, bottom) = bounds(path);
+                (right - left > bottom - top).then_some([left, top, right, bottom])
+            }
+            _ => None,
+        })
+        .collect();
+    out.sort_by(|a, b| a[1].total_cmp(&b[1]).then(a[0].total_cmp(&b[0])));
+    out
+}
+
+#[test]
+fn collapsed_borders_resolve_by_width_then_style_then_owner() {
+    const GREEN: (u8, u8, u8) = (0, 128, 0);
+    const PURPLE: (u8, u8, u8) = (128, 0, 128);
+    let laid = lay(&format!(
+        "{PAGE}<table style='border-collapse: collapse; border: 3pt solid red'>
+        <tr style='border-bottom: 1pt solid rgb(128, 0, 128)'>
+        <td style='border-bottom: 1pt solid blue'>Left</td>
+        <td style='border-bottom: 1pt solid blue'>Right</td></tr>
+        <tr><td style='border-top: 1pt double rgb(0, 128, 0); border-bottom: 1pt hidden'>Low</td>
+        <td>End</td></tr></table>"
+    ));
+    let (left, top) = at(&laid, 0, "Left");
+    let (right, _) = at(&laid, 0, "Right");
+    let (_, low) = at(&laid, 0, "Low");
+    // Whether an edge is under the right column: its middle is right of the middle between
+    // the two columns' text.
+    let on_right = |b: &[f32; 4]| (b[0] + b[2]) / 2.0 > (left + right) / 2.0;
+    // The table's border is wider than the cells', so it is the top edge over both columns.
+    let red = across(&laid, 0, RED);
+    let above: Vec<_> = red.iter().filter(|b| b[3] < top).collect();
+    assert_eq!(above.len(), 2, "{red:?}");
+    assert!(
+        above.iter().all(|b| (b[3] - b[1] - 3.0).abs() < 0.01),
+        "{red:?}"
+    );
+    // A `hidden` border wins over the table's: the bottom edge is under `End` alone.
+    let under: Vec<_> = red.iter().filter(|b| b[1] > low).collect();
+    assert_eq!(under.len(), 1, "{red:?}");
+    assert!(on_right(under[0]), "{red:?}");
+    // At the same width, `double` wins over `solid`: the edge under `Left` is the green one.
+    let green = across(&laid, 0, GREEN);
+    assert_eq!(green.len(), 2, "{green:?}");
+    assert!(
+        green
+            .iter()
+            .all(|b| !on_right(b) && top < b[1] && b[3] < low),
+        "{green:?}"
+    );
+    // At the same width and style, the cell wins over its row, and the edge is drawn once.
+    let blue = across(&laid, 0, BLUE);
+    assert_eq!(blue.len(), 1, "{blue:?}");
+    assert!(on_right(&blue[0]), "{blue:?}");
+    assert_eq!(across(&laid, 0, PURPLE), Vec::<[f32; 4]>::new());
+
+    // At a page break and under a repeated header, each page is closed by the table's border,
+    // and the header's edge wins over the thinner edge of the row under it.
+    let rows = body_rows(60, |n| {
+        format!("<td style='border-bottom: 1pt solid rgb(0, 128, 0)'>Tea{n}</td>")
+    });
+    let laid = lay(&format!(
+        "{PAGE}<table style='border-collapse: collapse; border: 2pt solid red'>
+        <thead><tr><th style='border-bottom: 1.5pt solid blue'>Head</th></tr></thead>
+        <tbody>{rows}</tbody></table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 3, "{pages} pages");
+    for p in 0..pages {
+        let (_, head) = at(&laid, p, "Head");
+        let (high, low) = span(&laid, p, "Tea");
+        let red = across(&laid, p, RED);
+        assert_eq!(red.len(), 2, "page {p}: {red:?}");
+        assert!(
+            red[0][3] < head - 6.0 && red[1][1] > low,
+            "page {p}: {red:?}"
+        );
+        let blue = across(&laid, p, BLUE);
+        assert_eq!(blue.len(), 1, "page {p}: {blue:?}");
+        assert!(head < blue[0][1] && blue[0][3] < high, "page {p}: {blue:?}");
+        let count = texts(&laid, p)
+            .iter()
+            .filter(|(t, ..)| t.starts_with("Tea"))
+            .count();
+        let green = across(&laid, p, GREEN);
+        assert_eq!(green.len(), count - 1, "page {p}: {green:?}");
+    }
 }

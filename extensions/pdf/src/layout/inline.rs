@@ -16,7 +16,7 @@ use super::block::{
     BoxGeometry, Break, Insets, Position, forced, geometry, insets, sides, z_index,
 };
 use super::flex::{self, Flex};
-use super::table::{self, Cell, Repeat, Row, Table};
+use super::table::{self, Cell, Edge, Repeat, Row, Table};
 use super::{
     Anchor, Atom, BLACK, Block, Fact, Frame, Href, Images, Inline, MARGIN, Para, Role, Spaces,
     Span, Work, color, keyword, length,
@@ -1021,20 +1021,41 @@ impl Builder<'_, '_> {
     /// `inner` and its children at the stack's `depth`.
     fn open_table(&mut self, style: &Style, inner: &Frame, depth: usize) {
         self.flush();
+        let collapse = keyword(style, "border-collapse") == Some("collapse");
+        // The table's border. Under `border-collapse: collapse` its cells draw it where it
+        // wins, so its box draws none, and the width moves into its padding.
+        let mut edges = [Edge::NONE; 4];
+        if let Some(Block::Open(g)) = self
+            .blocks
+            .iter_mut()
+            .rev()
+            .find(|b| matches!(b, Block::Open(_)))
+        {
+            edges = Edge::sides(g, table::TABLE);
+            if collapse {
+                for s in 0..4 {
+                    g.padding[s] += g.border[s];
+                    g.border[s] = 0.0;
+                }
+            }
+        }
         self.tables.push(Building {
             table: Table {
                 x: inner.x,
                 width: inner.width,
                 spacing: table::spacing(style, self.rem),
                 fixed: table::fixed(style),
-                collapse: keyword(style, "border-collapse") == Some("collapse"),
+                collapse,
                 rtl: keyword(style, "direction") == Some("rtl"),
                 orphans: lines(style, "orphans"),
                 widows: lines(style, "widows"),
                 captions: Vec::new(),
                 cols: Vec::new(),
+                col_edges: Vec::new(),
                 rows: Vec::new(),
                 groups: Vec::new(),
+                group_edges: Vec::new(),
+                edges,
             },
             depths: vec![(depth, false)],
             part: table::Part::Body,
@@ -1087,22 +1108,19 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// The box a group or a row of the innermost table with `style` draws under its cells:
-    /// its background, and its borders under `border-collapse: collapse`. `None` when it
-    /// draws nothing.
-    fn part_box(&mut self, style: &Style) -> Result<Option<BoxGeometry>, Error> {
-        let collapse = self.tables.last().is_some_and(|t| t.table.collapse);
+    /// The box a group or a row of the innermost table with `style` draws under its cells,
+    /// its background, `None` when it draws nothing, and its border, which is drawn only
+    /// where it wins a collapsed edge.
+    fn part_box(&mut self, style: &Style) -> Result<(Option<BoxGeometry>, [Edge; 4]), Error> {
+        let row = keyword(style, "display") == Some("table-row");
         let mut g = geometry(style, 0.0, 0.0);
+        let edges = Edge::sides(&g, if row { table::ROW } else { table::GROUP });
         g.decor.layer = self.layer(style, self.rem)?;
         g.margin = [0.0; 4];
         g.padding = [0.0; 4];
-        if !collapse {
-            g.border = [0.0; 4];
-        }
-        let drawn = g.decor.background.is_some()
-            || g.decor.layer.is_some()
-            || g.border.iter().any(|w| *w > 0.0);
-        Ok(drawn.then_some(g))
+        g.border = [0.0; 4];
+        let drawn = g.decor.background.is_some() || g.decor.layer.is_some();
+        Ok((drawn.then_some(g), edges))
     }
 
     /// Whether an element or text at the stack's `depth` is a child of the innermost table or
@@ -1120,7 +1138,7 @@ impl Builder<'_, '_> {
         part: TablePart,
         depth: usize,
         marks: Vec<(String, String)>,
-        decor: Option<BoxGeometry>,
+        (decor, edges): (Option<BoxGeometry>, [Edge; 4]),
         breaks: [bool; 2],
     ) {
         let Some(t) = self.tables.last_mut() else {
@@ -1132,6 +1150,7 @@ impl Builder<'_, '_> {
                 t.groups += 1;
                 t.group = Some(t.groups);
                 t.table.groups.push(decor);
+                t.table.group_edges.push(edges);
                 t.row = false;
                 t.group_breaks = breaks;
                 t.depths.push((depth, false));
@@ -1146,6 +1165,7 @@ impl Builder<'_, '_> {
                     slots: Vec::new(),
                     marks,
                     decor,
+                    edges,
                     breaks: [breaks[0] || before, breaks[1]],
                 });
                 t.row = true;
@@ -1192,11 +1212,30 @@ impl Builder<'_, '_> {
     /// with `style`. A `col` is `span` columns, each as wide as its `width`. A `colgroup` is
     /// its `col` children, or `span` columns when it has none, and its `width` is the width of
     /// each column that has none of its own. A `width` attribute in pixels or percent is read
-    /// where no CSS `width` is set.
+    /// where no CSS `width` is set. Each column's border is its `col`'s, and its group's where
+    /// that side of the group is the column's, the stronger by CSS 2.1's order.
     fn columns(&mut self, dom: &Dom, styles: &Styles, at: usize, style: &Style) {
         let Some(t) = self.tables.last_mut() else {
             return;
         };
+        let (start, end) = if t.table.rtl { (1, 3) } else { (3, 1) };
+        // The border of each of `count` columns of a box with `edges`: the start side on the
+        // first, the end side on the last, the top and bottom on each.
+        let split = |edges: [Edge; 4], count: usize| {
+            (0..count).map(move |i| {
+                let mut e = edges;
+                if i > 0 {
+                    e[start] = Edge::NONE;
+                }
+                if i + 1 < count {
+                    e[end] = Edge::NONE;
+                }
+                e
+            })
+        };
+        let edges_of = |style: &Style, owner| Edge::sides(&geometry(style, 0.0, 0.0), owner);
+        let group = edges_of(style, table::COLUMN_GROUP);
+        let first = t.table.col_edges.len();
         let basis = t.table.width;
         let width = |style: &Style, node: &Node| {
             length(style, "width", basis)
@@ -1225,12 +1264,14 @@ impl Builder<'_, '_> {
         };
         let node = &dom.nodes[at];
         let own = width(style, node);
-        let mut push = |count: usize, w: Option<f32>| {
+        let mut push = |count: usize, w: Option<f32>, edges: [Edge; 4]| {
             let room = 1000usize.saturating_sub(t.table.cols.len());
-            t.table.cols.extend(std::iter::repeat_n(w, count.min(room)));
+            let count = count.min(room);
+            t.table.cols.extend(std::iter::repeat_n(w, count));
+            t.table.col_edges.extend(split(edges, count));
         };
         if keyword(style, "display") == Some("table-column") {
-            push(span(node), own);
+            push(span(node), own, edges_of(style, table::COLUMN));
             return;
         }
         let mut any = false;
@@ -1241,11 +1282,22 @@ impl Builder<'_, '_> {
             if keyword(child_style, "display") == Some("table-column") {
                 any = true;
                 let child = &dom.nodes[child];
-                push(span(child), width(child_style, child).or(own));
+                let edges = edges_of(child_style, table::COLUMN);
+                push(span(child), width(child_style, child).or(own), edges);
             }
         }
         if !any {
-            push(span(node), own);
+            push(span(node), own, [Edge::NONE; 4]);
+        }
+        // The group's own border on the columns it covers.
+        let count = t.table.col_edges.len() - first;
+        for (column, group) in t.table.col_edges[first..]
+            .iter_mut()
+            .zip(split(group, count))
+        {
+            for (side, edge) in column.iter_mut().zip(group) {
+                *side = side.max(edge);
+            }
         }
     }
 
@@ -1272,6 +1324,7 @@ impl Builder<'_, '_> {
                     slots: Vec::new(),
                     marks: Vec::new(),
                     decor: None,
+                    edges: [Edge::NONE; 4],
                     breaks: [std::mem::take(&mut t.group_breaks[0]), false],
                 });
                 t.row = true;
