@@ -450,11 +450,16 @@ impl Cx<'_> {
 
     /// The width `blocks` need from the content box's left edge `left`: with no line broken but
     /// at a forced break when `max` is true, and with every line broken where it can be when it
-    /// is false. A text block `room` wide is as wide as that content box.
+    /// is false. A text block `room` wide is as wide as that content box. A float needs its
+    /// margin box, and with no line broken the floats before a text block and in it sit beside
+    /// its first line, so their widths add to that line's.
     pub(super) fn widest(&mut self, blocks: &[Block], left: f32, room: f32, max: bool) -> f32 {
         self.steps += 1;
         let mut need: f32 = 0.0;
+        // The floats since the last block that is not a float, side by side.
+        let mut ahead: f32 = 0.0;
         for block in blocks {
+            let float = matches!(block, Block::Float { .. });
             match block {
                 Block::Text {
                     text,
@@ -464,12 +469,23 @@ impl Cx<'_> {
                     marker: false,
                     inline,
                     atoms,
+                    floats,
                     ..
                 } => {
                     let shaped = self.shape(text, runs, para, inline, atoms, &[]);
                     let widths = shaped.calculate_content_widths();
-                    let content = if max { widths.max } else { widths.min };
+                    let beside = floats.iter().map(|(_, float)| self.float_width(float));
+                    let content = if max {
+                        ahead + widths.max + beside.sum::<f32>()
+                    } else {
+                        beside.fold(widths.min, f32::max)
+                    };
                     need = need.max(content + room - width);
+                }
+                Block::Float { x, .. } => {
+                    let own = self.float_width(block);
+                    ahead = if max { ahead + own } else { own };
+                    need = need.max(x + ahead - left);
                 }
                 Block::Image { x, width, .. } => need = need.max(x + width - left),
                 Block::Flex(flex) => need = need.max(flex.x + flex.width - left),
@@ -479,8 +495,20 @@ impl Cx<'_> {
                 Block::Open(g) if !g.fill => need = need.max(g.x + g.width + g.margin[1] - left),
                 _ => {}
             }
+            if !float {
+                ahead = 0.0;
+            }
         }
         need
+    }
+
+    /// The width of the margin box the [`Block::Float`] `float` was laid out as, and 0 for any
+    /// other block.
+    fn float_width(&self, float: &Block) -> f32 {
+        match float {
+            Block::Float { atom, .. } => self.placed[*atom].width,
+            _ => 0.0,
+        }
     }
 
     /// A text block's text shaped and not yet broken into lines. Each side of an inline box
@@ -645,7 +673,7 @@ impl Cx<'_> {
     }
 
     /// Pushes onto `out` the index of every atom `blocks` lay out, a flex item's own included.
-    fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
+    pub(super) fn atoms_in(&self, blocks: &[Block], out: &mut Vec<usize>) {
         for block in blocks {
             match block {
                 Block::Float { atom, .. }

@@ -168,14 +168,17 @@ pub(super) struct Row {
     pub(super) collapsed: bool,
 }
 
-/// A cell: its index in the list of atoms, its `colspan`, its `rowspan` and its
-/// `vertical-align`.
+/// A cell: its index in the list of atoms, its `colspan`, its `rowspan`, its
+/// `vertical-align`, and whether its `width` is a percentage.
 #[derive(Clone, Copy)]
 pub(super) struct Cell {
     pub(super) atom: usize,
     pub(super) span: usize,
     pub(super) rows: usize,
     pub(super) align: Align,
+    /// A percentage is the widest the column wants, and the cell's content is the narrowest it
+    /// can be. Percentages that add up to more than the table shrink toward their content.
+    pub(super) percent: bool,
 }
 
 /// Where a cell's content is placed in a cell taller than it.
@@ -712,6 +715,9 @@ fn latest(a: At, b: At) -> At {
     if (b.0, b.1) > (a.0, a.1) { b } else { a }
 }
 
+/// The nested boxes in a cell, each with the blocks it waits as.
+type Kept = Vec<(usize, Option<Vec<Block>>)>;
+
 impl Cx<'_> {
     /// Lays the rows of `table` out with the same columns throughout, and places them down
     /// `flow` with its header and footer rows on each page it is on.
@@ -793,6 +799,17 @@ impl Cx<'_> {
             }
             distribute(&min, &max, (width - gaps).max(0.0))
         };
+        // A cell with a percentage `width` is as wide as its columns, which may be narrower
+        // when the percentages add up to more than the table.
+        for (r, row) in rows.iter().enumerate() {
+            for (c, cell) in row.cells.iter().enumerate() {
+                if cell.percent
+                    && let Some(Block::Open(g)) = blocks[r][c].first_mut()
+                {
+                    g.fill = true;
+                }
+            }
+        }
         let mut lefts = Vec::with_capacity(columns);
         let mut at = x + gx;
         for w in &widths {
@@ -827,6 +844,13 @@ impl Cx<'_> {
             widths[from..end].iter().sum::<f32>() + gx * (end - from).saturating_sub(1) as f32
         };
 
+        // The blocks each cell's nested boxes wait as, such as an inner table's cells. Laying
+        // a cell out takes them, so a cell laid out again puts them back first. Cost: a copy
+        // of the nested boxes' blocks while the table is laid out, nothing for a cell with none.
+        let kept: Vec<Vec<Kept>> = blocks
+            .iter()
+            .map(|row| row.iter().map(|cell| self.keep(cell)).collect())
+            .collect();
         // Each cell at its width, and each row's height from the cells that span only it.
         let mut measured: Vec<Vec<Placed>> = Vec::with_capacity(rows.len());
         let mut heights = vec![0.0f32; rows.len()];
@@ -896,6 +920,9 @@ impl Cx<'_> {
                 }
                 .clamp(0.0, free);
                 let width = cell_width(starts[r][c], cell.span);
+                if down > 0.01 || free > 0.01 {
+                    self.put_back(&kept[r][c]);
+                }
                 let placed = if down > 0.01 {
                     let mut moved = blocks[r][c].clone();
                     if let Some(Block::Open(g)) = moved.first_mut() {
@@ -1180,6 +1207,7 @@ impl Cx<'_> {
                             Box::new(move |page, _| rooms[usize::from(page > 0)]),
                             None,
                         );
+                        self.put_back(&kept[r][c]);
                         let (pages, missing) = self.down(fit(&blocks[r][c], width, None), pages);
                         let count = pages.pages.len();
                         let bottom = pages.cursor + pages.pending.get();
@@ -1469,6 +1497,24 @@ impl Cx<'_> {
     /// The width `table`'s rows need from its content box's left edge: with each cell
     /// unbroken when `max` is true, and broken at every chance when it is false. A table with
     /// a `width` of its own needs no more than it has.
+    /// Each nested box in `blocks` and the blocks it waits as now.
+    fn keep(&self, blocks: &[Block]) -> Kept {
+        let mut atoms = Vec::new();
+        self.atoms_in(blocks, &mut atoms);
+        atoms
+            .into_iter()
+            .map(|atom| (atom, self.waiting[atom].clone()))
+            .collect()
+    }
+
+    /// Sets each nested box in `kept` waiting as it was when [`Cx::keep`] read it, so its
+    /// cell can be laid out again.
+    fn put_back(&mut self, kept: &Kept) {
+        for (atom, waiting) in kept {
+            self.waiting[*atom].clone_from(waiting);
+        }
+    }
+
     pub(super) fn table_need(&mut self, table: &Table, max: bool) -> f32 {
         let blocks: Vec<Vec<Vec<Block>>> = table
             .rows
@@ -1520,7 +1566,11 @@ impl Cx<'_> {
                 let (lo, hi) = match self.ranges.get(&cell.atom) {
                     Some(&range) => range,
                     None => {
-                        let lo = self.content_width(&blocks[r][c], false);
+                        let lo = if cell.percent {
+                            self.least_width(&blocks[r][c])
+                        } else {
+                            self.content_width(&blocks[r][c], false)
+                        };
                         let hi = self.content_width(&blocks[r][c], true).max(lo);
                         self.ranges.insert(cell.atom, (lo, hi));
                         (lo, hi)

@@ -716,6 +716,8 @@ enum TablePart {
         span: usize,
         rows: usize,
         align: table::Align,
+        /// Whether its `width` is a percentage.
+        percent: bool,
     },
     /// A table directly in a table, a group or a row, in an anonymous cell of its own.
     Wrapped,
@@ -1161,6 +1163,7 @@ impl Builder<'_, '_> {
                 span: colspan,
                 rows: rowspan,
                 align: table::Align::of(style),
+                percent: matches!(style.get("width"), Some(Value::Length(l)) if l.percent != 0.0),
             }),
         })
     }
@@ -1361,9 +1364,9 @@ impl Builder<'_, '_> {
     }
 
     /// Closes the innermost open cell, over `span` columns and `rows` rows and with its
-    /// `vertical-align`, into the last row of the innermost table, or a row of its own when
-    /// none is open.
-    fn close_cell(&mut self, span: usize, rows: usize, align: table::Align) {
+    /// `vertical-align` and whether its `width` is a percentage, into the last row of the
+    /// innermost table, or a row of its own when none is open.
+    fn close_cell(&mut self, span: usize, rows: usize, align: table::Align, percent: bool) {
         let Some(blocks) = self.close_box() else {
             return;
         };
@@ -1395,6 +1398,7 @@ impl Builder<'_, '_> {
                     span,
                     rows,
                     align,
+                    percent,
                 });
             }
         }
@@ -1791,11 +1795,16 @@ pub(super) fn blocks(
                         }
                         builder.blocks.push(Block::Close);
                         builder.blocks.push(Block::Tag(None));
-                        builder.close_cell(1, 1, table::Align::Top);
+                        builder.close_cell(1, 1, table::Align::Top, false);
                         continue;
                     }
-                    Some(TablePart::Cell { span, rows, align }) => {
-                        builder.close_cell(span, rows, align);
+                    Some(TablePart::Cell {
+                        span,
+                        rows,
+                        align,
+                        percent,
+                    }) => {
+                        builder.close_cell(span, rows, align, percent);
                         continue;
                     }
                     Some(TablePart::Caption { bottom }) => {

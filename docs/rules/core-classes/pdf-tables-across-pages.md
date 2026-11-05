@@ -36,9 +36,16 @@ box on it: `hidden` wins, then the wider border, then `double`, `solid`, `dashed
 then the cell, row, row group, column, column group and table in that order. The edge at a page
 break is resolved as the table's own edge, so rule 4 holds for the collapsed model too.
 
+Where CSS 2.1 leaves a width open, the table follows browsers. A cell's percentage `width` is
+the widest its column wants, and its content the narrowest, so percentages over 100% shrink
+toward their content and the columns fill the table. A float in a cell counts toward the cell's
+narrowest and widest width. A nested table continues across pages as a tall row's cell does.
+
 - **Memory:** nothing more. A `vertical-align` other than `top` and a group's box each cost one
   more layout pass over the cell or the box, freed when the table is placed. A collapsed table
-  holds one grid slot per row and column and each row's resolved edges while it is laid out.
+  holds one grid slot per row and column and each row's resolved edges while it is laid out. A
+  cell with a nested table or `inline-block` holds a copy of their blocks while its table is laid
+  out, so a second pass over the cell finds them.
 
 **On disk.** `extensions/pdf/src/layout/table.rs` lays a table out by the eight rules, and its
 module doc names what it does not do yet. A closed edge takes its border and padding from each
@@ -49,7 +56,9 @@ a body row or a row group starts a new page between two pieces; the header and f
 left off where no row fits with them; and a `direction: rtl` table and flex row run from the
 right (`extensions/pdf/tests/tables.rs`). Collapsed borders resolve one border per edge, at a
 page break and under a repeated header too
-(`collapsed_borders_resolve_by_width_then_style_then_owner`).
+(`collapsed_borders_resolve_by_width_then_style_then_owner`). Percentages over 100%, a float in
+a cell, a nested table across pages and the degenerate tables are pinned in
+`extensions/pdf/tests/edge_tables.rs`.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,

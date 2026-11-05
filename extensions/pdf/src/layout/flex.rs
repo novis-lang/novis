@@ -462,6 +462,20 @@ impl Cx<'_> {
         self.widest(blocks, left, room, max) + inset + outside
     }
 
+    /// The margin-box width of `blocks` with every line broken where it can be, whether or not
+    /// the box has its own `width`.
+    pub(super) fn least_width(&mut self, blocks: &[Block]) -> f32 {
+        let Some(Block::Open(g)) = blocks.first() else {
+            return 0.0;
+        };
+        let outside = g.margin[1] + g.margin[3];
+        let inset = g.border[1] + g.border[3] + g.padding[1] + g.padding[3];
+        let left = g.x + g.border[3] + g.padding[3];
+        let room = g.width - inset;
+        // The box's own opening is left out, so its `width` does not count.
+        self.widest(&blocks[1..], left, room, false) + inset + outside
+    }
+
     /// An item's `blocks` laid out with a margin box `width` wide, and at least `height` tall.
     pub(super) fn item_at(&mut self, blocks: &[Block], width: f32, height: Option<f32>) -> Placed {
         self.lay(fit(blocks, width, height), parley::VerticalAlign::BASELINE)
