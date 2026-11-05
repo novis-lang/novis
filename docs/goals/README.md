@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [windows-cpu-clock]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,11 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 1 goal(s). `windows-cpu-clock` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`windows-cpu-clock`](windows-cpu-clock.md) **live** | a Windows x86-64 core's CPU time is read with QueryThreadCycleTime, finer than a millisecond and including the run in progress, at no more cost per read than GetThreadTimes, or the probe's figures show it cannot be and the rule records why | **1 a probe on CI's Windows runner measures QueryThreadCycleTime against GetThreadTimes** · 2 a Windows x86-64 core's CPU time is its thread's cycle count, converted at a rate measured without a wait · 3 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
