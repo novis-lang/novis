@@ -177,7 +177,10 @@ fn a_fixed_height_box_taller_than_a_page_continues_on_the_next_page() {
     let (page, top) = laid.anchors["box"];
     assert_eq!(page, 0);
     let (page, blog) = laid.anchors["blog"];
-    assert!(page == 1 && close(blog, 500.0 - (300.0 - top)), "{top} {blog}");
+    assert!(
+        page == 1 && close(blog, 500.0 - (300.0 - top)),
+        "{top} {blog}"
+    );
     // Each page draws its slice of the background.
     for page in &laid.pages {
         let fills = page

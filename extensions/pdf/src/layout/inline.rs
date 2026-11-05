@@ -12,7 +12,9 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::{BoxGeometry, Break, Insets, Position, geometry, insets, sides, z_index};
+use super::block::{
+    BoxGeometry, Break, Insets, Position, forced, geometry, insets, sides, z_index,
+};
 use super::flex::{self, Flex};
 use super::table::{self, Cell, Repeat, Row, Table};
 use super::{
@@ -638,6 +640,8 @@ struct Building {
     group: Option<usize>,
     /// Whether a row is open for the cells now opened.
     row: bool,
+    /// The forced breaks of the group now open: before its first row, and after its last.
+    group_breaks: [bool; 2],
 }
 
 /// What an element in a table is.
@@ -1027,6 +1031,7 @@ impl Builder<'_, '_> {
                 orphans: lines(style, "orphans"),
                 widows: lines(style, "widows"),
                 captions: Vec::new(),
+                cols: Vec::new(),
                 rows: Vec::new(),
                 groups: Vec::new(),
             },
@@ -1035,13 +1040,16 @@ impl Builder<'_, '_> {
             groups: 0,
             group: None,
             row: false,
+            group_breaks: [false; 2],
         });
     }
 
-    /// Ends the innermost table: its rows become one [`Block::Table`].
+    /// Ends the innermost table: its rows become one [`Block::Table`], and a `rowspan="0"`
+    /// cell spans to the end of its row group.
     fn close_table(&mut self) {
-        if let Some(building) = self.tables.pop() {
+        if let Some(mut building) = self.tables.pop() {
             self.flush();
+            table::span_to_group_end(&mut building.table.rows);
             self.blocks.push(Block::Table(building.table));
         }
     }
@@ -1053,12 +1061,13 @@ impl Builder<'_, '_> {
         if !self.in_table(depth) {
             return None;
         }
-        let count = |name: &str, most: usize| {
-            node.attr(name)
-                .and_then(|v| v.trim().parse::<usize>().ok())
-                .filter(|n| *n > 0)
-                .map_or(1, |n| n.min(most))
-        };
+        // HTML's limits: `colspan` 1 to 1000, and `rowspan` 0 to 65534, where 0 runs to the
+        // end of the row group. A value with no leading digits is 1.
+        let number = |name: &str| node.attr(name).and_then(table::span_number);
+        let colspan = number("colspan")
+            .filter(|n| *n > 0)
+            .map_or(1, |n| n.min(1000));
+        let rowspan = number("rowspan").map_or(1, |n| n.min(65534));
         Some(match keyword(style, "display").unwrap_or("inline") {
             "table-caption" => Some(TablePart::Caption {
                 bottom: keyword(style, "caption-side") == Some("bottom"),
@@ -1070,8 +1079,8 @@ impl Builder<'_, '_> {
             "table-column" | "table-column-group" => None,
             "table" | "inline-table" => Some(TablePart::Wrapped),
             _ => Some(TablePart::Cell {
-                span: count("colspan", 1000),
-                rows: count("rowspan", 65534),
+                span: colspan,
+                rows: rowspan,
                 align: table::Align::of(style),
             }),
         })
@@ -1111,6 +1120,7 @@ impl Builder<'_, '_> {
         depth: usize,
         marks: Vec<(String, String)>,
         decor: Option<BoxGeometry>,
+        breaks: [bool; 2],
     ) {
         let Some(t) = self.tables.last_mut() else {
             return;
@@ -1122,9 +1132,11 @@ impl Builder<'_, '_> {
                 t.group = Some(t.groups);
                 t.table.groups.push(decor);
                 t.row = false;
+                t.group_breaks = breaks;
                 t.depths.push((depth, false));
             }
             TablePart::Row(repeat) => {
+                let before = std::mem::take(&mut t.group_breaks[0]);
                 t.table.rows.push(Row {
                     part: t.part,
                     group: t.group,
@@ -1133,6 +1145,7 @@ impl Builder<'_, '_> {
                     slots: Vec::new(),
                     marks,
                     decor,
+                    breaks: [breaks[0] || before, breaks[1]],
                 });
                 t.row = true;
                 t.depths.push((depth, true));
@@ -1160,9 +1173,78 @@ impl Builder<'_, '_> {
         {
             t.row = false;
             if !row {
+                // A group's `break-after` is its last row's.
+                if std::mem::take(&mut t.group_breaks[1])
+                    && let Some(last) = t.table.rows.last_mut()
+                    && last.group == t.group
+                {
+                    last.breaks[1] = true;
+                }
+                t.group_breaks = [false; 2];
                 t.part = table::Part::Body;
                 t.group = None;
             }
+        }
+    }
+
+    /// Adds the columns of a `col` or `colgroup` element of the innermost table, `at` in `dom`
+    /// with `style`. A `col` is `span` columns, each as wide as its `width`. A `colgroup` is
+    /// its `col` children, or `span` columns when it has none, and its `width` is the width of
+    /// each column that has none of its own. A `width` attribute in pixels or percent is read
+    /// where no CSS `width` is set.
+    fn columns(&mut self, dom: &Dom, styles: &Styles, at: usize, style: &Style) {
+        let Some(t) = self.tables.last_mut() else {
+            return;
+        };
+        let basis = t.table.width;
+        let width = |style: &Style, node: &Node| {
+            length(style, "width", basis)
+                .or_else(|| {
+                    let text = node.attr("width")?.trim();
+                    match text.strip_suffix('%') {
+                        Some(percent) => percent
+                            .trim()
+                            .parse::<f32>()
+                            .ok()
+                            .map(|p| p / 100.0 * basis),
+                        None => text
+                            .trim_end_matches("px")
+                            .parse::<f32>()
+                            .ok()
+                            .map(|px| px * 0.75),
+                    }
+                })
+                .filter(|w| w.is_finite() && *w >= 0.0)
+        };
+        let span = |node: &Node| {
+            node.attr("span")
+                .and_then(table::span_number)
+                .filter(|n| *n > 0)
+                .map_or(1, |n| n.min(1000))
+        };
+        let node = &dom.nodes[at];
+        let own = width(style, node);
+        let mut push = |count: usize, w: Option<f32>| {
+            let room = 1000usize.saturating_sub(t.table.cols.len());
+            t.table.cols.extend(std::iter::repeat_n(w, count.min(room)));
+        };
+        if keyword(style, "display") == Some("table-column") {
+            push(span(node), own);
+            return;
+        }
+        let mut any = false;
+        for &child in &node.children {
+            let Some(child_style) = styles.of(child) else {
+                continue;
+            };
+            if keyword(child_style, "display") == Some("table-column") {
+                any = true;
+                let child = &dom.nodes[child];
+                push(span(child), width(child_style, child).or(own));
+            }
+        }
+        if !any {
+            push(span(node), own);
         }
     }
 
@@ -1189,6 +1271,7 @@ impl Builder<'_, '_> {
                     slots: Vec::new(),
                     marks: Vec::new(),
                     decor: None,
+                    breaks: [std::mem::take(&mut t.group_breaks[0]), false],
                 });
                 t.row = true;
             }
@@ -1696,8 +1779,11 @@ pub(super) fn blocks(
                     continue;
                 }
                 let mut part = match builder.table_part(style, node, frames.len()) {
-                    // A column draws nothing.
-                    Some(None) => continue,
+                    // A column draws nothing, and its `width` sets its column's.
+                    Some(None) => {
+                        builder.columns(dom, styles, at, style);
+                        continue;
+                    }
                     Some(part) => part,
                     None => None,
                 };
@@ -1952,7 +2038,9 @@ pub(super) fn blocks(
                     }
                     Some(p @ (TablePart::Group(_) | TablePart::Row(_))) => {
                         let decor = builder.part_box(style)?;
-                        builder.open_part(p, frames.len(), row_marks, decor);
+                        let breaks = ["break-before", "break-after"]
+                            .map(|name| forced(style, name).is_some());
+                        builder.open_part(p, frames.len(), row_marks, decor, breaks);
                     }
                     _ => {}
                 }

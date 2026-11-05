@@ -123,7 +123,7 @@ impl Break {
 }
 
 /// The forced break the property `name` gives, if it gives one.
-fn forced(style: &Style, name: &str) -> Option<Break> {
+pub(super) fn forced(style: &Style, name: &str) -> Option<Break> {
     match keyword(style, name) {
         Some("page" | "always" | "all") => Some(Break::Page),
         Some("left") => Some(Break::Left),

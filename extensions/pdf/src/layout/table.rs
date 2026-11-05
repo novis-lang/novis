@@ -15,10 +15,14 @@
 //! column is as wide as the widest of its cells laid out unbroken, when the room allows, and
 //! the room left over is shared out by those widths. With less room, each column narrows from
 //! that width towards its narrowest cell broken at every chance. A cell over several columns
-//! (`colspan`) spreads what its columns lack over them evenly. Under `table-layout: fixed`, a
-//! cell of the first row with a `width` sets its columns, and the other columns share the rest
-//! evenly. `border-spacing` is the room between two cells and between a cell and the table's
-//! content edge.
+//! (`colspan`) spreads what its columns lack over them evenly. A `col` or `colgroup` with a
+//! `width`, or a `width` attribute, sets the widest width of each column it covers, and its
+//! narrowest cell can make it wider. Under `table-layout: fixed`, a `col` width sets its
+//! column, a cell of the first row with a `width` sets the columns no `col` sets, and the
+//! other columns share the rest evenly. `border-spacing` is the room between two cells and
+//! between a cell and the table's content edge. `colspan`, `rowspan` and `span` are read by
+//! HTML's rules for non-negative integers, so `2x` is 2, and `rowspan="0"` runs to the last
+//! row of its group.
 //!
 //! **Rows.** A row is as tall as its tallest cell, and a `rowspan` cell taller than its rows
 //! makes the last of them taller. Each cell is drawn as tall as its rows, and its
@@ -32,7 +36,9 @@
 //! this order: the header rows, the body rows in source order, then the footer rows. A body row
 //! is placed as one piece, so a row that fits on a page is never split, and rows a `rowspan`
 //! joins are one piece. A piece that does not fit under the last one, above the footer rows,
-//! goes on the next page.
+//! goes on the next page. A forced `break-before` or `break-after` on a body row or its group
+//! starts a new page between two pieces, and is ignored inside a piece. A `left`, `right`,
+//! `recto` or `verso` break goes to the next page, whatever its side.
 //!
 //! **A piece taller than a page**, one row or the rows a `rowspan` joins, starts where it is and
 //! splits between lines. Each row starts under the one before it, on the page that row's own
@@ -101,6 +107,9 @@ pub(super) struct Table {
     pub(super) widows: usize,
     /// Each caption's index in the list of atoms, and whether it is under the rows.
     pub(super) captions: Vec<(usize, bool)>,
+    /// The `width` of each column a `col` or `colgroup` sets, in order, `None` where it sets
+    /// none.
+    pub(super) cols: Vec<Option<f32>>,
     pub(super) rows: Vec<Row>,
     /// The box each group element draws under its rows, by the group's number less one.
     pub(super) groups: Vec<Option<BoxGeometry>>,
@@ -121,6 +130,9 @@ pub(super) struct Row {
     pub(super) marks: Vec<(String, String)>,
     /// The box it draws under its cells: its background, and its borders when they collapse.
     pub(super) decor: Option<BoxGeometry>,
+    /// Whether a forced page break comes before it and after it, from its own `break-before`
+    /// and `break-after` or its group's.
+    pub(super) breaks: [bool; 2],
 }
 
 /// A cell: its index in the list of atoms, its `colspan`, its `rowspan` and its
@@ -218,6 +230,35 @@ pub(super) fn spacing(style: &Style, rem: f32) -> [f32; 2] {
 /// Whether a table's `table-layout` is `fixed`.
 pub(super) fn fixed(style: &Style) -> bool {
     keyword(style, "table-layout") == Some("fixed")
+}
+
+/// A `colspan`, `rowspan` or `span` attribute read by HTML's rules for non-negative integers:
+/// leading spaces, an optional `+`, then the digits up to the first other character, so `2x`
+/// is 2. `None` when there are no digits, and `usize::MAX` for more than it holds.
+pub(super) fn span_number(text: &str) -> Option<usize> {
+    let rest = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
+    let rest = rest.strip_prefix('+').unwrap_or(rest);
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    (digits > 0).then(|| rest[..digits].parse().unwrap_or(usize::MAX))
+}
+
+/// Gives each `rowspan="0"` cell the rows from its own to the last of its row group: the run
+/// of rows with the same group, or of rows directly in the table. Each group's end is found
+/// once, from the last row up.
+pub(super) fn span_to_group_end(rows: &mut [Row]) {
+    let mut end = rows.len();
+    for r in (0..rows.len()).rev() {
+        if r + 1 < rows.len()
+            && (rows[r].group != rows[r + 1].group || rows[r].part != rows[r + 1].part)
+        {
+            end = r + 1;
+        }
+        for cell in &mut rows[r].cells {
+            if cell.rows == 0 {
+                cell.rows = end - r;
+            }
+        }
+    }
 }
 
 /// The first column of each cell, row by row, and the number of columns. A cell starts at the
@@ -339,6 +380,7 @@ impl Cx<'_> {
             orphans,
             widows,
             captions,
+            cols,
             rows,
             groups,
         } = table;
@@ -374,9 +416,9 @@ impl Cx<'_> {
         let auto = flow.fills();
         let widths = if fixed && !auto {
             let room = (width - gaps).max(0.0);
-            self.fixed_columns(&rows, &blocks, &starts, columns, room, gx)
+            self.fixed_columns(&rows, &blocks, &starts, &cols, columns, room, gx)
         } else {
-            let (min, max) = self.column_ranges(&rows, &blocks, &starts, columns, gx);
+            let (min, max) = self.column_ranges(&rows, &blocks, &starts, &cols, columns, gx);
             let need = max.iter().sum::<f32>() + gaps;
             if auto && need < width {
                 flow.narrow(width - need);
@@ -653,6 +695,16 @@ impl Cx<'_> {
         self.rows(&shown(&head, first, last), &laid, gy, flow, &mut drawing);
         let mut here = 0;
         for (i, piece) in pieces.iter().enumerate() {
+            // A `break-before` on the piece's first row or a `break-after` on the last row of
+            // the piece before starts a new page. Any forced value breaks to the next page.
+            let forced = rows[piece[0]].breaks[0]
+                || i.checked_sub(1)
+                    .and_then(|p| pieces[p].last())
+                    .is_some_and(|r| rows[*r].breaks[1]);
+            if forced && here > 0 {
+                turn(self, flow, &mut drawing, &mut first, i, 0.0);
+                here = 0;
+            }
             let end = i + 1 == pieces.len();
             let below = piece_height(&shown(&foot, first, end)) + if end { gy } else { 0.0 };
             // A piece taller than a page starts where it is and splits between lines.
@@ -942,7 +994,8 @@ impl Cx<'_> {
         } else {
             table.spacing[0]
         };
-        let (min, most) = self.column_ranges(&table.rows, &blocks, &starts, columns, gx);
+        let (min, most) =
+            self.column_ranges(&table.rows, &blocks, &starts, &table.cols, columns, gx);
         for (row, cells) in table.rows.iter().zip(blocks) {
             for (cell, blocks) in row.cells.iter().zip(cells) {
                 self.waiting[cell.atom] = Some(blocks);
@@ -952,12 +1005,15 @@ impl Cx<'_> {
         (widths.iter().sum::<f32>() + gx * (columns as f32 + 1.0)).min(table.width)
     }
 
-    /// Each column's narrowest and widest width under `table-layout: auto`.
+    /// Each column's narrowest and widest width under `table-layout: auto`. A column with a
+    /// `col` width is that wide, or as wide as its narrowest cell when that is wider.
+    #[allow(clippy::too_many_arguments)]
     fn column_ranges(
         &mut self,
         rows: &[Row],
         blocks: &[Vec<Vec<Block>>],
         starts: &[Vec<usize>],
+        cols: &[Option<f32>],
         columns: usize,
         gap: f32,
     ) -> (Vec<f32>, Vec<f32>) {
@@ -986,6 +1042,11 @@ impl Cx<'_> {
                 }
             }
         }
+        for (c, width) in cols.iter().enumerate().take(columns) {
+            if let Some(w) = width {
+                max[c] = w.max(min[c]);
+            }
+        }
         for (from, span, lo, hi) in spanning {
             spread(&mut min, from, span, gap, lo);
             spread(&mut max, from, span, gap, hi);
@@ -993,18 +1054,24 @@ impl Cx<'_> {
         (min, max)
     }
 
-    /// The columns' widths in `room` under `table-layout: fixed`: from the first row's cells
-    /// with a `width`, and the rest shared evenly.
+    /// The columns' widths in `room` under `table-layout: fixed`: from the `col` widths, then
+    /// from the first row's cells with a `width` for the columns no `col` sets, and the rest
+    /// shared evenly.
+    #[allow(clippy::too_many_arguments)]
     fn fixed_columns(
         &mut self,
         rows: &[Row],
         blocks: &[Vec<Vec<Block>>],
         starts: &[Vec<usize>],
+        cols: &[Option<f32>],
         columns: usize,
         room: f32,
         gap: f32,
     ) -> Vec<f32> {
-        let mut widths: Vec<Option<f32>> = vec![None; columns];
+        let mut widths: Vec<Option<f32>> = (0..columns)
+            .map(|c| cols.get(c).copied().flatten())
+            .collect();
+        let set_by_col: Vec<bool> = widths.iter().map(Option::is_some).collect();
         if let Some(row) = rows.first() {
             for (c, cell) in row.cells.iter().enumerate() {
                 if let Some(Block::Open(g)) = blocks[0][c].first()
@@ -1014,8 +1081,13 @@ impl Cx<'_> {
                     let span = cell.span.min(columns - from);
                     let each = (g.width + g.margin[1] + g.margin[3] - gap * (span - 1) as f32)
                         / span as f32;
-                    for w in &mut widths[from..from + span] {
-                        *w = Some(each.max(0.0));
+                    for (w, by_col) in widths[from..from + span]
+                        .iter_mut()
+                        .zip(&set_by_col[from..from + span])
+                    {
+                        if !by_col {
+                            *w = Some(each.max(0.0));
+                        }
                     }
                 }
             }

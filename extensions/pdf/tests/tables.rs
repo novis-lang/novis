@@ -796,3 +796,99 @@ fn a_table_directly_in_a_row_is_wrapped_in_a_cell() {
         "{line} {first} {second}"
     );
 }
+
+/// Whether `a` and `b` are the same position, within a hundredth of a point.
+fn same(a: f32, b: f32) -> bool {
+    (a - b).abs() < 0.01
+}
+
+#[test]
+fn col_and_colgroup_widths_set_the_column_widths() {
+    let lefts = |cols: &str, table: &str| {
+        let laid = lay(&format!(
+            "{PAGE}<table style='border-spacing: 0; {table}'>{cols}
+            <tr><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td></tr></table>"
+        ));
+        ["A", "B", "C", "D", "E"].map(|t| at(&laid, 0, t).0)
+    };
+    // A `col`, a `colgroup` of two columns with no `col`, a `width` attribute in pixels, and a
+    // `colgroup` whose `col` without a width takes the group's.
+    let cols = "<col style='width: 80pt'>
+        <colgroup span='2' style='width: 40pt'></colgroup>
+        <col width='40'>
+        <colgroup style='width: 20pt'><col></colgroup>";
+    let x = lefts(cols, "");
+    let steps = [80.0, 40.0, 40.0, 30.0];
+    for (i, step) in steps.iter().enumerate() {
+        assert!(same(x[i + 1] - x[i], *step), "column {i}: {x:?}");
+    }
+    // Under `table-layout: fixed`, a `col` width wins over the first row's cell width.
+    let laid = lay(&format!(
+        "{PAGE}<table style='border-spacing: 0; table-layout: fixed; width: 200pt'>
+        <col style='width: 150pt'>
+        <tr><td style='width: 20pt'>Left</td><td>Right</td></tr></table>"
+    ));
+    let (left, _) = at(&laid, 0, "Left");
+    let (right, _) = at(&laid, 0, "Right");
+    assert!(same(right - left, 150.0), "{left} {right}");
+}
+
+#[test]
+fn break_before_page_on_a_row_or_row_group_starts_a_new_page() {
+    let laid = lay(&format!(
+        "{PAGE}<table><thead><tr><th>Head</th></tr></thead>
+        <tbody><tr><td>One</td></tr><tr style='break-before: page'><td>Two</td></tr>
+        <tr style='break-after: page'><td>Three</td></tr><tr><td>Four</td></tr></tbody>
+        <tbody style='break-before: page; break-after: page'><tr><td>Five</td></tr></tbody>
+        <tbody><tr><td>Six</td></tr></tbody></table>"
+    ));
+    let pages: Vec<Vec<usize>> = ["One", "Two", "Three", "Four", "Five", "Six"]
+        .iter()
+        .map(|t| pages_of(&laid, t))
+        .collect();
+    assert_eq!(
+        pages,
+        vec![vec![0], vec![1], vec![1], vec![2], vec![3], vec![4]]
+    );
+    // The header repeats on every page the forced breaks make.
+    assert_eq!(pages_of(&laid, "Head"), vec![0, 1, 2, 3, 4]);
+}
+
+#[test]
+fn rowspan_zero_spans_to_the_end_of_the_row_group() {
+    let laid = lay(&format!(
+        "{PAGE}<table><tbody>
+        <tr><td rowspan='0'>Span</td><td>A</td></tr>
+        <tr><td>B</td></tr><tr><td>C</td></tr></tbody>
+        <tbody><tr><td>D</td><td>E</td></tr></tbody></table>"
+    ));
+    let (span, _) = at(&laid, 0, "Span");
+    let (a, _) = at(&laid, 0, "A");
+    // `B` and `C` are in the second column, beside the spanning cell.
+    for t in ["B", "C"] {
+        assert!(same(at(&laid, 0, t).0, a), "{t}");
+    }
+    // The next group starts in the first column again.
+    assert!(same(at(&laid, 0, "D").0, span));
+    assert!(same(at(&laid, 0, "E").0, a));
+}
+
+#[test]
+fn a_colspan_with_trailing_text_reads_its_leading_digits() {
+    let laid = lay(&format!(
+        "{PAGE}<table>
+        <tr><td colspan='2x'>Wide</td><td>Right</td></tr>
+        <tr><td colspan=' +2'>Plus</td><td>Next</td></tr>
+        <tr><td rowspan='2 rows'>Tall</td><td>X</td><td>Y</td></tr>
+        <tr><td>P</td><td>Q</td></tr>
+        <tr><td colspan='none'>One</td><td>Two</td><td>Three</td></tr></table>"
+    ));
+    let three = at(&laid, 0, "Three").0;
+    let two = at(&laid, 0, "Two").0;
+    // `2x` and ` +2` both span two columns, so the next cell is in the third.
+    assert!(same(at(&laid, 0, "Right").0, three));
+    assert!(same(at(&laid, 0, "Next").0, three));
+    // `2 rows` spans two rows, so `P` is in the second column.
+    assert!(same(at(&laid, 0, "P").0, two));
+    assert!(same(at(&laid, 0, "Q").0, three));
+}

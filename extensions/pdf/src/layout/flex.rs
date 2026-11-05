@@ -402,10 +402,7 @@ impl Cx<'_> {
             let (x, y, _) = &placed[i];
             let dy = y - from;
             let rooms = [now - dy, later];
-            let pages = Flow::paged(
-                Box::new(move |page, _| rooms[usize::from(page > 0)]),
-                None,
-            );
+            let pages = Flow::paged(Box::new(move |page, _| rooms[usize::from(page > 0)]), None);
             let (pages, missing) = self.down(fit(&blocks[i], width, None), pages);
             let n = pages.pages.len();
             let bottom = pages.cursor + pages.pending + if n == 1 { dy } else { 0.0 };
