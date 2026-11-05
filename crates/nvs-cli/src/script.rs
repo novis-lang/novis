@@ -3145,9 +3145,12 @@ mod tests {
         // wins the compare moves the pointer, and the cores serving requests
         // meanwhile are answered *throughout* it.
         // `no_request_stalls_while_the_file_is_compiled` states the second half
-        // on one core, where a stall is a resume; here it is a thread, and what
-        // says nobody waited is that every reader was answered many times
-        // inside the window a single compile occupies.
+        // on one core, where a stall is a resume; here it is a thread. The test
+        // holds the cache's write lock, which the edit's compile reads once in
+        // its backend half, so that compile stays in flight until every reader
+        // has been answered twice more. A reader that waited for the compile is
+        // never answered, and the test hangs. Nothing here waits on time, so a
+        // reader the OS schedules late under load only makes the test slower.
         //
         // The readers resolve a path nobody edits, deliberately. A reader
         // landing on the edited one would wait behind step 3's flight for the
@@ -3175,43 +3178,65 @@ mod tests {
 
         let started = std::sync::Barrier::new(READERS + 1);
         let published = std::sync::atomic::AtomicBool::new(false);
-        let answered = std::thread::scope(|cores| {
-            let readers: Vec<_> = (0..READERS)
-                .map(|_| {
-                    cores.spawn(|| {
+        let answers: Vec<std::sync::atomic::AtomicUsize> = (0..READERS)
+            .map(|_| std::sync::atomic::AtomicUsize::new(0))
+            .collect();
+        std::thread::scope(|cores| {
+            let (started, published, compiler, reading) =
+                (&started, &published, &compiler, &reading);
+            let readers: Vec<_> = answers
+                .iter()
+                .map(|count| {
+                    cores.spawn(move || {
                         started.wait();
-                        let mut answers = 0_usize;
-                        while !published.load(Ordering::Relaxed) {
-                            let (program, _routes) = compiler
-                                .compiled(&reading)
-                                .expect("the read entry compiles");
-                            answers += 1;
+                        while !published.load(Ordering::Acquire) {
+                            let (program, _routes) =
+                                compiler.compiled(reading).expect("the read entry compiles");
+                            count.fetch_add(1, Ordering::Release);
                             drop(program);
                         }
-                        answers
                     })
                 })
                 .collect();
 
-            // The edit, published while every reader is already looping.
+            // The edit, made while every reader is already looping. Its compile
+            // stops at the cache lock this thread holds.
             started.wait();
-            swap.say("two");
-            compiler.revalidate();
-            let (after, _routes) = compiler
-                .compiled(&swapping)
-                .expect("the edited entry compiles");
-            published.store(true, Ordering::Relaxed);
-
-            let answered: Vec<_> = readers
-                .into_iter()
-                .map(|reader| reader.join().expect("a reader finished"))
+            let held = super::exclusive(&compiler.cache);
+            let editor = cores.spawn(|| {
+                swap.say("two");
+                compiler.revalidate();
+                let (after, _routes) = compiler
+                    .compiled(&swapping)
+                    .expect("the edited entry compiles");
+                said(after)
+            });
+            while compiler.compiles.load(Ordering::Relaxed) < 3 {
+                std::thread::yield_now();
+            }
+            // The compile has started and cannot end while `held` lives.
+            let marks: Vec<usize> = answers
+                .iter()
+                .map(|count| count.load(Ordering::Acquire))
                 .collect();
+            while answers
+                .iter()
+                .zip(&marks)
+                .any(|(count, mark)| count.load(Ordering::Acquire) < mark + 2)
+            {
+                std::thread::yield_now();
+            }
+            drop(held);
+            let after = editor.join().expect("the edit finished");
+            published.store(true, Ordering::Release);
+
+            for reader in readers {
+                reader.join().expect("a reader finished");
+            }
             assert_eq!(
-                said(after),
-                "two\n",
+                after, "two\n",
                 "the revalidation that won published something else"
             );
-            answered
         });
 
         assert_ne!(
@@ -3233,12 +3258,6 @@ mod tests {
             3,
             "a reader put something through the front end of its own"
         );
-        for answers in answered {
-            assert!(
-                answers > 1,
-                "a reader was answered once and then waited the compile out: {answers}"
-            );
-        }
         // And the path they were reading is untouched by the swap beside it.
         let (still, _routes) = compiler
             .compiled(&reading)
