@@ -288,6 +288,11 @@ handled but untested.
     against the containing block. A size whose aspect ratio is free (one or no size given) is
     limited by the CSS 2.1 §10.4 table, and with both sizes given each side is limited alone. Cost:
     nothing more.
+15. **Table rows at a page.** A forced `break-before` or `break-after` on a body row or a row group
+    breaks between two pieces, and is ignored inside a `rowspan` piece. Any forced value, `left`
+    and `right` too, goes to the next page, with no blank page for the side. A table's header and
+    footer rows are left off every page when the room they leave is less than its shortest body
+    piece, or less than a quarter of a page when every piece is taller. Cost: nothing more.
 
 ## Stages
 
@@ -402,22 +407,25 @@ handled but untested.
 
 **Does:** fixes the table findings, with tests added to `extensions/pdf/tests/tables.rs`.
 
-- [ ] `<col>` and `<colgroup>` widths, with `span`, set the column widths.
+- [x] `<col>` and `<colgroup>` widths, with `span`, set the column widths.
   `extensions/pdf/src/layout/inline.rs:1061`, `extensions/pdf/src/layout/table.rs:925`
-- [ ] `break-before: page` and `break-after: page` on `tr` and `tbody` start a new page.
+- [x] `break-before: page` and `break-after: page` on `tr` and `tbody` start a new page.
   `extensions/pdf/src/layout/table.rs:108`
-- [ ] `rowspan="0"` spans to the end of its row group, and span attributes are read by HTML's rules for
+- [x] `rowspan="0"` spans to the end of its row group, and span attributes are read by HTML's rules for
   non-negative integers (`2x` is 2). `extensions/pdf/src/layout/inline.rs:1047`
 - [ ] Collapsed borders resolve by decision 8, at a break and under a repeated header too.
   `extensions/pdf/src/layout/table.rs:58`
-- [ ] A header and footer that cannot fit with a row are left off that page.
+- [x] A header and footer that cannot fit with a row are left off that page.
   `extensions/pdf/src/layout/table.rs:597`, `extensions/pdf/src/layout/table.rs:636`
-- [ ] A table and a flex row with `direction: rtl` run from the right. `extensions/pdf/src/layout/table.rs:1`,
+- [x] A table and a flex row with `direction: rtl` run from the right. `extensions/pdf/src/layout/table.rs:1`,
   `extensions/pdf/src/layout/flex.rs:61`
 - [ ] The rule's *On disk* paragraph names the new behaviours.
   `docs/rules/core-classes/pdf-tables-across-pages.md:1`, then `bun nv rules --render` and
   `bun nv rules --check`.
 - [ ] Write the eight tests the `tables` check names. `extensions/pdf/tests/tables.rs:764`
+  - [x] the seven for cols, breaks, rowspan 0, colspan digits, the header and footer, and the two
+    right-to-left ones
+  - [ ] `collapsed_borders_resolve_by_width_then_style_then_owner`
 - [ ] Run the `tables` check's command once: green.
 
 ### 6. every text and box property the subset accepts is applied: overflow clips, visibility hides, margins go negative, span-level white-space and line-height, list types
@@ -512,35 +520,46 @@ check once both end.
 
 ### State
 
-Stages 1 to 4 are done. `hostile-input` is green (7 of 7), `linear-cost` (4 of 4),
-`inline-images` (7 of 7) and `breaks` (9 of 9).
+Stages 1 to 4 are done. Stage 5 has every item but the collapsed borders, the rule's *On disk*
+paragraph and the `tables` run. Seven of the eight `tables` tests are written and green by name.
 
-- A group joined by `break-after: avoid` that is taller than the next page is kept by its head
-  only: `Cx::head` (`extensions/pdf/src/layout/text.rs:580`) turns the last joined unit into its
-  opening boxes, with no bottom edge, and a spacer as tall as its first paragraph's `orphans`
-  lines. `join` returns where that unit starts in the group.
-- `Flow::close` places the rest of a `height` or `min-height` a page's room at a time
-  (`extensions/pdf/src/layout/block.rs:895`), so the box is sliced over every page.
-- A flex band taller than the next page goes through `Cx::split_band`
-  (`extensions/pdf/src/layout/flex.rs:378`): each item is laid out again with `Cx::down` over a
-  `Flow::paged` of the room left, then whole pages, as `table.rs` does for a tall row.
-- `block::FIT` (0.01 pt) is the tolerance in every fit test; a new one in stage 5 uses it too.
-- The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere and has no log,
-  and nightly 41813182715 is the run the calm-editor handoff already traced to fixed commits.
+- `Table::cols` (`extensions/pdf/src/layout/table.rs:96`) is each column's `col` width, filled by
+  `Builder::columns` (`extensions/pdf/src/layout/inline.rs`, called where `table_part` gives
+  `Some(None)`). `column_ranges` raises a set column's widest width to it, and `fixed_columns`
+  takes it before the first row's cells.
+- `table::span_number` reads `colspan`, `rowspan` and `span`; `rowspan="0"` is kept as 0 until
+  `close_table` runs `table::span_to_group_end`.
+- `Row::breaks` is `[before, after]`, from the row's own `break-*` or its group's
+  (`Building::group_breaks`); the piece loop turns the page before a piece that has one.
+- Header and footer rows are cleared before paging when no piece fits with them (decision 15).
+- `Table::rtl` mirrors `lefts` and `drawing.left`, and `Flow::narrow(by, left)` keeps a narrowed
+  right-to-left table's right edge. Flex and grid pass `direction` to taffy 0.15's
+  `Style::direction`.
+- `cargo fmt` also formatted `flex.rs` and `tests/breaks.rs`, which the last session left
+  unformatted.
+- The sweep's reds were stale: `env-secret-proofs` has no definition and no log, and nightly
+  41813182715 is the run already traced to fixed commits.
 
 ### Next
 
-Stage 5, the tables, in item order. Start with the span attributes and `<col>`, which share
-`extensions/pdf/src/layout/inline.rs:1073` (`count("colspan", …)` and `count("rowspan", …)`):
-read each by HTML's rules for non-negative integers (leading digits, `2x` is 2), and let
-`rowspan="0"` run to the end of its row group. Then `<col>` and `<colgroup>` widths into the
-column computation (`extensions/pdf/src/layout/table.rs:956` `column_ranges`), then row and
-row-group `break-before/after: page` (the piece loop, `table.rs:655`), then the collapsed-border
-resolution of decision 8, the header and footer left off a page they cannot fit on with a row,
-and right-to-left tables and flex rows. The eight tests go at the end of
-`extensions/pdf/tests/tables.rs` (after line 780).
+Stage 5's last items. The collapsed-border resolution of decision 8 first: today a collapsed
+table overlaps cells by the widest border (`extensions/pdf/src/layout/table.rs:403`) and draws
+every cell's four sides, with row and group borders drawn under them (`Cx::under`, `table.rs:959`,
+and `Builder::part_box`, `extensions/pdf/src/layout/inline.rs:1093`). Resolve each shared edge
+between two cells, and each outer edge against the row, group, column and table, by `hidden`,
+then width, then style order, then owner order. Then draw one border per edge: give each cell's
+`Block::Open` geometry only the sides it wins, or draw the resolved edges as their own items. The
+edge must hold at a page break and under a repeated header. Write
+`collapsed_borders_resolve_by_width_then_style_then_owner` at the end of
+`extensions/pdf/tests/tables.rs`. Then the rule's *On disk* paragraph
+(`docs/rules/core-classes/pdf-tables-across-pages.md`, last paragraph) names col widths, span
+parsing, `rowspan="0"`, row breaks, the header left off, right to left and the border
+resolution, then `bun nv rules --render` and `bun nv rules --check`. Then run the `tables`
+check's command once, and set stage 5 done.
 
-Tests that may go red at stage 10: `crates/nvs-ext/tests/pdf.rs` was not run after images became
+Tests that may go red at stage 10: a collapsed-border test in `tables.rs` or `paginate.rs` that
+counts edges will see fewer once borders resolve. A test with a table whose header and footer
+leave less room than its shortest row now sees no header. Also: `crates/nvs-ext/tests/pdf.rs` was not run after images became
 inline boxes; a test there that places an `<img>` in running text and reads its `y` as a block's
 now sees it on the line. Any test asserting an empty `dropped` list with an `@page size`
 that does not read (`paginate.rs:133` asserts only the page height). Any test that counted
