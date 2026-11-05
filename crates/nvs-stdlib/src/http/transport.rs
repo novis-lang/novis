@@ -600,10 +600,78 @@ enum Coding {
         /// The decode, which has taken ownership of the framing.
         decoder: compress::Decoder,
         /// Decoded octets not yet taken by a reader.
-        held: Vec<u8>,
+        held: Pending,
         /// Whether the decoder has said there is no more.
         ended: bool,
     },
+}
+
+/// Body octets a reader has not taken yet: a buffer and how far into it the
+/// reader has taken.
+///
+/// Taking from the front moves no octets, which is what keeps a walk linear: a
+/// body of many small elements that arrived at once, such as a reply a test
+/// wrote or a burst a server sent in one read, would otherwise move the whole
+/// rest of the body once per element. The octets already taken are dropped
+/// from the buffer by [`Pending::make_room`] once they are at least as many as
+/// those left, so each octet is moved at most once on average.
+///
+/// What it spends: the octets already taken stay in the buffer until the next
+/// append, and an append compacts first once they are at least half of it.
+#[derive(Default)]
+struct Pending {
+    bytes: Vec<u8>,
+    start: usize,
+}
+
+impl Pending {
+    /// Takes `octets` from the front, or everything when there are fewer.
+    fn consume(&mut self, octets: usize) {
+        self.start += octets.min(self.bytes.len() - self.start);
+        if self.start == self.bytes.len() {
+            self.bytes.clear();
+            self.start = 0;
+        }
+    }
+
+    /// Drops the taken octets from the buffer once they are at least as many
+    /// as those left, so the move this costs is paid for by the takes before it.
+    fn make_room(&mut self) {
+        if self.start > 0 && self.start >= self.bytes.len() - self.start {
+            self.bytes.drain(..self.start);
+            self.start = 0;
+        }
+    }
+
+    fn extend_from_slice(&mut self, octets: &[u8]) {
+        self.make_room();
+        self.bytes.extend_from_slice(octets);
+    }
+
+    fn append(&mut self, octets: &mut Vec<u8>) {
+        self.make_room();
+        self.bytes.append(octets);
+    }
+
+    /// The octets not yet taken, as one buffer.
+    fn into_vec(mut self) -> Vec<u8> {
+        self.bytes.drain(..self.start);
+        self.bytes
+    }
+}
+
+impl From<Vec<u8>> for Pending {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self { bytes, start: 0 }
+    }
+}
+
+impl std::ops::Deref for Pending {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.bytes[self.start..]
+    }
 }
 
 /// One reply body's framing: octets off the connection, delimited, with no
@@ -613,7 +681,7 @@ struct Framed {
     /// the framing has ended it and for a body that was whole to begin with.
     source: Option<Box<dyn Connection>>,
     /// Body octets pulled and framed, and not yet taken by a reader.
-    held: Vec<u8>,
+    held: Pending,
     /// Octets pulled and not yet framed, which only chunked framing ever leaves
     /// anything in: a chunk header whose line end has not arrived.
     raw: Vec<u8>,
@@ -710,7 +778,7 @@ impl Framed {
     ) -> Result<Self, Fault> {
         let mut body = Self {
             source: Some(source),
-            held: Vec::new(),
+            held: Pending::default(),
             raw,
             chunk_left: 0,
             frame,
@@ -743,7 +811,7 @@ impl Framed {
     fn already(held: Vec<u8>, member: &str) -> Self {
         Self {
             source: None,
-            held,
+            held: Pending::from(held),
             raw: Vec::new(),
             chunk_left: 0,
             frame: Frame::UntilClose,
@@ -792,7 +860,7 @@ impl Framed {
     /// arrived, rather than every byte of the body the walk has already been
     /// through.
     fn consume(&mut self, octets: usize) {
-        self.held.drain(..octets.min(self.held.len()));
+        self.held.consume(octets);
     }
 
     /// Waits for more body, answering whether any arrived — `false` is the end
@@ -871,7 +939,8 @@ impl Framed {
                 let take = usize::try_from(left)
                     .unwrap_or(usize::MAX)
                     .min(self.raw.len());
-                self.held.extend(self.raw.drain(..take));
+                self.held.extend_from_slice(&self.raw[..take]);
+                self.raw.drain(..take);
                 let left = left - u64::try_from(take).unwrap_or(u64::MAX);
                 self.frame = Frame::Sized(left);
                 Ok(left == 0)
@@ -959,7 +1028,7 @@ impl Read for Framed {
         }
         let take = out.len().min(self.held.len());
         out[..take].copy_from_slice(&self.held[..take]);
-        self.held.drain(..take);
+        self.held.consume(take);
         Ok(take)
     }
 }
@@ -1011,7 +1080,7 @@ impl Incoming {
             Coding::As(framed) => Self {
                 body: Coding::Under {
                     decoder: compress::Decoder::over(codec, framed, member),
-                    held: Vec::new(),
+                    held: Pending::default(),
                     ended: false,
                 },
                 faulted,
@@ -1060,9 +1129,7 @@ impl Incoming {
     pub(crate) fn consume(&mut self, octets: usize) {
         match &mut self.body {
             Coding::As(framed) => framed.consume(octets),
-            Coding::Under { held, .. } => {
-                held.drain(..octets.min(held.len()));
-            }
+            Coding::Under { held, .. } => held.consume(octets),
         }
     }
 
@@ -1134,8 +1201,8 @@ impl Incoming {
     /// Everything held, moved out.
     fn taken(&mut self) -> Vec<u8> {
         match &mut self.body {
-            Coding::As(framed) => std::mem::take(&mut framed.held),
-            Coding::Under { held, .. } => std::mem::take(held),
+            Coding::As(framed) => std::mem::take(&mut framed.held).into_vec(),
+            Coding::Under { held, .. } => std::mem::take(held).into_vec(),
         }
     }
 }
@@ -4663,6 +4730,43 @@ pub(crate) mod tests {
         );
     }
 
+    /// Taking from the front of what a reader holds moves no octets, and an
+    /// append drops the taken ones only once they are at least as many as
+    /// those left. A walk over many small elements of a body that arrived at
+    /// once is then linear in the body, not in the body times the elements.
+    #[test]
+    fn taking_from_the_front_moves_nothing_until_an_append_compacts() {
+        let mut held = super::Pending::from(b"abcdef".to_vec());
+        held.consume(1);
+        assert_eq!(&*held, b"bcdef");
+        assert_eq!(
+            (held.bytes.len(), held.start),
+            (6, 1),
+            "a take moved octets"
+        );
+        held.extend_from_slice(b"g");
+        assert_eq!(
+            (held.bytes.len(), held.start),
+            (7, 1),
+            "an append compacted while fewer were taken than left"
+        );
+        held.consume(4);
+        assert_eq!(&*held, b"fg");
+        held.extend_from_slice(b"h");
+        assert_eq!(&*held, b"fgh");
+        assert_eq!(
+            (held.bytes.len(), held.start),
+            (3, 0),
+            "an append kept the taken octets once they outnumbered the rest"
+        );
+        held.consume(10);
+        assert!(held.is_empty());
+        assert_eq!((held.bytes.len(), held.start), (0, 0));
+        let mut rest = super::Pending::from(b"xyz".to_vec());
+        rest.consume(1);
+        assert_eq!(rest.into_vec(), b"yz");
+    }
+
     /// A chunk header that is not a length is a statement about the other end,
     /// so it fails rather than being guessed at.
     #[test]
@@ -4693,7 +4797,7 @@ pub(crate) mod tests {
         framed.raw = b"7fffffffffff\r\nok".to_vec();
         assert!(!framed.dechunk().expect("a chunk still arriving"));
         assert_eq!(
-            framed.held, b"ok",
+            &*framed.held, b"ok",
             "a chunk's octets move across as they arrive"
         );
         assert!(
