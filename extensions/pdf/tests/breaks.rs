@@ -190,6 +190,43 @@ fn a_fixed_height_box_taller_than_a_page_continues_on_the_next_page() {
 }
 
 #[test]
+fn a_flex_line_taller_than_a_page_splits_between_its_items_lines() {
+    let shop = "Shop ".repeat(150);
+    let blog = "Blog ".repeat(150);
+    let laid = lay(&format!(
+        "<style>@page {{ size: 200pt 300pt; margin: 0 }} body, p {{ margin: 0 }}</style>
+        <p>Cart</p><div style='display: flex'><div style='width: 50%'>{shop}</div>
+        <div style='width: 50%'>{blog}</div></div>"
+    ));
+    assert!(laid.pages.len() >= 2, "{}", laid.pages.len());
+    // Both items go on over the pages side by side, and every word is drawn once.
+    let words = |word: &str, page: usize| {
+        texts(&laid, page)
+            .iter()
+            .flat_map(|t| t.split_whitespace().map(str::to_owned).collect::<Vec<_>>())
+            .filter(|w| w == word)
+            .count()
+    };
+    for page in 0..laid.pages.len() - 1 {
+        assert!(words("Shop", page) > 0 && words("Blog", page) > 0, "{page}");
+    }
+    let all = |word: &str| (0..laid.pages.len()).map(|p| words(word, p)).sum::<usize>();
+    assert_eq!((all("Shop"), all("Blog")), (150, 150));
+    // Each page holds only the lines that fit on it.
+    for page in &laid.pages {
+        let lowest = page
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { y, .. } => Some(*y),
+                _ => None,
+            })
+            .fold(0.0f32, f32::max);
+        assert!(lowest <= page.geometry.height + 0.05, "{lowest}");
+    }
+}
+
+#[test]
 fn a_float_after_a_forced_break_lands_on_the_new_page() {
     let laid = lay("<style>body, p { margin: 0 }</style>
         <p style='break-after: page'>Shop</p>

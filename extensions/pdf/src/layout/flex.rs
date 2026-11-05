@@ -19,8 +19,13 @@
 //!
 //! **Breaks.** The items are placed in bands: each band is the items whose boxes overlap
 //! vertically, so a flex line in a row is one band and each item of a column is its own. A band
-//! goes on the page as one height, so a page breaks only between bands. The space above a band
+//! goes on the page as one height, so a page breaks only between bands. A band taller than a
+//! page starts where it is, and each of its items is laid out again down pages of its own, so it
+//! breaks between its lines and is not stretched to the band's height. The space above a band
 //! after the first, a gap, is placed as a margin, and is dropped at the top of a page.
+//!
+//! Cost of a band taller than a page: each of its items is laid out once more, and its pages
+//! are kept until the band is placed.
 //!
 //! Cost: each item is laid out once per width `taffy` measures it at, and once more at its final
 //! size. The heights measured are kept for the container's layout, and freed with it.
@@ -336,6 +341,15 @@ impl Cx<'_> {
                 flow.pending = flow.pending.max(lead);
                 above + lead
             };
+            if flow.paginates() && bottom - from > flow.next_limit() + 0.01 {
+                let widths: Vec<f32> = members
+                    .iter()
+                    .map(|&i| tree.layout(leaves[i]).map_or(0.0, |at| at.size.width))
+                    .collect();
+                self.split_band(&members, &widths, &blocks, &placed, from, flex.x, flow);
+                above = bottom;
+                continue;
+            }
             let top = flow.place(bottom - from);
             let page = flow.pages.len() as u64;
             for i in members {
@@ -352,6 +366,79 @@ impl Cx<'_> {
         }
         if total > above + 0.01 {
             flow.place(total - above);
+        }
+    }
+
+    /// Places a band taller than a page, whose items `members` are `widths` wide and placed at
+    /// `placed`, with its top at `from` in the container. Each item is laid out again down
+    /// pages of its own, so it breaks between its lines. The first page is as tall as the room
+    /// left and each later one as a whole page, and the last part is as tall as the item that
+    /// reaches lowest. An item is not stretched to the band's height.
+    #[allow(clippy::too_many_arguments)]
+    fn split_band(
+        &mut self,
+        members: &[usize],
+        widths: &[f32],
+        blocks: &[Vec<Block>],
+        placed: &[(f32, f32, Placed)],
+        from: f32,
+        left: f32,
+        flow: &mut Flow,
+    ) {
+        let room = |flow: &mut Flow| match flow.room() {
+            Some((top, limit, _)) => limit - top - 0.01,
+            None => f32::INFINITY,
+        };
+        if room(flow) <= 0.0 {
+            flow.break_page();
+        }
+        let now = room(flow);
+        let later = flow.next_limit();
+        // Each item's left edge, its top in the band and its pages.
+        let mut parts: Vec<(f32, f32, Flow)> = Vec::with_capacity(members.len());
+        let (mut count, mut tail) = (1, 0.0f32);
+        let mut lost = Vec::new();
+        for (&i, &width) in members.iter().zip(widths) {
+            let (x, y, _) = &placed[i];
+            let dy = y - from;
+            let rooms = [now - dy, later];
+            let pages = Flow::paged(
+                Box::new(move |page, _| rooms[usize::from(page > 0)]),
+                None,
+            );
+            let (pages, missing) = self.down(fit(&blocks[i], width, None), pages);
+            let n = pages.pages.len();
+            let bottom = pages.cursor + pages.pending + if n == 1 { dy } else { 0.0 };
+            if n > count {
+                (count, tail) = (n, bottom);
+            } else if n == count {
+                tail = tail.max(bottom);
+            }
+            parts.push((left + x, dy, pages));
+            lost.push(missing);
+        }
+        let page = flow.pages.len() as u64;
+        for part in 0..count {
+            let height = match part {
+                _ if part + 1 == count => tail,
+                0 => now,
+                _ => later,
+            };
+            let top = flow.place(height);
+            for (x, dy, pages) in &mut parts {
+                let Some(on) = pages.pages.get_mut(part) else {
+                    continue;
+                };
+                let dy = top + if part == 0 { *dy } else { 0.0 };
+                let items: Vec<_> = std::mem::take(&mut on.items)
+                    .into_iter()
+                    .map(|item| shift(item, *x, dy))
+                    .collect();
+                flow.page().items.extend(items);
+            }
+        }
+        for missing in lost {
+            carry(&mut self.missing, missing, page);
         }
     }
 

@@ -18,7 +18,7 @@ stages:
     context: [extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/image.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/block.rs]
   - id: 4
     title: "page breaks fall where CSS Fragmentation puts them: parity by direction, kept margins, no padding-only page, floats after a break, tall boxes that continue"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/flex.rs, extensions/pdf/src/paginate/mod.rs]
   - id: 5
     title: "tables read col widths, row breaks and HTML span numbers, resolve collapsed borders by CSS 2.1, and run right to left"
@@ -388,15 +388,15 @@ handled but untested.
   `extensions/pdf/src/layout/block.rs:652`
 - [x] A `break-after: avoid` heading before a block taller than a page joins only that block's first
   lines (its orphans), not the whole block. `extensions/pdf/src/layout/text.rs:1467`
-- [ ] A fixed-height box taller than a page continues on the next page with its background sliced,
+- [x] A fixed-height box taller than a page continues on the next page with its background sliced,
   and a flex band taller than a page splits between the lines of its items.
   `extensions/pdf/src/layout/block.rs:826`, `extensions/pdf/src/layout/flex.rs:339`
-- [ ] Write the nine tests the `breaks` check names. `extensions/pdf/tests/breaks.rs:1`
+- [x] Write the nine tests the `breaks` check names. `extensions/pdf/tests/breaks.rs:1`
   - [x] the six for parity, the kept margin, the bottom edge, the tolerance and the float
   - [x] `a_heading_before_a_block_taller_than_a_page_moves_with_its_first_lines`
   - [x] `a_fixed_height_box_taller_than_a_page_continues_on_the_next_page`
-  - [ ] `a_flex_line_taller_than_a_page_splits_between_its_items_lines`
-- [ ] Run the `breaks` check's command once: green.
+  - [x] `a_flex_line_taller_than_a_page_splits_between_its_items_lines`
+- [x] Run the `breaks` check's command once: green.
 
 ### 5. tables read col widths, row breaks and HTML span numbers, resolve collapsed borders by CSS 2.1, and run right to left
 
@@ -512,39 +512,33 @@ check once both end.
 
 ### State
 
-Stages 1 to 3 are done. `hostile-input` is green (7 of 7), `linear-cost` is green (4 of 4) and
-`inline-images` is green (7 of 7). Stage 4's first four items are done, and six of the nine
-`breaks` tests are written and green.
+Stages 1 to 4 are done. `hostile-input` is green (7 of 7), `linear-cost` (4 of 4),
+`inline-images` (7 of 7) and `breaks` (9 of 9).
 
-- `Break` has `Recto` and `Verso` of its own, and `Break::even(rtl)` says which page index a
-  break goes to. `Flow::rtl` and `Sheet::new(rules, rtl)` both read the root element's
-  `direction`, found in `text.rs`'s `pass`. A `break-after` meeting a `break-before` resolves by
-  `Break::meet`: the later one's side wins.
-- `Flow::force` drops the pending margin and sets `Flow::kept`, which `Flow::margin` reads to
-  keep the next box's top margin; `new_page` clears it.
-- `block::FIT` (0.01 pt) is in `place`, `keep`, `float` and `text.rs`'s `kept`. `Flow::edge`
-  places a closing box's bottom border and padding, and cuts the padding at the page end where
-  they do not fit, so they never start a page.
-- `Flow::float` takes a waiting `break-after` first.
-- An inline `<img>` or `<svg>` is an atom through `image::Builder::replaced`, a glyph-run gap in
-  its line's `Item::Text` (`tests/images.rs` `words` reads word ends from glyph advances).
+- A group joined by `break-after: avoid` that is taller than the next page is kept by its head
+  only: `Cx::head` (`extensions/pdf/src/layout/text.rs:580`) turns the last joined unit into its
+  opening boxes, with no bottom edge, and a spacer as tall as its first paragraph's `orphans`
+  lines. `join` returns where that unit starts in the group.
+- `Flow::close` places the rest of a `height` or `min-height` a page's room at a time
+  (`extensions/pdf/src/layout/block.rs:895`), so the box is sliced over every page.
+- A flex band taller than the next page goes through `Cx::split_band`
+  (`extensions/pdf/src/layout/flex.rs:378`): each item is laid out again with `Cx::down` over a
+  `Flow::paged` of the room left, then whole pages, as `table.rs` does for a tall row.
+- `block::FIT` (0.01 pt) is the tolerance in every fit test; a new one in stage 5 uses it too.
 - The sweep's three reds were stale again: `env-secret-proofs` is defined nowhere and has no log,
   and nightly 41813182715 is the run the calm-editor handoff already traced to fixed commits.
 
 ### Next
 
-Stage 4's fifth item: a `break-after: avoid` heading before a block taller than a page. `Cx::run`
-(`extensions/pdf/src/layout/text.rs:722`) measures the whole joined group and calls `flow.keep`,
-which does nothing when the group is taller than a page, so the heading can stay alone at the
-bottom. When the measured height is over the next page's height, measure instead the group
-without its last joined unit plus that unit's opening edges and the first `orphans` line heights
-of its first `Block::Text` (shape it with `Cx::shape` and read `line_heights`,
-`text.rs:1387`), and `keep` that. Then the sixth item: a fixed-height box taller than a page
-(`close`'s `want` branch, `extensions/pdf/src/layout/block.rs:886`, calls `place(more)` with
-the whole rest, which `place` cannot split) must place the rest page by page, so its slices paint
-on each; and a flex band taller than a page (`extensions/pdf/src/layout/flex.rs:339`, one
-`flow.place` for the band) splits between its items' lines. Then the last three `breaks` tests
-and the check's run.
+Stage 5, the tables, in item order. Start with the span attributes and `<col>`, which share
+`extensions/pdf/src/layout/inline.rs:1073` (`count("colspan", …)` and `count("rowspan", …)`):
+read each by HTML's rules for non-negative integers (leading digits, `2x` is 2), and let
+`rowspan="0"` run to the end of its row group. Then `<col>` and `<colgroup>` widths into the
+column computation (`extensions/pdf/src/layout/table.rs:956` `column_ranges`), then row and
+row-group `break-before/after: page` (the piece loop, `table.rs:655`), then the collapsed-border
+resolution of decision 8, the header and footer left off a page they cannot fit on with a row,
+and right-to-left tables and flex rows. The eight tests go at the end of
+`extensions/pdf/tests/tables.rs` (after line 780).
 
 Tests that may go red at stage 10: `crates/nvs-ext/tests/pdf.rs` was not run after images became
 inline boxes; a test there that places an `<img>` in running text and reads its `y` as a block's
@@ -554,6 +548,8 @@ that does not read (`paginate.rs:133` asserts only the page height). Any test th
 counter tests in `paginate.rs` were not run after `margin::Index`; their order rules are unchanged.
 A test that reads a box's top after a forced break now sees its top margin kept (`paginate.rs`,
 `layout.rs`, `crates/nvs-ext/tests/pdf.rs`), and one that expected a page holding only a box's
-bottom padding now sees one page fewer.
+bottom padding now sees one page fewer. A test with a fixed-height box that starts low on a page
+and does not fit under it now sees the box split there, not moved whole to the next page. A test
+with a flex row taller than a page now sees its items split and not stretched.
 
 ### Backlog
