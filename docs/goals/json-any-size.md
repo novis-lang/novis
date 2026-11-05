@@ -252,8 +252,10 @@ The goal-end gates are green again: `bun nv ci --check`, `bun nv verify --doc`, 
 `888f7df639`, `878fa4f03a` and `0a95830b84` fixed rustfmt, two citations of unwritten rules, the
 roadmap theme and five pages' questions.
 
-`floor-debt` takes about half an hour on its next run, because `b1c8ea401e` reaches `Ctx`'s
-constructor. That commit fixed `Core\IO::list`'s owed attack.
+`floor-debt` paid all 9311 owed atoms, and one was red: `conformance_coverage` found
+`Core\Test::request`'s unread-file error path, which `8e83304fbe` added with no declaration. That
+path now names the `#[test]` that asserts it, and the test is green. The debt is paid, so the
+next `floor-debt` run reruns only what changed since.
 
 The sweep's `env-secret-proofs` red is the running driver's stale state. No file in the tree names
 that check, `looper check --name env-secret` finds none, and it has no log.

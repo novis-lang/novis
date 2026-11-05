@@ -3087,6 +3087,9 @@ nvs_runtime::nvs_helper! {
         // asked the program's `fs.read` for the name, as it does for the server.
         let file = match completion.file_body.take() {
             Some(path) => {
+                // no case can reach this: a case never runs `Core\Test::request` against
+                // a unit, so a file gone between `sendFile` and this read is asserted by
+                // `a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type`.
                 let bytes = std::fs::read(&path).map_err(|error| {
                     Fault::thrown(format!(
                         "Core\\Test::request could not read the file the response sent, `{}`: \
