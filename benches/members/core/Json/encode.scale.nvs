@@ -1,21 +1,21 @@
 <?nvs
-// Measures `Core\Json::encode` on one shape, at growing lengths of the name in it.
+// Measures `Core\Json::encode` on a list of orders, at growing document sizes in bytes.
 // bench: start 1024
-// bench: max 16384
+// bench: max 33554432
 
 class Bench
 {
     public static function run(uint $size): uint
     {
-        string $name = Core\Str::repeat('a', $size);
-        uint $total = 0;
-        uint $i = 0;
-        while ($i < 64) {
-            string $text = Core\Json::encode({ id: $i, name: $name, active: true });
-            $total = $total + Core\Str::length($text);
-            $i = $i + 1;
+        // One order is 66 bytes of JSON, so the list has `$size / 66` of them.
+        array<{ id: int, name: string, price: float, tags: array<int> }> $orders = [];
+        uint $n = 0;
+        while ($n < $size / 66) {
+            $orders[] = { id: 7, name: "Grüße \"Ada\"\n", price: 12.5, tags: [1, 22, 333] };
+            $n = $n + 1;
         }
-        return $total;
+        string $text = Core\Json::encode($orders);
+        return Core\Str::length($text) + Core\Budget::memoryPeak();
     }
 }
 

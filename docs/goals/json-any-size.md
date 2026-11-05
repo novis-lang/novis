@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/json.rs, benches/members/README.md, docs/rules/e
 stages:
   - id: 1
     title: "ladders by document size measure every JSON member from 1 KiB to 32 MiB"
-    status: open
+    status: done
     context: [benches/members/core/Json/decodeAs.scale.nvs, benches/members/core/Json/encode.scale.nvs, benches/members/core/Budget/memoryPeak.nvs]
   - id: 2
     title: "every cliff the ladders found is fixed, and a large response is written in chunks"
@@ -91,6 +91,16 @@ Known suspects, each fixed only if the ladder shows it:
    bounds use them. Time per byte comes from the ladders' growth, which the perf proofs already judge.
 8. **Lanes.** It shares `json.rs`, `response.rs` and `budget.rs` with `json-one-pass`, so it runs
    after that goal. It shares no file with `strings-in-place`.
+9. **Two instruments, split by what each can see.** The member ladders are each member's
+   `.scale.nvs`, whose size is the document's bytes from 1 KiB, over one mixed shape: a list of
+   66-byte orders, each with an int, a float, an escaped non-ASCII string and a nested list. They see
+   what a member adds above the parse: the `string` copy, the request body, the response body. The
+   ramp stops where its counts agree, so it judges growth and never reaches every rung. The per-shape
+   figures at the five fixed sizes come from `json::tests::serde_reference_ladder`, which runs every
+   decision-2 shape through serde_json's own `Value`, `read` and `written`, and prints time,
+   allocations and peak per byte. Thirty ladder files, one per member and shape, were declined: the
+   shape changes the parse and the encoder, which the Rust bench measures directly, and not what
+   the members add.
 
 ## Stages
 
@@ -102,12 +112,12 @@ Known suspects, each fixed only if the ladder shows it:
 disjoint. A `reader` subagent then reads the recorded figures and returns, per member and shape, the
 time per byte, allocations per byte and peak per byte at each size.
 
-- [ ] Add a byte-size ladder bench for `Core\Json::decode`, `Core\Json::decodeAs`, `Core\Json::encode`,
+- [x] Add a byte-size ladder bench for `Core\Json::decode`, `Core\Json::decodeAs`, `Core\Json::encode`,
   `Core\Request::jsonAs` and `Core\Response::json`, over decision 2's shapes and sizes. Each reads its
   peak with `Core\Budget::memoryPeak`. `benches/members/core/Json/encode.scale.nvs:1`
-- [ ] Add the Rust bench that parses the same documents with serde_json alone, `#[ignore]`d, printing
+- [x] Add the Rust bench that parses the same documents with serde_json alone, `#[ignore]`d, printing
   its figures with `--nocapture`. `crates/nvs-stdlib/src/json.rs:1`
-- [ ] Record the ladders with `bun nv proofs --record-perf --force --id '<feature>'`, and write the
+- [x] Record the ladders with `bun nv proofs --record-perf --force --id '<feature>'`, and write the
   table the `reader` returns into the commit message. Each result that misses decision 1 becomes an
   item of stage 2, with its anchor. `benches/members/README.md:1`
 
@@ -122,6 +132,23 @@ because the three-times peak follows from how the buffer grows.
 - [ ] Read a body with a known length into one buffer of that length, as decision 4 says.
   `crates/nvs-stdlib/src/request.rs:3382`
 - [ ] Fix each cliff stage 1 added here, at its cause.
+- [ ] Encoding an `int` or a `float` allocates once per number (0.17 to 0.30 allocations per byte on
+  the `ints` and `floats` shapes, where `ByteWriter::put` allocates nothing per write). Find the
+  allocation in the walk and remove it. `crates/nvs-stdlib/src/json.rs:1239`
+  `crates/nvs-stdlib/src/json.rs:815`
+- [ ] `written`'s buffer peaks at three times the document, the old and the doubled buffer side by
+  side, and encode's time per byte grows 1.7 to 2.1 times from 64 KiB to 32 MiB on `wide`, `ascii`,
+  `non-ascii` and `deep`. Write `Core\Json::encode` through the same chunk list as decision 3 and
+  join it once into the `string`, so the peak is the document twice. `crates/nvs-stdlib/src/json.rs:936`
+  `crates/nvs-runtime/src/budget.rs:1402` `crates/nvs-stdlib/src/json.rs:1808`
+- [ ] Decode's time per byte grows 2.05 times on `keys` while serde_json's grows 1.36 times: one
+  object's key index is rebuilt as it doubles. Size it once or grow it by less.
+  `crates/nvs-stdlib/src/json.rs:1939`
+- [ ] Decode's time per byte grows 1.75 times on `wide` and 2.46 times on `deep`, and serde_json's
+  own parse grows 2.0 and 2.5 times on the same bytes. Measure whether the growth is the allocator's
+  and the cache's: run the reference ladder with the values released at the end, not per rung. If
+  serde_json's own parse is the cause, decision 5 sends it to its own goal, and the miss is
+  recorded here with the figures. `crates/nvs-stdlib/src/json.rs:1913`
 - [ ] Write the three tests the `size-bounds` check names. Each measures the request's peak and
   allocation count at 64 KiB and at 8 MiB. `crates/nvs-stdlib/src/json.rs:1`
 
@@ -144,16 +171,26 @@ because the three-times peak follows from how the buffer grows.
 
 ### State
 
-Nothing is built yet. It runs after `json-one-pass`, which removes the decode tree and adds
-`write_body_owned`.
+Stage 1 is done. The five members' `.scale.nvs` ladders grow the document in bytes from 1 KiB
+(decision 9), and all five record `size flat` in `data/perf/members.ndjson`.
+`json::tests::serde_reference_ladder` prints the per-shape table at the five sizes; its figures and
+the misses against decision 1 are in the commit `test(stdlib): a reference ladder times serde_json
+beside Core\Json's read and write`. Rerun it with `cargo test --profile proof --lib
+json::tests::serde_reference -- --ignored --nocapture`, about two minutes once built.
+
+The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` finds no such
+check, and no goal or floor names it.
+
+No test is expected to go red.
 
 ### Next
 
-**Stage 1**, gated on `docs/goals/json-one-pass.md` being deleted. Files: new benches under
-`benches/members/core/` and `crates/nvs-stdlib/src/json.rs`'s test module.
+**Stage 2.** Files: `crates/nvs-stdlib/src/json.rs`, `crates/nvs-runtime/src/budget.rs`,
+`crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/ctx/output.rs`.
 
-- [ ] The ladder benches, one per member. `benches/members/core/Json/encode.scale.nvs:1`
-- [ ] The serde_json reference bench. `crates/nvs-stdlib/src/json.rs:1`
-- [ ] Record, and turn each miss into a stage 2 item. `benches/members/README.md:1`
+- [ ] The per-number allocation in encode, first. `crates/nvs-stdlib/src/json.rs:1239`
+- [ ] The chunk list for `Core\Response::json`, then for `Core\Json::encode`. `crates/nvs-stdlib/src/json.rs:936`
+- [ ] The `keys` decode growth. `crates/nvs-stdlib/src/json.rs:1939`
+- [ ] Rerun the reference ladder after each fix, beside stage 1's table. `crates/nvs-stdlib/src/json.rs:7595`
 
 ### Backlog

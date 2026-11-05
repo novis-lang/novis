@@ -1,14 +1,18 @@
 <?nvs
-// Prints the request for the `Core\Request::jsonAs` bench, with an order of `$size` items.
+// Prints the request for the `Core\Request::jsonAs` bench, with a body of `$size` bytes.
 // bench: prints
-// bench: start 16
-// bench: max 256
+// bench: start 1024
+// bench: max 8388608
 
 class Bench
 {
     public static function run(uint $size): string
     {
-        array<string> $items = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "{\"sku\":\"TEA-" . ($n as string) . "\",\"cents\":450,\"count\":2}");
+        // One line of the order is 38 bytes with its comma. The body stays under `$size` bytes,
+        // so the largest one is inside the default request body limit of 8 MiB.
+        string $line = '{"sku":"TEA-1","cents":450,"count":2}';
+        uint $count = Core\Math::intDiv($size as int - 64, 38) as uint;
+        string $body = '{"customer":"c-1042","items":[' . Core\Str::repeat($line . ',', $count - 1) . $line . ']}';
         array<string> $lines = [
             '// scaling: file jsonAs.nvsr',
             '--METHOD--',
@@ -21,10 +25,10 @@ class Bench
             'host: shop.example.com',
             'content-type: application/json',
             '--BODY--',
-            "{\"customer\":\"c-1042\",\"items\":[" . Core\Str::join($items, ',') . ']}',
+            $body,
         ];
         return Core\Str::join($lines, "\n") . "\n";
     }
 }
 
-echo Bench::run(16);
+echo Bench::run(1024);
