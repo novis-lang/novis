@@ -888,7 +888,34 @@ fn a_colspan_with_trailing_text_reads_its_leading_digits() {
     // `2x` and ` +2` both span two columns, so the next cell is in the third.
     assert!(same(at(&laid, 0, "Right").0, three));
     assert!(same(at(&laid, 0, "Next").0, three));
-    // `2 rows` spans two rows, so `P` is in the second column.
+    // `2 rows` spans two rows, so `P` is in the second column. `none` has no digits, so
+    // `One` spans one column.
+    assert!(same(at(&laid, 0, "One").0, at(&laid, 0, "Tall").0));
     assert!(same(at(&laid, 0, "P").0, two));
     assert!(same(at(&laid, 0, "Q").0, three));
+}
+
+#[test]
+fn a_header_and_footer_taller_than_the_page_are_left_off_that_page() {
+    // The page holds 362pt, and the header and footer are 200pt each.
+    let rows = body_rows(30, |i| format!("<td>Row{i}</td>"));
+    let laid = lay(&format!(
+        "{PAGE}<table><thead><tr><td><div style='height: 200pt'>Head</div></td></tr></thead>
+        <tfoot><tr><td><div style='height: 200pt'>Foot</div></td></tr></tfoot>
+        <tbody>{rows}</tbody></table>"
+    ));
+    assert_eq!(pages_of(&laid, "Head"), Vec::<usize>::new());
+    assert_eq!(pages_of(&laid, "Foot"), Vec::<usize>::new());
+    // Every row is drawn once, and the first page is full of rows.
+    for i in 1..=30 {
+        assert_eq!(pages_of(&laid, &format!("Row{i}")).len(), 1, "Row{i}");
+    }
+    assert!(texts(&laid, 0).len() > 10, "{:?}", texts(&laid, 0));
+    // A header that leaves room for a row still repeats.
+    let laid = lay(&format!(
+        "{PAGE}<table><thead><tr><td>Head</td></tr></thead><tbody>{rows}</tbody></table>"
+    ));
+    let pages = laid.pages.len();
+    assert!(pages >= 2, "{pages} pages");
+    assert_eq!(pages_of(&laid, "Head"), (0..pages).collect::<Vec<_>>());
 }

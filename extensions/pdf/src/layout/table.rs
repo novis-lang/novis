@@ -54,7 +54,9 @@
 //! each page the table is on. A row's `data-repeat` says on which: `every` (the default),
 //! `first`, `last`, or `continued`, which is a header row on each page after the first and a
 //! footer row on each page before the last. A page is the last one when the rest of the table
-//! fits on it.
+//! fits on it. The header and footer rows are left off every page when the room they leave
+//! is less than the shortest body piece, or less than a quarter of a page when every piece is
+//! taller, so a page never holds them and no row.
 //!
 //! **Borders at a break.** The table's box and each cell of a split row are closed at every
 //! page break, as `block`'s module doc says, unless `box-decoration-break` is `slice`. Under
@@ -84,7 +86,7 @@
 //! ([`super::Work::table_reads`]). Memory: two widths for each cell, per layout pass, and three
 //! numbers for each body piece while the table is paged.
 
-use super::block::{BoxGeometry, Flow};
+use super::block::{BoxGeometry, FIT, Flow};
 use super::flex::fit;
 use super::text::{Cx, Here, Placed, carry, shift};
 use super::{Block, Fact, Item, MARGIN, Role, keyword};
@@ -581,6 +583,29 @@ impl Cx<'_> {
                 .filter(|r| rows[*r].repeat.shows(rows[*r].part, first, last))
                 .collect()
         };
+        // The header and footer rows are left off when the room they leave on a page is less
+        // than the shortest body piece, or than a quarter of the page when every piece is
+        // taller. A row then never shares a page with nothing but them.
+        let (mut head, mut foot) = (head, foot);
+        if flow.paginates() && !pieces.is_empty() {
+            let tallest = |rows_of: &[usize]| {
+                [true, false]
+                    .into_iter()
+                    .flat_map(|first| [true, false].map(|last| (first, last)))
+                    .map(|(first, last)| piece_height(&shown(rows_of, first, last)))
+                    .fold(0.0, f32::max)
+            };
+            let page = flow.next_limit();
+            let room = page - tallest(&head) - tallest(&foot) - 2.0 * gy;
+            let shortest = pieces
+                .iter()
+                .map(|p| piece_height(p))
+                .fold(f32::INFINITY, f32::min);
+            if room + FIT < shortest.min(page / 4.0) {
+                head.clear();
+                foot.clear();
+            }
+        }
 
         for (atom, bottom) in &captions {
             if !bottom {
