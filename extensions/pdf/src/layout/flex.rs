@@ -15,7 +15,8 @@
 //! and drawn where `taffy` put it. A `flex-basis` length counts its margins in, `order` sorts the
 //! items before `taffy` sees them, and a percentage height is not resolved. An `auto` margin is
 //! the one margin `taffy` sees, so it takes the free space. A leaf's first baseline is its first
-//! line's, measured only when an item aligns on `baseline`.
+//! line's, measured only when an item aligns on `baseline`. Under `direction: rtl` a row and a
+//! grid's columns run from the right, as `taffy` places them.
 //!
 //! **Breaks.** The items are placed in bands: each band is the items whose boxes overlap
 //! vertically, so a flex line in a row is one band and each item of a column is its own. A band
@@ -97,6 +98,12 @@ pub(super) fn container(style: &Style, width: f32, height: f32, rem: f32) -> taf
         min_size: Size {
             width: taffy::LengthPercentageAuto::auto(),
             height: taffy::LengthPercentageAuto::length(height),
+        },
+        // A row and a grid's columns run from the right under `direction: rtl`.
+        direction: if keyword(style, "direction") == Some("rtl") {
+            taffy::Direction::Rtl
+        } else {
+            taffy::Direction::Ltr
         },
         ..taffy::Style::default()
     };

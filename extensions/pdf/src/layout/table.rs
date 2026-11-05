@@ -20,7 +20,9 @@
 //! narrowest cell can make it wider. Under `table-layout: fixed`, a `col` width sets its
 //! column, a cell of the first row with a `width` sets the columns no `col` sets, and the
 //! other columns share the rest evenly. `border-spacing` is the room between two cells and
-//! between a cell and the table's content edge. `colspan`, `rowspan` and `span` are read by
+//! between a cell and the table's content edge. Under `direction: rtl` the first column is
+//! on the right, and a table narrower than its containing block keeps its right edge.
+//! `colspan`, `rowspan` and `span` are read by
 //! HTML's rules for non-negative integers, so `2x` is 2, and `rowspan="0"` runs to the last
 //! row of its group.
 //!
@@ -104,6 +106,8 @@ pub(super) struct Table {
     pub(super) fixed: bool,
     /// Whether its `border-collapse` is `collapse`.
     pub(super) collapse: bool,
+    /// Whether its `direction` is `rtl`, so its first column is on the right.
+    pub(super) rtl: bool,
     /// How many body rows a page break leaves before it and after it, when it can.
     pub(super) orphans: usize,
     pub(super) widows: usize,
@@ -374,11 +378,12 @@ impl Cx<'_> {
     /// `flow` with its header and footer rows on each page it is on.
     pub(super) fn table(&mut self, table: Table, flow: &mut Flow) {
         let Table {
-            x,
+            mut x,
             mut width,
             spacing,
             fixed,
             collapse,
+            rtl,
             orphans,
             widows,
             captions,
@@ -422,8 +427,12 @@ impl Cx<'_> {
         } else {
             let (min, max) = self.column_ranges(&rows, &blocks, &starts, &cols, columns, gx);
             let need = max.iter().sum::<f32>() + gaps;
+            // A right-to-left table keeps its right edge.
             if auto && need < width {
-                flow.narrow(width - need);
+                flow.narrow(width - need, rtl);
+                if rtl {
+                    x += width - need;
+                }
                 width = need;
             }
             distribute(&min, &max, (width - gaps).max(0.0))
@@ -439,6 +448,19 @@ impl Cx<'_> {
             left: lefts[0],
             width: at - gx - lefts[0],
             runs: Vec::new(),
+        };
+        // A right-to-left table has its columns mirrored in its content box.
+        if rtl {
+            for (left, w) in lefts.iter_mut().zip(&widths) {
+                *left = 2.0 * x + width - *left - w;
+            }
+            drawing.left = 2.0 * x + width - (drawing.left + drawing.width);
+        }
+        // A cell's left edge: its first column's, or its last one's when the table is right
+        // to left.
+        let cell_left = |from: usize, span: usize| {
+            let column = if rtl { from + span - 1 } else { from };
+            lefts[column.min(columns - 1)]
         };
         let cell_width = |from: usize, span: usize| {
             let end = (from + span).min(columns);
@@ -525,7 +547,7 @@ impl Cx<'_> {
                 } else {
                     first
                 };
-                cells.push((lefts[starts[r][c].min(columns - 1)], placed));
+                cells.push((cell_left(starts[r][c], cell.span), placed));
             }
             // A slot fills its cell's content box, as tall as the cell's rows.
             let slots = row

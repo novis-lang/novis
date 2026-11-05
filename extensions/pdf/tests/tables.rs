@@ -919,3 +919,37 @@ fn a_header_and_footer_taller_than_the_page_are_left_off_that_page() {
     assert!(pages >= 2, "{pages} pages");
     assert_eq!(pages_of(&laid, "Head"), (0..pages).collect::<Vec<_>>());
 }
+
+/// The middle of the page's content box, across: 105mm wide with 10mm margins.
+const MIDDLE: f32 = 105.0 / 25.4 * 72.0 / 2.0;
+
+#[test]
+fn a_right_to_left_table_runs_its_columns_from_the_right() {
+    let laid = lay(&format!(
+        "{PAGE}<table style='direction: rtl'>
+        <tr><td>One</td><td>Two</td><td>Three</td></tr>
+        <tr><td colspan='2'>Wide</td><td>Last</td></tr></table>"
+    ));
+    let one = at(&laid, 0, "One").0;
+    let two = at(&laid, 0, "Two").0;
+    let three = at(&laid, 0, "Three").0;
+    assert!(one > two && two > three, "{one} {two} {three}");
+    // The table is as wide as its columns, and keeps its right edge.
+    assert!(three > MIDDLE, "{three}");
+    // A cell over two columns starts at the left one of them.
+    assert!(same(at(&laid, 0, "Wide").0, two));
+    assert!(same(at(&laid, 0, "Last").0, three));
+}
+
+#[test]
+fn a_right_to_left_flex_row_runs_from_the_right() {
+    let laid = lay(&format!(
+        "{PAGE}<div style='display: flex; direction: rtl'>
+        <div>One</div><div>Two</div><div>Three</div></div>"
+    ));
+    let one = at(&laid, 0, "One").0;
+    let two = at(&laid, 0, "Two").0;
+    let three = at(&laid, 0, "Three").0;
+    assert!(one > two && two > three, "{one} {two} {three}");
+    assert!(three > MIDDLE, "{three}");
+}

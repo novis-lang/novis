@@ -802,11 +802,14 @@ impl Flow {
         self.open.last().is_some_and(|o| o.geometry.fill)
     }
 
-    /// Narrows the innermost open box by `by` from its right edge. Its edges are drawn with
-    /// the new width when it closes.
-    pub(super) fn narrow(&mut self, by: f32) {
+    /// Narrows the innermost open box by `by` from its right edge, or from its left edge when
+    /// `left` is set. Its edges are drawn with the new width when it closes.
+    pub(super) fn narrow(&mut self, by: f32, left: bool) {
         if let Some(open) = self.open.last_mut() {
             open.geometry.width -= by;
+            if left {
+                open.geometry.x += by;
+            }
         }
     }
 

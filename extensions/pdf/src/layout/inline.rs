@@ -1028,6 +1028,7 @@ impl Builder<'_, '_> {
                 spacing: table::spacing(style, self.rem),
                 fixed: table::fixed(style),
                 collapse: keyword(style, "border-collapse") == Some("collapse"),
+                rtl: keyword(style, "direction") == Some("rtl"),
                 orphans: lines(style, "orphans"),
                 widows: lines(style, "widows"),
                 captions: Vec::new(),
