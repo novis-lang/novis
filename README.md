@@ -128,9 +128,7 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-The work is in the order it is planned. The order can change.
-
-1. **PDF edge cases.** *Working on it now.* `Novis\Pdf` gets a test for each kind of document that other HTML-to-PDF libraries render wrong, such as a table across pages. A render reports each CSS feature it does not support.
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing
