@@ -3164,7 +3164,9 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** the body's own bytes for the rest of the request,
     /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
     /// `[limits] request_body`, plus the instances this call hands back. Both are
-    /// O(in-flight). The handle is a reference count, and copies no byte.
+    /// O(in-flight). The handle is a reference count, and copies no byte. A
+    /// body that declared its length is read into one buffer of that length,
+    /// so the body is held once at every size.
     fn nvs_core_request_json_as(ctx, args: [4]) {
         // In `json`'s order, and for `body`'s reasons: the request first, so
         // "no request arrived" stays a different fact from what the body says.

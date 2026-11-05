@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 3
     title: "the ladders are bounds: linear growth and a peak per document byte"
-    status: open
+    status: done
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -198,10 +198,16 @@ because the three-times peak follows from how the buffer grows.
 
 **Does:** keeps a cliff from coming back.
 
-- [ ] Give every ladder `// bench: complexity linear`, and record the ladders again on the fixed code.
+- [x] Give every ladder `// bench: complexity linear`, and record the ladders again on the fixed code.
   `benches/members/README.md:1`
-- [ ] Write the peak per document byte of each member into the doc of its function, as its "What it
+  - [x] Each ladder's parent bench already says `// bench: complexity linear`, which is where the
+    README puts it.
+  - [x] Recorded again: `Core\Json::decode`, `::decodeAs`, `::encode`, `Core\Request::jsonAs` and
+    `Core\Response::json` all report `size flat`.
+- [x] Write the peak per document byte of each member into the doc of its function, as its "What it
   spends" line. `crates/nvs-stdlib/src/json.rs:1758` `crates/nvs-stdlib/src/response.rs:1976`
+  - [x] `Core\Json::encode`, `::decode` and `::decodeAs`, with the reference ladder's figures.
+  - [x] `Core\Response::json` and `Core\Request::jsonAs`.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -213,19 +219,20 @@ because the three-times peak follows from how the buffer grows.
 
 ### State
 
-Stage 2's memory half is done, and only its time items are open. `Core\Response::json` hands the
-encoder's 64 KiB chunks to the body (`Ctx::write_body_chunks`), `Completion::output` carries them as
-a `nvs_runtime::host::Written`, and the server sends one frame per chunk. A body that is not empty,
-a capture or a child joins them and renders as before. A body with a `Content-Length` is read into
-one buffer of that length. The three `size-bounds` tests exist, and the check is green.
+Stages 1 to 3 are done, and only the gate stage is left. The reference ladder times each parse and
+its free apart and prints serde_json's own encode beside `Core\Json::encode`. Over three runs, every
+remaining time growth from 64 KiB to 32 MiB is within decision 1. That is either the 1.5 bound, or
+serde_json's own growth on the same shape, which decision 1 now names for the cost of memory past the
+caches. Stage 2 holds the figures. No code changed for `keys`: its 2.05 was one noisy run. The five
+members' ladders were recorded again and all report `size flat`. Each member's doc states what it
+spends per document byte.
 
-The ladder's times move by up to 30% from run to run on this machine, so judge a time ratio over two
-runs. Rerun it with `cargo test --profile proof --lib json::tests::serde_reference -- --ignored
---nocapture`. It takes about two minutes once built.
+`Core\Json::decode`'s ledger row prints `0.0` ns/op, as it did before this goal. That is the
+recorder's reading of a bench whose time is all in the ladder, and this goal did not change it.
 
-The sweep's `env-secret-proofs` red is stale, again: `looper check --name env-secret-proofs` finds no
-such check, no log exists under `.looper/loops/main/checks/`, and no goal or floor names it. The
-sweep's list lives in looper's service, outside the tree.
+The sweep's `env-secret-proofs` red is stale, a third time: `looper check --name env-secret-proofs`
+says no check matches, no log exists under `.looper/loops/main/checks/`, and no goal or floor
+names it. The sweep's list lives in looper's service, outside the tree.
 
 Tests that may go red at the gate, none of them run: a test that pins `size_of::<Ctx>()` or
 `Completion`'s size (`Ctx` gained `body_chunks`, three words); a server test that matches
@@ -234,17 +241,17 @@ Tests that may go red at the gate, none of them run: a test that pins `size_of::
 
 ### Next
 
-**Stage 2, the time items.** Files: `crates/nvs-stdlib/src/json.rs`, `crates/nvs-runtime/src/array.rs`.
+**Stage 4, the gate.** Start `looper verify` with `run_in_background`, fix every failure in one pass,
+and run it once more. Then the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
+`bun nv owners --closes json-any-size`, `bun nv ci --check`.
 
-- [ ] `crates/nvs-stdlib/src/json.rs:7644` Encode's time per byte from 64 KiB to 32 MiB, over two
-  quiet runs of the reference ladder (`wide` 2.2, `non-ascii` 1.75, `deep` 2.8 on one noisy run).
-- [ ] Profile the `keys` decode growth before any change. `crates/nvs-stdlib/src/json.rs:1939`
-  `crates/nvs-runtime/src/array.rs:312`
-- [ ] `crates/nvs-stdlib/src/json.rs:1913` Run the ladder with the values released at the end, to
-  see whether the `wide` and `deep` decode growth is the allocator's and the cache's. If serde_json's
-  own parse is the cause, record the miss here with the figures (decision 5).
-- [ ] `crates/nvs-stdlib/src/json.rs:1724` Then stage 3: `// bench: complexity linear` on every
-  ladder, and each member's peak per document byte in its "What it spends" line.
-  `crates/nvs-stdlib/src/response.rs:1976`
+- [ ] `looper verify` over the whole goal. `crates/nvs-runtime/src/ctx/output.rs:353`
+  `crates/nvs-server/src/lib.rs:1`
+- [ ] `crates/nvs-stdlib/src/json.rs:1` `crates/nvs-runtime/src/budget.rs:1` Before the goal file is
+  deleted, move decision 1's serde bound and decision 3's chunk list into these module docs. Turn
+  `size-bounds` into a floor check if the gate keeps it.
 
 ### Backlog
+
+- `deep`'s decode builds 79 bytes of value per document byte, about 160 bytes per one-element
+  array. That is memory, the last priority. A smaller array header would be a goal of its own.

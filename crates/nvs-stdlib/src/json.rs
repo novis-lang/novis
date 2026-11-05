@@ -1840,6 +1840,11 @@ nvs_runtime::nvs_helper! {
     /// Anything it cannot write throws a `LogicError`: the value was built by
     /// the program, so an unencodable one is a bug in it rather than something
     /// the world did. This module's own docs list what those are.
+    ///
+    /// **What it spends:** twice the document, on top of the value: the
+    /// encoder's 64 KiB chunks and the `string` they are joined into once. The
+    /// reference ladder's peak per document byte is 2.00 from 1 MiB to 32 MiB
+    /// on every shape, and its allocations per byte are one per chunk.
     fn nvs_core_json_encode(ctx, args: [3]) {
         let pretty = flag(&args[1], "pretty")?;
         let escape = flag(&args[2], "escapeUnicode")?;
@@ -2131,6 +2136,12 @@ nvs_runtime::nvs_helper! {
     /// Always the associative shape: there is no `$associative` flag, because
     /// `rule:types/object-top`'s anonymous object is not what a JSON object decodes to —
     /// `decodeAs<T>` is.
+    ///
+    /// **What it spends:** the value it builds, and no copy of the document.
+    /// Per document byte the reference ladder's peak is 1.0 for one long
+    /// string, 1.5 for an escaped one, 3.0 for a list of numbers, 5 to 10 for
+    /// objects, and 79 for lists nested one element deep, where every two
+    /// bytes open one array.
     fn nvs_core_json_decode(_ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
         let max = max_depth(&args[1], "Core\\Json::decode")?;
@@ -2160,6 +2171,10 @@ nvs_runtime::nvs_helper! {
     /// the `array<...>` flag and an inline shape's wire contract ahead of its
     /// declared parameters, and that roster's docs own why. So the arity here
     /// is three more than the registry row's.
+    ///
+    /// **What it spends:** the instances it builds, and no copy of the
+    /// document, plus [`Fill`]'s slot stack, which grows with the nesting
+    /// depth and not with the size.
     fn nvs_core_json_decode_as(ctx, args: [5]) {
         // Unreachable from source, because arguments 0 to 2 are not a
         // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what

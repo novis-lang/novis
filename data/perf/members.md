@@ -391,9 +391,9 @@ marked `~`: it is the machine, not the code.
 | `Core\IO\Metadata::isFile` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
 | `Core\IO\Metadata::modifiedAt` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
 | `Core\IO\Metadata::size` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\Json::decode` | 4.00 | 2.00 | 22.05 | 1228.2 |  |  | complexity linear | 1db25693a1fd |
-| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | 1db25693a1fd |
-| `Core\Json::encode` | 5.00 | 2.00 | 18.00 | 993.0 |  |  | complexity linear | 1db25693a1fd |
+| `Core\Json::decode` | 4.00 | 2.00 | 22.05 | 1228.2 |  |  | complexity linear | e3edb8a44a87 |
+| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | e3edb8a44a87 |
+| `Core\Json::encode` | 5.00 | 2.00 | 9.00 | 938.0 | -9.000 | -55.000 | complexity linear | e3edb8a44a87 |
 | `Core\Json::isValid` | 5.00 | 1.00 | 21.50 | 1183.0 |  |  | complexity linear | bc26f2235c1d |
 | `Core\Jwe::decrypt` | 3.00 | 2.00 | 14.00 | 1063.0 |  | +8.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Jwe::encrypt` | 4.00 | 2.00 | 10.00 | 473.8 | -1.000 | +19.672 | complexity linear | bfb1fa66dfa4 |
@@ -726,7 +726,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Request::host` | 4.00 | 2.00 | 3.00 | 93.0 |  |  | complexity constant | bc26f2235c1d |
 | `Core\Request::isHead` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bc26f2235c1d |
 | `Core\Request::json` | 4.00 | 2.00 | 64.00 | 3405.0 |  |  | complexity linear | bc26f2235c1d |
-| `Core\Request::jsonAs` | 15.00 | 2.00 | 28.00 | 2259.0 |  |  | complexity linear, allocations 28 | 1db25693a1fd |
+| `Core\Request::jsonAs` | 15.00 | 2.00 | 28.00 | 2259.0 |  |  | complexity linear, allocations 28 | e3edb8a44a87 |
 | `Core\Request::method` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bc26f2235c1d |
 | `Core\Request::mount` | 4.00 | 3.00 | 6.00 | 377.0 |  |  | complexity constant | bc26f2235c1d |
 | `Core\Request::path` | 4.00 | 2.00 | 1.00 | 62.0 |  |  | complexity constant, allocations 1, calls 2 | bc26f2235c1d |
@@ -749,7 +749,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Response::addCookie` | 5.00 | 2.00 | 8.00 | 354.3 |  |  | complexity linear | bc26f2235c1d |
 | `Core\Response::bytes` | 5.00 | 1.00 | 1.00 | 16.0 |  |  | complexity linear | bc26f2235c1d |
 | `Core\Response::html` | 5.00 | 1.00 | 1.00 | 24.6 |  |  | complexity linear | bc26f2235c1d |
-| `Core\Response::json` | 5.00 | 1.00 | 9.00 | 367.0 |  |  | complexity linear | 1db25693a1fd |
+| `Core\Response::json` | 5.00 | 1.00 | 5.00 | 464.0 | -4.000 | +97.000 | complexity linear | e3edb8a44a87 |
 | `Core\Response::redirect` | 5.00 | 2.00 | 2.00 | 16.0 |  |  | complexity linear | bc26f2235c1d |
 | `Core\Response::sendFile` | 5.00 | 1.00 | 32.00 | 706.3 |  |  | complexity constant | bc26f2235c1d |
 | `Core\Response::setHeader` | 5.00 | 2.00 | 2.00 | 21.0 |  |  | complexity linear | bc26f2235c1d |
@@ -1584,18 +1584,14 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Reflect\EnumInfo::of` | Core\Reflect\EnumInfo | 683.6 units against a `constant` ceiling of 100 |
 | `Core\Reflect\EnumInfo::valueOf` | Core\Reflect\EnumInfo | 141.5 units against a `constant` ceiling of 100 |
 | `Core\Reflect\MethodInfo::parameters` | Core\Reflect\MethodInfo | 270.6 units against a `constant` ceiling of 100 |
-| `Core\Request::header` | Core\Request | 16.9x its group's median of 291.0 units — 4929.6 units against a `constant` ceiling of 100 |
+| `Core\Request::header` | Core\Request | 4929.6 units against a `constant` ceiling of 100 |
 | `Core\Request::host` | Core\Request | 1424.5 units against a `constant` ceiling of 100 |
-| `Core\Request::json` | Core\Request | 13.1x its group's median of 291.0 units |
-| `Core\Request::jsonAs` | Core\Request | 5.5x its group's median of 291.0 units |
 | `Core\Request::path` | Core\Request | 632.0 units against a `constant` ceiling of 100 |
-| `Core\Request::postArray` | Core\Request | 9.7x its group's median of 291.0 units — 2833.5 units against a `constant` ceiling of 100 |
-| `Core\Request::postAs` | Core\Request | 21.4x its group's median of 291.0 units |
+| `Core\Request::postArray` | Core\Request | 2833.5 units against a `constant` ceiling of 100 |
 | `Core\Request::query` | Core\Request | 291.0 units against a `constant` ceiling of 100 |
 | `Core\Request::queryArray` | Core\Request | 409.0 units against a `constant` ceiling of 100 |
-| `Core\Request::queryAs` | Core\Request | 12.2x its group's median of 291.0 units |
-| `Core\Request::route` | Core\Request | 7.6x its group's median of 291.0 units — 2220.4 units against a `constant` ceiling of 100 |
-| `Core\Request::scheme` | Core\Request | 12.3x its group's median of 291.0 units — 3579.8 units against a `constant` ceiling of 100 |
+| `Core\Request::route` | Core\Request | 2220.4 units against a `constant` ceiling of 100 |
+| `Core\Request::scheme` | Core\Request | 3579.8 units against a `constant` ceiling of 100 |
 | `Core\Request\Mount::captures` | Core\Request\Mount | 1026.2 units against a `constant` ceiling of 100 |
 | `Core\Request\Mount::prefix` | Core\Request\Mount | 133.9 units against a `constant` ceiling of 100 |
 | `Core\Request\Part::contentType` | Core\Request\Part | 312196.8 units against a `constant` ceiling of 100 |
@@ -2220,9 +2216,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO\Metadata::isFile` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 7edb0356c4e6181f9d0dcd0471dc1a11 |
 | `Core\IO\Metadata::modifiedAt` | 329.6 | 807.1 | 111.934 | -86.0% ~ | unclear | 3f9e0edb6a30 | 7edb0356c4e6181f9d0dcd0471dc1a11 |
 | `Core\IO\Metadata::size` | 2607.0 | 3503.6 | 885.390 | -25.0% ~ | flat | 3f9e0edb6a30 | 7edb0356c4e6181f9d0dcd0471dc1a11 |
-| `Core\Json::decode` | 0.0 | 2683.2 | 0.000 | -100.0% | flat, flat | 1db25693a1fd | 37783f3e462cee0931092ab9af27adf5 |
-| `Core\Json::decodeAs` | 0.0 | 0.0 | 0.000 |  | flat, flat | 1db25693a1fd | 37783f3e462cee0931092ab9af27adf5 |
-| `Core\Json::encode` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 1db25693a1fd | 37783f3e462cee0931092ab9af27adf5 |
+| `Core\Json::decode` | 0.0 | 4909.4 | 0.000 |  | flat, flat | e3edb8a44a87 | 8268b288cc65f70b070aeb2d8b93c613 |
+| `Core\Json::decodeAs` | 88288.3 | 114738.7 | 25396.833 |  | flat, flat | e3edb8a44a87 | 8268b288cc65f70b070aeb2d8b93c613 |
+| `Core\Json::encode` | 0.0 | 17123.0 | 0.000 |  | flat, flat | e3edb8a44a87 | 8268b288cc65f70b070aeb2d8b93c613 |
 | `Core\Json::isValid` | 0.0 | 0.0 | 0.000 |  | flat, flat | bc26f2235c1d | 37783f3e462cee0931092ab9af27adf5 |
 | `Core\Jwe::decrypt` | 13642.2 | 21919.9 | 3712.766 | +13229.7% | flat, flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
 | `Core\Jwe::encrypt` | 8702.0 | 16149.6 | 2368.265 |  | flat, flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
@@ -2555,7 +2551,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Request::host` | 8397.7 | 9988.3 | 1424.539 | -14.0% ~ | flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
 | `Core\Request::isHead` | 0.0 | 203.9 | 0.000 | -100.0% | flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
 | `Core\Request::json` | 22384.4 | 34930.1 | 3797.180 | +7.3% ~ | flat, flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
-| `Core\Request::jsonAs` | 4769.1 | 12516.8 | 1586.119 |  | flat, flat | 1db25693a1fd | 30871333ea8436951f4acaa0d985b96e |
+| `Core\Request::jsonAs` | 0.0 | 3779.3 | 0.000 | -100.0% | flat, flat | e3edb8a44a87 | 438517d9f2e0470f2502377e4f31bc5b |
 | `Core\Request::method` | 0.0 | 8474.6 | 0.000 | -100.0% | flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
 | `Core\Request::mount` | 0.0 | 0.0 | 0.000 | -100.0% | flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
 | `Core\Request::path` | 3725.8 | 29189.1 | 632.024 | +80.3% ~ | flat | bc26f2235c1d | 30871333ea8436951f4acaa0d985b96e |
@@ -2578,7 +2574,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Response::addCookie` | 333.9 | 364.8 | 56.640 | -1.4% ~ | skipped, flat | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |
 | `Core\Response::bytes` | 103.1 | 138.8 | 17.489 | -36.8% | skipped, flat | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |
 | `Core\Response::html` | 109.4 | 166.0 | 18.562 | -37.9% ~ | skipped, flat | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |
-| `Core\Response::json` | 703.7 | 892.5 | 229.026 | +178.7% | skipped, flat | 1db25693a1fd | 264689286c98a9c4097473f7216308e3 |
+| `Core\Response::json` | 358.2 | 459.9 | 97.414 | -49.1% | skipped, flat | e3edb8a44a87 | b1a102375c80257d265b115cc89ff937 |
 | `Core\Response::redirect` | 4141.8 | 9590.6 | 702.595 | -35.4% ~ | flat, flat | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |
 | `Core\Response::sendFile` | 103035.3 | 131500.8 | 17478.420 | +38.7% | skipped | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |
 | `Core\Response::setHeader` | 152.2 | 168.5 | 25.819 | +79.3% | skipped, flat | bc26f2235c1d | 264689286c98a9c4097473f7216308e3 |

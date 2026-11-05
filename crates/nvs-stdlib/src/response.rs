@@ -1973,6 +1973,11 @@ nvs_runtime::nvs_helper! {
     /// The declaration is made only once the value has serialized, unlike
     /// `text`'s: an unencodable value throws with nothing written, so there is
     /// no body for a `Content-Type` to have described.
+    ///
+    /// **What it spends:** the document once, on top of the value, plus one
+    /// 64 KiB chunk: the encoder's chunks become the body's, and nothing joins
+    /// them. An 8 MiB response peaks at the document, one chunk and about
+    /// 4 KiB of the walk's scratch.
     fn nvs_core_response_json(ctx, args: [1]) {
         head_open(ctx, "Core\\Response::json")?;
         let written = crate::json::written_chunks(ctx, args[0], "Core\\Response::json")?;
