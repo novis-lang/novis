@@ -316,6 +316,35 @@
 //! formats none. A whole document that is
 //! a list, [`decode_each`], stops at the first bad element instead: which of the
 //! two a list field should do is not a cost question, and it stays as written.
+//!
+//! # What a document costs per byte, at every size
+//!
+//! **Time per document byte at the largest size is within 1.5 times its time at
+//! 64 KiB, or within serde_json's own growth on the same shape where that is
+//! larger:** its parse for a decode, and its write of its own `Value` for an
+//! encode. Past the caches every reader and writer pays for fresh pages and for
+//! a value tree larger than the cache, and no change here removes that.
+//! `tests::serde_reference_ladder` prints both, shape by shape, from 1 KiB to
+//! 32 MiB. Each member's `.scale.nvs` ladder judges what the member adds above
+//! the parse. Allocations per document byte do not grow with the size.
+//!
+//! **Peak memory per document byte**, which
+//! `tests::a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk`,
+//! `tests::allocations_per_document_byte_do_not_grow_with_the_document` and
+//! `request`'s `a_decoded_body_of_any_size_is_held_once` pin:
+//!
+//! * `Core\Response::json`: the value, plus the document, plus one 64 KiB
+//!   chunk. The encoder writes into a [`ChunkWriter`], whose chunks become the
+//!   body's chunks, and nothing is copied or moved.
+//! * `Core\Json::encode`: the value, plus twice the document, since the chunks
+//!   are joined once into a `string`.
+//! * `Core\Request::jsonAs` and `Core\Json::decodeAs`: the body once, plus the
+//!   objects built, plus a scratch that grows with the nesting depth.
+//!
+//! A faster parser than serde_json is a goal of its own, and only once
+//! serde_json's own parse is over half a member's time at 1 MiB or more and that
+//! member still misses the bound above. Reading or writing a document larger
+//! than memory would be a new `Core` API.
 
 use std::borrow::Cow;
 use std::fmt;
