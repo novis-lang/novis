@@ -86,8 +86,20 @@ Now `clientIp()` returns the address of the client from `X-Forwarded-For`. `sche
 `https` when the proxy sent `X-Forwarded-Proto: https`. A client cannot send a false address,
 because Novis reads only the address that your proxy added.
 
-A Unix socket needs no `trusted_proxies`. Only accounts that may open the socket can connect, so
-Novis trusts every connection on it.
+A Unix socket needs no entry of its own, but the list must not be empty. When the list has an
+entry, Novis trusts every connection on the socket, because only accounts that may open the socket
+can connect. With an empty list, Novis reads no forwarding header on the socket either:
+
+```toml
+[server]
+listen = ["/run/shop/nvs.sock"]
+socket_mode = "0660"
+trusted_proxies = ["127.0.0.1"]
+```
+
+Without this, `scheme()` returns `http` for every request. A browser sends `Origin:
+https://shop.example.com` with each form and each WebSocket, and Novis compares it with `http`. The
+two do not match, so every form and every WebSocket gets the status `403`.
 
 Novis reads the client address from `X-Forwarded-For` only. It does not read `X-Real-IP` or
 `Forwarded`. The configurations below send `X-Forwarded-For`.
