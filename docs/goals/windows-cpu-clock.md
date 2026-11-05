@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, tools/nv/proofs/run.ts, tools/nv/test/proofs-time.test.ts]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: fine-cpu-clock
@@ -163,9 +163,9 @@ them exist already. This stage writes the third and runs the check.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -177,17 +177,19 @@ step by the tick, twice it on Windows, and 1 ms where the tick is zero. Both sta
 green on this machine (`fine-cpu-clock` 5 passed, `sweep-bound` 4 passed). The sweep's reds are
 stale: `env-secret-proofs` is defined nowhere and has no log. Nightly 41813182715 ran on `f3150b922`.
 Its macOS red, `an_idle_server_takes_an_edit_without_a_request`, is fixed by `a8bdf37fb`. Its Miri
-red, an `openat` flag Miri cannot run, is fixed by `a2f451fad`. Stage 3's first `looper verify` was
-started in the background by the session that wrote this.
+red, an `openat` flag Miri cannot run, is fixed by `a2f451fad`.
+
+Stage 3 is done. The first `looper verify` was red at `rules-render`: `docs/rules/errors.md` was not
+rendered after the `Declined` bullet, and `nvs-runtime`'s `lib.rs` needed rustfmt. Both are fixed,
+and the second `looper verify` is green. The goal-end gates are green: `bun nv verify --doc`,
+`bun nv owners --closes windows-cpu-clock` (no gap), and `bun nv ci --check` once the roadmap lists
+this goal under `internal`. Decision 12's figures live in `cpuclock.rs`'s module doc and the two
+`Declined` bullets in `rule:errors/on-limit`, so nothing is held only by this file.
 
 ### Next
 
-Stage 3, the gate. No test is expected to go red. The new test runs on every CI runner for the first
-time there: a red on macOS or Linux under load would be a step over 1 ms, and its message names it.
-
-- [ ] `docs/goals/windows-cpu-clock.md:164` `looper verify` in the background, then every failure
-  fixed in one pass, then once more.
-- [ ] `AGENTS.md:255` The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
-  windows-cpu-clock`, `bun nv ci --check`.
+Nothing. The goal is reached. Its retire removes it from the chain and from the roadmap's `internal`.
+`a_cpu_clock_steps_no_further_than_its_tick` runs on every CI runner for the first time at the push.
+A red there on macOS or Linux under load is a step over 1 ms, and its message names it.
 
 ### Backlog
