@@ -34,6 +34,25 @@
 //! resource between sweeps. A thread reading its own clock, as a core does at a
 //! task switch, uses its pseudo-handle and makes the one call.
 //!
+//! `GetThreadTimes` moves in 15.625 ms steps: the kernel charges each clock
+//! interrupt's whole interval to the thread running at that moment. Its finer
+//! neighbour, `QueryThreadCycleTime`, is not used, because of what a read of a
+//! running thread costs. A probe on two of CI's Windows runners (AMD EPYC 7763
+//! and Intel Xeon 8573C, four vCPUs) measured, as AMD / Intel:
+//!
+//! * own-thread steps of 0.4 / 0.3 µs at the 99th percentile, and a read from
+//!   another thread that never trailed the thread's own;
+//! * cycles over a 2 s spin within 1.1% of `GetThreadTimes`, converted at a
+//!   rate from `_rdtsc` and `QueryPerformanceCounter` pairs 1 ms apart;
+//! * an own-thread read at 1.18 / 1.13 times `GetThreadTimes`'s cost;
+//! * a read of another thread at 1.0 times while it is parked, and 7.5 / 10.3
+//!   times, about 10 µs, while it runs. A suspended read costs 25 to 37 µs.
+//!
+//! The watchdog reads cores while they run a request, so that last figure is
+//! the one paid. The likely cause is that Windows interrupts the running core
+//! to read its count, which would cost the request path as well.
+//! `rule:errors/on-limit` records it as declined.
+//!
 //! macOS has no `pthread_getcpuclockid`, and its `CLOCK_THREAD_CPUTIME_ID` only
 //! reads the caller's own thread, so it answers with the thread's mach port
 //! name from `pthread_mach_thread_np`. Any thread in the process may pass that

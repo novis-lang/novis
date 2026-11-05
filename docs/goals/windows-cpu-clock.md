@@ -6,12 +6,12 @@ context: [crates/nvs-host/src/cpuclock.rs, docs/rules/errors/on-limit.md]
 stages:
   - id: 1
     title: "a probe on CI's Windows runner measures QueryThreadCycleTime against GetThreadTimes"
-    status: open
+    status: done
     context: [docs/agent/playbook/running-things/a-macos-timing-red-is-measured-on-a-probe-branch.md, .github/workflows/ci.yml]
   - id: 2
-    title: "a Windows x86-64 core's CPU time is its thread's cycle count, converted at a rate measured without a wait"
+    title: "a thread's CPU clock steps no further than the tick the proofs runner allows, on every platform"
     status: open
-    context: [crates/nvs-runtime/src/ctx/safepoint.rs, tools/nv/proofs/run.ts, tools/nv/test/proofs-time.test.ts, Cargo.toml]
+    context: [crates/nvs-runtime/src/ctx/safepoint.rs, tools/nv/proofs/run.ts, tools/nv/test/proofs-time.test.ts]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -19,13 +19,13 @@ stages:
 checks:
   - id: fine-cpu-clock
     stage: 2
-    name: a thread's CPU clock moves in sub-millisecond steps and a read from another thread counts the run in progress
+    name: a thread's CPU clock steps no further than its tick and a read from another thread counts what the thread has seen
     run: [cargo, test, --lib, "cpuclock::"]
     timeout: 1800
     tests:
-      - a_cpu_clock_moves_in_steps_finer_than_a_millisecond
-      - a_read_from_another_thread_counts_the_run_in_progress
-      - the_cycle_rate_agrees_with_the_thread_times_over_a_long_run
+      - a_cpu_clock_steps_no_further_than_its_tick
+      - a_running_thread_read_from_another_is_charged_what_it_has_seen_itself
+      - a_clock_read_from_another_thread_follows_the_thread_that_burned_it
   - id: sweep-bound
     stage: 2
     name: the proofs runner's CPU stop bound counts a clock tick only where the clock has one
@@ -106,6 +106,12 @@ builds it only if so.
     branch with `git push origin --delete probe/windows-cpu-clock` once the figures are read, and
     remove the worktree. Never a force push.
 11. **Lanes:** one. Stage 2 builds on stage 1's figures, so the stages run in order.
+12. **The verdict: decision 4 applies, so nothing is built.** Two runs on CI's Windows runners passed
+    steps, run in progress, rate and the own-thread cost. A read of another thread that is running
+    cost 7.5 and 10.3 times `GetThreadTimes`, about 10 µs, against the 1.2 bar. That is the read the
+    watchdog makes, so the bar is not met. The figures are in `cpuclock.rs`'s module doc, and both
+    `Declined` bullets (this one and decision 9's) are in `rule:errors/on-limit`. The goal's last two
+    stages pin the clock each platform keeps, then verify.
 
 ## Stages
 
@@ -116,7 +122,7 @@ Windows runner. Nothing lands on `main` but the figures, in `cpuclock.rs`'s modu
 
 **Split:** a `reader` subagent reads the probe run's log and returns the figures as a table.
 
-- [ ] Write the probe as `#[ignore]` tests in `cpuclock.rs`'s test module, on the probe branch only.
+- [x] Write the probe as `#[ignore]` tests in `cpuclock.rs`'s test module, on the probe branch only.
   They print figures with `--nocapture` and assert nothing. `crates/nvs-host/src/cpuclock.rs:428`
   - steps: spin and sample the thread's own clock for 200 ms, with both calls; print the distinct
     step sizes.
@@ -126,49 +132,34 @@ Windows runner. Nothing lands on `main` but the figures, in `cpuclock.rs`'s modu
     compared with `GetThreadTimes`.
   - cost: the median nanoseconds of 100,000 reads of each kind, own thread and another thread. Also
     the suspend path of decision 3.
-- [ ] Run the probe once on this machine with
+- [x] Run the probe once on this machine with
   `cargo test --lib cpuclock::tests::probe_ -- --ignored --nocapture`, so the branch is not pushed to
   find a compile error.
-- [ ] Push `probe/windows-cpu-clock` with its own workflow running that one command on
+- [x] Push `probe/windows-cpu-clock` with its own workflow running that one command on
   `windows-latest`, and run it twice. Read the figures, not pass or fail. `.github/workflows/ci.yml:1`
-- [ ] Write the figures and the decision 2 verdict into `cpuclock.rs`'s module doc, in the paragraph
+- [x] Write the figures and the decision 2 verdict into `cpuclock.rs`'s module doc, in the paragraph
   on Windows. `crates/nvs-host/src/cpuclock.rs:27`
-- [ ] Delete the probe branch and its worktree (decision 10).
-- [ ] If decision 4 applies: write the `Declined` bullet into `docs/rules/errors/on-limit.md:57`,
+- [x] Delete the probe branch and its worktree (decision 10).
+- [x] If decision 4 applies: write the `Declined` bullet into `docs/rules/errors/on-limit.md:57`,
   rewrite stage 2 as decision 4 says, and go on to the gate stage.
 
-### 2. a Windows x86-64 core's CPU time is its thread's cycle count, converted at a rate measured without a wait
+### 2. a thread's CPU clock steps no further than the tick the proofs runner allows, on every platform
 
-**Does:** replaces `GetThreadTimes` with `QueryThreadCycleTime` on x86-64 Windows, removes the tick
-that clock no longer has, and pins both with tests that hold on every platform.
+**Does:** decision 4's ending. The probe failed the cost bar (decision 12), so `GetThreadTimes`
+stays, and the `fine-cpu-clock` check names tests that hold for the clock each platform keeps. Two of
+them exist already. This stage writes the third and runs the check.
 
-- [ ] Enable `Win32_System_WindowsProgramming` in the workspace's `windows-sys` features
-  (decision 8). `Cargo.toml:245`
-- [ ] The rate of decision 6: the first pair when the first `ThreadClock` is made, the rate fixed in a
-  `OnceLock` at the first read 1 ms or more later. `crates/nvs-host/src/cpuclock.rs:104`
-- [ ] Windows x86-64 `burned` reads `QueryThreadCycleTime` and converts it with the rate. If decision 3
-  applies, a read of another thread suspends it first. Other Windows targets keep `GetThreadTimes`
-  (decision 5). `crates/nvs-host/src/cpuclock.rs:233`
-- [ ] `cpu_clock_tick` returns zero on x86-64 Windows and 15.625 ms on other Windows targets, and its
-  doc says why. `crates/nvs-runtime/src/ctx/safepoint.rs:1486`
-- [ ] The proofs runner keeps its `tick_us` term, and `proofs-time.test.ts` gains a case where a
-  zero tick adds nothing. `tools/nv/proofs/run.ts:404`, `tools/nv/test/proofs-time.test.ts:24`
-- [ ] The three tests the `fine-cpu-clock` check names, in `cpuclock.rs`'s test module. Each waits
-  on the clock it tests, never on wall time (`docs/agent/testing.md` § *A test holds on every CI
-  runner*). `crates/nvs-host/src/cpuclock.rs:428`
-  - `a_cpu_clock_moves_in_steps_finer_than_a_millisecond`: spin and read the thread's own clock until
-    it has moved ten times. Every step is under 1 ms. Every platform.
-  - `a_read_from_another_thread_counts_the_run_in_progress`: thread B spins until its own clock shows
-    20 ms, publishes that reading and keeps spinning. A read of B from another thread is at least that
-    reading. Every platform.
-  - `the_cycle_rate_agrees_with_the_thread_times_over_a_long_run`: spin until `GetThreadTimes` shows
-    500 ms. The cycle-derived time agrees within 1% plus one 15.625 ms step. x86-64 Windows only.
+- [ ] `a_cpu_clock_steps_no_further_than_its_tick` in `cpuclock.rs`'s test module: spin and read the
+  thread's own clock until it has moved ten times. Every step is at most the tick `cpu_clock_tick`
+  gives, and under 1 ms where that tick is zero. Every platform. `crates/nvs-host/src/cpuclock.rs:446`
+  - The test needs the tick. `cpu_clock_tick` is private in `nvs-runtime`, and `nvs-host` depends on
+    `nvs-runtime`, so make it `pub` there and keep its doc's sentence on its callers true.
+    `crates/nvs-runtime/src/ctx/safepoint.rs:1486`
+  - A step of the thread's own clock on Windows is the clock interrupt's interval, the value
+    `GetSystemTimeAdjustment` gives. Allow twice the tick there, and say why in the test's doc.
 - [ ] Run the `fine-cpu-clock` check's command once: green.
-- [ ] The Windows paragraph of `cpuclock.rs`'s module doc says which call each target uses, what a read
-  costs, and what the rate costs at startup. `crates/nvs-host/src/cpuclock.rs:27`
-- [ ] `rule:errors/on-limit` says a core's CPU clock reads finer than a millisecond on every platform
-  that enforces the ceiling, and gains the `Declined` bullet of decision 9.
-  `docs/rules/errors/on-limit.md:38`, `docs/rules/errors/on-limit.md:57`
+- [ ] `cpu_clock_tick`'s doc names the `Declined` bullet in `rule:errors/on-limit` as the reason the
+  Windows tick stays. `crates/nvs-runtime/src/ctx/safepoint.rs:1475`
 
 ### 3. the goal is verified once, and every failure is fixed
 
@@ -180,17 +171,21 @@ that clock no longer has, and pins both with tests that hold on every platform.
 
 ### State
 
-Nothing is built. The proofs runner already counts one 15.625 ms tick per thread on Windows
-(`1ce15b6b3`), which is the stopgap this goal replaces.
+Stage 1 is done, and decision 12 is its verdict: `QueryThreadCycleTime` is declined on cost, and
+`GetThreadTimes` stays with the proofs runner's 15.625 ms tick (`1ce15b6b3`). The figures are in
+`crates/nvs-host/src/cpuclock.rs`'s module doc. Both `Declined` bullets are in
+`docs/rules/errors/on-limit.md`. The probe branch and its worktree are deleted. The sweep's two reds
+were stale again: `env-secret-proofs` is defined nowhere, and nightly 41813182715 ran on
+`f3150b922`, 138 commits back.
 
 ### Next
 
-Stage 1, `crates/nvs-host/src/cpuclock.rs` and a probe branch. No gate.
+Stage 2, `crates/nvs-host/src/cpuclock.rs` and `crates/nvs-runtime/src/ctx/safepoint.rs`. Then the
+gate stage.
 
-- [ ] The probe tests in `crates/nvs-host/src/cpuclock.rs:428`, run once here, then twice on
-  `probe/windows-cpu-clock`.
-- [ ] The figures and the verdict in the module doc. `crates/nvs-host/src/cpuclock.rs:27`
-- [ ] The probe workflow beside `.github/workflows/ci.yml:1` on the branch only, then the branch and
-  its worktree deleted.
+- [ ] The new test at `crates/nvs-host/src/cpuclock.rs:446`, `cpu_clock_tick` made `pub` at
+  `crates/nvs-runtime/src/ctx/safepoint.rs:1486`.
+- [ ] The `fine-cpu-clock` check run once, red until the new test exists. `docs/goals/windows-cpu-clock.md:20`
+- [ ] `cpu_clock_tick`'s doc names the `Declined` bullet. `crates/nvs-runtime/src/ctx/safepoint.rs:1475`
 
 ### Backlog
