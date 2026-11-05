@@ -17,7 +17,7 @@ stages:
     status: done
   - id: 4
     title: "the changed members are measured again, and their allocation counts are declared"
-    status: open
+    status: done
     context: [benches/members/README.md, benches/compare/profile.sh]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -208,13 +208,13 @@ tree.
 
 **Does:** records what the goal bought, in counts, and makes the counts a bound.
 
-- [ ] Run `bun nv proofs --record-perf --force --id '<feature>'` for `Core\Json::decodeAs`,
+- [x] Run `bun nv proofs --record-perf --force --id '<feature>'` for `Core\Json::decodeAs`,
   `Core\Request::jsonAs`, `Core\Http\Response::jsonAs`, `Core\Test\Response::jsonAs`,
   `Core\Json::encode` and `Core\Response::json`, and for every other figure `bun nv proofs --gate`
   then names as stale. `benches/members/README.md:1`
-- [ ] Add a `// bench: allocations N` line to the decodeAs and jsonAs benches, with the new count.
+- [x] Add a `// bench: allocations N` line to the decodeAs and jsonAs benches, with the new count.
   `benches/members/core/Json/decodeAs.nvs:1` `benches/members/core/Request/jsonAs.nvs:1`
-- [ ] Run `bun nv bench-compare --profile json-api`, and put its shares and counts beside the ones in
+- [x] Run `bun nv bench-compare --profile json-api`, and put its shares and counts beside the ones in
   *Why* in the commit message. `benches/compare/profile.sh:1`
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -227,23 +227,19 @@ tree.
 
 ### State
 
-Stages 1, 2 and 3 are done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+Stages 1 to 4 are done. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`, and stage 4's
+are in its commit message.
 
-- A typed decode makes no tree. Every object `Fill` reads pushes its slots on `Builder`'s stack
-  (`crates/nvs-stdlib/src/json.rs:2632`) and is built at its closing brace by `build_object`
-  (`json.rs:2743`), into `Found::Built` or `Found::Failed` in its parent's slot or list.
-  `decode_as` hands the outermost value to `decode_object` or `decode_each`, which take it
-  through `taken`.
-- `Found` (`json.rs:2278`) is `Value`, `List`, `Built` or `Failed` (decision 18). `Builder::close`
-  keeps noted arrays inside lists through `keep_arrays` (`json.rs:2711`, decision 19).
-- The three `one-pass-decode` tests pass, from `json.rs:6561` on. A dropped `Fault` does not
-  release its issues array, so their helper `decodes` releases it. The first parse error after a
-  list's comma allocates 2055 bytes once per thread, so the list test makes one before it reads
-  the balance.
-- `self_nesting_class` now has a constructor, `drops_its_argument` (`json.rs:5577`), because the
-  parse builds each `Node`. Both ceiling tests pass with it.
-- The sweep's `env-secret-proofs` red is stale, as last session found: no goal or floor names it,
-  and its log does not exist.
+- The member ledger counts per operation now: `Core\Json::decodeAs` 6 (was 7), `Core\Request::jsonAs`
+  28 (was 32), `Core\Http\Response::jsonAs` 5 (was 6), `Core\Test\Response::jsonAs` 6 (was 7),
+  `Core\Json::encode` 18 and `Core\Response::json` 9, both unchanged. The decodeAs and jsonAs benches
+  declare their counts. The 46 other figures the gate named stale (`json.rs`, `request.rs`,
+  `response.rs`) were recorded again, and `bun nv proofs --gate` owes nothing.
+- `json-api` served 23,135 requests a second (was 18,041). `Found`'s drop is gone from the profile
+  and `ByteWriter::put` no longer shows as a frame of its own.
+- A typed decode makes no tree: each object is built at its closing brace by `build_object`
+  (`crates/nvs-stdlib/src/json.rs:2743`). The `one-pass-decode` tests start at `json.rs:6561`.
+- The sweep's `env-secret-proofs` red is stale: no goal or floor names it, and it has no log.
 
 No test is expected to go red. Two shapes could: a test whose two constructors both throw now gets the
 first in document order (decision 15), and a `.nvs` case whose constructor has a side effect now
@@ -251,15 +247,12 @@ runs it before a later parse error.
 
 ### Next
 
-**Stage 4**, measuring. No code changes unless a figure is stale. Decision 10 is the evidence's shape.
+**Stage 5**, the gate. One pass of fixes between two verify runs.
 
-- [ ] Record the six members' figures. `benches/members/README.md:1`
-  Run `bun nv proofs --record-perf --force --id '<feature>'` for each, then for every figure
-  `bun nv proofs --gate` names as stale.
-- [ ] Give each bench its new count. `benches/members/core/Json/decodeAs.nvs:1`
-  A `// bench: allocations N` line, here and in `benches/members/core/Request/jsonAs.nvs:1`.
-- [ ] Profile `json-api` again. `benches/compare/profile.sh:1`
-  Run `bun nv bench-compare --profile json-api`, and put its shares and counts beside the ones in
-  *Why* in the commit message.
+- [ ] Run `looper verify` over the whole goal, in the background. `docs/agent/commands.md:1`
+- [ ] Fix every failure it names in one pass. `crates/nvs-stdlib/src/json.rs:2632`
+  Decision 2 holds: no expected message changes, and no test is loosened.
+- [ ] Run `looper verify` once more, green, then the goal-end gates. `docs/agent/commands.md:1`
+  Those are `bun nv verify --doc`, `bun nv owners --closes json-one-pass` and `bun nv ci --check`.
 
 ### Backlog

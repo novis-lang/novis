@@ -2,6 +2,7 @@
 // Reads a small JSON object into a class instance, as an API server does with each request body.
 // bench: iterations 256
 // bench: complexity linear
+// bench: allocations 6
 
 #[Core\Json\Derive]
 class Item

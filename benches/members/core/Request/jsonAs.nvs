@@ -2,6 +2,7 @@
 // Reads a small JSON request body into a class, as an API does with every order it receives.
 // bench: iterations 256
 // bench: complexity linear
+// bench: allocations 28
 
 #[Core\Json\Derive]
 class Line
