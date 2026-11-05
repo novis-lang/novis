@@ -25,17 +25,17 @@ checks:
 ## Why
 
 `benches/compare.json` was recorded on 2026-10-23 at `4f01826ad`, and the website's comparison page
-shows it. `ceiling-wake`, `json-one-pass` and `strings-in-place` change the cost of every served
-request, of JSON reading and writing, and of html templates. The user decided on 2026-11-05 that the
-comparison is recorded again once all three have landed, so the page shows what Novis does now.
+shows it. `ceiling-wake`, `json-one-pass`, `json-any-size` and `strings-in-place` change the cost of
+every served request, of JSON reading and writing at every size, and of html templates. The user
+decided on 2026-11-05 that the comparison is recorded again once all four have landed, so the page shows what Novis does now.
 
 The `record-is-current` check holds the goal open until both halves of the record (the cases and the
 feature rows) name a commit that contains the newest change to `watchdog.rs`, `json.rs` and `string.rs`.
 
 ## Standing decisions
 
-1. **The gate:** `docs/goals/ceiling-wake.md`, `docs/goals/json-one-pass.md` and
-   `docs/goals/strings-in-place.md` are all deleted, which is how a goal is retired. Stage 1 starts
+1. **The gate:** `docs/goals/ceiling-wake.md`, `docs/goals/json-one-pass.md`,
+   `docs/goals/json-any-size.md` and `docs/goals/strings-in-place.md` are all deleted, which is how a goal is retired. Stage 1 starts
    only then. If one of them is still on the chain, the session writes `CONTINUE waiting on <slug>`
    and stops.
 2. **Record from a detached worktree.** `bench-compare` builds the Novis image from the tree it runs in,
@@ -90,7 +90,8 @@ returns a list of `line: old → new`.
 
 ### State
 
-Waiting on `ceiling-wake`, `json-one-pass` and `strings-in-place`. Nothing is recorded yet.
+Waiting on `ceiling-wake`, `json-one-pass`, `json-any-size` and `strings-in-place`. Nothing is
+recorded yet.
 
 ### Next
 
