@@ -312,7 +312,7 @@ pub use ctx::{
     SafepointView, Scheme, Session, Settled, SiteTable, SnapshotMismatch, SocketAnswer,
     SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot, Step, StepKind, StmtHits, StmtLines,
     StopCause, TaskSlot, TraceEvent, TraceKind, TraceSink, TreeState, Upgrade, UpgradeSlot,
-    WeakSafepointView, every_site_probed, install_cpu_lowered, install_cpu_spent, is_carrier,
+    WeakSafepointView, cpu_clock_tick, every_site_probed, install_cpu_lowered, install_cpu_spent, is_carrier,
     nvs_debug_return, nvs_debug_site, nvs_debug_throw, nvs_deprecated_use, nvs_probe_call_enter,
     nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
     probe_every_site, stack_pointer, trace_clock, unix_nanos, write_sweep_line,

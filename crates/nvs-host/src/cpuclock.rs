@@ -671,6 +671,64 @@ mod tests {
         );
     }
 
+    /// A thread reading its own clock while it spins sees it move in steps no
+    /// larger than the tick the proofs runner allows for that clock, which is
+    /// `nvs_runtime::cpu_clock_tick`. Where that tick is zero, every step is
+    /// under 1 ms.
+    ///
+    /// On Windows a step is one clock interrupt's interval, the value the tick
+    /// reads from `GetSystemTimeAdjustment`. The bound there is twice the tick:
+    /// an interrupt that lands while the read itself is in the kernel can be
+    /// seen together with the next one.
+    ///
+    /// Waits on the clock's own moves, never on a wall interval, so a loaded
+    /// runner slows it and cannot fail it.
+    #[test]
+    fn a_cpu_clock_steps_no_further_than_its_tick() {
+        const STEPS: u32 = 10;
+        const PATIENCE: Duration = Duration::from_secs(60);
+
+        let Some(clock) = ThreadClock::current() else {
+            if CLOCKED {
+                panic!("a platform with a thread clock answered `None`");
+            }
+            return;
+        };
+        let tick = nvs_runtime::cpu_clock_tick();
+        let bound = if tick.is_zero() {
+            Duration::from_millis(1)
+        } else {
+            tick * 2
+        };
+        let give_up_at = std::time::Instant::now() + PATIENCE;
+        let mut last = clock
+            .burned()
+            .expect("this thread's own clock did not read");
+        let (mut moves, mut largest) = (0_u32, Duration::ZERO);
+        while moves < STEPS {
+            assert!(
+                std::time::Instant::now() < give_up_at,
+                "the clock moved {moves} times in {PATIENCE:?} of wall time"
+            );
+            for _ in 0..256 {
+                std::hint::spin_loop();
+            }
+            let now = clock
+                .burned()
+                .expect("this thread's own clock did not read");
+            assert!(now >= last, "the clock went back from {last:?} to {now:?}");
+            if now > last {
+                largest = largest.max(now - last);
+                moves += 1;
+                last = now;
+            }
+        }
+        assert!(
+            largest <= bound,
+            "the clock stepped {largest:?}, past the {bound:?} its tick of {tick:?} allows"
+        );
+    }
+
     /// The other half of the platform's answer, and the one an operator reads:
     /// a host with no clock announces the ceiling it is not enforcing, and a
     /// host with one says nothing rather than warning about a key that works.

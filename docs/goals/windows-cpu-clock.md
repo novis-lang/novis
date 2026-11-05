@@ -10,7 +10,7 @@ stages:
     context: [docs/agent/playbook/running-things/a-macos-timing-red-is-measured-on-a-probe-branch.md, .github/workflows/ci.yml]
   - id: 2
     title: "a thread's CPU clock steps no further than the tick the proofs runner allows, on every platform"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, tools/nv/proofs/run.ts, tools/nv/test/proofs-time.test.ts]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -149,7 +149,7 @@ Windows runner. Nothing lands on `main` but the figures, in `cpuclock.rs`'s modu
 stays, and the `fine-cpu-clock` check names tests that hold for the clock each platform keeps. Two of
 them exist already. This stage writes the third and runs the check.
 
-- [ ] `a_cpu_clock_steps_no_further_than_its_tick` in `cpuclock.rs`'s test module: spin and read the
+- [x] `a_cpu_clock_steps_no_further_than_its_tick` in `cpuclock.rs`'s test module: spin and read the
   thread's own clock until it has moved ten times. Every step is at most the tick `cpu_clock_tick`
   gives, and under 1 ms where that tick is zero. Every platform. `crates/nvs-host/src/cpuclock.rs:446`
   - The test needs the tick. `cpu_clock_tick` is private in `nvs-runtime`, and `nvs-host` depends on
@@ -157,8 +157,8 @@ them exist already. This stage writes the third and runs the check.
     `crates/nvs-runtime/src/ctx/safepoint.rs:1486`
   - A step of the thread's own clock on Windows is the clock interrupt's interval, the value
     `GetSystemTimeAdjustment` gives. Allow twice the tick there, and say why in the test's doc.
-- [ ] Run the `fine-cpu-clock` check's command once: green.
-- [ ] `cpu_clock_tick`'s doc names the `Declined` bullet in `rule:errors/on-limit` as the reason the
+- [x] Run the `fine-cpu-clock` check's command once: green.
+- [x] `cpu_clock_tick`'s doc names the `Declined` bullet in `rule:errors/on-limit` as the reason the
   Windows tick stays. `crates/nvs-runtime/src/ctx/safepoint.rs:1475`
 
 ### 3. the goal is verified once, and every failure is fixed
@@ -171,21 +171,20 @@ them exist already. This stage writes the third and runs the check.
 
 ### State
 
-Stage 1 is done, and decision 12 is its verdict: `QueryThreadCycleTime` is declined on cost, and
-`GetThreadTimes` stays with the proofs runner's 15.625 ms tick (`1ce15b6b3`). The figures are in
-`crates/nvs-host/src/cpuclock.rs`'s module doc. Both `Declined` bullets are in
-`docs/rules/errors/on-limit.md`. The probe branch and its worktree are deleted. The sweep's two reds
-were stale again: `env-secret-proofs` is defined nowhere, and nightly 41813182715 ran on
-`f3150b922`, 138 commits back.
+Stages 1 and 2 are done. `GetThreadTimes` stays (decision 12). `nvs_runtime::cpu_clock_tick` is
+`pub` and its doc names the `Declined` bullet. `a_cpu_clock_steps_no_further_than_its_tick` bounds a
+step by the tick, twice it on Windows, and 1 ms where the tick is zero. Both stage-2 checks ran once,
+green on this machine (`fine-cpu-clock` 5 passed, `sweep-bound` 4 passed). The sweep's two reds were
+stale again: `env-secret-proofs` is defined nowhere, and nightly 41813182715 ran on `f3150b922`.
 
 ### Next
 
-Stage 2, `crates/nvs-host/src/cpuclock.rs` and `crates/nvs-runtime/src/ctx/safepoint.rs`. Then the
-gate stage.
+Stage 3, the gate. No test is expected to go red. The new test runs on every CI runner for the first
+time there: a red on macOS or Linux under load would be a step over 1 ms, and its message names it.
 
-- [ ] The new test at `crates/nvs-host/src/cpuclock.rs:446`, `cpu_clock_tick` made `pub` at
-  `crates/nvs-runtime/src/ctx/safepoint.rs:1486`.
-- [ ] The `fine-cpu-clock` check run once, red until the new test exists. `docs/goals/windows-cpu-clock.md:20`
-- [ ] `cpu_clock_tick`'s doc names the `Declined` bullet. `crates/nvs-runtime/src/ctx/safepoint.rs:1475`
+- [ ] `docs/goals/windows-cpu-clock.md:164` `looper verify` in the background, then every failure
+  fixed in one pass, then once more.
+- [ ] `AGENTS.md:255` The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes
+  windows-cpu-clock`, `bun nv ci --check`.
 
 ### Backlog

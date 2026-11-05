@@ -1481,9 +1481,15 @@ pub fn write_sweep_line(
 /// interval late, so the proofs runner counts one tick per thread. The Unix
 /// thread clocks read to the microsecond or better, and the tick is zero.
 ///
-/// Only [`write_sweep_line`] calls it, so only a proofs run reads it.
+/// The Windows tick stays because its finer clock, `QueryThreadCycleTime`, is
+/// declined in `rule:errors/on-limit`: a read of a running core costs about ten
+/// times a `GetThreadTimes` read.
+///
+/// Outside tests only [`write_sweep_line`] calls it, so only a proofs run reads
+/// it. `nvs-host`'s `cpuclock` tests read it to bound the steps of each
+/// platform's clock.
 #[must_use]
-fn cpu_clock_tick() -> std::time::Duration {
+pub fn cpu_clock_tick() -> std::time::Duration {
     #[cfg(windows)]
     {
         let mut adjustment: u32 = 0;
