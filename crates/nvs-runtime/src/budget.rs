@@ -1343,12 +1343,21 @@ pub enum Stopped {
 /// `bytes` value was refused. The ask is the whole new block, because a
 /// reallocation holds the old one and the new one at once. One writer here and
 /// not a check per member, because a guard written per call site is a guard
-/// the next call site forgets.
+/// the next call site forgets
+/// (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`).
+///
+/// **A write that fits the buffer allocates nothing, so it asks nothing.**
+/// [`Self::put`] is inlined into its caller and tests three things: that the
+/// writer has not stopped, that the bytes fit the room left, and that they fit
+/// the caller's limit. Only a write that needs a bigger block leaves that path,
+/// for [`Self::grow_and_put`], which asks the budget first. An encoder writes
+/// a document as many small writes, a key or a comma at a time, and almost
+/// every one of them fits.
 ///
 /// After a refusal or a write past the limit, nothing more is written and
 /// nothing more is allocated, and [`Self::finish`] says which one stopped it.
-/// What it spends: one comparison per write that fits, and the buffer grows by
-/// doubling, so it holds at most twice its payload.
+/// What it spends: nothing beyond its payload's buffer, which starts empty and
+/// grows by doubling, so it holds at most twice its payload.
 #[derive(Debug)]
 pub struct ByteWriter {
     /// The bytes written so far.
@@ -1385,7 +1394,29 @@ impl ByteWriter {
     }
 
     /// Appends `bytes`, or nothing once the writer has stopped.
+    ///
+    /// A write that fits the room left in the buffer and the caller's limit is
+    /// copied here and asks nothing. Every other write is
+    /// [`Self::grow_and_put`]'s.
+    #[inline]
     pub fn put(&mut self, bytes: &[u8]) {
+        let room = self.out.capacity() - self.out.len();
+        if self.stopped.is_none()
+            && bytes.len() <= room
+            && self.out.len() + bytes.len() <= self.limit
+        {
+            self.out.extend_from_slice(bytes);
+            return;
+        }
+        self.grow_and_put(bytes);
+    }
+
+    /// [`Self::put`] for a write that does not fit the buffer: it checks the
+    /// limit, asks the budget for the grown block, and only then grows it.
+    /// Out of line, so the fast path stays small in every caller.
+    #[cold]
+    #[inline(never)]
+    fn grow_and_put(&mut self, bytes: &[u8]) {
         if self.stopped.is_some() {
             return;
         }
@@ -1955,6 +1986,54 @@ mod tests {
                 "the refused growth recorded no breach"
             );
             assert_eq!(out.finish(), Err(Stopped::Refused));
+        }
+    }
+
+    /// A byte writer asks the budget only for a growth. Each case grows a
+    /// writer to 4096 bytes of room with 2049 written, then lowers the ceiling
+    /// below what the thread already holds, so any ask is refused and recorded.
+    mod a_byte_writer_asks_only_to_grow {
+        use crate::budget::{ByteWriter, Stopped, refused};
+
+        fn grown_then_squeezed(ctx: &mut crate::Ctx) -> ByteWriter {
+            ctx.set_memory_limit(64 << 10);
+            let mut out = ByteWriter::new();
+            out.put(&[1_u8; 2048]);
+            out.put(&[2_u8]);
+            assert_eq!(
+                out.out.capacity(),
+                4096,
+                "the second write doubles the buffer"
+            );
+            ctx.set_memory_limit(1);
+            assert!(!refused(), "lowering the ceiling records no refusal");
+            out
+        }
+
+        #[test]
+        fn a_write_that_fits_the_buffer_asks_the_budget_nothing() {
+            let mut ctx = crate::Ctx::buffered();
+            let mut out = grown_then_squeezed(&mut ctx);
+            out.put(&[3_u8; 2047]);
+            assert_eq!(out.stopped(), None);
+            assert!(!refused(), "a write that fit the buffer asked the budget");
+            assert_eq!(out.len(), 4096);
+            assert_eq!(out.out.capacity(), 4096);
+            ctx.clear_memory_ceiling();
+        }
+
+        #[test]
+        fn a_write_that_grows_the_buffer_asks_the_budget_first() {
+            let mut ctx = crate::Ctx::buffered();
+            let mut out = grown_then_squeezed(&mut ctx);
+            out.put(&[3_u8; 2048]);
+            assert_eq!(out.stopped(), Some(Stopped::Refused));
+            assert!(refused(), "the refused growth recorded no refusal");
+            assert_eq!(out.len(), 2049, "the refused write landed");
+            assert_eq!(out.out.capacity(), 4096, "the buffer grew before it asked");
+            out.put(&[4_u8]);
+            assert_eq!(out.len(), 2049, "a write after the stop landed");
+            ctx.clear_memory_ceiling();
         }
     }
 }
