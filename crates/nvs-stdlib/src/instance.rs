@@ -487,6 +487,7 @@ fn descriptors() -> &'static Descriptors {
         // Built from the whole registry for every program alike, so the lookups below are no
         // program's use of a class.
         let _quiet = nvs_footprint::Quiet::new();
+        shapes();
         let mut table = ClassTable::new();
         let mut by_name = Vec::new();
         // `Core\Ast\Node`'s id. It is defined with the registry's classes, so
@@ -744,6 +745,30 @@ pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Val
 /// a shape descriptor's address being an identity in exactly the same way.
 static SHAPES: OnceLock<&'static ClassTable> = OnceLock::new();
 
+/// [`SHAPES`], built and leaked on the first call.
+///
+/// [`descriptors`] builds it too, so the compile that relocates against the
+/// class table has built this one before a request makes its first issue or
+/// script result. The table is the process's, so it is built inside a
+/// [`nvs_runtime::budget::Detached`] bracket: whichever thread builds it, no
+/// request's balance is charged for it.
+///
+/// **What it spends:** one descriptor per [`SHAPE_ROSTER`] row, for the
+/// process.
+fn shapes() -> &'static ClassTable {
+    SHAPES.get_or_init(|| {
+        let _process = nvs_runtime::budget::Detached::begin();
+        let mut table = ClassTable::new();
+        for (shape, fields) in SHAPE_ROSTER {
+            // No parents, and no methods: `rule:types/anonymous-object` makes a shape value an
+            // anonymous *methodless* instance, so there is nothing to inherit
+            // and nothing to dispatch.
+            table.define(*shape, fields, &[]);
+        }
+        Box::leak(Box::new(table))
+    })
+}
+
 /// Every `rule:types/object-top` shape a `Core` member builds a value of, as
 /// `(descriptor name, fields in slot order)`.
 ///
@@ -769,16 +794,7 @@ const SHAPE_ROSTER: &[(&str, &[&str])] = &[
 ///
 /// Panics naming the shape if it is not in [`SHAPE_ROSTER`].
 fn shape_descriptor(name: &str) -> *const ClassDesc {
-    let table = *SHAPES.get_or_init(|| {
-        let mut table = ClassTable::new();
-        for (shape, fields) in SHAPE_ROSTER {
-            // No parents, and no methods: `rule:types/anonymous-object` makes a shape value an
-            // anonymous *methodless* instance, so there is nothing to inherit
-            // and nothing to dispatch.
-            table.define(*shape, fields, &[]);
-        }
-        Box::leak(Box::new(table))
-    });
+    let table = shapes();
     let id = table
         .id_of(name)
         .unwrap_or_else(|| panic!("{name} is not a `Core`-built shape"));
