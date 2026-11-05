@@ -437,6 +437,56 @@ impl Failure {
 /// the response a test reads. One constant keeps the two from disagreeing.
 pub const ECHOED_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 
+/// The media type of an answer whose body is a file — the static policy's
+/// fixed extension table, matched case-insensitively, with
+/// `application/octet-stream` for everything it does not name.
+///
+/// Here for [`ECHOED_MEDIA_TYPE`]'s reason: `nvs-server` sends a static file
+/// and a [`Completion::file_body`] under it, and `Core\Test::request` reports
+/// it on the response a test reads, so one table keeps the two from
+/// disagreeing.
+///
+/// Fixed is the point: a table read from configuration is a per-deployment
+/// content type, which is the second policy
+/// `rule:http-server/static-serving-is-one-policy` refuses. A `charset` is stated
+/// wherever the type is text, because a browser that guesses one is a browser
+/// that can be made to guess `UTF-7`.
+#[must_use]
+pub fn file_media_type(path: &std::path::Path) -> &'static str {
+    let extension = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "html" | "htm" => "text/html; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "js" | "mjs" => "text/javascript; charset=utf-8",
+        "json" | "map" => "application/json",
+        "txt" => "text/plain; charset=utf-8",
+        "csv" => "text/csv; charset=utf-8",
+        "xml" => "application/xml",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "ico" => "image/x-icon",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "wasm" => "application/wasm",
+        "pdf" => "application/pdf",
+        "zip" => "application/zip",
+        "mp3" => "audio/mpeg",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        _ => "application/octet-stream",
+    }
+}
+
 /// What a run wrote to its body, as the chunks it was written in.
 ///
 /// Almost every body is one chunk. A large `Core\Response::json` document is

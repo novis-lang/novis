@@ -62,7 +62,6 @@
 //!
 //! [`What::Static`]: crate::mount::What::Static
 
-use std::ffi::OsStr;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -321,47 +320,10 @@ fn etag(stat: Stat) -> String {
     format!("\"{:x}-{:x}\"", stat.len, stat.mtime_nanos)
 }
 
-/// The static policy's fixed extension table, matched case-insensitively, with
-/// `application/octet-stream` for everything it does not name.
-///
-/// Fixed is the point: a table read from configuration is a per-deployment
-/// content type, which is the second policy
-/// `rule:http-server/static-serving-is-one-policy` refuses. A `charset` is stated
-/// wherever the type is text, because a browser that guesses one is a browser
-/// that can be made to guess `UTF-7`.
+/// The static policy's media type for `path`: [`nvs_runtime::host::file_media_type`]'s
+/// fixed table, which `Core\Test::request` reads for a `Core\Response::sendFile` too.
 fn mime(path: &Path) -> &'static str {
-    let extension = path
-        .extension()
-        .and_then(OsStr::to_str)
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    match extension.as_str() {
-        "html" | "htm" => "text/html; charset=utf-8",
-        "css" => "text/css; charset=utf-8",
-        "js" | "mjs" => "text/javascript; charset=utf-8",
-        "json" | "map" => "application/json",
-        "txt" => "text/plain; charset=utf-8",
-        "csv" => "text/csv; charset=utf-8",
-        "xml" => "application/xml",
-        "svg" => "image/svg+xml",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "avif" => "image/avif",
-        "ico" => "image/x-icon",
-        "woff2" => "font/woff2",
-        "woff" => "font/woff",
-        "ttf" => "font/ttf",
-        "otf" => "font/otf",
-        "wasm" => "application/wasm",
-        "pdf" => "application/pdf",
-        "zip" => "application/zip",
-        "mp3" => "audio/mpeg",
-        "mp4" => "video/mp4",
-        "webm" => "video/webm",
-        _ => "application/octet-stream",
-    }
+    nvs_runtime::host::file_media_type(path)
 }
 
 /// The policy a static file a browser runs script from is sent with. `sandbox`

@@ -3079,11 +3079,33 @@ nvs_runtime::nvs_helper! {
         // that only echoed answered `200`, and making a test say so would be
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
+        // `Core\Response::sendFile` leaves a name and writes no byte, and the
+        // server opens the file at the connection under the static policy's
+        // media type (`nvs-server`'s `finished`). There is no connection here,
+        // so the file is read now and typed by the same table, and a test sees
+        // the body and the `Content-Type` a visitor is sent. The member already
+        // asked the program's `fs.read` for the name, as it does for the server.
+        let file = match completion.file_body.take() {
+            Some(path) => {
+                let bytes = std::fs::read(&path).map_err(|error| {
+                    Fault::thrown(format!(
+                        "Core\\Test::request could not read the file the response sent, `{}`: \
+                         {error}",
+                        path.display()
+                    ))
+                })?;
+                completion.content_type = Some(nvs_runtime::host::file_media_type(&path).into());
+                Some(bytes)
+            }
+            None => None,
+        };
         let headers = answered_headers(&completion);
         // The body is kept as `bytes`, so a route that answered with bytes
         // that are not UTF-8 still returns a response. `body`, `json` and
         // `jsonAs` throw for them (`body_text`).
-        let body = Value::bytes(nvs_runtime::NvsStr::new(&completion.output.to_bytes()));
+        let body = Value::bytes(nvs_runtime::NvsStr::new(
+            &file.unwrap_or_else(|| completion.output.to_bytes().into_owned()),
+        ));
         Ok(crate::instance::build(
             &RESPONSE,
             [
@@ -6899,6 +6921,90 @@ mod tests {
             dropped(arg);
         }
         answered
+    }
+
+    /// A unit whose program called `Core\Response::sendFile`: it names the
+    /// file and writes no byte, as the member does on a request.
+    #[derive(Debug)]
+    struct SendsFile(std::path::PathBuf);
+
+    impl nvs_runtime::inproc::Answering for SendsFile {
+        fn answer(
+            &self,
+            _ctx: &mut Ctx,
+            _inbound: Box<nvs_runtime::Inbound>,
+        ) -> Result<nvs_runtime::host::Completion, String> {
+            Ok(nvs_runtime::host::Completion {
+                ok: true,
+                value: Value::null(),
+                output: Vec::<u8>::new().into(),
+                content_type: None,
+                file_body: Some(self.0.as_path().into()),
+                style_nonce: None,
+                status: None,
+                headers: Vec::new(),
+                error: None,
+                wall: None,
+                trace: Vec::new(),
+                coverage: None,
+                trace_sink: None,
+                store: None,
+            })
+        }
+    }
+
+    /// A response that names a file answers with the file's bytes, typed by
+    /// the static policy's table, as the server sends it. A file that is gone
+    /// by the time the response is read throws and names it.
+    // covers: Core\Test::request
+    #[test]
+    fn a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type() {
+        let dir = nvs_repo::scratch("test-request-send-file");
+        let script = dir.join("app.js");
+        std::fs::write(&script, b"console.log(1)\n").expect("the scratch file is written");
+        let mut ctx = Ctx::buffered();
+        let args = [
+            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
+            Value::text("/app.js"),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::text(""),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        let answered = nvs_runtime::inproc::scoped(&SendsFile(script.clone()), || {
+            nvs_runtime::call(nvs_core_test_request, &mut ctx, &args)
+        })
+        .expect("an installed unit answers");
+        let object = answered.obj_ptr().expect("a `Core\\Test\\Response`");
+        assert_eq!(
+            crate::instance::slot(object, BODY_SLOT).as_bytes(),
+            Some(&b"console.log(1)\n"[..]),
+            "the body is the file's bytes"
+        );
+        let name = Value::text("content-type");
+        let typed = nvs_runtime::call(nvs_core_test_response_header, &mut ctx, &[answered, name])
+            .expect("reading a header cannot fail");
+        assert_eq!(
+            typed.as_text(),
+            Some("text/javascript; charset=utf-8"),
+            "the type is the static policy's for `.js`"
+        );
+        dropped(typed);
+        dropped(answered);
+
+        let gone = nvs_runtime::inproc::scoped(&SendsFile(dir.join("gone.js")), || {
+            nvs_runtime::call(nvs_core_test_request, &mut ctx, &args)
+        });
+        assert!(gone.is_err(), "a file that is gone throws");
+        let message = ctx.take_pending().unwrap_or_default();
+        assert!(
+            message.contains("could not read the file the response sent"),
+            "the error says what it could not read: {message}"
+        );
+        dropped(name);
+        for arg in args {
+            dropped(arg);
+        }
     }
 
     /// `Core\Json::encode` of `value`, so an array answer compares as one
