@@ -1517,6 +1517,180 @@ impl std::io::Write for ByteWriter {
     }
 }
 
+/// The size of every [`ChunkWriter`] chunk but the first.
+pub const CHUNK: usize = 64 * 1024;
+
+/// A payload written as a list of chunks, for an encoder whose output can be
+/// large: a JSON document.
+///
+/// [`ByteWriter`] grows one buffer by doubling, so at each growth the old block
+/// and the new one are held at once, and a payload peaks at three times its
+/// size. This writer never moves what it wrote. The first chunk grows by
+/// doubling up to [`CHUNK`], so a small payload costs what it costs in a
+/// `ByteWriter`. Past that, each chunk is a new block of [`CHUNK`] bytes. **What
+/// it spends:** the payload, plus at most one chunk of room, plus one pointer
+/// list of 24 bytes per chunk.
+///
+/// Every allocation asks the request's budget first, as [`ByteWriter`]'s do
+/// (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`).
+/// After a refusal nothing more is written, and [`Self::stopped`] says so.
+#[derive(Debug, Default)]
+pub struct ChunkWriter {
+    /// The chunks that are full, in order.
+    full: Vec<Vec<u8>>,
+    /// The chunk being written.
+    open: Vec<u8>,
+    /// How many bytes are written, in every chunk.
+    len: usize,
+    /// Set once the budget refused an allocation.
+    stopped: Option<Stopped>,
+}
+
+impl ChunkWriter {
+    /// An empty writer, which has allocated nothing.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            full: Vec::new(),
+            open: Vec::new(),
+            len: 0,
+            stopped: None,
+        }
+    }
+
+    /// Appends `bytes`, or nothing once the writer has stopped. A write that
+    /// fits the open chunk is copied and asks nothing.
+    #[inline]
+    pub fn put(&mut self, bytes: &[u8]) {
+        if self.stopped.is_none() && bytes.len() <= self.open.capacity() - self.open.len() {
+            self.open.extend_from_slice(bytes);
+            self.len += bytes.len();
+            return;
+        }
+        self.grow_and_put(bytes);
+    }
+
+    /// [`Self::put`] for a write that does not fit the open chunk. It fills the
+    /// chunk, then grows the first chunk or opens the next one, asking the
+    /// budget before each allocation.
+    #[cold]
+    #[inline(never)]
+    fn grow_and_put(&mut self, mut bytes: &[u8]) {
+        while self.stopped.is_none() && !bytes.is_empty() {
+            let room = self.open.capacity() - self.open.len();
+            if room > 0 {
+                let (now, later) = bytes.split_at(room.min(bytes.len()));
+                self.open.extend_from_slice(now);
+                self.len += now.len();
+                bytes = later;
+                continue;
+            }
+            if self.full.is_empty() && self.open.capacity() < CHUNK {
+                // The first chunk doubles until it is a whole chunk, so a
+                // small payload never asks for 64 KiB.
+                let grown = (self.open.capacity() * 2)
+                    .max(self.open.len() + bytes.len())
+                    .clamp(64, CHUNK);
+                if !affords(grown) {
+                    self.stopped = Some(Stopped::Refused);
+                    return;
+                }
+                self.open.reserve_exact(grown - self.open.len());
+                continue;
+            }
+            let list = if self.full.len() == self.full.capacity() {
+                self.full.capacity().max(4) * size_of::<Vec<u8>>()
+            } else {
+                0
+            };
+            if !affords(CHUNK + list) {
+                self.stopped = Some(Stopped::Refused);
+                return;
+            }
+            let next = Vec::with_capacity(CHUNK);
+            self.full.push(std::mem::replace(&mut self.open, next));
+        }
+    }
+
+    /// How many bytes are written.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Whether nothing is written.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// What stopped the writes, or `None` while every write has landed.
+    #[must_use]
+    pub const fn stopped(&self) -> Option<Stopped> {
+        self.stopped
+    }
+
+    /// The chunks in order, none of them empty, or what stopped the writes. A
+    /// writer that stopped frees what it wrote here.
+    ///
+    /// # Errors
+    ///
+    /// [`Stopped`], where the budget refused an allocation.
+    pub fn finish(self) -> Result<Vec<Vec<u8>>, Stopped> {
+        if let Some(stopped) = self.stopped {
+            return Err(stopped);
+        }
+        let mut chunks = self.full;
+        if !self.open.is_empty() {
+            chunks.push(self.open);
+        }
+        Ok(chunks)
+    }
+
+    /// The payload as one buffer. A payload of one chunk is that chunk and is
+    /// not copied. A longer one is copied once into a buffer of its exact
+    /// length, and each chunk is freed once it is copied, so the peak is twice
+    /// the payload. A refused buffer gives an empty one, and the breach is
+    /// already recorded.
+    ///
+    /// # Errors
+    ///
+    /// [`Stopped`], where the budget refused an allocation.
+    pub fn joined(self) -> Result<Vec<u8>, Stopped> {
+        let len = self.len;
+        let mut chunks = self.finish()?;
+        if chunks.len() <= 1 {
+            return Ok(chunks.pop().unwrap_or_default());
+        }
+        if !affords(len) {
+            return Err(Stopped::Refused);
+        }
+        let mut out = Vec::with_capacity(len);
+        for chunk in chunks {
+            out.extend_from_slice(&chunk);
+        }
+        Ok(out)
+    }
+}
+
+/// [`ChunkWriter::put`] for a writer that takes `io::Write`, as
+/// [`ByteWriter`]'s is.
+impl std::io::Write for ChunkWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.put(bytes);
+        Ok(bytes.len())
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        self.put(bytes);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// The counters that say an allocation was made, whoever ends up holding the
 /// bytes.
 ///

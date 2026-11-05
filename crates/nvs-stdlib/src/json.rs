@@ -320,7 +320,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use nvs_runtime::budget::ByteWriter;
+use nvs_runtime::budget::ChunkWriter;
 use nvs_runtime::{
     ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
 };
@@ -789,16 +789,17 @@ enum Cursor {
 /// them, so a [`PrettyFormatter`], whose indentation is state it carries
 /// between them, writes what `serde_json::to_string_pretty` would have.
 ///
-/// The buffer is a [`ByteWriter`], so each growth asks the request's memory
-/// ceiling for the whole new block. After a refusal it writes nothing, and
-/// [`Encodable::written`] ends the walk at its next value.
+/// The buffer is a [`ChunkWriter`], so the bytes already written never move,
+/// and each new chunk asks the request's memory ceiling first. After a refusal
+/// it writes nothing, and [`Encodable::written`] ends the walk at its next
+/// value.
 struct Sink<F> {
-    out: ByteWriter,
+    out: ChunkWriter,
     fmt: F,
 }
 
 /// What a write into [`Sink`]'s buffer cannot be.
-const INFALLIBLE: &str = "a `ByteWriter` sink never fails a write";
+const INFALLIBLE: &str = "a `ChunkWriter` sink never fails a write";
 
 impl<F: Formatter> Sink<F> {
     /// One scalar, spelled by the crate: its escaping, its number formatting.
@@ -931,11 +932,11 @@ impl<'a> Encodable<'a> {
     /// already recorded, and the request's next poll stops it.
     ///
     /// The bytes are UTF-8, because every one of them came from `serde_json`.
-    /// They are the writer's own buffer, so a caller that hands them on, such
-    /// as `Core\Response::json`, copies nothing.
-    fn written<F: Formatter>(self, fmt: F) -> Result<Vec<u8>, serde_json::Error> {
+    /// They are the writer's own chunks, so the caller copies them once, into
+    /// whatever it hands on.
+    fn written<F: Formatter>(self, fmt: F) -> Result<ChunkWriter, serde_json::Error> {
         let mut sink = Sink {
-            out: ByteWriter::new(),
+            out: ChunkWriter::new(),
             fmt,
         };
         let mut stack = Stack { frames: Vec::new() };
@@ -944,7 +945,7 @@ impl<'a> Encodable<'a> {
             // A refusal stops the work and not only the writes, so a graph
             // that shares one array many times costs no more visits.
             if sink.out.stopped().is_some() {
-                return Ok(Vec::new());
+                return Ok(ChunkWriter::new());
             }
             if let Some(value) = next.take() {
                 if !stack.value(self.walk, value, &mut sink)? {
@@ -959,7 +960,7 @@ impl<'a> Encodable<'a> {
                 stack.finished(&mut sink);
             }
         }
-        Ok(sink.out.finish().unwrap_or_default())
+        Ok(sink.out)
     }
 }
 
@@ -1119,13 +1120,29 @@ impl Frame {
                 if *list {
                     sink.open_element(first);
                 } else {
-                    let key = array
-                        .key_at(slot)
-                        .expect("next_slot only names live entries");
-                    let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
-                        refuse("an array key that is not UTF-8 has no JSON encoding")
-                    })?;
-                    sink.key(first, name)?;
+                    // The key in the form the array stores it: a position is
+                    // spelled on the stack, so no key allocates.
+                    match array
+                        .slot_key(slot)
+                        .expect("next_slot only names live entries")
+                    {
+                        nvs_runtime::SlotKey::Index(position) => {
+                            use std::io::Write as _;
+                            let mut digits = [0_u8; 20];
+                            let mut cursor = &mut digits[..];
+                            write!(cursor, "{position}").expect("an i64 fits 20 bytes");
+                            let len = 20 - cursor.len();
+                            let name = std::str::from_utf8(&digits[..len])
+                                .expect("a decimal is ASCII");
+                            sink.key(first, name)?;
+                        }
+                        nvs_runtime::SlotKey::Str(key) => {
+                            let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
+                                refuse("an array key that is not UTF-8 has no JSON encoding")
+                            })?;
+                            sink.key(first, name)?;
+                        }
+                    }
                 }
                 Ok(Some(value))
             }
@@ -1488,8 +1505,6 @@ impl Stack {
         value: Value,
         sink: &mut Sink<F>,
     ) -> Result<bool, serde_json::Error> {
-        use std::fmt::Write as _;
-
         self.room()?;
         let ptr = value
             .array_ptr()
@@ -1504,26 +1519,10 @@ impl Stack {
         if let Some(cycle) = self.cycle(id) {
             return Err(cycle);
         }
-        let array = crate::arr::borrowed(ptr);
-
-        let mut list = true;
-        let mut expected = String::new();
-        let mut index = 0usize;
-        let mut from = 0usize;
-        while let Some(slot) = array.next_slot(from) {
-            let key = array
-                .key_at(slot)
-                .expect("next_slot only names live entries");
-            expected.clear();
-            write!(expected, "{index}").expect("writing a usize into a String never fails");
-            if key.as_bytes() != expected.as_bytes() {
-                list = false;
-                break;
-            }
-            from = slot + 1;
-            index += 1;
-        }
-
+        // `Core\Arr::isList`'s own test, which reads each key in the form the
+        // array stores it and allocates nothing. Rendering every key as a
+        // string cost one allocation per element of a list.
+        let list = crate::arr::is_list(&crate::arr::borrowed(ptr));
         if list {
             sink.open_array();
         } else {
@@ -1769,7 +1768,9 @@ fn rendered(
     Ok(written)
 }
 
-/// [`rendered`] as the encoder's own buffer of UTF-8 bytes.
+/// [`rendered`] as one buffer of UTF-8 bytes. A document of one chunk is the
+/// encoder's own buffer. A longer one is joined once, so its peak is twice the
+/// document and one chunk.
 ///
 /// # Errors
 ///
@@ -1780,6 +1781,22 @@ fn rendered_bytes(
     pretty: bool,
     refused: impl FnOnce(&serde_json::Error) -> Fault,
 ) -> Result<Vec<u8>, Fault> {
+    let chunks = rendered_chunks(ctx, value, pretty, refused)?;
+    Ok(chunks.joined().unwrap_or_default())
+}
+
+/// [`rendered`] as the encoder's chunks, for a caller that copies them once
+/// into what it hands on.
+///
+/// # Errors
+///
+/// As [`document`]'s.
+fn rendered_chunks(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    pretty: bool,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<ChunkWriter, Fault> {
     let walk = Reentry::new(ctx);
     let subject = Encodable::document(&walk, value);
     let written = if pretty {
@@ -1788,6 +1805,29 @@ fn rendered_bytes(
         subject.written(CompactFormatter)
     };
     written.map_err(|why| walk.raised().unwrap_or_else(|| refused(&why)))
+}
+
+/// The encoder's chunks as one `string`, copied once into a string of the
+/// document's exact length. Each chunk is freed once it is copied, so the peak
+/// is the document twice. A refused document is the empty string, and the
+/// breach is already recorded.
+fn joined_text(chunks: ChunkWriter) -> Value {
+    let len = chunks.len();
+    let Ok(chunks) = chunks.finish() else {
+        return Value::text("");
+    };
+    let text = nvs_runtime::NvsStr::build(len, |out| {
+        for chunk in chunks {
+            out.push(&chunk);
+        }
+    });
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "every byte came from `serde_json`, which writes UTF-8, and a \
+                  chunk boundary inside a character is joined back here"
+    )]
+    let text = Value::str(text);
+    text
 }
 
 nvs_runtime::nvs_helper! {
@@ -1800,12 +1840,15 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_json_encode(ctx, args: [3]) {
         let pretty = flag(&args[1], "pretty")?;
         let escape = flag(&args[2], "escapeUnicode")?;
-        let written = rendered(ctx, args[0], pretty, |why| Fault::thrown_as(
+        let refused = |why: &serde_json::Error| Fault::thrown_as(
             ThrownClass::Logic,
             format!("Core\\Json::encode(): {why}"),
-        ))?;
-        let written = if escape { escape_non_ascii(&written) } else { written };
-        Ok(Value::text(&written))
+        );
+        if escape {
+            let written = rendered(ctx, args[0], pretty, refused)?;
+            return Ok(Value::text(&escape_non_ascii(&written)));
+        }
+        Ok(joined_text(rendered_chunks(ctx, args[0], pretty, refused)?))
     }
 }
 
@@ -6198,7 +6241,10 @@ mod tests {
         let walk = Reentry::new(&mut ctx);
         Encodable::document(&walk, value)
             .written(CompactFormatter)
-            .map(|out| String::from_utf8(out).expect("the encoder writes UTF-8"))
+            .map(|out| {
+                String::from_utf8(out.joined().unwrap_or_default())
+                    .expect("the encoder writes UTF-8")
+            })
             .map_err(|why| why.to_string())
     }
 
