@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [ceiling-wake, json-one-pass, strings-in-place]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,13 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 3 goal(s). `ceiling-wake` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`ceiling-wake`](ceiling-wake.md) **live** | Reached when a served request that leaves its CPU limit alone makes no watchdog wake and no futex call of its own, and a request that lowers its limit below the next sweep is still stopped on time. | **1 a tree's first CPU limit wakes the watchdog only when the next sweep would come too late** · 2 the goal is verified once, and every failure is fixed |
+| 2 | [`json-one-pass`](json-one-pass.md) | Reached when a typed JSON decode builds its objects while it parses, with no tree in between, and an encode writes its bytes into the destination with no extra copy, every check and message unchanged. | **1 a byte writer's write that fits asks nothing, and Response::json hands its document to the body** · 2 a typed decode parses with the context in hand, and an object of scalar fields is built as it is read · 3 nested objects and lists are built as they are read, and the Found tree is gone · 4 the changed members are measured again, and their allocation counts are declared · 5 the goal is verified once, and every failure is fixed |
+| 3 | [`strings-in-place`](strings-in-place.md) | Reached when an interpolated string, an html template and a literal Core\Str::format call allocate the result once, writing escaped text, numbers and placeholders straight into it. | **1 the runtime joins typed parts in one allocation: strings, integers and html-escaped text** · 2 interpolated strings and html templates lower their holes to typed parts · 3 a literal Core\Str::format writes each placeholder into the result · 4 the changed features are measured again, and their allocation counts are declared · 5 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 

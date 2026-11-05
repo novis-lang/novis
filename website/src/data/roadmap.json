@@ -1,5 +1,15 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": []
+  "themes": [
+    {
+      "title": "Faster requests",
+      "text": "A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. Every security limit stays as it is.",
+      "goals": [
+        "ceiling-wake",
+        "json-one-pass",
+        "strings-in-place"
+      ]
+    }
+  ]
 }
