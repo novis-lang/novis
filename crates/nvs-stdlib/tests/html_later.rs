@@ -310,7 +310,7 @@ fn serve(page: impl FnOnce(&mut Ctx) + 'static) -> Completion {
 }
 
 fn body(completion: &Completion) -> String {
-    String::from_utf8(completion.output.clone()).expect("the page is text")
+    String::from_utf8(completion.output.to_bytes().into_owned()).expect("the page is text")
 }
 
 #[test]

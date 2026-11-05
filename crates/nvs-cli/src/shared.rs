@@ -196,21 +196,23 @@ impl Serving {
                     nvs_host::Output::Capture,
                 )
                 .run(ctx);
-                *answered.borrow_mut() = Some(match completion {
-                    Ok(mut completion) => {
-                        completion.discard_value();
-                        match completion.error {
-                            Some(failure) if !completion.ok => {
-                                Err(format!("{}: {}", failure.class, failure.message))
+                *answered.borrow_mut() =
+                    Some(match completion {
+                        Ok(mut completion) => {
+                            completion.discard_value();
+                            match completion.error {
+                                Some(failure) if !completion.ok => {
+                                    Err(format!("{}: {}", failure.class, failure.message))
+                                }
+                                None if !completion.ok => {
+                                    Err("the program failed and named no failure".to_owned())
+                                }
+                                _ => Ok(String::from_utf8_lossy(&completion.output.to_bytes())
+                                    .into_owned()),
                             }
-                            None if !completion.ok => {
-                                Err("the program failed and named no failure".to_owned())
-                            }
-                            _ => Ok(String::from_utf8_lossy(&completion.output).into_owned()),
                         }
-                    }
-                    Err(error) => Err(error.to_string()),
-                });
+                        Err(error) => Err(error.to_string()),
+                    });
             }
         });
         let ran = nvs_runtime::script::scoped(&self.compiler, || {

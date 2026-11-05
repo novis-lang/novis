@@ -1278,7 +1278,7 @@ mod tests {
                 "{} ok={} {}",
                 entry.name(),
                 done.ok,
-                String::from_utf8_lossy(&done.output)
+                String::from_utf8_lossy(&done.output.to_bytes())
             ));
         }
 

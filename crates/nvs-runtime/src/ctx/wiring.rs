@@ -217,6 +217,7 @@ impl Ctx {
             scripted_answers: std::collections::VecDeque::new(),
             faked_http: crate::ctx::AnswerTable::default(),
             captures: Vec::new(),
+            body_chunks: Vec::new(),
             content_type: None,
             inline_debug: Vec::new(),
             style_nonce: None,

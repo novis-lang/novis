@@ -230,7 +230,7 @@ mod tests {
             Ok(Completion {
                 ok: true,
                 value: crate::Value::null(),
-                output: inbound.path().as_bytes().to_vec(),
+                output: inbound.path().as_bytes().to_vec().into(),
                 content_type: None,
                 file_body: None,
                 style_nonce: None,

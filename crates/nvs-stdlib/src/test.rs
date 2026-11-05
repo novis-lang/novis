@@ -3083,7 +3083,7 @@ nvs_runtime::nvs_helper! {
         // The body is kept as `bytes`, so a route that answered with bytes
         // that are not UTF-8 still returns a response. `body`, `json` and
         // `jsonAs` throw for them (`body_text`).
-        let body = Value::bytes(nvs_runtime::NvsStr::new(&completion.output));
+        let body = Value::bytes(nvs_runtime::NvsStr::new(&completion.output.to_bytes()));
         Ok(crate::instance::build(
             &RESPONSE,
             [
@@ -6468,7 +6468,7 @@ mod tests {
                 Ok(nvs_runtime::host::Completion {
                     ok: true,
                     value: Value::null(),
-                    output: written.into_bytes(),
+                    output: written.into_bytes().into(),
                     content_type: None,
                     file_body: None,
                     style_nonce: None,
@@ -6618,7 +6618,7 @@ mod tests {
                 Ok(nvs_runtime::host::Completion {
                     ok: !self.0,
                     value: Value::null(),
-                    output: b"half a page".to_vec(),
+                    output: b"half a page".to_vec().into(),
                     content_type: None,
                     file_body: None,
                     style_nonce: None,
@@ -6713,7 +6713,7 @@ mod tests {
                 Ok(nvs_runtime::host::Completion {
                     ok: true,
                     value: Value::null(),
-                    output: b"%PDF-1.7\n\xff\xfe".to_vec(),
+                    output: b"%PDF-1.7\n\xff\xfe".to_vec().into(),
                     content_type: Some("application/pdf".into()),
                     file_body: None,
                     style_nonce: None,
@@ -6865,7 +6865,7 @@ mod tests {
             Ok(nvs_runtime::host::Completion {
                 ok: !self.fails,
                 value: Value::null(),
-                output: self.body.to_vec(),
+                output: self.body.to_vec().into(),
                 content_type: self.content_type.map(Into::into),
                 file_body: None,
                 style_nonce: None,

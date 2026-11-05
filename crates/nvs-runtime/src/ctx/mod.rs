@@ -1256,6 +1256,17 @@ pub struct Ctx {
     /// giving [`OutputSink`] another variant that every other writer would
     /// have to match on.
     captures: Vec<Vec<u8>>,
+    /// The leading chunks of an in-memory body, ahead of what the sink's
+    /// buffer holds: a large `CoreResponse::json` document, taken as the
+    /// encoder wrote it ([`Self::write_body_chunks`]). Empty for every other
+    /// body. A reader that needs the body as one buffer gets the chunks and
+    /// the buffer joined ([`Self::take_buffered_output`]), and the finish
+    /// path hands them on unjoined ([`Self::take_buffered_body`]).
+    ///
+    /// **What it spends:** three words in the [`Ctx`] and no allocation for a
+    /// body that is not chunked. A chunked body saves the copy a join makes,
+    /// so it peaks at its own size plus one chunk.
+    body_chunks: Vec<Vec<u8>>,
     /// The media type this request's output has been *declared* to be —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's body members, each of which owns one body shape and sets its

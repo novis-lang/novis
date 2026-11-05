@@ -177,9 +177,11 @@ pub fn response(
     trace: nvs_runtime::TraceContext,
 ) -> spool::Response {
     let body = match body {
-        Answer::Whole(bytes) => {
+        Answer::Whole { head, rest } => {
             let mut recorder = Recorder::new(BodyOf::Response, store, trace);
-            recorder.push(bytes.as_deref().unwrap_or_default());
+            for chunk in head.iter().chain(rest) {
+                recorder.push(chunk);
+            }
             recorder.finish(None)
         }
         Answer::File { .. } | Answer::Streaming { .. } => spool::Body::default(),

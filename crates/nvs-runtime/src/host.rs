@@ -437,6 +437,96 @@ impl Failure {
 /// the response a test reads. One constant keeps the two from disagreeing.
 pub const ECHOED_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 
+/// What a run wrote to its body, as the chunks it was written in.
+///
+/// Almost every body is one chunk. A large `Core\Response::json` document is
+/// many ([`Ctx::write_body_chunks`]), and a server sends them one by one, so
+/// the document is never held twice. A reader that needs one buffer calls
+/// [`Self::into_bytes`] or [`Self::to_bytes`], which join a chunked body once
+/// and copy nothing for a body of one chunk. **What it spends:** three words
+/// beside the first chunk, and no allocation for a body of one chunk.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Written {
+    /// The first chunk, empty only for an empty body.
+    head: Vec<u8>,
+    /// The chunks after the first, in order, none of them empty. Empty for a
+    /// body of one chunk, so that body allocates no list.
+    rest: Vec<Vec<u8>>,
+}
+
+impl Written {
+    /// A body of these chunks, in order. Empty chunks are dropped.
+    #[must_use]
+    pub fn from_chunks(chunks: Vec<Vec<u8>>) -> Self {
+        let mut chunks = chunks.into_iter().filter(|chunk| !chunk.is_empty());
+        let head = chunks.next().unwrap_or_default();
+        Self {
+            head,
+            rest: chunks.collect(),
+        }
+    }
+
+    /// How many bytes the body has.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.rest.iter().map(Vec::len).sum::<usize>() + self.head.len()
+    }
+
+    /// Whether the body has no bytes.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.head.is_empty()
+    }
+
+    /// The body as one buffer. A body of one chunk is that chunk, with no copy.
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
+        if self.rest.is_empty() {
+            return self.head;
+        }
+        let mut out = Vec::with_capacity(self.len());
+        out.extend_from_slice(&self.head);
+        drop(self.head);
+        for chunk in self.rest {
+            out.extend_from_slice(&chunk);
+        }
+        out
+    }
+
+    /// The body as one slice, borrowed for a body of one chunk and joined for
+    /// a chunked one.
+    #[must_use]
+    pub fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        if self.rest.is_empty() {
+            return std::borrow::Cow::Borrowed(&self.head);
+        }
+        std::borrow::Cow::Owned(self.clone().into_bytes())
+    }
+
+    /// The first chunk and the chunks after it, in order and none of them
+    /// empty. The first is empty only for an empty body.
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<u8>, Vec<Vec<u8>>) {
+        (self.head, self.rest)
+    }
+}
+
+/// A body equals the bytes it joins to, whatever its chunks.
+impl<const N: usize> PartialEq<&[u8; N]> for Written {
+    fn eq(&self, other: &&[u8; N]) -> bool {
+        *self.to_bytes() == other[..]
+    }
+}
+
+impl From<Vec<u8>> for Written {
+    fn from(head: Vec<u8>) -> Self {
+        Self {
+            head,
+            rest: Vec::new(),
+        }
+    }
+}
+
 /// What an isolate answers with — the native half of the `ScriptResult` the
 /// language surface presents.
 #[derive(Debug)]
@@ -462,9 +552,10 @@ pub struct Completion {
     /// queue`'s worker being the one, is still a collector, and dropping the
     /// field there leaks a graph per child that returned one.
     pub value: Value,
-    /// What the child wrote. Emptied by [`Output::Inherit`], which has already
-    /// handed the bytes to the parent's own stream.
-    pub output: Vec<u8>,
+    /// What the child wrote, in the chunks it was written in. Emptied by
+    /// [`Output::Inherit`], which has already handed the bytes to the parent's
+    /// own stream.
+    pub output: Written,
     /// What the child declared [`Self::output`] to *be* —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's `Content-Type`, or `None` where nothing declared one.
@@ -952,7 +1043,7 @@ mod tests {
             super::Completion {
                 ok: true,
                 value: self.0.take().unwrap_or_else(crate::value::Value::null),
-                output: Vec::new(),
+                output: super::Written::default(),
                 content_type: None,
                 file_body: None,
                 style_nonce: None,

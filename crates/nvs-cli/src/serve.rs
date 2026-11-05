@@ -5600,7 +5600,7 @@ echo Core\Router::{member}(Docs::here);
             .expect("a null argument crosses into an isolate");
         (
             done.ok,
-            String::from_utf8(done.output).expect("a link is text"),
+            String::from_utf8(done.output.into_bytes()).expect("a link is text"),
         )
     }
 
@@ -5632,7 +5632,7 @@ echo Core\Router::{member}(Docs::here);
         .to_string();
         assert!(done.ok, "the request ends without a throw");
         assert_eq!(
-            String::from_utf8(done.output).expect("an id is text"),
+            String::from_utf8(done.output.into_bytes()).expect("an id is text"),
             expected
         );
     }

@@ -1348,7 +1348,7 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Result<Value, Fa
             [Value::text(&failure.class), Value::text(&failure.message)],
         )
     });
-    let output = match crate::out::carried(ctx, &output, "await") {
+    let output = match crate::out::carried(ctx, &output.to_bytes(), "await") {
         Ok(output) => output,
         Err(fault) => {
             #[expect(

@@ -202,7 +202,7 @@ struct Crossing {
 struct Crossed {
     ok: bool,
     value: Vec<u8>,
-    output: Vec<u8>,
+    output: nvs_runtime::host::Written,
     content_type: Option<Box<str>>,
     file_body: Option<Box<std::path::Path>>,
     style_nonce: Option<Box<str>>,
@@ -313,7 +313,7 @@ fn crossed_failure(message: &str) -> Crossed {
     Crossed {
         ok: false,
         value: Vec::new(),
-        output: Vec::new(),
+        output: nvs_runtime::host::Written::default(),
         content_type: None,
         file_body: None,
         style_nonce: None,

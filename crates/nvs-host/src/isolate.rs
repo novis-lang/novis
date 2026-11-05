@@ -1079,7 +1079,7 @@ pub(crate) fn hand_over(mut completion: Completion, output: Output, ctx: &mut Ct
     }
     if output == Output::Inherit {
         let bytes = std::mem::take(&mut completion.output);
-        let _ = ctx.write_output(&bytes);
+        let _ = ctx.write_output(&bytes.into_bytes());
     }
     completion
 }
@@ -1419,7 +1419,9 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // The nonce that block's `<style>` element carries, if it wrote one, taken
     // on every path out of here beside the declaration that types the body.
     let style_nonce = isolate_ctx.take_style_nonce();
-    let output = isolate_ctx.take_buffered_output().unwrap_or_default();
+    // The body in the chunks it was written in, so a server sends a large
+    // `Core\Response::json` document with no join (`Ctx::write_body_chunks`).
+    let output = isolate_ctx.take_buffered_body().unwrap_or_default();
     // `rule:security/response-body-is-one-typed-member`'s declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,
     // and whether that reaches a peer is the collector's call rather than
@@ -1617,7 +1619,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
     Completion {
         ok: false,
         value: Value::null(),
-        output: Vec::new(),
+        output: nvs_runtime::host::Written::default(),
         content_type: None,
         file_body: None,
         style_nonce: None,
@@ -1645,7 +1647,7 @@ pub(crate) fn cancelled_completion() -> Completion {
     Completion {
         ok: false,
         value: Value::null(),
-        output: Vec::new(),
+        output: nvs_runtime::host::Written::default(),
         content_type: None,
         file_body: None,
         style_nonce: None,

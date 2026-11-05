@@ -422,6 +422,45 @@ impl Ctx {
         Ok(())
     }
 
+    /// [`Self::write_body_owned`] for a body its writer built as a list of
+    /// chunks, such as a large `Core\Response::json` document.
+    ///
+    /// Where the bytes would go out unchanged into an in-memory body that is
+    /// still empty, the chunks become the body's leading chunks and nothing is
+    /// copied. Whoever answers sends them one by one, so the body peaks at its
+    /// own size plus one chunk. A body of one chunk goes through
+    /// [`Self::write_body_owned`]. Every other case joins the chunks once and
+    /// is [`Self::write_body`]'s, with the same rendering: a chunk can end
+    /// inside a character, and the rendering reads whole characters. All of
+    /// them charge `[limits] max_output` the same bytes.
+    ///
+    /// **What it spends:** nothing beyond [`Self::write_body_owned`]. It saves
+    /// the join, which held the document twice.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::write_output`]'s.
+    pub fn write_body_chunks(&mut self, chunks: Vec<Vec<u8>>) -> io::Result<()> {
+        let mut chunks = chunks;
+        chunks.retain(|chunk| !chunk.is_empty());
+        if chunks.len() <= 1 {
+            return self.write_body_owned(chunks.pop().unwrap_or_default());
+        }
+        let unchanged_into_empty = self.run_kind() != RunKind::Isolate
+            && self.captures.is_empty()
+            && self.body_chunks.is_empty()
+            && matches!(
+                &self.output,
+                OutputSink::Buffer(buffer) | OutputSink::Body(buffer) if buffer.is_empty()
+            );
+        if !unchanged_into_empty {
+            return self.write_body(&chunks.concat());
+        }
+        self.charge_output(chunks.iter().map(Vec::len).sum());
+        self.body_chunks = chunks;
+        Ok(())
+    }
+
     /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`.
     ///
     /// Deliberately **not** routed through [`Self::captures`]: a
@@ -1194,10 +1233,30 @@ impl Ctx {
     }
 
     /// Takes everything written so far, if this context buffers its output.
+    ///
+    /// The body as one buffer: a chunked body ([`Self::write_body_chunks`]) is
+    /// joined here, once. The finish path, which hands the chunks on to whoever
+    /// answers, takes them unjoined with [`Self::take_buffered_body`].
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
+        self.take_buffered_body()
+            .map(crate::host::Written::into_bytes)
+    }
+
+    /// [`Self::take_buffered_output`] as the chunks the body was written in,
+    /// so a large body is handed on with no join.
+    #[must_use]
+    pub fn take_buffered_body(&mut self) -> Option<crate::host::Written> {
         match &mut self.output {
-            OutputSink::Buffer(buffer) | OutputSink::Body(buffer) => Some(std::mem::take(buffer)),
+            OutputSink::Buffer(buffer) | OutputSink::Body(buffer) => {
+                let tail = std::mem::take(buffer);
+                if self.body_chunks.is_empty() {
+                    return Some(crate::host::Written::from(tail));
+                }
+                let mut chunks = std::mem::take(&mut self.body_chunks);
+                chunks.push(tail);
+                Some(crate::host::Written::from_chunks(chunks))
+            }
             OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
                 None
             }
@@ -1470,6 +1529,44 @@ mod tests {
             child.take_buffered_output().as_deref(),
             Some(&b"&lt;b&gt;"[..]),
             "a child's body becomes its parent's markup, so it is escaped once"
+        );
+    }
+
+    /// [`Ctx::write_body_chunks`] keeps the chunks themselves as the leading
+    /// part of an empty body, and a later write follows them. A reader of one
+    /// buffer gets them joined, and a child's chunks are joined and escaped.
+    #[test]
+    fn chunks_become_the_body_unjoined_and_a_later_write_follows_them() {
+        let mut request = Ctx::new(OutputSink::Body(Vec::new()));
+        let before = crate::budget::written_bytes();
+        let first = b"[1,".to_vec();
+        let at = first.as_ptr();
+        request
+            .write_body_chunks(vec![first, b"2]".to_vec()])
+            .expect("a body sink never fails");
+        request.write_output(b"!").expect("a body sink never fails");
+        assert_eq!(crate::budget::written_bytes() - before, 6);
+        let (head, rest) = request
+            .take_buffered_body()
+            .expect("a body sink buffers")
+            .into_parts();
+        assert_eq!(head.as_ptr(), at, "the first chunk was copied");
+        assert_eq!(head, b"[1,");
+        assert_eq!(rest, [b"2]".to_vec(), b"!".to_vec()]);
+
+        request
+            .write_body_chunks(vec![b"<a".to_vec(), b">".to_vec()])
+            .expect("a body sink never fails");
+        assert_eq!(request.take_buffered_output().as_deref(), Some(&b"<a>"[..]));
+
+        let mut child = request.isolate(OutputSink::Body(Vec::new()));
+        child
+            .write_body_chunks(vec![b"<".to_vec(), b"b>".to_vec()])
+            .expect("a body sink never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some(&b"&lt;b&gt;"[..]),
+            "a child's chunks are joined and escaped once"
         );
     }
 

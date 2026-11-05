@@ -1132,8 +1132,8 @@ impl Frame {
                             let mut cursor = &mut digits[..];
                             write!(cursor, "{position}").expect("an i64 fits 20 bytes");
                             let len = 20 - cursor.len();
-                            let name = std::str::from_utf8(&digits[..len])
-                                .expect("a decimal is ASCII");
+                            let name =
+                                std::str::from_utf8(&digits[..len]).expect("a decimal is ASCII");
                             sink.key(first, name)?;
                         }
                         nvs_runtime::SlotKey::Str(key) => {
@@ -1721,21 +1721,24 @@ pub(crate) fn document(
     rendered(ctx, value, false, refused)
 }
 
-/// [`written`] as the encoder's own buffer, for a caller that hands the bytes
-/// on whole. `Core\Response::json` passes them to the body this way, so the
-/// document is never copied into a `String` first.
+/// [`written`] as the encoder's own chunks, in order, for a caller that hands
+/// the bytes on unjoined. `Core\Response::json` passes them to the body this
+/// way, so the document is never copied into a `String` or one buffer, and it
+/// peaks at its own size plus one chunk. A refused document is no chunks, and
+/// the breach is already recorded.
 ///
 /// # Errors
 ///
 /// As [`written`]'s.
-pub(crate) fn written_bytes(
+pub(crate) fn written_chunks(
     ctx: &mut nvs_runtime::Ctx,
     value: Value,
     member: &str,
-) -> Result<Vec<u8>, Fault> {
-    rendered_bytes(ctx, value, false, |why| {
+) -> Result<Vec<Vec<u8>>, Fault> {
+    let chunks = rendered_chunks(ctx, value, false, |why| {
         Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
-    })
+    })?;
+    Ok(chunks.finish().unwrap_or_default())
 }
 
 /// The whole encoding half in one call: the walk, the option that frames it,
@@ -7690,6 +7693,105 @@ mod tests {
                     per_byte(decode_peak, bytes),
                     per_byte(encode_allocs, bytes),
                     per_byte(encode_peak, bytes),
+                );
+            }
+        }
+    }
+
+    /// The ladder's `wide` document of at least `size` bytes.
+    fn wide_document(size: usize) -> String {
+        ladder_documents(size)
+            .into_iter()
+            .find_map(|(shape, text)| (shape == "wide").then_some(text))
+            .expect("the ladder has a wide shape")
+    }
+
+    /// `Core\Response::json`'s body at 64 KiB and at 8 MiB holds the document
+    /// once, plus at most one chunk of room, the chunk list and the walk's
+    /// scratch. The encoder's
+    /// chunks become the body's, so nothing joins them into a second copy.
+    #[test]
+    fn a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk() {
+        for size in [64 << 10, 8 << 20] {
+            let text = wide_document(size);
+            let value = read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let chunks = written_chunks(&mut ctx, value, r"Core\Response::json")
+                .expect("a decoded value encodes");
+            ctx.write_body_chunks(chunks)
+                .expect("a buffered body never fails");
+            let peak = ctx.memory_peak();
+            let body = ctx.take_buffered_body().expect("a buffered context");
+            drop(ctx);
+            #[expect(unsafe_code, reason = "this frame holds the only reference")]
+            unsafe {
+                value.release();
+            }
+            let bytes = body.len();
+            let (_, rest) = body.clone().into_parts();
+            assert!(!rest.is_empty(), "{size}: the body kept the chunks");
+            assert_eq!(
+                body.into_bytes(),
+                text.as_bytes(),
+                "{size}: the body is the document"
+            );
+            // The walk's own scratch is a few hundred bytes at any size.
+            let bound = bytes + nvs_runtime::budget::CHUNK + bytes / 512 + 4096;
+            assert!(
+                peak <= bound,
+                "{size}: the body peaked at {peak} bytes for a document of {bytes}, past {bound}"
+            );
+        }
+    }
+
+    /// Decoding and encoding allocate no more per document byte at 8 MiB than
+    /// at 64 KiB, for every shape the ladders measure. A count that grew would
+    /// be a buffer that is copied or rebuilt as the document grows.
+    #[test]
+    fn allocations_per_document_byte_do_not_grow_with_the_document() {
+        let count = |size: usize| -> Vec<(&'static str, usize, usize, usize)> {
+            ladder_documents(size)
+                .into_iter()
+                .map(|(shape, text)| {
+                    let before = nvs_runtime::budget::allocations();
+                    let value =
+                        read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
+                    let decoded = nvs_runtime::budget::allocations() - before;
+                    let mut ctx = nvs_runtime::Ctx::buffered();
+                    let before = nvs_runtime::budget::allocations();
+                    let written = written_chunks(&mut ctx, value, r"Core\Json::encode")
+                        .expect("a decoded value encodes");
+                    let encoded = nvs_runtime::budget::allocations() - before;
+                    drop(written);
+                    drop(ctx);
+                    #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                    unsafe {
+                        value.release();
+                    }
+                    (shape, text.len(), decoded, encoded)
+                })
+                .collect()
+        };
+        let small = count(64 << 10);
+        let large = count(8 << 20);
+        for (
+            (shape, small_bytes, small_decoded, small_encoded),
+            (_, large_bytes, large_decoded, large_encoded),
+        ) in small.into_iter().zip(large)
+        {
+            // Each count may grow by 1% of the document's growth, plus the
+            // chunks the larger document needs, which is one per 64 KiB.
+            let scale = large_bytes / small_bytes;
+            let chunks = large_bytes / nvs_runtime::budget::CHUNK + 1;
+            for (what, small_count, large_count) in [
+                ("decode", small_decoded, large_decoded),
+                ("encode", small_encoded, large_encoded),
+            ] {
+                let bound = small_count * scale + small_count * scale / 100 + chunks + 16;
+                assert!(
+                    large_count <= bound,
+                    "{shape}: {what} made {small_count} allocations for {small_bytes} bytes \
+                     and {large_count} for {large_bytes}, past {bound}"
                 );
             }
         }

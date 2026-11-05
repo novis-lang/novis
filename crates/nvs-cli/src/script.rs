@@ -2500,7 +2500,7 @@ mod tests {
     fn said(program: Program) -> String {
         let completion = run_program(program);
         assert!(completion.ok, "error: {:?}", completion.error);
-        String::from_utf8_lossy(&completion.output).into_owned()
+        String::from_utf8_lossy(&completion.output.to_bytes()).into_owned()
     }
 
     #[test]
@@ -2508,7 +2508,7 @@ mod tests {
         let completion = run_child(&from_root("examples/isolate/hello.nvs"));
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(
-            String::from_utf8_lossy(&completion.output),
+            String::from_utf8_lossy(&completion.output.to_bytes()),
             "child said hello\n"
         );
     }
@@ -3607,7 +3607,10 @@ mod tests {
 
         let completion = run_program(open);
         assert!(completion.ok, "error: {:?}", completion.error);
-        assert_eq!(String::from_utf8_lossy(&completion.output), "one\n");
+        assert_eq!(
+            String::from_utf8_lossy(&completion.output.to_bytes()),
+            "one\n"
+        );
     }
 
     /// Runs a request for `path` through `compiler` on a core of its own, so
@@ -3623,7 +3626,7 @@ mod tests {
             let (program, _) = compiler.compiled(&path).expect("the entry compiles");
             let completion = run_serving(program);
             assert!(completion.ok, "error: {:?}", completion.error);
-            String::from_utf8_lossy(&completion.output).into_owned()
+            String::from_utf8_lossy(&completion.output.to_bytes()).into_owned()
         })
     }
 
@@ -3721,7 +3724,10 @@ mod tests {
 
         let completion = run_program(after);
         assert!(completion.ok, "error: {:?}", completion.error);
-        assert_eq!(String::from_utf8_lossy(&completion.output), "three\n");
+        assert_eq!(
+            String::from_utf8_lossy(&completion.output.to_bytes()),
+            "three\n"
+        );
         assert_eq!(shared(&compiler.units).len(), 2);
         drop(before);
     }
@@ -3762,7 +3768,10 @@ mod tests {
         // the unit that program was handed before the edit is untouched, which
         // is the same paragraph's first half.
         assert!(completion.ok, "error: {:?}", completion.error);
-        assert_eq!(String::from_utf8_lossy(&completion.output), "served\n");
+        assert_eq!(
+            String::from_utf8_lossy(&completion.output.to_bytes()),
+            "served\n"
+        );
         assert_ne!(
             shared(&compiler.paths)[&*child].unit.content,
             before,
@@ -3979,7 +3988,9 @@ echo $dir, "\n";"#,
         let completion = run_under(program, rooted_at(&root));
 
         assert!(completion.ok, "error: {:?}", completion.error);
-        let made = std::path::PathBuf::from(String::from_utf8_lossy(&completion.output).trim_end());
+        let made = std::path::PathBuf::from(
+            String::from_utf8_lossy(&completion.output.to_bytes()).trim_end(),
+        );
         assert!(
             made.starts_with(&root),
             "the script's directory was made under the configured root: {} is not under {}",

@@ -137,8 +137,19 @@ use crate::statics;
 /// exact size, which is what makes `hyper` chunk it.
 #[derive(Debug)]
 pub enum Answer {
-    /// The bytes are already here, and go out as one frame.
-    Whole(Option<Bytes>),
+    /// The bytes are already here, and go out one frame per chunk.
+    ///
+    /// Almost every body is one chunk. A large `Core\Response::json` document
+    /// is many, and sending them one by one is what keeps the document from
+    /// being joined into a second copy (`nvs_runtime::Ctx::write_body_chunks`).
+    /// The length is still known, so `Content-Length` states it.
+    Whole {
+        /// The next frame, and `None` once every chunk is sent.
+        head: Option<Bytes>,
+        /// The chunks after `head`, in order. Empty for a body of one chunk,
+        /// so that body allocates no list.
+        rest: std::collections::VecDeque<Bytes>,
+    },
     /// A file on disk, read one [`FILE_CHUNK`] at a time while `hyper` writes
     /// it ([`crate::statics`]'s body for a file it opened).
     ///
@@ -292,13 +303,29 @@ impl Answer {
     /// The body a caller already has the bytes of.
     #[must_use]
     pub fn new(bytes: impl Into<Bytes>) -> Self {
-        Self::Whole(Some(bytes.into()))
+        Self::Whole {
+            head: Some(bytes.into()),
+            rest: std::collections::VecDeque::new(),
+        }
+    }
+
+    /// The body a run wrote, sent in the chunks it was written in.
+    #[must_use]
+    pub fn written(written: nvs_runtime::host::Written) -> Self {
+        let (head, rest) = written.into_parts();
+        Self::Whole {
+            head: Some(head.into()),
+            rest: rest.into_iter().map(Bytes::from).collect(),
+        }
     }
 
     /// No body at all — a `204`, a `304`, or the answer to a `HEAD`.
     #[must_use]
     pub fn empty() -> Self {
-        Self::Whole(None)
+        Self::Whole {
+            head: None,
+            rest: std::collections::VecDeque::new(),
+        }
     }
 
     /// The `len` bytes of `file` starting at `at`, read while they are sent.
@@ -385,11 +412,21 @@ impl Answer {
     /// cases assertions about *bytes* — the one range that was asked for, and
     /// the empty body of a `304` — rather than about a status and a header pair
     /// that happen to look right.
+    ///
+    /// A body of many chunks is joined here, which only a test does.
     #[must_use]
-    pub fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         match self {
-            Self::Whole(bytes) => bytes.as_deref().unwrap_or_default(),
-            Self::File { .. } | Self::Streaming { .. } => &[],
+            Self::Whole { head, rest } if rest.is_empty() => {
+                std::borrow::Cow::Borrowed(head.as_deref().unwrap_or_default())
+            }
+            Self::Whole { head, rest } => std::borrow::Cow::Owned(
+                head.iter()
+                    .chain(rest)
+                    .flat_map(|chunk| chunk.iter().copied())
+                    .collect(),
+            ),
+            Self::File { .. } | Self::Streaming { .. } => std::borrow::Cow::Borrowed(&[]),
         }
     }
 }
@@ -440,7 +477,11 @@ impl Body for Answer {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut *self {
-            Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
+            Self::Whole { head, rest } => {
+                let next = head.take();
+                *head = rest.pop_front();
+                Poll::Ready(next.map(|bytes| Ok(Frame::data(bytes))))
+            }
             Self::File { file, left } => {
                 if *left == 0 {
                     return Poll::Ready(None);
@@ -540,7 +581,7 @@ impl Body for Answer {
 
     fn is_end_stream(&self) -> bool {
         match self {
-            Self::Whole(bytes) => bytes.is_none(),
+            Self::Whole { head, .. } => head.is_none(),
             Self::File { left, .. } => *left == 0,
             // A stated length that is all sent is over. Otherwise whether a
             // stream is over is the cell's answer and it is given by taking
@@ -551,8 +592,8 @@ impl Body for Answer {
 
     fn size_hint(&self) -> SizeHint {
         match self {
-            Self::Whole(bytes) => {
-                let len = bytes.as_ref().map_or(0, Bytes::len);
+            Self::Whole { head, rest } => {
+                let len = head.iter().chain(rest).map(Bytes::len).sum::<usize>();
                 // Widening on every target this builds for; the fallible
                 // spelling is here because the lint policy has no exception for
                 // a cast that happens to be safe.
@@ -1814,7 +1855,7 @@ where
                     Answer::Streaming { tail, .. } => {
                         Some(&*tail.insert(crate::spooled::Tail::new(store, trace)))
                     }
-                    Answer::Whole(_) | Answer::File { .. } => None,
+                    Answer::Whole { .. } | Answer::File { .. } => None,
                 });
             let answered = crate::spooled::Answered {
                 method: verb.as_str(),
@@ -2871,7 +2912,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
     let declared = done.content_type.as_deref().unwrap_or(ECHOED);
     let content_type =
         HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
-    let mut response = Response::new(Answer::new(done.output));
+    let mut response = Response::new(Answer::written(done.output));
     // `Core\Response`'s status, on the same channel and read the same way: the
     // request said what its answer means, and a request that said nothing
     // means `200`, which is what `Response::new` already built. `from_u16`
@@ -3697,7 +3738,7 @@ pub(crate) mod tests {
         Completion {
             ok: true,
             value: Value::null(),
-            output: output.as_bytes().to_vec(),
+            output: output.as_bytes().to_vec().into(),
             content_type: content_type.map(Into::into),
             file_body: None,
             style_nonce: None,
@@ -6990,7 +7031,7 @@ pub(crate) mod tests {
             Completion {
                 ok: true,
                 value: Value::null(),
-                output: Vec::new(),
+                output: nvs_runtime::host::Written::default(),
                 content_type: None,
                 file_body: None,
                 style_nonce: None,
@@ -8942,7 +8983,9 @@ pub(crate) mod tests {
                 // bleed. Dropping them is what leaves both arms' responses
                 // carrying the answer lines alone.
                 let _planted = child.take_buffered_output();
-                child.write_output(&done.output).expect("a buffer");
+                child
+                    .write_output(&done.output.to_bytes())
+                    .expect("a buffer");
                 Value::null()
             });
             Reply::Run(
@@ -14183,8 +14226,8 @@ pub(crate) mod tests {
     #[test]
     fn answer_bytes_still_answers_the_whole_variants_buffer() {
         assert_eq!(
-            Answer::new(Bytes::from_static(b"held whole")).bytes(),
-            b"held whole"
+            *Answer::new(Bytes::from_static(b"held whole")).bytes(),
+            *b"held whole"
         );
         assert!(
             Answer::empty().bytes().is_empty(),
