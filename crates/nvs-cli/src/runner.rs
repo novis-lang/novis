@@ -3746,7 +3746,15 @@ impl TestServer {
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   origin: nvs_server::Origin| {
-                answer_on_the_wire(&held, &carried, &door, &tree, hits.as_ref(), request, origin)
+                answer_on_the_wire(
+                    &held,
+                    &carried,
+                    &door,
+                    &tree,
+                    hits.as_ref(),
+                    request,
+                    origin,
+                )
             },
         );
         let serving = nvs_server::Serving::new(
