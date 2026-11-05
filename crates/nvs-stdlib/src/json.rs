@@ -2752,6 +2752,9 @@ fn build_object<'a, E: serde::de::Error>(
     // Two thread-local reads per object.
     if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
         builder.fault = Some(builder.ctx.memory_breach().unwrap_or_else(|| {
+            // no case can reach this: the parse's own ask or the budget's
+            // breach names the memory limit first.
+            // `a_typed_decode_past_the_memory_limit_reports_the_limit` asserts it.
             Fault::fatal("the decoded document does not fit in the request's memory limit")
         }));
         return Err(E::custom(BUILD_FAULT));
@@ -6639,6 +6642,62 @@ mod tests {
                 "{text}: every element built before the failure is freed"
             );
         }
+    }
+
+    /// A typed decode of many objects under a 1 MiB limit stops at the limit,
+    /// and the fault names the memory limit: the parse's own ask or the
+    /// budget's breach. `build_object`'s fallback text is never what the
+    /// program sees.
+    // covers: Core\Json::decodeAs
+    #[cfg_attr(
+        miri,
+        ignore = "a document this long parses on the spare stack, whose guard page needs \
+                  `mprotect`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_typed_decode_past_the_memory_limit_reports_the_limit() {
+        let (class, shape) = listed_shape_class();
+        let limit = 1 << 20;
+        let text = format!(
+            "{{\"items\":[{}{{\"n\":1}}]}}",
+            "{\"n\":1},".repeat(100_000)
+        );
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_memory_limit(limit);
+        #[expect(
+            unsafe_code,
+            reason = "every helper here leaks its table, so both addresses outlive the decode"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &text,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Err(fault) = decoded else {
+            panic!("a document past the limit does not decode");
+        };
+        let message = format!("{fault:?}");
+        assert!(message.contains("memory limit"), "{message}");
+        assert!(!message.contains("decoded document"), "{message}");
+        if let Fault::ThrownWithSlots(_, _, slots) = fault {
+            for (_, value) in slots {
+                #[expect(unsafe_code, reason = "the fault owned its one reference")]
+                unsafe {
+                    value.release();
+                }
+            }
+        }
+        assert!(
+            ctx.memory_peak() < 2 * limit,
+            "the decode stopped at the limit: peak {}",
+            ctx.memory_peak()
+        );
     }
 
     /// `rule:types/decimal`'s exactness reaches roughly 29 significant digits and
