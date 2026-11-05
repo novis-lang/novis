@@ -161,7 +161,7 @@ Found on 2026-11-05: with `[limits] wall_time = "2s"`, `curl -N /polls/1/events`
 seconds, and every `EventSource` reconnects over and over. The security checklist tells operators to
 set `wall_time`, and `limits:` on an upgrade only narrows, so an app cannot exempt its streams. A
 connection already has its own finite bounds, `[server.connection] idle_timeout` and `max_lifetime`
-(`rule:http-server/connection-bounds-are-finite`), and is a root isolate with its own budget
+(the rule this goal writes, `http-server/connection-bounds-are-finite`), and is a root isolate with its own budget
 (`rule:concurrency/a-connection-is-a-root-isolate`). The session decides by the priority ordering and
 records the decision in those rules. The safe default: `wall_time` bounds the request that upgrades,
 `max_lifetime` bounds the connection, and `memory` and CPU time apply to both.

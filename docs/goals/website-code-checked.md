@@ -58,7 +58,7 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
    website shows, is either run by a check or carries a marker that says why it is not. The marker
    is the fence's meta: ```` ```sh skip="installs a system service" ````, the same place
    ```` ```nvs skip ```` already uses (`tools/nv/cmd/reference.ts:510`). A `skip` with no reason is a
-   failure. Stage 5 writes this as `rule:testing/every-code-block-on-the-website-is-checked`.
+   failure. Stage 5 writes this as the rule `testing/every-code-block-on-the-website-is-checked`.
 2. **One new part, `code`,** in `tools/nv/cmd/site.ts` beside `apps` and `snippets`. It walks every
    hand-written page (the pages no renderer writes, which `site.ts` already lists for `covers:`),
    reads each fence's language and meta, runs the language's check, and names each block it could not
@@ -144,7 +144,7 @@ run (`apps`). What is not: about 140 fenced blocks written straight into the han
 - [ ] `code` in CI's website stale guard step, and the proxy validation in a Linux step beside
   veraPDF. `.github/workflows/ci.yml:625`
 - [ ] `code` in `PRE_PUSH`'s stale guard. `tools/nv/cmd/ci.ts:240`
-- [ ] `rule:testing/every-code-block-on-the-website-is-checked`, rendered, and named in
+- [ ] The rule `testing/every-code-block-on-the-website-is-checked`, rendered, and named in
   `website/README.md`'s table of who owns which file. `docs/rules/testing/in-process-request.md:1`
 
 ### 6. the goal is verified once, and every failure is fixed
