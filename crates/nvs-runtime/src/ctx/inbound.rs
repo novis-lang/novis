@@ -311,8 +311,13 @@ pub struct Inbound {
     /// **What it spends:** the body's own bytes, resident until the request
     /// ends, only for a request whose program buffered one — bounded by
     /// `[limits] request_body`, which `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes the cap on form field
-    /// text, and O(in-flight).
-    held: Option<Box<[u8]>>,
+    /// text, and O(in-flight). The bytes are behind one `Rc`, so a reader that
+    /// needs `&mut Ctx` while it reads them takes a handle
+    /// ([`Self::held_handle`]) and never a copy. `jsonAs` is that reader: it
+    /// builds instances as it parses. The `Rc` wraps the `Box` the reader
+    /// filled, so holding the bytes copies none of them, and the cost is one
+    /// `Rc` header per request that buffered its body.
+    held: Option<Rc<Box<[u8]>>>,
     /// Why the read that would have filled [`Self::held`] failed, and the
     /// class it threw, so every later buffering reader throws the same.
     ///
@@ -1040,13 +1045,20 @@ impl Inbound {
     /// [`Self::held_body`] answered `None`, so the call that fills this is the
     /// one that found it empty.
     pub fn hold_body(&mut self, body: Box<[u8]>) {
-        self.held = Some(body);
+        self.held = Some(Rc::new(body));
     }
     /// The body [`Self::hold_body`] was given, or `None` where nothing has
     /// buffered one yet.
     #[must_use]
     pub fn held_body(&self) -> Option<&[u8]> {
-        self.held.as_deref()
+        self.held.as_deref().map(|held| &**held)
+    }
+    /// A handle on the body [`Self::hold_body`] was given, or `None` where
+    /// nothing has buffered one yet. It shares the bytes, so a reader can read
+    /// them while it has `&mut` on the context.
+    #[must_use]
+    pub fn held_handle(&self) -> Option<Rc<Box<[u8]>>> {
+        self.held.clone()
     }
     /// Records why the read that would have filled [`Self::held_body`]
     /// failed, for [`Self::body_failure`] to return to every later reader.
