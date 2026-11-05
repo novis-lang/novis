@@ -130,6 +130,16 @@
 //! a request that waits before it runs away: security and request isolation
 //! are paid for here with request-path latency, in that order of priority.
 //!
+//! **How many readings a request makes.** Measured under `strace` on Linux,
+//! serving `benches/compare/cases/json-api` over one connection: three readings
+//! of the core's clock per request, from two call sites, and a quarter of one
+//! on the watchdog's thread. Under eight connections it is about six per
+//! request, because the turns of different requests interleave and each
+//! switch between them reads once. No reading repeats another: a switch reads
+//! once for the tree it leaves and the tree it enters together, and each
+//! reading charges a different moment. So none can be removed without
+//! charging a request for time it did not run.
+//!
 //! [`Shared::sweep_and_wait`] reads a core's clock and then each charge, on the walk it
 //! already makes, and a request whose charge has reached its ceiling is asked
 //! to stop through the handle beside it: `SafepointFlags::CPU_LIMIT` into the
@@ -752,6 +762,10 @@ struct Shared {
     /// The slice clock every registration from now on takes a seat in, set by
     /// [`Watchdog::slice_with`].
     slices: OnceLock<SliceHandle>,
+    /// How many times [`wake_for_lowered_ceiling`] has notified `change`, for
+    /// the tests that count them.
+    #[cfg(test)]
+    wakes: AtomicUsize,
 }
 
 /// The mutable half, which the watchdog thread holds only between sweeps.
@@ -902,6 +916,8 @@ impl Watchdog {
             shed: Shed::default(),
             change: Condvar::new(),
             slices: OnceLock::new(),
+            #[cfg(test)]
+            wakes: AtomicUsize::new(0),
         });
         // Notified once here, before the watchdog's thread can see it. Where
         // std's condition variable is a pthread one (macOS), its first use
@@ -1483,18 +1499,37 @@ struct TreeSpend {
 }
 
 /// Wakes the watchdog the calling thread registered with, so it sweeps now and
-/// reads the CPU ceiling this thread just lowered. A thread that registered
-/// nothing has no watchdog to wake.
+/// reads the CPU ceiling this thread just lowered. `left` is the CPU time left
+/// under that ceiling in nanoseconds, and `earlier` says whether a ceiling
+/// stood before it. A thread that registered nothing has no watchdog to wake.
 ///
-/// What it spends: one condition-variable notify each time a request lowers
-/// its own ceiling, and one extra sweep. Nothing on a request that leaves its
-/// ceiling alone.
-fn wake_for_lowered_ceiling() {
+/// A tree's first ceiling wakes the watchdog only when `left` is shorter than
+/// the watchdog's interval. A longer one is read by the next regular sweep,
+/// which comes within one interval, before the tree can spend `left`. That
+/// sweep then brings its next wake forward to the crossing ([`next_wait`]).
+/// A ceiling lowered from an earlier one always wakes it, because the last
+/// sweep timed its wait by the earlier ceiling.
+///
+/// What it spends: one condition-variable notify and one extra sweep for a
+/// ceiling lowered from an earlier one, or a first one shorter than an
+/// interval. A request that keeps the default ceiling makes no notify.
+fn wake_for_lowered_ceiling(left: u64, earlier: bool) {
     METER.with(|meter| {
-        if let Some(local) = meter.borrow().as_ref() {
+        if let Some(local) = meter.borrow().as_ref()
+            && wakes_for(&local.shared, left, earlier)
+        {
+            #[cfg(test)]
+            local.shared.wakes.fetch_add(1, Ordering::Relaxed);
             local.shared.change.notify_all();
         }
     });
+}
+
+/// Whether a ceiling with `left` nanoseconds of CPU time under it needs
+/// `shared`'s watchdog to sweep now. [`wake_for_lowered_ceiling`] owns the
+/// rule.
+fn wakes_for(shared: &Shared, left: u64, earlier: bool) -> bool {
+    earlier || Duration::from_nanos(left) < shared.interval
 }
 
 /// Makes the calling thread, the watchdog's or the slice clock's
@@ -3114,6 +3149,68 @@ mod tests {
         assert!(
             constraint > 0,
             "the watchdog thread's policy has no constraint"
+        );
+    }
+
+    /// A watchdog that sweeps once a second, and this thread registered with
+    /// it, so a ceiling published here reaches it through the installed hook.
+    fn swept_each_second() -> (Watchdog, Registration) {
+        let dog = Watchdog::with(Duration::from_secs(3600), Duration::from_secs(1), |_| {});
+        let registered = dog.register_requests();
+        (dog, registered)
+    }
+
+    /// The notifies one publication of `limit` causes, on a fresh request tree
+    /// whose earlier ceiling is `earlier`, or none where `earlier` is `0`.
+    fn wakes_for_publishing(dog: &Watchdog, earlier: u64, limit: u64) -> usize {
+        let mut request = ctx();
+        request.set_cpu_limit(earlier);
+        let before = dog.shared.wakes.load(Ordering::Relaxed);
+        request.set_cpu_limit(limit);
+        dog.shared.wakes.load(Ordering::Relaxed) - before
+    }
+
+    /// The default ceiling's case: the next regular sweep comes before the tree
+    /// can spend two seconds, so the publication wakes nothing.
+    #[test]
+    fn a_first_limit_longer_than_one_interval_wakes_nothing() {
+        let (dog, _registered) = swept_each_second();
+        let two_seconds = 2_000_000_000;
+        assert_eq!(
+            wakes_for_publishing(&dog, 0, two_seconds),
+            0,
+            "a first ceiling longer than the interval woke the watchdog"
+        );
+    }
+
+    /// Ten milliseconds would be spent long before a sweep a second away, so
+    /// the publication wakes the watchdog once.
+    #[test]
+    fn a_first_limit_shorter_than_one_interval_wakes_the_watchdog() {
+        let (dog, _registered) = swept_each_second();
+        let ten_ms = 10_000_000;
+        assert_eq!(
+            wakes_for_publishing(&dog, 0, ten_ms),
+            1,
+            "a first ceiling shorter than the interval did not wake the watchdog once"
+        );
+    }
+
+    /// The last sweep timed its wait by the earlier ceiling, so a lower one
+    /// wakes the watchdog whatever its length.
+    #[test]
+    fn a_limit_lowered_from_an_earlier_one_wakes_the_watchdog() {
+        let (dog, _registered) = swept_each_second();
+        let thirty_seconds = 30_000_000_000;
+        assert_eq!(
+            wakes_for_publishing(&dog, a_minute(), thirty_seconds),
+            1,
+            "a ceiling lowered from an earlier one did not wake the watchdog once"
+        );
+        assert_eq!(
+            wakes_for_publishing(&dog, thirty_seconds, a_minute()),
+            0,
+            "a raised ceiling woke the watchdog"
         );
     }
 }

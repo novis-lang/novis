@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-host/src/watchdog.
 stages:
   - id: 1
     title: "a tree's first CPU limit wakes the watchdog only when the next sweep would come too late"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/limits.rs, benches/compare/profile.sh]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
@@ -75,6 +75,11 @@ This cost is paid by every served request in every program, including `hello`.
    before and after, in the commit message. Requests per second is a secondary note, because the
    machine runs other work.
 6. **Lanes:** one. The goal is one stage of work.
+7. **A first limit set while the program runs is judged by the time left under it.** Stage 1 found
+   this case. `refresh_limits_at_run_time` (`crates/nvs-runtime/src/ctx/limits.rs:893`) already
+   reads what the tree has spent. Where no earlier limit stood, it calls the hook again with the
+   limit less that reading. So a 2 s limit set after 1.98 s of work still wakes the watchdog. It costs
+   nothing on a request that never changes its limit.
 
 ## Stages
 
@@ -82,20 +87,20 @@ This cost is paid by every served request in every program, including `hello`.
 
 **Does:** stops the per-request wake and keeps every stop on time.
 
-- [ ] Take the "before" counts: `bun nv bench-compare --profile hello` and `--profile json-api`. Keep
+- [x] Take the "before" counts: `bun nv bench-compare --profile hello` and `--profile json-api`. Keep
   the futex and `clock_gettime` calls per request, the requests per second, and the shares of
   `wake_for_lowered_ceiling` and the watchdog thread. `benches/compare/profile.sh:1`
-- [ ] Give the `CpuLowered` hook the new limit and whether an earlier one existed, and call it from
+- [x] Give the `CpuLowered` hook the new limit and whether an earlier one existed, and call it from
   `publish_cpu_limit` on decision 1's condition. Rewrite the doc comment above it as a whole.
   `rule:errors/on-limit` `crates/nvs-runtime/src/ctx/safepoint.rs:104`
   `crates/nvs-runtime/src/ctx/safepoint.rs:1377`
-- [ ] Make `wake_for_lowered_ceiling` compare the limit with the registered watchdog's interval, and
+- [x] Make `wake_for_lowered_ceiling` compare the limit with the registered watchdog's interval, and
   correct its "What it spends" line. `crates/nvs-host/src/watchdog.rs:1492`
-- [ ] Write the three tests the `first-limit-wake` check names, in `watchdog.rs`'s test module. Each
+- [x] Write the three tests the `first-limit-wake` check names, in `watchdog.rs`'s test module. Each
   counts the notifies one publication causes. `crates/nvs-host/src/watchdog.rs:1492`
-- [ ] Count the thread CPU clock reads in one served request, with their call sites. Apply decision 3.
+- [x] Count the thread CPU clock reads in one served request, with their call sites. Apply decision 3.
   `crates/nvs-host/src/watchdog.rs:427`
-- [ ] Take the "after" counts with the same two profiles, and put both sets in the commit message.
+- [x] Take the "after" counts with the same two profiles, and put both sets in the commit message.
   Futex calls per request should fall to near zero.
 
 ### 2. the goal is verified once, and every failure is fixed
@@ -108,17 +113,26 @@ This cost is paid by every served request in every program, including `hello`.
 
 ### State
 
-Nothing is built yet. The profile figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+Stage 1 is done. `CpuLowered` is `fn(u64, bool)`: the time left and whether an earlier limit stood
+(`crates/nvs-runtime/src/ctx/safepoint.rs:1387`). `wakes_for` in `crates/nvs-host/src/watchdog.rs`
+holds decision 1's rule. Decision 7 covers a first limit set mid-run. The three `first-limit-wake`
+tests pass, run once by name. The before and after counts are in the stage's commit message. Futex
+calls per request fell from 2.07 to 0.07 on `hello` and from 2.16 to 0.19 on `json-api`, and the
+wake and the watchdog thread left both profiles. Decision 3 changed no code. No clock read repeats
+another, and the module doc's *Charging a request for the time it runs* has the count. `strace -k`
+gave the read stacks, but `addr2line` named wrong functions in the bench image's binary. So the
+"no repeat" verdict rests on reading `Meter::switch` and its callers, not on named call sites.
+
+The acceptance sweep's reds were stale again: nightly 41813182715 ran on `f3150b922`, before
+`a2f451fad` and `a8bdf37fb`, and nightly 42008540593 on `399ce1d2` is green. `env-secret-proofs` is
+defined nowhere in the tree.
 
 ### Next
 
-**Stage 1**, files `crates/nvs-runtime/src/ctx/safepoint.rs` and `crates/nvs-host/src/watchdog.rs`.
-
-- [ ] Take the "before" counts. `benches/compare/profile.sh:1`
-- [ ] Change the hook and its call. `rule:errors/on-limit` `crates/nvs-runtime/src/ctx/safepoint.rs:104`
-- [ ] Change the wake's condition. `crates/nvs-host/src/watchdog.rs:1492`
-- [ ] Write the three tests. `crates/nvs-host/src/watchdog.rs:1492`
-- [ ] Count the clock reads, and apply decision 3. `crates/nvs-host/src/watchdog.rs:427`
-- [ ] Take the "after" counts. `benches/compare/profile.sh:1`
+**Stage 2**, the gate: `looper verify` over the whole goal, then the goal-end gates in AGENTS.md
+§ *In the loop*. Tests that might go red: any watchdog or hostile CPU-limit case that counted on a
+first limit waking the sampler at once. `bun nv proofs --overshoot` (`no-overshoot`, the floor) must
+stay green, and `tests/hostile/` CPU-limit cases must stop within their bound. macOS runs on CI at the
+goal-end push.
 
 ### Backlog

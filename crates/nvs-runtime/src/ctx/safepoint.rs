@@ -97,10 +97,17 @@ impl Ctx {
     /// it too, because it starts a tree that carries none.
     /// [`Self::tree_root`]'s field doc owns why a child writes nothing.
     ///
-    /// A ceiling that goes down calls the installed [`CpuLowered`], so the
-    /// sampler reads it now. Its next sweep might otherwise come a whole
-    /// interval later, which is how far past the new ceiling the request
-    /// would run.
+    /// A ceiling that goes down, or a tree's first one, is handed to the
+    /// installed [`CpuLowered`] with whether an earlier one stood. The sampler
+    /// decides from those two whether to sweep now: its next sweep might come
+    /// a whole interval later, which is how far past a ceiling shorter than
+    /// that the request would run. A first ceiling here is measured from a
+    /// tree that has spent next to nothing, except where a program sets one
+    /// while it runs, and [`Self::refresh_limits_at_run_time`] owns that case.
+    ///
+    /// What it spends: one load of the installed hook per ceiling that goes
+    /// down. A request that keeps the default ceiling makes no wake, because
+    /// that ceiling is longer than one sweep interval.
     pub(super) fn publish_cpu_limit(&self) {
         if self.tree_root {
             let before = self
@@ -108,8 +115,8 @@ impl Ctx {
                 .cpu_limit
                 .swap(self.cpu_limit, std::sync::atomic::Ordering::Relaxed);
             let lowered = self.cpu_limit != 0 && (before == 0 || self.cpu_limit < before);
-            if lowered && let Some(wake) = CPU_LOWERED.get() {
-                wake();
+            if lowered {
+                cpu_lowered(self.cpu_limit, before != 0);
             }
         }
     }
@@ -1372,10 +1379,12 @@ pub fn install_cpu_spent(spent: CpuSpent) {
     let _ = CPU_SPENT.set(spent);
 }
 
-/// Wakes the sampler that charges the calling thread, so its next sweep reads
-/// a CPU ceiling the thread just lowered. The host installs it with
+/// Tells the sampler that charges the calling thread that the thread's tree
+/// has a lower CPU ceiling: the CPU time left under it in nanoseconds, and
+/// whether an earlier ceiling stood. The sampler sweeps now where its next
+/// regular sweep could come too late. The host installs it with
 /// [`install_cpu_lowered`], for the same reason as [`CpuSpent`].
-pub type CpuLowered = fn();
+pub type CpuLowered = fn(u64, bool);
 
 /// The process's [`CpuLowered`], or none before a host installs one.
 static CPU_LOWERED: std::sync::OnceLock<CpuLowered> = std::sync::OnceLock::new();
@@ -1384,6 +1393,14 @@ static CPU_LOWERED: std::sync::OnceLock<CpuLowered> = std::sync::OnceLock::new()
 /// [`install_cpu_spent`].
 pub fn install_cpu_lowered(wake: CpuLowered) {
     let _ = CPU_LOWERED.set(wake);
+}
+
+/// Calls the installed [`CpuLowered`] with `left` and `earlier`, or does
+/// nothing before a host installs one.
+pub(super) fn cpu_lowered(left: u64, earlier: bool) {
+    if let Some(wake) = CPU_LOWERED.get() {
+        wake(left, earlier);
+    }
 }
 
 /// What `tree` has spent of the CPU, by the installed [`CpuSpent`].

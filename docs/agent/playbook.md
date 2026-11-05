@@ -100,6 +100,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A source edited while `bun nv bench-compare` builds its image can be skipped by the next image
+  build.** The image's `target` is a cache mount, and cargo judges a crate fresh by mtime. A build that
+  started before the edit compiles the old source into an artifact newer than the edited file, so the
+  next build keeps it, and a changed signature fails to compile in a crate that did rebuild. `touch`
+  each file you edited since the last image build before building again. See
+  `benches/proxied/Dockerfile`. `until: gone benches/proxied/Dockerfile:target=/src/target`
 - **An access violation in a Windows optimized build is located without a debugger by a temporary
   vectored exception handler, not by a backtrace.** The proof profile writes no PDB, so
   `std::backtrace` names only system frames. Install one with `AddVectoredExceptionHandler` in the

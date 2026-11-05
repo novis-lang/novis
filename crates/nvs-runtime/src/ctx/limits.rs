@@ -916,6 +916,11 @@ impl Ctx {
                 std::time::Duration::ZERO,
                 1,
             );
+        } else if before == 0 {
+            // A first ceiling set this late may leave less than one sweep
+            // interval, though the ceiling itself is longer. The sampler
+            // judges the time left, which only this reading knows.
+            super::safepoint::cpu_lowered(self.cpu_limit - spent, false);
         }
     }
 
