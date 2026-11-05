@@ -4,11 +4,12 @@
   "themes": [
     {
       "title": "Faster requests",
-      "text": "A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. Every security limit stays as it is.",
+      "text": "A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. Every security limit stays as it is. The comparison with PHP, Bun and Go is then measured again.",
       "goals": [
         "ceiling-wake",
         "json-one-pass",
-        "strings-in-place"
+        "strings-in-place",
+        "compare-recorded"
       ]
     }
   ]

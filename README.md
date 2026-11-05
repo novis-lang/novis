@@ -130,7 +130,7 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Faster requests.** *Working on it now.* A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. Every security limit stays as it is.
+1. **Faster requests.** *Working on it now.* A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. Every security limit stays as it is. The comparison with PHP, Bun and Go is then measured again.
 <!-- roadmap:end -->
 
 ## Contributing
