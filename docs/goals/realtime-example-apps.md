@@ -21,10 +21,6 @@ stages:
     status: open
     context: [docs/rules/concurrency/a-connection-is-a-root-isolate.md, docs/rules/http-server/connection-bounds-are-finite.md, website/src/content/docs/guides/production/security-checklist.mdx]
   - id: 5
-    title: "Paperwork's PDF copies are what its server sends, and stay that way from build to build"
-    status: open
-    context: [apps/paperwork/README.md, tools/nv/cmd/site.ts]
-  - id: 6
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -103,7 +99,7 @@ says which of the two features to pick.
    unless `NV_BROWSER` is set. It is added to CI's `browser` job and to the `browser` list in
    `tools/nv/cmd/ci-changes.ts`, with `apps/chat/` and `apps/poll/`.
 10. **Lanes:** stage 1 first. Stages 2, 3 and 4 touch disjoint files and may run as side goals once
-    stage 1 is committed. Stage 5 touches only Paperwork and the PDF writer, and may run at any time.
+    stage 1 is committed.
 11. **A policy that names its own `frame-ancestors`** sets `[http.headers] frame_ancestors = false`
     (`crates/nvs-server/src/secure.rs:46`), or Novis appends a second one. Both apps leave
     `frame-ancestors` out of their policy and use the one Novis adds.
@@ -179,28 +175,7 @@ records the decision in those rules. The safe default: `wall_time` bounds the re
 - [ ] Remove the note in each app's `deploy/production.toml` that explains why it sets no `wall_time`,
   once the fix makes the note untrue. `apps/poll/deploy/production.toml:1`
 
-### 5. Paperwork's PDF copies are what its server sends, and stay that way from build to build
-
-**Does:** finds why `bun nv site --check apps` fails on all three of Paperwork's copies, and fixes the
-cause.
-
-Found on 2026-11-05: with a release binary built at `d1ad6c75ce`, `bun nv site --check apps` reports
-that `website/public/example-apps/paperwork/{invoice,report,tickets}.pdf` are not what `GET
-/invoice.pdf`, `/report.pdf` and `/tickets.pdf` return. The copies were last blessed in
-`167ca1e9a7`. CI does not run the `apps` part, so nothing is red, but the website offers stale
-files. A copy is only re-blessed once the cause is known: a change that meant to alter the PDF bytes
-is a bless, and bytes that differ from run to run are a bug.
-
-- [ ] Serve Paperwork twice with the same binary and compare each PDF across the two runs, so a
-  difference from run to run is told apart from a difference between builds. `apps/paperwork/src/App.nvs:23`
-- [ ] Bisect the builds since `167ca1e9a7` with `git log -- extensions/pdf crates/nvs-ext` for the
-  commit that changed the bytes, and read whether it meant to. `tools/nv/cmd/site.ts:1855`
-- [ ] Fix a run-to-run difference at its cause, with a test that renders one document twice and
-  compares the bytes; or re-bless with `bun nv site --bless-apps` for an intended change, and name that
-  commit in the message. `website/public/example-apps/paperwork/invoice.pdf:1`
-- [ ] `bun nv site --check apps` is green. `tools/nv/cmd/site.ts:1913`
-
-### 6. the goal is verified once, and every failure is fixed
+### 5. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
@@ -213,7 +188,7 @@ is a bless, and bytes that differ from run to run are a bug.
 Both apps and their pages are committed with production setups: a session (chat), one vote per
 browser (poll), a strict CSP, and `deploy/` with Caddy, nginx and production settings. Each passes
 `nvs test .` with 22 tests, real WebSocket and event-stream tests among them, and `bun nv site
---check apps` passes for both. Its only red is Paperwork's three PDF copies, which stage 5 owns. The two apps still differ in where
+--check apps` passes for both. The two apps still differ in where
 the CSP is set and in the shape of `deploy/` (decisions 3 and 6).
 
 ### Next
