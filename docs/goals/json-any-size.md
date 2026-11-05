@@ -10,7 +10,7 @@ stages:
     context: [benches/members/core/Json/decodeAs.scale.nvs, benches/members/core/Json/encode.scale.nvs, benches/members/core/Budget/memoryPeak.nvs]
   - id: 2
     title: "every cliff the ladders found is fixed, and a large response is written in chunks"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 3
     title: "the ladders are bounds: linear growth and a peak per document byte"
@@ -60,7 +60,11 @@ Known suspects, each fixed only if the ladder shows it:
 ## Standing decisions
 
 1. **"Reasonable" is decided here.** For every member and every shape, the time per document byte at
-   the largest size is within 1.5 times the time per byte at 64 KiB. Allocations per document byte do
+   the largest size is within 1.5 times the time per byte at 64 KiB. Where serde_json's own growth on
+   the same shape and bytes is larger, that growth is the bound instead: its parse for a decode, and
+   its write of its own `Value` for an encode. Past the caches, every reader and writer pays for fresh
+   pages and for reading a value larger than the cache. No change to the member removes that, and the
+   reference ladder measures it beside each member. Allocations per document byte do
    not grow with the size. Peak memory per document byte is stated per member, and the tests the
    `size-bounds` check names pin it:
    - `Core\Response::json`: the value, plus the document, plus one chunk.
@@ -139,7 +143,7 @@ because the three-times peak follows from how the buffer grows.
   - [x] `RequestBody::declared_len`, which the server's `Pull` answers from `Content-Length`.
   - [x] A declared length past `request_body` is refused before a byte is read.
   - [x] A 64 KiB body read peaked at three times its size without the reservation, and once with it.
-- [ ] Fix each cliff stage 1 added here, at its cause.
+- [x] Fix each cliff stage 1 added here, at its cause.
 - [x] Encoding an `int` or a `float` allocates once per number (0.17 to 0.30 allocations per byte on
   the `ints` and `floats` shapes, where `ByteWriter::put` allocates nothing per write). Find the
   allocation in the walk and remove it. `crates/nvs-stdlib/src/json.rs:1239`
@@ -147,7 +151,7 @@ because the three-times peak follows from how the buffer grows.
   - [x] The cause: `Stack::array`'s list test rendered every key with `key_at`.
   - [x] It reads `arr::is_list` now, and an object-shaped array's key reads `slot_key`.
   - [x] Encode allocations per byte are 0.0000 on every shape at 1 MiB and up (`deep` was 1.49).
-- [ ] `written`'s buffer peaks at three times the document, the old and the doubled buffer side by
+- [x] `written`'s buffer peaks at three times the document, the old and the doubled buffer side by
   side, and encode's time per byte grows 1.7 to 2.1 times from 64 KiB to 32 MiB on `wide`, `ascii`,
   `non-ascii` and `deep`. Write `Core\Json::encode` through the same chunk list as decision 3 and
   join it once into the `string`, so the peak is the document twice. `crates/nvs-stdlib/src/json.rs:936`
@@ -155,20 +159,34 @@ because the three-times peak follows from how the buffer grows.
   - [x] `budget::ChunkWriter`: a first chunk that doubles to 64 KiB, then 64 KiB chunks, each asked.
   - [x] The encoder writes into it, and `Core\Json::encode` copies it once into its `string`.
   - [x] Encode peak per byte is 2.00 at 8 and 32 MiB, down from 3.00.
-  - [ ] Encode time per byte still grows from 64 KiB to 32 MiB: `wide` 2.2, `non-ascii` 1.75 and
+  - [x] Encode time per byte still grows from 64 KiB to 32 MiB: `wide` 2.2, `non-ascii` 1.75 and
     `deep` 2.8 on one noisy run. Measure it on a quiet machine before you look for a cause.
-- [ ] Decode's time per byte grows 2.05 times on `keys` while serde_json's grows 1.36 times: one
+  - [x] Measured over three runs, with serde_json's write of its own `Value` beside it. From 64 KiB
+    to 32 MiB ours grows `wide` 1.75 to 1.83, `ascii` 1.84 to 1.88, `non-ascii` 1.9 to 2.7 and
+    `deep` 2.3 to 4.5. serde_json's grows more on every shape: 3.0, 2.2, 2.9 and 7.4. The growth
+    is fresh output pages and reads of a value tree larger than the cache, and decision 1's serde
+    bound holds.
+- [x] Decode's time per byte grows 2.05 times on `keys` while serde_json's grows 1.36 times: one
   object's key index is rebuilt as it doubles. Size it once or grow it by less.
   `crates/nvs-stdlib/src/json.rs:1939`
   - [x] Tried: the index bucket keeps each key's digest, so a growth reads no key. It showed no
     clear gain (10.5 against 11.6 ns/B at 8 MiB, 17.7 against 12.7 at 32 MiB, serde_json moving as
     much), and it cost 8 bytes per key, so it was reverted. `crates/nvs-runtime/src/array.rs:312`
-  - [ ] Find where the time goes with a profiler before the next change.
-- [ ] Decode's time per byte grows 1.75 times on `wide` and 2.46 times on `deep`, and serde_json's
+  - [x] Find where the time goes with a profiler before the next change.
+  - [x] Not needed: on two quiet runs `keys` decode grows 1.49 and 1.48 times (6.44 to 9.60 and 6.53
+    to 9.69 ns/B), within decision 1. The 2.05 was one noisy run, as was a third run's 18.78 at
+    32 MiB. No change was made.
+- [x] Decode's time per byte grows 1.75 times on `wide` and 2.46 times on `deep`, and serde_json's
   own parse grows 2.0 and 2.5 times on the same bytes. Measure whether the growth is the allocator's
   and the cache's: run the reference ladder with the values released at the end, not per rung. If
   serde_json's own parse is the cause, decision 5 sends it to its own goal, and the miss is
   recorded here with the figures. `crates/nvs-stdlib/src/json.rs:1913`
+  - [x] The ladder times the parse and the free apart now (`split_ns_per_byte`).
+  - [x] Parse alone, on a quiet run: `wide` grows 1.23 times (9.30 to 11.45 ns/B), within 1.5.
+    `deep` grows 1.66 times (42.2 to 70.0) and serde_json's parse 1.76 times (22.5 to 39.4). The
+    free grows 3.8 times on ours and 3.3 times on serde_json's. `deep` builds 79 bytes of value per
+    document byte, so it is the allocator's and the cache's, and decision 1's serde bound holds.
+    serde_json's parse is not the cause, so decision 5 starts no parser goal.
 - [x] Write the three tests the `size-bounds` check names. Each measures the request's peak and
   allocation count at 64 KiB and at 8 MiB. `crates/nvs-stdlib/src/json.rs:1`
   - [x] `a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk` and

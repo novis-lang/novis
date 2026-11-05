@@ -7614,15 +7614,32 @@ pub(crate) mod tests {
 
     /// The fastest of `reps` runs of `work`, in nanoseconds per document byte.
     fn ns_per_byte(bytes: usize, reps: u32, mut work: impl FnMut()) -> f64 {
+        split_ns_per_byte(bytes, reps, &mut work, drop).0
+    }
+
+    /// The fastest of `reps` runs of `work` and of `free` on what it made,
+    /// timed apart, in nanoseconds per document byte. The free is the
+    /// allocator's share of a rung, so a growth the work does not show is
+    /// the allocator's.
+    fn split_ns_per_byte<T>(
+        bytes: usize,
+        reps: u32,
+        mut work: impl FnMut() -> T,
+        mut free: impl FnMut(T),
+    ) -> (f64, f64) {
         let mut best = std::time::Duration::MAX;
+        let mut best_free = std::time::Duration::MAX;
         for _ in 0..reps {
             let started = std::time::Instant::now();
-            work();
+            let made = std::hint::black_box(work());
             best = best.min(started.elapsed());
+            let started = std::time::Instant::now();
+            free(made);
+            best_free = best_free.min(started.elapsed());
         }
         #[expect(clippy::cast_precision_loss, reason = "a printed figure")]
-        let per_byte = best.as_nanos() as f64 / bytes as f64;
-        per_byte
+        let per_byte = |time: std::time::Duration| time.as_nanos() as f64 / bytes as f64;
+        (per_byte(best), per_byte(best_free))
     }
 
     /// `n` per document byte, as a printed figure.
@@ -7634,34 +7651,51 @@ pub(crate) mod tests {
 
     /// The size ladders' reference: serde_json's own parse of each shape and
     /// size into its own `Value`, beside `Core\Json::decode`'s read and
-    /// `Core\Json::encode`'s write of the same document. Per document byte, it
-    /// prints the time of each, and the allocations and peak memory of the
-    /// decode and the encode. Run it on an optimized build:
+    /// `Core\Json::encode`'s write of the same document, and serde_json's own
+    /// write of its `Value`. Per document byte, it prints the time of each, the
+    /// time to free each parse apart from the parse, and the allocations and
+    /// peak memory of the decode and the encode. serde_json's columns are the
+    /// growth any parser or writer pays past the caches: fresh pages and reads
+    /// of a value larger than the cache. Run it on an optimized build:
     /// `cargo test --profile proof --lib json::tests::serde_reference -- --ignored --nocapture`.
     #[test]
     #[ignore = "a measurement that prints its figures, run by hand"]
     #[expect(clippy::print_stderr, reason = "the figures are this test's output")]
     fn serde_reference_ladder() {
         eprintln!(
-            "shape      size      serde ns/B  decode ns/B  decode allocs/B  decode peak/B  encode ns/B  encode allocs/B  encode peak/B"
+            "shape      size      serde ns/B  free ns/B  decode ns/B  free ns/B  decode allocs/B  decode peak/B  encode ns/B  serde enc ns/B  encode allocs/B  encode peak/B"
         );
         for size in LADDER_SIZES {
             let reps = ladder_reps(size);
             for (shape, text) in ladder_documents(size) {
                 let bytes = text.len();
-                let serde = ns_per_byte(bytes, reps, || {
-                    let value: serde_json::Value =
-                        serde_json::from_str(&text).expect("a ladder document parses");
-                    drop(std::hint::black_box(value));
+                let (serde, serde_free) = split_ns_per_byte(
+                    bytes,
+                    reps,
+                    || {
+                        serde_json::from_str::<serde_json::Value>(&text)
+                            .expect("a ladder document parses")
+                    },
+                    drop,
+                );
+                let parsed: serde_json::Value =
+                    serde_json::from_str(&text).expect("a ladder document parses");
+                let serde_encode = ns_per_byte(bytes, reps, || {
+                    let written = serde_json::to_string(&parsed).expect("a parsed value writes");
+                    drop(std::hint::black_box(written));
                 });
-                let decode = ns_per_byte(bytes, reps, || {
-                    let value =
-                        read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
-                    #[expect(unsafe_code, reason = "this frame holds the only reference")]
-                    unsafe {
-                        std::hint::black_box(value).release();
-                    }
-                });
+                drop(parsed);
+                let (decode, decode_free) = split_ns_per_byte(
+                    bytes,
+                    reps,
+                    || read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes"),
+                    |value| {
+                        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                        unsafe {
+                            value.release();
+                        }
+                    },
+                );
                 let ctx = nvs_runtime::Ctx::buffered();
                 let before = nvs_runtime::budget::allocations();
                 let value = read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
@@ -7688,7 +7722,7 @@ pub(crate) mod tests {
                     value.release();
                 }
                 eprintln!(
-                    "{shape:<10} {bytes:>9} {serde:>11.2} {decode:>12.2} {:>16.4} {:>14.2} {encode:>12.2} {:>16.4} {:>14.2}",
+                    "{shape:<10} {bytes:>9} {serde:>11.2} {serde_free:>10.2} {decode:>12.2} {decode_free:>10.2} {:>16.4} {:>14.2} {encode:>12.2} {serde_encode:>15.2} {:>16.4} {:>14.2}",
                     per_byte(decode_allocs, bytes),
                     per_byte(decode_peak, bytes),
                     per_byte(encode_allocs, bytes),
