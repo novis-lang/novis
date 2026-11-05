@@ -22,7 +22,7 @@ stages:
     context: [extensions/pdf/src/layout/block.rs, extensions/pdf/src/layout/text.rs, extensions/pdf/src/layout/flex.rs, extensions/pdf/src/paginate/mod.rs]
   - id: 5
     title: "tables read col widths, row breaks and HTML span numbers, resolve collapsed borders by CSS 2.1, and run right to left"
-    status: open
+    status: done
     context: [extensions/pdf/src/layout/table.rs, extensions/pdf/src/layout/inline.rs, extensions/pdf/src/layout/flex.rs, extensions/pdf/tests/tables.rs, docs/rules/core-classes/pdf-tables-across-pages.md]
   - id: 6
     title: "every text and box property the subset accepts is applied: overflow clips, visibility hides, margins go negative, span-level white-space and line-height, list types"
@@ -293,6 +293,14 @@ handled but untested.
     and `right` too, goes to the next page, with no blank page for the side. A table's header and
     footer rows are left off every page when the room they leave is less than its shortest body
     piece, or less than a quarter of a page when every piece is taller. Cost: nothing more.
+16. **Collapsed edges are drawn by the table, not by the boxes.** Cells, rows, groups and the
+    table move their border width into their padding, so content stays where it was, and the
+    table draws each resolved edge centred in the strip where cells overlap, which is as wide as
+    the widest resolved edge. The edge at a page break is resolved as the table's own top or
+    bottom edge, so the table's border closes every page where it wins; `box-decoration-break:
+    slice` does not open a collapsed edge. A repeated header or a footer meeting a body row that
+    is not its source neighbour draws the stronger of the two edges, per column. Cost: one grid
+    slot per row and column while the table is laid out.
 
 ## Stages
 
@@ -413,20 +421,20 @@ handled but untested.
   `extensions/pdf/src/layout/table.rs:108`
 - [x] `rowspan="0"` spans to the end of its row group, and span attributes are read by HTML's rules for
   non-negative integers (`2x` is 2). `extensions/pdf/src/layout/inline.rs:1047`
-- [ ] Collapsed borders resolve by decision 8, at a break and under a repeated header too.
+- [x] Collapsed borders resolve by decision 8, at a break and under a repeated header too.
   `extensions/pdf/src/layout/table.rs:58`
 - [x] A header and footer that cannot fit with a row are left off that page.
   `extensions/pdf/src/layout/table.rs:597`, `extensions/pdf/src/layout/table.rs:636`
 - [x] A table and a flex row with `direction: rtl` run from the right. `extensions/pdf/src/layout/table.rs:1`,
   `extensions/pdf/src/layout/flex.rs:61`
-- [ ] The rule's *On disk* paragraph names the new behaviours.
+- [x] The rule's *On disk* paragraph names the new behaviours.
   `docs/rules/core-classes/pdf-tables-across-pages.md:1`, then `bun nv rules --render` and
   `bun nv rules --check`.
-- [ ] Write the eight tests the `tables` check names. `extensions/pdf/tests/tables.rs:764`
+- [x] Write the eight tests the `tables` check names. `extensions/pdf/tests/tables.rs:764`
   - [x] the seven for cols, breaks, rowspan 0, colspan digits, the header and footer, and the two
     right-to-left ones
-  - [ ] `collapsed_borders_resolve_by_width_then_style_then_owner`
-- [ ] Run the `tables` check's command once: green.
+  - [x] `collapsed_borders_resolve_by_width_then_style_then_owner`
+- [x] Run the `tables` check's command once: green.
 
 ### 6. every text and box property the subset accepts is applied: overflow clips, visibility hides, margins go negative, span-level white-space and line-height, list types
 
@@ -520,45 +528,43 @@ check once both end.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has every item but the collapsed borders, the rule's *On disk*
-paragraph and the `tables` run. Seven of the eight `tables` tests are written and green by name.
+Stages 1 to 5 are done. The `tables` check ran once: 28 of 28 green.
 
-- `Table::cols` (`extensions/pdf/src/layout/table.rs:96`) is each column's `col` width, filled by
-  `Builder::columns` (`extensions/pdf/src/layout/inline.rs`, called where `table_part` gives
-  `Some(None)`). `column_ranges` raises a set column's widest width to it, and `fixed_columns`
-  takes it before the first row's cells.
-- `table::span_number` reads `colspan`, `rowspan` and `span`; `rowspan="0"` is kept as 0 until
-  `close_table` runs `table::span_to_group_end`.
-- `Row::breaks` is `[before, after]`, from the row's own `break-*` or its group's
-  (`Building::group_breaks`); the piece loop turns the page before a piece that has one.
-- Header and footer rows are cleared before paging when no piece fits with them (decision 15).
-- `Table::rtl` mirrors `lefts` and `drawing.left`, and `Flow::narrow(by, left)` keeps a narrowed
-  right-to-left table's right edge. Flex and grid pass `direction` to taffy 0.15's
-  `Style::direction`.
-- `cargo fmt` also formatted `flex.rs` and `tests/breaks.rs`, which the last session left
-  unformatted.
-- The sweep's reds were stale: `env-secret-proofs` has no definition and no log, and nightly
-  41813182715 is the run already traced to fixed commits.
+- Collapsed borders (decision 16): `table::Edge` (`extensions/pdf/src/layout/table.rs`) is one
+  side with its owner rank; `Edge::max` and `Edge::resolve` apply decision 8.
+  `resolve_edges` moves each cell's border into its padding and resolves every row's top and
+  bottom edge per column, against its neighbours (`TOP`, `BOTTOM`) and against the table
+  (`OUTER_TOP`, `OUTER_BOTTOM`), and its side at each column line. `Rim` is those edges at
+  their x positions; `rim_items` draws them with `boxes::edges` (now `pub(super)`).
+  `Cx::rows` draws a row's sides and top after its cells and leaves its bottom owed in
+  `Drawing::pending`; `close_rim` draws it, as the outer edge at a turn.
+- `Decor::hidden` (`extensions/pdf/src/layout/boxes.rs`) records a `hidden` side. Rows and
+  groups carry `edges`, `Table` carries `col_edges`, `group_edges` and the table's `edges`,
+  filled in `Builder::part_box`, `Builder::columns` and `Builder::open_table`
+  (`extensions/pdf/src/layout/inline.rs`). Under collapse the table's own box draws no border.
+- `borders_are_closed_at_every_break` now gives its collapsed table a 2pt border, so the table
+  wins the outer edges; at 1pt the cells win by owner order.
+- The sweep's reds were stale again: `env-secret-proofs` has no definition and no log, and
+  nightly 41813182715 is the run already traced to fixed commits.
 
 ### Next
 
-Stage 5's last items. The collapsed-border resolution of decision 8 first: today a collapsed
-table overlaps cells by the widest border (`extensions/pdf/src/layout/table.rs:403`) and draws
-every cell's four sides, with row and group borders drawn under them (`Cx::under`, `table.rs:959`,
-and `Builder::part_box`, `extensions/pdf/src/layout/inline.rs:1093`). Resolve each shared edge
-between two cells, and each outer edge against the row, group, column and table, by `hidden`,
-then width, then style order, then owner order. Then draw one border per edge: give each cell's
-`Block::Open` geometry only the sides it wins, or draw the resolved edges as their own items. The
-edge must hold at a page break and under a repeated header. Write
-`collapsed_borders_resolve_by_width_then_style_then_owner` at the end of
-`extensions/pdf/tests/tables.rs`. Then the rule's *On disk* paragraph
-(`docs/rules/core-classes/pdf-tables-across-pages.md`, last paragraph) names col widths, span
-parsing, `rowspan="0"`, row breaks, the header left off, right to left and the border
-resolution, then `bun nv rules --render` and `bun nv rules --check`. Then run the `tables`
-check's command once, and set stage 5 done.
+Stage 6, in item order, tests in the new `extensions/pdf/tests/boxes.rs`. First
+`overflow: hidden` (and `overflow-x`/`overflow-y`): clip a box's content to its padding box
+(`extensions/pdf/src/layout/block.rs:826`, the clip item beside `boxes.rs:1038`), and content
+clipped away adds no page. Then `visibility: hidden` draws nothing and keeps the space, and
+`collapse` on a table row takes no space (`extensions/pdf/src/css/properties.rs:330`; a row's
+`Row` gets a flag the piece list in `Cx::table` skips). Then negative margins
+(`block.rs:766`, `block.rs:911`): collapsing adds the largest positive and the most negative.
+Then check parley 0.12's `StyleProperty` and `AlignmentOptions` in the installed source before
+deciding span-level `white-space`, `line-height` and `text-align-last` (decision 9). Then
+`<ol type>` and `reversed` (`inline.rs:274`), the `subset.json` descriptions, the eight
+`boxes` tests, and one run of the `boxes` check.
 
-Tests that may go red at stage 10: a collapsed-border test in `tables.rs` or `paginate.rs` that
-counts edges will see fewer once borders resolve. A test with a table whose header and footer
+Tests that may go red at stage 10: a collapsed table whose cells and table border are equally
+wide now draws the cells' border on its outer edges, and a collapsed table with only a table
+border now overlaps its cells by that border's width. A collapsed table under
+`box-decoration-break: slice` is closed at each break. A test with a table whose header and footer
 leave less room than its shortest row now sees no header. Also: `crates/nvs-ext/tests/pdf.rs` was not run after images became
 inline boxes; a test there that places an `<img>` in running text and reads its `y` as a block's
 now sees it on the line. Any test asserting an empty `dropped` list with an `@page size`
