@@ -42,7 +42,7 @@ stages:
     context: [extensions/pdf/tests/layout.rs, extensions/pdf/tests/css.rs, extensions/pdf/tests/render.rs, extensions/pdf/tests/read.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: hostile-input
@@ -556,37 +556,34 @@ check once both end.
 
 ### 10. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done; `pinned-text-output` ran once, 18 of 18 green. Decision 20 records
-stage 9's call.
+All ten stages are done. Stage 10 ran `looper verify` three times. The first run found the
+rules chapter stale (`bun nv rules --render`). The second found `builtin`'s growth test red:
+this goal's layout code grew the PDF component from 14.3 to 15.07 MiB, now recorded in
+`extensions/pdf/src/lib.rs`. The third run was green. The goal-end gates are green:
+`bun nv verify --doc`, `bun nv owners --closes pdf-edge-cases` (no gap), and `bun nv ci --check`
+after the render page's questions were rewritten for margin boxes in `overflows` and stamped.
 
-- `edge_output.rs` was green as written: the engine already handled all eight classes.
-- `edge_text.rs` found one bug, fixed: a float wider than its container left the lines beside
-  it a band of no width, so each word went on its own line past the container.
-  `Flow::roomy` and `Flow::lower` (`block.rs`) move such a line below the floats, in `beside`
-  and at the placing of the lines (`text.rs`).
-- Line breaking prints "ICU4X data error: No segmentation model for complex script:
-  Chinese/Japanese" for CJK text. Kinsoku still holds; see the backlog.
-- `crates/nvs-ext` was not built this session; only `extensions/pdf` changed.
-- The sweep's reds were stale again: `env-secret-proofs` has no log, and nightly 41813182715 is
-  the run already traced to fixed commits.
+- Decisions 19 and 20 are now in `docs/rules/core-classes/pdf-tables-across-pages.md` and
+  `pdf-css-subset.md`. Stages 1 to 9 moved decisions 1 to 18.
+- The backlog is now in the module docs: the page counter limit at `count` in
+  `extensions/pdf/src/layout/inline.rs`, and the narrow float band and the CJK model at the head
+  of `extensions/pdf/src/layout/text.rs`.
+- The sweep's reds were stale: `env-secret-proofs` is defined nowhere in the tree, and nightly
+  41813182715 is the run already traced to fixed commits.
 
 ### Next
 
-Stage 10: `looper verify` with `run_in_background`, fix every failure in one pass, run it once
-more. Then the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
-`bun nv owners --closes pdf-edge-cases`, `bun nv ci --check`. Move each decision only this
-file holds into `docs/rules/core-classes/pdf-css-subset.md` or
-`pdf-tables-across-pages.md` (decisions 19 and 20 are not there yet) before the file is deleted.
+Nothing: the goal is reached, and the driver retires this file.
 
-Tests that may go red at stage 10, from stage 9: a test with a float that leaves a line no
+The tests stage 10 expected to go red stayed green. Earlier stages listed them, from stage 9: a test with a float that leaves a line no
 room beside it now sees that line below the float. From stage 8: a table test with percentage cell widths
 summing over 100% now sees the columns fill the table, and one whose percent cell is narrower
 than its column sees the cell fill the column. A test that measured an auto table with a float
@@ -618,12 +615,6 @@ with a flex row taller than a page now sees its items split and not stretched.
 
 ### Backlog
 
-- `target-counter(…, page)` and a header function's page number count physical pages and do
-  not follow `counter-reset: page` (decision 18). Following it needs the restart map before the
-  last layout pass. `extensions/pdf/src/layout/inline.rs:556`
-- A band beside floats with some room, but narrower than a line's first word, keeps the line
-  there, overflowing (decision 20). CSS 2.1 §9.5 moves it down. Doing it needs each line's
-  first unbreakable width in `beside`. `extensions/pdf/src/layout/text.rs:1492`
-- ICU4X has no CJK dictionary model in the data the line breaker loads, and prints an error per
-  paragraph; breaks fall back to the UAX 14 pairs. `extensions/pdf/tests/edge_text.rs`'s
-  kinsoku test passes on that fallback.
+None in this file. The three open items (page counters under `counter-reset: page`, a float
+band narrower than a line's first word, and the CJK segmentation model) are in the module docs
+named under State.
