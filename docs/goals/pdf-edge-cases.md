@@ -38,7 +38,7 @@ stages:
     context: [extensions/pdf/tests/paginate.rs, extensions/pdf/tests/tables.rs]
   - id: 9
     title: "the text, image, CSS and output classes the engine already handles are pinned by tests"
-    status: open
+    status: done
     context: [extensions/pdf/tests/layout.rs, extensions/pdf/tests/css.rs, extensions/pdf/tests/render.rs, extensions/pdf/tests/read.rs]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
@@ -332,6 +332,11 @@ handled but untested.
     narrowest, and beside the next line at the widest. A cell laid out a second time puts back
     the nested boxes the first pass took (`Cx::keep`, `Cx::put_back` in `table.rs`). Cost: a
     copy of a cell's nested boxes' blocks while its table is laid out.
+20. **A line the floats leave no room starts below them**, CSS 2.1 §9.5. `Flow::roomy`
+    (`block.rs`) moves a line's top down to the lowest float bottom it needs, and `beside` and
+    the placing of the lines both use it, so the bands and the positions agree. "No room" is a
+    band of at most `FIT` wide. A band with some room but narrower than the line's first word
+    keeps the line there, overflowing, as before; it is backlogged. Cost: nothing more.
 
 ## Stages
 
@@ -536,18 +541,18 @@ check once both end.
 
 **Split:** two writing subagents side by side, one per file. Neither builds.
 
-- [ ] `extensions/pdf/tests/edge_text.rs:1`, the first ten tests the `pinned-text-output` check names:
+- [x] `extensions/pdf/tests/edge_text.rs:1`, the first ten tests the `pinned-text-output` check names:
   a font listed first draws its digits (`fonts.rs:188`), kinsoku through ICU, `break-word` after an
   inline boundary, `<pre>`'s first newline and leading spaces, an inline-block ending in a space,
   entities, `!important` in a shorthand (`css/mod.rs:602`), `border-box` and percent vertical
   margins, a float wider than its container (`block.rs:669`), and markers past Z and past 3999
   (`inline.rs:301`).
-- [ ] `extensions/pdf/tests/edge_output.rs:1`, the last eight tests: aspect ratio from one dimension,
+- [x] `extensions/pdf/tests/edge_output.rs:1`, the last eight tests: aspect ratio from one dimension,
   CMYK JPEG and 16-bit and interlaced PNG, `cover` and `contain` (`boxes.rs:163`), a wrapped link
   (`text.rs:1097`), one structure element across pages (`write.rs:278`), a merged rotated page
   (`merge.rs:74`), a password with an escaped title (`encrypt.rs:370`), and an invoice XML that
   contains `<?xpacket begin=` (`factur_x.rs:166`).
-- [ ] Run the `pinned-text-output` check's command once: green.
+- [x] Run the `pinned-text-output` check's command once: green.
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -559,30 +564,30 @@ check once both end.
 
 ### State
 
-Stages 1 to 8 are done; `pinned-pagination` ran once, 20 of 20 green. Decision 19 records
-stage 8's calls.
+Stages 1 to 9 are done; `pinned-text-output` ran once, 18 of 18 green. Decision 20 records
+stage 9's call.
 
-- `edge_pagination.rs` was green as written: the engine already handled all thirteen classes.
-- `edge_tables.rs` found three bugs, all fixed. A percent cell: `Cell::percent`, set from
-  `TablePart::Cell` in `inline.rs`, gives `column_ranges` its content's least width
-  (`Cx::least_width` in `flex.rs`), and the table sets such a cell's `fill` so `fit` sizes it
-  to its columns. A float in a cell: `Cx::widest` (`text.rs`) counts `Block::Float` and a text
-  block's `floats`. A nested table: `Cx::keep` and `Cx::put_back` (`table.rs`) restore the
-  nested atoms' `waiting` before a cell is laid out again.
+- `edge_output.rs` was green as written: the engine already handled all eight classes.
+- `edge_text.rs` found one bug, fixed: a float wider than its container left the lines beside
+  it a band of no width, so each word went on its own line past the container.
+  `Flow::roomy` and `Flow::lower` (`block.rs`) move such a line below the floats, in `beside`
+  and at the placing of the lines (`text.rs`).
+- Line breaking prints "ICU4X data error: No segmentation model for complex script:
+  Chinese/Japanese" for CJK text. Kinsoku still holds; see the backlog.
 - `crates/nvs-ext` was not built this session; only `extensions/pdf` changed.
 - The sweep's reds were stale again: `env-secret-proofs` has no log, and nightly 41813182715 is
   the run already traced to fixed commits.
 
 ### Next
 
-Stage 9, by its `**Split:**` line: two writing subagents side by side, one writing
-`extensions/pdf/tests/edge_text.rs` (the first ten `pinned-text-output` tests) and one
-`extensions/pdf/tests/edge_output.rs` (the last eight), each given the helpers at
-`extensions/pdf/tests/paginate.rs:8` and `extensions/pdf/tests/pages.rs:10`. Each may run its
-own file once and report a red test with its cause, never loosening one; the session then fixes
-each cause or backlogs it, and runs the check once. Then stage 10.
+Stage 10: `looper verify` with `run_in_background`, fix every failure in one pass, run it once
+more. Then the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
+`bun nv owners --closes pdf-edge-cases`, `bun nv ci --check`. Move each decision only this
+file holds into `docs/rules/core-classes/pdf-css-subset.md` or
+`pdf-tables-across-pages.md` (decisions 19 and 20 are not there yet) before the file is deleted.
 
-Tests that may go red at stage 10, from stage 8: a table test with percentage cell widths
+Tests that may go red at stage 10, from stage 9: a test with a float that leaves a line no
+room beside it now sees that line below the float. From stage 8: a table test with percentage cell widths
 summing over 100% now sees the columns fill the table, and one whose percent cell is narrower
 than its column sees the cell fill the column. A test that measured an auto table with a float
 in a cell now sees the column wide enough for the float. From stage 7: a test whose `<style media>`, `<link media>`
@@ -616,3 +621,9 @@ with a flex row taller than a page now sees its items split and not stretched.
 - `target-counter(…, page)` and a header function's page number count physical pages and do
   not follow `counter-reset: page` (decision 18). Following it needs the restart map before the
   last layout pass. `extensions/pdf/src/layout/inline.rs:556`
+- A band beside floats with some room, but narrower than a line's first word, keeps the line
+  there, overflowing (decision 20). CSS 2.1 §9.5 moves it down. Doing it needs each line's
+  first unbreakable width in `beside`. `extensions/pdf/src/layout/text.rs:1492`
+- ICU4X has no CJK dictionary model in the data the line breaker loads, and prints an error per
+  paragraph; breaks fall back to the UAX 14 pairs. `extensions/pdf/tests/edge_text.rs`'s
+  kinsoku test passes on that fallback.
