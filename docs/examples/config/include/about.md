@@ -1,13 +1,13 @@
-One configuration split across more than one file: an `[[include]]` entry names another file, or a
-directory of them, and what that file says is read in place.
+Reads more settings from another file, or from every `.toml` file in a folder.
 
-Most deployments have two sets of settings — the ones that belong in version control, and the ones
-that belong to this machine or this environment: a database address, a key, a proxy. An include lets
-the second set live in its own file, and an entry naming a directory reads every `.toml` directly
-inside it in filename order, so dropping a file in is how a host adds its own settings without
-editing anything that is shared. Any file in the tree may set any directive, and where two of them
-say different things the later one wins.
+Use it to keep the settings of one machine apart from the settings you share. For example, the
+shared `nvs.toml` is in version control, and each server adds its database address in its own file.
+A folder is read in filename order, so a server can add a file without changing a shared one.
 
-An entry names a file or a directory, never both, and may say that an absent file is fine.
-Everything else stays strict: a file that exists but cannot be read, cannot be parsed, or could be
-rewritten by an account other than the server's stops the server rather than being quietly skipped.
+Novis reads a file's own settings first, and then the files it includes. When two files set the same
+setting, the file read later wins. So an included file changes the settings of the file that
+includes it, even if the `[[include]]` line is at the top. `nvs config dump --origin` shows which
+file set each value.
+
+**Good to know:** `optional = true` allows a missing file. A file that cannot be read or parsed stops
+the server. So does a file that an account other than the server's could change.
