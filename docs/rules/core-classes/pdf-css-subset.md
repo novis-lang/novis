@@ -45,7 +45,10 @@ running element and an `id` inside a table cell, an inline-block, a float or a f
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width
 (`extensions/pdf/tests/paginate.rs`). A float in the middle of a paragraph is placed at the top of
-its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
+its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). A line
+the floats beside it leave no room starts below them, by CSS 2.1 §9.5, so a float wider than its
+container sits alone on its line; a band with some room but narrower than the line's first word
+keeps the line there, overflowing (`extensions/pdf/tests/edge_text.rs`). An
 absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
 `transform` is the containing block of the absolute boxes inside it
 (`extensions/pdf/tests/layout.rs`). A flex container's `::before` and `::after` and a `<br>` in it

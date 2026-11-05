@@ -38,8 +38,9 @@ break is resolved as the table's own edge, so rule 4 holds for the collapsed mod
 
 Where CSS 2.1 leaves a width open, the table follows browsers. A cell's percentage `width` is
 the widest its column wants, and its content the narrowest, so percentages over 100% shrink
-toward their content and the columns fill the table. A float in a cell counts toward the cell's
-narrowest and widest width. A nested table continues across pages as a tall row's cell does.
+toward their content and the columns fill the table. An absolute cell `width` stays a minimum,
+as CSS 2.1 §17.5.2.2 says, and `table-layout: fixed` keeps widths wider than the table's. A
+float in a cell counts toward the cell's narrowest and widest width. A nested table continues across pages as a tall row's cell does.
 
 - **Memory:** nothing more. A `vertical-align` other than `top` and a group's box each cost one
   more layout pass over the cell or the box, freed when the table is placed. A collapsed table

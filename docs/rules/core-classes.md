@@ -4156,7 +4156,10 @@ running element and an `id` inside a table cell, an inline-block, a float or a f
 page that box draws them on (`extensions/pdf/tests/paginate.rs`). A `:left` or `:right` page of
 another width than the first page of its name lays out its lines at its own width
 (`extensions/pdf/tests/paginate.rs`). A float in the middle of a paragraph is placed at the top of
-its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). An
+its line, or on the next page when it does not fit (`extensions/pdf/tests/paginate.rs`). A line
+the floats beside it leave no room starts below them, by CSS 2.1 §9.5, so a float wider than its
+container sits alone on its line; a band with some room but narrower than the line's first word
+keeps the line there, overflowing (`extensions/pdf/tests/edge_text.rs`). An
 absolute box with `left` and `right` and no `width` fills the room between them, and a box with a
 `transform` is the containing block of the absolute boxes inside it
 (`extensions/pdf/tests/layout.rs`). A flex container's `::before` and `::after` and a `<br>` in it
@@ -4279,9 +4282,17 @@ box on it: `hidden` wins, then the wider border, then `double`, `solid`, `dashed
 then the cell, row, row group, column, column group and table in that order. The edge at a page
 break is resolved as the table's own edge, so rule 4 holds for the collapsed model too.
 
+Where CSS 2.1 leaves a width open, the table follows browsers. A cell's percentage `width` is
+the widest its column wants, and its content the narrowest, so percentages over 100% shrink
+toward their content and the columns fill the table. An absolute cell `width` stays a minimum,
+as CSS 2.1 §17.5.2.2 says, and `table-layout: fixed` keeps widths wider than the table's. A
+float in a cell counts toward the cell's narrowest and widest width. A nested table continues across pages as a tall row's cell does.
+
 - **Memory:** nothing more. A `vertical-align` other than `top` and a group's box each cost one
   more layout pass over the cell or the box, freed when the table is placed. A collapsed table
-  holds one grid slot per row and column and each row's resolved edges while it is laid out.
+  holds one grid slot per row and column and each row's resolved edges while it is laid out. A
+  cell with a nested table or `inline-block` holds a copy of their blocks while its table is laid
+  out, so a second pass over the cell finds them.
 
 **On disk.** `extensions/pdf/src/layout/table.rs` lays a table out by the eight rules, and its
 module doc names what it does not do yet. A closed edge takes its border and padding from each
@@ -4292,7 +4303,9 @@ a body row or a row group starts a new page between two pieces; the header and f
 left off where no row fits with them; and a `direction: rtl` table and flex row run from the
 right (`extensions/pdf/tests/tables.rs`). Collapsed borders resolve one border per edge, at a
 page break and under a repeated header too
-(`collapsed_borders_resolve_by_width_then_style_then_owner`).
+(`collapsed_borders_resolve_by_width_then_style_then_owner`). Percentages over 100%, a float in
+a cell, a nested table across pages and the degenerate tables are pinned in
+`extensions/pdf/tests/edge_tables.rs`.
 
 **Declined:**
 - **A setting per rule.** Each default is the one a document wants; `data-repeat`,

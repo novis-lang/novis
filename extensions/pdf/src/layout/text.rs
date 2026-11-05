@@ -1,5 +1,12 @@
 //! The lines of each text block: shaped and broken by `parley`, aligned, hyphenated at a soft
 //! hyphen, placed in the flow, and written out as glyph runs and decorations.
+//!
+//! A line the floats beside it leave no room starts below them (`Flow::roomy`). Not done
+//! yet: a band with some room but narrower than the line's first word keeps the line there,
+//! overflowing, where CSS 2.1 §9.5 moves it down; doing it needs each line's first unbreakable
+//! width in `beside`. The ICU4X data the line breaker loads has no dictionary model for
+//! Chinese and Japanese, so it prints an error per such paragraph and breaks by the UAX 14
+//! pairs alone, which keep kinsoku.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;

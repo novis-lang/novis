@@ -401,6 +401,9 @@ impl Builder<'_, '_> {
     ///
     /// A `counter-reset` of `page` is recorded whatever the margin boxes read: it restarts the
     /// page numbers at its number, or at 1 when it gives none, on the page the element starts.
+    /// Not done yet: `target-counter(…, page)` and a header function's page number count
+    /// physical pages and do not follow it, since that needs the restart map before the last
+    /// layout pass.
     fn count(&mut self, counters: &Counters, style: Option<&Style>, list_item: bool) {
         let restart = style.map(|s| counter_list(s, "counter-reset", 1));
         for (_, value) in restart.iter().flatten().filter(|(name, _)| name == "page") {

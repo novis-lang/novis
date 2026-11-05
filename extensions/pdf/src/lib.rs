@@ -40,7 +40,7 @@
 //! returns the parsed file as the WIT `reading` resource, which the request holds, and
 //! `read-text` borrows it.
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 14.3 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 15.1 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for PDF,
 //! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
 //! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it, a copy
