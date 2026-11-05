@@ -329,9 +329,11 @@ handled but untested.
     columns. Equal percentages may end a point apart when their content differs. An absolute
     cell `width` stays a minimum, as CSS 2.1 §17.5.2.2 says, and `table-layout: fixed` keeps
     widths past the table's. A float counts toward its cell's width: its margin box at the
-    narrowest, and beside the next line at the widest. A cell laid out a second time puts back
-    the nested boxes the first pass took (`Cx::keep`, `Cx::put_back` in `table.rs`). Cost: a
-    copy of a cell's nested boxes' blocks while its table is laid out.
+    narrowest, and beside the next line at the widest. A table, a caption and a flex container
+    copy their own cells' and items' blocks and leave them waiting, so a cell laid out a second
+    time lays its nested boxes out whole. A snapshot of every nested level at each level ran
+    the nested-tables attack out of memory. Cost: a copy of one level's blocks while it is laid
+    out.
 20. **A line the floats leave no room starts below them**, CSS 2.1 §9.5. `Flow::roomy`
     (`block.rs`) moves a line's top down to the lowest float bottom it needs, and `beside` and
     the placing of the lines both use it, so the bands and the positions agree. "No room" is a
@@ -578,6 +580,13 @@ after the render page's questions were rewritten for margin boxes in `overflows`
   of `extensions/pdf/src/layout/text.rs`.
 - The sweep's reds were stale: `env-secret-proofs` is defined nowhere in the tree, and nightly
   41813182715 is the run already traced to fixed commits.
+- The first DONE was refused on `floor-debt`. The attack
+  `tests/hostile/novis/Pdf-Document/fromHtml/01-html-nested-and-broken.nvs` stopped at step 2
+  (2000 nested tables) with the component's memory used up. Stage 8's `Cx::keep` copied every
+  nested level's blocks at each level. A table, a caption and a flex container now copy only
+  their own blocks and leave them waiting (decision 19), and
+  `tables_nested_past_the_depth_bound_return_an_error` in `extensions/pdf/tests/hostile_input.rs`
+  pins the error. The attack runs all eight steps on the debug binary.
 
 ### Next
 
