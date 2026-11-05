@@ -339,7 +339,11 @@
 //! * `Core\Json::encode`: the value, plus twice the document, since the chunks
 //!   are joined once into a `string`.
 //! * `Core\Request::jsonAs` and `Core\Json::decodeAs`: the body once, plus the
-//!   objects built, plus a scratch that grows with the nesting depth.
+//!   objects built, plus a scratch that grows with the nesting depth. Reading
+//!   a body over 64 KiB peaks under twice its size during the buffer's last
+//!   growth. A peer can declare a length it never sends, so only a short
+//!   declared length is reserved before the bytes arrive (`request`'s
+//!   `pull_whole`).
 //!
 //! A faster parser than serde_json is a goal of its own, and only once
 //! serde_json's own parse is over half a member's time at 1 MiB or more and that

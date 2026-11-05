@@ -1993,9 +1993,11 @@ pub trait RequestBody {
     /// The length the body declared before its first byte, such as its
     /// `Content-Length`, or `None` where it declared none.
     ///
-    /// A reader that keeps the whole body checks it against its cap and
-    /// allocates one buffer of that length, so the body is never copied as it
-    /// grows. The supplier ends the body at that length, or fails it short of
+    /// A reader that keeps the whole body checks it against its cap before it
+    /// reads a byte. It ends its buffer's growth at that length, so the body is
+    /// held with no spare room. It reserves the length before the bytes arrive
+    /// only while it is small, because a peer can declare a length it never
+    /// sends. The supplier ends the body at that length, or fails it short of
     /// it, so the buffer never grows past it.
     fn declared_len(&self) -> Option<u64> {
         None

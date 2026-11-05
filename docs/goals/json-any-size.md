@@ -70,7 +70,8 @@ Known suspects, each fixed only if the ladder shows it:
    - `Core\Response::json`: the value, plus the document, plus one chunk.
    - `Core\Json::encode`: the value, plus twice the document.
    - `Core\Request::jsonAs` and `Core\Json::decodeAs`: the body once, plus the objects built, plus a
-     scratch that grows with the nesting depth and not with the size.
+     scratch that grows with the nesting depth and not with the size. Reading a body over 64 KiB
+     peaks under twice its size during the buffer's last growth (decision 10).
 2. **The shapes:** a wide array of small objects, one object with many keys, long strings (ASCII,
    escape-heavy and non-ASCII), many integers, many floats, and deep nesting. The sizes: 1 KiB,
    64 KiB, 1 MiB, 8 MiB and 32 MiB. `Core\Request::jsonAs` stops at 8 MiB, the default request body
@@ -81,8 +82,9 @@ Known suspects, each fixed only if the ladder shows it:
    (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`). A document under one
    chunk still goes through `json-one-pass`'s `write_body_owned`. Safe default, if the body cannot take
    a chunk list: grow the one buffer by 1.5 times instead of 2.
-4. **A body with a known length is read into one buffer of that length,** checked against
-   `[limits] request_body` before the allocation. A body without a length keeps today's growth.
+4. **A body with a known length ends in one buffer of that length,** checked against
+   `[limits] request_body` before a byte is read. Decision 10 says when the length is reserved. A
+   body without a length keeps today's growth.
 5. **No new parser in this goal.** serde_json's own time is measured beside each rung: a Rust bench
    parses the same bytes into `serde_json::Value`. If a member meets decision 1 and its own work is
    at most three times serde_json's, it is reasonable. A new parser (SIMD or not) is a separate goal,
@@ -105,6 +107,15 @@ Known suspects, each fixed only if the ladder shows it:
    allocations and peak per byte. Thirty ladder files, one per member and shape, were declined: the
    shape changes the parse and the encoder, which the Rust bench measures directly, and not what
    the members add.
+10. **A declared length is reserved up front only up to 64 KiB.** Decided at the gate, on Security
+    and request isolation. Reserving the whole `Content-Length` let a peer declare 8 MiB, send one
+    byte, and take 8 MiB of its core's admission gauge
+    (`rule:http-server/admission-is-arithmetic-not-a-number`), so a few such peers refused every
+    honest request. Past 64 KiB the buffer doubles as bytes arrive, and its last growth is exactly
+    the declared length. The body is still held once with no spare room. A read peaks under twice
+    the body during that growth, and a false length costs at most twice what arrived.
+    `request::tests::json::a_decoded_body_of_any_size_is_held_once` pins both. Declined: any
+    reservation from the header alone above 64 KiB, which spends request isolation to save one copy.
 
 ## Stages
 
@@ -211,9 +222,19 @@ because the three-times peak follows from how the buffer grows.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+  - [x] One red: `script::tests::a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile`
+    counted reader answers inside one compile, which depends on thread scheduling under load.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+  - [x] The test holds the cache's write lock, so the edit's compile stays in flight until every
+    reader is answered twice more. It waits on events, not on scheduling.
+- [x] Run `looper verify` once more, and it is green.
+- [ ] The goal-end gates: `bun nv verify --doc` and `bun nv owners --closes json-any-size` are green.
+  `bun nv ci --check` is red on 86 stale perf records only.
+  - [x] Decision 10: a body read reserves a declared length only up to 64 KiB. Found at the gate,
+    where `request.rs`'s doc still argued against the reservation decision 4 built.
+  - [ ] `looper verify` once more, over decision 10's change.
+  - [ ] Record the stale perf groups again, then `bun nv ci --check` is green.
 
 ## Handoff
 

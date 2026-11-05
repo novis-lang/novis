@@ -2970,12 +2970,12 @@ nvs_runtime::nvs_helper! {
     /// about memory already spent, which `rule:http-server/request-body-and-upload-total-are-two-caps` argues is not a bound at
     /// all.
     ///
-    /// **Nothing is reserved from `Content-Length`.** The obvious shape reads
-    /// the declared length and allocates it up front, and it hands a peer a line
-    /// of its own: a request declaring 8M and sending one byte would cost the
-    /// whole cap, per in-flight request, for nothing. So the buffer grows by
-    /// doubling against bytes that actually arrived, and a lie costs what it
-    /// delivers.
+    /// **`Content-Length` is trusted up front only up to 64 KiB.** A request
+    /// declaring 8M and sending one byte would otherwise cost the whole cap,
+    /// per in-flight request, for nothing. Past 64 KiB the buffer grows by
+    /// doubling against bytes that actually arrived, and its last growth is
+    /// the declared length, so the body is held once with no spare room. A
+    /// lie costs at most twice what it delivers ([`pull_whole`]).
     ///
     /// **It answers the same octets on every call**, and on a call following
     /// any other buffering reader: the first pull holds the body on the request
@@ -3401,6 +3401,11 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
     Err(fault)
 }
 
+/// The largest declared body length [`pull_whole`] reserves before the bytes
+/// arrive. It is the size of one response chunk, in line with what a
+/// connection's own buffers already hold.
+const TRUSTED_UP_FRONT: usize = 64 * 1024;
+
 /// [`whole_body`]'s loop, returning a failure as its class and its message
 /// without the member's name, which is what the request keeps.
 fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass, String)> {
@@ -3419,20 +3424,24 @@ fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass
             ),
         )
     };
-    // A body that declared its length is read into one buffer of that length,
-    // checked against the cap before it is allocated, so the body is held once
-    // and never copied as it grows. A body that declared none grows by
-    // doubling. A length the budget cannot afford is not reserved, and the
-    // growth meets the ceiling as it would without one.
-    // **What it spends:** nothing more. It saves the growth's copies and the
-    // spare room a doubling leaves, up to the body's own size.
-    if let Some(declared) = body.declared_len() {
-        let declared = usize::try_from(declared).unwrap_or(usize::MAX);
+    // A declared length past the cap is refused before a byte is read. A
+    // declared length is trusted up front only up to `TRUSTED_UP_FRONT`: a
+    // peer can declare 8 MiB and send one byte, and admission counts what a
+    // request holds against its core, so a reservation from the header alone
+    // would let a few such peers refuse every honest request. Past it, the
+    // buffer doubles as bytes arrive, and its last growth is exactly the
+    // declared length, so the body is held once with no spare room.
+    // **What it spends:** a body over 64 KiB peaks under twice its size during
+    // its last growth. A false length costs at most twice what arrived.
+    let declared = body
+        .declared_len()
+        .map(|declared| usize::try_from(declared).unwrap_or(usize::MAX));
+    if let Some(declared) = declared {
         if declared > cap {
             // Asserted by `a_declared_length_past_the_cap_is_refused_before_a_byte_is_read`.
             return Err(over_cap());
         }
-        if nvs_runtime::budget::affords(declared) {
+        if declared <= TRUSTED_UP_FRONT && nvs_runtime::budget::affords(declared) {
             whole.reserve_exact(declared);
         }
     }
@@ -3440,13 +3449,21 @@ fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass
         match body.next_chunk() {
             Ok(None) => return Ok(whole),
             Ok(Some(chunk)) => {
-                if whole.len().saturating_add(chunk.len()) > cap {
+                let needed = whole.len().saturating_add(chunk.len());
+                if needed > cap {
                     // No case can reach this: a `.nvst` program answers no
                     // request, so it has no body to send over the bound.
                     // Asserted by
                     // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
                     // below, on both sides of the bound.
                     return Err(over_cap());
+                }
+                if needed > whole.capacity() {
+                    let mut target = needed.max(whole.capacity().saturating_mul(2)).min(cap);
+                    if let Some(declared) = declared.filter(|&declared| declared >= needed) {
+                        target = target.min(declared);
+                    }
+                    whole.reserve_exact(target - whole.len());
                 }
                 whole.extend_from_slice(chunk);
             }
@@ -5426,13 +5443,14 @@ mod tests {
         }
     }
 
-    /// `Core\Request::json` from 64 KiB to near 8 MiB holds the body once. A
-    /// body that declared its length is read into one buffer of that length, so
-    /// the request's peak is the body, plus what the parse builds, which a parse
-    /// of the same text alone measures. Each body is just past a power of two,
-    /// where a buffer grown by doubling would be nearly twice the body. The
-    /// test's name is the `size-bounds` check's, and the module path keeps
-    /// `json::` in it.
+    /// `Core\Request::json` from 64 KiB to near 8 MiB holds the body once. The
+    /// buffer's last growth is the declared length, so a read peaks under twice
+    /// the body, and the request's peak is that or the body plus what the parse
+    /// builds, which a parse of the same text alone measures. Each body is just
+    /// past a power of two, where a buffer grown by doubling alone would hold
+    /// nearly twice the body to the end. A body that declares 8 MiB and sends
+    /// 1 KiB costs at most twice what it sent. The test's name is the
+    /// `size-bounds` check's, and the module path keeps `json::` in it.
     mod json {
         use super::*;
 
@@ -5464,18 +5482,29 @@ mod tests {
                 }
                 drop(ctx);
                 assert_eq!(body, text.len(), "{size}: the whole body is held");
-                let once = body + 4096;
+                let twice = 2 * body + 4096;
                 assert!(
-                    read <= once,
-                    "{size}: reading a body of {body} bytes peaked at {read}, past {once}"
+                    read < twice,
+                    "{size}: reading a body of {body} bytes peaked at {read}, past {twice}"
                 );
-                let bound = body + parse + 4096;
+                let bound = read.max(body + parse) + 4096;
                 assert!(
                     peak <= bound,
                     "{size}: the request peaked at {peak} bytes for a body of {body} and a \
                      parse of {parse}, past {bound}"
                 );
             }
+
+            // A peer declares 8 MiB and sends 1 KiB. The read costs what
+            // arrived, not what the peer declared.
+            let sent = [0_u8; 1024];
+            let mut liar = answering(Some(Chunks::declaring(&[&sent[..]], 8 << 20)));
+            let _ = super::super::held_octets(&mut liar, "json");
+            let cost = liar.memory_peak();
+            assert!(
+                cost <= 2 * sent.len() + 4096,
+                "a body declaring 8 MiB and sending 1 KiB peaked at {cost} bytes"
+            );
         }
     }
 
