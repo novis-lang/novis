@@ -683,8 +683,10 @@ fn step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Json::decodeEach<T>($source, string $at = '', { lines?: bool,
-    /// maxDepth?: uint }): Iterable<T>`.
+    /// `Core\Json::decodeEach<T>(Core\Bytes::Source|Core\Bytes::Chunks $source,
+    /// string $at = '', { lines?: bool, maxDepth?: uint }): Iterable<T>`. The
+    /// source is `bytes`, a file, a part, a body stream or chunks, read forward
+    /// one chunk at a time.
     ///
     /// Slots 0 to 2 are `registry::WRITTEN_CLASS_MEMBERS`' block, as
     /// `decodeAs`'s are. A zero word in slot 0 is `mixed`: each element is

@@ -498,7 +498,9 @@ fn text_of<'a>(args: &'a [Value], slot: usize, what: &str, member: &str) -> Resu
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Storage::put(string $disk, string $key, bytes $contents, { overwrite?: bool }): void` —
+    /// `Core\Storage::put(string $disk, string $key, Core\Bytes::Source|Core\Bytes::Chunks $contents,
+    /// { overwrite?: bool }): void` — `bytes`, a file, a part, a body stream or chunks, written
+    /// as they are read —
     /// `rule:programs/framework-core-half`'s object storage, writing half.
     ///
     /// The door decides the capability and this decides nothing: the path is

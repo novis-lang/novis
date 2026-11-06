@@ -19,7 +19,11 @@
 //! streaming one answer different questions, so they are two surfaces stated as
 //! two and never one member with a mode. [`CLASS`]'s first pair is the
 //! whole-buffer group, which is every row of the migration table's *whole
-//! buffer* group; [`COMPRESSOR`] and [`DECOMPRESSOR`] are the incremental one —
+//! buffer* group. Each of the two also takes a source the program holds — a
+//! file, a part, a body stream or a walk of chunks — and reads it forward one
+//! chunk at a time, so a large file is passed straight in and never held whole
+//! as input. [`COMPRESSOR`] and [`DECOMPRESSOR`] are the incremental one, for
+//! data the program makes one piece at a time —
 //! `deflate_init`/`deflate_add` and `inflate_init`/`inflate_add` — and the
 //! section below is what they are and what they cost.
 //!
@@ -171,11 +175,12 @@ const CODEC_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `bytes|string` — what [`nvs_core_compress_compress`] takes, for
-/// [`crate::hash`]'s reason: a `string` is valid UTF-8 and therefore already a
-/// valid byte sequence, so one reader covers both tags without copying.
+/// `bytes|string` — what `$compressor->add` takes, and the two arms
+/// [`nvs_core_compress_compress`] reads where they are, for [`crate::hash`]'s
+/// reason: a `string` is valid UTF-8 and therefore already a valid byte
+/// sequence, so one reader covers both tags without copying.
 ///
-/// `decompress` deliberately does **not** take this union. Its subject is a
+/// `decompress` deliberately does **not** take the `string` arm. Its subject is a
 /// compressed frame, which is never text, and admitting `string` there would
 /// invite a program to hand it a `string` it had already lost the octets of.
 ///
@@ -827,9 +832,10 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
 /// [`POLL_EVERY`] octets of input. A passed deadline is the CPU or wall-time
 /// `FATAL`, naming `member`.
 ///
-/// Every backend here is driven whole rather than incrementally, which is what
-/// this module's *whole buffer* half means: the input is already a value the
-/// request holds, so there is no window to stream over that would hold less.
+/// Every backend here is driven whole rather than incrementally, for a
+/// `bytes` or `string` argument: the input is already a value the request
+/// holds, so there is no window to stream over that would hold less. Any other
+/// source goes through [`encode_source`] instead.
 pub(crate) fn compress_polled(
     ctx: &Ctx,
     codec: Codec,
@@ -1320,8 +1326,9 @@ fn built(codec: Codec, source: Box<dyn Read>, member: &str) -> Result<Box<dyn Re
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Compress::compress(bytes|string $data, Codec $codec): bytes` —
-    /// replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode`.
+    /// `Core\Compress::compress(Core\Bytes::Source|string|Core\Bytes::Chunks $data, Codec $codec): bytes`
+    /// — a file, a part, a body stream or chunks read forward one chunk at a
+    /// time — replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode`.
     ///
     /// Total for every input and every case, which is why the card carries no
     /// errors: a compressor's output is bounded by its input, so there is
@@ -1339,8 +1346,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Compress::decompress(bytes $data, Codec $codec, uint $maxBytes = 67108864,
-    /// uint $maxRatio = 1000): bytes` — replacing `gzdecode`, `gzuncompress`,
+    /// `Core\Compress::decompress(Core\Bytes::Source|Core\Bytes::Chunks $data, Codec $codec,
+    /// uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` — replacing `gzdecode`, `gzuncompress`,
     /// `gzinflate` and `zlib_decode`, and their optional-and-unlimited
     /// `$max_length` with a bound that is neither.
     ///

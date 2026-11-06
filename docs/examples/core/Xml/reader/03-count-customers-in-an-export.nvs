@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to count records in a large XML export without building a tree.
 
-// This builds an export of 10000 customers. In a real program, it comes from a file or a partner system.
+// The program writes an export of 10000 customers to a file first, so that it has one to read.
 array<string> $rows = [];
 int $i = 0;
 while ($i < 10000) {
@@ -9,10 +9,13 @@ while ($i < 10000) {
     $rows[] = "<customer id=\"" . $i as string . "\" country=\"" . $country . "\"/>";
     $i = $i + 1;
 }
-string $export = '<customers>' . Core\Str::join($rows, '') . '</customers>';
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'customers.xml');
+Core\IO::write($path, '<customers>' . Core\Str::join($rows, '') . '</customers>');
 
-// The reader keeps only the current node, so the memory it uses stays small.
-Core\Xml\Reader $reader = Core\Xml::reader($export);
+// The reader reads the open file one piece at a time and keeps only the
+// current node. So the memory it uses stays small for a file of any size.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+Core\Xml\Reader $reader = Core\Xml::reader($file);
 int $austria = 0;
 while (true) {
     ?Core\Xml\Node $node = $reader->read();
@@ -23,6 +26,7 @@ while (true) {
         $austria = $austria + 1;
     }
 }
+$file->close();
 
 // Every fourth customer is from Austria, so this prints 2500.
 echo 'customers in AT: ', $austria, "\n";

@@ -1,14 +1,18 @@
 ---
-summary: digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name
-keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison
+summary: digests and HMACs of text, bytes, a file, an upload or the request body, returned as raw `bytes`. The algorithm is an argument
+keywords: hash, md5, sha1, sha256, crc32, digest, HMAC, checksum, fingerprint, constant-time comparison, hash a file, file checksum
 ---
 
-`Core\Hash::of` computes any `Core\Hash::Digest` case over a `string` or `bytes` and answers the raw
-digest as `bytes` — never hex and never an `int` — so printing one goes through
-`Core\Encoding::toHex`. `hmac` takes only the strong cases: `Core\Hash::Digest::Md5`, `Sha1`, `Crc32`,
-`Crc32c` and `Blake3` are compile errors there, while `of` accepts every case for checksum interop.
-Compare two digests with `equals`, which runs in constant time. Input that arrives in pieces goes
-through `stream`, which opens a `Core\Hash\Stream`.
+`Core\Hash::of` computes a digest with any `Core\Hash::Digest` case. `Core\Hash::hmac` computes a
+signature with a secret key. Both take a `string`, `bytes`, an open file, an uploaded file,
+`Core\Request::bodyStream()`, or a list or loop that gives `bytes` pieces. A file is read from its
+first byte, one piece at a time. So a large file is never in memory as a whole.
+
+The result is the raw digest as `bytes`. It is not hex and not an `int`. To print it, convert it with
+`Core\Encoding::toHex`. `hmac` takes only the strong algorithms. `Core\Hash::Digest::Md5`, `Sha1`,
+`Crc32`, `Crc32c` and `Blake3` do not compile there. `of` takes every case, so you can check
+checksums from older systems. `equals` compares two digests in constant time. For data your program
+makes one piece at a time, `stream` opens a `Core\Hash\Stream`.
 
 ```nvs
 <?nvs

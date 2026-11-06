@@ -18,7 +18,8 @@ Each property is checked against its type. Only a property with a `?` type, such
 
 `Core\Json::encodeEach` and `Core\Json::decodeEach` work on a long list one element at a time. The
 whole document is never in memory at once. `encodeEach` returns a `Core\Json\Pieces`: the JSON text
-in pieces of bytes. `decodeEach<T>` reads a file or a stream of bytes and returns a
+in pieces of bytes. `decodeEach<T>` reads an open file, an uploaded file,
+`Core\Request::bodyStream()`, `bytes`, or a list or loop that gives `bytes` pieces. It returns a
 `Core\Json\Elements<T>`. You read both with a `foreach` loop. Set `lines` to `true` to write or read
 JSON Lines, with one value on each line.
 

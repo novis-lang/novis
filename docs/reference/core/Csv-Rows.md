@@ -3,21 +3,24 @@ summary: the records of a CSV file, which `Core\Csv::rows` returns. You read the
 keywords: read CSV file, large CSV file, CSV line by line, stream CSV, CSV records, CSV header, import CSV, low memory
 ---
 
-`Core\Csv\Rows` contains the records of a CSV file. `Core\Csv::rows` returns it. It needs a file that
-`Core\IO::open` opened for reading. The class has no methods. You read it with a `foreach` loop.
+`Core\Csv\Rows` contains the records of a CSV file. `Core\Csv::rows` returns it. It reads an open
+`Core\IO\File`, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or loop that gives
+`bytes` pieces. The class has no methods. You read it with a `foreach` loop.
 
 Each item is one record, as an `array<string>`. The keys are the column numbers, starting at `0`. With
 `{ header: true }`, the first record gives the column names, and the keys are these names. The header
 is not one of the items.
 
 The file is read while the loop runs, and only one record is in memory at a time. So a file larger
-than your memory limit still works. Reading starts at the current position of the file. You can read
-the records only once. A second loop continues after the last record the first loop read. After the
+than your memory limit still works. A file is read from its first byte. You can read the records only
+once. A second loop continues after the last record the first loop read. After the
 last record, a loop gives no items.
 
 `rows` throws a `RuntimeError` when an option is not valid, such as `{ separator: ';;' }`. The loop throws a
 `RuntimeError` when the file is closed, and an `IOError` when the operating system cannot read it. It
-throws a `ParseError` when a field is not valid UTF-8 text. `rows` does not close the file. Call
+throws a `ParseError` when a field is not valid UTF-8 text. For a file in another charset, set
+`charset`, such as `Core\Charset::Windows1252`. A UTF-8 or UTF-16 byte order mark at the start sets the
+charset for you. `rows` does not close the file. Call
 `close()` on the file when the loop is done.
 
 ```csv file=orders.csv

@@ -29,7 +29,9 @@
 //! copy, since a retained `NvsStr` is the caller's own buffer, but a program
 //! that streams a file to keep its memory flat does not get that here: the
 //! footprint is the total fed, charged to the request, and released at `finish`
-//! or when the stream itself is. That is memory footprint spent to buy
+//! or when the stream itself is. A file, a part or a body stream does not need
+//! this class: `of` and `hmac` take it directly and read it one chunk at a
+//! time. That is memory footprint spent to buy
 //! simplicity, and it is *observably* `hash_init`/`update`/`final` either way —
 //! which is what keeps the choice cheap to reverse. When a runtime tag owns a
 //! native object with a release hook, this class's three slots become that
@@ -301,12 +303,12 @@ const STRONG: &[CoreTy] = &[
     CoreTy::EnumCase(DIGEST_NAME, "Sha3_512"),
 ];
 
-/// `bytes|string` — what both hashing members take, and the reason neither has
-/// a text-flavoured twin.
+/// `bytes|string` — what `$stream->update` takes, the two in-memory arms of
+/// [`SOURCE`], and the reason no hashing member has a text-flavoured twin.
 ///
 /// Total in one direction and free (`rule:types/conversion`): a `string` is valid UTF-8 and therefore already a valid byte
-/// sequence, so [`data_of`] reads the same buffer either tag points at without
-/// copying or validating anything.
+/// sequence, so [`data_of`] and [`octets_of`] read the same buffer either tag
+/// points at without copying or validating anything.
 ///
 /// Both arms are [`Qual::Neutral`], as the data parameter is for all three
 /// members: hashing reads the bytes and executes none of them, so a `tainted`
@@ -691,8 +693,8 @@ fn octets_of(value: &Value) -> Option<&[u8]> {
     value.as_bytes().or_else(|| value.as_str_bytes())
 }
 
-/// The `bytes|string` in slot `index` as the octets to hash — see [`DATA`] for
-/// why one reader covers both tags.
+/// The `bytes|string` in slot `index` as the octets `$stream->update` keeps —
+/// see [`DATA`] for why one reader covers both tags.
 ///
 /// # Errors
 ///
@@ -1009,7 +1011,8 @@ pub(crate) fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Hash::of(bytes|string $data, Digest $digest): bytes` — replacing
+    /// `Core\Hash::of(Core\Bytes::Source|string|Core\Bytes::Chunks $data, Digest $digest): bytes`
+    /// — a file, a part, a body stream or chunks read forward in pieces — replacing
     /// `hash`, `md5`, `sha1`, `crc32` and `openssl_digest` at once.
     ///
     /// Total. Every one of [`DIGEST`]'s fifteen accepts every input, so there is
@@ -1033,8 +1036,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Hash::hmac(bytes|string $data, secret bytes $key, StrongDigest $digest): bytes`
-    /// — replacing `hash_hmac`, minus its `raw_output` flag and minus every
+    /// `Core\Hash::hmac(Core\Bytes::Source|string|Core\Bytes::Chunks $data, secret bytes $key, StrongDigest $digest): bytes`
+    /// — the data read forward in pieces as `of` reads it — replacing `hash_hmac`, minus its `raw_output` flag and minus every
     /// algorithm that has no business authenticating anything ([`STRONG`]).
     ///
     /// The key is read and never held: it is borrowed out of the argument

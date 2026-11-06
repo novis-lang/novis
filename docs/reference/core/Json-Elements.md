@@ -4,8 +4,9 @@ keywords: large JSON file, stream JSON, read JSON array, JSON element by element
 ---
 
 `Core\Json\Elements<T>` contains the elements of a JSON array. `Core\Json::decodeEach<T>` returns it.
-It reads an open `Core\IO\File` or a stream of bytes, such as `Core\Request::bodyStream()`. The class
-has no methods. You read it with a `foreach` loop.
+It reads an open `Core\IO\File`, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or
+loop that gives `bytes` pieces. A file is read from its first byte. The class has no methods. You read
+it with a `foreach` loop.
 
 Each item is one element, as a `T`. `T` can be a class with the `#[Core\Json\Derive]` attribute, a shape
 such as `{ name: string, age: int }`, or `mixed`. Each element is checked against `T`. When `T` is

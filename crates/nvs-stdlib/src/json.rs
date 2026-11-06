@@ -608,8 +608,9 @@ const DECODE_EACH_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "source",
-            desc: "The JSON to read. It is an open `Core\\IO\\File`, read from its current \
-                   position, or chunks of bytes such as `Core\\Request::bodyStream()`.",
+            desc: "The JSON to read. It is `bytes`, an open `Core\\IO\\File`, an uploaded \
+                   `Core\\Request\\Part`, `Core\\Request::bodyStream()`, or a list or loop of \
+                   `bytes` pieces. A file is read from its first byte.",
             shape: &[],
         },
         ParamDoc {

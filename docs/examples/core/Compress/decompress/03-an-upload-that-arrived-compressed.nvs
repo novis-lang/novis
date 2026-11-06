@@ -2,7 +2,8 @@
 // Shows what a program does with an upload that arrived compressed. Whoever
 // sent it chose its size, so the call says how much it is willing to unpack.
 
-// In a real program these bytes are the request body.
+// These bytes replace the upload. In a web request, you pass
+// `Core\Request::bodyStream()` in their place, and it is read in pieces.
 string $rows = Core\Str::repeat("1042,Berlin,39.90\n", 200);
 bytes $upload = Core\Compress::compress($rows, Core\Compress::Codec::Gzip);
 

@@ -2,14 +2,20 @@
 // A publisher gives a SHA-256 checksum with a file. This program checks that the
 // downloaded file has the same checksum. Always use the algorithm the publisher names.
 
-// This string replaces the contents of the downloaded file.
-string $downloaded = 'the release archive';
+// The program writes the file first, so that it has a download to check.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'release.tar');
+Core\IO::write($path, 'the release archive');
 
 // The checksum as the publisher wrote it. A checksum is usually written as hex,
 // so `Core\Encoding::fromHex` converts it to bytes below.
 string $published = '9287352f960eca8487b5cf180199b11a82306e1e6fff02b566d48a229a8ebe32';
 
-bytes $ours = Core\Hash::of($downloaded, Core\Hash::Digest::Sha256);
+// `Core\Hash::of` reads the open file one piece at a time.
+// A download of any size needs only a small amount of memory.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+bytes $ours = Core\Hash::of($file, Core\Hash::Digest::Sha256);
+$file->close();
+
 bytes $theirs = Core\Encoding::fromHex($published);
 
 if (Core\Hash::equals($ours, $theirs)) {

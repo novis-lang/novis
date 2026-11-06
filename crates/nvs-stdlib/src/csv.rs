@@ -123,13 +123,17 @@
 //! meet a value twice, and a value that is not a field is refused where it
 //! sits rather than descended into.
 //!
-//! # `rows` walks an open handle, and holds one record
+//! # `rows` walks a source, and holds one record
 //!
 //! [`nvs_core_csv_rows`] takes the same dialect and the same `{ header: true }`
-//! as `parse` and answers a [`ROWS`] the program walks with `foreach`. What it
-//! reads is a `Core\IO\File` — the descriptor stays in the request's own table
-//! where `Core\IO::open` filed it, so this member opens nothing, asks for no
-//! capability of its own, and leaves `$file->tell()` where the walk has got to.
+//! as `parse`, plus `charset`, and answers a [`ROWS`] the program walks with
+//! `foreach`. What it reads is any `Core\Bytes::Source` or `Core\Bytes::Chunks`
+//! — `bytes`, a `Core\IO\File`, an upload's part, the body stream or a walk of
+//! chunks — through [`crate::byte_source`]. A file's descriptor stays in the
+//! request's own table where `Core\IO::open` filed it, so this member opens
+//! nothing and asks for no capability of its own. A file is read from its
+//! first byte, whatever `$file->tell()` was, and the walk leaves the position
+//! at the end of what it read ([`crate::byte_source`] owns why).
 //! A record is keyed exactly as `parse` keys one, ragged rows and repeated
 //! column names included, because [`row`] is the one function that decides so.
 //!
@@ -150,15 +154,15 @@
 //! is worse still — it would be a second door onto the filesystem beside
 //! `Core\IO::open`, and `rule:security/capability-check-at-the-door` has one.
 //! So the member takes the handle and **neither opens nor closes it**: it
-//! reads forward and leaves the position where it got to, which is the whole
-//! of what it does to something it does not own.
+//! reads forward from the file's start, which is the whole of what it does to
+//! something it does not own.
 //!
 //! **A walk is taken once.** Each `advance()` reads forward, so the walk ends
 //! where the file does and a second `foreach` over the same value answers no
 //! records — the difference from `Core\IO::lines`, which holds a list it can
 //! hand out again, and the difference that buys the footprint below. A program
-//! that wants the document twice asks `$file->seek(0)` for a second walk or
-//! reads it with `parse`.
+//! that wants a file twice calls `rows` on it a second time, which reads from
+//! the first byte again; a body stream or a walk of chunks can be read once.
 //!
 //! The parse state a record boundary cannot live without — `csv-core`'s DFA,
 //! the chunk last read, the field in progress — is native, so it is parked on
@@ -789,7 +793,7 @@ nvs_runtime::nvs_helper! {
     /// The document is a `string` and already UTF-8. The reader cuts it only
     /// at the three dialect bytes and takes out only quote and escape bytes,
     /// and [`dialect_byte`] makes each one ASCII, which no multi-byte sequence
-    /// contains. [`nvs_core_csv_rows`] reads a file's bytes, so it checks.
+    /// contains. [`nvs_core_csv_rows`] reads bytes from a source, so it checks.
     ///
     /// [`over_memory`]'s `FATAL` where the rows need more than the request's
     /// memory limit. Each field, row and record asks the budget before it
@@ -1503,7 +1507,8 @@ nvs_runtime::nvs_helper! {
     /// first `advance()`, and a program that names a walk and never takes it
     /// has read nothing. This module's docs own what the walk holds, why it is
     /// taken once, and why it needs no capability of its own: a file's door is
-    /// `Core\IO::open`'s and this handle has been through it.
+    /// `Core\IO::open`'s and this handle has been through it, and every other
+    /// source is bytes the request already holds or reads.
     ///
     /// # Errors
     ///

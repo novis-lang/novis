@@ -1,15 +1,16 @@
-Reads a CSV file one record at a time, so the whole file never has to be in memory.
+Reads CSV data one record at a time, so the whole file never has to be in memory.
 
-`Core\Csv::rows` takes a file that `Core\IO::open` has opened for reading. You read the result with
-a `foreach` loop, and every step gives you one record as an array of text fields. Only one record is
-kept at a time, so a file larger than the memory your program has still reads.
+`Core\Csv::rows` reads from an open file, an uploaded file, `Core\Request::bodyStream()`, `bytes`,
+or a list or loop that gives `bytes` pieces. Pass the file or the upload directly. Do not read it
+into a variable first. You read the result with a `foreach` loop, and each step gives you one record
+as an array of text fields. Only one record is kept at a time.
 
-Reading starts at the position the file is already at, and the result can be read only once. Set
-`header` to `true` and the first record becomes the column names. Every record after it is keyed by
-those names, and the header is not one of the records you read.
+A file is read from its first byte. You can loop over the result only once. Set `header` to `true`
+and the first record gives the column names. Every record after it uses those names as keys.
 
-The `separator`, `quote` and `escape` options read a file written with other characters, and are
-the three `Core\Csv::parse` reads.
+The `separator`, `quote` and `escape` options are the same as for `Core\Csv::parse`. Set `charset`
+for a file that is not UTF-8, such as `Core\Charset::Windows1252`. A byte order mark at the start
+sets the charset for you.
 
-**Good to know:** the file stays yours. `Core\Csv::rows` opens nothing and closes nothing, so close
-the handle yourself when you are finished with it.
+**Good to know:** `Core\Csv::rows` does not open or close a file. Close it yourself when the loop is
+done.

@@ -1,22 +1,18 @@
 <?nvs
-// Shows how a program compresses a large file: it adds one block at a time as
-// it reads them, instead of building the whole file as one piece first.
-
-bytes $log = Core\Str::repeat("2026-03-04 12:00:01 GET /orders 200\n", 400) as bytes;
-int $size = Core\Bytes::length($log) as int;
-int $block = 8192;
+// Shows how a program compresses a report while it writes it. Each line is
+// added as soon as it is made, so the whole report is never one string.
 
 var $archive = Core\Compress::compressor(Core\Compress::Codec::Zstd);
-int $at = 0;
-while ($at < $size) {
-    // The last block is shorter than the others, so take what is left.
-    int $take = $size - $at;
-    if ($take > $block) {
-        $take = $block;
-    }
-    $archive->add(Core\Bytes::slice($log, $at, $take));
-    $at = $at + $take;
+int $written = 0;
+for (int $day = 1; $day <= 365; $day++) {
+    string $line = "day {$day}: 120 orders, 3 returns\n";
+    $archive->add($line);
+    $written = $written + (Core\Bytes::length($line as bytes) as int);
 }
+bytes $frame = $archive->finish();
 
-echo 'the log is ', $size, " bytes\n";
-echo 'the archive is ', Core\Bytes::length($archive->finish()), " bytes\n";
+echo 'the report is ', $written, " bytes\n";
+echo 'the archive is ', Core\Bytes::length($frame), " bytes\n";
+
+// A file that already exists does not need a compressor. Pass the open file
+// to `Core\Compress::compress`, and it reads the file one block at a time.

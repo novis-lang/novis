@@ -13,6 +13,10 @@ first record. Each record ends with `lineEnd`: `"\n"` by default, or `"\r\n"`. A
 `tainted string` too. The dialect options
 `separator`, `quote` and `escape` are single ASCII bytes.
 
+`Core\Csv::rows` reads a large document one record at a time. You pass it the data directly: an open
+file, an uploaded file, `Core\Request::bodyStream()`, `bytes`, or a list or loop that gives `bytes`
+pieces. It also takes `charset` for data that is not UTF-8.
+
 ```nvs
 <?nvs
 string $doc = "name,qty,note\nfig,2,ripe\nplum,10,\"a, b\"\n";
