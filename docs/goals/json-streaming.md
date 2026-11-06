@@ -198,48 +198,51 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-**Stage 2 is done.** `decodeEach<mixed>` type-checks: `written_class_of`
-(`crates/nvs-types/src/expr/args.rs`, `MIXED_MEMBER`) takes `mixed` for `decodeEach` alone and sets
-`ResolvedCall::written_mixed`, and `Lowering::written_type_constants` emits two zero words and a
-`false` flag. A scratch `nvs run` walked `decodeEach<Order>` and `<mixed>` over a file, over `bytes`
-chunks and as JSON Lines. A throwing constructor ends the walk. After a `break`, a second `foreach`
-goes on with the next element, as `Core\Csv::rows` does; the rule fragment now says so.
+**Stages 1 to 3 are done.** Both members are built: `decodeEach` in
+`crates/nvs-stdlib/src/json/each.rs` and `encodeEach` in `crates/nvs-stdlib/src/json/pieces.rs`,
+whose module docs own their shapes. The `stream-read` and `stream-write` checks' tests pass.
 
-**Stage 3's writer is built and its three tests pass** (`cargo test --lib json::pieces::tests`, run
-once by name). It is `crates/nvs-stdlib/src/json/pieces.rs`, whose module doc owns its shape. No
-coroutine: `advance()` pulls items with `nvs_runtime::sequence::pull` on the task's stack, encodes
-each with `rendered_chunks`, and gives at most 64 KiB of a pending buffer per piece. `Core\Json\Pieces`
-gained a third slot, `items`. The `not_built` stubs in `json.rs` are deleted.
+**`Core\IO::writeStream` now takes a walk of `tainted bytes`** (`fb739c336d`). Two parts:
+`CoreTy::classification` answers `Neutral` for an `Iterated` whose element is written `Neutral`
+(`crates/nvs-stdlib/src/registry.rs`), and `check_arg_admitting_quals`
+(`crates/nvs-types/src/expr/args.rs`) compares a refused argument once more against
+`tainted_walks(expected)` (`crates/nvs-types/src/expr/quals.rs`), the declared walk with its array,
+`Iterable` and `Iterator` elements tainted. Untainting the argument cannot work, because a `Core`
+class fixes its element in its own declaration and a generic argument is invariant. Tests:
+`a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes` (`crates/nvs-types/tests/tainted.rs`) and
+`write_stream_writes_encode_each_pieces_that_decode_each_reads_back` (`crates/nvs-stdlib/src/io.rs`),
+each run once by name, green. A scratch `nvs run` wrote `encodeEach`'s pieces with `writeStream`,
+read them back with `decodeEach<mixed>`, and wrote JSON Lines and an `array<bytes>`.
 
-**Found: `Core\IO::writeStream` refuses every `Core` walk of `tainted bytes`.**
-`Core\IO::writeStream($p, Core\Request::bodyStream())` and `writeStream($p, Core\Json::encodeEach($x))`
-both fail with `E0401: expected array<bytes>|Iterable<bytes>|Iterator<bytes>, found Core\Request\BodyStream`.
-The parameter is `CoreTy::Iterated(&CoreTy::Blob(Qual::Neutral))` (`crates/nvs-stdlib/src/io.rs:147`),
-and the walks' element is `CoreTy::TaintedBytes` (`registry.rs` `ITERABLES`, about line 3547).
-Decision 1 names `writeStream` as the way to write pieces, so this goal fixes it.
+`writeStream` refuses an existing file unless `{ overwrite: true }` is passed. Examples that write
+twice to one path need it.
 
-The sweep's `env-secret-proofs` red is stale: no file in the tree names that check.
+The sweep's `env-secret-proofs` red is the driver's stale state: `defaults-that-work` defined it and
+retired, and its command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0 this session.
 
 Not run, and worth a look in stage 5: the `tsan` leg. `src/tsan.rs` brackets a task's resume with a
 fiber switch, and a `suspendable` resume has no bracket.
 
-
 ### Next
 
-**Finish stage 3: `writeStream` takes a walk of `tainted bytes`, then the round-trip test.**
+**Stage 4, by its `**Split:**` line: five writing subagents side by side, one per file set.**
 
-- Find where the checker matches a `Core` iterable class against a `CoreTy::Iterated` parameter
-  (an `Explore` over `crates/nvs-types/src/` for `iterable_element` and `Iterated`). The likely cause
-  is an exact element match, where a `Neutral` parameter takes every qualifier. Fix it there, so
-  `bodyStream()`, a part's `content()` and `encodeEach` all pass. Add a checker test.
-- Check it with a scratch `nvs run`: `Core\IO::writeStream($path, Core\Json::encodeEach($items))`,
-  then `decodeEach<mixed>` over the file, and a `foreach ... as tainted bytes $piece` with
-  `{ lines: true }`. A piece is `tainted bytes`, so `as bytes` does not compile.
-- Then the stage's last item, the Rust round-trip test at `crates/nvs-stdlib/src/io.rs:3142`. Set
-  stage 3 `done` and start stage 4 with its `**Split:**` line.
+- First run `bun nv proofs --id 'Core\Json::decodeEach'` and `--id 'Core\Json::encodeEach'`, and
+  give each subagent the paths it prints for its file set.
+- The file sets: the two `about.md` pages; the six examples (three per member, decision 4's rollback
+  in one); the `.nvst` tests; the two benches (`benches/members/README.md`, memory flat from 1 MiB to
+  256 MiB, `.scale.nvs` for `linear`); the four attacks (`tests/hostile/README.md`).
+- Each brief names AGENTS.md § *Text an end user reads* and the facts above: a piece is
+  `tainted bytes`; `decodeEach<T>` takes a `Core\IO\File` or an `Iterable<bytes>`; a file is opened
+  with `Core\IO::open($path, Core\IO::FileMode::Read)`; a program starts with `<?nvs`.
+- After they end: build once, `bun nv proofs --comments <paths>` over every `.nvs` and `about.md`,
+  then `bun nv proofs --gate --group 'Core\Json'` and `--group 'Core\Json\Elements'` and
+  `--group 'Core\Json\Pieces'`. Then the JSON guide section,
+  `website/src/content/docs/guides/simple-programs/json-api.mdx`.
 
-Expected red until stage 4: the proofs gate names both members' missing proofs, and a snapshot of
-`nvs meta --json` gains two members, two classes, and the `source` and `items` slots.
+Expected red until stage 4 ends: the proofs gate names both members' missing proofs. Expected red
+until stage 5: a snapshot of `nvs meta --json` gains two members, two classes, the `source` and
+`items` slots, and `writeStream`'s chunks parameter now classified `neutral`.
 
 ### Backlog
 
