@@ -1,0 +1,29 @@
+<?nvs
+// Reads an open file 64 bytes at a time, as a program does when it reads a binary file in parts.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'read-bytes.bin');
+        Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('89504e470d0a1a0a'), 2000));
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+        bytes $part = '' as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $part = $file->readBytes(64);
+            if (Core\Bytes::length($part) == 0) {
+                $file->seek(0);
+            }
+            $total = $total + Core\Bytes::length($part);
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(256) > 0 ? 'done' : 'nothing was read', "\n";

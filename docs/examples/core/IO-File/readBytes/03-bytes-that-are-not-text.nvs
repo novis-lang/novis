@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `readBytes` returns bytes that are not valid UTF-8 exactly as they are in the file.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'export-utf16.csv');
+// This file is UTF-16 text. It starts with the bytes ff fe, which are not valid UTF-8.
+Core\IO::write($path, Core\Encoding::fromHex('fffe49004400'));
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+// The first 2 bytes come back unchanged. This prints "fffe".
+bytes $start = $file->readBytes(2);
+echo Core\Encoding::toHex($start), "\n";
+
+// A UTF-16 file often starts with ff fe, so this prints "UTF-16: yes".
+echo 'UTF-16: ', $start ==Core\Encoding::fromHex('fffe') ? 'yes' : 'no', "\n";
+
+// The rest of the file is "ID" in UTF-16. This prints "49004400".
+echo Core\Encoding::toHex($file->readBytes(100)), "\n";
+$file->close();

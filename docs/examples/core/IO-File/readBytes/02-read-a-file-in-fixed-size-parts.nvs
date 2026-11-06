@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read a whole file in parts of the same size, until it ends.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'backup.bin');
+Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('00ff'), 5000));
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+uint $parts = 0;
+uint $total = 0;
+
+// Each call returns up to 4096 bytes. Empty `bytes` means the file has ended.
+bytes $part = $file->readBytes(4096);
+while (Core\Bytes::length($part) > 0) {
+    $parts = $parts + 1;
+    $total = $total + Core\Bytes::length($part);
+    $part = $file->readBytes(4096);
+}
+$file->close();
+
+// The file has 10000 bytes. That is two full parts and one part of 1808 bytes.
+echo 'parts: ', $parts, "\n";
+echo 'bytes: ', $total, "\n";

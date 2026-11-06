@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read the first bytes of a file to check what kind of file it is.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'photo.png');
+Core\IO::write($path, Core\Encoding::fromHex('89504e470d0a1a0a0000000d49484452'));
+
+// Every PNG image starts with these 8 bytes.
+bytes $pngSignature = Core\Encoding::fromHex('89504e470d0a1a0a');
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+// `readBytes(8)` reads the first 8 bytes. This prints "89504e470d0a1a0a".
+bytes $header = $file->readBytes(8);
+echo Core\Encoding::toHex($header), "\n";
+
+// The header is the same as the signature, so this prints "PNG image: yes".
+echo 'PNG image: ', $header == $pngSignature ? 'yes' : 'no', "\n";
+
+// The next call starts at byte 8. This prints "0000000d".
+echo Core\Encoding::toHex($file->readBytes(4)), "\n";
+$file->close();
