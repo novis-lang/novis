@@ -1,0 +1,53 @@
+--TEST--
+A `Core\Csv::rows` walk reads a file from its first byte wherever the handle is, is taken once, and refuses a handle the program has closed — `rule:core-api/a-member-takes-the-source-the-program-holds`, `rule:programs/memory-priority`
+--FILE--
+<?nvs
+Core\IO\File $out = Core\IO::open("ledger.csv", Core\IO::FileMode::Write);
+$out->write("id,amount\n1,10\n2,20\n3,30\n");
+$out->close();
+
+Core\IO\File $in = Core\IO::open("ledger.csv", Core\IO::FileMode::Read);
+// A line read off the handle first does not change what the walk reads:
+// `rows` reads the whole file, from its first byte.
+echo "skipped ", $in->readLine() ?? "<end>", "\n";
+string $seen = "";
+foreach (Core\Csv::rows($in) as array<string> $record) {
+    $seen = $seen . "[" . $record["0"] . ":" . $record["1"] . "]";
+}
+echo "first walk ", $seen, "\n";
+
+// A walk is taken once. A second walk over the same handle reads the file
+// again from its first byte.
+Core\Csv\Rows<string> $rows = Core\Csv::rows($in, {header: true});
+int $whole = 0;
+string $ids = "";
+foreach ($rows as array<string> $record) {
+    $whole = $whole + 1;
+    $ids = $ids . $record["id"];
+}
+echo "second walk ", $whole, " ids ", $ids, "\n";
+int $again = 0;
+foreach ($rows as array<string> $record) {
+    $again = $again + 1;
+}
+echo "the same walk again ", $again, "\n";
+$in->close();
+
+// A closed handle is a mistake in the program, so the call that names the
+// walk throws a `RuntimeError`.
+try {
+    Core\Csv::rows($in);
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "closed: ", $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECTF--
+skipped id,amount
+first walk [id:amount][1:10][2:20][3:30]
+second walk 3 ids 123
+the same walk again 0
+closed: Core\Csv::rows: this handle is closed — %s%eledger.csv

@@ -1,9 +1,10 @@
 //! `Core\Csv`: `parse`, replacing PHP's `str_getcsv` and the parsing
 //! half of `fgetcsv`; `format`, replacing `fputcsv`'s formatting half; and
-//! `rows`, which walks a file `Core\IO` has open a record at a time and is the
+//! `rows`, which walks a document a record at a time and is the
 //! `while (fgetcsv($handle))` loop. `parse` and `format` take and answer a
 //! whole document as a `string`; `rows` is the member here that reads octets
-//! itself, through a handle whose door was passed at `Core\IO::open`.
+//! itself, from any `Core\Bytes::Source` or `Core\Bytes::Chunks` through
+//! [`crate::byte_source`]. A file's door was passed at `Core\IO::open`.
 //!
 //! # The reader is a dependency and the writer is not
 //!
@@ -184,20 +185,30 @@
 //! keys, walking the rows with a borrowed handle apiece rather than retaining
 //! them.
 //!
-//! `rows` spends [`READ_CHUNK`] plus [`CELL`] bytes per open walk — the chunk
-//! last read off the file and the buffer a field is unescaped into — plus the
-//! header's names, the record being assembled and the one record the walk is
-//! standing on. That is O(1) in the document's size and O(1) in its record
-//! count, charged to the request that opened the walk and released at the end
-//! of the file; a field or a record longer than a buffer costs another pass
-//! and not another buffer. **The document is never held**, which is the whole
-//! difference from composing `Core\IO::read` with `parse`.
+//! `rows` spends, per open walk, the source's own chunk
+//! ([`crate::byte_source`]'s cost), a copy of the chunk being parsed, and
+//! [`CELL`] bytes the field is unescaped into, plus the header's names, the
+//! record being assembled and the one record the walk is standing on. The
+//! copy is there because the source lends a chunk only until its next read,
+//! and a record can end part way through one: one chunk, at most
+//! `byte_source::READ_CHUNK` bytes. That is O(1) in the document's size and
+//! O(1) in its record count, charged to the request that opened the walk and
+//! released at the end of the source; a field or a record longer than a
+//! buffer costs another pass and not another buffer. **The document is never
+//! held**, which is the whole difference from composing `Core\IO::read` with
+//! `parse`.
+//!
+//! **The cells follow the source's taint.** The source is `Contagious`, and
+//! the walk is `Core\Csv\Rows<T>` with `T` its cell type: `string` for a
+//! file, `tainted string` for a part, a body stream or tainted chunks
+//! (`nvs_stdlib::registry::CELL_CLASSES`).
 
 use std::cell::RefCell;
-use std::io::Read;
 
 use nvs_runtime::budget::ByteWriter;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
+
+use crate::byte_source::ByteSource;
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -257,17 +268,34 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "rows",
-            names: &["file"],
-            // The subject is the handle — R1 — and the options are `parse`'s
-            // own slice rather than a copy of it, because a dialect that could
-            // differ between the two members would be two grammars for one
-            // format.
+            names: &["source"],
+            // The subject is the bytes, wherever the program holds them — R1 —
+            // and the options are `parse`'s own slice rather than a copy of
+            // it, because a dialect that could differ between the two members
+            // would be two grammars for one format. Every cell is a slice of
+            // the source, so the source is `Contagious` as `parse`'s text is:
+            // a part, a body stream or a walk of tainted chunks gives
+            // `Rows<tainted string>`, and a file gives `Rows<string>`.
             params: &[
-                CoreTy::Instance(crate::io::FILE_NAME),
+                CoreTy::Union(&[
+                    CoreTy::Alias(
+                        r"Core\Bytes::Source",
+                        &CoreTy::Union(&[
+                            CoreTy::Blob(Qual::Contagious),
+                            CoreTy::Instance(crate::io::FILE_NAME),
+                            CoreTy::Instance(crate::request::PART_NAME),
+                            CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                        ]),
+                    ),
+                    CoreTy::Alias(
+                        r"Core\Bytes::Chunks",
+                        &CoreTy::Iterated(&CoreTy::TaintedBytes),
+                    ),
+                ]),
                 CoreTy::Options(PARSE_OPTIONS),
             ],
             defaults: &[],
-            return_ty: CoreTy::Instance(ROWS_NAME),
+            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Str]),
             symbol: "nvs_core_csv_rows",
             doc: Some(&ROWS_DOC),
         },
@@ -294,10 +322,10 @@ pub(crate) const ROWS_CURRENT_SYMBOL: &str = "nvs_core_csv_rows_current";
 /// this walk's parse state under, and `0` once the walk has reached the end of
 /// the file.
 const ROWS_READER_AT: usize = 0;
-/// [`ROWS`]'s second slot: the path the handle was opened on, so that a read
-/// that fails mid-walk names the file the way the program wrote it —
-/// `Core\IO\File`'s own second slot, for the same reason and at the same cost.
-const ROWS_PATH_AT: usize = 1;
+/// [`ROWS`]'s second slot: the value [`ByteSource::from_arg`] gave, which
+/// every read is handed. The slot owns its reference, so the request's own
+/// release frees it, and the end of the walk clears it.
+const ROWS_SOURCE_AT: usize = 1;
 /// [`ROWS`]'s third slot: the record the last `advance()` read, `null` before
 /// the first one and after the last. This is where the member's promise is
 /// kept — one record, whatever the document's size.
@@ -333,7 +361,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
     doc: Some(&ROWS_CARD),
     methods: &[],
     instance: &[],
-    slots: &["reader", "path", "record"],
+    slots: &["reader", "source", "record"],
     constants: &[],
 };
 
@@ -432,14 +460,16 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Csv::rows`'s reference card — `rule:core-api/reference-card`.
 const ROWS_DOC: MethodDoc = MethodDoc {
-    short: "Reads an open file one record at a time, in a `foreach` loop. It uses the same RFC \
-            4180 rules and the same options as `parse`. Only one record is in memory at a time, \
-            so a file larger than memory works. It reads forward from the current position of \
-            the file, and you can loop over it only once.",
+    short: "Reads CSV one record at a time, in a `foreach` loop. It reads an open file, `bytes`, \
+            an uploaded file, the request body or a loop over `bytes` pieces. It uses the same \
+            RFC 4180 rules and the same options as `parse`. Only one record is in memory at a \
+            time, so a file larger than memory works. You can loop over it only once.",
     params: &[
         ParamDoc {
-            name: "file",
-            desc: "The open file to read from. Reading starts at its current position.",
+            name: "source",
+            desc: "The bytes to read. An open file is read from its first byte, whatever its \
+                   current position is. A loop over `bytes` pieces is read once, from the first \
+                   piece to the last.",
             shape: &[],
         },
         ParamDoc {
@@ -467,7 +497,8 @@ const ROWS_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The records, one at a time. Each record is an array of `string` fields with the same \
-          keys that `parse` gives. Nothing is read until the loop starts.",
+          keys that `parse` gives. The fields are `tainted string` when the bytes come from the \
+          request. Nothing is read until the loop starts.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1048,13 +1079,6 @@ fn write_field(out: &mut ByteWriter, field: &[u8], separator: u8, quote: u8) {
 // The walk — `rows`, and the three names a `foreach` reaches it by
 // ============================================================================
 
-/// How much of the file one read asks for, and so the most of it a walk holds
-/// at once. A record spanning the end of a chunk costs one more read and
-/// nothing else, so this is a syscall-count choice rather than a limit on what
-/// a document may hold. Under Miri a read is 2 KiB, so a test document several
-/// reads long stays small enough for Miri to walk.
-const READ_CHUNK: usize = if cfg!(miri) { 2 * 1024 } else { 8 * 1024 };
-
 /// The buffer one field is unescaped through. A field longer than this is read
 /// in several turns — `csv-core` answers `OutputFull` and the bytes already
 /// written are kept — so it bounds the copy and not the field.
@@ -1065,11 +1089,16 @@ const CELL: usize = 8 * 1024;
 /// cannot hold.
 #[derive(Debug)]
 struct RowReader {
-    /// The handle the records are read from, as `Core\IO`'s own table keys it.
-    file: u64,
+    /// The bytes the records are read from. It is taken out for one read,
+    /// because the read needs the context this state is filed in, and it is
+    /// `None` once the walk has ended.
+    source: Option<ByteSource>,
+    /// What a message calls the source: the file's path, or `the source`.
+    origin: String,
     /// `csv-core`'s DFA, left mid-document between two `advance()` calls.
     reader: csv_core::Reader,
-    /// The chunk last read off the file.
+    /// The chunk last read off the source. The source lends a chunk only
+    /// until its next read, and a record can end part way through one.
     pending: Vec<u8>,
     /// How much of [`RowReader::pending`] the DFA has taken.
     at: usize,
@@ -1083,7 +1112,7 @@ struct RowReader {
     names: Vec<Vec<u8>>,
     /// Whether the first record is the header rather than a row.
     header: bool,
-    /// Whether the file has answered a read with nothing.
+    /// Whether the source has reached its end.
     eof: bool,
     /// Whether the DFA has answered its last record, after which this reader
     /// holds no buffers at all.
@@ -1197,6 +1226,7 @@ impl RowReader {
     /// `Option<Box<…>>`, which a key that is never reused costs anyway.
     fn finish(&mut self) {
         self.done = true;
+        self.source = None;
         self.pending = Vec::new();
         self.cell = Vec::new();
         self.field = Vec::new();
@@ -1211,32 +1241,20 @@ impl nvs_runtime::HeldReader for RowReader {
     }
 }
 
-/// The catchable `RuntimeError` a walk raises for a handle the program has
-/// given up.
-///
-/// A `RuntimeError` and not an `IOError` for `Core\IO\File`'s own reason:
-/// nothing about the file went wrong, the program asked a question of
-/// something it had already closed.
-fn closed(path: &Value) -> Fault {
-    Fault::thrown(format!(
-        "Core\\Csv::rows: this handle is closed — {}",
-        path.as_text().unwrap_or("?")
-    ))
-}
+/// The member every message of the walk names.
+const ROWS_MEMBER: &str = "Core\\Csv::rows";
 
-/// The catchable `ParseError` a walk raises for a field that is not UTF-8.
+/// The catchable `ParseError` a walk raises for a field that is not UTF-8,
+/// naming the file's path, or `the source` for bytes and chunks.
 ///
-/// `ParseError` because the file does not match the format the program asked
+/// `ParseError` because the source does not match the format the program asked
 /// for, which is what `Core\Json::decode` throws for a document that is not
 /// JSON. Replacing the bad bytes with U+FFFD is declined: it changes the data
 /// without a word, and a later check could still be fooled by an overlong form.
-fn not_text(path: &Value, line: u64) -> Fault {
+fn not_text(origin: &str, line: u64) -> Fault {
     Fault::thrown_as(
         nvs_runtime::ThrownClass::Parse,
-        format!(
-            "Core\\Csv::rows: line {line} of {} has a field that is not valid UTF-8",
-            path.as_text().unwrap_or("?")
-        ),
+        format!("{ROWS_MEMBER}: line {line} of {origin} has a field that is not valid UTF-8"),
     )
 }
 
@@ -1259,47 +1277,57 @@ fn reader_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut RowReader, Fau
         })
 }
 
-/// The next record of `key`'s walk, reading the file wherever the parked state
-/// has run out — `None` at the end of the document.
+/// The next record of `key`'s walk, reading the source wherever the parked
+/// state has run out — `None` at the end of the document. `holder` is the
+/// value [`ByteSource::from_arg`] gave.
 ///
-/// **The descriptor and the parse state are read in turn and never together**,
-/// because they are two tables of one context: a frame holding both borrows at
-/// once would not compile, and the chunk between them is a stack buffer rather
-/// than a third place either could be copied to.
+/// **The source is taken out of the parse state for one read**, because the
+/// read needs the context the state is filed in. The chunk it lends is copied
+/// into [`RowReader::pending`], and the source goes back before the next step.
+/// A read that fails ends the walk, so a later `advance()` answers `false`.
 ///
 /// # Errors
 ///
-/// [`closed`]'s `RuntimeError` for a handle given up under the walk, an
-/// `IOError` for a read the operating system refused, and [`reader_at`]'s
+/// [`ByteSource::next_chunk`]'s: a `RuntimeError` for a file closed under the
+/// walk, an `IOError` for a read the operating system refused, and whatever a
+/// walk of chunks throws. [`not_text`]'s `ParseError`, and [`reader_at`]'s
 /// fatal for a key no walk filed.
 fn next_record(
     ctx: &mut nvs_runtime::Ctx,
     key: u64,
-    path: &Value,
+    holder: Value,
 ) -> Result<Option<NvsArray>, Fault> {
     loop {
         let reader = reader_at(ctx, key)?;
-        let file = reader.file;
         match reader.step() {
             Step::Record(record) => return Ok(Some(record)),
             Step::End => return Ok(None),
-            Step::NotText(line) => return Err(not_text(path, line)),
+            Step::NotText(line) => return Err(not_text(&reader.origin, line)),
             Step::OverMemory => return Err(over_memory("rows")),
             Step::NeedInput => {}
         }
-        let mut buffer = [0_u8; READ_CHUNK];
-        let read = {
-            let open = ctx.open_file_mut(file).ok_or_else(|| closed(path))?;
-            open.read(&mut buffer)
-        }
-        .map_err(|err| {
-            nvs_runtime::capability::io_failure(
-                "Core\\Csv::rows",
-                std::path::Path::new(path.as_text().unwrap_or("?")),
-                &err,
-            )
+        let mut source = reader.source.take().ok_or_else(|| {
+            Fault::fatal(format!("internal error: a `{ROWS_NAME}` walk lost its source"))
         })?;
-        reader_at(ctx, key)?.feed(&buffer[..read]);
+        let fed = match source.next_chunk(ctx, holder) {
+            // An empty chunk of a walk is not the end, so it is not fed: the
+            // next step asks for more input again.
+            Ok(Some(chunk)) if chunk.bytes().is_empty() => Ok(()),
+            // An empty feed is how the DFA is told the document has ended.
+            Ok(chunk) => reader_at(ctx, key).map(|reader| {
+                reader.feed(chunk.as_ref().map_or(&[], |chunk| chunk.bytes()));
+            }),
+            Err(fault) => Err(fault),
+        };
+        let reader = reader_at(ctx, key)?;
+        match fed {
+            Ok(()) => reader.source = Some(source),
+            Err(fault) => {
+                drop(source);
+                reader.finish();
+                return Err(fault);
+            }
+        }
     }
 }
 
@@ -1322,20 +1350,22 @@ fn rows_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault> {
                 ROWS.slots[ROWS_READER_AT]
             ))
         })?;
-    let path = crate::instance::slot(receiver, ROWS_PATH_AT);
+    let holder = crate::instance::slot(receiver, ROWS_SOURCE_AT);
     // `set_slot` releases what it displaces, so the record the previous
     // `advance()` parked is freed right here unless the loop body is still
     // holding it — and the end of the walk clears the slot rather than leaving
     // the last record in it, which is what makes the footprint one record
-    // whatever the document held.
-    match next_record(ctx, key, &path)? {
-        None => {
-            crate::instance::set_slot(receiver, ROWS_RECORD_AT, Value::null());
-            Ok(Value::bool(false))
-        }
-        Some(record) => {
+    // whatever the document held. The end and a failure both free the source
+    // value too: the walk reads nothing more.
+    match next_record(ctx, key, holder) {
+        Ok(Some(record)) => {
             crate::instance::set_slot(receiver, ROWS_RECORD_AT, Value::array(record));
             Ok(Value::bool(true))
+        }
+        ended => {
+            crate::instance::set_slot(receiver, ROWS_RECORD_AT, Value::null());
+            crate::instance::set_slot(receiver, ROWS_SOURCE_AT, Value::null());
+            ended.map(|_| Value::bool(false))
         }
     }
 }
@@ -1363,25 +1393,24 @@ fn rows_record(value: Value, member: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Csv::rows(Core\IO\File $file, {separator?, quote?, escape?,
-    /// header?: bool}): Core\Csv\Rows` — `fgetcsv`'s other half, as a value a
-    /// `foreach` walks.
+    /// `Core\Csv::rows(Core\Bytes::Source|Core\Bytes::Chunks $source,
+    /// {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows<string>` —
+    /// `fgetcsv`'s other half, as a value a `foreach` walks.
     ///
-    /// **Nothing is read here.** The dialect is checked, the parse state is
-    /// parked on the request, and the walk is answered standing on no record —
-    /// so the first read is the first `advance()`, and a program that names a
-    /// walk and never takes it has read nothing. This module's docs own what
-    /// the walk holds, why it is taken once, and why it needs no capability of
-    /// its own: the door is `Core\IO::open`'s and this handle has been through
-    /// it.
+    /// **Nothing is read here.** The dialect is checked, the source is taken
+    /// (`crate::byte_source`), the parse state is parked on the request, and
+    /// the walk is answered standing on no record — so the first read is the
+    /// first `advance()`, and a program that names a walk and never takes it
+    /// has read nothing. This module's docs own what the walk holds, why it is
+    /// taken once, and why it needs no capability of its own: a file's door is
+    /// `Core\IO::open`'s and this handle has been through it.
     ///
     /// # Errors
     ///
     /// [`dialect_byte`]'s and [`distinct`]'s, for a dialect that is not
-    /// distinct single ASCII bytes, and [`closed`]'s `RuntimeError` for a
-    /// handle that is already closed.
+    /// distinct single ASCII bytes, and [`ByteSource::from_arg`]'s, such as
+    /// the `RuntimeError` for a file that is already closed.
     fn nvs_core_csv_rows(ctx, args: [5]) {
-        let (file, path) = crate::io::handle_of(args[0], "rows")?;
         let separator = dialect_byte(&args[1], "rows", "separator")?;
         let quote = dialect_byte(&args[2], "rows", "quote")?;
         let escape = optional_dialect_byte(&args[3], "rows", "escape")?;
@@ -1393,23 +1422,14 @@ nvs_runtime::nvs_helper! {
                 .collect::<Vec<_>>(),
             "rows",
         )?;
-        // Refused where the program can still see which call was wrong, rather
-        // than at the first `advance()` inside a `foreach` header.
-        if ctx.open_file_mut(file).is_none() {
-            return Err(closed(&path));
-        }
-
-        #[expect(
-            unsafe_code,
-            reason = "the path is borrowed off the handle, which is live for the \
-                      length of this call, and the walk built below owns the \
-                      reference this takes"
-        )]
-        unsafe {
-            path.retain();
-        }
+        // A closed file is refused here, where the program can still see which
+        // call was wrong, rather than at the first `advance()` inside a
+        // `foreach` header. The holder's reference goes into the walk's slot.
+        let (source, holder) = ByteSource::from_arg(ctx, args[0], ROWS_MEMBER)?;
+        let origin = source.path().unwrap_or("the source").to_owned();
         let key = ctx.hold_open_reader(Box::new(RowReader {
-            file,
+            source: Some(source),
+            origin,
             reader: csv_core::ReaderBuilder::new()
                 .delimiter(separator)
                 .quote(quote)
@@ -1427,7 +1447,7 @@ nvs_runtime::nvs_helper! {
         }));
         Ok(crate::instance::build(
             &ROWS,
-            [Value::uint(key), path, Value::null()],
+            [Value::uint(key), holder, Value::null()],
         ))
     }
 }
@@ -1946,7 +1966,7 @@ mod tests {
     // covers: Core\Csv::rows
     #[test]
     fn csv_rows_holds_one_record_and_never_the_document() {
-        let (records, pad) = if cfg!(miri) { (48, 190) } else { (4_000, 0) };
+        let (records, pad) = if cfg!(miri) { (48, 190) } else { (40_000, 0) };
 
         let zeros = "0".repeat(pad);
         let mut document = String::from("id,amount\n");
@@ -1954,7 +1974,7 @@ mod tests {
             document.push_str(&format!("{n},{zeros}{}\n", n * 3));
         }
         assert!(
-            document.len() > super::READ_CHUNK * 4,
+            document.len() > crate::byte_source::READ_CHUNK * 4,
             "the document has to be several reads long for the bound below to mean anything"
         );
         let (_dir, path) = scratch("ledger.csv");
@@ -2004,7 +2024,7 @@ mod tests {
             "every record of the document is walked"
         );
         assert!(
-            heaviest <= super::READ_CHUNK + super::CELL + 128,
+            heaviest <= crate::byte_source::READ_CHUNK + super::CELL + 128,
             "a walk holds one chunk, one field's buffer and one record — it held {heaviest} \
              bytes over a document of {}",
             document.len()
@@ -2028,6 +2048,95 @@ mod tests {
             released(record);
         }
         released(rows);
+    }
+
+    /// A `bytes` value per chunk, as an `array<bytes>` gives them.
+    fn chunked(pieces: &[&[u8]]) -> Value {
+        let mut array = NvsArray::new();
+        for piece in pieces {
+            array.append(Value::bytes(NvsStr::new(piece)));
+        }
+        Value::array(array)
+    }
+
+    /// Every record of a walk over `source`, as the key/value pairs of each.
+    fn walked(source: Value, header: bool) -> Vec<Vec<(String, String)>> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let rows = walk(&mut ctx, source, header);
+        let mut seen = Vec::new();
+        while advanced(&mut ctx, rows) {
+            let record = standing(rows);
+            seen.push(cells(&record));
+            released(record);
+        }
+        let receiver = rows.obj_ptr().expect("`rows` answers an object");
+        assert_eq!(
+            crate::instance::slot(receiver, super::ROWS_SOURCE_AT).tag(),
+            Some(Tag::Null),
+            "the end of the walk frees the source"
+        );
+        released(rows);
+        seen
+    }
+
+    /// A walk of chunks gives `parse`'s reading of the document the chunks
+    /// make, one record per `advance()`, and nothing is read before the first.
+    // covers: Core\Csv::rows
+    #[test]
+    fn csv_rows_reads_an_iterable_of_chunks_one_record_at_a_time() {
+        const DOCUMENT: &str = "name,note,qty\nfig,\"a, b\nc\",2\nplum,plain,7\n";
+        let pieces: Vec<&[u8]> = DOCUMENT.as_bytes().chunks(5).collect();
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let rows = walk(&mut ctx, chunked(&pieces), true);
+        let receiver = rows.obj_ptr().expect("`rows` answers an object");
+        let key = crate::instance::slot(receiver, super::ROWS_READER_AT)
+            .as_uint()
+            .expect("the walk files its parse state under a key");
+        let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
+        assert!(
+            parked.pending.is_empty() && !parked.eof,
+            "naming a walk takes no chunk"
+        );
+        assert!(advanced(&mut ctx, rows), "the walk gives its first record");
+        let first = standing(rows);
+        assert_eq!(fields(&cells(&first)), ["fig", "a, b\nc", "2"]);
+        released(first);
+        let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
+        assert!(
+            !parked.eof,
+            "the first record is given before the last chunk is taken"
+        );
+        released(rows);
+
+        assert_eq!(walked(chunked(&pieces), true), parse(DOCUMENT, true));
+        assert_eq!(walked(chunked(&pieces), false), parse(DOCUMENT, false));
+    }
+
+    /// A record, a quoted field and a UTF-8 character cut across two chunks
+    /// read as they do in one piece, from chunks and from one `bytes` value.
+    // covers: Core\Csv::rows
+    #[test]
+    fn csv_rows_reads_a_record_cut_across_two_chunks() {
+        let document = "id,name\n1,\"Zoë, \"\"the\"\" first\"\n2,last\n".as_bytes();
+        let cut = document
+            .iter()
+            .position(|&byte| byte == 0xC3)
+            .expect("the document has a two-byte character");
+        let expected = parse(std::str::from_utf8(document).expect("UTF-8"), true);
+        assert_eq!(fields(&expected[0]), ["1", "Zoë, \"the\" first"]);
+
+        // Cut inside the character, inside the quoted field.
+        let inside = [&document[..=cut], &document[cut + 1..]];
+        assert_eq!(walked(chunked(&inside), true), expected);
+        // Cut at every byte, so each one is its own chunk.
+        let bytewise: Vec<&[u8]> = document.chunks(1).collect();
+        assert_eq!(walked(chunked(&bytewise), true), expected);
+        // An empty chunk is not the end of the document.
+        let gapped = [&document[..4], &b""[..], &document[4..]];
+        assert_eq!(walked(chunked(&gapped), true), expected);
+        // One `bytes` value is the same document.
+        assert_eq!(walked(Value::bytes(NvsStr::new(document)), true), expected);
     }
 
     /// Records past the request's memory limit stop the parse at the limit.

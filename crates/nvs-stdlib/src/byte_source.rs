@@ -232,6 +232,16 @@ impl ByteSource {
     }
 
 
+    /// The path of the file this source reads, for a message. `None` for
+    /// `bytes` and for a walk of chunks.
+    #[must_use]
+    pub(crate) fn path(&self) -> Option<&str> {
+        match &self.kind {
+            Kind::File(file) => Some(&file.path),
+            Kind::Bytes { .. } | Kind::Chunks { .. } => None,
+        }
+    }
+
     /// The next chunk, or `None` at the end. `holder` is the value
     /// [`Self::from_arg`] gave.
     ///

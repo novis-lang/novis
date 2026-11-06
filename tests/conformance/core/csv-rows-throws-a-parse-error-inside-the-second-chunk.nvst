@@ -1,0 +1,29 @@
+--TEST--
+`Core\Csv::rows` over a walk of chunks gives the records before a field that is not UTF-8 in the second chunk, then throws a `ParseError` that names its line — `rule:types/string-is-utf8`, `rule:core-api/a-member-takes-the-source-the-program-holds`
+--FILE--
+<?nvs
+// covers: Core\Csv::rows
+// The second chunk is "um", a new line, "bad", the byte FF and a new line.
+// The byte FF never appears in UTF-8.
+array<bytes> $chunks = [
+    "name\nfig\npl" as bytes,
+    Core\Bytes::pack('CCCCCCCC', 0x75, 0x6D, 0x0A, 0x62, 0x61, 0x64, 0xFF, 0x0A),
+    "last\n" as bytes,
+];
+int $given = 0;
+try {
+    foreach (Core\Csv::rows($chunks) as array<string> $record) {
+        $given = $given + 1;
+        echo "got ", $record["0"], "\n";
+    }
+    echo "the byte FF was read as text\n";
+} catch (ParseError $notText) {
+    echo $notText->message, "\n";
+}
+echo "given before the error: ", $given, "\n";
+--EXPECT--
+got name
+got fig
+got plum
+Core\Csv::rows: line 4 of the source has a field that is not valid UTF-8
+given before the error: 3

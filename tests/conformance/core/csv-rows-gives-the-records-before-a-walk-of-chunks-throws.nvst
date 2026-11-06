@@ -1,0 +1,38 @@
+--TEST--
+`Core\Csv::rows` over a walk of chunks gives every record of the first chunk, then the error the walk throws on its second chunk, and the walk then ends — `rule:core-api/a-member-takes-the-source-the-program-holds`
+--FILE--
+<?nvs
+// covers: Core\Csv::rows
+class Upload {
+    // The first chunk is two whole records. Asking for the second throws.
+    public static function chunks(): Iterator<bytes> {
+        yield "id,name\n1,fig\n2,plum\n" as bytes;
+        throw new RuntimeError("the upload stopped");
+    }
+}
+
+Core\Csv\Rows<string> $rows = Core\Csv::rows(Upload::chunks(), {header: true});
+int $given = 0;
+try {
+    foreach ($rows as array<string> $record) {
+        $given = $given + 1;
+        echo "got ", $record["id"], " ", $record["name"], "\n";
+    }
+    echo "the walk ended without the error\n";
+} catch (RuntimeError $stopped) {
+    echo "caught: ", $stopped->message, "\n";
+}
+echo "given before the error: ", $given, "\n";
+
+// The walk ended at the error, so a second loop gives nothing.
+int $again = 0;
+foreach ($rows as array<string> $record) {
+    $again = $again + 1;
+}
+echo "given after the error: ", $again, "\n";
+--EXPECT--
+got 1 fig
+got 2 plum
+caught: the upload stopped
+given before the error: 2
+given after the error: 0

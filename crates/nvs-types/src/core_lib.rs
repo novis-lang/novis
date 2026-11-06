@@ -2834,4 +2834,62 @@ mod tests {
         assert_eq!(symbol_of(&QName::parse(r"Core\Arr"), "nope"), None);
         assert_eq!(symbol_of(&QName::parse("Animal"), "count"), None);
     }
+
+    /// `Core\Csv::rows`' cells follow its source's taint.
+    mod csv {
+        use super::*;
+        use crate::expr::args::carries_contagion;
+        use crate::expr::quals::{admits_tainted_argument_at, contagious_result};
+        use crate::expr_table::ArgSlot;
+
+        /// A source of request bytes gives `Rows<tainted string>`, whose
+        /// records are `array<tainted string>`, and a file gives plain cells.
+        // covers: Core\Csv::rows
+        #[test]
+        fn csv_rows_from_tainted_chunks_gives_tainted_cells() {
+            let mut interner = TypeInterner::new();
+            let rows = CLASSES
+                .iter()
+                .find(|class| class.name == r"Core\Csv")
+                .and_then(|class| class.members().find(|method| method.name == "rows"))
+                .expect("`Core\\Csv::rows` is registered");
+            let sig = method_sig(rows, true, &mut interner);
+            assert_eq!(interner.describe(sig.return_ty), r"Core\Csv\Rows<string>");
+            assert!(
+                admits_tainted_argument_at(&sig, 0, &mut interner),
+                "the source admits tainted bytes, since the cells can carry them"
+            );
+
+            let tainted = interner.tainted_bytes();
+            let walk = interner.generic_class(QName::parse(ITERABLE), vec![tainted]);
+            let chunks = interner.array(tainted);
+            let part = interner.class(QName::parse(r"Core\Request\Part"));
+            let body = interner.class(QName::parse(r"Core\Request\BodyStream"));
+            for source in [walk, chunks, part, body, tainted] {
+                assert!(
+                    carries_contagion(&sig, &[ArgSlot::Param(0)], &[source], &interner),
+                    "{} carries taint into the rows",
+                    interner.describe(source)
+                );
+            }
+            let file = interner.class(QName::parse(r"Core\IO\File"));
+            assert!(
+                !carries_contagion(&sig, &[ArgSlot::Param(0)], &[file], &interner),
+                "a file carries no taint"
+            );
+
+            let result = contagious_result(Some(&sig), sig.return_ty, &mut interner);
+            assert_eq!(interner.describe(result), r"Core\Csv\Rows<tainted string>");
+            let Ty::Class(qname, args) = interner.get(result).clone() else {
+                panic!("the rows are a class instance");
+            };
+            let element = lower(
+                nvs_stdlib::registry::iterable_element(r"Core\Csv\Rows")
+                    .expect("the rows are iterable"),
+                &mut interner,
+            );
+            let record = crate::generics::with_class_args(&qname, &args, element, &mut interner);
+            assert_eq!(interner.describe(record), "array<tainted string>");
+        }
+    }
 }

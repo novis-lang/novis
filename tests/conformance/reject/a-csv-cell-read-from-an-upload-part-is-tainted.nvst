@@ -1,0 +1,20 @@
+--TEST--
+A `Core\Csv::rows` cell read from an upload part is a `tainted string`, so a plain `string` variable does not take it — `rule:core-api/a-member-takes-the-source-the-program-holds`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// The rows read the part's bytes, so every cell carries the part's taint.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    foreach (Core\Csv::rows($part) as var $record) {
+        tainted string $held = $record["0"];
+        string $name = $record["0"];
+        echo $held, $name, "\n";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:6:24
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

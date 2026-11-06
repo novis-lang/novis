@@ -13,7 +13,7 @@ Core\IO\File $in = Core\IO::open("own.csv", Core\IO::FileMode::Read);
 var $own = Core\Csv::rows($in);
 
 var $result = Core\Task::all({
-    rows: fn (): Core\Csv\Rows => {
+    rows: fn (): Core\Csv\Rows<string> => {
         Core\IO\File $out = Core\IO::open("task.csv", Core\IO::FileMode::Write);
         $out->write("task,row\n");
         $out->close();

@@ -335,10 +335,25 @@ final class Reader
         }
         var $source = $this->source;
         if ($source is Core\IO\File) {
+            // `rows` reads the file from its first byte. The byte order mark is taken off the first field.
+            // When `$skip` is longer than the mark, the first record is the `sep=` line, and it is not a row.
             uint $at = $source->tell();
-            $source->seek($this->skip);
+            bool $first = true;
             foreach (Core\Csv::rows($source, { separator: $dialect->separator, quote: $dialect->quote, escape: $dialect->escape }) as array<string> $line) {
-                yield $line;
+                if (!$first) {
+                    yield $line;
+                    continue;
+                }
+                $first = false;
+                array<string> $kept = $line;
+                uint $mark = 0;
+                if (Core\Arr::hasKey($kept, '0') && Core\Str::startsWith($kept['0'], "\u{FEFF}")) {
+                    $kept['0'] = Core\Str::slice($kept['0'], 1);
+                    $mark = 3;
+                }
+                if ($this->skip <= $mark) {
+                    yield $kept;
+                }
             }
             $source->seek($at);
         }

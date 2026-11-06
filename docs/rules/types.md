@@ -1895,6 +1895,15 @@ every parameter and property is noise that a short name removes. A file-scope al
 [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), which closes names that exist at run time with no class
 to own them; an alias, like a `use` import, is resolved and discarded before code is generated.
 
+**`Core` declares aliases too.** `Core\Bytes::Source` and `Core\Bytes::Chunks` are class-scoped aliases
+([`types/class-scoped-alias`](types.md#types-class-scoped-alias)) of a `Core` class, declared in the registry's `ALIASES` roster
+because their owner is declared there. `Owner::Name` reads one after a source alias and before an
+enum, and it is as transparent as a source alias: a program's own `Core\Bytes::Source` parameter takes
+exactly what the written-out union takes. The checker keeps the name for one purpose: a message, a
+hover, a card and the website show `Core\Bytes::Source` and not the union it stands for. A `Core`
+member's parameter wraps its own type under the name, so its qualifier marks stay its own
+([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)).
+
 **Declined:**
 - **A nominal alias, a newtype that needs an explicit conversion.** A distinct type over an existing
   representation is a different feature with its own costs, and an alias is a transparent synonym

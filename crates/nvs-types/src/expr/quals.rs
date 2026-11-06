@@ -152,6 +152,11 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
             {
                 carries_tainted(*elem, interner)
             }
+            _ if qname.is_core()
+                && nvs_stdlib::registry::holds_cells_of_its_source(&qname.to_string()) =>
+            {
+                args.iter().any(|&arg| carries_tainted(arg, interner))
+            }
             _ => {
                 qname.is_core()
                     && nvs_stdlib::registry::carries_tainted_bytes(&qname.to_string())
@@ -605,6 +610,10 @@ pub(crate) fn secret_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// laundering it. An extension method's result is the one shape whose fields
 /// are all its call's output, and it writes its own
 /// [`MethodSig::contagious_return`] that reaches them ([`contagious_result`]).
+///
+/// It also reaches each type argument of a `Core` class whose arguments are
+/// slices of what the member read, such as `Core\Csv\Rows<string>`
+/// (`nvs_stdlib::registry::CELL_CLASSES`). No other class is reached.
 pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     if let Some(is_bytes) = qualifiable_base(ty, interner) {
         let secret = is_secret(ty, interner);
@@ -624,6 +633,17 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
                 .map(|&member| tainted_result(member, interner))
                 .collect();
             interner.make_union(members)
+        }
+        Ty::Class(qname, args)
+            if !args.is_empty()
+                && qname.is_core()
+                && nvs_stdlib::registry::holds_cells_of_its_source(&qname.to_string()) =>
+        {
+            let args: Vec<TypeId> = args
+                .iter()
+                .map(|&arg| tainted_result(arg, interner))
+                .collect();
+            interner.generic_class(qname, args)
         }
         _ => ty,
     }

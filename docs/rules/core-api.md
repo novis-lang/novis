@@ -1485,8 +1485,9 @@ handle, and no `$link`-first calling convention; a file, a connection, a compres
 context are all objects with methods.
 
 A member of another class may **take** such an object where it neither opens nor closes it and the class
-it sits on owns a grammar rather than the resource — `Core\Csv::rows(Core\IO\File $file, …)` reads records
-forward off a handle `Core\IO::open` has already checked a capability for, and putting a format's grammar
+it sits on owns a grammar rather than the resource — `Core\Csv::rows(Core\Bytes::Source|Core\Bytes::Chunks
+$source, …)` reads the records of a handle `Core\IO::open` has already checked a capability for, from its
+first byte ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)), and putting a format's grammar
 on the file class instead is what the paragraph below argues against. Opening, closing and positioning
 stay members of the object, so the handle-first convention is still refused for everything that is an
 operation *on* the resource.

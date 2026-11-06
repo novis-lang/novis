@@ -1,0 +1,30 @@
+--TEST--
+A `Core\Csv::rows` cell read from an `Iterable<tainted bytes>` is a `tainted string`, and one read from a file is a plain `string` — `rule:core-api/a-member-takes-the-source-the-program-holds`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Import {
+    // A file's cells are plain, as `Core\IO::read` gives plain text.
+    public static function fromFile(Core\IO\File $file): void {
+        foreach (Core\Csv::rows($file) as var $record) {
+            string $name = $record["0"];
+            echo $name, "\n";
+        }
+    }
+
+    // Tainted chunks give tainted cells.
+    public static function fromChunks(Iterable<tainted bytes> $chunks): void {
+        foreach (Core\Csv::rows($chunks) as var $record) {
+            tainted string $held = $record["0"];
+            string $name = $record["0"];
+            echo $held, $name, "\n";
+        }
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:28
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

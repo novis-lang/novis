@@ -1,0 +1,18 @@
+--TEST--
+A `Core\Csv::rows` cell read from `Core\Request::bodyStream()` is a `tainted string`, so a plain `string` variable does not take it — `rule:core-api/a-member-takes-the-source-the-program-holds`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// The rows read the request body, so every cell carries the body's taint.
+foreach (Core\Csv::rows(Core\Request::bodyStream()) as var $record) {
+    tainted string $held = $record["0"];
+    string $name = $record["0"];
+    echo $held, $name, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:20
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

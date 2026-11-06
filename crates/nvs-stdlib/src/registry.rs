@@ -3561,7 +3561,27 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     // `Core\Json::decodeEach<T>`'s walk, generic for the same reason as the
     // row above: each element is built into the type the call site wrote.
     (crate::json::ELEMENTS_NAME, &["T"]),
+    // `Core\Csv::rows`' walk, generic in its cell type: `string` for a file and
+    // `tainted string` for request bytes, so the cells follow the source
+    // (`CELL_CLASSES`).
+    (crate::csv::ROWS_NAME, &["T"]),
 ];
+
+/// The generic `Core` classes whose type arguments are slices of the bytes a
+/// contagious member read. A tainted argument to that member taints each
+/// argument of the instance it returns, as it taints an array's element:
+/// `Core\Csv::rows` over a part returns `Core\Csv\Rows<tainted string>`.
+///
+/// A roster, because most generic classes hold what the program put in them,
+/// such as a `Core\ObjectSet`, and a tainted argument to a member says nothing
+/// about those.
+pub const CELL_CLASSES: &[&str] = &[crate::csv::ROWS_NAME];
+
+/// Whether `class` is one of [`CELL_CLASSES`].
+#[must_use]
+pub fn holds_cells_of_its_source(class: &str) -> bool {
+    CELL_CLASSES.contains(&class)
+}
 
 /// Every `Core` class a `foreach` can walk, and the element its
 /// `Iterable<T>` is fixed at — `nvs_types::core_lib` seeds one
@@ -3637,11 +3657,10 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
-    // `Core\Csv`'s `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
-    // rows above and for the same reason: a CSV record is an `array<string>`
-    // whatever the document held, keyed by the header's names or by column
-    // index, and neither keying is a type the receiver could be at.
-    (crate::csv::ROWS_NAME, &CoreTy::Array(&CoreTy::Str)),
+    // `Core\Csv`'s `rows(): Core\Csv\Rows<T>`. A record is an `array<T>`, keyed
+    // by the header's names or by column index, and `T` is the cell type the
+    // source gave: `string` for a file, `tainted string` for request bytes.
+    (crate::csv::ROWS_NAME, &CoreTy::Array(&CoreTy::Var("T"))),
     // `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s `content(): Iterable<bytes>`, whose element is the body
     // walk's exactly: a chunk of an upload is a chunk of a request body with a
     // delimiter search in front of it, and `tainted` for the same reason.
