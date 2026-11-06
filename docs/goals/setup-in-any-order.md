@@ -252,25 +252,20 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Every stage is done, and all five acceptance checks are green (`looper check --name` each). The gate's verify found five reds, each fixed at its cause: `prepares` lists `init`
-(`crates/nvs-cli/src/main.rs` test), the named-folder trust test grants a right that can replace
-the folder (`crates/nvs-config/src/data.rs`, `replaceable_by_others`), the junction helper gives
-`cmd` backslash paths (`crates/nvs-cli/tests/live_edit.rs`, `point`), the spreadsheet reader's
-requests get a one-day CPU deadline (`crates/nvs-ext/tests/spreadsheet_read.rs`, `CPU`), and
-`nvs_coverage`'s check-cfg moved to `[workspace.lints.rust]` with `bun nv lints` rendering a list.
-The last full verify was 23 of 23 green. Goal-end gates: `bun nv verify --doc` is green after the `platform::attach` link fix in
-`elevate.rs:14`, `bun nv owners --closes` names no gap. `bun nv ci --check` has no red of this
-goal's: `tools:install/set-up-a-server` now has its proofs, the Windows `about.md` fits its bound,
-and both install pages' questions are stamped. What stays red there is other sessions' work: stale
-perf on `arr.rs`, `reflect.rs` and `queue.rs`, the walkthrough pages, the `http`, `io` and `json`
-pages' questions, and four chain goals missing from `roadmap.json`'s themes. `bun nv linux-test`
-built the Unix half of `elevate.rs` and `restrict`, and `--test init` (7) and `elevate::` (2) pass
-on Linux.
+Every stage is done, and all five acceptance checks are green (`looper check --name` each). The
+gate's last full verify was 23 of 23 green. `bun nv verify --doc` is green, and `bun nv owners
+--closes` names no gap. `bun nv ci --check` has no red of this goal's; what stays red there is other
+sessions' work: the walkthrough pages, the `http`, `io` and `json` pages' questions, and four chain
+goals missing from `roadmap.json`'s themes. `bun nv linux-test` passes `--test init` and
+`elevate::` on Linux.
 
-The nightly Miri reds were three 8 MiB JSON ladder tests timing out; all three now carry
-`cfg_attr(miri, ignore)` in commits (`request.rs`, and `json.rs` in `d2a3a8e63d`). The refused DONE's `any-order` red was void, not failing: another session's untracked
-`website/src/components/walkthrough/gallery/` changed during the run. A rerun is green. The
-sweep's `env-secret-proofs` red is stale service state: no check by that name exists in the tree.
+The floor check `proofs-gate` is green: its 188 stale perf records across 25 `Core` classes were
+re-recorded with `bun nv proofs --record-perf --group <class>`, and `encodeEach`'s `about.md` fits
+its bound (`c7517507c3`).
+
+The nightly Miri reds come from run `42201104003`, built on `26dda36`, before the
+`cfg_attr(miri, ignore)` fix in `d2a3a8e63d`. The sweep's `env-secret-proofs` red is stale service
+state: no check by that name exists in the tree.
 
 ### Next
 
