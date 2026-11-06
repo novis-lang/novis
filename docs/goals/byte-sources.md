@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/expr/args.rs, docs/rules/security/unclassified-parameter-refuses-tainted.md, docs/rules/core-api/no-encoding-argument.md]
   - id: 2
     title: "Core can declare a type alias, and Core\\Bytes::Source and Chunks exist"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/aliases.rs, crates/nvs-types/src/enums.rs, crates/nvs-cli/src/meta.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/stubs.rs, tools/nv/renderers/website-core.ts, tools/nv/proofs/roster.ts, docs/rules/types/type-alias.md, docs/rules/types/class-scoped-alias.md]
   - id: 3
     title: "one byte source module, under Core\\Csv and Core\\Json"
@@ -420,6 +420,21 @@ has no memory check; and the decompression ratio needs the input's length.
     since each only adds the bit. **The reject conformance cases moved to stage 3:** no `Core`
     member has a contagious parameter that takes a `Part` or a walk of chunks before
     `Core\Csv::rows` takes the forward source, so no program can show the carrier earlier.
+16. **The aliases, as built in stage 2.**
+    - `nvs_stdlib::registry::ALIASES` is a roster beside `ENUMS`, keyed by the full name
+      `Core\Bytes::Source`, and `aliases_of(class)` lists one class's. A `types` field on `CoreClass`
+      would have touched every one of its 189 rows, and the owner is already in the name.
+    - The checker, not the HIR resolver, reads a `Core` alias: `nvs-types`' `lower_member_type`
+      (`crates/nvs-types/src/lower.rs:476`) tries it after a source alias and before an enum. The HIR
+      already leaves an `Owner::Name` it does not own to the checker, and that is where `Core` enums
+      are seeded too.
+    - The name is kept for messages only: `TypeInterner::name_alias` records it, and `describe`
+      spells a type, or each part of a union that has all of an alias's members, by the alias's name.
+      A union a program writes out by hand is then also shown by the alias's name, since it is the
+      same type.
+    - A program's own `Core\Bytes::Source` is the alias's `ty` (`tainted bytes|File|Part|BodyStream`).
+      A member writes `CoreTy::Alias(name, &its_own_union)` with its own marks, such as
+      `Blob(Contagious)` in place of `TaintedBytes`.
 
 ## Stages
 
@@ -441,19 +456,20 @@ has no memory check; and the decompression ratio needs the input's length.
 **Split:** an `Explore` subagent lists every site that renders or indexes a class's `types`, so no
 tool is missed.
 
-- [ ] `CoreTy::Alias`, its `spelled()` and `classification()`, and a `types` field on `CoreClass`.
-  `crates/nvs-stdlib/src/registry.rs:1265`, `crates/nvs-stdlib/src/registry.rs:1363`
-- [ ] The HIR resolver seeded with `Core` aliases. `crates/nvs-hir/src/aliases.rs:783`
-- [ ] `nvs meta --json` emits a `Core` class's `types`. `crates/nvs-cli/src/meta.rs:251`
-- [ ] The LSP's card, hover, completion and stubs show the alias.
-  `crates/nvs-lsp/src/hover.rs:438`, `crates/nvs-lsp/src/stubs.rs:148`
-- [ ] The website renders the alias with its doc. `tools/nv/renderers/website-core.ts:97`
-- [ ] The proof roster gives an alias its proofs, or records that it is part of its class's card.
-  `tools/nv/proofs/roster.ts:41`
-- [ ] `Core\Bytes::Source` and `Chunks` (decision 3), and `docs/reference/core/Bytes.md` names them.
-  `crates/nvs-stdlib/src/bytes.rs:1`
-- [ ] `rule:types/type-alias` gains the `Core` case. `docs/rules/types/type-alias.md:1`
-- [ ] The two tests of the `core-alias` check. `crates/nvs-types/tests/class_scoped_aliases.rs:1`
+- [x] `CoreTy::Alias`, its `spelled()` and `classification()`, and the `ALIASES` roster
+  (decision 16). `crates/nvs-stdlib/src/registry.rs:1265`, `crates/nvs-stdlib/src/registry.rs:1363`
+- [x] The checker reads a `Core` alias where `Owner::Name` is lowered (decision 16).
+  `crates/nvs-types/src/lower.rs:476`
+- [x] `nvs meta --json` emits a `Core` class's `types`. `crates/nvs-cli/src/meta.rs:251`
+- [x] The LSP's card, hover, completion and stubs show the alias.
+  `crates/nvs-lsp/src/card.rs:166`, `crates/nvs-lsp/src/stubs.rs:388`
+- [x] The website renders the alias with its doc. `tools/nv/renderers/website-core.ts:97`
+- [x] The proof roster gives an alias its proofs, or records that it is part of its class's card.
+  `tools/nv/proofs/roster.ts:14`
+- [x] `Core\Bytes::Source` and `Chunks` (decision 3), and `docs/reference/core/Bytes.md` names them.
+  `crates/nvs-stdlib/src/registry.rs:917`
+- [x] `rule:types/type-alias` gains the `Core` case. `docs/rules/types/type-alias.md:1`
+- [x] The two tests of the `core-alias` check. `crates/nvs-types/tests/class_scoped_aliases.rs:1`
 
 ### 3. one byte source module, under Core\Csv and Core\Json
 
@@ -606,30 +622,41 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stage 1 is done. `taint-carriers` passes: `cargo test --lib quals::tests` runs its three tests,
-green. `carries_tainted` reads an `Iterable`/`Iterator` of tainted elements and every `Core` class
-`registry::carries_tainted_bytes` names (decision 15). The two new rules are `designed`, owned by this
-goal, and `no-encoding-argument` has its `charset` sentence. The rulebook renders clean. The reject
-conformance cases moved to stage 3, because no member can show a carrier before `Csv::rows` takes
-the forward source. No test is expected to go red: every widened `carries_tainted` caller only adds
-the bit, and no `Core` row admitted a `Part` or a tainted walk at a contagious mark before.
+Stages 1 and 2 are done. `core-alias` passes (`looper check --name core-alias`), and so do
+`every_core_alias_has_a_registered_owner_and_classes` (registry) and
+`a_core_alias_hover_shows_its_name_its_type_and_its_card` (`nvs-lsp` `card.rs`). Decision 16 records
+how the aliases are built: an `ALIASES` roster, read by the checker's `lower_member_type`, with the
+name kept in the interner for messages. `nvs meta --json`, the stubs, hover, completion in type
+position, the website's class page (its section is now "Types", with each card) and `Bytes.md` show
+them. `nvs agent find` does not index a class's `types` yet (backlog).
 
-The sweep's reds were stale. The three nightly Miri timeouts predate `f13f40646a`, and no check
-named `env-secret-proofs` exists in the tree. setup-in-any-order's last handoff already said this.
+Tests that may go red at the gate: `tools/nv/test/render.test.ts` if a fixture compares a class's
+`types` shape (each now has `descHtml`), and any LSP stub snapshot of `Core\Bytes`'s stub, which now
+lists two `type` members.
+
+The sweep's reds were stale. Nightly run `42201104003` ran at 10:14 UTC on `26dda36`, before
+`f13f40646a` fixed the Miri timeouts, and no check named `env-secret-proofs` exists in the tree.
 
 ### Next
 
-**Stage 2**, `Core` type aliases and `Core\Bytes::Source`/`Chunks`; its `**Split:**` line sends an
-`Explore` subagent out first.
+**Stage 3**, `byte_source.rs` under `Core\Csv::rows` and `Core\Json::decodeEach`. Its items are in
+the stage, in order.
 
-- [ ] `CoreTy::Alias` and a `types` field on `CoreClass`. `crates/nvs-stdlib/src/registry.rs:1265`
-- [ ] The HIR resolver seeded with `Core` aliases, as enums are. `crates/nvs-hir/src/aliases.rs:783`,
-  `crates/nvs-types/src/enums.rs:196`
-- [ ] The `core-alias` tests. `crates/nvs-types/tests/class_scoped_aliases.rs:1`
+- [ ] `byte_source.rs` (decision 4) and the six `byte-source` tests. `crates/nvs-stdlib/src/byte_source.rs:1`
+- [ ] `decodeEach` and `Csv::rows` read through it. `crates/nvs-stdlib/src/json/each.rs:587`,
+  `crates/nvs-stdlib/src/csv.rs:1292`
+- [ ] The reject conformance cases of decision 15, over `crates/nvs-types/src/expr/quals.rs:131`.
 
-A trap for stage 3: `CoreTy::Iterated(elem)`'s mark is `None` unless `elem` is `Neutral`
-(`crates/nvs-stdlib/src/registry.rs:1296`). A `Chunks` arm under a contagious `Csv::rows` needs a
-`Contagious` element to answer `Contagious`, as `Array`'s does. Otherwise the arm refuses a tainted walk.
+Two traps for stage 3:
+
+- `CoreTy::Iterated(elem)`'s mark is `None` unless `elem` is `Neutral`
+  (`crates/nvs-stdlib/src/registry.rs:1296`). A `Chunks` arm under a contagious `Csv::rows` needs a
+  `Contagious` element to answer `Contagious`, as `Array`'s does. Otherwise the arm refuses a tainted walk.
+- A member writes `CoreTy::Alias(r"Core\Bytes::Source", &CoreTy::Union(&[Blob(Contagious), …]))`,
+  which interns with a plain `bytes` arm. Check that a program's own `Core\Bytes::Source` variable,
+  whose arm is `tainted bytes`, is admitted at that parameter. If the union admission does not strip
+  the qualifier per arm, fix it in `crate::expr::quals`' admission, not by writing `TaintedBytes`
+  into the member's union.
 
 ### Backlog
 
@@ -641,3 +668,8 @@ A trap for stage 3: `CoreTy::Iterated(elem)`'s mark is `None` unless `elem` is `
   member at once (decision 3).
 - The new rule `core-api/the-first-call-is-the-best-one` holds for every `Core` member. A review of the rest
   of `Core` against it is the user's to fire.
+- `nvs agent find` reads `members` and `enums` only (`crates/nvs-cli/src/agent.rs:1450`), so a
+  class's `types`, a `Core` alias or a component's shape, cannot be found by it.
+- A cursor on `Order::Meta` in type position for a source alias reaches `Target::Constant`, not
+  `Target::TypeAlias` (`crates/nvs-lsp/src/definition.rs:944`); the `Core` alias's hover is answered
+  in `card.rs`' `core_member_hover`.

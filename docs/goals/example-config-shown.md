@@ -250,7 +250,8 @@ Written by the interactive session of 2026-11-06. Nothing of it is built. The co
 
 - [ ] The glob. `website/src/lib/feature.ts:39`
 - [ ] `FeatureExamples` shows the file. `website/src/components/FeatureExamples.astro:1`
-- [ ] The `[area]` and Core pages. `website/src/pages/reference/[area]/[...slug].astro:89`
+- [ ] The Core pages and the `[area]` pages. `website/src/components/ClassOverview.astro:141`,
+  `website/src/pages/reference/[area]/[...slug].astro:89`
 
 ### Backlog
 
