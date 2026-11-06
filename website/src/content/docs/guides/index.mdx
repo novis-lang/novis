@@ -1,13 +1,96 @@
 ---
 title: Guides
 covers: []
-description: Examples of Novis programs, and how to use Novis to build them.
+description: Every guide to Novis, from a first tour to complete apps, with programs you can run.
 ---
 
-The guides show you how to use Novis. Each guide has small programs that you can run.
+The guides show you how to use Novis. Most guides have small programs that you can run, with
+their output.
 
 If you have not installed Novis yet, start with [Install](/install/).
 
-The guides are written step by step. More detail is in
-[Syntax](/syntax/), which shows how to write Novis code, and in [Reference](/reference/),
-which lists every class and function.
+## Where to start
+
+- If you are new to Novis, take [A Tour of Novis](/guides/tour/).
+- To see what makes Novis different, read [Why people pick Novis](/guides/why-novis/) and watch the
+  [walkthroughs](/guides/walkthroughs/).
+- When you build your own app, read [How to use Novis](/guides/how-to-use/) and use the
+  [Cookbook](/guides/cookbook/).
+- When your app is ready for a server, read [Going to production](/guides/production/).
+
+## [Why people pick Novis](/guides/why-novis/)
+
+Each page shows one feature that makes Novis different from other languages. Every page has a
+short program and its output. [HTML is escaped for you](/guides/why-novis/html-escapes/) shows that
+text from a visitor cannot add tags to your page.
+[Secrets are never printed](/guides/why-novis/secret-values/) shows a password that stays out of
+the output, the logs and the error messages.
+
+## [A Tour of Novis](/guides/tour/)
+
+The Tour has ten short steps. It starts with the Hello, World! program and ends with a web
+application. Each step adds one idea, such as [methods and types](/guides/tour/01-methods-and-types/),
+[errors](/guides/tour/05-errors/) or [JSON](/guides/tour/07-json/). The last step runs
+[a web application](/guides/tour/10-web-app/) with `nvs serve`.
+
+## [Walkthroughs](/guides/walkthroughs/)
+
+A walkthrough is a short animation of what happens while your program runs. It shows the browser,
+your code and the server at the same time, with a caption next to each step.
+[Work after the response](/guides/walkthroughs/after-response/) shows a request that sends an email
+after the browser already has the page.
+
+## [Simple programs](/guides/simple-programs/)
+
+Each page is one complete program in one file. You can copy it and change it for your own work.
+[A CSV report](/guides/simple-programs/csv-report/) prints the sales total for each product.
+[A web scraper](/guides/simple-programs/scraper/) downloads a page and lists its links.
+
+## [How to use Novis](/guides/how-to-use/)
+
+These pages show how the parts of an application work together.
+[Project layout](/guides/how-to-use/project-layout/) shows where your files go, and
+[Configuration](/guides/how-to-use/configuration/) explains `nvs.toml`.
+[Handling requests](/guides/how-to-use/requests/) shows how a program finds its route and reads the
+request. Each page ends with a list of things to do and things to avoid.
+
+## [Cookbook](/guides/cookbook/)
+
+Each page shows how to do one common task, with one short program. Copy the part you need, for
+example [Validate a form](/guides/cookbook/validate-form/),
+[Store a password](/guides/cookbook/hash-password/) or
+[Call an HTTP API](/guides/cookbook/call-http-api/).
+
+## [Testing your app](/guides/testing/)
+
+Novis has a test runner built in, so you do not need to install a test framework.
+[Test doubles](/guides/testing/test-doubles/) shows how to replace a mail server or the clock in a
+test. [Testing a page](/guides/testing/test-a-route/) sends a request to your routes without
+starting a server.
+
+## [Going to production](/guides/production/)
+
+These pages show how to run your app on a server. `nvs serve` is the same command in development
+and in production. You can [run it as a service](/guides/production/run-as-a-service/), in
+[Docker](/guides/production/docker/) or [behind a reverse proxy](/guides/production/reverse-proxy/).
+The [security checklist](/guides/production/security-checklist/) lists what to check before the
+first request.
+
+## [Example apps](/guides/example-apps/)
+
+An example app is a complete project that you can download, run and change into your own app.
+[Notes](/guides/example-apps/notes/) saves notes in SQLite and has a small JSON API.
+[Chat](/guides/example-apps/chat/) has chat rooms, and the browser and the server send messages
+over a WebSocket.
+
+## [Extensions](/guides/extensions/)
+
+An extension adds a class to Novis that is written in another language, such as Rust or C. It runs
+in a sandbox, and the compiler checks every call to it.
+[Write an extension in Rust](/guides/extensions/rust/) builds an extension that turns Markdown into
+HTML.
+
+## More detail
+
+[Syntax](/syntax/) shows how to write Novis code. [Reference](/reference/) lists every class and
+function.
