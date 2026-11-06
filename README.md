@@ -130,9 +130,8 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Faster requests.** *Working on it now.* A request that reads or writes JSON, or builds HTML or text, does less work and allocates less memory. JSON costs the same per byte at every size up to the limits. Every security limit stays as it is. The comparison with PHP, Bun and Go is then measured again.
-2. **JSON of any size.** `Core\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.
-3. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
+1. **JSON of any size.** *Working on it now.* `Core\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.
+2. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
 <!-- roadmap:end -->
 
 ## Contributing
