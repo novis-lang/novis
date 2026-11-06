@@ -497,29 +497,44 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 2 is done. The engine is `pulldown-cmark` 0.13, measured against comrak 0.59. The table and
-reasons are in `rule:core-classes/markdown-to-html`. It is a workspace dependency (`Cargo.toml:1050`)
-that no crate takes yet. The four rules are written as `designed`, owned by this goal.
-`html-sanitize` names `Core\Markdown`. Decision 15 records the sanitizer's list growth. The readme
-Declined entry names the new goal `registry-readme`, which is last on the chain. The gap
-`data/gaps/registry/readme-is-shown-as-text.json` points at that goal.
+Stage 3 has two of its eight items, each in its own commit.
 
-The catalogue check is green, and the catalogue test stays ignored until stage 3. Stage 3's
-notes hold what the measurement and the collectors found.
+- **The engine is vendored.** `vendor/pulldown-cmark/` is 0.13.6's library (no `html` module, binary
+  or build script), built through `Cargo.toml:1329`, and `nvs-stdlib` takes it. The seven patches
+  each carry a `// Novis:` comment naming their catalogue entry: `firstpass.rs` `parse_atx_heading`
+  and `finish_list`, `scanners.rs` `is_ascii_whitespace_no_nl`, `scan_closing_code_fence` and
+  `scan_link_dest`, `parse.rs` `make_code_span` and the footnote branch of the link pass.
+  The vertical-tab patch narrows line whitespace to space and tab everywhere, as 0.31.2 says.
+- **Measured with a scratch probe** (deleted) that rendered with upstream's `push_html`. Every
+  pinning input rendered as its entry says. The spec results did not change: CommonMark 0 failures
+  and GFM 21, namely 9 emphasis (398, 426, 434-436, 473-475, 477), 11 extended autolinks
+  (621-631) and 1 tag filter (652). That comparison read `&quot;` as `"`, `style="text-align: x"`
+  as `align="x"`, dropped the newlines between tags and dropped an empty `tbody`. Our serializer
+  owes the same: `Core\Html`'s writer puts no newline between tags, so the spec tests must
+  normalize those, or `markdown.rs` writes the newlines as text nodes where the spec has them.
+- **The sanitizer's list** has `CHECKED` (`crates/nvs-stdlib/src/html.rs:1944`) beside
+  `ELEMENTS`, and `input` admitted only by `inert_checkbox` (`html.rs:2002`). Five tests,
+  `align_on_a_table_cell_*`, `class_on_code_*`, `an_input_is_written_*`, `a_checkbox_carries_*`
+  and `an_id_is_kept_only_*`, pass, as do the two allowlist tests they touch. The html-sanitize
+  conformance case uses `class` and `id` on a `p` with plain values, so it stays green.
 
 ### Next
 
-**Stage 3**, the keystone. Before the first item, write its checkpoints into the stage. Take them in
-this order:
+**Stage 3** goes on with `crates/nvs-stdlib/src/markdown.rs`. Write its checkpoints first:
 
-- [ ] Vendor `pulldown-cmark` and write the seven patches. `Cargo.toml:1314`
-- [ ] The five value-checked entries of decision 15. `crates/nvs-stdlib/src/html.rs:1860`
-- [ ] `crates/nvs-stdlib/src/markdown.rs`, `toHtml` and its registration. `crates/nvs-stdlib/src/lib.rs:162`
-- [ ] The six `to-html` tests, then the catalogue test un-ignored. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:226`
+- [ ] `markdown.rs` with `toHtml`, its registration and its card. `crates/nvs-stdlib/src/lib.rs:163`
+  It builds `crate::xml::Parsed` from the events and writes it with `source` (`html.rs:1710`).
+  URLs go through `addressable` (`html.rs:2051`), and raw HTML through `parse` and `rebuilt`
+  (`html.rs:1578`, `html.rs:2153`). Those need `pub(crate)`.
+- [ ] Ours over the events. `crates/nvs-stdlib/src/html.rs:1944`
+  NUL to U+FFFD, a leading BOM, unused footnotes, one `language-`, no empty `tbody`, extended
+  autolinks and the added-output budget (stage 3's notes).
+- [ ] The six `to-html` tests over the vendored spec files. `tests/data/markdown/spec/gfm-0.29.txt:368`
+- [ ] `outcome` written and the `#[ignore]` removed. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:226`
+- [ ] `docs/reference/core/Markdown.md`, shaped like `Html`'s. `docs/reference/core/Html.md:1`
 
-Stages 7 and 8 may now run as a side goal (decision 12). Stage 3 may make
-`html-sanitize`'s conformance cases go red where they pin the old list
-(`tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst`).
+No test is expected to go red from this session's commits. Stages 7 and 8 may run as a side goal
+(decision 12).
 
 ### Backlog
 
@@ -529,3 +544,5 @@ Stages 7 and 8 may now run as a side goal (decision 12). Stage 3 may make
 - A second growing part for a catalogue entry (`close`, written n times before `suffix`) would turn
   the approximated two-part exploits back into the originals: cmark's CVE-2023-24824 and
   CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.
+- The footnote patch writes an undefined label as its source text, so `[^a\_b]` keeps its
+  backslash. Stage 9's differential fuzz triages what cmark-gfm writes there.
