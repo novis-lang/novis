@@ -161,8 +161,12 @@ class, its slots and its iteration trio, as `file:line` with one line each.
 
 **Does:** builds the writer, which `Core\IO::writeStream` and a response stream both take.
 
-- [ ] The writer, pulling one item at a time into 64 KiB pieces. `crates/nvs-stdlib/src/json.rs:1758`
-- [ ] The three tests the `stream-write` check names. `crates/nvs-stdlib/src/json.rs:1758`
+- [x] The writer, pulling one item at a time into 64 KiB pieces. `crates/nvs-stdlib/src/json/pieces.rs:1`
+- [x] The three tests the `stream-write` check names. `crates/nvs-stdlib/src/json/pieces.rs:1`
+- [ ] `Core\IO::writeStream` takes a `Core` walk of `tainted bytes`, such as `encodeEach`'s pieces
+  and `Core\Request::bodyStream()`. `crates/nvs-stdlib/src/io.rs:147`
+  - [ ] Find where the checker matches a `Core` iterable class against `CoreTy::Iterated`.
+  - [ ] A `tainted bytes` element passes a `Blob(Qual::Neutral)` parameter; the fix and a checker test.
 - [ ] A Rust test that writes `encodeEach`'s pieces through `Core\IO::writeStream` and reads them back
   with `decodeEach`. `crates/nvs-stdlib/src/io.rs:3142`
 
@@ -194,25 +198,27 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### State
 
-**Stage 2's reader is built and its five tests pass** (`cargo test --lib json::each::tests`, run once
-by name). The walk is `crates/nvs-stdlib/src/json/each.rs`, whose module doc owns its shape:
+**Stage 2 is done.** `decodeEach<mixed>` type-checks: `written_class_of`
+(`crates/nvs-types/src/expr/args.rs`, `MIXED_MEMBER`) takes `mixed` for `decodeEach` alone and sets
+`ResolvedCall::written_mixed`, and `Lowering::written_type_constants` emits two zero words and a
+`false` flag. A scratch `nvs run` walked `decodeEach<Order>` and `<mixed>` over a file, over `bytes`
+chunks and as JSON Lines. A throwing constructor ends the walk. After a `break`, a second `foreach`
+goes on with the next element, as `Core\Csv::rows` does; the rule fragment now says so.
 
-- serde_json runs in a coroutine from `nvs_host::suspendable` (`crates/nvs-host/src/stack.rs`, a
-  coroutine on its own `SPARE_STACK_SIZE` stack, inside `native_frame`). `corosensei` stays a
-  dev-dependency of `nvs-stdlib`; `nvs_host` re-exports `Yielder` and `CoroutineResult`.
-- The coroutine builds each element with `Decode` and runs no compiled code. A typed walk builds `T`
-  in `advance()` with `hydrate` (tree-first, `decodeAs`'s messages). Untested from Novis yet.
-- Chunks come from a `Core\IO\File` (64 KiB reads) or from `nvs_runtime::sequence::start`/`pull`,
-  new one-step twins of `for_each` (`crates/nvs-runtime/src/sequence.rs`).
-- `Core\Json\Elements` gained a third slot, `source`, so the request's release frees the cursor.
-- A zero word in slot 0 is `mixed`. The checker still refuses `decodeEach<mixed>` with `E0465`.
-- The rule now states the scratch-buffer bound on a skipped string, JSON Lines as whitespace-separated
-  values, and the typed walk's double build.
+**Stage 3's writer is built and its three tests pass** (`cargo test --lib json::pieces::tests`, run
+once by name). It is `crates/nvs-stdlib/src/json/pieces.rs`, whose module doc owns its shape. No
+coroutine: `advance()` pulls items with `nvs_runtime::sequence::pull` on the task's stack, encodes
+each with `rendered_chunks`, and gives at most 64 KiB of a pending buffer per piece. `Core\Json\Pieces`
+gained a third slot, `items`. The `not_built` stubs in `json.rs` are deleted.
 
-The commit-msg hook refuses a `Co-Authored-By` trailer, so commits carry none.
+**Found: `Core\IO::writeStream` refuses every `Core` walk of `tainted bytes`.**
+`Core\IO::writeStream($p, Core\Request::bodyStream())` and `writeStream($p, Core\Json::encodeEach($x))`
+both fail with `E0401: expected array<bytes>|Iterable<bytes>|Iterator<bytes>, found Core\Request\BodyStream`.
+The parameter is `CoreTy::Iterated(&CoreTy::Blob(Qual::Neutral))` (`crates/nvs-stdlib/src/io.rs:147`),
+and the walks' element is `CoreTy::TaintedBytes` (`registry.rs` `ITERABLES`, about line 3547).
+Decision 1 names `writeStream` as the way to write pieces, so this goal fixes it.
 
-The sweep's `env-secret-proofs` red is stale: `looper check --name env-secret-proofs` answers "no
-check matches", and no file names it.
+The sweep's `env-secret-proofs` red is stale: no file in the tree names that check.
 
 Not run, and worth a look in stage 5: the `tsan` leg. `src/tsan.rs` brackets a task's resume with a
 fiber switch, and a `suspendable` resume has no bracket.
@@ -220,21 +226,20 @@ fiber switch, and a `suspendable` resume has no bracket.
 
 ### Next
 
-**Finish stage 2: `decodeEach<mixed>`, then a Novis walk.** Files:
-`crates/nvs-types/src/expr/args.rs:2067` (the `E0465` report, in the written-target resolver), the
-`nvs-ir` lowering that writes slots 0 to 2 for `WRITTEN_CLASS_MEMBERS` (find it with
-`bun nv brief --where WRITTEN_CLASS_MEMBERS`), and `crates/nvs-stdlib/src/json/each.rs`.
+**Finish stage 3: `writeStream` takes a walk of `tainted bytes`, then the round-trip test.**
 
-- Take `mixed` for `Core\Json::decodeEach` alone. `decodeAs<mixed>` stays refused, since `decode`
-  is that call. Lower it as a zero class word, a `false` list flag and a zero shape word.
-- A scratch `.nvs` under `.agent-tmp/` walks `decodeEach<Order>` and `decodeEach<mixed>` with
-  `nvs run`, over a file and over an array of `bytes` chunks. Check a constructor that throws ends
-  the walk, and a `break` then a second `foreach` gives nothing.
-- Then set stage 2 `done` and start stage 3, `encodeEach` (`json.rs`'s `not_built` stubs, which it
-  deletes). The tests it owes are the `stream-write` check's three.
+- Find where the checker matches a `Core` iterable class against a `CoreTy::Iterated` parameter
+  (an `Explore` over `crates/nvs-types/src/` for `iterable_element` and `Iterated`). The likely cause
+  is an exact element match, where a `Neutral` parameter takes every qualifier. Fix it there, so
+  `bodyStream()`, a part's `content()` and `encodeEach` all pass. Add a checker test.
+- Check it with a scratch `nvs run`: `Core\IO::writeStream($path, Core\Json::encodeEach($items))`,
+  then `decodeEach<mixed>` over the file, and a `foreach ... as tainted bytes $piece` with
+  `{ lines: true }`. A piece is `tainted bytes`, so `as bytes` does not compile.
+- Then the stage's last item, the Rust round-trip test at `crates/nvs-stdlib/src/io.rs:3142`. Set
+  stage 3 `done` and start stage 4 with its `**Split:**` line.
 
 Expected red until stage 4: the proofs gate names both members' missing proofs, and a snapshot of
-`nvs meta --json` gains two members, two classes and the `source` slot.
+`nvs meta --json` gains two members, two classes, and the `source` and `items` slots.
 
 ### Backlog
 

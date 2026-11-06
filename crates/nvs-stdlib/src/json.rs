@@ -568,16 +568,16 @@ pub(crate) const PIECES_CURRENT_SYMBOL: &str = "nvs_core_json_pieces_current";
 /// each written when the walk asks for it, so the items it pulls are pulled one
 /// at a time. A handle with only the iteration trio, as [`ELEMENTS`] is.
 ///
-/// Its slots are the key the writer's state is filed under, `0` once the
-/// closing `]` has been given, and the piece the last `advance()` wrote — at
-/// most 64 KiB, which is what the walk holds.
+/// Its slots are the key the writer's state is filed under, `0` once the last
+/// piece has been given, the piece the last `advance()` wrote (at most 64 KiB),
+/// and the cursor over the items. [`pieces`] owns the walk.
 // rank: 102
 pub(crate) const PIECES: CoreClass = CoreClass {
     name: PIECES_NAME,
     doc: Some(&PIECES_CARD),
     methods: &[],
     instance: &[],
-    slots: &["writer", "piece"],
+    slots: &["writer", "piece", "items"],
     constants: &[],
 };
 
@@ -867,63 +867,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
         "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
         "nvs_core_json_decode_each" => (each::nvs_core_json_decode_each as *const ()).cast(),
-        "nvs_core_json_encode_each" => (nvs_core_json_encode_each as *const ()).cast(),
+        "nvs_core_json_encode_each" => (pieces::nvs_core_json_encode_each as *const ()).cast(),
         // The two walks' trios, which no registry row names: they are reached
         // by name through the dispatch roster, which resolves them here.
         ELEMENTS_ITERATE_SYMBOL => (each::nvs_core_json_elements_iterate as *const ()).cast(),
         ELEMENTS_ADVANCE_SYMBOL => (each::nvs_core_json_elements_advance as *const ()).cast(),
         ELEMENTS_CURRENT_SYMBOL => (each::nvs_core_json_elements_current as *const ()).cast(),
-        PIECES_ITERATE_SYMBOL => (nvs_core_json_pieces_iterate as *const ()).cast(),
-        PIECES_ADVANCE_SYMBOL => (nvs_core_json_pieces_advance as *const ()).cast(),
-        PIECES_CURRENT_SYMBOL => (nvs_core_json_pieces_current as *const ()).cast(),
+        PIECES_ITERATE_SYMBOL => (pieces::nvs_core_json_pieces_iterate as *const ()).cast(),
+        PIECES_ADVANCE_SYMBOL => (pieces::nvs_core_json_pieces_advance as *const ()).cast(),
+        PIECES_CURRENT_SYMBOL => (pieces::nvs_core_json_pieces_current as *const ()).cast(),
         _ => return None,
     })
 }
 
-// ============================================================================
-// One element at a time — `decodeEach` and `encodeEach`
-// ============================================================================
-
-/// The one failure every `encodeEach` entry point below gives until the goal
-/// `json-streaming`'s stage 3 builds the walk: the rows and cards are
-/// registered first so the feature is stated before it is built.
-/// `decodeEach`'s walk is [`each`]'s.
-fn not_built(member: &'static str) -> Fault {
-    Fault::thrown(format!("`Core\\Json::{member}` is not available in this build yet."))
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Core\Json::encodeEach(Iterable<mixed> $items, { lines?: bool }): Iterable<bytes>`.
-    fn nvs_core_json_encode_each(_ctx, args: [2]) {
-        let _ = args;
-        Err(not_built("encodeEach"))
-    }
-}
-
-
-nvs_runtime::nvs_helper! {
-    /// `Iterable<bytes>::iterate()` on a `Core\Json\Pieces`.
-    fn nvs_core_json_pieces_iterate(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("encodeEach"))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Iterator<bytes>::advance()` on a `Core\Json\Pieces`.
-    fn nvs_core_json_pieces_advance(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("encodeEach"))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Iterator<bytes>::current()` on a `Core\Json\Pieces`.
-    fn nvs_core_json_pieces_current(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("encodeEach"))
-    }
-}
 
 // ============================================================================
 // Depth
@@ -5840,6 +5796,7 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 mod each_probe;
 
 mod each;
+mod pieces;
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -7365,7 +7322,7 @@ pub(crate) mod tests {
 
     /// An instance of `class` with every slot null, as the value holding the
     /// only reference to it.
-    fn instance(class: *const ClassDesc) -> Value {
+    pub(crate) fn instance(class: *const ClassDesc) -> Value {
         #[expect(
             unsafe_code,
             reason = "`holder_class` leaks the table, so the descriptor outlives \
@@ -7771,7 +7728,7 @@ pub(crate) mod tests {
     /// property, `Profile` without its `token`.
     ///
     /// Leaked for [`self_nesting_class`]'s reason.
-    fn secret_classes() -> (*const ClassDesc, *const ClassDesc) {
+    pub(crate) fn secret_classes() -> (*const ClassDesc, *const ClassDesc) {
         let mut table = ClassTable::new();
         let profile = table.define("Profile", &["token", "note"], &[]);
         let login = table.define("Login", &["user", "password", "profile", "profiles"], &[]);
