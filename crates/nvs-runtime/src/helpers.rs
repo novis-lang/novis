@@ -57,25 +57,43 @@ macro_rules! expect_tag {
     };
 }
 
-/// `magnitude` in decimal, after a `-` when `negative`, written straight into
-/// the string it returns. One allocation per call: the digits are built on the
-/// stack, and `u64::MAX` has 20 of them.
-fn decimal_digits(negative: bool, mut magnitude: u64) -> NvsStr {
-    let mut digits = [0u8; 20];
-    let mut at = digits.len();
+/// Room for any `i64` or `u64` in decimal: `u64::MAX` has 20 digits, and
+/// `i64::MIN` has 19 and a sign.
+pub(crate) const DECIMAL_MAX: usize = 21;
+
+/// `magnitude` in decimal, after a `-` when `negative`, written into the end
+/// of `buf`. The answer is the written tail of `buf`, so no call allocates.
+///
+/// [`decimal_digits`] and `nvs_str_concat_parts`'s integer part both write
+/// through this, so `"{$n}"` and `$n as string` cannot print different text.
+pub(crate) fn write_decimal(
+    negative: bool,
+    mut magnitude: u64,
+    buf: &mut [u8; DECIMAL_MAX],
+) -> &[u8] {
+    let mut at = buf.len();
     loop {
         at -= 1;
-        digits[at] = b'0' + (magnitude % 10) as u8;
+        buf[at] = b'0' + (magnitude % 10) as u8;
         magnitude /= 10;
         if magnitude == 0 {
             break;
         }
     }
-    let sign: &[u8] = if negative { b"-" } else { b"" };
-    NvsStr::build(sign.len() + digits.len() - at, |out| {
-        out.push(sign);
-        out.push(&digits[at..]);
-    })
+    if negative {
+        at -= 1;
+        buf[at] = b'-';
+    }
+    &buf[at..]
+}
+
+/// `magnitude` in decimal, after a `-` when `negative`, written straight into
+/// the string it returns. One allocation per call: the digits are built on the
+/// stack by [`write_decimal`].
+pub(crate) fn decimal_digits(negative: bool, magnitude: u64) -> NvsStr {
+    let mut buf = [0u8; DECIMAL_MAX];
+    let digits = write_decimal(negative, magnitude, &mut buf);
+    NvsStr::build(digits.len(), |out| out.push(digits))
 }
 
 crate::nvs_helper! {
@@ -3625,6 +3643,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "nvs_str_concat_n",
             (crate::string::nvs_str_concat_n as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_str_concat_parts",
+            (crate::string::nvs_str_concat_parts as *const ()).cast::<u8>(),
         ),
         (
             "nvs_str_append",

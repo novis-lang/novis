@@ -1548,6 +1548,220 @@ pub unsafe extern "C" fn nvs_str_concat_n(
     }
 }
 
+/// One piece of [`nvs_str_concat_parts`]'s join: a kind word, then a payload
+/// word whose meaning the kind names.
+///
+/// Two words, kind first, because compiled code writes an array of these on
+/// its stack. The kind is a plain integer rather than a Rust `enum`, so a
+/// kind this runtime does not know is a value to check rather than undefined
+/// behaviour.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct StrPart {
+    /// One of [`StrPart::STR`], [`StrPart::INT`] or [`StrPart::HTML_TEXT`].
+    pub kind: u64,
+    /// A `*const StrHeader` for the two string kinds, and an `i64`'s bits for
+    /// [`StrPart::INT`].
+    pub payload: u64,
+}
+
+impl StrPart {
+    /// A string or `bytes`, copied as it is.
+    pub const STR: u64 = 0;
+    /// An `i64`, written as its decimal digits, which is what
+    /// `nvs_int_to_string` writes for it.
+    pub const INT: u64 = 1;
+    /// A `string`, written as `nvs_render::html::escape` writes it, which is
+    /// the HTML sink's escape (`rule:core-classes/html-auto-escape`).
+    pub const HTML_TEXT: u64 = 2;
+
+    /// A [`StrPart::STR`] part reading `ptr`.
+    #[must_use]
+    pub fn str(ptr: *const StrHeader) -> Self {
+        Self {
+            kind: Self::STR,
+            payload: ptr.expose_provenance() as u64,
+        }
+    }
+
+    /// A [`StrPart::INT`] part writing `value`.
+    #[must_use]
+    pub const fn int(value: i64) -> Self {
+        Self {
+            kind: Self::INT,
+            payload: value.cast_unsigned(),
+        }
+    }
+
+    /// A [`StrPart::HTML_TEXT`] part escaping `ptr`'s text.
+    #[must_use]
+    pub fn html_text(ptr: *const StrHeader) -> Self {
+        Self {
+            kind: Self::HTML_TEXT,
+            payload: ptr.expose_provenance() as u64,
+        }
+    }
+
+    /// The string a string kind's payload points at.
+    ///
+    /// Compiled code writes a pointer into a 64-bit word, and Novis runs on
+    /// 64-bit targets alone, so the word is the whole address.
+    fn ptr(&self) -> *const StrHeader {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "Novis runs on 64-bit targets alone, where a pointer is the whole word"
+        )]
+        std::ptr::with_exposed_provenance(self.payload as usize)
+    }
+}
+
+/// A [`StrPart`] read: what its payload is, under the kind it names.
+enum Piece<'a> {
+    Bytes(&'a [u8]),
+    Int(i64),
+    HtmlText(&'a str),
+}
+
+impl Piece<'_> {
+    /// Reads `part`.
+    ///
+    /// # Safety
+    ///
+    /// A string kind's payload must refer to a live Novis string allocation
+    /// that outlives the answer, and a [`StrPart::HTML_TEXT`] one must be a
+    /// `string`'s rather than a `bytes`'s.
+    #[expect(
+        unsafe_code,
+        reason = "the payload's liveness and encoding are the caller's \
+                  obligation to state"
+    )]
+    unsafe fn of(part: &StrPart) -> Self {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees a live pointee behind each string \
+                      kind's payload, and a `string` behind the escaped one"
+        )]
+        unsafe {
+            match part.kind {
+                StrPart::STR => Piece::Bytes(NvsStr::bytes_of(part.ptr())),
+                StrPart::INT => Piece::Int(part.payload.cast_signed()),
+                StrPart::HTML_TEXT => Piece::HtmlText(NvsStr::text_of(part.ptr())),
+                kind => unreachable!("a miscompile: string part kind {kind} does not exist"),
+            }
+        }
+    }
+
+    /// How many bytes [`Piece::write`] writes.
+    fn len(&self) -> usize {
+        match *self {
+            Piece::Bytes(bytes) => bytes.len(),
+            Piece::Int(value) => {
+                let mut buf = [0u8; crate::helpers::DECIMAL_MAX];
+                crate::helpers::write_decimal(value < 0, value.unsigned_abs(), &mut buf).len()
+            }
+            Piece::HtmlText(text) => nvs_render::html::escaped_len(text),
+        }
+    }
+
+    /// Writes the piece into `out`.
+    fn write(&self, out: &mut StrWriter<'_>) {
+        match *self {
+            Piece::Bytes(bytes) => out.push(bytes),
+            Piece::Int(value) => {
+                let mut buf = [0u8; crate::helpers::DECIMAL_MAX];
+                out.push(crate::helpers::write_decimal(
+                    value < 0,
+                    value.unsigned_abs(),
+                    &mut buf,
+                ));
+            }
+            Piece::HtmlText(text) => {
+                nvs_render::html::escape_into(text, &mut |run| out.push(run.as_bytes()));
+            }
+        }
+    }
+}
+
+/// Joins `count` typed parts into one fresh string — the entry point an
+/// interpolated string and an html template join through once their holes
+/// are typed parts.
+///
+/// **One allocation for the whole result, asked for once.** The first pass
+/// measures every part: a string's length, an integer's digits and the
+/// escaped length of html text. The second writes every part straight into
+/// the result. So an integer hole allocates no string of digits, and an
+/// escaped hole allocates no escaped copy. Measuring twice costs one more
+/// read of each part, which is a scan and no allocation.
+///
+/// **Every part is only read**, never retained or released, and the result
+/// is one new reference. A total of zero bytes answers the static empty
+/// string. [`nvs_str_concat_n`] stays the join for strings alone, because it
+/// can append in place onto a solely owned left operand.
+///
+/// **A refused allocation answers the static empty string**, as
+/// [`nvs_str_concat_n`] does, and is asked before a byte is copied.
+///
+/// # Memory
+///
+/// The result's exact length, and nothing else: the digits and every escape
+/// are written on the stack or straight into the result.
+///
+/// # Safety
+///
+/// `parts` must point at `count` consecutive [`StrPart`]s. A string kind's
+/// payload must refer to a live Novis string allocation, and a
+/// [`StrPart::HTML_TEXT`] one must be a `string`'s. A kind outside the three
+/// is a miscompile, and stops the process.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a stack array of typed parts whose \
+              liveness, count and payloads the signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_str_concat_parts(
+    parts: *const StrPart,
+    count: usize,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `count` parts at `parts` and a live \
+                  pointee behind each string kind's payload"
+    )]
+    unsafe {
+        join_parts(std::slice::from_raw_parts(parts, count)).into_raw()
+    }
+}
+
+/// [`nvs_str_concat_parts`]'s body, over a slice.
+///
+/// # Safety
+///
+/// Every part's payload is [`Piece::of`]'s to state.
+#[expect(
+    unsafe_code,
+    reason = "every part's payload is the caller's obligation to state"
+)]
+unsafe fn join_parts(parts: &[StrPart]) -> NvsStr {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees each part's payload, for both passes"
+    )]
+    unsafe {
+        let total = parts
+            .iter()
+            .try_fold(0_usize, |total, part| total.checked_add(Piece::of(part).len()))
+            .expect("an Novis string's length cannot overflow a usize");
+        if total == 0 {
+            return NvsStr::empty_immortal();
+        }
+        NvsStr::build(total, |out| {
+            for part in parts {
+                Piece::of(part).write(out);
+            }
+        })
+    }
+}
+
 /// Appends `suffix`'s bytes to `target`'s — `nvs_ir::InstKind::StrAppend`'s
 /// entry point, and the reason [`StrHeader`] carries a capacity at all.
 ///
@@ -2019,6 +2233,176 @@ mod tests {
             for piece in [open, mid, close, empty] {
                 nvs_str_release(piece);
             }
+        }
+    }
+
+    /// [`join_parts`] over parts that read Rust strings, answering the joined
+    /// bytes. Every string a part reads is made here and released here.
+    fn joined(parts: &[Part<'_>]) -> Vec<u8> {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let held: Vec<*mut StrHeader> = parts
+                .iter()
+                .filter_map(|part| match part {
+                    Part::Str(text) | Part::Html(text) => {
+                        Some(NvsStr::new(text.as_bytes()).into_raw())
+                    }
+                    Part::Int(_) => None,
+                })
+                .collect();
+            let mut strings = held.iter();
+            let typed: Vec<StrPart> = parts
+                .iter()
+                .map(|part| match part {
+                    Part::Str(_) => StrPart::str(*strings.next().expect("made above")),
+                    Part::Html(_) => StrPart::html_text(*strings.next().expect("made above")),
+                    Part::Int(value) => StrPart::int(*value),
+                })
+                .collect();
+            let out = nvs_str_concat_parts(typed.as_ptr(), typed.len());
+            let bytes = NvsStr::bytes_of(out).to_vec();
+            nvs_str_release(out);
+            for string in held {
+                assert_eq!(NvsStr::refcount_of(string), 1, "a part was retained or released");
+                nvs_str_release(string);
+            }
+            bytes
+        }
+    }
+
+    /// A part as a test writes it.
+    enum Part<'a> {
+        Str(&'a str),
+        Int(i64),
+        Html(&'a str),
+    }
+
+    /// The keystone's claim, measured: a join of strings, an integer and
+    /// escaped text allocates one buffer, of exactly the length it answers.
+    #[test]
+    fn typed_parts_join_in_one_allocation() {
+        use crate::counting_alloc::allocated_bytes;
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let open = NvsStr::new(b"<td>").into_raw();
+            let text = NvsStr::new(b"a<b & c").into_raw();
+            let close = NvsStr::new(b"</td>").into_raw();
+            let parts = [
+                StrPart::str(open),
+                StrPart::int(-42),
+                StrPart::html_text(text),
+                StrPart::str(close),
+            ];
+            let want: &[u8] = b"<td>-42a&lt;b &amp; c</td>";
+
+            let before = allocated_bytes();
+            let out = nvs_str_concat_parts(parts.as_ptr(), parts.len());
+            let spent = allocated_bytes() - before;
+            assert_eq!(NvsStr::bytes_of(out), want);
+            assert_eq!(spent, PAYLOAD_OFFSET + want.len(), "one buffer, of exactly the result");
+            assert_eq!(NvsStr::refcount_of(out), 1);
+            nvs_str_release(out);
+
+            // Parts that write nothing answer the static empty string.
+            let empty = NvsStr::new(b"").into_raw();
+            let parts = [StrPart::str(empty), StrPart::html_text(empty)];
+            let before = allocated_bytes();
+            let out = nvs_str_concat_parts(parts.as_ptr(), parts.len());
+            assert_eq!(allocated_bytes(), before, "an empty join allocates nothing");
+            assert_eq!(NvsStr::bytes_of(out), b"");
+            nvs_str_release(out);
+
+            for string in [open, text, close, empty] {
+                nvs_str_release(string);
+            }
+        }
+    }
+
+    /// An integer part writes what `$n as string` writes, through the same
+    /// digit writer, at both ends of `int`'s range and at every digit count.
+    #[test]
+    fn an_integer_part_writes_the_digits_int_to_string_writes() {
+        let mut values = vec![0, 1, -1, 9, 10, -10, 99, 100, i64::MIN, i64::MAX, i64::MIN + 1];
+        let mut power = 1_i64;
+        while let Some(next) = power.checked_mul(10) {
+            values.extend([next - 1, next, -next, -(next - 1)]);
+            power = next;
+        }
+        for value in values {
+            let want = crate::helpers::decimal_digits(value < 0, value.unsigned_abs());
+            assert_eq!(joined(&[Part::Int(value)]), want.as_bytes(), "{value}");
+            assert_eq!(want.as_bytes(), value.to_string().as_bytes(), "{value}");
+            assert_eq!(
+                joined(&[Part::Str("n="), Part::Int(value), Part::Str(";")]),
+                format!("n={value};").as_bytes(),
+            );
+        }
+    }
+
+    /// An escaped part writes byte for byte what the HTML sink's escape
+    /// answers, for text with nothing to escape, every escaped character,
+    /// and an open and a closed bidirectional control.
+    #[test]
+    fn an_escaped_part_writes_what_the_html_sink_escape_writes() {
+        let texts = [
+            "",
+            "an ordinary paragraph",
+            "é and ü",
+            "a < b && c > d",
+            "\"quoted\" and 'single'",
+            "&amp; is escaped again",
+            "<\u{202E}>",
+            "a\u{202E}b\u{2067}c",
+            "\u{2066}user_id\u{2069}",
+            "wait…",
+            "<script>alert(1)</script>",
+        ];
+        for text in texts {
+            let want = nvs_render::html::escape(text);
+            assert_eq!(joined(&[Part::Html(text)]), want.as_bytes(), "{text:?}");
+            assert_eq!(nvs_render::html::escaped_len(text), want.len(), "{text:?}");
+            assert_eq!(
+                joined(&[Part::Str("<p>"), Part::Html(text), Part::Str("</p>")]),
+                format!("<p>{want}</p>").as_bytes(),
+                "{text:?}"
+            );
+        }
+    }
+
+    /// The join asks the memory ceiling once, for the whole result, before
+    /// it writes anything. Past the ceiling it allocates nothing, answers the
+    /// static empty string and records the breach.
+    #[test]
+    fn a_join_past_the_memory_limit_is_refused_before_a_byte_is_copied() {
+        use crate::counting_alloc::allocated_bytes;
+
+        const SOURCE: usize = 256 << 10;
+        let source = NvsStr::new(&vec![b'<'; SOURCE]).into_raw();
+        let mut ctx = crate::Ctx::buffered();
+        ctx.set_memory_limit(64 << 10);
+        let parts = [
+            StrPart::str(source),
+            StrPart::html_text(source),
+            StrPart::int(7),
+        ];
+        let before = allocated_bytes();
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let out = nvs_str_concat_parts(parts.as_ptr(), parts.len());
+            assert_eq!(allocated_bytes(), before, "a refused join allocated");
+            assert_eq!(NvsStr::bytes_of(out), b"");
+            assert_eq!((*out).refcount.get(), IMMORTAL_REFCOUNT);
+            nvs_str_release(out);
+        }
+        assert!(
+            matches!(ctx.memory_breach(), Some(crate::Fault::Fatal(_))),
+            "the refused join recorded no breach"
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "releasing the string made above")]
+        unsafe {
+            nvs_str_release(source);
         }
     }
 

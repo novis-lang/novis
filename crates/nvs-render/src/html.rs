@@ -166,9 +166,47 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// what it would cost.
 #[must_use]
 pub fn escape(text: &str) -> Cow<'_, str> {
-    // One pass finds both things that can change, before anything is
-    // allocated. The bidi predicate walks the span again, so it runs only when
-    // a control's lead byte appeared.
+    let Some(cuts) = changes(text) else {
+        return Cow::Borrowed(text);
+    };
+    let mut out = String::with_capacity(changed_len(text, &cuts));
+    write_changed(text, &cuts, &mut |piece| out.push_str(piece));
+    Cow::Owned(out)
+}
+
+/// How many bytes [`escape`] writes for `text`, without writing them.
+///
+/// The measuring half of a join that asks for its whole result once and then
+/// writes every piece into it (`nvs_runtime`'s `nvs_str_concat_parts`).
+/// [`escape_into`] is the writing half, and the two read the one table
+/// [`escape`] reads, so the length measured is the length written.
+#[must_use]
+pub fn escaped_len(text: &str) -> usize {
+    changes(text).map_or(text.len(), |cuts| changed_len(text, &cuts))
+}
+
+/// Writes what [`escape`] answers for `text` through `push`, one run at a
+/// time, and allocates nothing for text with nothing to escape.
+///
+/// A sink rather than a `&mut String`, because the caller that needs this
+/// writes into a buffer this crate cannot name: a runtime string already
+/// allocated at [`escaped_len`]'s size. The runs `push` is given join to
+/// exactly [`escape`]'s answer.
+pub fn escape_into(text: &str, push: &mut impl FnMut(&str)) {
+    match changes(text) {
+        None => push(text),
+        Some(cuts) => write_changed(text, &cuts, push),
+    }
+}
+
+/// The unterminated bidirectional controls in `text`, as an offset and a
+/// length each, or `None` when [`escape`] changes nothing at all.
+///
+/// One pass finds both things that can change, before anything is
+/// allocated. The bidi predicate walks the span again, so it runs only when
+/// a control's lead byte appeared. `Some` of an empty list is text with an
+/// escapable byte and no open control, and costs no allocation.
+fn changes(text: &str) -> Option<Vec<(usize, usize)>> {
     let seen = scan(text.as_bytes());
     let mut unterminated = Vec::new();
     if seen & LEAD != 0 {
@@ -177,29 +215,46 @@ pub fn escape(text: &str) -> Cow<'_, str> {
         });
     }
     if seen & ESCAPABLE == 0 && unterminated.is_empty() {
-        return Cow::Borrowed(text);
+        return None;
     }
+    Some(unterminated)
+}
 
-    // Every escape is longer than what it replaces, so the input's length is a
-    // floor and never a wasted reservation. Every byte that changes is ASCII
-    // or starts a control, so the text between two of them is copied whole.
-    let mut out = String::with_capacity(text.len());
-    let mut cuts = unterminated.into_iter().peekable();
+/// The length [`write_changed`] writes for `text` and its `cuts`.
+fn changed_len(text: &str, cuts: &[(usize, usize)]) -> usize {
+    let references: usize = text
+        .as_bytes()
+        .iter()
+        .filter_map(|&b| escaped(b))
+        .map(|reference| reference.len() - 1)
+        .sum();
+    cuts.iter().fold(text.len() + references, |len, &(_, cut)| {
+        len - cut + REPLACEMENT.len_utf8()
+    })
+}
+
+/// Writes `text` with every escapable byte referenced and every cut replaced.
+///
+/// Every byte that changes is ASCII or starts a control, so the text between
+/// two of them is pushed whole.
+fn write_changed(text: &str, cuts: &[(usize, usize)], push: &mut impl FnMut(&str)) {
+    let mut replacement = [0_u8; 4];
+    let replacement: &str = REPLACEMENT.encode_utf8(&mut replacement);
+    let mut cuts = cuts.iter().peekable();
     let mut copied = 0;
     for (offset, &b) in text.as_bytes().iter().enumerate() {
-        if cuts.peek().is_some_and(|&(cut, _)| cut == offset) {
-            let (_, len) = cuts.next().expect("peeked");
-            out.push_str(&text[copied..offset]);
-            out.push(REPLACEMENT);
+        if cuts.peek().is_some_and(|&&(cut, _)| cut == offset) {
+            let &(_, len) = cuts.next().expect("peeked");
+            push(&text[copied..offset]);
+            push(replacement);
             copied = offset + len;
         } else if let Some(reference) = escaped(b) {
-            out.push_str(&text[copied..offset]);
-            out.push_str(reference);
+            push(&text[copied..offset]);
+            push(reference);
             copied = offset + 1;
         }
     }
-    out.push_str(&text[copied..]);
-    Cow::Owned(out)
+    push(&text[copied..]);
 }
 
 /// A whole [`Record`] as one element: the envelope's header, then the

@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/string.rs, crates/nvs-ir/src/lower/expr.rs, doc
 stages:
   - id: 1
     title: "the runtime joins typed parts in one allocation: strings, integers and html-escaped text"
-    status: open
+    status: done
     context: [crates/nvs-render/src/html.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/core-classes/html-auto-escape.md]
   - id: 2
     title: "interpolated strings and html templates lower their holes to typed parts"
@@ -105,14 +105,14 @@ every html template, and every literal `Core\Str::format` call.
 
 **Does:** the keystone. Nothing calls it yet, so the tests the `parts-join` check names are its proof.
 
-- [ ] Add `escaped_len` and `escape_into`, and rebuild `escape` on them. `rule:core-classes/html-auto-escape`
+- [x] Add `escaped_len` and `escape_into`, and rebuild `escape` on them. `rule:core-classes/html-auto-escape`
   `crates/nvs-render/src/html.rs:168`
-- [ ] Add a digit writer that writes into a buffer, beside `decimal_digits`, and rebuild
+- [x] Add a digit writer that writes into a buffer, beside `decimal_digits`, and rebuild
   `decimal_digits` on it. `crates/nvs-runtime/src/helpers.rs:63`
-- [ ] Add `nvs_str_concat_parts` and its part type, with the `Str`, `Int` and `HtmlText` kinds, next to
+- [x] Add `nvs_str_concat_parts` and its part type, with the `Str`, `Int` and `HtmlText` kinds, next to
   `nvs_str_concat_n`, and register its symbol. `crates/nvs-runtime/src/string.rs:1532`
   `crates/nvs-runtime/src/helpers.rs:3626`
-- [ ] Write the four tests the `parts-join` check names. `crates/nvs-runtime/src/string.rs:1532`
+- [x] Write the four tests the `parts-join` check names. `crates/nvs-runtime/src/string.rs:1532`
 
 ### 2. interpolated strings and html templates lower their holes to typed parts
 
@@ -165,17 +165,41 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 ### State
 
-Nothing is built yet. The figures in *Why* were taken on 2026-11-05 at `293a3b9b9`.
+Stage 1 is done, and `parts-join` is green. The figures in *Why* were taken on 2026-11-05 at
+`293a3b9b9`.
+
+- `nvs_render::html` has `escaped_len` and `escape_into(text, &mut impl FnMut(&str))`
+  (`crates/nvs-render/src/html.rs:184`). `escape_into` takes a sink rather than a `&mut String`,
+  because the runtime writes into a `StrWriter` that `nvs-render` cannot name. `escape` is built on
+  the same private `changes`, `changed_len` and `write_changed`, so the table stays in one place.
+- `crate::helpers::write_decimal` writes an `i64` or `u64` into a 21-byte stack buffer, and
+  `decimal_digits` is built on it (`crates/nvs-runtime/src/helpers.rs:63`).
+- `StrPart` is `#[repr(C)]`, two `u64` words, kind first: `STR = 0`, `INT = 1`, `HTML_TEXT = 2`
+  (`crates/nvs-runtime/src/string.rs:1560`). A pointer payload goes through `expose_provenance` and
+  `with_exposed_provenance`. An unknown kind is a miscompile and panics, which aborts across
+  `extern "C"`. Stage 3 adds `FORMAT = 3`.
+- `nvs_str_concat_parts(parts, count)` reads every part and consumes none, unlike
+  `nvs_str_concat_n`, which consumes its first operand (`crates/nvs-runtime/src/string.rs:1721`).
+  The lowering in stage 2 releases each string operand itself. A total of zero answers the static
+  empty string. The symbol is registered and `StrPart` is re-exported from `nvs_runtime`.
+
+The sweep's `env-secret-proofs` red is the driver's stale state for a check `defaults-that-work`
+retired. Its command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0 this session too.
+
+No test is expected to go red: `escape` answers the same bytes, and nothing calls the join yet.
 
 ### Next
 
-**Stage 1**, files `crates/nvs-render/src/html.rs`, `crates/nvs-runtime/src/helpers.rs` and
-`crates/nvs-runtime/src/string.rs`. No gate.
+**Stage 2**, files `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/expr.rs`,
+`crates/nvs-codegen/src/emit.rs` and `crates/nvs-codegen/src/lib.rs`. No gate. Follow its
+`**Split:**` line first.
 
-- [ ] `escaped_len` and `escape_into`. `rule:core-classes/html-auto-escape` `crates/nvs-render/src/html.rs:168`
-- [ ] The digit writer. `crates/nvs-runtime/src/helpers.rs:63`
-- [ ] `nvs_str_concat_parts` and its symbol. `crates/nvs-runtime/src/string.rs:1532`
-  `crates/nvs-runtime/src/helpers.rs:3626`
-- [ ] The four tests. `crates/nvs-runtime/src/string.rs:1532`
+- [ ] A kind on `InstKind::Concat`'s pieces, and every reader kept right. `crates/nvs-ir/src/ir.rs:1636`
+- [ ] An `int` hole as an `Int` part. `crates/nvs-ir/src/lower/expr.rs:1014`
+  `crates/nvs-ir/src/lower/expr.rs:2272`
+- [ ] An escaped template hole as an `HtmlText` part. `crates/nvs-ir/src/lower/expr.rs:2585`
+  `crates/nvs-ir/src/lower/expr.rs:2675`
+- [ ] Emit `nvs_str_concat_parts` over `StrPart`s. `crates/nvs-codegen/src/emit.rs:3953`
+  `crates/nvs-codegen/src/lib.rs:2086` `crates/nvs-runtime/src/string.rs:1721`
 
 ### Backlog
