@@ -16,7 +16,7 @@ where a member takes one.
 
 | The member reads | It takes | Members |
 |---|---|---|
-| the start | `Core\Bytes::Source` | `Core\Mime::detect`, `Core\Request\Part::peek` (its own part) |
+| the start | `Core\Bytes::Source` | `Core\Mime::detect`, `Core\Request\Part::peek` and `Core\Request\BodyStream::peek` (their own source) |
 | once, forward | `Core\Bytes::Source\|Core\Bytes::Chunks` | `Core\Json::decodeEach`, `Core\Csv::rows`, `Core\Hash::of`, `Core\Hash::hmac`, `Core\Compress::compress`, `Core\Compress::decompress`, `Core\Xml::reader`, `Core\Storage::put` |
 | in any order | `Core\Bytes::Source` | `Core\Zip`, `Core\Pdf`, `Core\Image` (`open`, `info`, `hash`, `placeholder`, `palette`, `compare`), the spreadsheet `Reader::open` and `Template::open` |
 | the whole value, checked before anything is given | `bytes` | `Core\Crypto::open`, `Core\Crypto::sign`, `Core\Crypto::verify`, `Core\Serialize::decode`, `Core\Uuid::fromBytes` |

@@ -1,13 +1,16 @@
-`Reader::open($source)` reads a `Core\IO\File` the program opened, or `bytes` it holds, and xlsx and
-xlsb are read as a stream of byte ranges, so a 100 MB upload never enters the guest whole; xlsm, xls
-and ods are read whole, and CSV goes to `Core\Csv`.
+`Reader::open($source)` reads a `Core\Bytes::Source`: `bytes` the program holds, a `Core\IO\File` it
+opened, an upload's `Core\Request\Part` or the request's `Core\Request\BodyStream`. xlsx and xlsb are
+read as a stream of byte ranges, so a 100 MB file never enters the guest whole; xlsm, xls and ods
+are read whole, and CSV goes to `Core\Csv::rows`.
 
 **How the guest reads a range.** Every reader call lends the source as a `mixed` value, and the guest
 reads ranges of it through a host import, an accessor of the `value` handle that returns the bytes at
-an offset and length of a `bytes` value or of an open `Core\IO\File`. The source is lent by number
-and never copied as it crosses: the host serves each range from the program's own `bytes`, or
-reads it from the file and puts the handle's position back, between two polls of the call, and
-gives at most 1 MiB per range. The guest keeps a read-ahead
+an offset and length of the lent source. The source is lent by number and never copied as it
+crosses. The host serves each range through `nvs_stdlib::extension_source_range`, a byte source of
+its own per read: from the program's own `bytes`, from the file with the handle's position put back,
+or from a part or body stream, which the first range holds whole under `[limits] request_body`, so
+later ranges cost no wire read. It reads between two polls of the call, and gives at most 1 MiB
+per range. The guest keeps a read-ahead
 buffer, reads the zip directory from the end, and inflates each part as it parses it. The import
 grants nothing: it reads only what the program lent to this call, and the handle stops being valid
 when the call returns (`rule:packaging/values-cross-as-handles`), so the source is lent again on every
@@ -29,13 +32,13 @@ so they count against the byte bound once. Memory: the properties' text, per rea
 
 **Formats** are told apart by their bytes: a zip is xlsx or xlsm when its workbook part is XML,
 xlsb when it is `xl/workbook.bin`, and ods when it has a `content.xml` and no workbook part. An OLE
-compound file is xls. Other bytes are CSV when they are text: they start with a UTF-16 byte order
-mark, `csv`'s `encoding` names their charset, or their first 4 KiB have no NUL byte and no control
-character but tab, line feed, form feed and carriage return. Anything else throws `ParseError`,
-naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark throw
-`ParseError` when no `encoding` is given, and CSV bytes that are not valid UTF-8 throw `ParseError`
-naming the `encoding` option; the first 4 KiB are judged at the open and the rest as the text is
-decoded. When no `separator` is given, a first CSV line that is exactly `sep=` and one character,
+compound file is xls. Other bytes are CSV when they are text: they start with a UTF-8 or UTF-16
+byte order mark, `csv`'s `charset` names their charset, or their first 4 KiB have no NUL byte and no
+control character but tab, line feed, form feed and carriage return. Anything else throws
+`ParseError`, naming the formats the reader reads. CSV bytes that start with a UTF-32 byte order mark
+throw `ParseError` when no `charset` is given, and CSV bytes that are not valid UTF-8 throw
+`ParseError` naming the `charset` option; the first 4 KiB are judged at the open and the rest as
+`Core\Csv::rows` reads them. When no `separator` is given, a first CSV line that is exactly `sep=` and one character,
 which Excel writes and reads, sets the separator and is not a row; a line end or the quote is no
 separator, so such a line is a row. Cost: one check of the first line per CSV open. An encrypted
 file throws `RuntimeError` ("This file is encrypted with a password. Encrypted
@@ -183,7 +186,7 @@ text of each formula of an xls, held with its rows, and for an xlsb the sheets, 
 the names, read with the workbook part when the file opens.
 
 **On disk.** `Reader::open`, `sheets()`, `rows()` and the extras read xlsx, xlsm, xlsb, xls, ods
-and CSV, from `bytes` or an open `Core\IO\File` (`extensions/spreadsheet/nvs/Reader.nvs`,
+and CSV, from every `Core\Bytes::Source` (`extensions/spreadsheet/nvs/Reader.nvs`,
 `extensions/spreadsheet/src/read/`). A CSV is read by `Core\Csv` in the Novis half
 (`rule:core-classes/spreadsheet-has-no-io`).
 
