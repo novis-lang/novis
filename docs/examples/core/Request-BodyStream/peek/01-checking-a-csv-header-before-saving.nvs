@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to check the first line of an uploaded CSV file before the program saves it.
+
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+
+// `peek` returns the first 21 bytes of the body. It does not remove them from the body.
+tainted bytes $start = $body->peek(21);
+
+if (Core\Bytes::startsWith($start, "order,customer,total\n" as bytes)) {
+    // `writeStream` still gets every byte, including the 21 bytes that `peek` read.
+    string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+    Core\IO::writeStream($path, $body);
+    // This prints `saved 86 bytes`.
+    echo 'saved ', Core\IO::size($path), " bytes\n";
+} else {
+    echo "this is not an order list\n";
+}

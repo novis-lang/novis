@@ -4,8 +4,7 @@ keywords: raw request body, streaming request body, read the body in chunks, lar
 ---
 
 `Core\Request\BodyStream` is what `Core\Request::bodyStream()` answers with: an `Iterable<tainted bytes>`
-that a `foreach` walks once. It has no members — the walk is everything it does — and it holds nothing
-but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through
+that a `foreach` walks once. It holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through
 a program that never has more than one chunk of it resident. That is the whole difference from `body()`,
 which fills the request's hold under `[limits] request_body` and can be read back any number of times.
 This walk is under no such cap, because what a program keeps out of it is the program's own decision and
@@ -16,6 +15,9 @@ a program that needs lines, records or frames finds them itself, across chunks; 
 chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid
 after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the
 request carried no body at all.
+
+`peek($max)` returns the first `$max` bytes of the body and does not use them up, so the loop after it
+still starts at the first byte. Call it before the loop starts: after that it throws `LogicError`.
 
 **Naming the walk is the reading.** `bodyStream()` claims the body when the walk is built, long before a
 single byte moves, so `body()`, `post()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with

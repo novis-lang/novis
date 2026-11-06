@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to reject an upload in an old file format before the program reads it.
+
+// Every file this program accepts starts with the line `NOTES v2`.
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+tainted bytes $marker = $body->peek(9);
+
+if (Core\Bytes::startsWith($marker, "NOTES v2\n" as bytes)) {
+    uint $total = 0;
+    foreach ($body as tainted bytes $chunk) {
+        $total = $total + Core\Bytes::length($chunk);
+    }
+    echo 'accepted ', $total, " bytes\n";
+} else {
+    // The upload starts with `NOTES v1`, so this message is printed.
+    echo "rejected: please export the notes again as version 2\n";
+}

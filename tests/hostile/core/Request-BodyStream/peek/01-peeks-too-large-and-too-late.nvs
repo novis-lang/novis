@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program asks `peek` for more memory than the request has, and calls it after the loop
+// has started. Each wrong call should throw an error. The program then copies the peeked bytes
+// without end and should stop at its memory limit.
+// hostile: ends-early 6 FATAL
+
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+
+// 1. Asks for the largest `max` there is. This throws a `LogicError` and reads nothing.
+try {
+    $body->peek(18446744073709551615);
+    echo "the largest max was accepted\n";
+} catch (LogicError $tooMuch) {
+    echo "largest max: LogicError\n";
+}
+
+// 2. Asks for zero bytes, then for far more bytes than the body has.
+echo 'max 0: ', Core\Bytes::length($body->peek(0)), " bytes\n";
+tainted bytes $whole = $body->peek(1000001);
+echo 'max past the end: ', Core\Bytes::length($whole), " bytes\n";
+
+// 3. Peeks many times with a growing `max`. The loop below should still read every byte.
+uint $i = 1;
+while ($i < 4096) {
+    $body->peek($i);
+    $i = $i * 2;
+}
+
+// 4. Calls `peek` inside the loop. This throws a `LogicError`, which is caught.
+uint $total = 0;
+foreach ($body as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+    try {
+        $body->peek(1);
+        echo "a peek inside the loop was accepted\n";
+    } catch (LogicError $started) {
+        echo "peek inside the loop: LogicError\n";
+    }
+}
+echo 'the loop read ', $total, " bytes\n";
+
+// 5. Calls `peek` after the loop ended. This throws a `LogicError`, which is caught.
+try {
+    $body->peek(1);
+    echo "a peek after the loop was accepted\n";
+} catch (LogicError $gone) {
+    echo "peek after the loop: LogicError\n";
+}
+
+// 6. Copies the peeked bytes without end and keeps every copy. This stops at the memory limit.
+echo "step 6\n";
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Bytes::repeat($whole, 100000);
+}

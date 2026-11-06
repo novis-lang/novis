@@ -1,0 +1,10 @@
+--METHOD--
+PUT
+--PATH--
+/notes/import
+--HEADERS--
+content-type: text/plain; charset=utf-8
+--BODY--
+NOTES v1
+Call the supplier before Friday about the order.
+Send the new price list to the shop.

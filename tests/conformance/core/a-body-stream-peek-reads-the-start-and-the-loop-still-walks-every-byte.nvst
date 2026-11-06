@@ -1,0 +1,56 @@
+--TEST--
+`peek` on the body walk returns the body's first bytes and consumes none of them, a larger `max` reads further, the loop after it walks every byte from the first, and a `peek` once the loop has started or past the memory limit throws `LogicError` `rule:core-api/a-member-takes-the-source-the-program-holds`
+--POST_RAW--
+NOTES v2
+first note
+--FILE--
+<?nvs
+// covers: Core\Request\BodyStream::peek
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+
+// A `max` over the request's memory limit throws before a byte is read, so
+// the peeks after it still see the body from its start.
+try {
+    $body->peek(18446744073709551615);
+    echo "the largest max was accepted\n";
+} catch (LogicError $tooMuch) {
+    echo "largest max: LogicError\n";
+}
+
+// The same start twice, then further with a larger `max`, then the whole body
+// when `max` is past its end.
+echo Core\Bytes::length($body->peek(5)), "\n";
+echo Core\Bytes::length($body->peek(5)), "\n";
+echo Core\Bytes::startsWith($body->peek(8), "NOTES v2" as bytes) ? "marker\n" : "no marker\n";
+echo Core\Bytes::length($body->peek(1000)), "\n";
+
+// The loop starts at the first byte: nothing a peek read is lost, and a peek
+// inside the loop throws because the walk has begun.
+uint $total = 0;
+uint $refused = 0;
+foreach ($body as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+    try {
+        $body->peek(1);
+    } catch (LogicError $started) {
+        $refused = $refused + 1;
+    }
+}
+echo "walked ", $total, " bytes\n";
+echo $refused > 0 ? "peek in the loop: LogicError\n" : "peek in the loop was accepted\n";
+
+try {
+    $body->peek(1);
+    echo "peek after the loop was accepted\n";
+} catch (LogicError $after) {
+    echo "peek after the loop: LogicError\n";
+}
+--EXPECT--
+largest max: LogicError
+5
+5
+marker
+20
+walked 20 bytes
+peek in the loop: LogicError
+peek after the loop: LogicError

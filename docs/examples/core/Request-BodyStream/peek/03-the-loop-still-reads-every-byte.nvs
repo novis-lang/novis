@@ -1,0 +1,18 @@
+<?nvs
+// Shows that the bytes `peek` reads are still in the body for the `foreach` loop.
+
+Core\Request\BodyStream $body = Core\Request::bodyStream();
+
+// `peek(4)` returns the first 4 bytes. This prints `peeked 4 bytes`.
+tainted bytes $start = $body->peek(4);
+echo 'peeked ', Core\Bytes::length($start), " bytes\n";
+
+// A second `peek` with a larger `max` reads further. This prints `peeked 10 bytes`.
+echo 'peeked ', Core\Bytes::length($body->peek(10)), " bytes\n";
+
+// The loop starts at the first byte of the body. This prints `the loop read 48 bytes`.
+uint $total = 0;
+foreach ($body as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+}
+echo 'the loop read ', $total, " bytes\n";

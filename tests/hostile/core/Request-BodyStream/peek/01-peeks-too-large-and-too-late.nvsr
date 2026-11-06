@@ -1,0 +1,12 @@
+--METHOD--
+PUT
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: application/octet-stream
+--BODY--
+NOTES v1
+a short body that every peek and the loop read

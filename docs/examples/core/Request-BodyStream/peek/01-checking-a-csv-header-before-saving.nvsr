@@ -1,0 +1,11 @@
+--METHOD--
+PUT
+--PATH--
+/imports/orders.csv
+--HEADERS--
+content-type: text/csv
+--BODY--
+order,customer,total
+1042,Blog Ltd,19.90
+1043,Shop GmbH,4.50
+1044,Framework Inc,120.00
