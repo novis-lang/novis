@@ -977,7 +977,10 @@ async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged
   let limit = hostileLimitMs(source);
   let argv = proofArgv(nvs, path, source);
   if (valgrind) {
-    argv = ["valgrind", "--quiet", "--error-exitcode=97", "--leak-check=full", "--errors-for-leak-kinds=definite", ...argv];
+    // The suppressions are `bun nv valgrind`'s: without them, `ring`'s AEAD assembly reads as an
+    // uninitialised value in every attack that opens a TLS connection, and every one goes red.
+    const supp = `--suppressions=${join(ROOT, "tools/valgrind.supp")}`;
+    argv = ["valgrind", "--quiet", "--error-exitcode=97", "--leak-check=full", "--errors-for-leak-kinds=definite", supp, ...argv];
     limit *= HANG_FACTOR;
   }
   let out: Ran;
