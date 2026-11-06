@@ -129,9 +129,20 @@ This is what each command checks:
 
 `nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
 
-The check on the cache folder also looks at the folder one level up. If `D:\srv\novis\cache` has
-the correct permissions and `D:\srv\novis` does not, the warning names `D:\srv\novis`. That is the
-folder to change.
+The check on the cache folder, and on a data folder that `--data` names, also looks at the folder
+one level up. That folder fails only when
+another account can delete or rename the folders in it. Other accounts may still create files and
+folders there.
+
+| | Windows | Linux and macOS |
+|---|---|---|
+| The folder one level up fails when | one of the groups above has the right to delete subfolders and files, to change the permissions, or to change the owner | the mode has a write bit for the group or for others, and the sticky bit is not set |
+
+The right to change, which Windows gives `Authenticated Users` on a drive that is not the system
+drive, does not fail the folder one level up. The cache folder itself still fails if it gets that
+right from the folder above it. `/tmp` passes on Linux and macOS, because it has the
+sticky bit. If `D:\srv\novis\cache` has the correct permissions and `D:\srv\novis` does not, the
+warning names `D:\srv\novis`. That is the folder to change.
 
 `nvs init` checks the same folder that `nvs serve` checks later. It does not check the folder
 above it, so it never asks you to change a folder like `D:\srv` that other projects share.

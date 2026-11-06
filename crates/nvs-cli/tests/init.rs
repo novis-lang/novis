@@ -292,12 +292,28 @@ fn the_simplest_layout_is_written_by_init_and_one_run_from_elsewhere_uses_cache_
 ///
 /// On Windows that is a grant to `BUILTIN\Users`, named by its SID because a group's name is
 /// localized, and carrying no inheritance flags so a folder inside `dir` does not take it. On Unix
-/// it is the write bit for others.
+/// it is the write bit for others with the sticky bit, so no other account may delete what this
+/// account put in `dir`.
 fn writable_by_others(dir: &Path, open: bool) {
+    others_may(dir, open, "(WD)", 0o1757);
+}
+
+/// Gives every account on the host the right to delete and replace the entries of `dir`, or takes
+/// it back: the one state of a folder's parent that fails the folder inside it. On Windows that is
+/// the `(DC)` right. On Unix it is the write bit for others without the sticky bit.
+fn replaceable_by_others(dir: &Path, open: bool) {
+    others_may(dir, open, "(DC)", 0o757);
+}
+
+/// Grants `BUILTIN\Users` the `rights` on `dir` on Windows, or sets `mode` on Unix, and with
+/// `open` false takes either back.
+#[cfg_attr(windows, expect(unused_variables, reason = "`mode` is the Unix half"))]
+#[cfg_attr(unix, expect(unused_variables, reason = "`rights` is the Windows half"))]
+fn others_may(dir: &Path, open: bool, rights: &str, mode: u32) {
     #[cfg(windows)]
     {
         const USERS: &str = "*S-1-5-32-545";
-        let grant = format!("{USERS}:(WD)");
+        let grant = format!("{USERS}:{rights}");
         if open {
             icacls(dir, &["/grant:r", &grant]);
         } else {
@@ -307,7 +323,7 @@ fn writable_by_others(dir: &Path, open: bool) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        let mode = if open { 0o757 } else { 0o755 };
+        let mode = if open { mode } else { 0o755 };
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
             .expect("a scratch directory's mode is this process's to change");
     }
@@ -338,10 +354,11 @@ fn icacls(dir: &Path, edit: &[&str]) {
 /// exit status `1`, an `error:` naming that folder, and no file. Taking the right back is the
 /// whole repair. The same right on the outer folder alone does not stop `nvs init`.
 ///
-/// That outer folder does fail the cache folder inside it, and that is a `warning:` and a program
-/// that still runs with nothing stored. `nvs run` reads its configuration out of a folder every
-/// account may write without a word, because only `nvs serve` and its reloads check the
-/// configuration files.
+/// An outer folder that lets every account delete its entries fails the cache folder inside it,
+/// and that is a `warning:` and a program that still runs with nothing stored. An outer folder
+/// every account may write but nobody else may delete from passes, and the program is stored.
+/// `nvs run` reads its configuration out of a folder every account may write without a word,
+/// because only `nvs serve` and its reloads check the configuration files.
 // covers: tools:install/what-novis-checks
 #[test]
 fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_config() {
@@ -422,7 +439,7 @@ fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_
     };
 
     writable_by_others(&inner, true);
-    writable_by_others(&outer, true);
+    replaceable_by_others(&outer, true);
     let warned = nvs()
         .arg("run")
         .arg(&program)
@@ -440,7 +457,8 @@ fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_
     );
     assert!(!stored(), "and a refused cache folder stores nothing");
 
-    writable_by_others(&outer, false);
+    replaceable_by_others(&outer, false);
+    writable_by_others(&outer, true);
     let quiet = nvs()
         .arg("run")
         .arg(&program)
@@ -449,9 +467,11 @@ fn nvs_init_checks_its_folder_alone_the_cache_one_folder_up_and_nvs_run_not_the_
     let stderr = String::from_utf8_lossy(&quiet.stderr);
     assert!(
         quiet.status.success() && stderr.is_empty(),
-        "with the right taken back from the outer folder there is nothing to say: {stderr}"
+        "an outer folder every account may write but nobody else may delete from is no reason \
+         to warn: {stderr}"
     );
     assert!(stored(), "and the compiled program is stored");
+    writable_by_others(&outer, false);
 
     drop(std::fs::remove_dir_all(&outer));
     drop(std::fs::remove_dir_all(&elsewhere));
@@ -817,7 +837,7 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
             .any(|path| path.extension().is_some_and(|ext| ext == "nvsc"))
     };
 
-    writable_by_others(&outer, true);
+    replaceable_by_others(&outer, true);
     let stderr = run();
     assert!(
         stderr.starts_with(&format!(
@@ -827,7 +847,7 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
     );
     assert!(!stored(), "and until then nothing is stored");
 
-    writable_by_others(&outer, false);
+    replaceable_by_others(&outer, false);
     let stderr = run();
     assert!(
         stderr.is_empty() && stored(),

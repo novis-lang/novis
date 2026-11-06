@@ -437,3 +437,75 @@ fn an_owner_outside_administrators_is_refused_for_another_account() {
         "the refusal names the owner and the account it judged for: {why:?}",
     );
 }
+
+/// A folder `outer/inner` under a scratch folder, with `outer` the folder whose rights the two
+/// parent cases below change. On Windows `outer` stops inheriting first, so a grant on it is the
+/// only entry for the group, and a grant without `(OI)(CI)` stays on `outer` alone.
+fn nested(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf, std::path::PathBuf) {
+    let dir = scratch(name);
+    let outer = dir.join("outer");
+    let inner = outer.join("inner");
+    fs::create_dir_all(&inner).expect("two nested folders");
+    #[cfg(windows)]
+    icacls(&outer, &["/inheritance:d"]);
+    (dir, outer, inner)
+}
+
+/// The folder above a checked folder fails only when another account can replace that folder.
+/// On Windows every account may modify `outer` here, which is the right a non-system drive's root
+/// gives `Authenticated Users`. On Unix `outer` is world-writable with the sticky bit, as `/tmp`
+/// is. Either way no other account can delete `inner`, so `inner` passes. A file in `outer` still
+/// fails, because its own folder keeps the full write test.
+// covers: tools:config/trust
+#[test]
+fn a_parent_with_modify_for_every_account_does_not_fail_the_folder_inside_it() {
+    let (_dir, outer, inner) = nested("parent-modify");
+    #[cfg(windows)]
+    icacls(&outer, &["/grant:r", &format!("{USERS}:M")]);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&outer, fs::Permissions::from_mode(0o1777))
+            .expect("a sticky world-writable mode");
+    }
+
+    check(&inner).unwrap_or_else(|why| panic!("{}", why.message()));
+    let file = outer.join("nvs.toml");
+    fs::write(&file, "").expect("a configuration file");
+    let why = check(&file).expect_err("every account may write the file's own folder");
+    assert!(
+        matches!(why, Untrusted::Breach { .. }),
+        "the file's folder keeps the full write test: {why:?}",
+    );
+    #[cfg(windows)]
+    icacls(&outer, &["/remove:g", USERS]);
+}
+
+/// A folder above a checked folder that lets every account delete its entries fails the folder
+/// inside it, and the refusal names the outer folder. On Windows that is the `(DC)` right. On
+/// Unix it is a write bit for others without the sticky bit.
+// covers: tools:config/trust
+#[test]
+fn a_parent_that_lets_every_account_delete_entries_fails_the_folder_inside_it() {
+    let (_dir, outer, inner) = nested("parent-delete-child");
+    #[cfg(windows)]
+    icacls(&outer, &["/grant:r", &format!("{USERS}:(DC)")]);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&outer, fs::Permissions::from_mode(0o777))
+            .expect("a world-writable mode");
+    }
+
+    let named = nvs_config::trust::canonical(&outer).expect("the outer folder exists");
+    let why = check(&inner).expect_err("every account could delete or replace `inner`");
+    assert!(
+        matches!(why, Untrusted::Breach { .. })
+            && why
+                .message()
+                .starts_with(&format!("`{}` ", named.display())),
+        "the refusal names the outer folder: {why:?}",
+    );
+    #[cfg(windows)]
+    icacls(&outer, &["/remove:g", USERS]);
+}

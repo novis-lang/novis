@@ -143,8 +143,16 @@ pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
 
 /// `rule:config/ownership-is-the-trust-boundary`'s check on `path` and on the directory that contains it, and the canonical path it names.
 ///
-/// The directory gets the same check as the file rather than only the mode half of it: an entry can
-/// be replaced by anyone who can write the directory, whatever the file's own bits say.
+/// The directory that contains a **file** gets the same check as the file rather than only the mode
+/// half of it: an entry can be replaced by anyone who can write the directory, whatever the file's
+/// own bits say, and an account that can add an entry there can add one the configuration reads.
+///
+/// The directory that contains a **folder** gets the owner test and a narrower write test
+/// ([`platform::check_parent`]): it fails only when another account can delete or replace the
+/// folder in it. A folder's own contents are covered by the folder's own full test, so a right to
+/// add entries beside it changes nothing Novis reads. That is the right Windows gives
+/// `Authenticated Users` on a non-system drive's root, and on Unix a sticky world-writable
+/// directory such as `/tmp`. Telling the two cases apart costs one `stat` of the canonical path.
 ///
 /// **So does the directory that holds each link on `path` as given.** A reload reads `path` through
 /// its links again, so whoever can write the directory a link sits in chooses the file the next
@@ -175,7 +183,12 @@ pub fn check_as(path: &Path, account: &Account) -> Result<PathBuf, Untrusted> {
     let canonical = check_alone_as(path, account)?;
     let parent = canonical.parent();
     if let Some(parent) = parent {
-        platform::check(parent, account).map_err(|why| why.about(parent))?;
+        let verdict = if std::fs::metadata(&canonical).is_ok_and(|meta| meta.is_dir()) {
+            platform::check_parent(parent, account)
+        } else {
+            platform::check(parent, account)
+        };
+        verdict.map_err(|why| why.about(parent))?;
     }
     for link in path.ancestors().filter(|prefix| {
         std::fs::symlink_metadata(prefix).is_ok_and(|meta| meta.file_type().is_symlink())
@@ -329,6 +342,28 @@ mod platform {
     /// read-write mount of the same tree would serve them.
     pub(super) fn check(path: &Path, me: &Account) -> Result<(), Untrusted> {
         judged(path, &stat(path)?, me, || read_only_mount(path))
+    }
+
+    /// [`check`] on the directory that contains a checked folder: the owner test unchanged, and
+    /// the mode test waived when the sticky bit is set.
+    ///
+    /// With the sticky bit, only an entry's owner, the directory's owner and root may delete or
+    /// rename an entry. The folder inside has already passed its own owner test, and this
+    /// directory's owner passes it here, so no other account can replace the folder. Without the
+    /// sticky bit, a group or world write bit lets anyone delete it, and [`check`]'s verdict
+    /// stands.
+    pub(super) fn check_parent(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        let found = stat(path)?;
+        let sticky = found.mode & 0o1000 != 0;
+        let stat = Stat {
+            mode: if sticky {
+                found.mode & !0o022
+            } else {
+                found.mode
+            },
+            ..found
+        };
+        judged(path, &stat, me, || read_only_mount(path))
     }
 
     /// An account is its uid.
@@ -570,7 +605,8 @@ mod platform {
         WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_GENERIC_READ,
+        FILE_GENERIC_WRITE,
         FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, WRITE_DAC,
         WRITE_OWNER,
     };
@@ -659,6 +695,12 @@ mod platform {
         | DELETE
         | WRITE_DAC
         | WRITE_OWNER;
+
+    /// Every right on a directory that lets a principal delete or replace a folder inside it:
+    /// `FILE_DELETE_CHILD` deletes any entry whatever the entry's own DACL says, and `WRITE_DAC`
+    /// and `WRITE_OWNER` buy that right in a second step. Adding entries is not in it, so the
+    /// `Modify` right Windows gives `Authenticated Users` on a non-system drive's root passes.
+    const REPLACE_RIGHTS: u32 = FILE_DELETE_CHILD | WRITE_DAC | WRITE_OWNER;
 
     /// The Windows spelling of "the group and the world" — the principals `rule:config/ownership-is-the-trust-boundary` refuses write to,
     /// with the name a refusal prints and the SID it prints beside it. The name is the English one
@@ -813,13 +855,25 @@ mod platform {
     }
 
     /// The owner is trusted and no untrusted principal has an effective write right.
+    pub(super) fn check(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        checked(path, me, WRITE_RIGHTS)
+    }
+
+    /// [`check`] on the directory that contains a checked folder: the owner is trusted and no
+    /// untrusted principal has an effective [`REPLACE_RIGHTS`] right. The folder's own `DELETE`
+    /// right is in the folder's own test.
+    pub(super) fn check_parent(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        checked(path, me, REPLACE_RIGHTS)
+    }
+
+    /// The owner is trusted and no untrusted principal has an effective right in `rights`.
     #[expect(
         unsafe_code,
         reason = "reading a security descriptor is four `advapi32` calls and a `LocalFree`; the \
                   descriptor is freed on both paths and nothing borrowed from it outlives this \
                   function, since `examine` copies every SID it keeps"
     )]
-    pub(super) fn check(path: &Path, me: &Account) -> Result<(), Untrusted> {
+    fn checked(path: &Path, me: &Account, rights: u32) -> Result<(), Untrusted> {
         let wide = wide(path);
         let mut owner: PSID = std::ptr::null_mut();
         let mut dacl: *mut ACL = std::ptr::null_mut();
@@ -841,7 +895,7 @@ mod platform {
                 "its security descriptor could not be read (win32 error {status})"
             )));
         }
-        let verdict = examine(path, owner, dacl, me);
+        let verdict = examine(path, owner, dacl, me, rights);
         unsafe { LocalFree(descriptor) };
         verdict
     }
@@ -905,14 +959,16 @@ mod platform {
     }
 
     /// `rule:config/ownership-is-the-trust-boundary` against one descriptor of `path`: the owner
-    /// first, then each untrusted principal's rights. Each breach carries the `icacls` command
-    /// that repairs it, with `path` filled in. The help is built only for a breach, so a path that
-    /// passes costs nothing more than the check.
+    /// first, then each untrusted principal's rights against `refused`, which is [`WRITE_RIGHTS`]
+    /// or [`REPLACE_RIGHTS`]. Each breach carries the `icacls` command that repairs it, with
+    /// `path` filled in. The help is built only for a breach, so a path that passes costs nothing
+    /// more than the check.
     fn examine(
         path: &Path,
         owner: PSID,
         dacl: *const ACL,
         account: &Account,
+        refused: u32,
     ) -> Result<(), Untrusted> {
         if owner.is_null() {
             return Err(Untrusted::breach(
@@ -947,9 +1003,14 @@ mod platform {
         }
         for (kind, name, sid) in UNTRUSTED {
             let rights = effective_rights(dacl, &well_known(*kind)?)?;
-            if rights & WRITE_RIGHTS != 0 {
+            if rights & refused != 0 {
+                let what = if refused == WRITE_RIGHTS {
+                    "write access"
+                } else {
+                    "the right to delete the folders in it"
+                };
                 return Err(Untrusted::breach(
-                    format!("grants write access to `{name}` (`{sid}`, rights {rights:#010x})"),
+                    format!("grants {what} to `{name}` (`{sid}`, rights {rights:#010x})"),
                     group_help(path, sid),
                 ));
             }
@@ -1311,7 +1372,7 @@ mod platform {
         };
 
         use super::super::Account;
-        use super::{as_psid, copy_sid, examine, service_sid, sid_text};
+        use super::{WRITE_RIGHTS, as_psid, copy_sid, examine, service_sid, sid_text};
 
         /// An ordinary local user's SID, made up: no machine has to know it.
         const USER: &str = "S-1-5-21-1-2-3-1001";
@@ -1348,7 +1409,7 @@ mod platform {
                 name: Some("Blog".to_string()),
             };
             let path = Path::new(r"C:\ProgramData\novis\nvs.toml");
-            let verdict = examine(path, owner, dacl, &account(owners))
+            let verdict = examine(path, owner, dacl, &account(owners), WRITE_RIGHTS)
                 .map_err(|why| why.message().to_string());
             unsafe { LocalFree(descriptor) };
             verdict
