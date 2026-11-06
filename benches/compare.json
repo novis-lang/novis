@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-23T06:11:51",
-  "commit": "4f01826ad",
+  "date": "2026-11-06T03:56:02",
+  "commit": "a14be99be7",
   "arm": "fair",
   "backend_cpus": 1,
   "nginx_cpus": 4,
@@ -11,7 +11,7 @@
     "platform": "win32-10.0.26200-x86_64",
     "processor": "AMD Ryzen 7 7800X3D 8-Core Processor           ",
     "cpus": 16,
-    "docker": "29.9.1"
+    "docker": "29.9.2"
   },
   "peers": {
     "nvs": {
@@ -20,19 +20,19 @@
     },
     "php": {
       "label": "PHP",
-      "image": "php:8.5.11-fpm"
+      "image": "php:8.5.12-fpm"
     },
     "bun": {
       "label": "Bun",
-      "image": "oven/bun:1.4.3-slim"
+      "image": "oven/bun:1.4.4-slim"
     },
     "go": {
       "label": "Go",
-      "image": "golang:1.27.2-alpine, run on alpine:3.24.2"
+      "image": "golang:1.27.3-alpine, run on alpine:3.24.3"
     }
   },
   "images": {
-    "nginx": "nginx:1.31.7-alpine",
+    "nginx": "nginx:1.31.8-alpine",
     "oha": "ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f"
   },
   "cases": {
@@ -40,17 +40,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 31774.4,
-          "median_requests_per_sec": 31774.4,
-          "p50_ms": 1.171,
-          "p99_ms": 8.313,
+          "requests_per_sec": 34592.3,
+          "median_requests_per_sec": 34592.3,
+          "p50_ms": 1.584,
+          "p99_ms": 3.411,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 15466496,
-          "memory_peak_bytes": 20086784,
+          "memory_idle_bytes": 15695872,
+          "memory_peak_bytes": 18616320,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -58,17 +58,17 @@
           }
         },
         "php": {
-          "requests_per_sec": 7991.2,
-          "median_requests_per_sec": 7991.2,
-          "p50_ms": 1.107,
-          "p99_ms": 83.471,
+          "requests_per_sec": 9364.8,
+          "median_requests_per_sec": 9364.8,
+          "p50_ms": 0.869,
+          "p99_ms": 82.626,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 75608064,
-          "memory_peak_bytes": 110473216,
+          "memory_idle_bytes": 76603392,
+          "memory_peak_bytes": 111243264,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
@@ -82,17 +82,17 @@
           }
         },
         "bun": {
-          "requests_per_sec": 36421.7,
-          "median_requests_per_sec": 36421.7,
-          "p50_ms": 1.022,
-          "p99_ms": 7.119,
+          "requests_per_sec": 43509.7,
+          "median_requests_per_sec": 43509.7,
+          "p50_ms": 0.821,
+          "p99_ms": 3.433,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 11390976,
-          "memory_peak_bytes": 20848640,
+          "memory_idle_bytes": 11431936,
+          "memory_peak_bytes": 14663680,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -100,17 +100,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 35428.1,
-          "median_requests_per_sec": 35428.1,
-          "p50_ms": 0.986,
-          "p99_ms": 5.447,
+          "requests_per_sec": 40480.5,
+          "median_requests_per_sec": 40480.5,
+          "p50_ms": 0.858,
+          "p99_ms": 3.719,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 7843840,
-          "memory_peak_bytes": 14163968,
+          "memory_idle_bytes": 7397376,
+          "memory_peak_bytes": 14065664,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -122,17 +122,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 16552.2,
-          "median_requests_per_sec": 16552.2,
-          "p50_ms": 3.396,
-          "p99_ms": 14.969,
+          "requests_per_sec": 15682.8,
+          "median_requests_per_sec": 15682.8,
+          "p50_ms": 3.962,
+          "p99_ms": 7.784,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 17211392,
-          "memory_peak_bytes": 27774976,
+          "memory_idle_bytes": 18444288,
+          "memory_peak_bytes": 24055808,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -140,17 +140,17 @@
           }
         },
         "php": {
-          "requests_per_sec": 4798.8,
-          "median_requests_per_sec": 4798.8,
-          "p50_ms": 0.798,
-          "p99_ms": 94.372,
+          "requests_per_sec": 4602,
+          "median_requests_per_sec": 4602,
+          "p50_ms": 1.75,
+          "p99_ms": 91.861,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 77062144,
-          "memory_peak_bytes": 130580480,
+          "memory_idle_bytes": 77217792,
+          "memory_peak_bytes": 130539520,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
@@ -164,17 +164,17 @@
           }
         },
         "bun": {
-          "requests_per_sec": 28849.3,
-          "median_requests_per_sec": 28849.3,
-          "p50_ms": 1.076,
-          "p99_ms": 7.056,
+          "requests_per_sec": 23413.4,
+          "median_requests_per_sec": 23413.4,
+          "p50_ms": 1.734,
+          "p99_ms": 10.648,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 12365824,
-          "memory_peak_bytes": 25030656,
+          "memory_idle_bytes": 11235328,
+          "memory_peak_bytes": 22597632,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -182,17 +182,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 20408.3,
-          "median_requests_per_sec": 20408.3,
-          "p50_ms": 2.864,
-          "p99_ms": 8.553,
+          "requests_per_sec": 14812.5,
+          "median_requests_per_sec": 14812.5,
+          "p50_ms": 3.962,
+          "p99_ms": 10.829,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 8867840,
-          "memory_peak_bytes": 16269312,
+          "memory_idle_bytes": 7401472,
+          "memory_peak_bytes": 14327808,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -204,17 +204,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 11402.3,
-          "median_requests_per_sec": 11402.3,
-          "p50_ms": 5.318,
-          "p99_ms": 13.452,
+          "requests_per_sec": 9444.7,
+          "median_requests_per_sec": 9444.7,
+          "p50_ms": 6.587,
+          "p99_ms": 15.681,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 18219008,
-          "memory_peak_bytes": 25116672,
+          "memory_idle_bytes": 18632704,
+          "memory_peak_bytes": 24637440,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -222,17 +222,17 @@
           }
         },
         "php": {
-          "requests_per_sec": 4562.7,
-          "median_requests_per_sec": 4562.7,
-          "p50_ms": 2.371,
-          "p99_ms": 89.246,
+          "requests_per_sec": 4084.9,
+          "median_requests_per_sec": 4084.9,
+          "p50_ms": 1.625,
+          "p99_ms": 95.704,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 75620352,
-          "memory_peak_bytes": 141049856,
+          "memory_idle_bytes": 76988416,
+          "memory_peak_bytes": 142032896,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
@@ -246,17 +246,17 @@
           }
         },
         "bun": {
-          "requests_per_sec": 19047.8,
-          "median_requests_per_sec": 19047.8,
-          "p50_ms": 2.369,
-          "p99_ms": 21.102,
+          "requests_per_sec": 14642.2,
+          "median_requests_per_sec": 14642.2,
+          "p50_ms": 3.902,
+          "p99_ms": 9.084,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 13176832,
-          "memory_peak_bytes": 29433856,
+          "memory_idle_bytes": 11456512,
+          "memory_peak_bytes": 29413376,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -264,17 +264,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 3569,
-          "median_requests_per_sec": 3569,
-          "p50_ms": 17.508,
-          "p99_ms": 39.477,
+          "requests_per_sec": 2378.9,
+          "median_requests_per_sec": 2378.9,
+          "p50_ms": 26.964,
+          "p99_ms": 53.548,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 8085504,
-          "memory_peak_bytes": 17022976,
+          "memory_idle_bytes": 7544832,
+          "memory_peak_bytes": 15847424,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -286,17 +286,17 @@
       "concurrency": 1000,
       "peers": {
         "nvs": {
-          "requests_per_sec": 12226.1,
-          "median_requests_per_sec": 12226.1,
-          "p50_ms": 54.076,
-          "p99_ms": 478.839,
+          "requests_per_sec": 11566.1,
+          "median_requests_per_sec": 11566.1,
+          "p50_ms": 62.299,
+          "p99_ms": 487.833,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 17494016,
-          "memory_peak_bytes": 107376640,
+          "memory_idle_bytes": 17182720,
+          "memory_peak_bytes": 86474752,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -304,17 +304,17 @@
           }
         },
         "php": {
-          "requests_per_sec": 3083.1,
-          "median_requests_per_sec": 3083.1,
-          "p50_ms": 206.689,
-          "p99_ms": 1550.389,
+          "requests_per_sec": 2155.1,
+          "median_requests_per_sec": 2155.1,
+          "p50_ms": 303.192,
+          "p99_ms": 2337.788,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 1682075648,
-          "memory_peak_bytes": 2275520512,
+          "memory_idle_bytes": 1686323200,
+          "memory_peak_bytes": 2294054912,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
@@ -328,17 +328,17 @@
           }
         },
         "bun": {
-          "requests_per_sec": 13299.3,
-          "median_requests_per_sec": 13299.3,
-          "p50_ms": 52.654,
-          "p99_ms": 442.456,
+          "requests_per_sec": 13254.8,
+          "median_requests_per_sec": 13254.8,
+          "p50_ms": 52.35,
+          "p99_ms": 451.149,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 14221312,
-          "memory_peak_bytes": 43102208,
+          "memory_idle_bytes": 13107200,
+          "memory_peak_bytes": 38760448,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -346,17 +346,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 12376.4,
-          "median_requests_per_sec": 12376.4,
-          "p50_ms": 54.982,
-          "p99_ms": 527.59,
+          "requests_per_sec": 12329,
+          "median_requests_per_sec": 12329,
+          "p50_ms": 57.816,
+          "p99_ms": 380.894,
           "errors": 0,
           "error_kinds": {},
           "status_codes": {
             "200": 100000
           },
-          "memory_idle_bytes": 9023488,
-          "memory_peak_bytes": 60477440,
+          "memory_idle_bytes": 9179136,
+          "memory_peak_bytes": 58998784,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -366,8 +366,8 @@
     }
   },
   "scenarios": {
-    "date": "2026-10-23T07:26:02",
-    "commit": "4f01826ad",
+    "date": "2026-11-06T05:14:35",
+    "commit": "a14be99be7",
     "rows": {
       "escape": {
         "folder": "benches/compare/scenarios/escape",
@@ -482,7 +482,7 @@
             "result": "on-by-default",
             "setting": "opcache.validate_timestamps",
             "evidence": {
-              "seconds_to_new_answer": 2.8,
+              "seconds_to_new_answer": 2.3,
               "restarts": 0
             }
           },
@@ -520,7 +520,7 @@
             "setting": "php-fpm reload",
             "evidence": {
               "seconds_without_command": null,
-              "seconds_after_command": 0.7,
+              "seconds_after_command": 0.5,
               "command": "php-fpm reload",
               "restarts": 0
             }
@@ -547,13 +547,13 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 124353,
+              "requests": 147456,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 124353,
+              "complete_replies": 147456,
               "seconds_to_copy": 2.4,
-              "seconds_to_new_answer": 1.2,
+              "seconds_to_new_answer": 1.3,
               "command": null,
               "restarts": 0,
               "version_checked": true,
@@ -563,13 +563,13 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 121754,
+              "requests": 110165,
               "failed_requests": 0,
               "failures": null,
-              "mixed_replies": 57438,
-              "complete_replies": 64316,
-              "seconds_to_copy": 4,
-              "seconds_to_new_answer": 2.8,
+              "mixed_replies": 50488,
+              "complete_replies": 59677,
+              "seconds_to_copy": 4.1,
+              "seconds_to_new_answer": 2.5,
               "command": null,
               "restarts": 0,
               "version_checked": true,
@@ -579,13 +579,13 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 187622,
-              "failed_requests": 1326,
-              "failures": "502 x1326",
+              "requests": 228527,
+              "failed_requests": 1147,
+              "failures": "502 x1147",
               "mixed_replies": 0,
-              "complete_replies": 186296,
-              "seconds_to_copy": 2.3,
-              "seconds_to_new_answer": 0.6,
+              "complete_replies": 227380,
+              "seconds_to_copy": 2.5,
+              "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
               "version_checked": true,
@@ -595,11 +595,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 71880,
-              "failed_requests": 1189,
-              "failures": "502 x1189",
+              "requests": 91438,
+              "failed_requests": 1256,
+              "failures": "502 x1256",
               "mixed_replies": 0,
-              "complete_replies": 70691,
+              "complete_replies": 90182,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.7,
               "command": "a new image and a restart",
@@ -616,13 +616,13 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 260789,
+              "requests": 249757,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 260789,
-              "seconds_to_copy": 21.9,
-              "seconds_to_new_answer": 3.5,
+              "complete_replies": 249757,
+              "seconds_to_copy": 22.1,
+              "seconds_to_new_answer": 4,
               "command": null,
               "restarts": 0,
               "version_checked": true,
@@ -632,13 +632,13 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 190425,
+              "requests": 207227,
               "failed_requests": 0,
               "failures": null,
-              "mixed_replies": 171894,
-              "complete_replies": 18531,
-              "seconds_to_copy": 53.1,
-              "seconds_to_new_answer": 2.4,
+              "mixed_replies": 193791,
+              "complete_replies": 13436,
+              "seconds_to_copy": 58.2,
+              "seconds_to_new_answer": 2.3,
               "command": null,
               "restarts": 0,
               "version_checked": true,
@@ -648,12 +648,12 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 327944,
-              "failed_requests": 1308,
-              "failures": "502 x1308",
+              "requests": 367212,
+              "failed_requests": 1487,
+              "failures": "502 x1487",
               "mixed_replies": 0,
-              "complete_replies": 326636,
-              "seconds_to_copy": 22.1,
+              "complete_replies": 365725,
+              "seconds_to_copy": 22.2,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
@@ -664,11 +664,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 50208,
-              "failed_requests": 1152,
-              "failures": "502 x1152",
+              "requests": 47281,
+              "failed_requests": 898,
+              "failures": "502 x898",
               "mixed_replies": 0,
-              "complete_replies": 49056,
+              "complete_replies": 46383,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.7,
               "command": "a new image and a restart",
@@ -685,13 +685,13 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 217845,
+              "requests": 192193,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 217845,
-              "seconds_to_copy": 2.4,
-              "seconds_to_new_answer": 0.5,
+              "complete_replies": 192193,
+              "seconds_to_copy": 2.5,
+              "seconds_to_new_answer": 0.6,
               "command": null,
               "restarts": 0,
               "version_checked": true,
@@ -702,12 +702,12 @@
             "result": "on-by-default",
             "setting": "opcache.validate_timestamps",
             "evidence": {
-              "requests": 149277,
+              "requests": 127007,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 149277,
-              "seconds_to_copy": 3.6,
+              "complete_replies": 127007,
+              "seconds_to_copy": 3.5,
               "seconds_to_new_answer": 0.1,
               "command": null,
               "restarts": 0,
@@ -718,11 +718,11 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 322131,
-              "failed_requests": 1327,
-              "failures": "502 x1327",
+              "requests": 270161,
+              "failed_requests": 1335,
+              "failures": "502 x1335",
               "mixed_replies": 0,
-              "complete_replies": 320804,
+              "complete_replies": 268826,
               "seconds_to_copy": 2.4,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
@@ -734,11 +734,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 102705,
-              "failed_requests": 1668,
-              "failures": "502 x1668",
+              "requests": 84862,
+              "failed_requests": 1133,
+              "failures": "502 x1133",
               "mixed_replies": 0,
-              "complete_replies": 101037,
+              "complete_replies": 83729,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.7,
               "command": "a new image and a restart",
@@ -755,9 +755,9 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 902,
-              "requests_per_sec_4_cpus": 3473,
-              "scaling": 3.85,
+              "requests_per_sec_1_cpu": 865,
+              "requests_per_sec_4_cpus": 3426,
+              "scaling": 3.96,
               "errors": 0,
               "code": null
             }
@@ -765,9 +765,9 @@
           "php": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 929,
-              "requests_per_sec_4_cpus": 3563,
-              "scaling": 3.83,
+              "requests_per_sec_1_cpu": 961,
+              "requests_per_sec_4_cpus": 2800,
+              "scaling": 2.91,
               "errors": 0,
               "code": null
             }
@@ -775,9 +775,9 @@
           "bun": {
             "result": "your-code",
             "evidence": {
-              "requests_per_sec_1_cpu": 826,
-              "requests_per_sec_4_cpus": 3263,
-              "scaling": 3.95,
+              "requests_per_sec_1_cpu": 829,
+              "requests_per_sec_4_cpus": 3436,
+              "scaling": 4.14,
               "errors": 0,
               "code": "a launcher that starts one reusePort process per cpu"
             }
@@ -785,9 +785,9 @@
           "go": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 1005,
-              "requests_per_sec_4_cpus": 3978,
-              "scaling": 3.96,
+              "requests_per_sec_1_cpu": 1004,
+              "requests_per_sec_4_cpus": 3741,
+              "scaling": 3.73,
               "errors": 0,
               "code": null
             }
@@ -842,13 +842,13 @@
             "result": "on-by-default",
             "setting": "[limits] cpu_time",
             "evidence": {
-              "baseline_requests": 250198,
-              "requests": 40030,
+              "baseline_requests": 296858,
+              "requests": 42418,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 21,
+              "p99_ms": 20.6,
               "runaway_status": 500,
-              "runaway_seconds": 31.5,
+              "runaway_seconds": 31.4,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -859,13 +859,13 @@
             "result": "on-by-default",
             "setting": "max_execution_time",
             "evidence": {
-              "baseline_requests": 105322,
-              "requests": 73684,
+              "baseline_requests": 100796,
+              "requests": 69236,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 63.3,
+              "p99_ms": 64.1,
               "runaway_status": 200,
-              "runaway_seconds": 38.8,
+              "runaway_seconds": 38.6,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -875,11 +875,11 @@
           "bun": {
             "result": "your-code",
             "evidence": {
-              "baseline_requests": 274316,
-              "requests": 28334,
+              "baseline_requests": 287212,
+              "requests": 30330,
               "failed_requests": 48,
               "failures": "timeout x48",
-              "p99_ms": 3.7,
+              "p99_ms": 0.9,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -891,11 +891,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 322201,
-              "requests": 40377,
+              "baseline_requests": 264231,
+              "requests": 40220,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 20.8,
+              "p99_ms": 20.5,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -913,13 +913,13 @@
             "result": "on-by-default",
             "setting": "[limits] memory",
             "evidence": {
-              "baseline_requests": 294500,
-              "requests": 272762,
+              "baseline_requests": 254842,
+              "requests": 250338,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 1.7,
+              "p99_ms": 1,
               "runaway_status": 500,
-              "runaway_seconds": 0.4,
+              "runaway_seconds": 0.5,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -930,11 +930,11 @@
             "result": "on-by-default",
             "setting": "memory_limit",
             "evidence": {
-              "baseline_requests": 108088,
-              "requests": 109998,
+              "baseline_requests": 117017,
+              "requests": 121727,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 39.6,
+              "p99_ms": 2,
               "runaway_status": 200,
               "runaway_seconds": 0.1,
               "backend_running": true,
@@ -946,13 +946,13 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 325152,
-              "requests": 271481,
-              "failed_requests": 1811,
-              "failures": "502 x1811",
-              "p99_ms": 1.6,
+              "baseline_requests": 383665,
+              "requests": 313278,
+              "failed_requests": 1739,
+              "failures": "502 x1739",
+              "p99_ms": 0.7,
               "runaway_status": 502,
-              "runaway_seconds": 0.3,
+              "runaway_seconds": 1,
               "backend_running": true,
               "backend_restarts": 3,
               "runs": 3,
@@ -962,13 +962,13 @@
           "go": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 335777,
-              "requests": 308601,
-              "failed_requests": 2401,
-              "failures": "502 x2401",
-              "p99_ms": 1.4,
+              "baseline_requests": 254783,
+              "requests": 199317,
+              "failed_requests": 1709,
+              "failures": "502 x1709",
+              "p99_ms": 1.2,
               "runaway_status": 502,
-              "runaway_seconds": 0.4,
+              "runaway_seconds": 0.9,
               "backend_running": true,
               "backend_restarts": 3,
               "runs": 3,
@@ -983,13 +983,13 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "flood_requests": 7111,
-              "refused": 6673,
-              "flood_failures": "503 x6673",
-              "probes": 29,
+              "flood_requests": 2989,
+              "refused": 2611,
+              "flood_failures": "503 x2611",
+              "probes": 18,
               "probes_failed": 0,
-              "probe_median_ms": 114,
-              "probe_max_ms": 841,
+              "probe_median_ms": 185,
+              "probe_max_ms": 1275,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -999,29 +999,29 @@
           "php": {
             "result": "no",
             "evidence": {
-              "flood_requests": 3308,
+              "flood_requests": 16,
               "refused": 0,
-              "flood_failures": "502 x3308; timeout x200",
-              "probes": 5,
-              "probes_failed": 2,
-              "probe_median_ms": 1,
-              "probe_max_ms": 424,
-              "recovery_seconds": null,
-              "after_ok": 0,
+              "flood_failures": "timeout x200",
+              "probes": 4,
+              "probes_failed": 1,
+              "probe_median_ms": 2,
+              "probe_max_ms": 4,
+              "recovery_seconds": 17.2,
+              "after_ok": 8,
               "backend_running": true,
-              "backend_restarts": 2
+              "backend_restarts": 1
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "flood_requests": 13704,
+              "flood_requests": 14163,
               "refused": 0,
-              "flood_failures": "502 x13704",
+              "flood_failures": "502 x14163",
               "probes": 10,
               "probes_failed": 6,
-              "probe_median_ms": 1068,
-              "probe_max_ms": 4075,
+              "probe_median_ms": 1103,
+              "probe_max_ms": 4091,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -1031,13 +1031,13 @@
           "go": {
             "result": "no",
             "evidence": {
-              "flood_requests": 7451,
+              "flood_requests": 7784,
               "refused": 0,
-              "flood_failures": "502 x7451",
+              "flood_failures": "502 x7762",
               "probes": 9,
               "probes_failed": 5,
-              "probe_median_ms": 776,
-              "probe_max_ms": 2651,
+              "probe_median_ms": 1087,
+              "probe_max_ms": 2301,
               "recovery_seconds": 2,
               "after_ok": 8,
               "backend_running": true,
@@ -1159,7 +1159,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 89.2,
+              "kib_per_request": 64,
               "failed_requests": 0,
               "failures": null
             }
@@ -1169,7 +1169,7 @@
             "setting": "pm.max_children",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 583.2,
+              "kib_per_request": 576.7,
               "failed_requests": 0,
               "failures": null
             }
@@ -1178,7 +1178,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 25.5,
+              "kib_per_request": 23.3,
               "failed_requests": 0,
               "failures": null
             }
@@ -1187,7 +1187,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 46.9,
+              "kib_per_request": 45.7,
               "failed_requests": 0,
               "failures": null
             }
@@ -1201,26 +1201,26 @@
             "result": "one-setting",
             "setting": "[capabilities.script] spawn",
             "evidence": {
-              "seconds_1_part": 0.671,
-              "seconds_4_parts": 0.729,
-              "speedup": 3.68,
+              "seconds_1_part": 0.658,
+              "seconds_4_parts": 0.683,
+              "speedup": 3.85,
               "way": "spawn script … on: \"worker\""
             }
           },
           "php": {
             "result": "no",
             "evidence": {
-              "seconds_1_part": 0.592,
-              "seconds_4_parts": 3.154,
-              "speedup": 0.75,
+              "seconds_1_part": 0.567,
+              "seconds_4_parts": 2.273,
+              "speedup": 1,
               "way": null
             }
           },
           "bun": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.727,
-              "seconds_4_parts": 0.739,
+              "seconds_1_part": 0.704,
+              "seconds_4_parts": 0.715,
               "speedup": 3.94,
               "way": "Worker"
             }
@@ -1228,9 +1228,9 @@
           "go": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.59,
-              "seconds_4_parts": 0.637,
-              "speedup": 3.7,
+              "seconds_1_part": 0.566,
+              "seconds_4_parts": 0.583,
+              "speedup": 3.88,
               "way": "goroutines"
             }
           }
@@ -1240,17 +1240,17 @@
   },
   "config_digests": {
     "benches/compare/compose.nvs.yaml": "d903d6a4639e50a4",
-    "benches/compare/compose.php.yaml": "5309fe35ef2ed64e",
-    "benches/compare/compose.bun.yaml": "3b459ced949afeb6",
+    "benches/compare/compose.php.yaml": "e6277cd32339486e",
+    "benches/compare/compose.bun.yaml": "1b7b975d854c8ede",
     "benches/compare/compose.go.yaml": "e05a3ad7fee252ad",
-    "benches/compare/compose.common.yaml": "4e85e201af4be826",
+    "benches/compare/compose.common.yaml": "4e4453077d3dd68e",
     "benches/compare/nginx/http.conf": "b8c45517e93f1f12",
     "benches/compare/nginx/fastcgi.conf": "5d5e2e1e4b21dccd",
     "benches/compare/nginx/fastcgi-switch.conf": "72687d92b9f1a051",
     "benches/compare/bun/serve.ts": "8f97c00c55296a2e",
     "benches/compare/deploy/deploy.sh": "a376f4242c58e347",
-    "benches/compare/go/Dockerfile": "cd9e4481352c9ab5",
-    "benches/proxied/php/opcache.ini": "03426cee699d4bd5",
+    "benches/compare/go/Dockerfile": "55afd927819acbf4",
+    "benches/proxied/php/opcache.ini": "a40f7f0271b3d225",
     "benches/compare/php/file-check.ini": "45b8e6f71ca9360d",
     "benches/proxied/php/pool.conf.in": "6ae1bbe69dd4cf6d"
   }

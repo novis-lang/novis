@@ -6,7 +6,7 @@ context: [benches/compare/README.md, tools/nv/cmd/bench-compare.ts, website/src/
 stages:
   - id: 1
     title: "the cases and the feature rows are recorded on the new tree, and the page matches the record"
-    status: open
+    status: done
     context: [tools/nv/renderers/website-compare.ts, website/src/lib/compare.ts]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
@@ -70,14 +70,14 @@ feature rows) name a commit that contains the newest change to `watchdog.rs`, `j
 **Split:** a `reader` subagent compares every figure in the page's prose with the new record and
 returns a list of `line: old → new`.
 
-- [ ] Make the worktree and run the case record in the background, as decisions 2 and 4 say.
+- [x] Make the worktree and run the case record in the background, as decisions 2 and 4 say.
   `tools/nv/cmd/bench-compare.ts:1`
-- [ ] Run the feature-row record in the background in the same worktree. `tools/nv/cmd/bench-compare.ts:1`
-- [ ] Copy the record back, remove the worktree, and run `bun nv render --website`.
+- [x] Run the feature-row record in the background in the same worktree. `tools/nv/cmd/bench-compare.ts:1`
+- [x] Copy the record back, remove the worktree, and run `bun nv render --website`.
   `tools/nv/renderers/website-compare.ts:1`
-- [ ] Correct each prose figure the record changed, such as the deploy rows' shares of mixed pages.
+- [x] Correct each prose figure the record changed, such as the deploy rows' shares of mixed pages.
   `website/src/content/docs/in-depth/compare.mdx:153`
-- [ ] Commit the record and the page. The message lists requests per second per case and peer, before
+- [x] Commit the record and the page. The message lists requests per second per case and peer, before
   (`4f01826ad`) and after.
 
 ### 2. the goal is verified once, and every failure is fixed
@@ -90,18 +90,31 @@ returns a list of `line: old → new`.
 
 ### State
 
-Waiting on `ceiling-wake`, `json-one-pass`, `json-any-size` and `strings-in-place`. Nothing is
-recorded yet.
+Stage 1 is done. Both halves of `benches/compare.json` were recorded at `a14be99be7`, in a detached
+worktree, with the other loops running. `record-is-current` is green. `bun nv render --website`
+copied the record to `website/src/data/compare.json`.
+
+A `reader` subagent compared the page's prose with the record, and the session checked each figure
+it named. Four figures changed, all in the deploy rows: Novis switched after 1.3 s and 4 s, and
+PHP mixed 46% and 94% of its pages. No qualitative claim changed. PHP's cores speedup fell from
+3.83 to 2.91, and the page gives no figure for it.
+
+Novis is flat on `json-api` and `html-page`, while Bun, Go and PHP each lost 18% to 37% there.
+That is most likely the load from the other loops, which decision 3 accepts. The commit message
+gives the figures.
+
+The sweep's `env-secret-proofs` red is still the driver's stale state. `bun nv proofs --gate
+--only 'Core\Env::secret'` exits 0.
 
 ### Next
 
-**Stage 1**, gated on decision 1: the three goal files are deleted.
+**Stage 2**, the gate.
 
-- [ ] The case record, in the background. `tools/nv/cmd/bench-compare.ts:1`
-- [ ] The feature-row record, in the background. `tools/nv/cmd/bench-compare.ts:1`
-- [ ] Copy back, remove the worktree, render. `tools/nv/renderers/website-compare.ts:1`
-- [ ] Correct the prose figures. `website/src/content/docs/in-depth/compare.mdx:153`
-- [ ] Commit with the before and after figures. `benches/compare/README.md:1`
+- [ ] `looper verify` in the background, then fix every failure in one pass. `docs/goals/compare-recorded.md:83`
+- [ ] The goal-end gates, with `bun nv ci --check` last. `tools/nv/cmd/ci.ts:1`
+  First `bun nv verify --doc`, then `bun nv owners --closes compare-recorded`.
+
+No test is expected to go red. The record and one paragraph of prose are the only changes.
 
 ### Backlog
 
