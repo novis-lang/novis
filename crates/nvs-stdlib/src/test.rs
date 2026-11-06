@@ -3084,13 +3084,14 @@ nvs_runtime::nvs_helper! {
         // media type (`nvs-server`'s `finished`). There is no connection here,
         // so the file is read now and typed by the same table, and a test sees
         // the body and the `Content-Type` a visitor is sent. The member already
-        // asked the program's `fs.read` for the name, as it does for the server.
-        let file = match completion.file_body.take() {
-            Some(path) => {
+        // asked the program's `fs.read` for the name, as it does for the server,
+        // so the completion reads it (`Completion::read_file_body`).
+        let file = match completion.read_file_body() {
+            Some((path, bytes)) => {
                 // no case can reach this: a case never runs `Core\Test::request` against
                 // a unit, so a file gone between `sendFile` and this read is asserted by
                 // `a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type`.
-                let bytes = std::fs::read(&path).map_err(|error| {
+                let bytes = bytes.map_err(|error| {
                     Fault::thrown(format!(
                         "Core\\Test::request could not read the file the response sent, `{}`: \
                          {error}",

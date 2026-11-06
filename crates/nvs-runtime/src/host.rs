@@ -706,6 +706,26 @@ pub struct Completion {
 }
 
 impl Completion {
+    /// Takes [`Self::file_body`] and reads the whole file, for an answerer
+    /// with no connection to stream it to: `Core\Test::request`.
+    ///
+    /// Nothing about the program's authority is asked again. The member
+    /// resolved the name under `fs.read` when it declared the body, which is
+    /// the same reading the server makes when it opens the file at the
+    /// connection. The read lives here, behind the completion, so `nvs-stdlib`
+    /// reaches no file it did not get from a checked member
+    /// (`rule:security/capability-check-at-the-door`).
+    ///
+    /// `None` where the body is [`Self::output`].
+    ///
+    /// **What it spends:** the file's bytes, once, for as long as the caller
+    /// holds them.
+    pub fn read_file_body(&mut self) -> Option<(Box<std::path::Path>, std::io::Result<Vec<u8>>)> {
+        let path = self.file_body.take()?;
+        let bytes = std::fs::read(&path);
+        Some((path, bytes))
+    }
+
     /// Discharges [`Completion::value`]'s obligation for a collector that has
     /// nowhere to move it, leaving `null` in its place.
     ///
