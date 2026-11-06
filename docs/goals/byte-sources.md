@@ -242,14 +242,14 @@ has no memory check; and the decompression ratio needs the input's length.
 ## Standing decisions
 
 1. **Three rules, written in stage 1.**
-   - `rule:core-api/the-first-call-is-the-best-one`: the call a program reaches for first is the
+   - The new rule `core-api/the-first-call-is-the-best-one`: the call a program reaches for first is the
      safest and fastest way to do the job. A member takes the value the program holds and decides
      itself how much of it to read. No fast path needs an extra call, a count or a step the caller
      must remember. Where a slower way cannot be removed, it stops at a bound, and its message or
      about page names the direct call. It cites
      `rule:http-server/an-upload-is-received-only-through-files` ("an API whose safe path is selected
      from a fact the caller cannot see is a defect").
-   - `rule:core-api/a-member-takes-the-source-the-program-holds`: the aliases, the kinds and the
+   - The new rule `core-api/a-member-takes-the-source-the-program-holds`: the aliases, the kinds and the
      table below, the criterion, and the Declined list of decision 11. **The criterion:** a member is
      widened when it can hold less than its input. A tree parser that holds the whole document anyway
      (`Xml::parse`, `Html::parse`, `Json::decode`, `Csv::parse`) and `Core\Encoding`, whose output is
@@ -614,5 +614,5 @@ of it is built. The tree had uncommitted work in `crates/nvs-stdlib/src/io.rs`, 
   own bound; it fits `Chunks` today.
 - `Core\Storage::get` returns whole bytes; a seekable `File` for a stored object would join every
   member at once (decision 3).
-- `rule:core-api/the-first-call-is-the-best-one` holds for every `Core` member. A review of the rest
+- The new rule `core-api/the-first-call-is-the-best-one` holds for every `Core` member. A review of the rest
   of `Core` against it is the user's to fire.
