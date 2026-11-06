@@ -1,0 +1,890 @@
+//! `Core\Markdown` — `rule:core-classes/markdown-to-html`'s renderer, a
+//! launderer onto the HTML sink beside `Core\Html::escape` and `sanitize`.
+//!
+//! # Three steps, and the policy is not here
+//!
+//! `pulldown-cmark` (vendored under `vendor/pulldown-cmark/`, with the
+//! patches the rule's engine paragraph lists) reads the document into events.
+//! [`Renderer`] turns those events into the [`Parsed`] tree [`crate::html`]
+//! serializes, writing only elements and attributes on that module's list.
+//! [`crate::html::source`] writes the tree. Nothing here joins an attribute
+//! from strings, so a value is escaped by the serializer's own code.
+//!
+//! A document's raw HTML is the one thing the tree cannot hold as nodes, so
+//! it is a text node named [`RAW_SOURCE`], which the serializer writes as it
+//! stands. A tree holding one is never the answer: its source is parsed by the
+//! WHATWG algorithm and rebuilt through the sanitizer's list, as
+//! `Core\Html::sanitize` does. A tree deeper than the parser's
+//! [`OPEN_ELEMENTS_CAP`] takes the same path, which is what makes the flatten
+//! exactly the parser's. Every other tree is written once, and
+//! `sanitizing_the_output_again_changes_nothing` is what makes that skip safe.
+//!
+//! # Newlines between tags
+//!
+//! The renderer writes a line feed where cmark's HTML writer does: after a
+//! block's end tag, after an opening `<ul>`, `<ol>`, `<blockquote>`,
+//! `<table>`, `<thead>`, `<tbody>` and `<tr>`, and before a block that does
+//! not start a line. They are text nodes, so the answer reads like every other
+//! CommonMark renderer's and the spec's expected HTML compares after only the
+//! normalization a reparse does.
+//!
+//! # What is ours over the engine's events
+//!
+//! - **The text is prepared first** ([`prepared`]): a leading byte-order mark
+//!   is removed, NUL becomes U+FFFD and every line ending becomes a line feed,
+//!   which is what the HTML parser would make of each anyway.
+//! - **A URL passes [`url_allowed`]** or is not written: a link becomes its
+//!   text and an image is not written.
+//! - **Footnotes are written at the end**, numbered in the order they are
+//!   first referenced, and a definition nothing references is not written.
+//! - **A code block's class is `language-` once**, and only when its language
+//!   passes the sanitizer's value test.
+//! - **GFM's extended autolinks** ([`autolink`]) are found in each run of
+//!   text outside a link and a code block.
+//! - **Added output has a budget** ([`ADDED_OUTPUT_SLACK`]).
+//!
+//! **What it spends:** the prepared text when it differs from the input, the
+//! output tree, the footnote definitions until the end, and the answer's
+//! source. A document with raw HTML also holds its parse and its rebuild.
+//! All of it is attributed to the request and freed when the call returns.
+
+use std::collections::HashMap;
+use std::ops::Range;
+
+use nvs_runtime::{Fault, Value};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
+
+use crate::html::{
+    MARKUP, MARKUP_NAME, OPEN_ELEMENTS_CAP, RAW_SOURCE, addressable, bounded, language_class,
+    rebuilt, source,
+};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::xml::{Kind, Parsed};
+
+mod autolink;
+
+/// `Core\Markdown`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Converts Markdown to HTML that is safe to put into a page. It reads CommonMark \
+            with tables, task lists, strikethrough, autolinks and footnotes.",
+};
+
+/// `rule:core-classes/markdown-to-html`'s class: the renderer, and the members
+/// later stages of the `markdown` goal add beside it.
+// rank: 1045
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: r"Core\Markdown",
+    doc: Some(&CARD),
+    methods: &[CoreMethod {
+        name: "toHtml",
+        names: &["markdown"],
+        params: &[CoreTy::Text(Qual::Launder)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(MARKUP_NAME),
+        symbol: "nvs_core_markdown_to_html",
+        doc: Some(&TO_HTML_DOC),
+    }],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+const TO_HTML_DOC: MethodDoc = MethodDoc {
+    short: "Converts the Markdown document `$markdown` to HTML. The result is safe to write \
+            into a page, even when the document comes from a user.",
+    params: &[ParamDoc {
+        name: "markdown",
+        desc: "The Markdown document. Any text is a valid document, so this method never \
+               throws an error.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Html\\Markup` with the document's HTML. HTML inside the document is \
+          cleaned the same way `Core\\Html::sanitize` cleans it. A link with an unsafe URL, \
+          such as `javascript:`, is written as plain text. An image with an unsafe URL is \
+          removed.",
+    errors: &[],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_markdown_to_html" => (nvs_core_markdown_to_html as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+/// How much output a document may add beyond its own length:
+/// `rule:core-classes/markdown-cost`'s 64 KiB.
+///
+/// Added output is a reference's URL and title written at each use, and an
+/// empty cell that pads a short table row. Past the budget a reference is
+/// written as its source text and a row is not padded.
+pub(crate) const ADDED_OUTPUT_SLACK: usize = 64 << 10;
+
+/// The GFM extensions the engine reads. Its blockquote tags, heading
+/// attributes, math and metadata blocks are not on, because
+/// `rule:core-classes/markdown-to-html` reads one flavour.
+fn options() -> Options {
+    Options::ENABLE_TABLES
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS
+}
+
+/// `markdown` as the engine reads it: without a leading byte-order mark, NUL
+/// as U+FFFD, and each CR LF or lone CR as LF.
+///
+/// The text is borrowed when there is nothing to change, which is almost
+/// every document.
+fn prepared(markdown: &str) -> std::borrow::Cow<'_, str> {
+    let markdown = markdown.strip_prefix('\u{FEFF}').unwrap_or(markdown);
+    if !markdown.contains(['\0', '\r']) {
+        return std::borrow::Cow::Borrowed(markdown);
+    }
+    let mut out = String::with_capacity(markdown.len());
+    let mut chars = markdown.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\0' => out.push('\u{FFFD}'),
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                out.push('\n');
+            }
+            _ => out.push(ch),
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Whether `url` may be written into a link or an image.
+///
+/// `rule:core-classes/markdown-to-html`'s one URL check, for a URL from the
+/// document and one a callback returns. The engine has already decoded the
+/// entities. This decodes the percent-encoding as well, and the URL passes
+/// only when both readings pass the sanitizer's own [`addressable`]: its
+/// scheme list, its scheme-relative rule and its removal of tab, line feed
+/// and carriage return.
+pub(crate) fn url_allowed(url: &str) -> bool {
+    addressable(url) && (!url.contains('%') || addressable(&percent_decoded(url)))
+}
+
+/// `url` with each `%` and two hex digits replaced by the byte they name,
+/// read as UTF-8 with every invalid sequence as U+FFFD.
+fn percent_decoded(url: &str) -> String {
+    let bytes = url.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let hex = |b: u8| char::from(b).to_digit(16);
+        if bytes[at] == b'%'
+            && let (Some(&high), Some(&low)) = (bytes.get(at + 1), bytes.get(at + 2))
+            && let (Some(high), Some(low)) = (hex(high), hex(low))
+        {
+            out.push(u8::try_from(high * 16 + low).expect("two hex digits are one byte"));
+            at += 3;
+            continue;
+        }
+        out.push(bytes[at]);
+        at += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `url` percent-encoded the way CommonMark's reference renderer writes an
+/// `href`: every byte outside its safe set as `%` and two hex digits.
+///
+/// `&` and `'` stay, because the serializer escapes `&` and writes every
+/// attribute value between double quotes.
+fn encoded_href(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for &byte in url.as_bytes() {
+        let safe = byte.is_ascii_alphanumeric()
+            || matches!(
+                byte,
+                b'!' | b'#'
+                    | b'$'
+                    | b'%'
+                    | b'&'
+                    | b'\''
+                    | b'('
+                    | b')'
+                    | b'*'
+                    | b'+'
+                    | b','
+                    | b'-'
+                    | b'.'
+                    | b'/'
+                    | b':'
+                    | b';'
+                    | b'='
+                    | b'?'
+                    | b'@'
+                    | b'_'
+                    | b'~'
+            );
+        if safe {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+/// Whether a link of `link_type` writes a URL and title that its own bytes
+/// did not, which is the reference half of added output.
+fn is_reference(link_type: LinkType) -> bool {
+    matches!(
+        link_type,
+        LinkType::Reference
+            | LinkType::ReferenceUnknown
+            | LinkType::Collapsed
+            | LinkType::CollapsedUnknown
+            | LinkType::Shortcut
+            | LinkType::ShortcutUnknown
+    )
+}
+
+/// The bytes one padded table cell writes: `<td></td>` and a line feed.
+const PADDED_CELL: usize = "<td></td>\n".len();
+
+/// An image whose `alt` text is still being read.
+struct Image {
+    /// Images nested inside its description, plus one for itself.
+    depth: usize,
+    /// The `src` to write, or `None` when [`url_allowed`] refused it.
+    src: Option<String>,
+    title: String,
+    alt: String,
+}
+
+/// The table being written.
+struct Table {
+    alignments: Vec<Alignment>,
+    /// Whether the cells being read are the header's.
+    head: bool,
+    /// Whether `<tbody>` is open.
+    body: bool,
+    /// The index of the next cell in its row.
+    cell: usize,
+}
+
+/// The event walk, building the output tree.
+///
+/// `stack[0]` is the document. Every start event pushes a node and its end
+/// event pops it into its parent. A [`Kind::Document`] node is a link that is
+/// written as its text: its children join the parent.
+struct Renderer<'a> {
+    text: &'a str,
+    stack: Vec<Parsed>,
+    /// The deepest the stack has been, to compare with [`OPEN_ELEMENTS_CAP`].
+    deepest: usize,
+    /// Whether the tree holds a [`RAW_SOURCE`] node.
+    raw: bool,
+    /// Whether the last thing written ends a line, which is what cmark's
+    /// writer tests before it starts a block.
+    line_start: bool,
+    /// The added output the document may still write.
+    budget: usize,
+    /// End events to skip: those of a reference written as its source text
+    /// and of a padded cell past the budget.
+    skipping: usize,
+    image: Option<Image>,
+    table: Option<Table>,
+    /// Each definition's list item by label, the first definition winning.
+    definitions: HashMap<String, Parsed>,
+    /// The labels of the definitions being read, innermost last.
+    defining: Vec<(String, bool)>,
+    /// Each referenced label's number, and the labels in that order.
+    numbers: HashMap<String, usize>,
+    order: Vec<String>,
+    /// Text read since the last other event, which [`autolink::spans`]
+    /// reads as one run.
+    pending: String,
+    /// The links open around the text being read.
+    links: usize,
+    /// Whether the text being read is a code block's.
+    code: bool,
+}
+
+impl<'a> Renderer<'a> {
+    fn new(text: &'a str) -> Self {
+        Self {
+            text,
+            stack: vec![Parsed::new(Kind::Document)],
+            deepest: 1,
+            raw: false,
+            line_start: true,
+            budget: text.len().saturating_add(ADDED_OUTPUT_SLACK),
+            skipping: 0,
+            image: None,
+            table: None,
+            definitions: HashMap::new(),
+            defining: Vec::new(),
+            numbers: HashMap::new(),
+            order: Vec::new(),
+            pending: String::new(),
+            links: 0,
+            code: false,
+        }
+    }
+
+    /// The pending text written, with each extended autolink in it as a link.
+    fn flush(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let text = std::mem::take(&mut self.pending);
+        let mut done = 0;
+        for span in autolink::spans(&text) {
+            self.write(&text[done..span.range.start]);
+            let shown = &text[span.range.clone()];
+            if url_allowed(&span.url) {
+                self.open("a", vec![("href".to_owned(), encoded_href(&span.url))]);
+                self.write(shown);
+                self.close();
+            } else {
+                self.write(shown);
+            }
+            done = span.range.end;
+        }
+        self.write(&text[done..]);
+        self.pending = text;
+        self.pending.clear();
+    }
+
+    fn top(&mut self) -> &mut Parsed {
+        self.stack
+            .last_mut()
+            .expect("the document node is never popped")
+    }
+
+    /// An element named `name` opened with `attributes`.
+    fn open(&mut self, name: &str, attributes: Vec<(String, String)>) {
+        let mut node = Parsed::new(Kind::Element);
+        node.name.push_str(name);
+        node.attributes = attributes;
+        self.stack.push(node);
+        self.deepest = self.deepest.max(self.stack.len());
+        self.line_start = false;
+    }
+
+    /// A node that writes no tag of its own, whose children join its parent.
+    fn open_transparent(&mut self) {
+        self.stack.push(Parsed::new(Kind::Document));
+    }
+
+    /// The innermost open node closed into its parent.
+    fn close(&mut self) {
+        let node = self.stack.pop().expect("an end event follows its start");
+        if node.kind == Kind::Document {
+            self.top().children.extend(node.children);
+        } else {
+            self.top().children.push(node);
+            self.line_start = false;
+        }
+    }
+
+    /// An element with no content, such as `br`, `hr` or `img`.
+    fn void(&mut self, name: &str, attributes: Vec<(String, String)>) {
+        self.open(name, attributes);
+        self.close();
+    }
+
+    /// `text` appended as character data.
+    fn write(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.line_start = text.ends_with('\n');
+        let top = self.top();
+        if let Some(last) = top.children.last_mut()
+            && last.kind == Kind::Text
+            && last.name.is_empty()
+        {
+            last.text.push_str(text);
+            return;
+        }
+        let mut node = Parsed::new(Kind::Text);
+        node.text.push_str(text);
+        top.children.push(node);
+    }
+
+    /// `html` appended as source, which forces the rebuild.
+    fn write_raw(&mut self, html: &str) {
+        self.raw = true;
+        self.line_start = html.ends_with('\n');
+        let top = self.top();
+        if let Some(last) = top.children.last_mut()
+            && last.kind == Kind::Text
+            && last.name == RAW_SOURCE
+        {
+            last.text.push_str(html);
+            return;
+        }
+        let mut node = Parsed::new(Kind::Text);
+        node.name.push_str(RAW_SOURCE);
+        node.text.push_str(html);
+        top.children.push(node);
+    }
+
+    /// A line feed, unless the output is empty or already starts a line.
+    fn cr(&mut self) {
+        if !self.line_start {
+            self.write("\n");
+        }
+    }
+
+    /// Whether `cost` bytes of added output still fit, spending them if so.
+    fn spend(&mut self, cost: usize) -> bool {
+        if cost > self.budget {
+            return false;
+        }
+        self.budget -= cost;
+        true
+    }
+
+    fn event(&mut self, event: Event<'_>, range: Range<usize>) {
+        if !matches!(event, Event::Text(_)) {
+            self.flush();
+        }
+        if self.skipping > 0 {
+            match event {
+                Event::Start(_) => self.skipping += 1,
+                Event::End(_) => self.skipping -= 1,
+                _ => {}
+            }
+            return;
+        }
+        if self.image.is_some() {
+            self.alt_event(event);
+            return;
+        }
+        match event {
+            Event::Start(tag) => self.start(tag, range),
+            Event::End(tag) => self.end(tag),
+            Event::Text(text) if self.code || self.links > 0 => self.write(&text),
+            Event::Text(text) => self.pending.push_str(&text),
+            Event::Code(text) => {
+                self.open("code", Vec::new());
+                self.write(&text);
+                self.close();
+            }
+            Event::Html(html) | Event::InlineHtml(html) => self.write_raw(&html),
+            Event::InlineMath(text) | Event::DisplayMath(text) => self.write(&text),
+            Event::FootnoteReference(label) => self.reference(&label),
+            Event::SoftBreak => self.write("\n"),
+            Event::HardBreak => {
+                self.void("br", Vec::new());
+                self.write("\n");
+            }
+            Event::Rule => {
+                self.cr();
+                self.void("hr", Vec::new());
+                self.write("\n");
+            }
+            Event::TaskListMarker(checked) => {
+                let mut attributes = Vec::new();
+                if checked {
+                    attributes.push(("checked".to_owned(), String::new()));
+                }
+                attributes.push(("disabled".to_owned(), String::new()));
+                attributes.push(("type".to_owned(), "checkbox".to_owned()));
+                self.void("input", attributes);
+                self.write(" ");
+            }
+        }
+    }
+
+    /// An event inside an image's description, which is read as its `alt`.
+    fn alt_event(&mut self, event: Event<'_>) {
+        let image = self.image.as_mut().expect("the caller checked");
+        match event {
+            Event::Start(Tag::Image { .. }) => image.depth += 1,
+            Event::End(TagEnd::Image) => {
+                image.depth -= 1;
+                if image.depth == 0 {
+                    let image = self.image.take().expect("it is open");
+                    if let Some(src) = image.src {
+                        let mut attributes =
+                            vec![("src".to_owned(), src), ("alt".to_owned(), image.alt)];
+                        if !image.title.is_empty() {
+                            attributes.push(("title".to_owned(), image.title));
+                        }
+                        self.void("img", attributes);
+                    }
+                }
+            }
+            Event::Text(text) | Event::Code(text) | Event::InlineMath(text) => {
+                image.alt.push_str(&text);
+            }
+            Event::SoftBreak | Event::HardBreak => image.alt.push('\n'),
+            _ => {}
+        }
+    }
+
+    fn start(&mut self, tag: Tag<'_>, range: Range<usize>) {
+        match tag {
+            Tag::Paragraph => {
+                self.cr();
+                self.open("p", Vec::new());
+            }
+            Tag::Heading { level, .. } => {
+                self.cr();
+                self.open(&format!("h{}", level as usize), Vec::new());
+            }
+            Tag::BlockQuote(_) => {
+                self.cr();
+                self.open("blockquote", Vec::new());
+                self.write("\n");
+            }
+            Tag::CodeBlock(kind) => {
+                self.cr();
+                self.open("pre", Vec::new());
+                let mut attributes = Vec::new();
+                if let CodeBlockKind::Fenced(info) = kind {
+                    let word = info.split([' ', '\t']).next().unwrap_or("");
+                    let language = word.strip_prefix("language-").unwrap_or(word);
+                    let class = format!("language-{language}");
+                    if language_class(&class) {
+                        attributes.push(("class".to_owned(), class));
+                    }
+                }
+                self.open("code", attributes);
+                self.code = true;
+            }
+            Tag::HtmlBlock => self.cr(),
+            Tag::List(start) => {
+                self.cr();
+                match start {
+                    Some(1) => self.open("ol", Vec::new()),
+                    Some(n) => self.open("ol", vec![("start".to_owned(), n.to_string())]),
+                    None => self.open("ul", Vec::new()),
+                }
+                self.write("\n");
+            }
+            Tag::Item => {
+                self.cr();
+                self.open("li", Vec::new());
+            }
+            Tag::FootnoteDefinition(label) => {
+                self.defining.push((label.into_string(), self.line_start));
+                self.open("li", Vec::new());
+                self.line_start = false;
+            }
+            Tag::Table(alignments) => {
+                self.cr();
+                self.open("table", Vec::new());
+                self.write("\n");
+                self.table = Some(Table {
+                    alignments,
+                    head: false,
+                    body: false,
+                    cell: 0,
+                });
+            }
+            Tag::TableHead => {
+                self.open("thead", Vec::new());
+                self.write("\n");
+                self.open("tr", Vec::new());
+                self.write("\n");
+                if let Some(table) = self.table.as_mut() {
+                    table.head = true;
+                    table.cell = 0;
+                }
+            }
+            Tag::TableRow => {
+                if let Some(table) = self.table.as_mut() {
+                    table.head = false;
+                    table.cell = 0;
+                    if !table.body {
+                        table.body = true;
+                        self.open("tbody", Vec::new());
+                        self.write("\n");
+                    }
+                }
+                self.open("tr", Vec::new());
+                self.write("\n");
+            }
+            Tag::TableCell => self.cell(range),
+            Tag::Emphasis => self.open("em", Vec::new()),
+            Tag::Strong => self.open("strong", Vec::new()),
+            Tag::Strikethrough => self.open("del", Vec::new()),
+            Tag::Superscript => self.open("sup", Vec::new()),
+            Tag::Subscript => self.open("sub", Vec::new()),
+            Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                ..
+            } => {
+                if is_reference(link_type) && !self.spend(dest_url.len() + title.len()) {
+                    self.as_source(range);
+                    return;
+                }
+                self.links += 1;
+                let url = if link_type == LinkType::Email {
+                    format!("mailto:{dest_url}")
+                } else {
+                    dest_url.into_string()
+                };
+                if url_allowed(&url) {
+                    let mut attributes = vec![("href".to_owned(), encoded_href(&url))];
+                    if !title.is_empty() {
+                        attributes.push(("title".to_owned(), title.into_string()));
+                    }
+                    self.open("a", attributes);
+                } else {
+                    self.open_transparent();
+                }
+            }
+            Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                ..
+            } => {
+                if is_reference(link_type) && !self.spend(dest_url.len() + title.len()) {
+                    self.as_source(range);
+                    return;
+                }
+                self.image = Some(Image {
+                    depth: 1,
+                    src: url_allowed(&dest_url).then(|| encoded_href(&dest_url)),
+                    title: title.into_string(),
+                    alt: String::new(),
+                });
+            }
+            // Not enabled by [`options`], so the engine never starts one. The
+            // node keeps the walk balanced if it ever did.
+            Tag::DefinitionList
+            | Tag::DefinitionListTitle
+            | Tag::DefinitionListDefinition
+            | Tag::MetadataBlock(_) => self.open_transparent(),
+        }
+    }
+
+    /// The source text of `range` written as text, and the events inside it
+    /// skipped up to its end.
+    fn as_source(&mut self, range: Range<usize>) {
+        let text = self.text.get(range).unwrap_or("");
+        self.write(text);
+        self.skipping = 1;
+    }
+
+    /// A table cell, which is padding when its range is empty.
+    fn cell(&mut self, range: Range<usize>) {
+        let Some(table) = self.table.as_ref() else {
+            self.open_transparent();
+            return;
+        };
+        let name = if table.head { "th" } else { "td" };
+        let align = match table.alignments.get(table.cell) {
+            Some(Alignment::Left) => Some("left"),
+            Some(Alignment::Center) => Some("center"),
+            Some(Alignment::Right) => Some("right"),
+            _ => None,
+        };
+        if range.is_empty() && !table.head && !self.spend(PADDED_CELL) {
+            self.skipping = 1;
+            return;
+        }
+        let attributes = align
+            .map(|align| vec![("align".to_owned(), align.to_owned())])
+            .unwrap_or_default();
+        self.open(name, attributes);
+    }
+
+    fn end(&mut self, tag: TagEnd) {
+        match tag {
+            TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item | TagEnd::TableRow => {
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::BlockQuote(_) | TagEnd::List(_) => {
+                self.cr();
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::CodeBlock => {
+                self.code = false;
+                self.close();
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::HtmlBlock => self.cr(),
+            TagEnd::FootnoteDefinition => {
+                let node = self.stack.pop().expect("an end event follows its start");
+                let (label, line_start) = self.defining.pop().expect("a definition is open");
+                self.line_start = line_start;
+                self.definitions.entry(label).or_insert(node);
+            }
+            TagEnd::TableHead => {
+                self.close();
+                self.write("\n");
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::TableCell => {
+                self.close();
+                self.write("\n");
+                if let Some(table) = self.table.as_mut() {
+                    table.cell += 1;
+                }
+            }
+            TagEnd::Table => {
+                if self.table.take().is_some_and(|table| table.body) {
+                    self.close();
+                    self.write("\n");
+                }
+                self.close();
+                self.write("\n");
+            }
+            TagEnd::Link => {
+                self.links -= 1;
+                self.close();
+            }
+            TagEnd::Emphasis
+            | TagEnd::Strong
+            | TagEnd::Strikethrough
+            | TagEnd::Superscript
+            | TagEnd::Subscript
+            | TagEnd::DefinitionList
+            | TagEnd::DefinitionListTitle
+            | TagEnd::DefinitionListDefinition
+            | TagEnd::MetadataBlock(_) => self.close(),
+            // An image's end is read by [`Self::alt_event`].
+            TagEnd::Image => {}
+        }
+    }
+
+    /// A footnote reference, numbered the first time its label is seen.
+    fn reference(&mut self, label: &str) {
+        let (number, first) = match self.numbers.get(label) {
+            Some(&number) => (number, false),
+            None => {
+                self.order.push(label.to_owned());
+                let number = self.order.len();
+                self.numbers.insert(label.to_owned(), number);
+                (number, true)
+            }
+        };
+        self.open("sup", Vec::new());
+        let mut attributes = vec![("href".to_owned(), format!("#md-fn-{number}"))];
+        if first {
+            attributes.push(("id".to_owned(), format!("md-fnref-{number}")));
+        }
+        self.open("a", attributes);
+        self.write(&number.to_string());
+        self.close();
+        self.close();
+    }
+
+    /// The tree with its footnotes written after it, and whether it must be
+    /// rebuilt before it is written.
+    fn finish(mut self) -> (Parsed, bool) {
+        self.flush();
+        while self.stack.len() > 1 {
+            self.close();
+        }
+        let order = std::mem::take(&mut self.order);
+        let mut notes: Vec<(usize, Parsed)> = order
+            .iter()
+            .enumerate()
+            .filter_map(|(at, label)| self.definitions.remove(label).map(|item| (at + 1, item)))
+            .collect();
+        if !notes.is_empty() {
+            self.cr();
+            self.void("hr", Vec::new());
+            self.write("\n");
+            self.open("ol", Vec::new());
+            self.write("\n");
+            for (number, item) in &mut notes {
+                item.attributes
+                    .push(("id".to_owned(), format!("md-fn-{number}")));
+                let mut back = Parsed::new(Kind::Element);
+                back.name.push('a');
+                back.attributes
+                    .push(("href".to_owned(), format!("#md-fnref-{number}")));
+                let mut arrow = Parsed::new(Kind::Text);
+                arrow.text.push('\u{21A9}');
+                back.children.push(arrow);
+                let mut space = Parsed::new(Kind::Text);
+                space.text.push(' ');
+                let into = match item.children.last_mut() {
+                    Some(last) if last.kind == Kind::Element && last.name == "p" => last,
+                    _ => item,
+                };
+                into.children.push(space);
+                into.children.push(back);
+            }
+            for (_, item) in notes {
+                self.top().children.push(item);
+                self.line_start = false;
+                self.write("\n");
+            }
+            self.close();
+            self.write("\n");
+            // The list sits two levels below the document, and each item's
+            // own content below that.
+            self.deepest = self.deepest.max(3);
+        }
+        let deep = self.deepest + 2 >= OPEN_ELEMENTS_CAP;
+        let raw = self.raw;
+        let tree = self.stack.pop().expect("the document node");
+        (tree, raw || deep)
+    }
+}
+
+/// `markdown`'s output tree, and whether it must be rebuilt.
+fn tree(markdown: &str) -> (Parsed, bool) {
+    let text = prepared(markdown);
+    let mut renderer = Renderer::new(&text);
+    for (event, range) in Parser::new_ext(&text, options()).into_offset_iter() {
+        renderer.event(event, range);
+    }
+    renderer.finish()
+}
+
+/// `markdown` rendered to HTML source, `member` naming the caller in the
+/// fault a document past the memory limit raises.
+///
+/// # Errors
+///
+/// A [`Fault::Fatal`] when a document with raw HTML parses to a tree larger
+/// than the request's memory limit allows.
+pub(crate) fn rendered(markdown: &str, member: &str) -> Result<String, Fault> {
+    let (tree, rebuild) = tree(markdown);
+    let out = source(&tree);
+    if !rebuild {
+        return Ok(out);
+    }
+    drop(tree);
+    Ok(source(&rebuilt(&bounded(&out, member)?)))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Markdown::toHtml(tainted string $markdown): Core\Html\Markup` —
+    /// `rule:core-classes/markdown-to-html`'s renderer over a whole document.
+    ///
+    /// The answer is a carrier for `Core\Html::sanitize`'s reason
+    /// (`rule:security/launderer-answers-a-carrier`), and the parse never
+    /// fails: Markdown has no invalid input.
+    fn nvs_core_markdown_to_html(_ctx, args: [1]) {
+        // unreachable from source: the parameter is `CoreTy::Text`.
+        let Some(markdown) = args[0].as_text() else {
+            return Err(Fault::fatal(format!(
+                "Core\\Markdown::toHtml expected a `string`, got tag {}",
+                args[0].tag_byte()
+            )));
+        };
+        let out = rendered(markdown, r"Core\Markdown::toHtml")?;
+        Ok(crate::instance::build(&MARKUP, [Value::text(&out)]))
+    }
+}
+
+#[cfg(test)]
+mod tests;

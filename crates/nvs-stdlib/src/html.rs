@@ -1565,7 +1565,7 @@ fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
 /// deeper than it, and at 512 each one takes longer than Miri's test timeout.
 /// The code paths are the same at either depth, and every test here passes
 /// natively with the cap at 16.
-const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 16 } else { 512 };
+pub(crate) const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 16 } else { 512 };
 
 /// `document`, parsed by the WHATWG algorithm under [`OPEN_ELEMENTS_CAP`].
 ///
@@ -1575,7 +1575,7 @@ const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 16 } else { 512 };
 /// It is also the safer of the two readings for anything built over this, since
 /// content a scripting browser would never build elements from does not become
 /// elements here either.
-fn parse(document: &str) -> Parsed {
+pub(crate) fn parse(document: &str) -> Parsed {
     html5ever::parse_document(Sink::new(), options()).one(document)
 }
 
@@ -1601,7 +1601,7 @@ struct OverLimit;
 ///
 /// A [`Fault::Fatal`] naming `member` when the tree would pass the limit.
 /// [`nvs_runtime::run_helper`] reports the breach in its place.
-fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
+pub(crate) fn bounded(document: &str, member: &str) -> Result<Parsed, Fault> {
     std::panic::catch_unwind(AssertUnwindSafe(|| parse(document))).map_err(|payload| {
         if payload.is::<OverLimit>() {
             Fault::fatal(format!(
@@ -1680,6 +1680,14 @@ const RAW_TEXT: &[&str] = &[
     "noscript",
 ];
 
+/// The name of a text node whose text is HTML source, written as it stands.
+///
+/// No parse builds one: a text node has no name. Only [`crate::markdown`]
+/// builds one, for a document's raw HTML, and that member always parses what
+/// [`source`] writes from such a tree and writes it again through [`rebuilt`].
+/// So no raw source ever leaves this crate without the rebuild.
+pub(crate) const RAW_SOURCE: &str = "#raw";
+
 /// One thing the walk in [`source`] has left to write.
 ///
 /// A stack of these rather than a recursive walk, for the reason
@@ -1707,7 +1715,7 @@ enum Step<'a> {
 /// must have one there, an unescaped `>` is text here and is refused there, and
 /// a member that took a flag to pick between them would be the one ambiguity
 /// that rule retired.
-fn source(tree: &Parsed) -> String {
+pub(crate) fn source(tree: &Parsed) -> String {
     let mut out = String::new();
     let mut work = Vec::new();
     stacked(tree, false, &mut work);
@@ -1745,7 +1753,7 @@ fn written_out<'a>(node: &'a Parsed, literal: bool, out: &mut String, work: &mut
         // the document node is at the top too.
         Kind::Document => stacked(node, false, work),
         Kind::Text => {
-            if literal {
+            if literal || node.name == RAW_SOURCE {
                 out.push_str(&node.text);
             } else {
                 escape_into(&node.text, false, out);
@@ -1972,7 +1980,7 @@ fn markdown_id(value: &str) -> bool {
 
 /// Whether `value` is a fenced block's language class: `language-` and one or
 /// more ASCII letters, digits and `+-_#.`.
-fn language_class(value: &str) -> bool {
+pub(crate) fn language_class(value: &str) -> bool {
     value.strip_prefix("language-").is_some_and(|name| {
         !name.is_empty()
             && name
@@ -2048,7 +2056,7 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
 /// bypass there is. A colon that arrives after a `/`, `?` or `#` is
 /// punctuation inside a path rather than a scheme's own, which is how a URL
 /// parser reads it too.
-fn addressable(value: &str) -> bool {
+pub(crate) fn addressable(value: &str) -> bool {
     let value: String = value
         .chars()
         .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
@@ -2150,7 +2158,7 @@ fn verdict(node: &Parsed) -> Verdict {
 ///
 /// Iterative for [`Step`]'s reason: the tree under it is a parse's, so it is
 /// [`DEPTH_CEILING`] deep at its deepest.
-fn rebuilt(tree: &Parsed) -> Parsed {
+pub(crate) fn rebuilt(tree: &Parsed) -> Parsed {
     let mut stack = vec![(tree.children.iter(), Parsed::new(Kind::Document))];
     loop {
         let next = stack
@@ -2171,8 +2179,9 @@ fn rebuilt(tree: &Parsed) -> Parsed {
             }
             continue;
         }
-        let (_, built) = stack.pop().expect("the frame just read to its end");
+        let (_, mut built) = stack.pop().expect("the frame just read to its end");
         let Some(parent) = stack.last_mut() else {
+            without_leading_whitespace(&mut built);
             return built;
         };
         if built.kind == Kind::Document {
@@ -2180,6 +2189,30 @@ fn rebuilt(tree: &Parsed) -> Parsed {
         } else {
             parent.1.children.push(built);
         }
+    }
+}
+
+/// `document` without the whitespace its text starts with, up to its first
+/// element.
+///
+/// The parse ignores whitespace that comes before the first tag of a
+/// document, so a rebuilt answer that started with whitespace would lose it
+/// when it is sanitized again. `<x>\na` rebuilds to `\na`, which reparses as
+/// `a`. Removing it here is what keeps the rebuild a fixed point.
+fn without_leading_whitespace(document: &mut Parsed) {
+    while let Some(first) = document.children.first_mut() {
+        if first.kind != Kind::Text {
+            return;
+        }
+        let kept = first
+            .text
+            .trim_start_matches(['\t', '\n', '\u{C}', '\r', ' '])
+            .len();
+        if kept > 0 {
+            first.text.drain(..first.text.len() - kept);
+            return;
+        }
+        document.children.remove(0);
     }
 }
 
@@ -2841,6 +2874,9 @@ mod tests {
             // DN, so it is not a text carrier.
             (r"Core\Ldap\Dn::child", false),
             (r"Core\Ldap\Dn::of", false),
+            // `rule:core-classes/markdown-to-html`: it rebuilds through the
+            // same list as `sanitize`, for the same sink.
+            (r"Core\Markdown::toHtml", true),
             (r"Core\Path::fromCwd", false),
             (r"Core\Regex::quote", false),
             (r"Core\Taint::assertTrusted", false),

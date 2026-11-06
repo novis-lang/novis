@@ -21,7 +21,13 @@ Front matter, math and admonitions are not parsed, so CommonMark's own reading o
 and a fenced block with a language reaches the `code` callback. Where GFM 0.29's spec text and
 CommonMark 0.31.2 disagree, 0.31.2 wins: nine of GFM's emphasis examples predate 0.31.2's delimiter
 rule, and the GFM spec test takes CommonMark's output for those nine. GFM's tag filter is not applied,
-because raw HTML goes through the rebuild below and the filter's tags never survive it.
+because raw HTML goes through the rebuild below and the filter's tags never survive it. Extended
+autolinks are always on, so the five CommonMark examples that write a bare URL or email address as text
+(602, 606, 608, 611 and 612) write it as a link, as GitHub does.
+
+**Footnotes are written at the end**, after an `hr`, as an `ol` in the order they are first referenced.
+A definition nothing references is not written. Each reference is a `sup` holding a link to its note,
+and each note ends with a link back to its first reference.
 
 **Raw HTML is rebuilt, never stripped and never passed through.** A document's raw HTML is parsed with
 the rest of its output by the WHATWG algorithm and rebuilt through `rule:core-classes/html-sanitize`'s

@@ -173,6 +173,7 @@ mod keyring;
 pub mod ldap;
 mod log;
 mod mail;
+mod markdown;
 pub mod math;
 pub mod metrics;
 mod mime;
@@ -418,6 +419,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| jwt::address(symbol))
         .or_else(|| ldap::address(symbol))
         .or_else(|| log::address(symbol))
+        .or_else(|| markdown::address(symbol))
         .or_else(|| mail::address(symbol))
         .or_else(|| math::address(symbol))
         .or_else(|| metrics::address(symbol))

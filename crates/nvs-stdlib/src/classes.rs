@@ -124,6 +124,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::signature::CLASS,
     crate::html::CLASS,
     crate::html::MARKUP,
+    crate::markdown::CLASS,
     crate::xml::CLASS,
     crate::xml::NODE,
     crate::xml::READER,
