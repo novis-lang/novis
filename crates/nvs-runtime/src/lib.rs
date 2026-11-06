@@ -236,6 +236,7 @@ pub mod metrics;
 pub mod object;
 pub mod os;
 pub mod peer;
+pub mod placeholder;
 pub mod pool;
 pub mod record;
 pub mod release;

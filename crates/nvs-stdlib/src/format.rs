@@ -62,7 +62,8 @@
 //! `rule:types/string-is-utf8` owns that unit; restating it per member is what
 //! would let two members drift apart.
 
-use nvs_runtime::{Fault, NvsStr, StrWriter, Tag, ThrownClass, Value};
+use nvs_runtime::placeholder::{IntBase, IntPlaceholder};
+use nvs_runtime::{Fault, NvsStr, StrPart, StrWriter, Tag, ThrownClass, Value};
 
 use crate::granularity::DEFAULT;
 
@@ -111,8 +112,15 @@ fn render(template: &str, arguments: &[Value], out: &mut StrWriter<'_>) -> Resul
                 })?;
                 read.mark(index);
                 spec.afford()?;
-                let body = spec.convert(argument)?;
-                spec.pad_into(spec.truncated(body.as_str()), out);
+                match spec.integer_base(argument.tag()) {
+                    Some(base) => spec
+                        .int_placeholder(base)
+                        .write(integer(argument, spec.conversion)?, out),
+                    None => {
+                        let body = spec.convert(argument)?;
+                        spec.pad_into(spec.truncated(body.as_str()), out);
+                    }
+                }
             }
         }
     }
@@ -122,10 +130,40 @@ fn render(template: &str, arguments: &[Value], out: &mut StrWriter<'_>) -> Resul
     Ok(())
 }
 
+/// The packed [`StrPart::FORMAT`] kind word for the placeholder `spec`, such
+/// as `%05d`, over an `int`, or over a `uint` when `uint`. The checker calls
+/// it once per placeholder of a literal template, so the join that writes the
+/// placeholder parses nothing.
+///
+/// `None` for a placeholder that does not read an integer as its digits: a
+/// float conversion, a `%s` that is not over an integer, a malformed
+/// placeholder, and a width or precision past
+/// [`nvs_runtime::placeholder::PACKED_MAX`].
+#[must_use]
+pub fn integer_part(spec: &str, uint: bool) -> Option<u64> {
+    let (spec, rest) = Spec::parse(spec.strip_prefix('%')?).ok()?;
+    if !rest.is_empty() || spec.argnum.is_some() {
+        return None;
+    }
+    let tag = match uint {
+        true => Tag::Uint,
+        false => Tag::Int,
+    };
+    spec.int_placeholder(spec.integer_base(Some(tag))?)
+        .kind_word(StrPart::FORMAT)
+}
+
 /// The symbol one placeholder of a literal `Core\Str::format` template lowers
-/// to, where the checker could not fold the placeholder into plain text
+/// to when the join cannot write it itself
 /// (`nvs_types::expr_table::FormatPiece::Converted` and `::Rendered`). With
 /// it, no literal template is parsed at run time.
+///
+/// An integer placeholder, such as `%05d` over an `int`, is a
+/// [`StrPart::FORMAT`] part of the join instead ([`integer_part`]), so it
+/// never reaches this symbol. What reaches it is a `%s` over a `string`
+/// with a flag, a width or a precision, and every placeholder of a template
+/// that numbers its arguments, converts a float, or reads a value whose
+/// conversion may throw.
 ///
 /// Row-less for `crate::html::MARKUP_SYMBOL`'s reason: the call's own
 /// lowering is the only thing that reaches it, and a row would make it
@@ -135,10 +173,11 @@ pub const PIECE_SYMBOL: &str = "nvs_core_str_format_piece";
 nvs_runtime::nvs_helper! {
     /// One placeholder of a literal template, rendered by [`format`] exactly
     /// as `Core\Str::format` renders it. Argument 0 is the placeholder as it
-    /// was written, such as `%05d`, and argument 1 is the value it reads.
+    /// was written, such as `%-10s`, and argument 1 is the value it reads.
+    /// [`PIECE_SYMBOL`] says which placeholders reach it.
     ///
-    /// One allocation, the result. The placeholder is parsed again on every
-    /// call, which is a few bytes of a constant.
+    /// One allocation, the result. The placeholder is parsed on every call,
+    /// which is a few bytes of a constant.
     fn nvs_core_str_format_piece(_ctx, args: [2]) {
         // Unreachable from source: no row names this symbol, and the one
         // lowering that calls it passes the placeholder as a string literal.
@@ -212,8 +251,6 @@ impl Read {
 enum Body<'a> {
     /// The argument is a `string`, used as it is.
     Borrowed(&'a str),
-    /// An integer, written on the stack.
-    Digits(Digits),
     /// A float conversion, or a `%s` of a value that is not a string or an
     /// integer.
     Owned(String),
@@ -223,44 +260,8 @@ impl Body<'_> {
     fn as_str(&self) -> &str {
         match self {
             Self::Borrowed(text) => text,
-            Self::Digits(digits) => digits.as_str(),
             Self::Owned(text) => text,
         }
-    }
-}
-
-/// An integer's text in a buffer on the stack. The widest integer rendering
-/// is a `%b` of `u64::MAX` with a `+` in front, 65 bytes, so it always fits.
-struct Digits {
-    bytes: [u8; 72],
-    len: usize,
-}
-
-impl Digits {
-    fn of(arguments: std::fmt::Arguments<'_>) -> Self {
-        let mut digits = Self {
-            bytes: [0; 72],
-            len: 0,
-        };
-        // Every caller writes one integer, which always fits, so this
-        // write cannot fail.
-        let _ = std::fmt::Write::write_fmt(&mut digits, arguments);
-        digits
-    }
-
-    fn as_str(&self) -> &str {
-        // Integer formatting writes ASCII only, so this is always valid.
-        std::str::from_utf8(&self.bytes[..self.len]).unwrap_or_default()
-    }
-}
-
-impl std::fmt::Write for Digits {
-    fn write_str(&mut self, piece: &str) -> std::fmt::Result {
-        let end = self.len + piece.len();
-        let room = self.bytes.get_mut(self.len..end).ok_or(std::fmt::Error)?;
-        room.copy_from_slice(piece.as_bytes());
-        self.len = end;
-        Ok(())
     }
 }
 
@@ -620,40 +621,47 @@ impl Spec {
         nvs_runtime::affordable(bytes, "Core\\Str::format()").map(drop)
     }
 
-    /// This placeholder's argument rendered, before truncation and padding.
+    /// How this placeholder writes its argument's digits, when it reads the
+    /// argument as an integer: every integer conversion, and `%s` over an
+    /// `int` or a `uint`. `None` for every other placeholder.
+    ///
+    /// PHP's `%u` prints the two's-complement reading of a negative `int`,
+    /// which is the whole point of having it beside `%d`, and the base
+    /// conversions are over the bit pattern, as PHP's are.
+    fn integer_base(&self, tag: Option<Tag>) -> Option<IntBase> {
+        match (self.conversion, tag) {
+            ('d', _) | ('s', Some(Tag::Int)) => Some(IntBase::Signed),
+            ('u', _) | ('s', Some(Tag::Uint)) => Some(IntBase::Unsigned),
+            ('x', _) => Some(IntBase::LowerHex),
+            ('X', _) => Some(IntBase::UpperHex),
+            ('o', _) => Some(IntBase::Octal),
+            ('b', _) => Some(IntBase::Binary),
+            _ => None,
+        }
+    }
+
+    /// This placeholder as the runtime writes it over an integer in `base`.
+    /// Only `%d` reads the `+` flag, and only `%s` reads a precision.
+    const fn int_placeholder(&self, base: IntBase) -> IntPlaceholder {
+        let text = self.conversion == 's';
+        IntPlaceholder {
+            base,
+            plus: self.plus && !text,
+            left: self.left,
+            pad: self.pad,
+            width: self.width,
+            precision: match text {
+                true => self.precision,
+                false => None,
+            },
+        }
+    }
+
+    /// This placeholder's argument rendered, before truncation and padding:
+    /// a float conversion, or a `%s` over a value that is not an integer.
+    /// [`Self::integer_base`] takes every integer conversion first.
     fn convert<'a>(&self, argument: &'a Value) -> Result<Body<'a>, Fault> {
         match self.conversion {
-            's' => text_of(argument),
-            'd' => {
-                let value = integer(argument, 'd')?;
-                Ok(Body::Digits(match self.plus && value >= 0 {
-                    true => Digits::of(format_args!("+{value}")),
-                    false => Digits::of(format_args!("{value}")),
-                }))
-            }
-            // PHP's `%u` prints the two's-complement reading of a negative
-            // `int`, which is the whole point of having it beside `%d`.
-            #[expect(
-                clippy::cast_sign_loss,
-                reason = "the reinterpretation is what `%u` asks for"
-            )]
-            'u' => Ok(Body::Digits(Digits::of(format_args!(
-                "{}",
-                integer(argument, 'u')? as u64
-            )))),
-            #[expect(
-                clippy::cast_sign_loss,
-                reason = "a base conversion is over the bit pattern, as PHP's is"
-            )]
-            'x' | 'X' | 'o' | 'b' => {
-                let bits = integer(argument, self.conversion)? as u64;
-                Ok(Body::Digits(match self.conversion {
-                    'x' => Digits::of(format_args!("{bits:x}")),
-                    'X' => Digits::of(format_args!("{bits:X}")),
-                    'o' => Digits::of(format_args!("{bits:o}")),
-                    _ => Digits::of(format_args!("{bits:b}")),
-                }))
-            }
             'f' => Ok(Body::Owned(self.signed_text(fixed(
                 floating(argument, 'f')?,
                 self.precision.unwrap_or(6),
@@ -662,10 +670,11 @@ impl Spec {
                 floating(argument, 'e')?,
                 self.precision.unwrap_or(6),
             )))),
-            _ => Ok(Body::Owned(self.signed_text(shortest(
+            'g' => Ok(Body::Owned(self.signed_text(shortest(
                 floating(argument, 'g')?,
                 self.precision.unwrap_or(6),
             )))),
+            _ => text_of(argument),
         }
     }
 
@@ -730,25 +739,12 @@ impl Spec {
     }
 }
 
-/// One `%s` argument's text. A `string` is used as it is, an `int` or a
-/// `uint` is written on the stack, and every other value goes through
-/// [`rendered`]. Each fast arm gives the same text `rendered` gives.
+/// One `%s` argument's text. A `string` is used as it is, and every other
+/// value goes through [`rendered`]. An `int` or a `uint` never reaches here,
+/// because [`Spec::integer_base`] writes its digits.
 fn text_of(argument: &Value) -> Result<Body<'_>, Fault> {
     if let Some(text) = argument.as_text() {
         return Ok(Body::Borrowed(text));
-    }
-    match argument.tag() {
-        Some(Tag::Int) => {
-            if let Some(value) = argument.as_int() {
-                return Ok(Body::Digits(Digits::of(format_args!("{value}"))));
-            }
-        }
-        Some(Tag::Uint) => {
-            if let Some(value) = argument.as_uint() {
-                return Ok(Body::Digits(Digits::of(format_args!("{value}"))));
-            }
-        }
-        _ => {}
     }
     rendered(argument).map(Body::Owned)
 }
@@ -1002,6 +998,52 @@ mod tests {
             expected.as_bytes(),
             "for `{template}`"
         );
+    }
+
+    /// A literal template's integer placeholder is packed while compiling and
+    /// written by the join. Each one writes what `format` writes for it.
+    #[test]
+    fn a_packed_integer_part_writes_what_format_writes() {
+        let specs = [
+            "%d", "%+d", "%05d", "%-6d","%'*8d", "%+08d", "%u", "%x", "%X", "%o", "%b",
+            "%08b", "%s", "%.2s", "%-5.3s", "%+5s", "%'é6x",
+        ];
+        let values = [0, 7, -42, 123_456, i64::MIN, i64::MAX];
+        for spec in specs {
+            for uint in [false, true] {
+                let kind = super::integer_part(spec, uint).expect("an integer placeholder");
+                for value in values {
+                    #[expect(
+                        clippy::cast_sign_loss,
+                        reason = "a `uint` argument is the same bits as the part's payload"
+                    )]
+                    let argument = match uint {
+                        true => Value::uint(value as u64),
+                        false => Value::int(value),
+                    };
+                    let expected = format(spec, &[argument]).expect("no failure");
+                    let part = nvs_runtime::StrPart {
+                        kind,
+                        payload: value.cast_unsigned(),
+                    };
+                    #[expect(
+                        unsafe_code,
+                        reason = "one part with an integer payload, and the result is one \
+                                  fresh reference this handle releases"
+                    )]
+                    let joined = unsafe {
+                        nvs_runtime::NvsStr::from_raw(nvs_runtime::nvs_str_concat_parts(&part, 1))
+                    };
+                    assert_eq!(
+                        joined.as_bytes(),
+                        expected.as_bytes(),
+                        "for `{spec}` over {value}, uint {uint}"
+                    );
+                }
+            }
+        }
+        assert_eq!(super::integer_part("%5.2f", false), None);
+        assert_eq!(super::integer_part("%99999d", false), None);
     }
 
     #[test]

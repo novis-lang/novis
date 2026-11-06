@@ -1498,8 +1498,9 @@ pub struct CapabilityGuard {
 /// The checker records a list of these for every constant template that
 /// passes its checks, in one of two forms. When the placeholders read the
 /// arguments once each, in written order, and none can throw, the list is
-/// [`Self::Text`], [`Self::Argument`] and [`Self::Converted`] pieces, and each
-/// argument is evaluated where its piece is. Otherwise it is [`Self::Text`]
+/// [`Self::Text`], [`Self::Argument`], [`Self::Integer`] and
+/// [`Self::Converted`] pieces, and each argument is evaluated where its piece
+/// is. Otherwise it is [`Self::Text`]
 /// and [`Self::Rendered`] pieces alone, and every argument is evaluated
 /// before the first piece, as the call evaluates them. Either way each
 /// placeholder is rendered by `nvs_stdlib::format`'s own code or converts to
@@ -1513,11 +1514,22 @@ pub enum FormatPiece {
     /// `string` the way interpolation converts it. A plain `%d` over an `int`
     /// or a plain `%s` over an `int` or a `string`.
     Argument(usize),
+    /// The `int` or `uint` argument at this index, written by the join as the
+    /// placeholder packed into `kind` renders it, such as `%05d`. `kind` is
+    /// the `nvs_runtime::StrPart::FORMAT` kind word
+    /// `nvs_stdlib::format::integer_part` packed, so the placeholder is parsed
+    /// once, here. An integer conversion, or `%s`, with any flag and a width
+    /// or precision of at most four digits. None of those can throw.
+    Integer {
+        /// The index in the call's argument list.
+        argument: usize,
+        /// The packed placeholder, as the join's kind word.
+        kind: u64,
+    },
     /// The argument at this index, rendered by `nvs_stdlib::format`'s own code
-    /// for the one placeholder `spec`, such as `%05d`. An integer conversion
-    /// over an `int` or a `uint`, or `%s` over either or a `string`, with any
-    /// flag and a width or precision of at most four digits. None of those
-    /// can throw, so rendering it between two arguments is not observable.
+    /// for the one placeholder `spec`, such as `%-10s`. A `%s` over a `string`
+    /// with any flag and a width or precision of at most four digits, which
+    /// cannot throw, so rendering it between two arguments is not observable.
     Converted {
         /// The index in the call's argument list.
         argument: usize,

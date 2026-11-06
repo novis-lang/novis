@@ -600,6 +600,10 @@ pub(crate) fn check_call(
                             FormatPiece::Argument(index) => {
                                 FormatPiece::Argument(row.at + 1 + index)
                             }
+                            FormatPiece::Integer { argument, kind } => FormatPiece::Integer {
+                                argument: row.at + 1 + argument,
+                                kind,
+                            },
                             FormatPiece::Converted { argument, spec } => FormatPiece::Converted {
                                 argument: row.at + 1 + argument,
                                 spec,
@@ -963,9 +967,10 @@ fn without_argument_number(spec: &str) -> String {
 /// each argument is read once, in written order. A plain `%d` over an `int`
 /// and a plain `%s` over an `int` or a non-secret `string` are an
 /// [`FormatPiece::Argument`], the types interpolation converts to the same
-/// text. Any other placeholder is a [`FormatPiece::Converted`] when
-/// [`converts_without_throwing`] says so. Between two placeholders the only
-/// `%` left is a `%%`.
+/// text. Any other placeholder [`converts_without_throwing`] accepts is a
+/// [`FormatPiece::Integer`] over an `int` or a `uint`, and a
+/// [`FormatPiece::Converted`] over a `string`. Between two placeholders the
+/// only `%` left is a `%%`.
 fn format_pieces(
     text: &str,
     placeholders: &[nvs_stdlib::format::Placeholder],
@@ -985,9 +990,20 @@ fn format_pieces(
             FormatPiece::Argument(position)
         } else if !spec.contains('$') && converts_without_throwing(spec, placeholder.conversion, ty)
         {
-            FormatPiece::Converted {
-                argument: position,
-                spec: spec.to_owned(),
+            let integer = match ty {
+                Ty::Int => nvs_stdlib::format::integer_part(spec, false),
+                Ty::Uint => nvs_stdlib::format::integer_part(spec, true),
+                _ => None,
+            };
+            match integer {
+                Some(kind) => FormatPiece::Integer {
+                    argument: position,
+                    kind,
+                },
+                None => FormatPiece::Converted {
+                    argument: position,
+                    spec: spec.to_owned(),
+                },
             }
         } else {
             return None;

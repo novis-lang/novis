@@ -1638,7 +1638,9 @@ pub enum InstKind {
     /// **A piece has a kind** ([`ConcatPart`]). A piece of any kind but
     /// [`PartKind::Str`] makes this a join of typed parts, which
     /// `nvs_runtime`'s `nvs_str_concat_parts` writes: an `int` written as its
-    /// digits and html text written escaped, each straight into the result.
+    /// digits, a `Core\Str::format` placeholder written padded, and html text
+    /// written escaped, each straight into the result. A join of one typed
+    /// piece is still a join, because the piece is not yet a string.
     /// That join **reads every piece and consumes none**, so the protocol above
     /// holds only when every piece is a [`PartKind::Str`]
     /// ([`ConcatPart::all_str`]); otherwise the leading piece is owned like
@@ -2329,6 +2331,11 @@ pub enum PartKind {
     /// A [`Ty::Str`], written as `Core\Html::escape` writes it
     /// (`rule:core-classes/html-auto-escape`), with no escaped copy in between.
     HtmlText,
+    /// A [`Ty::Int`] or a [`Ty::Uint`], written as a `Core\Str::format`
+    /// placeholder renders it. The word is `nvs_runtime::StrPart::FORMAT`'s
+    /// kind word, with the placeholder the checker parsed packed into it, and
+    /// codegen stores it as it is.
+    Format(u64),
 }
 
 /// The written form keeps its label rather than lowering to a

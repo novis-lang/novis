@@ -2370,8 +2370,8 @@ impl<'a> Lowering<'a> {
     /// Each piece is a part and whether nothing is staged for it: it aliases
     /// storage a durable slot still owns, or it is an `int`. Every fresh piece
     /// is staged since `mark`, and `leading` is the mark before the first
-    /// piece when that piece is fresh. A piece alone is always a
-    /// [`PartKind::Str`].
+    /// piece when that piece is fresh. A [`PartKind::Str`] piece alone is the
+    /// result. A typed piece alone is joined, because it is not a string yet.
     fn join_pieces(
         &mut self,
         pieces: &[(ConcatPart, bool)],
@@ -2380,10 +2380,7 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> (ValueId, Ty) {
         let (v, alias) = match pieces[..] {
-            [(only, alias)] => {
-                debug_assert_eq!(only.kind, PartKind::Str, "a piece alone is a string");
-                (only.value, alias)
-            }
+            [(only, alias)] if only.kind == PartKind::Str => (only.value, alias),
             _ => {
                 let ids = pieces.iter().map(|(part, _)| *part).collect();
                 let result = self.emit_concat(cur, ids, leading);
@@ -2414,11 +2411,13 @@ impl<'a> Lowering<'a> {
     /// The template is a constant, so it is not evaluated. Each argument is
     /// lowered in written order and converted by [`Self::concat_operand`], as
     /// an interpolated string converts its holes. A
-    /// [`nvs_types::expr_table::FormatPiece::Converted`] argument is rendered
-    /// by one call to `nvs_stdlib::format`'s per-placeholder helper instead.
-    /// The result is one [`InstKind::Concat`]: one allocation for the whole
-    /// call and one per converted placeholder, where the member allocates an
-    /// argument list and the result.
+    /// [`nvs_types::expr_table::FormatPiece::Integer`] argument is a
+    /// [`PartKind::Format`] piece, which the join writes with no string in
+    /// between. A [`nvs_types::expr_table::FormatPiece::Converted`] argument
+    /// is rendered by one call to `nvs_stdlib::format`'s per-placeholder
+    /// helper. The result is one [`InstKind::Concat`]: one allocation for the
+    /// whole call and one per converted placeholder, where the member
+    /// allocates an argument list and the result.
     pub(crate) fn lower_format_pieces(
         &mut self,
         pieces: &[nvs_types::expr_table::FormatPiece],
@@ -2432,7 +2431,7 @@ impl<'a> Lowering<'a> {
         for piece in pieces {
             let piece = match piece {
                 nvs_types::expr_table::FormatPiece::Text(text) => (
-                    self.emit(*cur, Ty::Str, InstKind::ConstStr(text.clone())).0,
+                    ConcatPart::str(self.emit(*cur, Ty::Str, InstKind::ConstStr(text.clone())).0),
                     false,
                 ),
                 nvs_types::expr_table::FormatPiece::Argument(index) => {
@@ -2443,7 +2442,28 @@ impl<'a> Lowering<'a> {
                             args.len()
                         )
                     });
-                    self.concat_operand(&arg.value, env, cur)
+                    let (v, alias) = self.concat_operand(&arg.value, env, cur);
+                    (ConcatPart::str(v), alias)
+                }
+                nvs_types::expr_table::FormatPiece::Integer { argument, kind } => {
+                    let arg = args.get(*argument).unwrap_or_else(|| {
+                        panic!(
+                            "nvs-ir: a `Core\\Str::format` piece reads argument {argument}, and \
+                             the call has {} — nvs_types records an index into the written list",
+                            args.len()
+                        )
+                    });
+                    let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                    assert!(
+                        matches!(ty, Ty::Int | Ty::Uint),
+                        "nvs-ir: a `Core\\Str::format` integer placeholder reads a {ty:?} — \
+                         nvs_types records one over an `int` or a `uint` alone"
+                    );
+                    let part = ConcatPart {
+                        kind: PartKind::Format(*kind),
+                        value: v,
+                    };
+                    (part, true)
                 }
                 nvs_types::expr_table::FormatPiece::Converted { argument, spec } => {
                     let arg = args.get(*argument).unwrap_or_else(|| {
@@ -2454,7 +2474,7 @@ impl<'a> Lowering<'a> {
                         )
                     });
                     (
-                        self.lower_format_placeholder(spec, &arg.value, env, cur),
+                        ConcatPart::str(self.lower_format_placeholder(spec, &arg.value, env, cur)),
                         false,
                     )
                 }
@@ -2468,9 +2488,9 @@ impl<'a> Lowering<'a> {
                 if lowered.is_empty() {
                     leading = Some(self.temporaries_mark());
                 }
-                self.own_temporary(piece.0);
+                self.own_temporary(piece.0.value);
             }
-            lowered.push((ConcatPart::str(piece.0), piece.1));
+            lowered.push(piece);
         }
         self.join_pieces(&lowered, mark, leading, *cur)
     }
@@ -2526,6 +2546,7 @@ impl<'a> Lowering<'a> {
                     self.render_format_placeholder(spec, value, env, cur)
                 }
                 nvs_types::expr_table::FormatPiece::Argument(_)
+                | nvs_types::expr_table::FormatPiece::Integer { .. }
                 | nvs_types::expr_table::FormatPiece::Converted { .. } => panic!(
                     "nvs-ir: a `Core\\Str::format` piece list mixes a rendered piece with an \
                      argument read in place — nvs_types records either form whole"
@@ -2777,6 +2798,10 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_HTML_ESCAPE_TEXT,
                 args: vec![part.value],
             },
+            PartKind::Format(_) => panic!(
+                "nvs-ir: an html template hole lowered to a `Core\\Str::format` placeholder — \
+                 only `Self::lower_format_pieces` makes one"
+            ),
         };
         self.emit_fallible(*cur, Ty::Str, kind, env).0
     }

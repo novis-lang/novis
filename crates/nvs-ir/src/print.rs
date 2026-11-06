@@ -333,6 +333,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                     PartKind::Str => format!("v{}", p.value.index()),
                     PartKind::Int => format!("int v{}", p.value.index()),
                     PartKind::HtmlText => format!("html v{}", p.value.index()),
+                    PartKind::Format(word) => format!("format {word:#x} v{}", p.value.index()),
                 })
                 .collect();
             format!("concat {}", parts.join(", "))

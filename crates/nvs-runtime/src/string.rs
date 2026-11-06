@@ -1558,10 +1558,11 @@ pub unsafe extern "C" fn nvs_str_concat_n(
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct StrPart {
-    /// One of [`StrPart::STR`], [`StrPart::INT`] or [`StrPart::HTML_TEXT`].
+    /// One of [`StrPart::STR`], [`StrPart::INT`] or [`StrPart::HTML_TEXT`],
+    /// or a [`StrPart::FORMAT`] placeholder's packed word.
     pub kind: u64,
     /// A `*const StrHeader` for the two string kinds, and an `i64`'s bits for
-    /// [`StrPart::INT`].
+    /// [`StrPart::INT`] and [`StrPart::FORMAT`].
     pub payload: u64,
 }
 
@@ -1574,6 +1575,11 @@ impl StrPart {
     /// A `string`, written as `nvs_render::html::escape` writes it, which is
     /// the HTML sink's escape (`rule:core-classes/html-auto-escape`).
     pub const HTML_TEXT: u64 = 2;
+    /// An `i64`, written as the `Core\Str::format` placeholder packed into
+    /// the rest of the kind word renders it
+    /// ([`crate::placeholder::IntPlaceholder::kind_word`]). The kind is the
+    /// word's low byte.
+    pub const FORMAT: u64 = 3;
 
     /// A [`StrPart::STR`] part reading `ptr`.
     #[must_use]
@@ -1591,6 +1597,16 @@ impl StrPart {
             kind: Self::INT,
             payload: value.cast_unsigned(),
         }
+    }
+
+    /// A [`StrPart::FORMAT`] part writing `value` as `placeholder` renders
+    /// it, or `None` for a placeholder too wide to pack.
+    #[must_use]
+    pub fn format(placeholder: &crate::placeholder::IntPlaceholder, value: i64) -> Option<Self> {
+        Some(Self {
+            kind: placeholder.kind_word(Self::FORMAT)?,
+            payload: value.cast_unsigned(),
+        })
     }
 
     /// A [`StrPart::HTML_TEXT`] part escaping `ptr`'s text.
@@ -1620,6 +1636,7 @@ enum Piece<'a> {
     Bytes(&'a [u8]),
     Int(i64),
     HtmlText(&'a str),
+    Format(crate::placeholder::IntPlaceholder, i64),
 }
 
 impl Piece<'_> {
@@ -1646,6 +1663,14 @@ impl Piece<'_> {
                 StrPart::STR => Piece::Bytes(NvsStr::bytes_of(part.ptr())),
                 StrPart::INT => Piece::Int(part.payload.cast_signed()),
                 StrPart::HTML_TEXT => Piece::HtmlText(NvsStr::text_of(part.ptr())),
+                kind if kind & 0xff == StrPart::FORMAT => {
+                    match crate::placeholder::IntPlaceholder::of_kind_word(kind) {
+                        Some(placeholder) => {
+                            Piece::Format(placeholder, part.payload.cast_signed())
+                        }
+                        None => unreachable!("a miscompile: placeholder word {kind:#x}"),
+                    }
+                }
                 kind => unreachable!("a miscompile: string part kind {kind} does not exist"),
             }
         }
@@ -1660,6 +1685,7 @@ impl Piece<'_> {
                 crate::helpers::write_decimal(value < 0, value.unsigned_abs(), &mut buf).len()
             }
             Piece::HtmlText(text) => nvs_render::html::escaped_len(text),
+            Piece::Format(placeholder, value) => placeholder.len(value),
         }
     }
 
@@ -1678,6 +1704,7 @@ impl Piece<'_> {
             Piece::HtmlText(text) => {
                 nvs_render::html::escape_into(text, &mut |run| out.push(run.as_bytes()));
             }
+            Piece::Format(placeholder, value) => placeholder.write(value, out),
         }
     }
 }
@@ -1687,11 +1714,12 @@ impl Piece<'_> {
 /// are typed parts.
 ///
 /// **One allocation for the whole result, asked for once.** The first pass
-/// measures every part: a string's length, an integer's digits and the
-/// escaped length of html text. The second writes every part straight into
-/// the result. So an integer hole allocates no string of digits, and an
-/// escaped hole allocates no escaped copy. Measuring twice costs one more
-/// read of each part, which is a scan and no allocation.
+/// measures every part: a string's length, an integer's digits, a
+/// placeholder's padded digits and the escaped length of html text. The
+/// second writes every part straight into the result. So an integer hole
+/// allocates no string of digits, an escaped hole allocates no escaped copy,
+/// and a `Core\Str::format` placeholder allocates nothing. Measuring twice
+/// costs one more read of each part, which is a scan and no allocation.
 ///
 /// **Every part is only read**, never retained or released, and the result
 /// is one new reference. A total of zero bytes answers the static empty
@@ -1710,8 +1738,9 @@ impl Piece<'_> {
 ///
 /// `parts` must point at `count` consecutive [`StrPart`]s. A string kind's
 /// payload must refer to a live Novis string allocation, and a
-/// [`StrPart::HTML_TEXT`] one must be a `string`'s. A kind outside the three
-/// is a miscompile, and stops the process.
+/// [`StrPart::HTML_TEXT`] one must be a `string`'s. A kind outside the four,
+/// or a [`StrPart::FORMAT`] word no placeholder packs to, is a miscompile,
+/// and stops the process.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a stack array of typed parts whose \

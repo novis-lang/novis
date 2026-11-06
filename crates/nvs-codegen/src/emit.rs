@@ -4010,7 +4010,9 @@ impl Emitter<'_, '_> {
     /// `nvs_str_concat_parts` over a stack array of `nvs_runtime::StrPart`s.
     ///
     /// Each part is two words, its kind and then its payload: a `StrHeader`
-    /// pointer for a string kind, an `i64` for an integer. The runtime measures
+    /// pointer for a string kind, an `i64` for an integer and a placeholder.
+    /// A placeholder's kind word is the one `nvs-ir` carries, stored as it
+    /// is. The runtime measures
     /// every part, allocates the result once, and writes the digits and the
     /// escaped text straight into it. It reads every part and consumes none,
     /// so nothing is retained or released here, and `nvs-ir` releases each
@@ -4032,6 +4034,7 @@ impl Emitter<'_, '_> {
                 (PartKind::Str, Ty::Str | Ty::Bytes) => StrPart::STR,
                 (PartKind::Int, Ty::Int) => StrPart::INT,
                 (PartKind::HtmlText, Ty::Str) => StrPart::HTML_TEXT,
+                (PartKind::Format(word), Ty::Int | Ty::Uint) => word,
                 _ => {
                     return Err(internal(
                         "a join piece whose kind does not match its representation",
