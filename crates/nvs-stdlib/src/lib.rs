@@ -125,6 +125,7 @@ mod attributes;
 mod bigint;
 mod budget;
 mod bus;
+mod byte_source;
 mod bytes;
 mod cache;
 // `pub` for the two predicates `nvs_types::capability` reads — the class's own

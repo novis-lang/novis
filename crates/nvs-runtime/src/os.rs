@@ -201,6 +201,36 @@ pub fn load_average() -> Option<[f64; 3]> {
     None
 }
 
+/// Whether `file` is a regular file on a disk, which can seek. A pipe, a
+/// terminal and a device cannot.
+///
+/// `nvs_stdlib`'s byte source asks it before a read from offset 0. Unix tells
+/// a regular file apart by its mode.
+#[cfg(unix)]
+#[must_use]
+pub fn can_seek(file: &std::fs::File) -> bool {
+    file.metadata().is_ok_and(|meta| meta.file_type().is_file())
+}
+
+/// See the `unix` arm. Windows calls a pipe's handle a file, since
+/// `Metadata::is_file` there only means "not a folder", and a seek on a pipe
+/// succeeds and moves nothing. `GetFileType` is the call that tells a disk
+/// file from a pipe or a character device.
+#[cfg(windows)]
+#[must_use]
+pub fn can_seek(file: &std::fs::File) -> bool {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_DISK, GetFileType};
+
+    #[expect(
+        unsafe_code,
+        reason = "`GetFileType` only reads the handle's type, and the handle is borrowed \
+                  from a live `File` for the length of the call"
+    )]
+    let kind = unsafe { GetFileType(file.as_raw_handle()) };
+    kind == FILE_TYPE_DISK && file.metadata().is_ok_and(|meta| meta.is_file())
+}
+
 #[cfg(test)]
 mod tests {
     /// Every fact this module answers is answered on the platform the tests run
