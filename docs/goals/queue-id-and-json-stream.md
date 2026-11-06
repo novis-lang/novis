@@ -290,10 +290,5 @@ was seen by a run on that day.
 
 ### Backlog
 
-- **JSON text in an HTML stream.** `encode` does not escape `<`, `>` or `&`, and its text is plain, so
-  `Core\Response::stream('text/html')->write(Core\Json::encode($value))` writes a tainted
-  `<script>` unescaped. Once stage 1 lands, `encodeEach`'s pieces do the same. Escaping the three
-  characters as `<`, `>` and `&` by default, as Go's encoder does, would close it for
-  both members, and it changes `encode`'s output for every value that holds them.
 - The JSON API guide could show a streamed response beside its file export.
   `website/snippets/guides/simple-programs/json-api/large-lists.nvs:29`
