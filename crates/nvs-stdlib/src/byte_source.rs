@@ -49,8 +49,8 @@
 //! itself. A pulled chunk of an `Iterable` is the reference the pull gave, and
 //! the guard releases it on drop, so no caller writes that `unsafe` release.
 //!
-//! **What it spends:** per source, one buffer of [`READ_CHUNK`] bytes for a
-//! file, and one more descriptor. A file that cannot seek also keeps what a
+//! **What it spends:** per source, one buffer for a file, the file's size plus
+//! one byte and at most [`READ_CHUNK`], and one more descriptor. A file that cannot seek also keeps what a
 //! prefix read took, and a random read keeps the whole file. A `bytes` value
 //! and a walk of chunks cost nothing past the chunk being read.
 //!
@@ -112,8 +112,14 @@ struct FileSource {
     file: std::fs::File,
     /// Whether the file is a regular file, which can seek.
     seekable: bool,
-    /// The one buffer every forward read goes into.
+    /// The one buffer every forward read goes into. It is the file's size
+    /// plus one byte, at most [`READ_CHUNK`], so a small file costs no more
+    /// than its size.
     buffer: Vec<u8>,
+    /// Whether the last forward read filled a buffer smaller than
+    /// [`READ_CHUNK`]: the file grew after its size was read, and the next
+    /// read takes a whole [`READ_CHUNK`].
+    filled: bool,
     /// Where the program's position was before a prefix or random read moved
     /// it. [`ByteSource::finish`] and [`Drop`] put it back.
     origin: Option<u64>,
@@ -219,6 +225,7 @@ impl ByteSource {
                 file,
                 seekable,
                 buffer: Vec::new(),
+                filled: false,
                 origin: None,
                 started: false,
                 kept: Vec::new(),
@@ -651,13 +658,22 @@ impl FileSource {
                     .map_err(|err| failed(member, &self.path, &err))?;
             }
         }
-        if self.buffer.len() != READ_CHUNK {
+        if self.buffer.is_empty() {
+            // The one extra byte finds the end of a file that did not change
+            // in the same read as its last byte.
+            let size = self.seekable.then(|| self.file.metadata().ok()).flatten();
+            let want = size
+                .and_then(|m| usize::try_from(m.len()).ok())
+                .map_or(READ_CHUNK, |n| n.saturating_add(1).min(READ_CHUNK));
+            self.buffer = vec![0_u8; want];
+        } else if self.filled {
             self.buffer = vec![0_u8; READ_CHUNK];
         }
         let read = self
             .file
             .read(&mut self.buffer)
             .map_err(|err| failed(member, &self.path, &err))?;
+        self.filled = read == self.buffer.len() && read < READ_CHUNK;
         if read == 0 {
             // The end: the source holds no buffer once it is read.
             self.buffer = Vec::new();
@@ -939,6 +955,47 @@ mod tests {
                 .expect("the end")
                 .is_none()
         );
+        drop(source);
+        released(holder);
+        released(value);
+    }
+
+    /// A small file is read into a buffer of its size plus one byte, and a
+    /// file that grows after its first read is still read to its new end.
+    #[test]
+    fn next_chunk_sizes_its_buffer_to_a_small_file_and_reads_one_that_grows() {
+        let content = pattern(360, 251);
+        let (_dir, path) = scratch("small.bin", &content);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let file = std::fs::File::open(&path).expect("the case opens its file");
+        let (value, _key) = handle(&mut ctx, file, "small.bin");
+
+        let (mut source, holder) =
+            ByteSource::from_arg(&mut ctx, value, "Test::read").expect("an open file is a source");
+        let first = source
+            .next_chunk(&mut ctx, holder)
+            .expect("the file reads")
+            .expect("a first chunk")
+            .bytes()
+            .to_vec();
+        assert_eq!(first, content, "the whole small file in one chunk");
+        let super::Kind::File(file) = &source.kind else {
+            panic!("a file source")
+        };
+        assert_eq!(
+            file.buffer.len(),
+            content.len() + 1,
+            "the buffer is the file's size plus one"
+        );
+
+        let extra = pattern(1000, 7);
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| f.write_all(&extra))
+            .expect("the case grows its file");
+        let (rest, _) = drained(&mut ctx, &mut source, holder);
+        assert_eq!(rest, extra, "the bytes written after the first read");
         drop(source);
         released(holder);
         released(value);
