@@ -1211,3 +1211,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and a socket unit for a privileged port, so the service holds no capability** — The generated unit carries what a hand-written one usually does not:… ([`packaging/the-generated-unit-is-hardened`](rules/packaging.md#packaging-the-generated-unit-is-hardened))
 - **A single-file bundle may not install itself as a service** — `nvs service install` refuses when the running binary is a single-file bundle, with a diagnostic (`E0634`) naming the reason. ([`packaging/a-bundle-may-not-install-itself`](rules/packaging.md#packaging-a-bundle-may-not-install-itself))
 - **There is no `Core\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path** — There is no `Core\Service`, no new grammar, no runtime change and nothing on the request path. ([`packaging/a-service-is-operator-surface`](rules/packaging.md#packaging-a-service-is-operator-surface))
+
+## The website
+
+- **A website walkthrough is written from a brief and shows exactly one moment** — A walkthrough is an interactive, video-like explainer on the website: parts on a stage, a camera, and a caption for each step, played or stepped through. ([`website/a-walkthrough-has-one-moment`](rules/website.md#website-a-walkthrough-has-one-moment))

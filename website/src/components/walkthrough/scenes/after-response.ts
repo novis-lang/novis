@@ -1,6 +1,7 @@
 /**
  * The `afterResponse` walkthrough: the beats, built from the reusable parts.
  */
+import type { Brief } from '../engine/brief'
 import { Stage } from '../engine/stage'
 import { bindControls } from '../engine/controls'
 import { Editor } from '../parts/editor'
@@ -13,7 +14,7 @@ import { Card, Pointer, Wire } from '../parts/movers'
  * The brief. Every part, motion and caption below is judged against `moment`; what `leavesOut`
  * names is true and stays out on purpose, because it would pull the eye away from the moment.
  */
-export const brief = {
+export const brief: Brief = {
   moment: 'I can do work after the browser has the page, without a second request.',
   expectation: 'When the page has loaded, the request is over.',
   proof: 'The page is done and the Network panel shows one request, then the receipt email arrives.',

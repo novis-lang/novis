@@ -1,0 +1,11 @@
+{
+  "title": "A website walkthrough is written from a brief and shows exactly one moment",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/website-pages-are-stamped"
+  ],
+  "guardedBy": [
+    "tools/nv/test/walkthrough-briefs.test.ts",
+    "website/src/components/walkthrough/engine/brief.ts"
+  ]
+}
