@@ -240,7 +240,16 @@ named (`10caa99d19`). The website data, eight pages' questions, a roadmap theme 
 
 `bun nv proofs --gate --group 'Core\Json'` owes nothing. `decodeEach`'s perf record says `growth:
 unclear` with `size_growth: flat`, which the gate accepts. The sweep's `env-secret-proofs` red is
-stale driver state: `looper check --name env-secret-proofs` answers `no check matches`.
+stale driver state: `looper check --name env-secret-proofs` answers `no check matches`, and the
+driver keeps no log for it.
+
+The refused DONE's `website-render` red is not this goal's. At HEAD (`f1d89c9377`),
+`bun nv render --website --check` in a clean worktree says every generated file is current. The
+shared tree carries uncommitted work by another hand, made after that commit: class summaries as
+`IntroBlock`s in `tools/nv/renderers/website-core.ts`, and `data/proofs/intro-backlog.json`. That
+work changes the renderer without re-rendering `website/src/data/core.json` and
+`website/public/llms-full.txt`. Whoever owns it re-renders them with `bun nv render --website`
+when they commit. This session left it untouched.
 
 ### Next
 
