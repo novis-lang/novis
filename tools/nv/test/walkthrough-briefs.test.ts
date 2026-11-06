@@ -1,4 +1,5 @@
-// Every website walkthrough has a brief and exactly one moment (`rule:website/a-walkthrough-has-one-moment`).
+// Every website walkthrough has a brief and exactly one moment (`rule:website/a-walkthrough-has-one-moment`),
+// and every step's caption sits where its step happens (`rule:website/a-caption-sits-where-it-happens`).
 // A scene is a module under `website/src/components/walkthrough/scenes/` that exports `start`. Its
 // brief is its `brief` export, and its moment is the one step written with `moment: true`.
 
@@ -28,5 +29,14 @@ for (const file of scenes) {
     expect(brief.leavesOut.length).toBeGreaterThan(0);
     const moments = readFileSync(join(SCENES, file), "utf8").match(/\bmoment: true\b/g) ?? [];
     expect(moments.length).toBe(1);
+  });
+
+  // `rule:website/a-caption-sits-where-it-happens`: every step places its caption with `stage.say`.
+  test(`${file} places every step's caption on the stage`, () => {
+    const src = readFileSync(join(SCENES, file), "utf8");
+    const steps = src.match(/\btl\.beat\(/g) ?? [];
+    const says = src.match(/\bstage\.say\(/g) ?? [];
+    expect(steps.length).toBeGreaterThan(0);
+    expect(says.length).toBe(steps.length);
   });
 }

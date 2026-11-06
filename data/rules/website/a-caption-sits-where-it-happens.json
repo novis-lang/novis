@@ -1,0 +1,11 @@
+{
+  "title": "A walkthrough's caption sits beside what it is about, and the stage slows and blurs the rest while it is read",
+  "status": "shipped",
+  "seeAlso": [
+    "website/a-walkthrough-has-one-moment"
+  ],
+  "guardedBy": [
+    "tools/nv/test/walkthrough-briefs.test.ts",
+    "website/src/components/walkthrough/engine/stage.ts"
+  ]
+}

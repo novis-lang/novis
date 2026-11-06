@@ -2,6 +2,7 @@
   "title": "The website",
   "order": 220,
   "rules": [
-    "website/a-walkthrough-has-one-moment"
+    "website/a-walkthrough-has-one-moment",
+    "website/a-caption-sits-where-it-happens"
   ]
 }

@@ -1217,3 +1217,4 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 ## The website
 
 - **A website walkthrough is written from a brief and shows exactly one moment** — A walkthrough is an interactive, video-like explainer on the website: parts on a stage, a camera, and a caption for each step, played or stepped through. ([`website/a-walkthrough-has-one-moment`](rules/website.md#website-a-walkthrough-has-one-moment))
+- **A walkthrough's caption sits beside what it is about, and the stage slows and blurs the rest while it is read** — A viewer cannot read a caption and watch the stage when the two are apart: the eye goes to one, and what happens in the other is missed. ([`website/a-caption-sits-where-it-happens`](rules/website.md#website-a-caption-sits-where-it-happens))
