@@ -667,8 +667,8 @@ fn check_arg_admitting_quals(
     } else {
         expected
     };
-    let tainted_walk =
-        walks != expected && is_assignable(compared, walks, env.interner, env.graph, env.signatures);
+    let tainted_walk = walks != expected
+        && is_assignable(compared, walks, env.interner, env.graph, env.signatures);
     if !tainted_walk && !(admitted.core && reads_any_walk(compared, expected, env)) {
         report_mismatch(value.span, expected, actual, env);
     }
@@ -688,9 +688,9 @@ fn reads_any_walk(actual: TypeId, expected: TypeId, env: &mut Env<'_>) -> bool {
     let Some(element) = walk_element(actual, env) else {
         return false;
     };
-    walk_params(expected, env).into_iter().any(|declared| {
-        is_assignable(element, declared, env.interner, env.graph, env.signatures)
-    })
+    walk_params(expected, env)
+        .into_iter()
+        .any(|declared| is_assignable(element, declared, env.interner, env.graph, env.signatures))
 }
 
 /// The element `ty` gives a `foreach`, when it is an `Iterable<T>`, an
@@ -704,7 +704,12 @@ fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
     }
     let (_, element) =
         crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph)?;
-    Some(crate::generics::with_class_args(&qname, &args, element, env.interner))
+    Some(crate::generics::with_class_args(
+        &qname,
+        &args,
+        element,
+        env.interner,
+    ))
 }
 
 /// The element of each `Iterable<T>` or `Iterator<T>` that `declared` is, or

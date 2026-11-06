@@ -1104,7 +1104,10 @@ mod tests {
     // covers: Core\Json::decodeEach
     #[test]
     fn decode_each_does_not_keep_a_skipped_string() {
-        let items = (0..100).map(|at| at.to_string()).collect::<Vec<_>>().join(",");
+        let items = (0..100)
+            .map(|at| at.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
         let huge = "x".repeat(8 << 20);
         let plain = peak_of_walk(&format!("{{\"items\":[{items}],\"end\":true}}"));
         for text in [
@@ -1126,7 +1129,10 @@ mod tests {
             "a skipped string is checked for syntax"
         );
         released(elements);
-        assert_eq!(ints(r#"{"a":null,"b":"s","items":[1,2]}"#, "/items", false), [1, 2]);
+        assert_eq!(
+            ints(r#"{"a":null,"b":"s","items":[1,2]}"#, "/items", false),
+            [1, 2]
+        );
     }
 
     /// A syntax error after some elements throws where it is found: the

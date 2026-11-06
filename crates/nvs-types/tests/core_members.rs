@@ -47,12 +47,18 @@ fn a_core_walk_takes_a_walk_of_a_narrower_element() {
          \x20   foreach (Core\\Json::decodeEach<mixed>(Catalog::numbers()) as mixed $v) {{}}\n\
          \x20 }}\n}}\n"
     ));
-    assert!(diags.has_errors(), "an `Iterator<int>` is not a walk of bytes");
+    assert!(
+        diags.has_errors(),
+        "an `Iterator<int>` is not a walk of bytes"
+    );
     let diags = check_src(&format!(
         "{generator}\x20 static function take(Iterator<mixed> $items): void {{}}\n\
          \x20 static function run(): void {{ Catalog::take(Catalog::all()); }}\n}}\n"
     ));
-    assert!(diags.has_errors(), "a declared `Iterator<mixed>` stays invariant");
+    assert!(
+        diags.has_errors(),
+        "a declared `Iterator<mixed>` stays invariant"
+    );
 }
 
 /// The point of registering a signature at all: a `Core` call is now
