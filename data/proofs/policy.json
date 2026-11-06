@@ -9,6 +9,9 @@
     "all": {
       "about": true,
       "comments": true
+    },
+    "member": {
+      "intro": true
     }
   }
 }

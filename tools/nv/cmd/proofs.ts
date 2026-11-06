@@ -66,7 +66,7 @@ import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { inPart } from "../lib/reads.ts";
-import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, textProblems, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, INTRO_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, textProblems, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { newestNvs } from "../lib/nvs-binary.ts";
@@ -201,6 +201,7 @@ function printEntry(out: string[], fid: string, entries: Entry[], proofs: Map<st
   out.push("");
   out.push(`   about     ${p.about || "none at " + aboutFile(match)}`);
   if (p.details) out.push(`   details   ${p.details}`);
+  if (p.intro) out.push(`   intro     ${p.intro}${p.introNames ? "" : " (does not name it)"}`);
   out.push(`   tests     ${p.nvst.length} case(s), ${p.rust.length} Rust`);
   for (const f of p.nvst.slice(0, 6)) out.push(`     ${f}`);
   if (p.inferred) out.push(`     (${p.inferred} credited by a call rather than a \`covers:\` marker)`);
@@ -270,6 +271,8 @@ function gate(out: string[], scope: Entry[], proofs: Map<string, Proofs>, policy
   if (label === null) {
     const backlog = [...skips.values()].filter((r) => r.help === HELP_BACKLOG_REASON).length;
     out.push(backlog ? `help backlog: ${backlog} feature(s) skip help until they have it` : "help backlog: empty");
+    const intros = [...skips.values()].filter((r) => r.intro === INTRO_BACKLOG_REASON).length;
+    out.push(intros ? `intro backlog: ${intros} member(s) their class introduction does not name yet` : "intro backlog: empty");
   }
   return 0;
 }

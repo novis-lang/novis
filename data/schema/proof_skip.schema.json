@@ -24,6 +24,9 @@
     },
     "help": {
       "type": "string"
+    },
+    "intro": {
+      "type": "string"
     }
   },
   "required": [

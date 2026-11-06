@@ -23,6 +23,13 @@ skips with one shared reason, so a finished goal's floor does not fail over a pr
 when it finished; a feature leaves the list when it gains its help, and nothing is ever added to it,
 because a feature that lands owes its help at once.
 
+**A member is named in its class's introduction**, when the class has one under `docs/reference/`: in
+a backtick span or a fence, so the page that describes the class describes every member it has. It is
+a check on the member, not a proof of its own, as the plain-comment bounds are, and the policy file
+switches it on. A goal that adds a member to such a class rewrites the introduction with it. The
+members already missing from their introduction when it became owed are listed in
+`data/proofs/intro-backlog.json` and read as skips, and nothing is ever added to that list.
+
 The `about` page is owed by every feature, so no file under `data/proofs/skip/` carries an `about` skip. A
 description that fails the shape check is rewritten, never padded or trimmed to fit: too long means it
 explains edge cases the tests own, and too short means its lead sentence carries the page.

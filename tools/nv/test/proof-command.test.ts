@@ -3,7 +3,8 @@ import { existsSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
-import { detailsProblems, skippedOf } from "../proofs/collect.ts";
+import { detailsProblems, introCodeOf, namesInCode, owed, skippedOf, type Policy, type Proofs } from "../proofs/collect.ts";
+import type { Entry } from "../proofs/roster.ts";
 import { commandArgs, commandLine, exampleOutput, firstDifference, matchesOut, proofArgv, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
@@ -149,6 +150,36 @@ describe("a feature's `details.md`", () => {
     const half = Array.from({ length: 15 }, (_, i) => `w${i}`).join(" ");
     expect(judge(`- ${half}\n- ${half}\n`)).toEqual([]);
     expect(judge(`${half}\n${half}\n`)).toHaveLength(1);
+  });
+});
+
+describe("a member's class introduction", () => {
+  const text = [
+    "`Core\\Json::encode` writes JSON. The method reads at most one document.",
+    "",
+    "```nvs",
+    "echo Core\\Json::decodeAs<User>($text)->name;",
+    "```",
+  ].join("\n");
+
+  test("names a member only in code, a backtick span or a fence, and only as a whole word", () => {
+    const code = introCodeOf(text);
+    expect(namesInCode(code, "encode")).toBe(true);
+    expect(namesInCode(code, "decodeAs")).toBe(true);
+    // `at` is an English word in the prose and a part of `decodeAs` in the fence, and neither names it.
+    expect(namesInCode(code, "at")).toBe(false);
+    expect(namesInCode(code, "decode")).toBe(false);
+  });
+
+  test("a member it does not name owes it, unless the member is skipped or its class has no introduction", () => {
+    const entry = { id: "Core\\Json::decodeEach", kind: "member", path: "core/Json/decodeEach" } as Entry;
+    const proofs = { nvst: ["a", "b"], rust: ["c"], examples: [], hostile: [], intro: "docs/reference/core/Json.md", introNames: false } as unknown as Proofs;
+    const want = { tests: 0, rust: 0, examples: 0, perf: false, hostile: 0, about: false, help: false, intro: true };
+    const policy = { member: want } as unknown as Policy;
+    expect(owed(entry, proofs, policy, new Map()).intro).toContain("does not name `decodeEach`");
+    expect(owed(entry, proofs, policy, new Map([[entry.id, { intro: "backlog" }]])).intro).toBeUndefined();
+    expect(owed(entry, { ...proofs, intro: "" }, policy, new Map()).intro).toBeUndefined();
+    expect(owed(entry, { ...proofs, introNames: true }, policy, new Map()).intro).toBeUndefined();
   });
 });
 

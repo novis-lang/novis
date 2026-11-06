@@ -8,7 +8,7 @@
 import type { RecordType } from "../lib/schema.ts";
 
 import { gap } from "./gap.ts";
-import { helpBacklog, proofPolicy, proofSkip } from "./proofs.ts";
+import { helpBacklog, introBacklog, proofPolicy, proofSkip } from "./proofs.ts";
 import { referenceChapter } from "./reference.ts";
 import { rule } from "./rule.ts";
 import { topic } from "./topic.ts";
@@ -21,4 +21,5 @@ export const RECORDS: RecordType<any>[] = [
   proofPolicy,
   proofSkip,
   helpBacklog,
+  introBacklog,
 ];

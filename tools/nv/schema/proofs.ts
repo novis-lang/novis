@@ -1,7 +1,8 @@
 // What the feature proofs are excused from, and what still owes its help. `rule:testing/feature-proofs`
 // is what a feature owes; `data/proofs/policy.json` is each kind's override of that and the perf
-// report's bounds, each file under `data/proofs/skip/` is one feature's excuses with their reasons, and
-// `data/proofs/help-backlog.json` is the features the help proof is not yet asked of.
+// report's bounds, each file under `data/proofs/skip/` is one feature's excuses with their reasons,
+// `data/proofs/help-backlog.json` is the features the help proof is not yet asked of, and
+// `data/proofs/intro-backlog.json` is the members their class introduction does not yet have to name.
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -36,6 +37,7 @@ export const proofPolicy = defineRecord({
           about: owed,
           help: owed,
           comments: owed,
+          intro: owed,
         }),
       ),
     ),
@@ -58,6 +60,7 @@ export const proofSkip = defineRecord({
     hostile: reason,
     about: reason,
     help: reason,
+    intro: reason,
   }),
   checks: [
     {
@@ -71,6 +74,13 @@ export const proofSkip = defineRecord({
 export const helpBacklog = defineRecord({
   name: "help_backlog",
   dir: "proofs/help-backlog",
+  single: true,
+  schema: s.object({ features: s.array(s.string()) }),
+});
+
+export const introBacklog = defineRecord({
+  name: "intro_backlog",
+  dir: "proofs/intro-backlog",
   single: true,
   schema: s.object({ features: s.array(s.string()) }),
 });

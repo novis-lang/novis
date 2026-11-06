@@ -20,7 +20,7 @@ import { load } from "../lib/store.ts";
 import { proofSkip } from "../schema/proofs.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
-import { aboutFile, benchFile, DETAILS, detailsFile, examplesDir, hostileDir, implFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
+import { aboutFile, benchFile, DETAILS, detailsFile, examplesDir, hostileDir, implFile, introFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
 export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
@@ -37,6 +37,11 @@ export interface Owes {
   help: boolean;
   /** Every program among the proofs is inside the plain-comment bounds. Off unless the policy file turns it on. */
   comments?: boolean;
+  /**
+   * A member is named in code, in a backtick span or a fence, by its class's introduction under
+   * `docs/reference/` when the class has one. Off unless the policy file turns it on.
+   */
+  intro?: boolean;
 }
 
 // `help` is off for an exception, an interface and a directive: the binary has no card or index entry to
@@ -58,6 +63,15 @@ const HELP_BACKLOG = "data/proofs/help-backlog.json";
 /** The skip reason every feature on the help backlog reads as. */
 export const HELP_BACKLOG_REASON =
   "Landed before the help proof was owed; goal `core-class-cards` writes it and deletes this feature from data/proofs/help-backlog.json.";
+const INTRO_BACKLOG = "data/proofs/intro-backlog.json";
+/** The skip reason every member on the introduction backlog reads as. */
+export const INTRO_BACKLOG_REASON =
+  "Its class introduction was written before it had to name every member; the session that next rewrites that introduction names it and deletes this member from data/proofs/intro-backlog.json.";
+/** Each backlog file, the proof its features skip, and the reason they read as. Nothing is ever added to one. */
+const BACKLOGS: [file: string, proof: string, reason: string][] = [
+  [HELP_BACKLOG, "help", HELP_BACKLOG_REASON],
+  [INTRO_BACKLOG, "intro", INTRO_BACKLOG_REASON],
+];
 
 export type Policy = Record<Kind, Owes>;
 /** Per feature id, per proof it is excused from, the reason. */
@@ -68,7 +82,7 @@ const isTable = (v: unknown): v is Table => typeof v === "object" && v !== null 
 
 /**
  * `POLICY` with the policy file's `owes` applied, `all` before each kind, and the skip files' map, with every
- * help-backlog feature skipping `help`. `noPerf`, and `NVS_PROOFS_NO_PERF=1` in the environment, stop
+ * feature on a backlog skipping that backlog's proof. `noPerf`, and `NVS_PROOFS_NO_PERF=1` in the environment, stop
  * the perf proof from being owed and leave the ledger and the benches as they are.
  */
 export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
@@ -83,11 +97,12 @@ export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
     const { feature, ...reasons } = value;
     skips.set(feature, { ...skips.get(feature), ...(reasons as Record<string, string>) });
   }
-  if (existsSync(abs(HELP_BACKLOG))) {
-    const backlog: Table = JSON.parse(read(HELP_BACKLOG));
+  for (const [file, proof, reason] of BACKLOGS) {
+    if (!existsSync(abs(file))) continue;
+    const backlog: Table = JSON.parse(read(file));
     for (const fid of Array.isArray(backlog.features) ? (backlog.features as string[]) : []) {
       const reasons = skips.get(fid) ?? {};
-      if (!("help" in reasons)) reasons.help = HELP_BACKLOG_REASON;
+      if (!(proof in reasons)) reasons[proof] = reason;
       skips.set(fid, reasons);
     }
   }
@@ -100,6 +115,29 @@ export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
 export function shownProofs(policy: Policy): Proof[] {
   const kinds = Object.values(policy);
   return PROOFS.filter((p) => (p !== "perf" && p !== "about" && p !== "help") || kinds.some((k) => k[p]));
+}
+
+/** The code of a class introduction's text: every fence's lines and every backtick span, one per line. */
+export function introCodeOf(text: string): string {
+  const fences = [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]!);
+  const spans = [...text.replace(/^```[^\n]*\n[\s\S]*?^```/gm, "").matchAll(/`([^`\n]+)`/g)].map((m) => m[1]!);
+  return [...fences, ...spans].join("\n");
+}
+
+const introCodes = new Map<string, string>();
+/** `introCodeOf` the introduction at `path`, read once per process, since every member of its class asks. */
+function introCode(path: string): string {
+  let code = introCodes.get(path);
+  if (code === undefined) {
+    code = introCodeOf(read(path));
+    introCodes.set(path, code);
+  }
+  return code;
+}
+
+/** Whether `code` has `name` as a whole word, so `at` is not found inside `format`. */
+export function namesInCode(code: string, name: string): boolean {
+  return new RegExp(`(?<![\\w$])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`).test(code);
 }
 
 /** The words a description aims for, and the most the check accepts once one is owed. */
@@ -241,6 +279,9 @@ export interface Proofs {
   aboutProblem: string;
   /** The exact rules beside the description, when it is on disk, or "". */
   details: string;
+  /** A member's class introduction, when the class has one, or "", and whether it names the member in code. */
+  intro: string;
+  introNames: boolean;
   bench: string;
   /** The newest record taken on this machine, which `--id` prints. */
   perf: Record<string, unknown> | null;
@@ -436,6 +477,8 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
       about: "",
       aboutProblem: "",
       details: "",
+      intro: "",
+      introNames: false,
       bench: "",
       perf: null,
       perfAny: null,
@@ -459,6 +502,10 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
       p.aboutProblem = aboutProblem(p.about);
     }
     if (existsSync(abs(detailsFile(e)))) p.details = detailsFile(e);
+    if (e.kind === "member" && existsSync(abs(introFile(e.path)))) {
+      p.intro = introFile(e.path);
+      p.introNames = namesInCode(introCode(p.intro), e.id.slice(e.id.indexOf("::") + 2));
+    }
     for (const dir of [examplesDir(e), hostileDir(e)]) {
       p.gaps.push(...programs(dir).sort(comparePaths).filter((f) => knownGap(read(f))));
     }
@@ -503,6 +550,10 @@ export function owed(entry: Entry, proofs: Proofs, policy: Policy, skips: Skips)
     else if (proofs.aboutProblem) out.about = `${proofs.about}: ${proofs.aboutProblem}`;
   }
   if (want.help && !("help" in skip) && entry.help) out.help = entry.help;
+  if (want.intro && !("intro" in skip) && proofs.intro && !proofs.introNames) {
+    const member = entry.id.slice(entry.id.indexOf("::") + 2);
+    out.intro = `${proofs.intro} does not name \`${member}\` in code: say what it does where the introduction describes the class`;
+  }
   if (want.comments && !("comments" in skip)) {
     // Not a proof of its own: it judges the programs the other proofs are made of, and `details.md`.
     const files = [...proofs.examples, ...proofs.hostile];
