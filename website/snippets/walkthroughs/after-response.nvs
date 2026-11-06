@@ -1,0 +1,10 @@
+<?nvs
+uint $order = 1042;
+string $mail = 'https://mail.example.com/receipts';
+
+// This function runs after the browser has the page.
+Core\Task::afterResponse(fn(): void => {
+    Core\Http\Client::post($mail, { json: $order });
+});
+
+echo 'Thank you! Order #', $order, ' is confirmed.';

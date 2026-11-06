@@ -1,0 +1,45 @@
+---
+/**
+ * The `afterResponse` walkthrough. Its brief is at the top of `after-response.ts`: everything here
+ * serves one moment, the request still running after the browser has the page.
+ *
+ * Left is the visitor's side (the browser, and the mailbox the receipt reaches), right is the
+ * server's side (the code, and the request on a time axis).
+ */
+import Stage from '../Stage.astro'
+import Editor from '../Editor.astro'
+import Browser from '../Browser.astro'
+import Server from '../Server.astro'
+import Inbox from '../Inbox.astro'
+import Movers from '../Movers.astro'
+---
+
+<Stage id="wt-after-response" label="How Core\Task::afterResponse works, step by step">
+  <Movers kind="wire" name="wire" />
+  <Browser name="browser" url="shop.example.com/checkout" tab="Shop" place={{ wide: [50, 50, 600, 610], tall: [30, 520, 840, 620] }}>
+    <div class="wt-screen" data-screen="checkout">
+      <div class="wt-shop-item" data-stagger>
+        <div class="wt-shop-thumb"></div>
+        <div><div class="wt-big" style="font-size:24px">Desk lamp</div><div class="wt-muted">1 item · € 49</div></div>
+      </div>
+      <div class="wt-btn" data-anchor="order" data-stagger>Place order</div>
+    </div>
+    <div class="wt-screen" data-screen="done">
+      <div class="wt-check" data-stagger>
+        <svg width="44" height="44" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <div class="wt-big" data-stagger>Thank you!</div>
+      <div class="wt-muted" data-stagger>Order #1042 is confirmed.</div>
+    </div>
+  </Browser>
+  <Inbox name="inbox" title="Mail" empty="No new mail" place={{ wide: [50, 700, 600, 160], tall: [30, 1440, 840, 140] }} />
+  <Editor name="editor" src="walkthroughs/after-response.nvs" title="order.nvs" place={{ wide: [730, 50, 820, 470], tall: [30, 30, 840, 470] }} />
+  <Server name="server" title="nvs serve" pps={100} place={{ wide: [730, 560, 820, 300], tall: [30, 1160, 840, 260] }} />
+  <Movers kind="card" name="receipt" label="send receipt" />
+  <Movers kind="pointer" name="pointer" />
+</Stage>
+
+<script>
+  import { start } from './after-response'
+  start(document.getElementById('wt-after-response')!)
+</script>

@@ -1,0 +1,46 @@
+---
+/**
+ * The markup of an `Editor` part: a code window with one snippet from website/snippets/, coloured
+ * the way a `<Snippet>` is. `parts/editor.ts` animates it.
+ *
+ *   <Editor name="editor" src="walkthroughs/after-response.nvs" place={{ wide: [60, 60, 700, 420] }} />
+ */
+import { colourLines } from '../../../config/replay-colours.mjs'
+import { placeAttrs, type Place } from './rect'
+
+interface Props {
+  name: string
+  /** The snippet's path under website/snippets/. */
+  src: string
+  place: Place
+  /** The window title; the file name when not given. */
+  title?: string
+}
+
+const sources = import.meta.glob('../../../snippets/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const { name, src, place, title } = Astro.props
+const text = sources[`../../../snippets/${src}`]
+if (text === undefined) throw new Error(`Editor: no file website/snippets/${src}`)
+const lines = (await colourLines(text.replace(/\s+$/, ''))) as [string, string][][]
+---
+
+<div class="wt-part wt-editor" data-part={name} {...placeAttrs(place)}>
+  <div class="wt-win">
+    <div class="wt-titlebar">
+      <span class="wt-dots"><i></i><i></i><i></i></span>
+      <span class="wt-title">{title ?? src.split('/').at(-1)}</span>
+    </div>
+    <div class="wt-code">
+      <div class="wt-hl"></div>
+      {
+        lines.map((runs, i) => (
+          <div class="wt-line">
+            <span class="wt-ln">{i + 1}</span>
+            <span class="wt-text">{runs.map(([t, style]) => (style ? <span style={style}>{t}</span> : t))}</span>
+          </div>
+        ))
+      }
+      <div class="wt-caret"></div>
+    </div>
+  </div>
+</div>

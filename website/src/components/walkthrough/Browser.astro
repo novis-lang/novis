@@ -1,0 +1,43 @@
+---
+/**
+ * The markup of a `Browser` part: tab, address bar, the page and the Network panel. The page is the
+ * slot: one element per screen, each with `data-screen="<name>"`, the first one shown at the start.
+ * Inside a screen, `data-stagger` makes an element arrive one after the other, and `data-anchor`
+ * names an element the pointer can go to. `parts/browser.ts` animates it.
+ */
+import { placeAttrs, type Place } from './rect'
+
+interface Props {
+  name: string
+  place: Place
+  /** The address, such as `shop.example.com/checkout`. The host is shown in bold. */
+  url: string
+  /** The tab's title. */
+  tab: string
+}
+
+const { name, place, url, tab } = Astro.props
+const [host, ...rest] = url.split('/')
+---
+
+<div class="wt-part wt-browser" data-part={name} {...placeAttrs(place)}>
+  <div class="wt-win">
+    <div class="wt-tabbar">
+      <div class="wt-tab">
+        <span class="wt-fav"><span class="wt-favicon"></span><span class="wt-spinner"></span></span>
+        {tab}
+      </div>
+    </div>
+    <div class="wt-urlbar">
+      <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><rect x="2" y="8" width="12" height="9" rx="2" fill="currentColor"></rect><path d="M4.5 8V5.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="2"></path></svg>
+      <span><b>{host}</b>{rest.length ? `/${rest.join('/')}` : ''}</span>
+    </div>
+    <div class="wt-page">
+      <slot />
+    </div>
+    <div class="wt-devtools">
+      <div class="wt-dt-head"><b>Network</b><span>Name</span><span class="wt-dt-count">0 requests</span></div>
+      <div class="wt-rows"></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,28 @@
+---
+/**
+ * The markup of an `Inbox` part: a mail window that `parts/inbox.ts` adds messages to.
+ */
+import { placeAttrs, type Place } from './rect'
+
+interface Props {
+  name: string
+  place: Place
+  title: string
+  /** What the window shows while it has no messages. */
+  empty: string
+}
+
+const { name, place, title, empty } = Astro.props
+---
+
+<div class="wt-part wt-inbox" data-part={name} {...placeAttrs(place)}>
+  <div class="wt-win">
+    <div class="wt-titlebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M3.5 6.5l8.5 6.5 8.5-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>
+      <span class="wt-title">{title}</span>
+      <span class="wt-badge">0</span>
+    </div>
+    <div class="wt-mails"><div class="wt-empty">{empty}</div></div>
+  </div>
+  <div class="wt-ring"></div>
+</div>

@@ -1,0 +1,49 @@
+---
+/**
+ * The markup of the parts that move between others (`parts/movers.ts`): a `card`, the `pointer` or
+ * a `wire`. They have no rect; their scripts place them.
+ *
+ *   <Movers kind="card" name="receipt" label="fn(): send receipt" />
+ */
+interface Props {
+  kind: 'card' | 'pointer' | 'wire'
+  name: string
+  /** The card's text. */
+  label?: string
+}
+
+const { kind, name, label } = Astro.props
+---
+
+{
+  kind === 'card' && (
+    <div class="wt-part wt-card" data-part={name}>
+      <div class="wt-card-body">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <span class="wt-card-text">{label}</span>
+      </div>
+    </div>
+  )
+}
+{
+  kind === 'pointer' && (
+    <div class="wt-part wt-pointer" data-part={name}>
+      <div class="wt-click" />
+      <svg width="34" height="40" viewBox="0 0 34 40" aria-hidden="true">
+        <path d="M6 4l22 18-10.5 1.2 6.2 12.4-4.6 2.3-6.2-12.5L6 33z" fill="white" stroke="black" stroke-width="2.2" stroke-linejoin="round" />
+      </svg>
+    </div>
+  )
+}
+{
+  kind === 'wire' && (
+    <div class="wt-part wt-wire" data-part={name}>
+      <svg width="1" height="1" aria-hidden="true">
+        <path pathLength="1" />
+      </svg>
+    </div>
+  )
+}

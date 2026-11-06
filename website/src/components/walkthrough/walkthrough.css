@@ -1,0 +1,781 @@
+/*
+ * The look of every walkthrough part. Global, because the parts create some of their elements at
+ * run time, and namespaced under `.wt` so nothing leaks into the page. Every colour comes from the
+ * site's tokens, so the stage follows the light and the dark theme. Sizes are world units: the world
+ * is 1600 units wide in the wide layout and is scaled to fit, so 22px here is 22px on a 1600px screen.
+ */
+
+.wt {
+  --wt-bg: color-mix(in oklab, var(--sl-color-black) 93%, var(--sl-color-white));
+  --wt-win: var(--sl-color-black);
+  --wt-win-2: color-mix(in oklab, var(--sl-color-black) 95%, var(--sl-color-white));
+  --wt-line: color-mix(in oklab, var(--sl-color-white) 11%, transparent);
+  --wt-line-strong: color-mix(in oklab, var(--sl-color-white) 20%, transparent);
+  --wt-text: var(--sl-color-white);
+  --wt-muted: var(--sl-color-gray-3);
+  --wt-faint: var(--sl-color-gray-4);
+  --wt-run: var(--nv-blue);
+  --wt-after: var(--nv-orange);
+  --wt-ok: var(--nv-ok);
+  --wt-moment: var(--nv-gold);
+  --wt-shadow: 0 2px 4px color-mix(in oklab, black 22%, transparent),
+    0 24px 60px -18px color-mix(in oklab, black 55%, transparent);
+  --wt-radius: 18px;
+
+  position: relative;
+  margin-block: 2rem;
+  color: var(--wt-text);
+  font-family: var(--sl-font);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-theme='light'] .wt {
+  --wt-shadow: 0 1px 2px color-mix(in oklab, black 8%, transparent),
+    0 24px 50px -22px color-mix(in oklab, black 28%, transparent);
+}
+
+/* The stage: a fixed-aspect window onto the world. */
+.wt-viewport {
+  position: relative;
+  overflow: hidden;
+  margin-inline: auto;
+  border-radius: 20px;
+  border: 1px solid var(--wt-line);
+  background:
+    radial-gradient(60% 70% at 18% 10%, color-mix(in oklab, var(--wt-run) 13%, transparent), transparent 70%),
+    radial-gradient(55% 60% at 88% 95%, color-mix(in oklab, var(--wt-after) 11%, transparent), transparent 70%),
+    var(--wt-bg);
+  isolation: isolate;
+}
+.wt-viewport::before {
+  /* A faint dot grid, so the camera's moves read as moves across a surface. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in oklab, var(--wt-text) 9%, transparent) 1px, transparent 1.3px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(90% 90% at 50% 50%, black, transparent);
+  pointer-events: none;
+}
+.wt-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  font-size: 22px;
+  line-height: 1.5;
+}
+.wt-part {
+  position: absolute;
+  box-sizing: border-box;
+  visibility: hidden;
+}
+.wt[data-ready] .wt-part {
+  visibility: visible;
+}
+
+/* A window: the frame every app-like part shares. */
+.wt-win {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--wt-radius);
+  border: 1px solid var(--wt-line-strong);
+  background: var(--wt-win);
+  box-shadow: var(--wt-shadow);
+}
+.wt-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  height: 52px;
+  padding-inline: 20px;
+  border-bottom: 1px solid var(--wt-line);
+  background: var(--wt-win-2);
+  color: var(--wt-muted);
+  font-size: 18px;
+}
+.wt-dots {
+  display: flex;
+  gap: 8px;
+}
+.wt-dots i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--wt-line-strong);
+}
+.wt-title {
+  font-weight: 600;
+  color: var(--wt-text);
+}
+
+/* Editor */
+.wt-code {
+  position: relative;
+  flex: 1;
+  padding: 20px 0;
+  font-family: var(--sl-font-mono);
+  font-size: 21px;
+  line-height: 36px;
+  white-space: pre;
+}
+.wt-line {
+  position: relative;
+  display: flex;
+  height: 36px;
+}
+.wt-ln {
+  flex: none;
+  width: 64px;
+  padding-right: 22px;
+  text-align: right;
+  color: var(--wt-faint);
+}
+.wt-text {
+  position: relative;
+  clip-path: inset(-4px calc(100% - var(--chars, 999) * 1ch) -4px -4px);
+}
+.wt-text span[style^='--'] {
+  color: var(--0, inherit);
+  font-style: var(--0fs, inherit);
+  font-weight: var(--0fw, inherit);
+}
+:root[data-theme='light'] .wt-text span[style^='--'] {
+  color: var(--1, inherit);
+  font-style: var(--1fs, inherit);
+  font-weight: var(--1fw, inherit);
+}
+.wt-hl {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--wt-tone, var(--wt-run)) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--wt-tone, var(--wt-run)),
+    0 0 calc(var(--glow, 0) * 40px) calc(var(--glow, 0) * 2px) color-mix(in oklab, var(--wt-tone, var(--wt-run)) 45%, transparent);
+  transform-origin: 0 0;
+}
+.wt-caret {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2.5px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--wt-run);
+}
+
+/* Browser */
+.wt-browser .wt-tabbar {
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  height: 50px;
+  padding: 0 16px;
+  background: var(--wt-win-2);
+}
+.wt-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding-inline: 18px;
+  border-radius: 12px 12px 0 0;
+  background: var(--wt-win);
+  font-size: 17px;
+  font-weight: 600;
+}
+.wt-fav {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+.wt-fav > * {
+  position: absolute;
+  inset: 0;
+}
+.wt-spinner {
+  border-radius: 50%;
+  border: 2.5px solid var(--wt-line-strong);
+  border-top-color: var(--wt-run);
+}
+.wt-favicon {
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--nv-orange), var(--nv-crimson));
+}
+.wt-urlbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: 52px;
+  margin: 0 14px;
+  padding-inline: 18px;
+  border-radius: 999px;
+  background: var(--wt-win-2);
+  border: 1px solid var(--wt-line);
+  color: var(--wt-muted);
+  font-size: 18px;
+  transform: translateY(8px);
+}
+.wt-urlbar b {
+  color: var(--wt-text);
+  font-weight: 500;
+}
+.wt-page {
+  position: relative;
+  flex: 1;
+  margin-top: 16px;
+  border-top: 1px solid var(--wt-line);
+}
+.wt-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px;
+  text-align: center;
+}
+.wt-devtools {
+  flex: none;
+  height: 168px;
+  border-top: 1px solid var(--wt-line-strong);
+  background: var(--wt-win-2);
+  font-size: 16px;
+}
+.wt-dt-head {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  height: 40px;
+  padding-inline: 18px;
+  border-bottom: 1px solid var(--wt-line);
+  color: var(--wt-muted);
+}
+.wt-dt-head b {
+  color: var(--wt-text);
+  font-weight: 600;
+  box-shadow: 0 3px 0 -1px var(--wt-run);
+}
+.wt-dt-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.wt-rows {
+  position: relative;
+}
+.wt-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 0.9fr 0.8fr 1.6fr;
+  align-items: center;
+  height: 40px;
+  padding-inline: 18px;
+  border-bottom: 1px solid var(--wt-line);
+  font-family: var(--sl-font-mono);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.wt-row-hi {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--wt-moment) 22%, transparent);
+  box-shadow: inset 0 0 0 2px var(--wt-moment);
+  border-radius: 6px;
+}
+.wt-row .wt-status[data-ok] {
+  color: var(--wt-ok);
+}
+.wt-row .wt-pending {
+  color: var(--wt-muted);
+}
+.wt-wf {
+  position: relative;
+  height: 10px;
+}
+.wt-wf i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--wt-run);
+}
+
+/* Shop page content the scenes put in a browser. */
+.wt-shop-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--wt-line);
+  background: var(--wt-win-2);
+  text-align: left;
+}
+.wt-shop-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--wt-run) 70%, white), var(--wt-run));
+}
+.wt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding-inline: 34px;
+  border-radius: 14px;
+  background: var(--sl-color-white);
+  color: var(--sl-color-black);
+  font-weight: 700;
+  font-size: 20px;
+}
+.wt-check {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--wt-ok) 18%, transparent);
+  color: var(--wt-ok);
+}
+.wt-big {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.wt-muted {
+  color: var(--wt-muted);
+}
+
+/* Server: requests on a time axis. */
+.wt-server .wt-lanes {
+  position: relative;
+  flex: 1;
+}
+.wt-lane {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  height: 60px;
+}
+.wt-lane-label {
+  position: absolute;
+  left: 0;
+  top: -34px;
+  font-family: var(--sl-font-mono);
+  font-size: 18px;
+  color: var(--wt-muted);
+}
+.wt-seg {
+  position: absolute;
+  top: 0;
+  height: 60px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--wt-tone) 26%, var(--wt-win));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--wt-tone) 70%, transparent);
+  overflow: hidden;
+}
+.wt-seg::after {
+  /* A moving sheen while the segment runs. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in oklab, white 22%, transparent) 50%, transparent 70%);
+  background-size: 260px 100%;
+  background-position: var(--sheen, 0) 0;
+  background-repeat: no-repeat;
+  opacity: var(--running, 0);
+}
+.wt-seg span {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  line-height: 60px;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wt-end {
+  position: absolute;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--wt-ok);
+  color: var(--sl-color-black);
+}
+.wt-marker {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 0;
+}
+.wt-marker i {
+  position: absolute;
+  left: -1.5px;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  transform-origin: 0 0;
+  background: repeating-linear-gradient(to bottom, var(--wt-tone) 0 10px, transparent 10px 18px);
+}
+.wt-marker span {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sl-color-black);
+  background: var(--wt-tone);
+}
+
+/* Inbox */
+.wt-mails {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+.wt-mail {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 84px;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding-inline: 16px;
+  border-radius: 14px;
+  background: var(--wt-win-2);
+  border: 1px solid var(--wt-line);
+}
+.wt-mail .wt-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--wt-after) 22%, transparent);
+  color: var(--wt-after);
+  font-weight: 700;
+}
+.wt-mail b {
+  display: block;
+  font-size: 18px;
+}
+.wt-mail small {
+  display: block;
+  font-size: 15px;
+  color: var(--wt-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wt-badge {
+  margin-left: auto;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--wt-after);
+  color: var(--sl-color-black);
+  font-size: 16px;
+  font-weight: 800;
+}
+.wt-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--wt-radius);
+  box-shadow: 0 0 0 3px var(--wt-after);
+  pointer-events: none;
+}
+.wt-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--wt-faint);
+  font-size: 18px;
+}
+
+/* Card: a thing that moves between parts. */
+.wt-card {
+  left: 0;
+  top: 0;
+  z-index: 5;
+}
+.wt-card-body {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 12px 14px;
+  border-radius: 14px;
+  white-space: nowrap;
+  font-family: var(--sl-font-mono);
+  font-size: 19px;
+  background: color-mix(in oklab, var(--wt-after) 18%, var(--wt-win));
+  border: 2px solid var(--wt-after);
+  box-shadow: var(--wt-shadow), 0 0 calc(var(--glow, 0) * 50px) color-mix(in oklab, var(--wt-after) 60%, transparent);
+}
+.wt-card-body svg {
+  color: var(--wt-after);
+}
+
+/* Pointer */
+.wt-pointer {
+  left: 0;
+  top: 0;
+  z-index: 10;
+}
+.wt-pointer svg {
+  position: absolute;
+  left: -6px;
+  top: -4px;
+  filter: drop-shadow(0 3px 6px color-mix(in oklab, black 40%, transparent));
+}
+.wt-click {
+  position: absolute;
+  left: -40px;
+  top: -40px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 3px solid var(--wt-run);
+}
+
+/* Wire */
+.wt-wire {
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.wt-wire svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.wt-wire path {
+  fill: none;
+  stroke: var(--wt-line-strong);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.wt-pulse {
+  fill: var(--wt-tone, var(--wt-run));
+  filter: drop-shadow(0 0 10px var(--wt-tone, var(--wt-run)));
+}
+
+/* Caption */
+.wt-caption {
+  min-height: 3.4em;
+  margin: 1.1rem auto 0;
+  max-width: 46rem;
+  text-align: center;
+  font-size: clamp(1.05rem, 2.2vw, 1.4rem);
+  font-weight: 600;
+  line-height: 1.45;
+  text-wrap: balance;
+}
+.wt-caption span {
+  display: inline-block;
+  white-space: pre;
+}
+.wt-caption.is-moment {
+  color: var(--wt-moment);
+}
+:root[data-theme='light'] .wt-caption.is-moment {
+  color: var(--nv-gold-text);
+}
+.wt[data-captions='off'] .wt-caption {
+  visibility: hidden;
+}
+
+/* Controls */
+.wt-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.9rem auto 0;
+  max-width: 100%;
+}
+.wt-btn-i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wt-text);
+  cursor: pointer;
+}
+.wt-btn-i:hover {
+  background: var(--nv-hover);
+}
+.wt-btn-i:focus-visible {
+  outline: 2px solid var(--wt-run);
+  outline-offset: 2px;
+}
+.wt-btn-i[aria-pressed='false'] {
+  color: var(--wt-faint);
+}
+.wt-play-i .wt-i-pause,
+.wt[data-playing] .wt-play-i .wt-i-play {
+  display: none;
+}
+.wt[data-playing] .wt-play-i .wt-i-pause {
+  display: block;
+}
+.wt-scrub {
+  position: relative;
+  flex: 1;
+  height: 2.5rem;
+  cursor: pointer;
+  touch-action: none;
+}
+.wt-scrub-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 3px;
+  background: var(--wt-line-strong);
+  overflow: hidden;
+}
+.wt-scrub-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  background: var(--wt-text);
+}
+.wt-tick {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin: -7px 0 0 -1.5px;
+  border-radius: 2px;
+  background: var(--wt-bg);
+}
+.wt-tick[data-moment] {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--wt-moment);
+  box-shadow: 0 0 0 3px var(--wt-bg);
+}
+.wt-step {
+  flex: none;
+  min-width: 11rem;
+  font-size: 0.85rem;
+  color: var(--wt-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wt-step b {
+  color: var(--wt-text);
+  font-weight: 600;
+}
+
+/* The start: a still frame with one big play button. */
+.wt-start {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: color-mix(in oklab, var(--wt-bg) 35%, transparent);
+  cursor: pointer;
+  transition: opacity var(--nv-slow) var(--nv-ease);
+}
+.wt-start span {
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: var(--sl-color-white);
+  color: var(--sl-color-black);
+  box-shadow: var(--wt-shadow);
+  transition: transform var(--nv-fast) var(--nv-ease);
+}
+.wt-start:hover span {
+  transform: scale(1.06);
+}
+.wt[data-started] .wt-start {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Fullscreen: the stage fills the screen, and the controls float over it and hide when idle. */
+.wt:fullscreen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0;
+  background: var(--wt-bg);
+}
+.wt:fullscreen .wt-viewport {
+  border: 0;
+  border-radius: 0;
+}
+.wt:fullscreen .wt-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6vh;
+  max-width: 60vw;
+  font-size: 2.2vw;
+  text-shadow: 0 2px 18px var(--wt-bg);
+}
+.wt:fullscreen .wt-controls {
+  position: absolute;
+  left: 2rem;
+  right: 2rem;
+  bottom: 1rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: var(--nv-glass);
+  backdrop-filter: blur(14px);
+  transition: opacity var(--nv-slow) var(--nv-ease);
+}
+.wt:fullscreen[data-idle] .wt-controls {
+  opacity: 0;
+}
+.wt:fullscreen[data-idle] {
+  cursor: none;
+}
+
+@media (max-width: 640px) {
+  .wt-step {
+    display: none;
+  }
+}
