@@ -33,6 +33,15 @@ attack one level up. This is why both classes are Tier 0 rather than sandboxed c
 (`rule:core-api/tier-roster`): a sandboxed decoder gets a memory cap for free and this rule not at
 all.
 
+**A source read forward keeps a running ratio.** `Core\Compress::decompress` takes every source of
+`rule:core-api/a-member-takes-the-source-the-program-holds`, and only a `bytes` value has its length
+before the decode starts. Every other source, a file included, is bounded while it runs by the input
+read so far: the output is at most that input times the ratio, plus a floor of 64 KiB, under the
+ceiling. At its end the whole output is checked against the whole input, as for `bytes`. So a bomb in
+an upload or a walk of chunks stops near its start, and a file's stated size is never taken as its
+input. The floor covers a frame whose first part compresses far better than the rest, since a codec
+reads its input ahead of its output.
+
 **The ceiling bounds what is held, and the ratio bounds what is spent.** A part a consumer inflates as
 a stream and never holds — a spreadsheet sheet read row by row
 (`rule:core-classes/spreadsheet-reads-as-a-stream`) — is bounded by `input × ratio` alone, because

@@ -468,6 +468,157 @@ impl Drop for ByteSource {
     }
 }
 
+/// Reads `value` forward to its end and hands `each` one chunk at a time, for
+/// a member that consumes its source in one call (`Core\Hash::of`,
+/// `Core\Storage::put`). A file's position is left at its end.
+///
+/// **What it spends:** what [`ByteSource`] holds, and nothing per chunk.
+///
+/// # Errors
+///
+/// [`ByteSource::from_arg`]'s and [`ByteSource::next_chunk`]'s, and whatever
+/// `each` returns, which stops the read.
+pub(crate) fn for_each_chunk(
+    ctx: &mut Ctx,
+    value: Value,
+    member: &'static str,
+    mut each: impl FnMut(&mut Ctx, &[u8]) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    let (mut source, holder) = ByteSource::from_arg(ctx, value, member)?;
+    let read = (|| {
+        while let Some(chunk) = source.next_chunk(ctx, holder)? {
+            each(ctx, chunk.bytes())?;
+        }
+        Ok(())
+    })();
+    let finished = source.finish();
+    drop(source);
+    #[expect(
+        unsafe_code,
+        reason = "`from_arg` gave this call a reference of its own, and nothing \
+                  keeps it past the read"
+    )]
+    unsafe {
+        holder.release();
+    }
+    read?;
+    finished
+}
+
+/// A source read forward as an [`std::io::Read`], for a codec that pulls its
+/// input itself (`Core\Compress`). It counts what the codec has taken, so a
+/// decode can bound its output by the input read so far.
+///
+/// **A failed read ends the input**, and the fault is kept for
+/// [`Reader::close`], because a codec flattens an error into its own message
+/// and the zstd encoder panics on one. The request's deadline ends the input
+/// the same way, and the caller polls it once the codec returns.
+///
+/// **What it spends:** what [`ByteSource`] holds, and one copy of the chunk
+/// being read.
+pub(crate) struct Reader<'c> {
+    /// The source.
+    source: ByteSource,
+    /// The value every read is handed, released on drop.
+    holder: Value,
+    /// The request, asked before each chunk.
+    ctx: &'c mut Ctx,
+    /// The chunk being read, and how much of it the codec has taken.
+    pending: Vec<u8>,
+    /// How much of [`Reader::pending`] is read.
+    at: usize,
+    /// How many bytes the codec has taken.
+    consumed: std::rc::Rc<std::cell::Cell<u64>>,
+    /// The fault a read stopped at.
+    fault: Option<Fault>,
+}
+
+impl<'c> Reader<'c> {
+    /// A forward read of `value`, which `member` names in a message.
+    ///
+    /// # Errors
+    ///
+    /// [`ByteSource::from_arg`]'s.
+    pub(crate) fn open(
+        ctx: &'c mut Ctx,
+        value: Value,
+        member: &'static str,
+    ) -> Result<Self, Fault> {
+        let (source, holder) = ByteSource::from_arg(ctx, value, member)?;
+        Ok(Self {
+            source,
+            holder,
+            ctx,
+            pending: Vec::new(),
+            at: 0,
+            consumed: std::rc::Rc::default(),
+            fault: None,
+        })
+    }
+
+    /// The count of bytes the codec has taken, which stays readable while the
+    /// codec owns the reader.
+    pub(crate) fn counter(&self) -> std::rc::Rc<std::cell::Cell<u64>> {
+        std::rc::Rc::clone(&self.consumed)
+    }
+
+    /// Ends the read: the fault a read stopped at, or the file's error.
+    ///
+    /// # Errors
+    ///
+    /// The fault a read stopped at, which is truer than the codec's own
+    /// message, and [`ByteSource::finish`]'s.
+    pub(crate) fn close(mut self) -> Result<(), Fault> {
+        if let Some(fault) = self.fault.take() {
+            return Err(fault);
+        }
+        self.source.finish()
+    }
+}
+
+impl Read for Reader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.fault.is_some() || buf.is_empty() {
+            return Ok(0);
+        }
+        if self.at == self.pending.len() {
+            if self.ctx.deadline_expired() {
+                return Ok(0);
+            }
+            match self.source.next_chunk(self.ctx, self.holder) {
+                Ok(Some(chunk)) => {
+                    self.pending.clear();
+                    self.pending.extend_from_slice(chunk.bytes());
+                    self.at = 0;
+                }
+                Ok(None) => return Ok(0),
+                Err(fault) => {
+                    self.fault = Some(fault);
+                    return Ok(0);
+                }
+            }
+        }
+        let n = buf.len().min(self.pending.len() - self.at);
+        buf[..n].copy_from_slice(&self.pending[self.at..self.at + n]);
+        self.at += n;
+        self.consumed.set(self.consumed.get() + n as u64);
+        Ok(n)
+    }
+}
+
+impl Drop for Reader<'_> {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "`from_arg` gave the reader a reference of its own, and \
+                      nothing keeps it past the reader"
+        )]
+        unsafe {
+            self.holder.release();
+        }
+    }
+}
+
 impl FileSource {
     /// Throws where the program has closed its handle.
     fn check_open(&self, ctx: &mut Ctx, member: &str) -> Result<(), Fault> {

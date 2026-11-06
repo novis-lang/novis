@@ -190,7 +190,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Text(Qual::Neutral),
-                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Union(&[
+                    CoreTy::Alias(
+                        r"Core\Bytes::Source",
+                        &CoreTy::Union(&[
+                            CoreTy::Blob(Qual::Neutral),
+                            CoreTy::Instance(crate::io::FILE_NAME),
+                            CoreTy::Instance(crate::request::PART_NAME),
+                            CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                        ]),
+                    ),
+                    CoreTy::Alias(
+                        r"Core\Bytes::Chunks",
+                        &CoreTy::Iterated(&CoreTy::TaintedBytes),
+                    ),
+                ]),
                 CoreTy::Options(PUT_OPTIONS),
             ],
             defaults: &[],
@@ -267,7 +281,9 @@ const PUT_DOC: MethodDoc = MethodDoc {
         KEY_DOC,
         ParamDoc {
             name: "contents",
-            desc: "The bytes to save. The whole value is written.",
+            desc: "The data to save: `bytes`, an open `Core\\IO\\File`, an uploaded file, the \
+                   request body, or the pieces of a loop. A file or an upload is written one \
+                   piece at a time, so it is never held in memory as a whole.",
             shape: &[],
         },
         ParamDoc {
@@ -486,19 +502,15 @@ nvs_runtime::nvs_helper! {
     /// `rule:programs/framework-core-half`'s object storage, writing half.
     ///
     /// The door decides the capability and this decides nothing: the path is
-    /// built, `fs.write` is shown for it, and the octets go down in one write.
+    /// built, `fs.write` is shown for it, and the octets go down as the source
+    /// gives them (`rule:core-api/a-member-takes-the-source-the-program-holds`).
+    ///
+    /// **A source that fails part way removes the object it began**, so a
+    /// later `get` never reads half an upload as though it were whole. With
+    /// `overwrite`, the object it replaced is already gone by then. **What it
+    /// spends:** one chunk of the source, never the whole of it.
     fn nvs_core_storage_put(ctx, args: [4]) {
         let path = object_of(ctx, args, PUT)?;
-        // Unreachable from source on `crate::io`'s `access_of` reading: the row
-        // declares `bytes`, so `E0401` refuses every other spelling at the call
-        // site and what is left is a lowering bug.
-        let contents = args[CONTENTS].as_bytes().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{PUT} expected {:?} for `contents`, got tag {}",
-                Tag::Bytes,
-                args[CONTENTS].tag_byte()
-            ))
-        })?;
         // Unreachable from source for the same reason: `PUT_OPTIONS` declares
         // `CoreTy::Bool`, and an omitting call site passes the row's default.
         let overwrite = args[OVERWRITE].as_bool().ok_or_else(|| {
@@ -509,8 +521,18 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let mut file = nvs_runtime::capability::create(ctx, &path, overwrite, PUT)?;
-        file.write_all(contents)
-            .map_err(|err| nvs_runtime::capability::io_failure(PUT, &path, &err))?;
+        let written = crate::byte_source::for_each_chunk(ctx, args[CONTENTS], PUT, |_, piece| {
+            file.write_all(piece)
+                .map_err(|err| nvs_runtime::capability::io_failure(PUT, &path, &err))
+        });
+        if let Err(fault) = written {
+            drop(file);
+            // The source's fault is the one the program sees. A removal that
+            // also fails leaves a partial object, and the fault already says
+            // the write did not finish.
+            let _ = nvs_runtime::capability::remove_file(ctx, &path, PUT);
+            return Err(fault);
+        }
         Ok(Value::null())
     }
 }

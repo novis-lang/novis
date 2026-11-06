@@ -188,6 +188,32 @@ const DATA: &[CoreTy] = &[
     CoreTy::Text(Qual::Contagious),
 ];
 
+/// A source of bytes, as both whole-buffer members take it
+/// (`rule:core-api/a-member-takes-the-source-the-program-holds`). Each arm is
+/// [`Qual::Contagious`] for [`DATA`]'s reason, so a part, a body stream or a
+/// walk of tainted chunks gives a `tainted` result, and a file a plain one.
+const SOURCE: CoreTy = CoreTy::Alias(
+    r"Core\Bytes::Source",
+    &CoreTy::Union(&[
+        CoreTy::Blob(Qual::Contagious),
+        CoreTy::Instance(crate::io::FILE_NAME),
+        CoreTy::Instance(crate::request::PART_NAME),
+        CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+    ]),
+);
+
+/// A walk of chunks, which both whole-buffer members read forward.
+const CHUNKS: CoreTy = CoreTy::Alias(
+    r"Core\Bytes::Chunks",
+    &CoreTy::Iterated(&CoreTy::TaintedBytes),
+);
+
+/// What `compress` takes: a `string` stays an arm beside every source.
+const COMPRESS_DATA: &[CoreTy] = &[SOURCE, CoreTy::Text(Qual::Contagious), CHUNKS];
+
+/// What `decompress` takes.
+const DECOMPRESS_DATA: &[CoreTy] = &[SOURCE, CHUNKS];
+
 /// `Core\Compress`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Compresses and decompresses data in a format you choose from `Core\\Compress::Codec`, such as \
@@ -221,7 +247,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "compress",
             names: &["data", "codec"],
-            params: &[CoreTy::Union(DATA), CoreTy::Enum(CODEC_NAME)],
+            params: &[CoreTy::Union(COMPRESS_DATA), CoreTy::Enum(CODEC_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_compress_compress",
@@ -231,7 +257,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "decompress",
             names: &["data", "codec", "maxBytes", "maxRatio"],
             params: &[
-                CoreTy::Blob(Qual::Contagious),
+                CoreTy::Union(DECOMPRESS_DATA),
                 CoreTy::Enum(CODEC_NAME),
                 CoreTy::Uint,
                 CoreTy::Uint,
@@ -278,7 +304,9 @@ const COMPRESS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The bytes to compress. A `string` is read as its UTF-8 bytes.",
+            desc: "The data to compress: `bytes`, a `string`, an open `Core\\IO\\File`, an \
+                   uploaded file, the request body, or the pieces of a loop. A `string` is read \
+                   as its UTF-8 bytes.",
             shape: &[],
         },
         ParamDoc {
@@ -300,8 +328,11 @@ const DECOMPRESS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The compressed data. If `$data` is `tainted`, the result is `tainted` too. \
-                   Decompressing does not make data safe to use.",
+            desc: "The compressed data: `bytes`, an open `Core\\IO\\File`, an uploaded file, the \
+                   request body, or the pieces of a loop. If `$data` is `tainted`, the result is \
+                   `tainted` too. Decompressing does not make data safe to use. A source that is \
+                   not `bytes` is checked against `$maxRatio` while it is read, so a small upload \
+                   that would decompress to a lot stops early.",
             shape: &[],
         },
         ParamDoc {
@@ -983,6 +1014,140 @@ fn decode(
     Ok(out)
 }
 
+/// The output a decode of a source may give before its first input is
+/// measured against the ratio.
+///
+/// A source that is not a `bytes` value has no length until it is read, so its
+/// decode is bounded by the input read so far: at most that input times the
+/// ratio, plus this floor. A codec reads its input ahead of its output, so the
+/// floor covers only the first output of a frame whose start compresses far
+/// better than the rest. 64 KiB is two DEFLATE windows. **What it spends:** at
+/// most 64 KiB of output past the ratio, per call, until the next chunk is read.
+const RUNNING_FLOOR: u64 = 64 << 10;
+
+/// The size of each read a running decode takes from its codec.
+const RUNNING_PIECE: usize = 64 << 10;
+
+/// `source` decompressed under `codec`, bounded while it runs by the input
+/// read so far (`rule:core-classes/decompression-bound`), and at the end by
+/// the whole input, as [`decode`] bounds a `bytes` value.
+///
+/// # Errors
+///
+/// [`decode`]'s, and what the source throws, which is preferred to the
+/// codec's message for the input it cut short.
+fn decode_source(
+    ctx: &mut Ctx,
+    source: Value,
+    codec: Codec,
+    bound: Bound,
+    member: &'static str,
+) -> Result<Vec<u8>, Fault> {
+    let mut reader = crate::byte_source::Reader::open(ctx, source, member)?;
+    let consumed = reader.counter();
+    let out = match codec {
+        Codec::Gzip => drain_running(
+            flate2::read::GzDecoder::new(&mut reader),
+            &consumed,
+            codec,
+            bound,
+            member,
+        ),
+        Codec::Zlib => drain_running(
+            flate2::read::ZlibDecoder::new(&mut reader),
+            &consumed,
+            codec,
+            bound,
+            member,
+        ),
+        Codec::Deflate => drain_running(
+            flate2::read::DeflateDecoder::new(&mut reader),
+            &consumed,
+            codec,
+            bound,
+            member,
+        ),
+        Codec::Brotli => drain_running(
+            brotli::Decompressor::new(&mut reader, 4096),
+            &consumed,
+            codec,
+            bound,
+            member,
+        ),
+        Codec::Zstd => {
+            match ruzstd::decoding::StreamingDecoder::new_with_max_window_size(
+                &mut reader,
+                ZSTD_WINDOW,
+            ) {
+                Ok(decoder) => drain_running(decoder, &consumed, codec, bound, member),
+                Err(ruzstd::decoding::errors::FrameDecoderError::WindowSizeTooBig {
+                    requested,
+                    ..
+                }) => Err(over_window(requested, member)),
+                Err(why) => Err(malformed(codec, &why.to_string(), member)),
+            }
+        }
+    };
+    reader.close()?;
+    nvs_runtime::poll_deadline(ctx, member)?;
+    out
+}
+
+/// Reads `decoder` to its end, with the output checked after each read
+/// against the input `consumed` so far, and at the end against all of it.
+fn drain_running<R: Read>(
+    mut decoder: R,
+    consumed: &std::cell::Cell<u64>,
+    codec: Codec,
+    bound: Bound,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    let mut out = Vec::new();
+    let mut piece = vec![0_u8; RUNNING_PIECE];
+    loop {
+        let read = decoder
+            .read(&mut piece)
+            .map_err(|why| malformed(codec, &why.to_string(), member))?;
+        if read == 0 {
+            break;
+        }
+        let input = consumed.get();
+        let allowed = input
+            .saturating_mul(bound.ratio)
+            .saturating_add(RUNNING_FLOOR)
+            .min(bound.bytes);
+        if out.len() as u64 + read as u64 > allowed {
+            let input = usize::try_from(input).unwrap_or(usize::MAX);
+            return Err(over_bound(codec, input, bound, allowed, member));
+        }
+        out.extend_from_slice(&piece[..read]);
+    }
+    let input = usize::try_from(consumed.get()).unwrap_or(usize::MAX);
+    let ceiling = bound.output_ceiling(input);
+    if out.len() as u64 > ceiling {
+        return Err(over_bound(codec, input, bound, ceiling, member));
+    }
+    Ok(out)
+}
+
+/// `source` compressed under `codec`, read forward one chunk at a time.
+///
+/// # Errors
+///
+/// What the source throws, and the request's deadline.
+fn encode_source(
+    ctx: &mut Ctx,
+    source: Value,
+    codec: Codec,
+    member: &'static str,
+) -> Result<Vec<u8>, Fault> {
+    let mut reader = crate::byte_source::Reader::open(ctx, source, member)?;
+    let out = encode(codec, &mut reader);
+    reader.close()?;
+    nvs_runtime::poll_deadline(ctx, member)?;
+    out
+}
+
 /// The refusal for a frame that is not what its codec case says it is.
 ///
 /// A `ParseError` for `Core\Json::decode`'s reason — input did not match a
@@ -1162,14 +1327,14 @@ nvs_runtime::nvs_helper! {
     /// errors: a compressor's output is bounded by its input, so there is
     /// nothing here for a bound to be about.
     fn nvs_core_compress_compress(ctx, args: [2]) {
-        let data = data_of(args, 0, NAME, "compress")?;
         let codec = codec_of(args, 1, "compress")?;
-        Ok(Value::bytes(NvsStr::new(&compress_polled(
-            ctx,
-            codec,
-            data,
-            "Core\\Compress::compress()",
-        )?)))
+        let member = "Core\\Compress::compress()";
+        // `bytes` and a `string` are compressed where they are.
+        let out = match args[0].as_bytes().or_else(|| args[0].as_str_bytes()) {
+            Some(data) => compress_polled(ctx, codec, data, member)?,
+            None => encode_source(ctx, args[0], codec, member)?,
+        };
+        Ok(Value::bytes(NvsStr::new(&out)))
     }
 }
 
@@ -1185,20 +1350,20 @@ nvs_runtime::nvs_helper! {
     /// trusted, and a context that was never configured is bounded by the
     /// shipped defaults rather than by nothing.
     fn nvs_core_compress_decompress(ctx, args: [4]) {
-        let data = data_of(args, 0, NAME, "decompress")?;
         let codec = codec_of(args, 1, "decompress")?;
         let asked = Bound {
             bytes: uint_of(args, 2, "decompress", "`$maxBytes`")?,
             ratio: uint_of(args, 3, "decompress", "`$maxRatio`")?,
         };
         let bound = Bound::ceiling(ctx).within(asked);
-        Ok(Value::bytes(NvsStr::new(&decompress_polled(
-            ctx,
-            codec,
-            data,
-            bound,
-            "Core\\Compress::decompress()",
-        )?)))
+        let member = "Core\\Compress::decompress()";
+        // A `bytes` value has its length, so it is bounded by all of it at
+        // once. Every other source is bounded by what it has given so far.
+        let out = match args[0].as_bytes() {
+            Some(data) => decompress_polled(ctx, codec, data, bound, member)?,
+            None => decode_source(ctx, args[0], codec, bound, member)?,
+        };
+        Ok(Value::bytes(NvsStr::new(&out)))
     }
 }
 
@@ -2282,5 +2447,136 @@ mod tests {
             EVERY.len(),
             "a refusal closes the stream, so the call after it meets a finished one"
         );
+    }
+
+    /// The ordinal of `codec`, as compiled code passes it.
+    fn ordinal(codec: Codec) -> Value {
+        let at = EVERY
+            .iter()
+            .position(|case| *case == codec)
+            .expect("every codec is in `EVERY`");
+        Value::int(i64::try_from(at).expect("five cases fit an `i64`"))
+    }
+
+    /// An open `Core\IO\File` over a new file with `content`, at position 0.
+    fn file_of(ctx: &mut Ctx, name: &str, content: &[u8]) -> (nvs_repo::Scratch, Value) {
+        let dir = nvs_repo::scratch(name);
+        let path = dir.join("data.bin");
+        std::fs::write(&path, content).expect("the case writes");
+        let file = std::fs::File::open(&path).expect("the case opens its file");
+        let key = ctx.hold_open_file(file);
+        let handle = crate::io::file_handle(
+            key,
+            Value::text("data.bin"),
+            nvs_runtime::capability::Access::Read,
+        );
+        (dir, handle)
+    }
+
+    /// Text several chunks long that compresses about as text does.
+    fn text_of_chunks(chunks: usize) -> Vec<u8> {
+        let mut text = Vec::new();
+        let mut line = 0_usize;
+        while text.len() < chunks * crate::byte_source::READ_CHUNK {
+            text.extend_from_slice(format!("line {line}: the quick brown fox\n").as_bytes());
+            line += 1;
+        }
+        text
+    }
+
+    /// `decompress` reads a frame from a file one chunk at a time, gives what
+    /// it gives for the same `bytes`, and keeps both halves of the bound.
+    #[test]
+    fn decompress_reads_a_file_in_pieces_and_keeps_both_bounds() {
+        let mut ctx = Ctx::buffered();
+        let text = text_of_chunks(3);
+        let frame = compress_to(Codec::Gzip, &text).expect("compresses");
+        let (_dir, file) = file_of(&mut ctx, "decompress-a-file", &frame);
+        let gzip = ordinal(Codec::Gzip);
+
+        let roomy = [
+            file,
+            gzip,
+            Value::uint(DEFAULT_MAX_BYTES),
+            Value::uint(DEFAULT_MAX_RATIO),
+        ];
+        let whole = nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &roomy)
+            .expect("an honest frame in a file answers");
+        assert_eq!(whole.as_bytes(), Some(&text[..]));
+
+        let small = [
+            file,
+            gzip,
+            Value::uint(1000),
+            Value::uint(DEFAULT_MAX_RATIO),
+        ];
+        assert!(nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &small).is_err());
+        let why = ctx.take_pending().expect("the limit in bytes throws");
+        assert!(why.contains("the limit of 1000 bytes"), "{why}");
+
+        let steep = [file, gzip, Value::uint(DEFAULT_MAX_BYTES), Value::uint(2)];
+        assert!(nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &steep).is_err());
+        let why = ctx.take_pending().expect("the ratio throws");
+        assert!(why.contains("2 times its"), "{why}");
+
+        release(vec![whole, file]);
+    }
+
+    /// A bomb given as a walk of small chunks stops at the ratio of the input
+    /// read so far, long before the whole frame is read.
+    #[test]
+    fn a_bomb_in_chunks_stops_at_the_running_ratio() {
+        let mut ctx = Ctx::buffered();
+        let zeros = vec![0_u8; 1 << 20];
+        let frame = compress_to(Codec::Gzip, &zeros).expect("compresses");
+        let mut array = NvsArray::new();
+        for piece in frame.chunks(64) {
+            array.append(Value::bytes(NvsStr::new(piece)));
+        }
+        let chunks = Value::array(array);
+
+        let args = [
+            chunks,
+            ordinal(Codec::Gzip),
+            Value::uint(DEFAULT_MAX_BYTES),
+            Value::uint(4),
+        ];
+        assert!(nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &args).is_err());
+        let why = ctx.take_pending().expect("the running ratio throws");
+        let read: usize = why
+            .split("4 times its ")
+            .nth(1)
+            .and_then(|rest| rest.split(' ').next())
+            .and_then(|count| count.parse().ok())
+            .unwrap_or_else(|| panic!("the message names the input read: {why}"));
+        assert!(
+            read < frame.len(),
+            "the decode stopped after {read} of {} bytes: {why}",
+            frame.len()
+        );
+        release(vec![chunks]);
+    }
+
+    /// `compress` of a file gives the frame it gives for the file's bytes.
+    #[test]
+    fn compress_of_a_file_equals_compress_of_its_bytes() {
+        let mut ctx = Ctx::buffered();
+        let text = text_of_chunks(2);
+        let (_dir, file) = file_of(&mut ctx, "compress-a-file", &text);
+        for codec in EVERY {
+            let frame = nvs_runtime::call(
+                nvs_core_compress_compress,
+                &mut ctx,
+                &[file, ordinal(codec)],
+            )
+            .expect("an open file is a source");
+            assert_eq!(
+                frame.as_bytes(),
+                Some(&compress_to(codec, &text).expect("compresses")[..]),
+                "{codec:?}"
+            );
+            release(vec![frame]);
+        }
+        release(vec![file]);
     }
 }

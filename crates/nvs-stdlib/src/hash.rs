@@ -314,6 +314,33 @@ const STRONG: &[CoreTy] = &[
 /// is an HMAC over the request's own body, which is `tainted`.
 const DATA: &[CoreTy] = &[CoreTy::Blob(Qual::Neutral), CoreTy::Text(Qual::Neutral)];
 
+/// What `of` and `hmac` take: [`DATA`], or any source of bytes
+/// (`rule:core-api/a-member-takes-the-source-the-program-holds`). A file, a
+/// part, a body stream or a walk of chunks is read in pieces, so a hash of a
+/// large file holds one chunk, never the file.
+const SOURCE: &[CoreTy] = &[
+    CoreTy::Alias(
+        r"Core\Bytes::Source",
+        &CoreTy::Union(&[
+            CoreTy::Blob(Qual::Neutral),
+            CoreTy::Instance(crate::io::FILE_NAME),
+            CoreTy::Instance(crate::request::PART_NAME),
+            CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+        ]),
+    ),
+    CoreTy::Text(Qual::Neutral),
+    CoreTy::Alias(
+        r"Core\Bytes::Chunks",
+        &CoreTy::Iterated(&CoreTy::TaintedBytes),
+    ),
+];
+
+/// What `Core\Hash::of`'s messages name.
+const OF: &str = r"Core\Hash::of";
+
+/// What `Core\Hash::hmac`'s messages name.
+const HMAC: &str = r"Core\Hash::hmac";
+
 /// `Core\Hash`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Computes hashes and HMAC signatures of text or bytes, and compares two of them \
@@ -335,7 +362,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "of",
             names: &["data", "digest"],
-            params: &[CoreTy::Union(DATA), CoreTy::Enum(DIGEST_NAME)],
+            params: &[CoreTy::Union(SOURCE), CoreTy::Enum(DIGEST_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_hash_of",
@@ -345,7 +372,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "hmac",
             names: &["data", "key", "digest"],
             params: &[
-                CoreTy::Union(DATA),
+                CoreTy::Union(SOURCE),
                 crate::keyring::KEY,
                 CoreTy::Union(STRONG),
             ],
@@ -385,7 +412,10 @@ const OF_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The data to hash. A `string` is read as its UTF-8 bytes.",
+            desc: "The data to hash: `bytes`, a `string`, an open `Core\\IO\\File`, an uploaded \
+                   file, the request body, or the pieces of a loop. A `string` is read as its \
+                   UTF-8 bytes. A file is read one piece at a time, so a large file is never \
+                   held in memory.",
             shape: &[],
         },
         ParamDoc {
@@ -408,7 +438,9 @@ const HMAC_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "data",
-            desc: "The data to sign. A `string` is read as its UTF-8 bytes.",
+            desc: "The data to sign: `bytes`, a `string`, an open `Core\\IO\\File`, an uploaded \
+                   file, the request body, or the pieces of a loop. A `string` is read as its \
+                   UTF-8 bytes. A file is read one piece at a time.",
             shape: &[],
         },
         ParamDoc {
@@ -653,6 +685,12 @@ fn digest_kind(args: &[Value], index: usize, member: &str) -> Result<DigestKind,
     }
 }
 
+/// The octets of a `bytes` or `string` argument, which `of` and `hmac` hash
+/// where they are. `None` for every other source.
+fn octets_of(value: &Value) -> Option<&[u8]> {
+    value.as_bytes().or_else(|| value.as_str_bytes())
+}
+
 /// The `bytes|string` in slot `index` as the octets to hash — see [`DATA`] for
 /// why one reader covers both tags.
 ///
@@ -859,6 +897,23 @@ impl Running {
 /// the guarantee the runtime keeps if a future caller reaches the helper by
 /// another route.
 fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
+    hmac_fed(kind, key, &mut |update| {
+        update(data);
+        Ok(())
+    })
+    .unwrap_or(None)
+}
+
+/// What [`hmac_fed`] is given: it calls its argument once per piece of input.
+type Feed<'f> = &'f mut dyn FnMut(&mut dyn FnMut(&[u8])) -> Result<(), Fault>;
+
+/// [`hmac_of`] over input that `feed` hands to the MAC one piece at a time,
+/// for a source read in chunks.
+///
+/// # Errors
+///
+/// Whatever `feed` returns, which stops the MAC.
+fn hmac_fed(kind: DigestKind, key: &[u8], feed: Feed<'_>) -> Result<Option<Octets>, Fault> {
     use hmac::{KeyInit as _, Mac as _};
 
     /// One algorithm's HMAC, written once, over the MAC type to build. A macro
@@ -879,12 +934,12 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
         ($mac:ty) => {{
             let mut mac = <$mac>::new_from_slice(key)
                 .expect("HMAC accepts a key of any length (RFC 2104 § 2)");
-            mac.update(data);
+            feed(&mut |piece| mac.update(piece))?;
             Octets::of(&mac.finalize().into_bytes())
         }};
     }
 
-    Some(match kind {
+    Ok(Some(match kind {
         DigestKind::Sha224 => mac!(hmac::Hmac<sha2::Sha224>),
         DigestKind::Sha256 => mac!(hmac::Hmac<sha2::Sha256>),
         DigestKind::Sha384 => mac!(hmac::Hmac<sha2::Sha384>),
@@ -899,8 +954,8 @@ fn hmac_of(kind: DigestKind, key: &[u8], data: &[u8]) -> Option<Octets> {
         | DigestKind::Md5
         | DigestKind::Sha1
         | DigestKind::Crc32c
-        | DigestKind::Blake3 => return None,
-    })
+        | DigestKind::Blake3 => return Ok(None),
+    }))
 }
 
 /// HMAC-SHA-1 of `data` under `key` — the one algorithm [`hmac_of`] refuses,
@@ -962,10 +1017,18 @@ nvs_runtime::nvs_helper! {
     /// unknown algorithm name has no analogue, because the algorithm is a
     /// closed enum rather than a string the caller might misspell — which is
     /// the single largest reason this member takes one.
-    fn nvs_core_hash_of(_ctx, args: [2]) {
-        let data = data_of(args, 0, "of")?;
+    fn nvs_core_hash_of(ctx, args: [2]) {
         let kind = digest_kind(args, 1, "of")?;
-        Ok(Value::bytes(NvsStr::new(&digest_of(kind, data))))
+        // `bytes` and a `string` are hashed where they are, with no source.
+        if let Some(data) = octets_of(&args[0]) {
+            return Ok(Value::bytes(NvsStr::new(&digest_of(kind, data))));
+        }
+        let mut running = Running::new(kind);
+        crate::byte_source::for_each_chunk(ctx, args[0], OF, |_, piece| {
+            running.update(piece);
+            Ok(())
+        })?;
+        Ok(Value::bytes(NvsStr::new(&running.finish())))
     }
 }
 
@@ -978,16 +1041,26 @@ nvs_runtime::nvs_helper! {
     /// slot, mixed into the two padded blocks RFC 2104 describes, and gone
     /// when the helper returns. See this module's docs for what `secret` on
     /// that parameter does not yet buy.
-    fn nvs_core_hash_hmac(_ctx, args: [3]) {
-        let data = data_of(args, 0, "hmac")?;
+    fn nvs_core_hash_hmac(ctx, args: [3]) {
         let key = bytes_of(args, 1, "hmac")?;
         let kind = digest_kind(args, 2, "hmac")?;
+        let source = args[0];
         // Unreachable from source: parameter 2 is `CoreTy::Union(STRONG)`, so a
         // weak case is `E0401: expected 'Core\Hash::Digest::Sha256|Core\Hash::Digest::
         // Sha384|Core\Hash::Digest::Sha512', found 'Core\Hash::Digest'` — probed with
         // `Core\Hash::Digest::Md5` and with a `mixed` binding. `hmac_of`'s own docs
         // own why the subset is then enforced a second time here.
-        let mac = hmac_of(kind, key, data).ok_or_else(|| {
+        let mac = if let Some(data) = octets_of(&args[0]) {
+            hmac_of(kind, key, data)
+        } else {
+            hmac_fed(kind, key, &mut |update| {
+                crate::byte_source::for_each_chunk(ctx, source, HMAC, |_, piece| {
+                    update(piece);
+                    Ok(())
+                })
+            })?
+        };
+        let mac = mac.ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Hash::hmac reached with `Core\\Hash::Digest::{kind:?}`, which is not a \
                  `StrongDigest`"
@@ -1529,5 +1602,83 @@ mod tests {
             .expect("an `update` after `finish` throws");
         assert!(late.contains("this stream is finished"), "{late}");
         released([data, stream]);
+    }
+
+    /// `of` and `hmac` read an open file from its start, one chunk at a time,
+    /// wherever the program's position was, and leave it at the end. The file
+    /// is several chunks long, so the digest is built from many pieces.
+    #[test]
+    fn hash_of_a_file_reads_it_in_pieces() {
+        use std::io::{Seek, SeekFrom};
+
+        let chunk = crate::byte_source::READ_CHUNK;
+        let content: Vec<u8> = (0..2 * chunk + 5)
+            .map(|at| u8::try_from(at % 251).unwrap_or(0))
+            .collect();
+        let dir = nvs_repo::scratch("hash-of-a-file");
+        let path = dir.join("data.bin");
+        std::fs::write(&path, &content).expect("the case writes");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let mut file = std::fs::File::open(&path).expect("the case opens its file");
+        file.seek(SeekFrom::Start(9))
+            .expect("the case moves the position");
+        let key = ctx.hold_open_file(file);
+        let handle = crate::io::file_handle(
+            key,
+            Value::text("data.bin"),
+            nvs_runtime::capability::Access::Read,
+        );
+
+        let digest = nvs_runtime::call(nvs_core_hash_of, &mut ctx, &[handle, Value::int(3)])
+            .expect("an open file is a source");
+        assert_eq!(
+            digest.as_bytes().expect("a digest is bytes"),
+            &*digest_of(DigestKind::Sha256, &content),
+            "the whole file is hashed, from its first byte"
+        );
+        assert_eq!(
+            ctx.open_file_mut(key)
+                .expect("the handle is open")
+                .stream_position()
+                .expect("a regular file has a position"),
+            content.len() as u64,
+            "a forward read leaves the position at the end"
+        );
+
+        let key_bytes = Value::bytes(NvsStr::new(b"key"));
+        let mac = nvs_runtime::call(
+            nvs_core_hash_hmac,
+            &mut ctx,
+            &[handle, key_bytes, Value::int(3)],
+        )
+        .expect("an open file is a source");
+        assert_eq!(
+            mac.as_bytes().expect("a MAC is bytes"),
+            &*hmac_of(DigestKind::Sha256, b"key", &content).expect("SHA-256 is strong"),
+        );
+        released([digest, mac, key_bytes, handle]);
+    }
+
+    /// `of` reads an upload part forward, and its digest is the digest of the
+    /// part's bytes.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn hash_of_a_part_equals_hash_of_its_bytes() {
+        use crate::request::tests::{Chunks, UPLOAD, dropped, next_part, saving};
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(crate::request::nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        let digest = nvs_runtime::call(nvs_core_hash_of, &mut arriving, &[part, Value::int(3)])
+            .expect("a fresh part is a source");
+        assert_eq!(
+            digest.as_bytes().expect("a digest is bytes"),
+            &*digest_of(DigestKind::Sha256, b"%PDF-1.4 and the rest of it"),
+        );
+        released([digest]);
+        dropped(part);
+        dropped(files);
     }
 }
