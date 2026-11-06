@@ -8072,6 +8072,10 @@ pub(crate) mod tests {
     /// scratch. The encoder's
     /// chunks become the body's, so nothing joins them into a second copy.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "an 8 MiB document, which Miri is too slow to walk in the time limit"
+    )]
     fn a_response_document_of_any_size_peaks_at_its_size_plus_one_chunk() {
         for size in [64 << 10, 8 << 20] {
             let text = wide_document(size);
@@ -8109,6 +8113,10 @@ pub(crate) mod tests {
     /// at 64 KiB, for every shape the ladders measure. A count that grew would
     /// be a buffer that is copied or rebuilt as the document grows.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "an 8 MiB document, which Miri is too slow to walk in the time limit"
+    )]
     fn allocations_per_document_byte_do_not_grow_with_the_document() {
         let count = |size: usize| -> Vec<(&'static str, usize, usize, usize)> {
             ladder_documents(size)
