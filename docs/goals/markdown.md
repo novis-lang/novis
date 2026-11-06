@@ -402,8 +402,12 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   - [x] Each pinning input renders as its entry says, and the spec results are unchanged:
     CommonMark 0 failures, GFM 21 (9 emphasis, 11 extended autolinks, 1 tag filter).
   - [x] `THIRD-PARTY-LICENSES.txt` regenerated.
-- [ ] The sanitizer's list grows by decision 15's five value-checked entries, with a test each.
+- [x] The sanitizer's list grows by decision 15's five value-checked entries, with a test each.
   `crates/nvs-stdlib/src/html.rs:1860`
+  - [x] `CHECKED` beside `ELEMENTS`: the element, the attribute and its value test.
+  - [x] `input` on the list, written only as a disabled checkbox (`inert_checkbox`).
+  - [x] One test per entry, each also asserting the rebuild stays a fixed point.
+  - [x] The mXSS corpus test counts an attribute that passed its value test as granted.
 - [ ] Raw HTML through the sanitizer's rebuild, URLs through the shared check, output as a tree
   (decision 5). `crates/nvs-stdlib/src/html.rs:1671`
 - [ ] The nesting flatten and the added-output budget (decision 5). `crates/nvs-stdlib/src/markdown.rs:1`

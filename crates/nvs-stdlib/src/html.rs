@@ -1840,19 +1840,18 @@ fn escape_into(text: &str, attribute: bool, out: &mut String) {
 /// `the_allowlist_is_closed_and_is_not_configurable_by_a_caller` is what holds
 /// the order.
 ///
-/// What is *not* here is as decided as what is. No `class` and no `id`, the
-/// two attributes a receiving page **selects on**. `id` is the DOM-clobbering
-/// surface, where an attribute name shadows a property a page's own script
-/// reads. `class` is the first attribute a real application asks for and is
-/// refused for the reason that survives asking: its value chooses which of the
-/// receiving page's own rules and handlers apply to attacker-supplied content
-/// — a stylesheet that positions `.modal-overlay` over the page, a script that
-/// binds a handler to every `.delete`. Neither can be met with a value test
-/// here, because the meaning of the value lives in a document this member
-/// never sees, and a test it cannot write is a hole
-/// [`GLOBAL`]'s three deliberately do not open. An application that needs this
-/// content styled styles the element it puts the answer *inside*, which is
-/// markup it wrote itself. No `style`, which is a second grammar with its own
+/// What is *not* here is as decided as what is. No `class` and no `id` with
+/// any value, the two attributes a receiving page **selects on**. `id` is the
+/// DOM-clobbering surface, where an attribute name shadows a property a page's
+/// own script reads. `class` is the first attribute a real application asks
+/// for, and its value chooses which of the receiving page's own rules and
+/// handlers apply to attacker-supplied content — a stylesheet that positions
+/// `.modal-overlay` over the page, a script that binds a handler to every
+/// `.delete`. Each is granted only where [`CHECKED`] can test the value
+/// against a closed form that no page's own names take, which is what
+/// `Core\Markdown`'s output needs and nothing more. An application that needs
+/// this content styled styles the element it puts the answer *inside*, which
+/// is markup it wrote itself. No `style`, which is a second grammar with its own
 /// injection story and no parser here. No `target`, whose `_blank` hands the
 /// opened page a reference back. Nothing from SVG or MathML, whose namespaces
 /// are where mXSS lives, since a name that case-corrects on parse is a name
@@ -1886,6 +1885,9 @@ const ELEMENTS: &[(&str, &[&str])] = &[
     ("hr", &[]),
     ("i", &[]),
     ("img", &["alt", "height", "src", "width"]),
+    // Written only as a disabled checkbox, by [`inert_checkbox`], and every
+    // attribute it carries is one of [`CHECKED`]'s.
+    ("input", &[]),
     ("ins", &["cite", "datetime"]),
     ("kbd", &[]),
     ("li", &["value"]),
@@ -1920,6 +1922,93 @@ const ELEMENTS: &[(&str, &[&str])] = &[
 /// what it is called, what language it is in, and which way it reads. None of
 /// them is a URL, a script or a style, so none needs a value test.
 const GLOBAL: &[&str] = &["dir", "lang", "title"];
+
+/// Whether an attribute's value has the one form [`CHECKED`] grants it with.
+type ValueTest = fn(&str) -> bool;
+
+/// The attributes an element may carry only with a value that passes a test:
+/// the element, the attribute, and the test over its value.
+///
+/// `rule:core-classes/markdown-to-html` grows the list by these, because
+/// CommonMark and GFM output carries them and `Core\Markdown`'s answer must be
+/// a fixed point of the rebuild. Each value is closed:
+///
+/// - `align` on a table cell is `left`, `center` or `right`.
+/// - `class` on `code` is `language-` and a language name, which no page's
+///   own stylesheet selects on by accident.
+/// - `id` on a heading, a link or a list item starts with `md-`. The hyphen
+///   means it can never be a script's global variable, which is the
+///   DOM-clobbering reason `id` is not granted with any value.
+/// - `type`, `disabled` and `checked` on an `input`, which [`inert_checkbox`]
+///   admits only as a disabled checkbox.
+const CHECKED: &[(&str, &str, ValueTest)] = &[
+    ("a", "id", markdown_id),
+    ("code", "class", language_class),
+    ("h1", "id", markdown_id),
+    ("h2", "id", markdown_id),
+    ("h3", "id", markdown_id),
+    ("h4", "id", markdown_id),
+    ("h5", "id", markdown_id),
+    ("h6", "id", markdown_id),
+    ("input", "checked", |value| {
+        value.is_empty() || value == "checked"
+    }),
+    ("input", "disabled", |value| {
+        value.is_empty() || value == "disabled"
+    }),
+    ("input", "type", |value| value == "checkbox"),
+    ("li", "id", markdown_id),
+    ("td", "align", alignment),
+    ("th", "align", alignment),
+];
+
+/// Whether `value` is an `id` Markdown writes: `md-` and at least one more
+/// character, none of them whitespace, which an `id` may not hold.
+fn markdown_id(value: &str) -> bool {
+    value
+        .strip_prefix("md-")
+        .is_some_and(|rest| !rest.is_empty() && !rest.contains(|ch: char| ch.is_ascii_whitespace()))
+}
+
+/// Whether `value` is a fenced block's language class: `language-` and one or
+/// more ASCII letters, digits and `+-_#.`.
+fn language_class(value: &str) -> bool {
+    value.strip_prefix("language-").is_some_and(|name| {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'_' | b'#' | b'.'))
+    })
+}
+
+/// Whether `value` is one of a table cell's three alignments.
+fn alignment(value: &str) -> bool {
+    matches!(value, "left" | "center" | "right")
+}
+
+/// Whether the value test [`CHECKED`] holds for `attribute` on `element`
+/// passes, or `None` when it holds none.
+fn checked(element: &str, attribute: &str, value: &str) -> Option<bool> {
+    CHECKED
+        .iter()
+        .find(|(on, name, _)| *on == element && *name == attribute)
+        .map(|(_, _, test)| test(value))
+}
+
+/// Whether `node`, an `input`, is a disabled checkbox, the one form of the
+/// element the list writes. A task list item's box is shown and cannot be
+/// changed, and an `input` a reader could change would be a form control in
+/// content the page did not write.
+fn inert_checkbox(node: &Parsed) -> bool {
+    let value = |name: &str| {
+        node.attributes
+            .iter()
+            .find(|(attribute, _)| attribute == name)
+            .map(|(_, value)| value.as_str())
+    };
+    value("type") == Some("checkbox")
+        && value("disabled").is_some_and(|v| v.is_empty() || v == "disabled")
+}
 
 /// The attributes whose value is a URL, and therefore the ones [`addressable`]
 /// has an opinion about.
@@ -2008,6 +2097,7 @@ fn verdict(node: &Parsed) -> Verdict {
         // round trip a fixed point rather than something to argue about.
         Kind::Comment | Kind::ProcessingInstruction => Verdict::Dropped,
         Kind::Document => Verdict::Opened(Parsed::new(Kind::Document)),
+        Kind::Element if node.name == "input" && !inert_checkbox(node) => Verdict::Dropped,
         Kind::Element => match allowed(&node.name) {
             Some(attributes) => {
                 let mut built = Parsed::new(Kind::Element);
@@ -2016,6 +2106,9 @@ fn verdict(node: &Parsed) -> Verdict {
                     .attributes
                     .iter()
                     .filter(|(name, value)| {
+                        if let Some(passes) = checked(&node.name, name, value) {
+                            return passes;
+                        }
                         (GLOBAL.contains(&name.as_str()) || attributes.contains(&name.as_str()))
                             && (!URL.contains(&name.as_str()) || addressable(value))
                     })
@@ -3164,6 +3257,116 @@ mod tests {
             URL.len(),
             "every attribute the scheme test guards is one some element may carry"
         );
+
+        let unlisted: Vec<&str> = CHECKED
+            .iter()
+            .map(|(element, _, _)| *element)
+            .filter(|element| allowed(element).is_none())
+            .collect();
+        assert!(
+            unlisted.is_empty(),
+            "a value-checked attribute is granted only on an element the list holds: {unlisted:?}"
+        );
+    }
+
+    /// `source(&rebuilt(&parse(document)))`, and the same once more, which
+    /// must be unchanged for every document the five value tests below read.
+    fn sanitized_twice(document: &str) -> String {
+        let once = source(&rebuilt(&parse(document)));
+        let twice = source(&rebuilt(&parse(&once)));
+        assert_eq!(
+            once, twice,
+            "a value-checked attribute keeps the rebuild a fixed point"
+        );
+        once
+    }
+
+    #[test]
+    fn align_on_a_table_cell_is_kept_only_as_left_center_or_right() {
+        let cells = sanitized_twice(
+            "<table><tr><th align=\"center\">a</th><td align=\"right\">b</td>\
+             <td align=\"justify\">c</td><td align=\"LEFT\">d</td></tr></table>",
+        );
+        assert!(cells.contains("<th align=\"center\">a</th>"), "{cells}");
+        assert!(cells.contains("<td align=\"right\">b</td>"), "{cells}");
+        assert!(cells.contains("<td>c</td>"), "{cells}");
+        assert!(cells.contains("<td>d</td>"), "{cells}");
+        let paragraph = sanitized_twice("<p align=\"left\">x</p>");
+        assert_eq!(
+            paragraph, "<p>x</p>",
+            "align is granted on table cells alone"
+        );
+    }
+
+    #[test]
+    fn class_on_code_is_kept_only_as_a_language_name() {
+        assert_eq!(
+            sanitized_twice("<code class=\"language-c++\">x</code>"),
+            "<code class=\"language-c++\">x</code>"
+        );
+        for refused in [
+            "<code class=\"language-\">x</code>",
+            "<code class=\"language-rust modal-overlay\">x</code>",
+            "<code class=\"delete\">x</code>",
+            "<span class=\"language-rust\">x</span>",
+        ] {
+            let answer = sanitized_twice(refused);
+            assert!(!answer.contains("class"), "{refused:?} gave {answer:?}");
+        }
+    }
+
+    #[test]
+    fn an_input_is_written_only_as_a_disabled_checkbox() {
+        assert_eq!(
+            sanitized_twice("<input type=\"checkbox\" disabled=\"\" checked=\"\">"),
+            "<input type=\"checkbox\" disabled=\"\" checked=\"\">"
+        );
+        for dropped in [
+            "<input type=\"checkbox\">",
+            "<input type=\"text\" disabled>",
+            "<input type=\"image\" src=\"https://example.com/x\" disabled>",
+            "<input disabled>",
+        ] {
+            let answer = sanitized_twice(dropped);
+            assert!(!answer.contains("input"), "{dropped:?} gave {answer:?}");
+        }
+    }
+
+    #[test]
+    fn a_checkbox_carries_disabled_and_checked_and_nothing_else() {
+        let answer = sanitized_twice(
+            "<input type=\"checkbox\" disabled checked=\"checked\" name=\"x\" \
+             form=\"f\" value=\"1\" onclick=\"alert(1)\">",
+        );
+        assert_eq!(
+            answer,
+            "<input type=\"checkbox\" disabled=\"\" checked=\"checked\">"
+        );
+        let unchecked = sanitized_twice("<input type=\"checkbox\" disabled checked=\"no\">");
+        assert_eq!(unchecked, "<input type=\"checkbox\" disabled=\"\">");
+    }
+
+    #[test]
+    fn an_id_is_kept_only_on_a_heading_a_link_or_an_item_and_only_after_md() {
+        assert_eq!(
+            sanitized_twice("<h2 id=\"md-intro\">a</h2>"),
+            "<h2 id=\"md-intro\">a</h2>"
+        );
+        assert_eq!(
+            sanitized_twice("<ol><li id=\"md-fn-1\">a</li></ol>"),
+            "<ol><li id=\"md-fn-1\">a</li></ol>"
+        );
+        for refused in [
+            "<h2 id=\"intro\">a</h2>",
+            "<h2 id=\"md-\">a</h2>",
+            "<h2 id=\"md-a b\">a</h2>",
+            "<a id=\"location\">a</a>",
+            "<p id=\"md-intro\">a</p>",
+            "<div id=\"md-intro\">a</div>",
+        ] {
+            let answer = sanitized_twice(refused);
+            assert!(!answer.contains("id="), "{refused:?} gave {answer:?}");
+        }
     }
 
     /// The acceptance property, and the reason
@@ -3248,11 +3451,12 @@ mod tests {
                         Some(attributes) => stray.extend(
                             node.attributes
                                 .iter()
-                                .map(|(name, _)| name.clone())
-                                .filter(|name| {
+                                .filter(|(name, value)| {
                                     !GLOBAL.contains(&name.as_str())
                                         && !attributes.contains(&name.as_str())
-                                }),
+                                        && checked(&node.name, name, value) != Some(true)
+                                })
+                                .map(|(name, _)| name.clone()),
                         ),
                         None => stray.push(node.name.clone()),
                     }
