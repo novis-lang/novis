@@ -216,12 +216,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "extract",
             names: &["archive", "destination", "maxBytes", "maxRatio"],
-            params: &[
-                SOURCE,
-                CoreTy::Path(Qual::Sink),
-                CoreTy::Uint,
-                CoreTy::Uint,
-            ],
+            params: &[SOURCE, CoreTy::Path(Qual::Sink), CoreTy::Uint, CoreTy::Uint],
             defaults: &[
                 Const::Uint(DEFAULT_MAX_BYTES),
                 Const::Uint(DEFAULT_MAX_RATIO),
@@ -989,7 +984,13 @@ impl Budget {
         };
         let mut input = Window::new(ctx, archive, entry, from);
         let Some(size) = inflate(&mut input, entry, ceiling, sink)? else {
-            return Err(over_bound(&entry.name, entry.compressed, self, ceiling, false));
+            return Err(over_bound(
+                &entry.name,
+                entry.compressed,
+                self,
+                ceiling,
+                false,
+            ));
         };
         self.left = self.left.saturating_sub(size);
         Ok(out)
@@ -2741,14 +2742,24 @@ mod tests {
         let mut source = Archive::of(&mut ctx, &args, ENTRIES).expect("a file is a source");
         let entries = super::directory(&mut ctx, &mut source).expect("the archive reads");
         assert_eq!(
-            entries.iter().map(|entry| entry.name.as_str()).collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
             ["first.txt", "big.txt", "last.txt"]
         );
         let Backing::Ranges { window, .. } = &source.backing else {
             panic!("a file is read by ranges");
         };
-        assert!(raw.len() > 4 * READ_CHUNK, "the archive is several reads long");
-        assert!(window.len() <= READ_CHUNK, "the walk held {} bytes", window.len());
+        assert!(
+            raw.len() > 4 * READ_CHUNK,
+            "the archive is several reads long"
+        );
+        assert!(
+            window.len() <= READ_CHUNK,
+            "the walk held {} bytes",
+            window.len()
+        );
         source.finish().expect("the position goes back");
         drop(source);
 
@@ -2846,7 +2857,10 @@ mod tests {
         let message = extract(&mut ctx, &root.join("spent"), 100_004, u64::MAX)
             .expect_err("one byte short across the archive");
         assert!(message.contains("\"zeros.txt\""), "{message}");
-        assert!(message.contains("bytes left of this archive's limit"), "{message}");
+        assert!(
+            message.contains("bytes left of this archive's limit"),
+            "{message}"
+        );
 
         let message = extract(&mut ctx, &root.join("steep"), u64::MAX, 2)
             .expect_err("the ratio stops the deflated entry");
@@ -2879,7 +2893,10 @@ mod tests {
             .expect_err("the entry runs past the cut");
         let message = refusal(fault);
         assert!(message.contains("\"big.txt\""), "{message}");
-        assert!(message.contains("may have changed while it was read"), "{message}");
+        assert!(
+            message.contains("may have changed while it was read"),
+            "{message}"
+        );
         drop(source);
         release(&[handle]);
     }
