@@ -910,6 +910,19 @@ const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']([^>]*)>/g;
 const REPLAY_RE = /<Replay\s+src=["']([^"']+)["']/g;
 const TERMINAL_RE = /<Terminal\s+src=["']([^"']+)["']/g;
 const SHOT_RE = /<Shot\s+src=["']([^"']+)["']/g;
+/** A walkthrough `<Editor>` tag's `src`, a snippet path, wherever it is among the attributes. */
+const EDITOR_RE = /<Editor\b[^>]*?\ssrc=["']([^"']+)["']/g;
+/** Where the walkthrough scenes are: each `<Name>.astro` is shown on a page as `<Name />`. */
+const SCENES = "website/src/components/walkthrough/scenes";
+
+/** Every walkthrough scene: its component name, its path and its text. */
+function walkthroughScenes(root: string): { name: string; path: string; text: string }[] {
+  const dir = join(root, SCENES);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".astro"))
+    .map((f) => ({ name: f.slice(0, -".astro".length), path: `${SCENES}/${f}`, text: readFileSync(join(dir, f), "utf8") }));
+}
 /** The front page, under `DOCS`, which shows only what the server sends. */
 export const FRONT_PAGE = "index.mdx";
 
@@ -962,6 +975,15 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
       const at = `${DOCS}/${page.key}: <Terminal src="${src}"/>`;
       if (!src.endsWith(`.${TERM}`)) problems.push(`${at} names no .${TERM} file`);
       else if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
+    }
+  }
+  // A walkthrough scene shows its `<Editor src>` snippets, so a page that shows the scene shows them.
+  for (const scene of walkthroughScenes(root)) {
+    if (!pages(root).some((page) => new RegExp(`<${scene.name}\\b`).test(page.text))) continue;
+    for (const m of scene.text.matchAll(EDITOR_RE)) {
+      const src = m[1]!;
+      used.add(src);
+      if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${scene.path}: <Editor src="${src}"/> names no file under ${SNIPPETS}/`);
     }
   }
   for (const t of terms) if (!used.has(t.slice(SNIPPETS.length + 1))) problems.push(`${t}: no page shows it`);

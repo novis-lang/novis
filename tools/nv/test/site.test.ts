@@ -118,6 +118,22 @@ describe("nv site --check snippets", () => {
     ]);
   });
 
+  test("a walkthrough scene shown on a page shows its editor's snippet, and one no page shows does not", () => {
+    const root = site().root;
+    const scenes = "website/src/components/walkthrough/scenes";
+    s.put(`${DOCS}/in-depth/a.mdx`, "---\ncovers: []\n---\n\n<Shown />\n");
+    s.put(`${scenes}/Shown.astro`, '<Stage id="x" label="x">\n  <Editor name="editor" src="w/01-shown.nvs" place={{ wide: [0, 0, 1, 1] }} />\n  <Editor name="gone" src="w/03-gone.nvs" place={{ wide: [0, 0, 1, 1] }} />\n</Stage>\n');
+    s.put(`${scenes}/Hidden.astro`, '<Editor src="w/02-hidden.nvs" />\n');
+    s.put("website/snippets/w/01-shown.nvs", "<?nvs\necho 1;\n");
+    s.put("website/snippets/w/01-shown.out", "1\n");
+    s.put("website/snippets/w/02-hidden.nvs", "<?nvs\necho 2;\n");
+    s.put("website/snippets/w/02-hidden.out", "2\n");
+    expect(snippetShape(root).problems).toEqual([
+      `${scenes}/Shown.astro: <Editor src="w/03-gone.nvs"/> names no file under website/snippets/`,
+      "website/snippets/w/02-hidden.nvs: no page shows it",
+    ]);
+  });
+
   test("output=\"http\" needs a .http.out, takes no other value, and the front page needs it for every snippet with one", () => {
     const root = site().root;
     s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Snippet src="guides/a/01-web.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="cli" />\n');
