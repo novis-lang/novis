@@ -3393,12 +3393,15 @@ fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8
 /// The octets of `write`'s or `append`'s `string|bytes` content, written as
 /// they are.
 fn content<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
-    value.as_bytes().or_else(|| value.as_str_bytes()).ok_or_else(|| {
-        Fault::fatal(format!(
-            "Core\\IO::{member} expected a `string` or `bytes` for its content, got tag {}",
-            value.tag_byte()
-        ))
-    })
+    value
+        .as_bytes()
+        .or_else(|| value.as_str_bytes())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\IO::{member} expected a `string` or `bytes` for its content, got tag {}",
+                value.tag_byte()
+            ))
+        })
 }
 
 nvs_runtime::nvs_helper! {
@@ -6102,7 +6105,11 @@ mod tests {
             let more = stdin_stream_step(stream, &mut source).expect("the read");
             let chunk = stdin_stream_chunk(stream).expect("the slot");
             if more.as_bool() != Some(true) {
-                assert_eq!(chunk.tag(), Some(Tag::Null), "the slot is cleared at the end of input");
+                assert_eq!(
+                    chunk.tag(),
+                    Some(Tag::Null),
+                    "the slot is cleared at the end of input"
+                );
                 break;
             }
             chunks.push(chunk.as_bytes().expect("a chunk is bytes").to_vec());
@@ -6129,7 +6136,10 @@ mod tests {
             message.contains("Core\\IO::stdinStream") && message.contains("the writer went away"),
             "{message}"
         );
-        #[expect(unsafe_code, reason = "the test built the stream and owns its reference")]
+        #[expect(
+            unsafe_code,
+            reason = "the test built the stream and owns its reference"
+        )]
         unsafe {
             stream.release();
         }
@@ -6708,7 +6718,10 @@ mod tests {
 
     /// The octets a returned `bytes` value has, released.
     fn octets_of(value: Value) -> Vec<u8> {
-        let octets = value.as_bytes().expect("the member returns `bytes`").to_vec();
+        let octets = value
+            .as_bytes()
+            .expect("the member returns `bytes`")
+            .to_vec();
         #[expect(unsafe_code, reason = "the case owns the value the member returned")]
         unsafe {
             value.release();
@@ -6796,7 +6809,10 @@ mod tests {
         nvs_runtime::call(nvs_core_io_append, &mut ctx, &[target, more]).expect("`append` adds");
         let text = Value::text("z");
         nvs_runtime::call(nvs_core_io_append, &mut ctx, &[target, text]).expect("`append` adds");
-        assert_eq!(std::fs::read(&path).expect("the file exists"), b"\x00\xff\x01z");
+        assert_eq!(
+            std::fs::read(&path).expect("the file exists"),
+            b"\x00\xff\x01z"
+        );
         #[expect(unsafe_code, reason = "the case owns the four values it built")]
         unsafe {
             for value in [target, first, more, text] {
@@ -6817,7 +6833,10 @@ mod tests {
         std::fs::write(&path, b"\x89PNG\xff").expect("the case writes its file");
         let mut ctx = reading("1MiB");
         let whole = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
-        assert!(whole.contains("from byte 0") && whole.contains("Core\\IO::readBytes"), "{whole}");
+        assert!(
+            whole.contains("from byte 0") && whole.contains("Core\\IO::readBytes"),
+            "{whole}"
+        );
 
         let args = [Value::int(0), Value::text(spelled(&path))];
         assert!(nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args).is_err());
@@ -6830,7 +6849,8 @@ mod tests {
 
         let mut ctx = handling();
         let handle = handle_on(&mut ctx, &path);
-        let piece = read_on(&mut ctx, handle, 5).expect_err("`File::read` of octets that are not text");
+        let piece =
+            read_on(&mut ctx, handle, 5).expect_err("`File::read` of octets that are not text");
         assert!(piece.contains("`readBytes`"), "{piece}");
         let_go(handle);
     }
@@ -6849,7 +6869,8 @@ mod tests {
             let args = [Value::text(spelled(&path)), Value::int(mode)];
             let handle =
                 nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a scratch file opens");
-            let made = crate::byte_source::ByteSource::from_arg(&mut ctx, handle, "Core\\Csv::rows");
+            let made =
+                crate::byte_source::ByteSource::from_arg(&mut ctx, handle, "Core\\Csv::rows");
             match made {
                 Err(Fault::Thrown(ThrownClass::Logic, message)) => {
                     assert!(message.contains(name), "{message}");

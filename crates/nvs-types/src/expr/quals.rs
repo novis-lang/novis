@@ -157,10 +157,7 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
             {
                 args.iter().any(|&arg| carries_tainted(arg, interner))
             }
-            _ => {
-                qname.is_core()
-                    && nvs_stdlib::registry::carries_tainted_bytes(&qname.to_string())
-            }
+            _ => qname.is_core() && nvs_stdlib::registry::carries_tainted_bytes(&qname.to_string()),
         },
         _ => false,
     }
@@ -2295,13 +2292,13 @@ mod tests {
         let mut interner = TypeInterner::new();
         let tainted = interner.tainted_bytes();
         let plain = interner.bytes();
-        for walk in [
-            nvs_hir::interfaces::ITERABLE,
-            nvs_hir::interfaces::ITERATOR,
-        ] {
+        for walk in [nvs_hir::interfaces::ITERABLE, nvs_hir::interfaces::ITERATOR] {
             let of_tainted = interner.generic_class(QName::parse(walk), vec![tainted]);
             let of_plain = interner.generic_class(QName::parse(walk), vec![plain]);
-            assert!(carries_tainted(of_tainted, &interner), "{walk}<tainted bytes>");
+            assert!(
+                carries_tainted(of_tainted, &interner),
+                "{walk}<tainted bytes>"
+            );
             assert!(!carries_tainted(of_plain, &interner), "{walk}<bytes>");
         }
         // An `array<tainted bytes>` already carried it, and still does.

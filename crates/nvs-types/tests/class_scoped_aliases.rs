@@ -112,7 +112,11 @@ class Reader {
     assert!(!diags.has_errors(), "{diags:?}");
     let full = declared.of(r"Core\Bytes::Source", "$full");
     assert_eq!(full, declared.of("Bytes::Source", "$short"));
-    assert_eq!(full, declared.of("Mine", "$mine"), "the alias is its expansion");
+    assert_eq!(
+        full,
+        declared.of("Mine", "$mine"),
+        "the alias is its expansion"
+    );
     assert_eq!(
         declared.of(r"Core\Bytes::Chunks", "$chunks"),
         declared.of(

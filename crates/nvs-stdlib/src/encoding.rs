@@ -834,9 +834,9 @@ impl StreamDecoder {
         };
         let kind = match charset.scheme {
             Scheme::Utf8 => return Ok((skip, None)),
-            Scheme::Utf16 { little_endian: true } => {
-                Stream::Table(encoding_rs::UTF_16LE.new_decoder_without_bom_handling())
-            }
+            Scheme::Utf16 {
+                little_endian: true,
+            } => Stream::Table(encoding_rs::UTF_16LE.new_decoder_without_bom_handling()),
             Scheme::Utf16 {
                 little_endian: false,
             } => Stream::Table(encoding_rs::UTF_16BE.new_decoder_without_bom_handling()),
@@ -894,9 +894,7 @@ impl StreamDecoder {
                     // The sequence may have started in an earlier chunk, so
                     // its length is taken off the offset in the whole source.
                     DecoderResult::Malformed(length, after) => {
-                        return Err(at(read).saturating_sub(
-                            u64::from(length) + u64::from(after),
-                        ));
+                        return Err(at(read).saturating_sub(u64::from(length) + u64::from(after)));
                     }
                     DecoderResult::OutputFull => return Err(at(read)),
                 }

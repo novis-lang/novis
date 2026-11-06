@@ -206,8 +206,12 @@ impl ByteSource {
             if matches!(mode, Access::Write | Access::Append) {
                 return Err(crate::io::write_only(member, mode, &path));
             }
-            let open = ctx.open_file_mut(key).ok_or_else(|| closed(member, &path))?;
-            let file = open.try_clone().map_err(|err| failed(member, &path, &err))?;
+            let open = ctx
+                .open_file_mut(key)
+                .ok_or_else(|| closed(member, &path))?;
+            let file = open
+                .try_clone()
+                .map_err(|err| failed(member, &path, &err))?;
             let seekable = nvs_runtime::os::can_seek(&file);
             Kind::File(FileSource {
                 key,
@@ -266,7 +270,6 @@ impl ByteSource {
             value,
         ))
     }
-
 
     /// The path of the file this source reads, for a message. `None` for
     /// `bytes` and for a walk of chunks.
@@ -393,9 +396,9 @@ impl ByteSource {
                 nvs_runtime::affordable(Some(len.min(all.saturating_sub(start))), member)?;
                 Ok(range_of(&holder, start, len))
             }
-            Kind::Part { .. } => {
-                crate::request::part_whole(ctx, holder, member, |all| window(all, offset, len, member))?
-            }
+            Kind::Part { .. } => crate::request::part_whole(ctx, holder, member, |all| {
+                window(all, offset, len, member)
+            })?,
             Kind::Stream { .. } => crate::request::body_stream_whole(ctx, holder, member, |all| {
                 window(all, offset, len, member)
             })?,
@@ -593,7 +596,9 @@ fn range_of(value: &Value, start: usize, len: usize) -> Vec<u8> {
 
 /// At most `len` bytes of `kept` from `offset`.
 fn slice_of<'k>(kept: &'k [u8], offset: u64, len: usize, member: &str) -> Result<&'k [u8], Fault> {
-    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(kept.len());
+    let start = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(kept.len());
     let end = start.saturating_add(len).min(kept.len());
     nvs_runtime::affordable(Some(end - start), member)?;
     Ok(&kept[start..end])
@@ -754,7 +759,8 @@ mod tests {
         let (_dir, path) = scratch("forward.bin", &content);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let mut file = std::fs::File::open(&path).expect("the case opens its file");
-        file.seek(SeekFrom::Start(5)).expect("the case moves the position");
+        file.seek(SeekFrom::Start(5))
+            .expect("the case moves the position");
         let (value, key) = handle(&mut ctx, file, "forward.bin");
 
         let (mut source, holder) =
@@ -771,8 +777,17 @@ mod tests {
             buffers.iter().all(|at| *at == buffers[0]),
             "every chunk is lent from one buffer"
         );
-        assert_eq!(position(&mut ctx, key), content.len() as u64, "a forward read ends at the end");
-        assert!(source.next_chunk(&mut ctx, holder).expect("the end").is_none());
+        assert_eq!(
+            position(&mut ctx, key),
+            content.len() as u64,
+            "a forward read ends at the end"
+        );
+        assert!(
+            source
+                .next_chunk(&mut ctx, holder)
+                .expect("the end")
+                .is_none()
+        );
         drop(source);
         released(holder);
         released(value);
@@ -806,7 +821,9 @@ mod tests {
         assert_eq!(all, content);
         assert_eq!(count, 2, "bytes are lent in pieces of one read");
         assert_eq!(
-            source.prefix(&mut ctx, holder, 4).expect("bytes have a start"),
+            source
+                .prefix(&mut ctx, holder, 4)
+                .expect("bytes have a start"),
             content[..4]
         );
         drop(source);
@@ -822,18 +839,26 @@ mod tests {
         let (_dir, path) = scratch("range.bin", &content);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let mut file = std::fs::File::open(&path).expect("the case opens its file");
-        file.seek(SeekFrom::Start(9)).expect("the case moves the position");
+        file.seek(SeekFrom::Start(9))
+            .expect("the case moves the position");
         let (value, key) = handle(&mut ctx, file, "range.bin");
 
         let (mut source, holder) =
             ByteSource::from_arg(&mut ctx, value, "Test::read").expect("an open file is a source");
         assert_eq!(
-            source.range(&mut ctx, holder, 1_000, 10).expect("the range reads"),
+            source
+                .range(&mut ctx, holder, 1_000, 10)
+                .expect("the range reads"),
             content[1_000..1_010]
         );
-        assert_eq!(source.prefix(&mut ctx, holder, 3).expect("the start reads"), content[..3]);
         assert_eq!(
-            source.range(&mut ctx, holder, 3_995, 100).expect("a short range reads"),
+            source.prefix(&mut ctx, holder, 3).expect("the start reads"),
+            content[..3]
+        );
+        assert_eq!(
+            source
+                .range(&mut ctx, holder, 3_995, 100)
+                .expect("a short range reads"),
             content[3_995..],
             "a range past the end is short"
         );
@@ -853,7 +878,8 @@ mod tests {
         let (_dir, path) = scratch("failed.bin", &vec![7_u8; size]);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let mut file = std::fs::File::open(&path).expect("the case opens its file");
-        file.seek(SeekFrom::Start(3)).expect("the case moves the position");
+        file.seek(SeekFrom::Start(3))
+            .expect("the case moves the position");
         let (value, key) = handle(&mut ctx, file, "failed.bin");
         let (mut source, holder) =
             ByteSource::from_arg(&mut ctx, value, "Test::read").expect("an open file is a source");
@@ -863,7 +889,11 @@ mod tests {
         ctx.clear_memory_ceiling();
         assert!(failed.is_err(), "the read is past the limit");
         drop(source);
-        assert_eq!(position(&mut ctx, key), 3, "the drop puts the position back");
+        assert_eq!(
+            position(&mut ctx, key),
+            3,
+            "the drop puts the position back"
+        );
         released(holder);
         released(value);
     }
@@ -887,7 +917,10 @@ mod tests {
         ctx.clear_memory_ceiling();
         let fault = failed.expect_err("the read is past the limit");
         assert!(format!("{fault:?}").contains("memory limit"), "{fault:?}");
-        assert!(peak < 3 * limit, "the read stopped at the limit: peak {peak}");
+        assert!(
+            peak < 3 * limit,
+            "the read stopped at the limit: peak {peak}"
+        );
         drop(source);
         released(holder);
         released(value);
@@ -897,7 +930,10 @@ mod tests {
     /// prefix read reads further, and a forward read gives the kept bytes and
     /// then the rest.
     #[test]
-    #[cfg_attr(miri, ignore = "opens a pipe, which Miri does not emulate on every target")]
+    #[cfg_attr(
+        miri,
+        ignore = "opens a pipe, which Miri does not emulate on every target"
+    )]
     fn a_file_that_cannot_seek_is_read_forward_and_buffered_for_its_start() {
         let content = pattern(READ_CHUNK + 50, 31);
         let (reader, mut writer) = std::io::pipe().expect("the case opens a pipe");
@@ -916,8 +952,14 @@ mod tests {
         let (value, _) = handle(&mut ctx, file, "pipe");
         let (mut source, holder) =
             ByteSource::from_arg(&mut ctx, value, "Test::read").expect("a pipe is a source");
-        assert_eq!(source.prefix(&mut ctx, holder, 8).expect("the start"), content[..8]);
-        assert_eq!(source.prefix(&mut ctx, holder, 16).expect("more of it"), content[..16]);
+        assert_eq!(
+            source.prefix(&mut ctx, holder, 8).expect("the start"),
+            content[..8]
+        );
+        assert_eq!(
+            source.prefix(&mut ctx, holder, 16).expect("more of it"),
+            content[..16]
+        );
         let (all, _) = drained(&mut ctx, &mut source, holder);
         writing
             .join()

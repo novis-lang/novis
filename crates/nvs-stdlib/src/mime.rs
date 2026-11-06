@@ -960,15 +960,16 @@ mod tests {
     )]
     #[test]
     fn detect_reads_a_part_and_save_to_still_writes_the_whole_part() {
-        use crate::request::tests::{
-            Chunks, UPLOAD, dropped, next_part, save_to, saving, scratch,
-        };
+        use crate::request::tests::{Chunks, UPLOAD, dropped, next_part, save_to, saving, scratch};
         let mut arriving = saving(Chunks::of(UPLOAD));
         let files = nvs_runtime::call(crate::request::nvs_core_request_files, &mut arriving, &[])
             .expect("a request that declared a multipart body can be walked");
         let part = next_part(&mut arriving, files).expect("the body carries two file parts");
 
-        assert_eq!(detected(&mut arriving, part).expect("the part is fresh"), Media::Pdf);
+        assert_eq!(
+            detected(&mut arriving, part).expect("the part is fresh"),
+            Media::Pdf
+        );
         let (_dir, path) = scratch("detected.pdf");
         save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
         assert_eq!(
@@ -991,7 +992,8 @@ mod tests {
         std::fs::write(&path, b"\x89PNG\r\n\x1a\n and some pixels").expect("the case writes");
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
         let mut file = std::fs::File::open(&path).expect("the case opens its file");
-        file.seek(SeekFrom::Start(9)).expect("the case moves the position");
+        file.seek(SeekFrom::Start(9))
+            .expect("the case moves the position");
         let key = ctx.hold_open_file(file);
         let handle = crate::io::file_handle(
             key,
@@ -999,7 +1001,10 @@ mod tests {
             nvs_runtime::capability::Access::Read,
         );
 
-        assert_eq!(detected(&mut ctx, handle).expect("an open file is a source"), Media::Png);
+        assert_eq!(
+            detected(&mut ctx, handle).expect("an open file is a source"),
+            Media::Png
+        );
         assert_eq!(
             ctx.open_file_mut(key)
                 .expect("the handle is open")

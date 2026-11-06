@@ -68,7 +68,6 @@ use super::{
 /// The member every message names.
 const MEMBER: &str = "Core\\Json::decodeEach";
 
-
 /// [`ELEMENTS`]' first slot: the key the walk is filed under with
 /// `nvs_runtime::Ctx::hold_open_reader`, and `0` once the walk has ended.
 const READER_AT: usize = 0;
@@ -96,7 +95,6 @@ type Down = Option<Vec<u8>>;
 /// How the coroutine ends: the whole document read, or the parse's error and
 /// the byte offset it was found at.
 type Ended = Result<(), (String, u64)>;
-
 
 /// One walk's state, filed on the request.
 struct Walk {
@@ -566,7 +564,6 @@ fn walk_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut Walk, Fault> {
             ))
         })
 }
-
 
 /// The `ParseError` for a parse that failed at byte `at` of the source.
 fn unparsed(why: &str, at: u64) -> Fault {

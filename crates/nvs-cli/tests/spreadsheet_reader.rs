@@ -221,7 +221,10 @@ foreach ($reader->rows(0, {header: true, limit: 1}) as Row $row) {
     );
     assert_eq!(
         out,
-        format!("{}\n0\n{{\"Name\":\"Renée\",\"City\":\"Zürich\"}}\n", ROWS + 1)
+        format!(
+            "{}\n0\n{{\"Name\":\"Renée\",\"City\":\"Zürich\"}}\n",
+            ROWS + 1
+        )
     );
 }
 

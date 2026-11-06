@@ -295,6 +295,7 @@ pub use topic::publish_text;
 pub use config::PREPARED_APPLICATION as CONFIG_PREPARED_APPLICATION;
 pub use config::PREPARED_SECRET as CONFIG_PREPARED_SECRET;
 
+pub use byte_source::{extension_source_range, extension_source_size};
 /// A guest's log line as a record of its request, which `nvs_cli`'s extension host is the one
 /// caller of. Re-exported rather than made public with its module, for [`publish_text`]'s reason.
 pub use compress::decompression_ceiling;
@@ -302,7 +303,6 @@ pub use http::{
     ExtensionReply, ToolBounds, ToolRefusal, ToolReply, ToolStream, extension_send, tool_get,
     tool_post, tool_stream,
 };
-pub use byte_source::{extension_source_range, extension_source_size};
 pub use log::extension_line;
 /// The values the test hooks receive, which `nvs_cli`'s test runner is the one builder of.
 /// Re-exported rather than made public with its module, for [`publish_text`]'s reason.

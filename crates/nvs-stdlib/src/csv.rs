@@ -1397,7 +1397,9 @@ fn next_record(
             Step::NeedInput => {}
         }
         let mut source = reader.source.take().ok_or_else(|| {
-            Fault::fatal(format!("internal error: a `{ROWS_NAME}` walk lost its source"))
+            Fault::fatal(format!(
+                "internal error: a `{ROWS_NAME}` walk lost its source"
+            ))
         })?;
         let fed = match source.next_chunk(ctx, holder) {
             // An empty chunk of a walk is not the end, so it is not fed: the
@@ -2309,7 +2311,10 @@ mod tests {
         assert_eq!(fields(&cells(&first)), ["Renée", "Zürich"]);
         released(first);
         let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
-        assert!(!parked.eof, "the first record is given before the last chunk");
+        assert!(
+            !parked.eof,
+            "the first record is given before the last chunk"
+        );
         assert!(
             parked.pending.len() <= 2 * 4,
             "one decoded chunk is held: {} bytes",
@@ -2338,7 +2343,10 @@ mod tests {
         assert_eq!(walked_in(chunked(&odd), true, UTF16LE), expected);
 
         // A high surrogate with nothing after it ends the source.
-        let mut cut = "a\n".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>();
+        let mut cut = "a\n"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<u8>>();
         cut.extend_from_slice(&0xD83D_u16.to_le_bytes());
         let message = thrown_after(Value::bytes(NvsStr::new(&cut)), UTF16LE, 1);
         assert!(
@@ -2367,12 +2375,18 @@ mod tests {
 
         let mut utf16 = b"\xFE\xFF".to_vec();
         utf16.extend(DOCUMENT.encode_utf16().flat_map(u16::to_be_bytes));
-        assert_eq!(walked_in(Value::bytes(NvsStr::new(&utf16)), true, UTF8), expected);
+        assert_eq!(
+            walked_in(Value::bytes(NvsStr::new(&utf16)), true, UTF8),
+            expected
+        );
         assert_eq!(
             walked_in(Value::bytes(NvsStr::new(b"a")), false, UTF8),
             parse("a", false)
         );
-        assert_eq!(walked_in(Value::bytes(NvsStr::new(b"")), false, UTF8), parse("", false));
+        assert_eq!(
+            walked_in(Value::bytes(NvsStr::new(b"")), false, UTF8),
+            parse("", false)
+        );
     }
 
     /// Records past the request's memory limit stop the parse at the limit.
