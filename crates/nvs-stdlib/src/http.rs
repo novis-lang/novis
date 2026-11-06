@@ -233,10 +233,11 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
           connects only to these addresses, so a second name lookup cannot change them.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The text is not a URL, its scheme is not `http` or `https`, or it has no host. \
-               Or `net.connect` does not grant the host, or the host resolves to no address. \
-               Or the host resolves to a loopback, private, link-local or unspecified address \
-               that `net.internal` does not list.",
+        desc: "The text is not a URL, its scheme is not `http`, `https`, `ws` or `wss`, or it \
+               has no host. Or `net.connect` does not grant the host, or the host resolves to no \
+               address. Or the host resolves to a loopback, private, link-local or unspecified \
+               address that `net.internal` does not list. When `net.internal` is not written, \
+               loopback is allowed on a command-line run and in development mode.",
     }],
 };
 

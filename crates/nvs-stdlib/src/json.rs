@@ -464,9 +464,11 @@ pub const CLASS: CoreClass = CoreClass {
             // give: one parameter for both, because a document is the same
             // document wherever its bytes are. The chunks arm is `tainted
             // bytes`, the element both of those walks yield, and a plain
-            // `bytes` chunk widens to it. Every string an element holds is
-            // tainted whatever the source was, as `decodeAs`'s are. The
-            // pointer selects and is never written into anything, so it is
+            // `bytes` chunk widens to it. When `T` is `mixed`, every string
+            // an element holds is tainted whatever the source was. With a
+            // shape or a `#[Json\Derive]` class, a `string` property is a
+            // plain `string` and a `tainted string` property stays tainted,
+            // as `decodeAs` reads them. The pointer selects and is never written into anything, so it is
             // `Neutral`.
             params: &[
                 CoreTy::Union(&[
@@ -630,8 +632,8 @@ const DECODE_EACH_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`T` cannot be read from JSON, or `maxDepth` is `0` or above `1024`. It is \
-                   also thrown when `lines` is `true` and `at` is not `''`.",
+            desc: "`at` is not a valid JSON Pointer, or `maxDepth` is `0` or above `1024`. It \
+                   is also thrown when `lines` is `true` and `at` is not `''`.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -664,8 +666,9 @@ const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "An item contains something that JSON cannot represent, as for `encode`. The error \
-               is thrown when the loop reaches that item. Your loop has already received the \
-               pieces before it.",
+               is thrown when the loop reaches that item. Your loop may already have received \
+               some pieces. Only complete pieces reach the loop, so the text of earlier items \
+               that was not yet in a piece is lost.",
     }],
 };
 
@@ -3757,10 +3760,10 @@ pub(crate) unsafe fn check_codec(
                 .as_ref()
                 .is_some_and(|element| element.any(undecoded))
     }) {
+        // Unreachable from source: `E0756` refuses the class first.
         return Err(Fault::fatal(format!(
-            "{member}(): `{}`'s `{}` field has a declared type no wire type describes — \
-             `rule:core-classes/derive-property-list`'s reachable test refuses that declaration, \
-             so reaching it here is the compiler disagreeing with itself",
+            "internal error: {member}(): the type of `{}`'s `{}` property has no JSON form. \
+             The compiler should have rejected this class, so this is a bug in Novis",
             contract.name(),
             field.key
         )));
@@ -5190,9 +5193,8 @@ unsafe fn convert_field<'a>(
         // issue in a list a program shows a user.
         CodecTy::Opaque | CodecTy::Bytes => {
             return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
-                "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type no wire type \
-                 describes — `rule:core-classes/derive-property-list`'s reachable test refuses \
-                 that declaration, so reaching it here is the compiler disagreeing with itself",
+                "internal error: Core\\Json::decodeAs(): the type of `{}`'s `{}` property has no \
+                 JSON form. The compiler should have rejected this class, so this is a bug in Novis",
                 contract.name(),
                 field.key
             )))));

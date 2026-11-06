@@ -312,8 +312,19 @@ const EVENTS_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "A line of the reply is longer than the line limit, or the `data` of one \
-                   event is longer than the event limit. Both limits are fixed, so a server \
-                   cannot make your program use unlimited memory.",
+                   event is longer than the event limit. It is also thrown when one event is \
+                   longer than its size limit before its blank line. These limits are fixed, so \
+                   a server cannot make your program use unlimited memory. It is also thrown when \
+                   the text is not valid UTF-8, or when the reply's chunked encoding is broken.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "No data arrived for longer than `idle`, or the body took longer than its \
+                   `maxDuration`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was arriving.",
         },
     ],
 };
@@ -333,7 +344,17 @@ const LINES_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A line of the reply is longer than the line limit.",
+            desc: "A line of the reply is longer than the line limit, or a line is not valid \
+                   UTF-8. It is also thrown when the reply's chunked encoding is broken.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "No data arrived for longer than `idle`, or the body took longer than its \
+                   `maxDuration`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was arriving.",
         },
     ],
 };
@@ -346,11 +367,26 @@ const CHUNKS_DOC: MethodDoc = MethodDoc {
     ret: "An `Iterable<tainted bytes>` that a `foreach` can loop over once. The size of each \
           piece depends on the network and has no meaning, so you cannot choose a size. If you \
           need blocks of a fixed size, collect the bytes yourself.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The body of this stream has already been read. The error message names the method \
-               that read it.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The body of this stream has already been read. The error message names the \
+                   method that read it.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The reply's chunked encoding is broken.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "No data arrived for longer than `idle`, or the body took longer than its \
+                   `maxDuration`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was arriving.",
+        },
+    ],
 };
 
 /// `Core\Http\Stream::saveTo`'s reference card — `rule:core-api/reference-card`.

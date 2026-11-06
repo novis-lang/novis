@@ -1152,9 +1152,9 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
-    short: "Returns every line of a file, without its line ending. The file is split into lines \
-            the same way `Core\\Str::lines` splits a string. It needs the `fs.read` capability for \
-            the path, as `read` does.",
+    short: "Returns every line of a file, without its line ending. It reads the whole file when \
+            you call it. The file is split into lines the same way `Core\\Str::lines` splits a \
+            string. It needs the `fs.read` capability for the path, as `read` does.",
     params: &[ParamDoc {
         name: "path",
         desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
@@ -1167,7 +1167,8 @@ const LINES_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path.",
+            desc: "The configuration does not grant `fs.read` for this path, or the file is not \
+                   valid UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -1687,8 +1688,8 @@ const LINES_SLOT: usize = 0;
 
 /// `Core\IO\Lines`'s class card — `rule:core-api/reference-card`.
 const LINES_CARD: ClassDoc = ClassDoc {
-    short: "The lines of a file, which `Core\\IO::lines` returns. Use it in a `foreach` loop to \
-            get one line at a time, as a string.",
+    short: "The lines of a file, which `Core\\IO::lines` returns. The whole file is already \
+            read. A `foreach` loop over it gives one line at a time, as a string.",
 };
 
 /// The class `lines` answers with — its `Iterable<string>`, given the name the

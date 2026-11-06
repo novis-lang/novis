@@ -34622,7 +34622,7 @@ Reads the elements of a JSON array one at a time, in a `foreach` loop. Each elem
 
 **Returns** `Core\Json\Elements<T>` — The elements, one at a time. Each element is a new `T`. When `T` is `mixed`, each element is read as `decode` reads a document. Nothing is read until the loop starts.
 
-**Throws** `ParseError` — The JSON is not valid, nests deeper than `maxDepth`, or an element does not match `T`. It is also thrown when `at` does not name an array. The error is thrown when the loop reaches the problem. Your loop has already received the elements before it. The message gives the byte offset.; `LogicError` — `T` cannot be read from JSON, or `maxDepth` is `0` or above `1024`. It is also thrown when `lines` is `true` and `at` is not `''`.; `RuntimeError` — The file is closed, or reading from the source fails.
+**Throws** `ParseError` — The JSON is not valid, nests deeper than `maxDepth`, or an element does not match `T`. It is also thrown when `at` does not name an array. The error is thrown when the loop reaches the problem. Your loop has already received the elements before it. The message gives the byte offset.; `LogicError` — `at` is not a valid JSON Pointer, or `maxDepth` is `0` or above `1024`. It is also thrown when `lines` is `true` and `at` is not `''`.; `RuntimeError` — The file is closed, or reading from the source fails.
 
 <a id="core-core-json-encodeeach"></a>
 #### `Core\Json::encodeEach`
@@ -34640,7 +34640,7 @@ Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from 
 
 **Returns** `Core\Json\Pieces` — The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` and the last piece ends with `]`. Nothing is encoded until the loop starts.
 
-**Throws** `LogicError` — An item contains something that JSON cannot represent, as for `encode`. The error is thrown when the loop reaches that item. Your loop has already received the pieces before it.
+**Throws** `LogicError` — An item contains something that JSON cannot represent, as for `encode`. The error is thrown when the loop reaches that item. Your loop may already have received some pieces. Only complete pieces reach the loop, so the text of earlier items that was not yet in a piece is lost.
 
 <a id="core-core-json-elements"></a>
 ### `Core\Json\Elements<T>`
@@ -35515,13 +35515,17 @@ Returns the full path of the folder that contains this source file. The compiler
 
 Keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path, read, write, append, writeStream, exists, isFile, isDir, isReadable, isWritable, size, modifiedAt, stat, copy, move, remove, makeDir, removeDir, list, walk, temporaryDir, canonicalize, within, readText, lines, open, stdin
 
-`Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
-must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
-write grant. A path the configuration does not grant throws a `RuntimeError` naming the capability,
-and the program may catch it and carry on; a path the configuration allows but the operating system
-refuses — no such file, a directory — throws an `IOError`. The check resolves the path through its
-deepest existing directory, so a file that does not exist yet is spelled from one — `./out.txt`, not
-`out.txt` — or the check refuses it as not granted. Without an `nvs.toml`, every call is refused.
+`Core\IO` reads or replaces a whole file as text. Every call first checks a capability. The path
+must be inside a folder that `nvs.toml` grants as `fs.read` or `fs.write`. A read grant does not
+allow writing. A path the configuration does not grant throws a `RuntimeError` that names the
+capability. Your program can catch it and continue. A path the configuration allows but the
+operating system does not throws an `IOError`. Examples are a missing file and a directory. The
+check follows the path through its deepest folder that exists. Write a new file's path from such a
+folder, as `./out.txt` and not `out.txt`. Otherwise the check finds it not granted.
+
+When `nvs.toml` does not set `fs.read` or `fs.write`, a program started from the command line reads
+and writes any path. Server work reads its application folder, except `nvs.toml` and names that
+start with `.`. It writes only the temporary folders that `Core\IO::temporaryDir` made for it.
 
 ```toml file=nvs.toml
 [capabilities.fs]
@@ -35992,7 +35996,7 @@ Returns the whole content of a file, converted from the charset it is written in
 Core\IO::lines(string $path): Core\IO\Lines
 ```
 
-Returns every line of a file, without its line ending. The file is split into lines the same way `Core\Str::lines` splits a string. It needs the `fs.read` capability for the path, as `read` does.
+Returns every line of a file, without its line ending. It reads the whole file when you call it. The file is split into lines the same way `Core\Str::lines` splits a string. It needs the `fs.read` capability for the path, as `read` does.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -36000,7 +36004,7 @@ Returns every line of a file, without its line ending. The file is split into li
 
 **Returns** `Core\IO\Lines` — An `Iterable<string>`. A `foreach` loop gives the lines in file order, and you can loop over it again as often as you like. `\n`, `\r\n` and a single `\r` each end a line. A line ending at the end of the file does not add an empty last line. An empty file has no lines.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed the call, but the operating system did not. The file does not exist, is a directory, or could not be read.
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path, or the file is not valid UTF-8.; `IOError` — The capability allowed the call, but the operating system did not. The file does not exist, is a directory, or could not be read.
 
 <a id="core-core-io-open"></a>
 #### `Core\IO::open`
@@ -47232,7 +47236,7 @@ Checks `$url` against the outbound policy. It checks the scheme, the `net.connec
 
 **Returns** `Core\Http\Target` — A `Core\Http\Target` with every address of the host that the policy approved. It has at most eight addresses, in the order the name lookup returned them. The client connects only to these addresses, so a second name lookup cannot change them.
 
-**Throws** `RuntimeError` — The text is not a URL, its scheme is not `http` or `https`, or it has no host. Or `net.connect` does not grant the host, or the host resolves to no address. Or the host resolves to a loopback, private, link-local or unspecified address that `net.internal` does not list.
+**Throws** `RuntimeError` — The text is not a URL, its scheme is not `http`, `https`, `ws` or `wss`, or it has no host. Or `net.connect` does not grant the host, or the host resolves to no address. Or the host resolves to a loopback, private, link-local or unspecified address that `net.internal` does not list. When `net.internal` is not written, loopback is allowed on a command-line run and in development mode.
 
 <a id="core-core-http-methodname"></a>
 #### `Core\Http::methodName`
@@ -48041,7 +48045,7 @@ Reads the body as server-sent events, in the WHATWG EventSource format. Use it f
 
 **Returns** `Core\Http\Events` — An `Iterable<Core\Http\Event>` that a `foreach` can loop over once. An event is complete at the blank line that ends it. A comment line is skipped. A `retry` line is read and ignored, because your program decides when to reconnect.
 
-**Throws** `LogicError` — The body of this stream has already been read. A body can be read only once, in one way. The error message names the method that read it.; `RuntimeError` — A line of the reply is longer than the line limit, or the `data` of one event is longer than the event limit. Both limits are fixed, so a server cannot make your program use unlimited memory.
+**Throws** `LogicError` — The body of this stream has already been read. A body can be read only once, in one way. The error message names the method that read it.; `RuntimeError` — A line of the reply is longer than the line limit, or the `data` of one event is longer than the event limit. It is also thrown when one event is longer than its size limit before its blank line. These limits are fixed, so a server cannot make your program use unlimited memory. It is also thrown when the text is not valid UTF-8, or when the reply's chunked encoding is broken.; `TimeoutError` — No data arrived for longer than `idle`, or the body took longer than its `maxDuration`.; `IOError` — The connection failed while the body was arriving.
 
 <a id="core-core-http-stream-lines"></a>
 #### `Core\Http\Stream->lines`
@@ -48054,7 +48058,7 @@ Reads the body one line at a time. Use it for a reply that sends text line by li
 
 **Returns** `Core\Http\Lines` — An `Iterable<tainted string>` that a `foreach` can loop over once. A line ends at `\n`, and a `\r` at the end of a line is removed. The last line does not need a `\n`.
 
-**Throws** `LogicError` — The body of this stream has already been read. The error message names the method that read it.; `RuntimeError` — A line of the reply is longer than the line limit.
+**Throws** `LogicError` — The body of this stream has already been read. The error message names the method that read it.; `RuntimeError` — A line of the reply is longer than the line limit, or a line is not valid UTF-8. It is also thrown when the reply's chunked encoding is broken.; `TimeoutError` — No data arrived for longer than `idle`, or the body took longer than its `maxDuration`.; `IOError` — The connection failed while the body was arriving.
 
 <a id="core-core-http-stream-chunks"></a>
 #### `Core\Http\Stream->chunks`
@@ -48067,7 +48071,7 @@ Reads the body as raw bytes, in pieces. Use it for a reply whose bytes have a fo
 
 **Returns** `Core\Http\Chunks` — An `Iterable<tainted bytes>` that a `foreach` can loop over once. The size of each piece depends on the network and has no meaning, so you cannot choose a size. If you need blocks of a fixed size, collect the bytes yourself.
 
-**Throws** `LogicError` — The body of this stream has already been read. The error message names the method that read it.
+**Throws** `LogicError` — The body of this stream has already been read. The error message names the method that read it.; `RuntimeError` — The reply's chunked encoding is broken.; `TimeoutError` — No data arrived for longer than `idle`, or the body took longer than its `maxDuration`.; `IOError` — The connection failed while the body was arriving.
 
 <a id="core-core-http-stream-saveto"></a>
 #### `Core\Http\Stream->saveTo`

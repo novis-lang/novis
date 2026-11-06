@@ -1,7 +1,7 @@
-Reads a text file one line at a time.
+Reads a whole text file and returns its lines.
 
-`Core\IO::lines` reads the file at the path and returns its lines. You walk them with `foreach`,
-from the first line to the last. Each line comes without its line break.
+`Core\IO::lines` reads the whole file at the path when you call it. You walk the lines with
+`foreach`, one line at a time, from the first to the last. Each line comes without its line break.
 
 A line ends at `\n` (Linux and macOS), at `\r\n` (Windows) or at a single `\r` (old Mac), so a
 file from any system reads the same way. An empty line in the middle of the file is kept as an

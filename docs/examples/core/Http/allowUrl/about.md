@@ -1,6 +1,7 @@
 Checks a URL before your program sends a request to it.
 
-A URL that comes from a user is `tainted`, and the request methods of `Core\Http` do not accept it.
+A URL that comes from a user is `tainted`. The request methods of `Core\Http\Client`, such as
+`Core\Http\Client::get`, do not accept it.
 `Core\Http::allowUrl` checks the URL and returns a `Core\Http\Target`. You give this value to a
 request method in place of the URL.
 

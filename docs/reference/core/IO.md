@@ -3,13 +3,17 @@ summary: whole-file read and write on paths the configuration has granted
 keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path
 ---
 
-`Core\IO` reads or replaces a whole file as text. Every call is a capability check first: the path
-must fall under a root that `nvs.toml` grants as `fs.read` or `fs.write`, and a read grant is not a
-write grant. A path the configuration does not grant throws a `RuntimeError` naming the capability,
-and the program may catch it and carry on; a path the configuration allows but the operating system
-refuses — no such file, a directory — throws an `IOError`. The check resolves the path through its
-deepest existing directory, so a file that does not exist yet is spelled from one — `./out.txt`, not
-`out.txt` — or the check refuses it as not granted. Without an `nvs.toml`, every call is refused.
+`Core\IO` reads or replaces a whole file as text. Every call first checks a capability. The path
+must be inside a folder that `nvs.toml` grants as `fs.read` or `fs.write`. A read grant does not
+allow writing. A path the configuration does not grant throws a `RuntimeError` that names the
+capability. Your program can catch it and continue. A path the configuration allows but the
+operating system does not throws an `IOError`. Examples are a missing file and a directory. The
+check follows the path through its deepest folder that exists. Write a new file's path from such a
+folder, as `./out.txt` and not `out.txt`. Otherwise the check finds it not granted.
+
+When `nvs.toml` does not set `fs.read` or `fs.write`, a program started from the command line reads
+and writes any path. Server work reads its application folder, except `nvs.toml` and names that
+start with `.`. It writes only the temporary folders that `Core\IO::temporaryDir` made for it.
 
 ```toml file=nvs.toml
 [capabilities.fs]

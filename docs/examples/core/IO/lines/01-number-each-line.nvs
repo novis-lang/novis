@@ -1,5 +1,5 @@
 <?nvs
-// Shows how `Core\IO::lines` reads a file one line at a time.
+// Shows how to loop over the lines that `Core\IO::lines` reads from a file.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), 'todo.txt');
 Core\IO::write($path, "buy milk\ncall the bank\nwater the plants\n");

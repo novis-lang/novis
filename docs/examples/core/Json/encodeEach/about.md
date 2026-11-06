@@ -10,8 +10,10 @@ are tainted bytes.
 
 Set `lines` to `true` to write JSON Lines. Each value is then on its own line, with no brackets.
 
-Write the pieces to a file with `Core\IO::writeStream($path, $pieces)`, or send them in a
-`Core\Response::stream`. `writeStream` throws an error if the file already exists. Pass
+Write the pieces to a file with `Core\IO::writeStream($path, $pieces)`, or `echo` each piece as a
+`string` in a `foreach` loop. `writeStream` throws an error if the file already exists. Pass
 `{ overwrite: true }` to replace the file.
 
-**Good to know:** if an item throws an error halfway, the pieces before it were already written.
+**Good to know:** if an item throws an error halfway, your loop may already have received some
+pieces. Only complete pieces reach the loop, so the text of earlier items that was not yet in a
+piece is lost.

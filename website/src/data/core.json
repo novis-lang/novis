@@ -13353,7 +13353,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The text is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host, or the host resolves to no address. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list."
+                "descHtml": "The text is not a URL, its scheme is not <code>http</code>, <code>https</code>, <code>ws</code> or <code>wss</code>, or it has no host. Or <code>net.connect</code> does not grant the host, or the host resolves to no address. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. When <code>net.internal</code> is not written, loopback is allowed on a command-line run and in development mode."
               }
             ]
           },
@@ -16227,7 +16227,15 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "A line of the reply is longer than the line limit, or the <code>data</code> of one event is longer than the event limit. Both limits are fixed, so a server cannot make your program use unlimited memory."
+                "descHtml": "A line of the reply is longer than the line limit, or the <code>data</code> of one event is longer than the event limit. It is also thrown when one event is longer than its size limit before its blank line. These limits are fixed, so a server cannot make your program use unlimited memory. It is also thrown when the text is not valid UTF-8, or when the reply's chunked encoding is broken."
+              },
+              {
+                "error": "TimeoutError",
+                "descHtml": "No data arrived for longer than <code>idle</code>, or the body took longer than its <code>maxDuration</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The connection failed while the body was arriving."
               }
             ]
           },
@@ -16255,7 +16263,15 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "A line of the reply is longer than the line limit."
+                "descHtml": "A line of the reply is longer than the line limit, or a line is not valid UTF-8. It is also thrown when the reply's chunked encoding is broken."
+              },
+              {
+                "error": "TimeoutError",
+                "descHtml": "No data arrived for longer than <code>idle</code>, or the body took longer than its <code>maxDuration</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The connection failed while the body was arriving."
               }
             ]
           },
@@ -16280,6 +16296,18 @@
               {
                 "error": "LogicError",
                 "descHtml": "The body of this stream has already been read. The error message names the method that read it."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The reply's chunked encoding is broken."
+              },
+              {
+                "error": "TimeoutError",
+                "descHtml": "No data arrived for longer than <code>idle</code>, or the body took longer than its <code>maxDuration</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The connection failed while the body was arriving."
               }
             ]
           },
@@ -17668,7 +17696,7 @@
           "options": [],
           "returnType": "Core\\IO\\Lines",
           "doc": {
-            "shortHtml": "Returns every line of a file, without its line ending. The file is split into lines the same way <code>Core\\Str::lines</code> splits a string. It needs the <code>fs.read</code> capability for the path, as <code>read</code> does.",
+            "shortHtml": "Returns every line of a file, without its line ending. It reads the whole file when you call it. The file is split into lines the same way <code>Core\\Str::lines</code> splits a string. It needs the <code>fs.read</code> capability for the path, as <code>read</code> does.",
             "params": [
               {
                 "name": "path",
@@ -17679,7 +17707,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The configuration does not grant <code>fs.read</code> for this path."
+                "descHtml": "The configuration does not grant <code>fs.read</code> for this path, or the file is not valid UTF-8."
               },
               {
                 "error": "IOError",
@@ -17779,7 +17807,7 @@
       "url": "/reference/core/io/",
       "summaryBlocks": [
         {
-          "html": "<p>Reads, writes, copies and lists files and directories. Each method needs the <code>fs.read</code> or <code>fs.write</code> capability for its path, and throws an error instead of returning <code>false</code>. <code>open</code> gives a <code>Core\\IO\\File</code> to read or write part of a file.</p>\n<p><code>Core\\IO</code> reads or replaces a whole file as text. Every call is a capability check first: the path must fall under a root that <code>nvs.toml</code> grants as <code>fs.read</code> or <code>fs.write</code>, and a read grant is not a write grant. A path the configuration does not grant throws a <code>RuntimeError</code> naming the capability, and the program may catch it and carry on; a path the configuration allows but the operating system refuses — no such file, a directory — throws an <code>IOError</code>. The check resolves the path through its deepest existing directory, so a file that does not exist yet is spelled from one — <code>./out.txt</code>, not <code>out.txt</code> — or the check refuses it as not granted. Without an <code>nvs.toml</code>, every call is refused.</p>"
+          "html": "<p>Reads, writes, copies and lists files and directories. Each method needs the <code>fs.read</code> or <code>fs.write</code> capability for its path, and throws an error instead of returning <code>false</code>. <code>open</code> gives a <code>Core\\IO\\File</code> to read or write part of a file.</p>\n<p><code>Core\\IO</code> reads or replaces a whole file as text. Every call first checks a capability. The path must be inside a folder that <code>nvs.toml</code> grants as <code>fs.read</code> or <code>fs.write</code>. A read grant does not allow writing. A path the configuration does not grant throws a <code>RuntimeError</code> that names the capability. Your program can catch it and continue. A path the configuration allows but the operating system does not throws an <code>IOError</code>. Examples are a missing file and a directory. The check follows the path through its deepest folder that exists. Write a new file's path from such a folder, as <code>./out.txt</code> and not <code>out.txt</code>. Otherwise the check finds it not granted.</p>\n<p>When <code>nvs.toml</code> does not set <code>fs.read</code> or <code>fs.write</code>, a program started from the command line reads and writes any path. Server work reads its application folder, except <code>nvs.toml</code> and names that start with <code>.</code>. It writes only the temporary folders that <code>Core\\IO::temporaryDir</code> made for it.</p>"
         },
         {
           "code": "[capabilities.fs]\nread = [\".\"]\nwrite = [\".\"]",
@@ -18142,7 +18170,7 @@
     {
       "id": "IO.Lines",
       "name": "Core\\IO\\Lines",
-      "summary": "The lines of a file, which `Core\\IO::lines` returns. Use it in a `foreach` loop to get one line at a time, as a string.",
+      "summary": "The lines of a file, which `Core\\IO::lines` returns. The whole file is already read. A `foreach` loop over it gives one line at a time, as a string.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -18151,7 +18179,7 @@
       "url": "/reference/core/io-lines/",
       "summaryBlocks": [
         {
-          "html": "<p>The lines of a file, which <code>Core\\IO::lines</code> returns. Use it in a <code>foreach</code> loop to get one line at a time, as a string.</p>\n<p><code>Core\\IO\\Lines</code> contains the lines of a text file. <code>Core\\IO::lines</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is a <code>string</code> with one line, without its line break. A line ends at <code>\\n</code>, <code>\\r\\n</code> or a single <code>\\r</code>. An empty line in the middle of the file is an empty string. A line break at the end of the file does not add an empty last line.</p>\n<p><code>Core\\IO::lines</code> reads the whole file and closes it before it returns. A change to the file after that does not change the result. You can loop over the result as often as you like. Each loop starts at the first line again.</p>\n<p><code>Core\\IO::lines</code> throws an <code>IOError</code> when the file does not exist or cannot be read. It throws a <code>RuntimeError</code> when the file is not valid UTF-8 text, or when the program may not read the path. The loop itself does not throw an error.</p>"
+          "html": "<p>The lines of a file, which <code>Core\\IO::lines</code> returns. The whole file is already read. A <code>foreach</code> loop over it gives one line at a time, as a string.</p>\n<p><code>Core\\IO\\Lines</code> contains the lines of a text file. <code>Core\\IO::lines</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is a <code>string</code> with one line, without its line break. A line ends at <code>\\n</code>, <code>\\r\\n</code> or a single <code>\\r</code>. An empty line in the middle of the file is an empty string. A line break at the end of the file does not add an empty last line.</p>\n<p><code>Core\\IO::lines</code> reads the whole file and closes it before it returns. A change to the file after that does not change the result. You can loop over the result as often as you like. Each loop starts at the first line again.</p>\n<p><code>Core\\IO::lines</code> throws an <code>IOError</code> when the file does not exist or cannot be read. It throws a <code>RuntimeError</code> when the file is not valid UTF-8 text, or when the program may not read the path. The loop itself does not throw an error.</p>"
         },
         {
           "code": "buy milk\ncall the bank\nwater the plants",
@@ -18579,7 +18607,7 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "<code>T</code> cannot be read from JSON, or <code>maxDepth</code> is <code>0</code> or above <code>1024</code>. It is also thrown when <code>lines</code> is <code>true</code> and <code>at</code> is not <code>''</code>."
+                "descHtml": "<code>at</code> is not a valid JSON Pointer, or <code>maxDepth</code> is <code>0</code> or above <code>1024</code>. It is also thrown when <code>lines</code> is <code>true</code> and <code>at</code> is not <code>''</code>."
               },
               {
                 "error": "RuntimeError",
@@ -18631,7 +18659,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "An item contains something that JSON cannot represent, as for <code>encode</code>. The error is thrown when the loop reaches that item. Your loop has already received the pieces before it."
+                "descHtml": "An item contains something that JSON cannot represent, as for <code>encode</code>. The error is thrown when the loop reaches that item. Your loop may already have received some pieces. Only complete pieces reach the loop, so the text of earlier items that was not yet in a piece is lost."
               }
             ]
           },

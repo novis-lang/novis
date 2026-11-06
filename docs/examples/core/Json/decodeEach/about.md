@@ -3,7 +3,8 @@ Reads a JSON array one element at a time, so the whole document never has to be 
 `Core\Json::decodeEach<T>` takes a file that `Core\IO::open` has opened for reading, or a stream of
 bytes such as `Core\Request::bodyStream()`. You read the result once, with a `foreach` loop. Every
 step gives you one element, checked as `Core\Json::decodeAs<T>` checks a document. Write `mixed` as
-`T` to get plain values. Every string is tainted.
+`T` to get plain values. Each string in them is then tainted. With a shape or a `#[Json\Derive]`
+class, a `string` property is a plain `string`, and a `tainted string` property is tainted.
 
 The second argument is a JSON Pointer: a path such as `/orders` to an array inside the document. The
 default `''` reads the document itself. Values outside that array are checked and skipped. Set
