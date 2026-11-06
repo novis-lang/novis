@@ -1,7 +1,8 @@
 ---
 /**
  * The tool-owned body of a Core class page: the class's summary and
- * introduction, the member table, enums, shape types and constants. A code
+ * introduction, the methods of other classes that return it, the member
+ * table, enums, shape types and constants. A code
  * fence in the introduction is drawn with `<Code>`, as every example on the
  * site is, and an `output` fence as its titled output. Renders from
  * src/data/core.json, which holds implemented members only. An enum with a
@@ -44,6 +45,24 @@ const enumPage = (name: string) => {
           )
         )}
       </div>
+    )
+  }
+
+  {
+    cls.returnedBy.length > 0 && (
+      <>
+        <h2 id="returned-by">Returned by</h2>
+        <p>You get a <code>{cls.name}</code> from these methods:</p>
+        <ul>
+          {cls.returnedBy.map((r) => (
+            <li>
+              <a href={r.url}>
+                <code>{r.name}</code>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </>
     )
   }
 

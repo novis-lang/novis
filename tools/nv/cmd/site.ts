@@ -301,7 +301,7 @@ import { diagramProblems } from "../lib/site-diagrams.ts";
 import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
-import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
+import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
@@ -1700,7 +1700,8 @@ function referenceOwes(e: Entry): boolean {
 /**
  * The `reference` part. `core.json` and `reference.json` are what `bun nv render --website` writes from
  * this binary today. Every roster feature `referenceOwes` has a page, through the feature path both
- * files carry. Every name on an `about.md` file's `related:` line is a Core member with a page. And in
+ * files carry. A class with no members, enums, shape types or constants has an introduction under
+ * `docs/reference/`. Every name on an `about.md` file's `related:` line is a Core member with a page. And in
  * the built site, no page says "Not documented yet", no page shows a code block without syntax colours,
  * and every Reference page shows one example block per example file of every feature on it.
  */
@@ -1717,7 +1718,16 @@ async function referenceProblems(w: World, nvs: string, root: string = ROOT): Pr
     else process.env.NVS_BIN = saved;
   }
 
-  const core = JSON.parse(readAt(root, DATA_FILE) || '{"classes":[]}') as { classes: { name: string; members: { name: string; url: string; examples: string }[] }[] };
+  const core = JSON.parse(readAt(root, DATA_FILE) || '{"classes":[]}') as {
+    classes: { name: string; members: { name: string; url: string; examples: string }[]; enums: unknown[]; types: unknown[]; constants: unknown[] }[];
+  };
+  // A class with nothing to list, such as one a `foreach` loop reads, shows its card's one sentence and
+  // nothing else unless an introduction says what it is and shows it used.
+  for (const cls of core.classes) {
+    if (cls.members.length + cls.enums.length + cls.types.length + cls.constants.length > 0) continue;
+    const intro = introFile(memberPath(cls.name, ""));
+    if (!existsSync(join(root, intro))) problems.push(`${cls.name}: has no members, so its page needs an introduction at ${intro}`);
+  }
   const refPages = (JSON.parse(readAt(root, REFERENCE_FILE) || '{"pages":[]}') as { pages: RefPage[] }).pages;
   /** Each page's URL, with the feature paths it shows. */
   const shown = new Map<string, string[]>();

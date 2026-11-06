@@ -86,6 +86,8 @@ export interface CoreClass {
   members: CoreMember[]
   slug: string
   url: string
+  /** Every member of another class whose return type is this class, as `Core\IO::lines`, with its page. */
+  returnedBy: { name: string; url: string }[]
 }
 
 export const classes = (data as { classes: CoreClass[] }).classes

@@ -6,7 +6,9 @@
 // with its card. A class's summary is its card's one sentence followed by its introduction, the
 // hand-written file under `docs/reference/core/` (named for the class after `Core\`, with `\` written
 // `-`) or under `docs/reference/novis/` for a built-in component's class. `website-llms.ts` writes the
-// same introductions into `/llms-full.txt`, and `bun nv reference` runs every example in them.
+// same introductions into `/llms-full.txt`, and `bun nv reference` runs every example in them. A class
+// also lists the members of other classes that return it, so a class with no members of its own still
+// says where a program gets one.
 //
 // Every registered class and member is published, and nothing else. A class, enum or type alias the
 // registry calls `internal`, a built-in component's engine and what only it uses, is not published,
@@ -370,6 +372,49 @@ interface Class {
   slug?: string;
   url?: string;
   summaryBlocks?: IntroBlock[];
+  /** Every member of another class whose return type is this class, as `Core\IO::lines`, with its page. */
+  returnedBy?: { name: string; url: string }[];
+}
+
+/**
+ * The classes `returnType` names at its top level, each written in full: `?Core\Db\Rows<Row>|string`
+ * names `Core\Db\Rows`. A bare name such as `Document` is in `owner`'s namespace. A class inside a
+ * type argument (`array<Core\Regex\Match>`) is not returned, so it is not named.
+ */
+export function returnedClasses(returnType: string, owner: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < returnType.length; i++) {
+    const ch = returnType[i];
+    if (ch === "<" || ch === "{" || ch === "(") depth++;
+    else if (ch === ">" || ch === "}" || ch === ")") depth--;
+    else if (ch === "|" && depth === 0) {
+      parts.push(returnType.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(returnType.slice(start));
+  const ns = owner.slice(0, owner.lastIndexOf("\\") + 1);
+  return parts
+    .map((p) => p.trim().replace(/^\?/, "").replace(/<[\s\S]*$/, ""))
+    .filter((p) => /^[A-Z][\w\\]*$/.test(p))
+    .map((p) => (p.includes("\\") ? p : `${ns}${p}`));
+}
+
+/** Sets each class's `returnedBy`, from every member of every other class. Members must have their `url`. */
+export function attachReturnedBy(classes: Class[]): void {
+  const byName = new Map(classes.map((c) => [c.name, c]));
+  for (const c of classes) c.returnedBy = [];
+  for (const owner of classes) {
+    for (const m of owner.members) {
+      for (const name of new Set(returnedClasses(m.returnType, owner.name))) {
+        const target = byName.get(name);
+        if (!target || target === owner) continue;
+        target.returnedBy!.push({ name: `${owner.name}::${m.name}`, url: m.url ?? "" });
+      }
+    }
+  }
 }
 
 const classIdOf = (name: string) => name.replace(/^Core\\/, "").replace(/\\/g, ".");
@@ -480,6 +525,7 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
       m.examples = memberPath(cls.name, m.name);
     }
   }
+  attachReturnedBy(classes);
 
   const pages = referenceData(await roster("", reg.meta), reg.meta.directives ?? []);
   return [

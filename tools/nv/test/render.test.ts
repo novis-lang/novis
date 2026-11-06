@@ -6,7 +6,7 @@ import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../li
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
-import { introBlocks, parseSignature, registryClasses } from "../renderers/website-core.ts";
+import { attachReturnedBy, introBlocks, parseSignature, registryClasses, returnedClasses } from "../renderers/website-core.ts";
 import { referenceData } from "../renderers/website-reference.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { renderWebsiteCompare } from "../renderers/website-compare.ts";
@@ -227,5 +227,30 @@ describe("render", () => {
       { html: "<p>After.</p>" },
     ]);
     expect(() => introBlocks("```nvs\necho 1;\n")).toThrow("never closes");
+  });
+
+  test("a class lists the members of other classes that return it, at the top level of their return type only", () => {
+    expect(returnedClasses("?Core\\Db\\Rows<Core\\Db\\Row>|string", "Core\\Db\\Connection")).toEqual(["Core\\Db\\Rows"]);
+    expect(returnedClasses("array<Core\\Regex\\Match>", "Core\\Regex")).toEqual([]);
+    expect(returnedClasses("Core\\Html\\Markup|Core\\Cli\\Text", "Core\\Out")).toEqual(["Core\\Html\\Markup", "Core\\Cli\\Text"]);
+    expect(returnedClasses("Document", "Novis\\Pdf\\Document")).toEqual(["Novis\\Pdf\\Document"]);
+    expect(returnedClasses("{ a: Core\\IO\\Lines }|void", "Core\\IO")).toEqual([]);
+
+    const reg = {
+      classes: [
+        { name: "Core\\IO", short: "", members: [{ name: "lines", kind: "static", signature: "lines(string $path): Core\\IO\\Lines" }], types: [], constants: [] },
+        { name: "Core\\IO\\Lines", short: "", members: [], types: [], constants: [] },
+        { name: "Core\\Html\\Markup", short: "", members: [{ name: "join", kind: "static", signature: "join(Markup $a): Markup" }], types: [], constants: [] },
+      ],
+      enums: [],
+    };
+    const classes = registryClasses(reg);
+    for (const c of classes) for (const m of c.members) m.url = `/${c.id}/${m.name}/`;
+    attachReturnedBy(classes);
+    expect(classes.map((c) => [c.name, c.returnedBy])).toEqual([
+      ["Core\\Html\\Markup", []],
+      ["Core\\IO", []],
+      ["Core\\IO\\Lines", [{ name: "Core\\IO::lines", url: "/IO/lines/" }]],
+    ]);
   });
 });

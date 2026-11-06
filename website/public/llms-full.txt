@@ -61,14 +61,14 @@ Conventions the whole file uses:
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
 | [`Core\Json`](#core-core-json) | JSON text from values and values from JSON text. `encode` and `decode` work on a whole document, `decodeAs<T>` reads into a class, and `encodeEach` and `decodeEach` work on a long list |
-| [`Core\Json\Elements<T>`](#core-core-json-elements) |  |
-| [`Core\Json\Pieces`](#core-core-json-pieces) |  |
+| [`Core\Json\Elements<T>`](#core-core-json-elements) | the elements of a JSON array, which `Core\Json::decodeEach` returns. You read them one at a time with a `foreach` loop |
+| [`Core\Json\Pieces`](#core-core-json-pieces) | the text of a JSON document in pieces, which `Core\Json::encodeEach` returns. You read them one at a time with a `foreach` loop |
 | [`Core\Encoding`](#core-core-encoding) | the seam between `string` and `bytes` — charset conversion, and base64, base64url, base32 and hex spellings of a buffer |
 | [`Core\Bytes`](#core-core-bytes) | octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack` |
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
 | [`Core\IO`](#core-core-io) | whole-file read and write on paths the configuration has granted |
-| [`Core\IO\Lines`](#core-core-io-lines) |  |
-| [`Core\IO\Walk`](#core-core-io-walk) |  |
+| [`Core\IO\Lines`](#core-core-io-lines) | the lines of a text file, which `Core\IO::lines` returns. You read them with a `foreach` loop |
+| [`Core\IO\Walk`](#core-core-io-walk) | every file and folder under a folder, which `Core\IO::walk` returns. You read the paths with a `foreach` loop |
 | [`Core\IO\File`](#core-core-io-file) |  |
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
@@ -93,7 +93,7 @@ Conventions the whole file uses:
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its method, as a rooted path or with the configured origin in front — and the verbs a path claims |
 | [`Core\Router\Match`](#core-core-router-match) | the route a request matched — the method it belongs to, the captures its path filled, its verb and its access decision, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
-| [`Core\Csv\Rows`](#core-core-csv-rows) |  |
+| [`Core\Csv\Rows`](#core-core-csv-rows) | the records of a CSV file, which `Core\Csv::rows` returns. You read them one at a time with a `foreach` loop |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
 | [`Core\Out`](#core-core-out) | output buffering scoped to a callable — what it echoes is captured as the sink's carrier instead of reaching the output |
@@ -161,7 +161,7 @@ Conventions the whole file uses:
 | [`Core\Jwe\Key`](#core-core-jwe-key) |  |
 | [`Core\Signature`](#core-core-signature) |  |
 | [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing |
-| [`Core\Html\Markup`](#core-core-html-markup) |  |
+| [`Core\Html\Markup`](#core-core-html-markup) | HTML that is already safe to print. Html templates and `Core\Html` methods return it, and `Core\Response::html` takes it |
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
 | [`Core\Xml\Reader`](#core-core-xml-reader) |  |
@@ -172,7 +172,7 @@ Conventions the whole file uses:
 | [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Zip`](#core-core-zip) |  |
 | [`Core\Http`](#core-core-http) |  |
-| [`Core\Http\Target`](#core-core-http-target) |  |
+| [`Core\Http\Target`](#core-core-http-target) | A URL that `Core\Http::allowUrl` checked, with the addresses it may connect to. Pass it to a `Core\Http\Client` method in place of a URL that came from a user |
 | [`Core\Http\Identity`](#core-core-http-identity) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
@@ -180,9 +180,9 @@ Conventions the whole file uses:
 | [`Core\Http\Socket`](#core-core-http-socket) |  |
 | [`Core\Http\Stream`](#core-core-http-stream) |  |
 | [`Core\Http\Event`](#core-core-http-event) |  |
-| [`Core\Http\Events`](#core-core-http-events) |  |
-| [`Core\Http\Lines`](#core-core-http-lines) |  |
-| [`Core\Http\Chunks`](#core-core-http-chunks) |  |
+| [`Core\Http\Events`](#core-core-http-events) | The body of a streamed reply as server-sent events. `Core\Http\Stream::events` returns it, and a `foreach` loop reads one `Core\Http\Event` at a time |
+| [`Core\Http\Lines`](#core-core-http-lines) | The body of a streamed reply, one line at a time. `Core\Http\Stream::lines` returns it, and a `foreach` loop reads it |
+| [`Core\Http\Chunks`](#core-core-http-chunks) | The body of a streamed reply as pieces of raw bytes. `Core\Http\Stream::chunks` returns it, and a `foreach` loop reads it |
 | [`Core\Http\Part`](#core-core-http-part) |  |
 | [`Core\Net`](#core-core-net) |  |
 | [`Core\Net\Stream`](#core-core-net-stream) |  |
@@ -210,11 +210,11 @@ Conventions the whole file uses:
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Transaction`](#core-core-db-transaction) |  |
 | [`Core\Db\Rows<T>`](#core-core-db-rows) |  |
-| [`Core\Db\Stream<T>`](#core-core-db-stream) |  |
+| [`Core\Db\Stream<T>`](#core-core-db-stream) | the rows of a query, read from the database one at a time in a `foreach` loop. `stream` and `streamAs` return it |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\Column`](#core-core-db-column) |  |
-| [`Core\Db\InList`](#core-core-db-inlist) |  |
+| [`Core\Db\InList`](#core-core-db-inlist) | a list of values bound to one placeholder of a query, for `in` and `not in`. `Core\Db::inList` returns it |
 | [`Core\Db\Schema`](#core-core-db-schema) |  |
 | [`Core\Db\Plan`](#core-core-db-plan) |  |
 | [`Core\Db\Plan\Step`](#core-core-db-plan-step) |  |
@@ -231,7 +231,7 @@ Conventions the whole file uses:
 | [`Core\Ldap\Ad\AccountFlags`](#core-core-ldap-ad-accountflags) |  |
 | [`Core\Ldap\Ad\GroupType`](#core-core-ldap-ad-grouptype) |  |
 | [`Core\Queue`](#core-core-queue) |  |
-| [`Core\Queue\Id`](#core-core-queue-id) |  |
+| [`Core\Queue\Id`](#core-core-queue-id) | the id of one background job. `Core\Queue::push` returns it, and `status`, `cancel` and `delete` take it |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
 | [`Novis\Image\Barcode`](#core-novis-image-barcode) |  |
 | [`Novis\Image\Color`](#core-novis-image-color) |  |
@@ -34645,7 +34645,60 @@ Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from 
 <a id="core-core-json-elements"></a>
 ### `Core\Json\Elements<T>`
 
-Keywords:
+Keywords: large JSON file, stream JSON, read JSON array, JSON element by element, JSON Lines, NDJSON, import JSON, low memory,
+
+`Core\Json\Elements<T>` contains the elements of a JSON array. `Core\Json::decodeEach<T>` returns it.
+It reads an open `Core\IO\File` or a stream of bytes, such as `Core\Request::bodyStream()`. The class
+has no methods. You read it with a `foreach` loop.
+
+Each item is one element, as a `T`. `T` can be a class with the `#[Core\Json\Derive]` attribute, a shape
+such as `{ name: string, age: int }`, or `mixed`. Each element is checked against `T`. When `T` is
+`mixed`, every string in an element is a `tainted string`.
+
+The JSON is read while the loop runs, and only one element is in memory at a time. You can read the
+elements only once. A second loop continues after the last element the first loop read. After the last
+element, a loop gives no items.
+
+The loop throws a `ParseError` when the JSON is not valid or an element does not match `T`. The
+message gives the byte offset. Your loop has already received the elements before it. The loop throws
+a `RuntimeError` when the file is closed or cannot be read. `decodeEach` does not close the file. Call
+`close()` on the file when the loop is done.
+
+```json file=users.json
+[
+  {"name": "Ada", "age": 36},
+  {"name": "Ben", "age": 41}
+]
+```
+```json file=broken.json
+[1, 2, oops]
+```
+```nvs
+<?nvs
+Core\IO\File $users = Core\IO::open('users.json', Core\IO::FileMode::Read);
+foreach (Core\Json::decodeEach<{ name: string, age: int }>($users) as var $user) {
+    echo $user->name, ' is ', $user->age, "\n";
+}
+$users->close();
+
+// The third element is not valid JSON. The loop prints 1 and 2 first.
+Core\IO\File $broken = Core\IO::open('broken.json', Core\IO::FileMode::Read);
+try {
+    foreach (Core\Json::decodeEach<mixed>($broken) as mixed $n) {
+        echo $n as ?int ?? 0, "\n";
+    }
+} catch (ParseError $e) {
+    echo "not valid JSON\n";
+}
+$broken->close();
+```
+```output
+Ada is 36
+Ben is 41
+1
+2
+not valid JSON
+```
 
 | Member | Signature |
 |---|---|
@@ -34653,7 +34706,47 @@ Keywords:
 <a id="core-core-json-pieces"></a>
 ### `Core\Json\Pieces`
 
-Keywords:
+Keywords: write large JSON, stream JSON, export JSON, JSON response, JSON Lines, NDJSON, write JSON to a file, low memory,
+
+`Core\Json\Pieces` contains the JSON text of a list, in pieces. `Core\Json::encodeEach` returns it.
+It takes an array or an iterable, such as the rows of a database query. The class has no methods.
+You read it with a `foreach` loop.
+
+Each item is `tainted bytes`, at most 64 KiB long. The `[`, the commas and the `]` are part of the
+pieces. With `{ lines: true }`, the text is JSON Lines: one value on each line, with no brackets. Use
+`$piece as string` when you need the text of a piece.
+
+Nothing is encoded until the loop starts. The method takes the next item only when it needs it, so
+the whole document is never in memory at once. You can read the pieces only once. After the last
+piece, a loop gives no items.
+
+The loop throws a `LogicError` when an item cannot be written as JSON, as `Core\Json::encode` does.
+An object whose class does not have `#[Core\Json\Derive]` is one example. Your loop may already have
+received some pieces before the error. To write the pieces to a file, pass them to
+`Core\IO::writeStream`.
+
+```nvs
+<?nvs
+array<{ id: int, name: string }> $users = [
+    { id: 1, name: 'Ada' },
+    { id: 2, name: 'Ben' },
+];
+
+// A short list fits in one piece.
+foreach (Core\Json::encodeEach($users) as var $piece) {
+    echo $piece as string, "\n";
+}
+
+// `writeStream` writes the pieces to a file. This file has one user on each line.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'users.jsonl');
+Core\IO::writeStream($path, Core\Json::encodeEach($users, { lines: true }), { overwrite: true });
+echo Core\IO::read($path);
+```
+```output
+[{"id":1,"name":"Ada"},{"id":2,"name":"Ben"}]
+{"id":1,"name":"Ada"}
+{"id":2,"name":"Ben"}
+```
 
 | Member | Signature |
 |---|---|
@@ -35943,7 +36036,50 @@ Reads everything from the program's standard input in one call. The result is `t
 <a id="core-core-io-lines"></a>
 ### `Core\IO\Lines`
 
-Keywords:
+Keywords: read lines, read a file line by line, lines of a file, text file, line endings, line break, iterate lines,
+
+`Core\IO\Lines` contains the lines of a text file. `Core\IO::lines` returns it. The class has no
+methods. You read it with a `foreach` loop.
+
+Each item is a `string` with one line, without its line break. A line ends at `\n`, `\r\n` or a single
+`\r`. An empty line in the middle of the file is an empty string. A line break at the end of the file
+does not add an empty last line.
+
+`Core\IO::lines` reads the whole file and closes it before it returns. A change to the file after
+that does not change the result. You can loop over the result as often as you like. Each loop starts
+at the first line again.
+
+`Core\IO::lines` throws an `IOError` when the file does not exist or cannot be read. It throws a
+`RuntimeError` when the file is not valid UTF-8 text, or when the program may not read the path. The
+loop itself does not throw an error.
+
+```txt file=todo.txt
+buy milk
+call the bank
+water the plants
+```
+```nvs
+<?nvs
+var $lines = Core\IO::lines('todo.txt');
+
+uint $number = 0;
+foreach ($lines as string $line) {
+    $number = $number + 1;
+    echo $number, ': ', $line, "\n";
+}
+
+// A second loop starts at the first line again.
+foreach ($lines as string $line) {
+    echo Core\Str::length($line), ' ';
+}
+echo "\n";
+```
+```output
+1: buy milk
+2: call the bank
+3: water the plants
+8 13 16
+```
 
 | Member | Signature |
 |---|---|
@@ -35951,7 +36087,53 @@ Keywords:
 <a id="core-core-io-walk"></a>
 ### `Core\IO\Walk`
 
-Keywords:
+Keywords: walk a folder, list files recursively, folder tree, directory tree, sub-folders, find files, recursive directory listing,
+
+`Core\IO\Walk` contains every file and folder under one folder, including the ones in its
+sub-folders. `Core\IO::walk` returns it. The class has no methods. You read it with a `foreach` loop.
+
+Each item is a `string` path relative to the folder you started from, such as `images/logo.svg`. On
+Windows, the folder names are separated by `\`. `Core\Path::SEPARATOR` is the separator of the system
+the program runs on. `Core\Path::join` puts the starting folder in front again. A symbolic link is an
+item, but `walk` does not follow it.
+
+The items of one folder come before the items of the folders inside it. Inside one folder, the order
+is the order the operating system gives. Sort the paths if you need a fixed order.
+
+`Core\IO::walk` reads the whole tree before it returns. A file written after that is not in the
+result. You can loop over the result as often as you like. `walk` throws an `IOError` when the path
+does not exist, when it is a file, or when a folder cannot be read. It throws a `RuntimeError` when
+the program may not read a folder. The loop itself does not throw an error.
+
+```txt file=site/index.html
+<h1>Home</h1>
+```
+```txt file=site/images/logo.svg
+<svg/>
+```
+```txt file=site/images/icons/cart.svg
+<svg/>
+```
+```nvs
+<?nvs
+array<string> $paths = [];
+foreach (Core\IO::walk('site') as string $entry) {
+    // This changes `\` to `/`, so the output is the same on every system.
+    $paths[] = Core\Str::replace($entry, Core\Path::SEPARATOR, '/');
+}
+
+// The folders are items too. This prints five paths in alphabetical order.
+foreach (Core\Arr::sort($paths) as string $path) {
+    echo $path, "\n";
+}
+```
+```output
+images
+images/icons
+images/icons/cart.svg
+images/logo.svg
+index.html
+```
 
 | Member | Signature |
 |---|---|
@@ -39880,7 +40062,59 @@ Reads an open file one record at a time, in a `foreach` loop. It uses the same R
 <a id="core-core-csv-rows"></a>
 ### `Core\Csv\Rows`
 
-Keywords:
+Keywords: read CSV file, large CSV file, CSV line by line, stream CSV, CSV records, CSV header, import CSV, low memory,
+
+`Core\Csv\Rows` contains the records of a CSV file. `Core\Csv::rows` returns it. It needs a file that
+`Core\IO::open` opened for reading. The class has no methods. You read it with a `foreach` loop.
+
+Each item is one record, as an `array<string>`. The keys are the column numbers, starting at `0`. With
+`{ header: true }`, the first record gives the column names, and the keys are these names. The header
+is not one of the items.
+
+The file is read while the loop runs, and only one record is in memory at a time. So a file larger
+than your memory limit still works. Reading starts at the current position of the file. You can read
+the records only once. A second loop continues after the last record the first loop read. After the
+last record, a loop gives no items.
+
+`rows` throws a `RuntimeError` when an option is not valid, such as `{ separator: ';;' }`. The loop throws a
+`RuntimeError` when the file is closed, and an `IOError` when the operating system cannot read it. It
+throws a `ParseError` when a field is not valid UTF-8 text. `rows` does not close the file. Call
+`close()` on the file when the loop is done.
+
+```csv file=orders.csv
+item,qty
+fig,2
+apple,10
+plum,5
+```
+```nvs
+<?nvs
+Core\IO\File $file = Core\IO::open('orders.csv', Core\IO::FileMode::Read);
+var $rows = Core\Csv::rows($file, { header: true });
+
+int $total = 0;
+foreach ($rows as array<string> $row) {
+    echo $row['item'], ': ', $row['qty'], "\n";
+    $total = $total + ($row['qty'] as ?int ?? 0);
+}
+echo 'total: ', $total, "\n";
+
+// The records can be read only once, so this loop gives no items.
+int $again = 0;
+foreach ($rows as array<string> $row) {
+    $again = $again + 1;
+}
+echo 'second loop: ', $again, "\n";
+
+$file->close();
+```
+```output
+fig: 2
+apple: 10
+plum: 5
+total: 17
+second loop: 0
+```
 
 | Member | Signature |
 |---|---|
@@ -46292,7 +46526,49 @@ Parses `$document` as HTML and builds a new document from only the allowed eleme
 <a id="core-core-html-markup"></a>
 ### `Core\Html\Markup`
 
-Keywords:
+Keywords: markup, safe HTML, trusted HTML, raw HTML, escaping, double escaping, html template, XSS, print HTML, as Markup, toSource, fragment, partial,
+
+`Core\Html\Markup` is HTML that is already safe to print. An html template, ``html`…` ``, returns
+one. `Core\Html::escape`, `Core\Html::sanitize`, `Core\Html::join` and `Core\Html::later` return one
+too. In a web request, `Core\Out::capture` returns what its function printed as a `Markup`.
+`Core\Response::html` takes a `Markup`, and a `string` there does not compile.
+
+In a web request, `echo` escapes every `string` and writes a `Markup` unchanged. A template does the
+same with each `{$…}` value. A `string` is escaped, and a `Markup` is written unchanged. So you can
+put a fragment from one template into another template, and nothing is escaped twice.
+
+A string becomes a `Markup` in three ways. `Core\Html::escape` escapes it as text.
+`Core\Html::sanitize` keeps only the safe elements and attributes of an HTML string. A string written
+directly in the code converts with `as Core\Html\Markup`. A computed string does not compile there.
+A `tainted` string (text that came from outside the program) does not compile there either.
+
+`+` joins two `Markup` values. `.` and `as string` on a `Markup` do not compile.
+`Core\Html::toSource` returns the text of a `Markup` as a `string`. It needs a reason, written as a
+string in the code.
+
+```nvs
+<?nvs
+tainted string $name = 'Tom & <Jerry>';
+
+// The template escapes the string in `{$name}`.
+Core\Html\Markup $bold = html`<b>{$name}</b>`;
+
+// `$bold` is a `Markup`, so this template writes it unchanged.
+Core\Html\Markup $line = html`<p>Hello {$bold}</p>`;
+echo $line, "\n";
+
+// A string written in the code converts with `as`.
+Core\Html\Markup $star = '<i class="star"></i>' as Core\Html\Markup;
+echo $star + Core\Html::escape($name), "\n";
+
+string $source = Core\Html::toSource($star, 'the icon is saved in a cache');
+echo Core\Str::length($source), "\n";
+```
+```output
+<p>Hello <b>Tom &amp; &lt;Jerry&gt;</b></p>
+<i class="star"></i>Tom &amp; &lt;Jerry&gt;
+20
+```
 
 | Member | Signature |
 |---|---|
@@ -46976,7 +47252,50 @@ Returns the name of an HTTP method as it is written in a request and in an `Allo
 <a id="core-core-http-target"></a>
 ### `Core\Http\Target`
 
-Keywords:
+Keywords: check a URL, user URL, webhook URL, outbound request, SSRF, private address, internal network, net.connect, net.internal, allowed hosts,
+
+`Core\Http\Target` is a URL that `Core\Http::allowUrl` checked. You pass it to a
+`Core\Http\Client` method, such as `get`, `post` or `stream`, in place of the URL. You can use
+the same `Core\Http\Target` for more than one request.
+
+A URL that a user typed is `tainted`. A `Core\Http\Client` method does not accept a `tainted` URL,
+and the program does not compile. Without this check, a user could make your server send requests
+to machines inside your own network. So a program calls `Core\Http::allowUrl` first, and passes
+the result to the client.
+
+`Core\Http::allowUrl` checks three things. The scheme must be `http`, `https`, `ws` or `wss`, and
+the URL must have a host. If `net.connect` in `nvs.toml` lists hosts, the host must be one of
+them. And the host's addresses must not be private, link-local or unspecified, unless
+`net.internal` lists them. A loopback address such as `127.0.0.1` is allowed on the command line
+and in development mode.
+
+A URL that fails the check throws a `RuntimeError`, and the message gives the reason. No request is
+sent. The `Core\Http\Target` has the addresses that were checked, at most eight. The request
+connects only to these addresses. The host name is not looked up a second time.
+
+```nvs
+<?nvs
+// `Core\Test::answerHttp` gives a fake reply, so this example does not use the network.
+Core\Test::answerHttp('https://203.0.113.10/*', 200, { json: ['received' => true] });
+
+// Text from a user is `tainted`. `Core\Http::allowUrl` checks it and returns a `Core\Http\Target`.
+tainted string $typed = 'https://203.0.113.10/hooks/order';
+Core\Http\Target $hook = Core\Http::allowUrl($typed);
+Core\Http\Response $reply = Core\Http\Client::post($hook, { json: ['order' => 7] });
+echo $reply->status(), ' ', $reply->text(), "\n";
+
+// 10.0.0.7 is a private address, so `allowUrl` throws a `RuntimeError`.
+try {
+    Core\Http\Target $inside = Core\Http::allowUrl('http://10.0.0.7/admin');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+```
+```output
+200 {"received":true}
+Core\Http::allowUrl cannot connect to 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["10.0.0.7"]` under `[capabilities.net]` in nvs.toml
+```
 
 | Member | Signature |
 |---|---|
@@ -47815,7 +48134,48 @@ Returns the last event id the server set. A program that resumes a stream sends 
 <a id="core-core-http-events"></a>
 ### `Core\Http\Events`
 
-Keywords:
+Keywords: server-sent events, SSE, EventSource, text/event-stream, event stream, live updates, AI answer stream, streamed reply, Last-Event-ID,
+
+`Core\Http\Events` is the body of a streamed reply, read as server-sent events.
+`Core\Http\Stream::events` returns it. Server-sent events are a text format for a series of
+messages from a server, sent with the content type `text/event-stream`. You read it with a
+`foreach` loop, and each item is a `Core\Http\Event`.
+
+A server sends one event as a few `data`, `event` and `id` lines, and ends it with a blank line. The
+loop gets the event when that blank line arrives. `data()` returns a `tainted string`, with the
+`data` lines joined by a newline. `name()` returns the `event` line, or `null`. `id()` returns the
+last `id` the server sent, and later events keep it until a new one arrives. A line that starts
+with `:` is a comment and is skipped. Use `events()` for a `text/event-stream` reply, such as an AI
+service that sends its answer word by word. For plain lines of text, use `Core\Http\Stream::lines`.
+
+An event that the connection ends before its blank line is not given to the loop. One line may have
+at most 64 KB, and the data of one event at most 1 MB. A longer one throws a `RuntimeError`. Text
+that is not valid UTF-8 throws a `RuntimeError` too. A server that sends nothing for longer than
+the call's `idle` time throws a `TimeoutError`.
+
+The body of a stream can be read only once. After `events()`, a call to `events()`, `lines()`,
+`chunks()` or `saveTo()` on the same stream throws a `LogicError`.
+
+```nvs
+<?nvs
+// `Core\Test::answerHttp` gives a fake reply, so this example does not use the network.
+// The first line is a comment. The second event has two `data` lines.
+Core\Test::answerHttp('https://prices.example.com/live', 200, {
+    body: ": connected\nevent: price\nid: 41\ndata: apples 1.20\n\nevent: notice\ndata: The market\ndata: closes soon.\n\n",
+    headers: ['content-type' => 'text/event-stream'],
+});
+
+Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://prices.example.com/live');
+foreach ($feed->events() as Core\Http\Event $event) {
+    // The second event has no `id` line, so `id()` still returns 41.
+    echo $event->name() ?? 'message', ' #', $event->id() ?? '-', ': ', $event->data(), "\n";
+}
+```
+```output
+price #41: apples 1.20
+notice #41: The market
+closes soon.
+```
 
 | Member | Signature |
 |---|---|
@@ -47823,7 +48183,56 @@ Keywords:
 <a id="core-core-http-lines"></a>
 ### `Core\Http\Lines`
 
-Keywords:
+Keywords: stream, streamed reply, read a reply line by line, JSON Lines, NDJSON, CSV export, large export, log stream, line ending,
+
+`Core\Http\Lines` is the body of a streamed reply, one line at a time. `Core\Http\Stream::lines`
+returns it. You read it with a `foreach` loop. Each line is a `tainted string`, because another
+server sent it.
+
+A line ends at `\n`, and a `\r` just before the `\n` is removed too. An empty line is an empty
+string. The last line is given even when it has no line ending. Use `lines()` for text with one
+record on each line, such as JSON Lines or a CSV export. For server-sent events, use
+`Core\Http\Stream::events`. For a body that is not text, use `Core\Http\Stream::chunks`.
+
+Only the current line is kept in memory, so the body can be larger than the memory your program may
+use. A line longer than 64 KB throws a `RuntimeError`. A line that is not valid UTF-8 throws a
+`RuntimeError` too. A server that sends nothing for longer than the call's `idle` time throws a
+`TimeoutError`. A connection that fails before the body ends throws an `IOError`.
+
+The body of a stream can be read only once. After `lines()`, a call to `lines()`, `chunks()`,
+`events()` or `saveTo()` on the same stream throws a `LogicError`. A second `foreach` over the same
+`Core\Http\Lines` continues after the last line the first loop read.
+
+```nvs
+<?nvs
+// `Core\Test::answerHttp` gives a fake reply, so this example does not use the network.
+// The first two lines end with "\r\n". The last line has no line ending.
+Core\Test::answerHttp('https://shop.example.com/export/orders.csv', 200, {
+    body: "id,total\r\n1,20\r\n2,15\n3,7",
+});
+
+Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, 'https://shop.example.com/export/orders.csv');
+Core\Http\Lines $lines = $export->lines();
+
+// The first loop reads only the header line.
+foreach ($lines as tainted string $header) {
+    echo '[', $header, "]\n";
+    break;
+}
+
+// This loop continues with the next line. Each line has the form "id,total".
+int $sum = 0;
+foreach ($lines as tainted string $line) {
+    array<tainted string> $columns = Core\Str::split($line, ',');
+    $sum = $sum + ($columns[1] as ?int ?? 0);
+}
+// This prints "total: 42".
+echo 'total: ', $sum, "\n";
+```
+```output
+[id,total]
+total: 42
+```
 
 | Member | Signature |
 |---|---|
@@ -47831,7 +48240,56 @@ Keywords:
 <a id="core-core-http-chunks"></a>
 ### `Core\Http\Chunks`
 
-Keywords:
+Keywords: stream, streamed reply, streaming download, raw bytes, binary body, read a body in pieces, large download, download size limit, chunks,
+
+`Core\Http\Chunks` is the body of a streamed reply, as pieces of raw bytes.
+`Core\Http\Stream::chunks` returns it. You read it with a `foreach` loop. Each piece is
+`tainted bytes`, because another server sent it.
+
+The pieces are not split at lines or at any other boundary. The size of each piece depends on the
+network. Together, the pieces are the whole body, in order. Use `chunks()` for a body that is not
+text, such as an image or an archive. For text with one record on each line, use
+`Core\Http\Stream::lines`. For server-sent events, use `Core\Http\Stream::events`.
+
+The body of a stream can be read only once. After `chunks()`, a call to `chunks()`, `lines()`,
+`events()` or `saveTo()` on the same stream throws a `LogicError`. You can stop the loop with
+`break`, and the rest of the body is not read. A second `foreach` over the same `Core\Http\Chunks`
+continues after the last piece the first loop read.
+
+A server that sends nothing for longer than the call's `idle` time throws a `TimeoutError` in the
+loop. A body that takes longer than `maxDuration` throws one too. A connection that fails before
+the body ends throws an `IOError`.
+
+```nvs
+<?nvs
+// `Core\Test::answerHttp` gives a fake reply, so this example does not use the network.
+Core\Test::answerHttp('https://files.example.com/report.csv', 200, {
+    body: "date,sales\n2026-09-01,120\n2026-09-02,95\n",
+});
+
+Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/report.csv');
+uint $size = 0;
+foreach ($download->chunks() as tainted bytes $piece) {
+    $size = $size + Core\Bytes::length($piece);
+    // This loop stops when the download is larger than 1 MB.
+    if ($size > 1000000) {
+        echo "the download is too large\n";
+        break;
+    }
+}
+echo 'received ', $size, " bytes\n";
+
+// The body was already read, so a second call throws a `LogicError`.
+try {
+    $download->lines();
+} catch (LogicError $error) {
+    echo "the body cannot be read twice\n";
+}
+```
+```output
+received 40 bytes
+the body cannot be read twice
+```
 
 | Member | Signature |
 |---|---|
@@ -49929,7 +50387,78 @@ Returns a description of each column of the result, as one `Core\Db\Column` per 
 <a id="core-core-db-stream"></a>
 ### `Core\Db\Stream<T>`
 
-Keywords:
+Keywords: stream, streaming, large result, big table, one row at a time, constant memory, iterate rows, foreach, unbuffered query, typed rows, cursor,
+
+`Core\Db\Stream<T>` is the result of `Core\Db\Connection::stream` and `Core\Db\Connection::streamAs`.
+`Core\Db\Transaction` has the same two methods. You read a stream with a `foreach` loop. Each round
+of the loop reads one row from the database. Only the current row is in memory, so a large result
+uses as much memory as a small one.
+
+With `stream`, each item is a `Core\Db\Row`. With `streamAs<City>`, each item is a new `City` object
+built from the row. `query` works differently. It reads every row into memory before it returns, and
+it returns a `Core\Db\Rows`. You can loop over a `Core\Db\Rows` many times. A stream is read once, and
+a second loop over it gives no rows.
+
+The connection is busy from the call to `stream` until the loop reads the last row. Another statement
+on the same connection in that time throws a `LogicError`. Read all the rows first, or open a second
+connection. A loop that ends early with `break` keeps the connection busy until the request ends. To
+read only the first rows, write a `limit` in the SQL.
+
+A row that does not match the class of `streamAs` throws a `ParseError`, and the loop stops at that
+row. The `timeout` option is the time for the whole loop. When it passes, the loop stops with an
+`IOError`.
+
+```nvs
+<?nvs
+#[Core\Db\Derive]
+class City
+{
+    public uint $id;
+    // Text from the database is `tainted`, because it comes from outside the program.
+    public tainted string $name;
+
+    public function constructor(uint $id, tainted string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table city (id integer primary key, name text not null)', []);
+$db->executeMany('insert into city (id, name) values (?, ?)', [[1, 'Berlin'], [2, 'Hamburg'], [3, 'Bremen']]);
+
+Core\Db\Stream<Core\Db\Row> $rows = $db->stream('select id, name from city order by id', []);
+
+// No row is read yet, but the connection is busy. This query throws a `LogicError`.
+try {
+    $db->query('select count(*) as n from city', []);
+} catch (LogicError $e) {
+    echo "the connection is busy\n";
+}
+
+foreach ($rows as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ' ', $row->string('name') ?? '', "\n";
+}
+
+// The stream is read. A second loop over it prints nothing.
+foreach ($rows as Core\Db\Row $row) {
+    echo "this line is never printed\n";
+}
+
+// `streamAs<City>` builds one `City` object from each row.
+foreach ($db->streamAs<City>('select id, name from city where id > ? order by id', [1]) as City $city) {
+    echo $city->id, ': ', $city->name, "\n";
+}
+```
+```output
+the connection is busy
+1 Berlin
+2 Hamburg
+3 Bremen
+2: Hamburg
+3: Bremen
+```
 
 | Member | Signature |
 |---|---|
@@ -50277,7 +50806,58 @@ Checks whether the column can contain NULL. On PostgreSQL this is always `true`.
 <a id="core-core-db-inlist"></a>
 ### `Core\Db\InList`
 
-Keywords:
+Keywords: IN list, NOT IN, where in, array parameter, list parameter, bind an array, placeholders, several values, SQL IN condition,
+
+`Core\Db\InList` is a list of values for a SQL `in` or `not in` condition. `Core\Db::inList` returns
+it. You write one `?` or one `:name` in the SQL, and you bind the list to it. The placeholder then
+becomes a list in parentheses with one placeholder for each value, such as `(?, ?, ?)`. The values are
+bound, so they never become part of the SQL text.
+
+An `InList` has no methods. You use it only as a value in the `$params` array of a statement. One list
+can be used in more than one statement. The values keep the order of the array, and its keys are
+ignored. A plain array in `$params` throws a `LogicError`, because only an `InList` expands.
+
+An empty array throws a `LogicError` when you call `inList`. Inside `in`, an empty list would match
+nothing. Inside `not in`, it would match everything. Check for an empty array before you call
+`inList`. Each value in the list must be a single value. An array or another `InList` in the list
+throws a `LogicError` when the statement runs.
+
+```nvs
+<?nvs
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table task (id integer primary key, state text not null)', []);
+$db->executeMany('insert into task (id, state) values (?, ?)', [
+    [1, 'open'],
+    [2, 'done'],
+    [3, 'cancelled'],
+    [4, 'open'],
+]);
+
+// The one `?` becomes `(?, ?)`, so this prints the tasks 2 and 3.
+var $closed = Core\Db::inList(['done', 'cancelled']);
+foreach ($db->query('select id from task where state in ? order by id', [$closed]) as Core\Db\Row $row) {
+    echo 'closed: ', $row->int('id') ?? 0, "\n";
+}
+
+// The same list works with a `:name` placeholder and with `not in`.
+foreach ($db->query('select id from task where state not in :states order by id', ['states' => $closed]) as Core\Db\Row $row) {
+    echo 'still open: ', $row->int('id') ?? 0, "\n";
+}
+
+// An empty array throws a `LogicError`.
+try {
+    Core\Db::inList([]);
+} catch (LogicError $e) {
+    echo "an empty list is not allowed\n";
+}
+```
+```output
+closed: 2
+closed: 3
+still open: 1
+still open: 4
+an empty list is not allowed
+```
 
 | Member | Signature |
 |---|---|
@@ -52269,7 +52849,72 @@ Deletes the finished jobs of a queue and returns how many rows it deleted. Witho
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
 
-Keywords:
+Keywords: job id, queue job, background job, job state, job status, cancel a job, delete a job, track a job, duplicate job,
+
+`Core\Queue\Id` identifies one background job and the queue that the job is in. `Core\Queue::push`
+returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\Queue::delete`. An
+`Id` has no methods, and it cannot be printed or converted to a `string`.
+
+When you call `push` with a `key`, and a pending job already has that key, `push` adds no job. It
+returns an `Id` for the pending job, so `status`, `cancel` and `delete` work on that job.
+
+`status` reads the state of the job from the database on every call. `cancel` returns `false` when
+the job is no longer waiting. After `delete` removes the job, `status` throws a `RuntimeError` for its
+`Id`.
+
+The example below creates the two queue tables itself, because its database is in memory. On a
+server, `nvs queue migrate` creates them.
+
+```toml file=nvs.toml
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[capabilities.db]
+connect = ["jobs"]
+
+[queue]
+connection = "jobs"
+workers = 0
+```
+```nvs
+<?nvs
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+$db->execute(<<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL, []);
+$db->execute(<<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL, []);
+
+Core\Queue\Id $first = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });
+echo Queue::status($first) == Queue::State::Pending ? 'pending' : 'not pending', "\n";
+
+// The key is the same, so this returns an `Id` for the first job.
+Core\Queue\Id $again = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });
+echo Queue::cancel($again) ? 'cancelled' : 'not cancelled', "\n";
+echo Queue::status($first) == Queue::State::Cancelled ? 'cancelled' : 'not cancelled', "\n";
+
+// The job is not waiting any more, so `cancel` returns `false`.
+echo Queue::cancel($first) ? 'cancelled' : 'not cancelled', "\n";
+```
+```output
+pending
+cancelled
+cancelled
+not cancelled
+```
 
 | Member | Signature |
 |---|---|

@@ -2639,7 +2639,8 @@
           "code": "{\"ada\":92,\"cy\":85,\"di\":74}\n[\"ada\",\"cy\",\"di\"]\n92 ada\nada:92 bo:67 cy:85 di:74\n318 4 79.5\n318 92\n[2,4,6,8,10] yes\n{\"3\":[\"fig\"],\"4\":{\"1\":\"pear\",\"2\":\"kiwi\",\"3\":\"plum\"}}\n{\"ada\":92,\"bo\":67,\"cy\":85,\"di\":74}\nada 92 no note",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ast",
@@ -2695,7 +2696,8 @@
         {
           "html": "<p>Reads Novis source code and gives its structure as a tree of nodes. It uses the same parser as the compiler. Nothing in the tree runs.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ast.Node",
@@ -2820,6 +2822,12 @@
         {
           "html": "<p>One part of a parsed source file, such as a class, a statement or an expression. A node has its kind, the nodes inside it, and the place where it starts in the source.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ast::parse",
+          "url": "/reference/core/ast/parse/"
+        }
       ]
     },
     {
@@ -2935,7 +2943,8 @@
           "code": "class: /users\naudit: yes\ncolumn: name\nmethod: /show\nparam: repo\nnone: 0",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "BigInt",
@@ -3711,7 +3720,8 @@
         {
           "html": "<p>An integer with no size limit, for numbers too large for <code>int</code>. A <code>Core\\BigInt</code> never changes: every calculation returns a new value.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Budget",
@@ -3782,7 +3792,8 @@
         {
           "html": "<p>Reports how much memory the current request uses, the most it has used so far, and its memory limit. The numbers are for this request only, not for the whole server process.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Bytes",
@@ -4437,7 +4448,8 @@
           "code": "8 137 10\npng\n504e47 4\n123456781234ff\n[305419896,4660,255]\n9 123456781234ff0000\n-1",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cache",
@@ -4508,7 +4520,8 @@
           "code": "not in the cache\nhello\nforgotten",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cache.SecretEntry",
@@ -4570,7 +4583,8 @@
         {
           "html": "<p>A secret and how long it stays valid, such as a token and the time until it expires. The <code>fill</code> function of <code>getSecret</code> returns one.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cache.Store",
@@ -4888,6 +4902,16 @@
         {
           "html": "<p>One cache, from <code>Core\\Cache</code>. It saves a copy of a value under a key and returns a copy when you read it. A change to the value after you save it does not change the cache.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Cache::memory",
+          "url": "/reference/core/cache/memory/"
+        },
+        {
+          "name": "Core\\Cache::shared",
+          "url": "/reference/core/cache/shared/"
+        }
       ]
     },
     {
@@ -4938,7 +4962,8 @@
         {
           "html": "<p>Checks whether the running code has a capability, such as <code>fs.write</code>. Code can use it to skip a feature that is not allowed. It never grants a capability.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cldr",
@@ -5075,7 +5100,8 @@
         {
           "html": "<p>Plural rules for many languages. They pick the word form for a count, such as &quot;1 file&quot; or &quot;2 files&quot;, and for a position, such as &quot;1st&quot; or &quot;2nd&quot;.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli",
@@ -5695,7 +5721,8 @@
         {
           "html": "<p>Works with the terminal in a command-line program. It gives the program's arguments and the terminal's size and colours, asks the user questions, and shows output that updates in place.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli.Color",
@@ -5879,7 +5906,8 @@
         {
           "html": "<p>A terminal colour: one of the sixteen named colours, or any RGB colour. A terminal that shows fewer colours gets the nearest colour it can show.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli.Live",
@@ -5935,7 +5963,8 @@
         {
           "html": "<p>An area of the terminal that your program redraws while it works. <code>Core\\Cli::live</code> gives one to your function. Each update replaces what the area showed before.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli.Progress",
@@ -5995,7 +6024,8 @@
         {
           "html": "<p>A progress bar that <code>Core\\Cli::progress</code> gives to your function. Each step moves the counter forward and draws the bar again.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli.Style",
@@ -6089,7 +6119,8 @@
         {
           "html": "<p>How a piece of terminal text looks: its colours, and whether it is bold, underlined or struck through. A style does not change after you create it.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Cli.Text",
@@ -6209,6 +6240,20 @@
         {
           "code": "[inner]\njoined: inner!\nlength=5",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Command::help",
+          "url": "/reference/core/command/help/"
+        },
+        {
+          "name": "Core\\Debug::render",
+          "url": "/reference/core/debug/render/"
+        },
+        {
+          "name": "Core\\Out::capture",
+          "url": "/reference/core/out/capture/"
         }
       ]
     },
@@ -6339,7 +6384,8 @@
         {
           "html": "<p>Runs the commands a command-line program declares with <code>#[Command]</code> methods. It reads the command and its options from the program's arguments, and it prints a help page for each command.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Compress",
@@ -6576,7 +6622,8 @@
         {
           "html": "<p>Compresses and decompresses data in a format you choose from <code>Core\\Compress::Codec</code>, such as gzip. Decompression always has a size limit, so a small input cannot fill the server's memory.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Compress.Compressor",
@@ -6655,6 +6702,12 @@
       "summaryBlocks": [
         {
           "html": "<p>Compresses data that arrives in pieces. You add each piece, and <code>finish</code> returns the compressed data.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Compress::compressor",
+          "url": "/reference/core/compress/compressor/"
         }
       ]
     },
@@ -6739,6 +6792,12 @@
       "summaryBlocks": [
         {
           "html": "<p>Decompresses data that arrives in pieces. The whole result has a size limit, so a small input cannot fill the server's memory.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Compress::decompressor",
+          "url": "/reference/core/compress/decompressor/"
         }
       ]
     },
@@ -6970,7 +7029,8 @@
           "code": "memory=256M\nraised to the ceiling\nrefused past the ceiling\nnow=512M\nrestored=256M\nunknown name refused",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Crypto",
@@ -7511,7 +7571,8 @@
           "code": "one secret, agreed from both ends\nsigned and verified, 64 octets\nanother message is refused\nan agreement key signs nothing",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Crypto.KeyPair",
@@ -7614,6 +7675,12 @@
       "summaryBlocks": [
         {
           "html": "<p>A private key together with its public key. You use it to sign data and to agree on a shared secret with another party's public key.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Crypto::generateKeyPair",
+          "url": "/reference/core/crypto/generatekeypair/"
         }
       ]
     },
@@ -7765,6 +7832,12 @@
       "summaryBlocks": [
         {
           "html": "<p>The public half of a key pair, such as a key that another server sent you. You use it to check a signature or to agree on a shared secret.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Crypto\\KeyPair::publicKey",
+          "url": "/reference/core/crypto-keypair/publickey/"
         }
       ]
     },
@@ -7929,7 +8002,8 @@
         {
           "html": "<p>Protects forms against cross-site request forgery, a request that another site sends in the user's name. <code>token</code> creates a token for the visitor's session, which the server checks on the next request. <code>issue</code> creates a token for a value you choose, and <code>verify</code> checks one.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Csv",
@@ -8178,7 +8252,8 @@
           "code": "2 rows\nfig=2 (ripe)\nplum=10 (a, b)\n1+2\nitem,note\nfig,2\nplum,\"a, b\"",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Csv.Rows",
@@ -8192,7 +8267,25 @@
       "url": "/reference/core/csv-rows/",
       "summaryBlocks": [
         {
-          "html": "<p>The rows of a CSV file, read one at a time while a <code>foreach</code> loop runs. The whole file is never in memory at once.</p>"
+          "html": "<p>The rows of a CSV file, read one at a time while a <code>foreach</code> loop runs. The whole file is never in memory at once.</p>\n<p><code>Core\\Csv\\Rows</code> contains the records of a CSV file. <code>Core\\Csv::rows</code> returns it. It needs a file that <code>Core\\IO::open</code> opened for reading. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one record, as an <code>array&lt;string&gt;</code>. The keys are the column numbers, starting at <code>0</code>. With <code>{ header: true }</code>, the first record gives the column names, and the keys are these names. The header is not one of the items.</p>\n<p>The file is read while the loop runs, and only one record is in memory at a time. So a file larger than your memory limit still works. Reading starts at the current position of the file. You can read the records only once. A second loop continues after the last record the first loop read. After the last record, a loop gives no items.</p>\n<p><code>rows</code> throws a <code>RuntimeError</code> when an option is not valid, such as <code>{ separator: ';;' }</code>. The loop throws a <code>RuntimeError</code> when the file is closed, and an <code>IOError</code> when the operating system cannot read it. It throws a <code>ParseError</code> when a field is not valid UTF-8 text. <code>rows</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
+        },
+        {
+          "code": "item,qty\nfig,2\napple,10\nplum,5",
+          "lang": "csv"
+        },
+        {
+          "code": "<?nvs\nCore\\IO\\File $file = Core\\IO::open('orders.csv', Core\\IO::FileMode::Read);\nvar $rows = Core\\Csv::rows($file, { header: true });\n\nint $total = 0;\nforeach ($rows as array<string> $row) {\n    echo $row['item'], ': ', $row['qty'], \"\\n\";\n    $total = $total + ($row['qty'] as ?int ?? 0);\n}\necho 'total: ', $total, \"\\n\";\n\n// The records can be read only once, so this loop gives no items.\nint $again = 0;\nforeach ($rows as array<string> $row) {\n    $again = $again + 1;\n}\necho 'second loop: ', $again, \"\\n\";\n\n$file->close();",
+          "lang": "nvs"
+        },
+        {
+          "code": "fig: 2\napple: 10\nplum: 5\ntotal: 17\nsecond loop: 0",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Csv::rows",
+          "url": "/reference/core/csv/rows/"
         }
       ]
     },
@@ -8468,7 +8561,8 @@
         {
           "html": "<p>Opens a connection to a database. The name of a connection in the server's configuration is enough, or the program can give the settings itself.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Column",
@@ -8549,7 +8643,8 @@
         {
           "html": "<p>Describes one column of a query result: its name, its type, and whether it can contain <code>null</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Connection",
@@ -9134,6 +9229,16 @@
         {
           "html": "<p>An open connection to one database. It runs SQL queries and statements, and it starts transactions.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db::connect",
+          "url": "/reference/core/db/connect/"
+        },
+        {
+          "name": "Core\\Db::open",
+          "url": "/reference/core/db/open/"
+        }
       ]
     },
     {
@@ -9148,7 +9253,21 @@
       "url": "/reference/core/db-inlist/",
       "summaryBlocks": [
         {
-          "html": "<p>A list of values for a SQL <code>IN (...)</code> condition. You can use it only as a bound parameter of a query.</p>"
+          "html": "<p>A list of values for a SQL <code>IN (...)</code> condition. You can use it only as a bound parameter of a query.</p>\n<p><code>Core\\Db\\InList</code> is a list of values for a SQL <code>in</code> or <code>not in</code> condition. <code>Core\\Db::inList</code> returns it. You write one <code>?</code> or one <code>:name</code> in the SQL, and you bind the list to it. The placeholder then becomes a list in parentheses with one placeholder for each value, such as <code>(?, ?, ?)</code>. The values are bound, so they never become part of the SQL text.</p>\n<p>An <code>InList</code> has no methods. You use it only as a value in the <code>$params</code> array of a statement. One list can be used in more than one statement. The values keep the order of the array, and its keys are ignored. A plain array in <code>$params</code> throws a <code>LogicError</code>, because only an <code>InList</code> expands.</p>\n<p>An empty array throws a <code>LogicError</code> when you call <code>inList</code>. Inside <code>in</code>, an empty list would match nothing. Inside <code>not in</code>, it would match everything. Check for an empty array before you call <code>inList</code>. Each value in the list must be a single value. An array or another <code>InList</code> in the list throws a <code>LogicError</code> when the statement runs.</p>"
+        },
+        {
+          "code": "<?nvs\nvar $db = Core\\Db::open({ driver: Core\\Db\\Driver::Sqlite, path: ':memory:' });\n$db->execute('create table task (id integer primary key, state text not null)', []);\n$db->executeMany('insert into task (id, state) values (?, ?)', [\n    [1, 'open'],\n    [2, 'done'],\n    [3, 'cancelled'],\n    [4, 'open'],\n]);\n\n// The one `?` becomes `(?, ?)`, so this prints the tasks 2 and 3.\nvar $closed = Core\\Db::inList(['done', 'cancelled']);\nforeach ($db->query('select id from task where state in ? order by id', [$closed]) as Core\\Db\\Row $row) {\n    echo 'closed: ', $row->int('id') ?? 0, \"\\n\";\n}\n\n// The same list works with a `:name` placeholder and with `not in`.\nforeach ($db->query('select id from task where state not in :states order by id', ['states' => $closed]) as Core\\Db\\Row $row) {\n    echo 'still open: ', $row->int('id') ?? 0, \"\\n\";\n}\n\n// An empty array throws a `LogicError`.\ntry {\n    Core\\Db::inList([]);\n} catch (LogicError $e) {\n    echo \"an empty list is not allowed\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "closed: 2\nclosed: 3\nstill open: 1\nstill open: 4\nan empty list is not allowed",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db::inList",
+          "url": "/reference/core/db/inlist/"
         }
       ]
     },
@@ -9184,6 +9303,12 @@
       "summaryBlocks": [
         {
           "html": "<p>Every difference between a schema and a database, as a list of steps. A program can read the steps before any of them runs.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Schema::planAgainst",
+          "url": "/reference/core/db-schema/planagainst/"
         }
       ]
     },
@@ -9284,7 +9409,8 @@
         {
           "html": "<p>One difference in a plan: how risky the change is, the reason for that grade, and the SQL that makes the change.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Row",
@@ -9820,7 +9946,8 @@
         {
           "html": "<p>One row of a query result. Its methods read a column by name and return it as a given type.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Rows",
@@ -9965,6 +10092,24 @@
       "summaryBlocks": [
         {
           "html": "<p>The whole result of a query, read into memory at once. A <code>foreach</code> loop gives its rows one by one.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Connection::query",
+          "url": "/reference/core/db-connection/query/"
+        },
+        {
+          "name": "Core\\Db\\Connection::queryAs",
+          "url": "/reference/core/db-connection/queryas/"
+        },
+        {
+          "name": "Core\\Db\\Transaction::query",
+          "url": "/reference/core/db-transaction/query/"
+        },
+        {
+          "name": "Core\\Db\\Transaction::queryAs",
+          "url": "/reference/core/db-transaction/queryas/"
         }
       ]
     },
@@ -10165,7 +10310,8 @@
         {
           "html": "<p>Describes the tables a database should have. You can compare it with a real database and apply the changes that make them match.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Stream",
@@ -10179,7 +10325,33 @@
       "url": "/reference/core/db-stream/",
       "summaryBlocks": [
         {
-          "html": "<p>The rows of a query, read from the database one at a time while a <code>foreach</code> loop runs. Use it for a result too big to keep in memory.</p>"
+          "html": "<p>The rows of a query, read from the database one at a time while a <code>foreach</code> loop runs. Use it for a result too big to keep in memory.</p>\n<p><code>Core\\Db\\Stream&lt;T&gt;</code> is the result of <code>Core\\Db\\Connection::stream</code> and <code>Core\\Db\\Connection::streamAs</code>. <code>Core\\Db\\Transaction</code> has the same two methods. You read a stream with a <code>foreach</code> loop. Each round of the loop reads one row from the database. Only the current row is in memory, so a large result uses as much memory as a small one.</p>\n<p>With <code>stream</code>, each item is a <code>Core\\Db\\Row</code>. With <code>streamAs&lt;City&gt;</code>, each item is a new <code>City</code> object built from the row. <code>query</code> works differently. It reads every row into memory before it returns, and it returns a <code>Core\\Db\\Rows</code>. You can loop over a <code>Core\\Db\\Rows</code> many times. A stream is read once, and a second loop over it gives no rows.</p>\n<p>The connection is busy from the call to <code>stream</code> until the loop reads the last row. Another statement on the same connection in that time throws a <code>LogicError</code>. Read all the rows first, or open a second connection. A loop that ends early with <code>break</code> keeps the connection busy until the request ends. To read only the first rows, write a <code>limit</code> in the SQL.</p>\n<p>A row that does not match the class of <code>streamAs</code> throws a <code>ParseError</code>, and the loop stops at that row. The <code>timeout</code> option is the time for the whole loop. When it passes, the loop stops with an <code>IOError</code>.</p>"
+        },
+        {
+          "code": "<?nvs\n#[Core\\Db\\Derive]\nclass City\n{\n    public uint $id;\n    // Text from the database is `tainted`, because it comes from outside the program.\n    public tainted string $name;\n\n    public function constructor(uint $id, tainted string $name)\n    {\n        $this->id = $id;\n        $this->name = $name;\n    }\n}\n\nvar $db = Core\\Db::open({ driver: Core\\Db\\Driver::Sqlite, path: ':memory:' });\n$db->execute('create table city (id integer primary key, name text not null)', []);\n$db->executeMany('insert into city (id, name) values (?, ?)', [[1, 'Berlin'], [2, 'Hamburg'], [3, 'Bremen']]);\n\nCore\\Db\\Stream<Core\\Db\\Row> $rows = $db->stream('select id, name from city order by id', []);\n\n// No row is read yet, but the connection is busy. This query throws a `LogicError`.\ntry {\n    $db->query('select count(*) as n from city', []);\n} catch (LogicError $e) {\n    echo \"the connection is busy\\n\";\n}\n\nforeach ($rows as Core\\Db\\Row $row) {\n    echo $row->int('id') ?? 0, ' ', $row->string('name') ?? '', \"\\n\";\n}\n\n// The stream is read. A second loop over it prints nothing.\nforeach ($rows as Core\\Db\\Row $row) {\n    echo \"this line is never printed\\n\";\n}\n\n// `streamAs<City>` builds one `City` object from each row.\nforeach ($db->streamAs<City>('select id, name from city where id > ? order by id', [1]) as City $city) {\n    echo $city->id, ': ', $city->name, \"\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "the connection is busy\n1 Berlin\n2 Hamburg\n3 Bremen\n2: Hamburg\n3: Bremen",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Connection::stream",
+          "url": "/reference/core/db-connection/stream/"
+        },
+        {
+          "name": "Core\\Db\\Connection::streamAs",
+          "url": "/reference/core/db-connection/streamas/"
+        },
+        {
+          "name": "Core\\Db\\Transaction::stream",
+          "url": "/reference/core/db-transaction/stream/"
+        },
+        {
+          "name": "Core\\Db\\Transaction::streamAs",
+          "url": "/reference/core/db-transaction/streamas/"
         }
       ]
     },
@@ -10725,7 +10897,8 @@
         {
           "html": "<p>Runs SQL statements inside one transaction. Either all of their changes are saved, or none of them are.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Db.Write",
@@ -10795,6 +10968,16 @@
       "summaryBlocks": [
         {
           "html": "<p>The result of a statement that changes data: how many rows it changed, and the id of an inserted row.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Connection::execute",
+          "url": "/reference/core/db-connection/execute/"
+        },
+        {
+          "name": "Core\\Db\\Transaction::execute",
+          "url": "/reference/core/db-transaction/execute/"
         }
       ]
     },
@@ -11098,7 +11281,8 @@
           "code": "int(42)\nstring(2) \"42\"\nnull\narray(2) [\n  0 => int(10)\n  1 => int(20)\n]\narray(2) [\n  \"a\" => string(1) \"x\"\n  \"b\" => string(1) \"y\"\n]\nPoint#1 (2) {\n  $x => int(1)\n  $y => int(2)\n}\nthe dump went to stderr",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Decimal",
@@ -11593,7 +11777,8 @@
           "code": "1.00|1.01\n1|1\n1.00|1.01\n-2|-1|-1",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Encoding",
@@ -12053,7 +12238,8 @@
           "code": "6 68c3a96c6c6f\naMOpbGxv aMOpbGxv NDB2S3DMN4\nhéllo\n5 68e96c6c6f\nnot utf-8\n80\nrefused",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Env",
@@ -12243,7 +12429,8 @@
         {
           "html": "<p>Reads the environment the program runs in: its environment variables, whether it runs in production or development, and facts about the system.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Fatal",
@@ -12334,7 +12521,8 @@
           "code": "handler registered\nhandler replaced\nwork done: 1000 items, no limit reached",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Hash",
@@ -12549,7 +12737,8 @@
           "code": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n900150983cd24fb0d6963f7d28e17f72\n352441c2\n5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843\nsame\ndiffer",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Hash.Stream",
@@ -12636,6 +12825,12 @@
         {
           "code": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nsame\nfinished",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Hash::stream",
+          "url": "/reference/core/hash/stream/"
         }
       ]
     },
@@ -12785,7 +12980,8 @@
           "code": "next=lint of 3\nlint\nbuild\ndeploy\n9 5 3 still 3",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Html",
@@ -13069,7 +13265,8 @@
           "code": "<p>&lt;script&gt;alert(1)&lt;/script&gt; <span class=\"badge\">new</span></p><p>likes <b>tea</b></p><img src=\"x\">\n<span class=\"badge\">new</span>, <span class=\"badge\">new</span>\n<span class=\"badge\">new</span>",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Html.Markup",
@@ -13083,7 +13280,37 @@
       "url": "/reference/core/html-markup/",
       "summaryBlocks": [
         {
-          "html": "<p>HTML that is safe to put into a page. You get it from an html template, `<code>html</code>…<code> </code><code>, or from </code>Core\\Html::escape`, never from a plain string.</p>"
+          "html": "<p>HTML that is safe to put into a page. You get it from an html template, `<code>html</code>…<code> </code><code>, or from </code>Core\\Html::escape`, never from a plain string.</p>\n<p><code>Core\\Html\\Markup</code> is HTML that is already safe to print. An html template, `<code>html</code>…<code> </code><code>, returns one. </code>Core\\Html::escape<code>, </code>Core\\Html::sanitize<code>, </code>Core\\Html::join<code> and </code>Core\\Html::later<code> return one too. In a web request, </code>Core\\Out::capture<code> returns what its function printed as a </code>Markup<code>. </code>Core\\Response::html<code> takes a </code>Markup<code>, and a </code>string` there does not compile.</p>\n<p>In a web request, <code>echo</code> escapes every <code>string</code> and writes a <code>Markup</code> unchanged. A template does the same with each <code>{$…}</code> value. A <code>string</code> is escaped, and a <code>Markup</code> is written unchanged. So you can put a fragment from one template into another template, and nothing is escaped twice.</p>\n<p>A string becomes a <code>Markup</code> in three ways. <code>Core\\Html::escape</code> escapes it as text. <code>Core\\Html::sanitize</code> keeps only the safe elements and attributes of an HTML string. A string written directly in the code converts with <code>as Core\\Html\\Markup</code>. A computed string does not compile there. A <code>tainted</code> string (text that came from outside the program) does not compile there either.</p>\n<p><code>+</code> joins two <code>Markup</code> values. <code>.</code> and <code>as string</code> on a <code>Markup</code> do not compile. <code>Core\\Html::toSource</code> returns the text of a <code>Markup</code> as a <code>string</code>. It needs a reason, written as a string in the code.</p>"
+        },
+        {
+          "code": "<?nvs\ntainted string $name = 'Tom & <Jerry>';\n\n// The template escapes the string in `{$name}`.\nCore\\Html\\Markup $bold = html`<b>{$name}</b>`;\n\n// `$bold` is a `Markup`, so this template writes it unchanged.\nCore\\Html\\Markup $line = html`<p>Hello {$bold}</p>`;\necho $line, \"\\n\";\n\n// A string written in the code converts with `as`.\nCore\\Html\\Markup $star = '<i class=\"star\"></i>' as Core\\Html\\Markup;\necho $star + Core\\Html::escape($name), \"\\n\";\n\nstring $source = Core\\Html::toSource($star, 'the icon is saved in a cache');\necho Core\\Str::length($source), \"\\n\";",
+          "lang": "nvs"
+        },
+        {
+          "code": "<p>Hello <b>Tom &amp; &lt;Jerry&gt;</b></p>\n<i class=\"star\"></i>Tom &amp; &lt;Jerry&gt;\n20",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Html::escape",
+          "url": "/reference/core/html/escape/"
+        },
+        {
+          "name": "Core\\Html::join",
+          "url": "/reference/core/html/join/"
+        },
+        {
+          "name": "Core\\Html::later",
+          "url": "/reference/core/html/later/"
+        },
+        {
+          "name": "Core\\Html::sanitize",
+          "url": "/reference/core/html/sanitize/"
+        },
+        {
+          "name": "Core\\Out::capture",
+          "url": "/reference/core/out/capture/"
         }
       ]
     },
@@ -13174,7 +13401,8 @@
         {
           "html": "<p>Makes HTTP calls to other servers. <code>Core\\Http::allowUrl</code> checks a URL that came from user input, and the classes under <code>Core\\Http</code> send the requests. <code>Core\\Http::methodName</code> gives the name of an HTTP method as text.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Http.Chunks",
@@ -13188,7 +13416,21 @@
       "url": "/reference/core/http-chunks/",
       "summaryBlocks": [
         {
-          "html": "<p>The pieces of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::chunks()</code> gives each piece as <code>tainted bytes</code>.</p>"
+          "html": "<p>The pieces of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::chunks()</code> gives each piece as <code>tainted bytes</code>.</p>\n<p><code>Core\\Http\\Chunks</code> is the body of a streamed reply, as pieces of raw bytes. <code>Core\\Http\\Stream::chunks</code> returns it. You read it with a <code>foreach</code> loop. Each piece is <code>tainted bytes</code>, because another server sent it.</p>\n<p>The pieces are not split at lines or at any other boundary. The size of each piece depends on the network. Together, the pieces are the whole body, in order. Use <code>chunks()</code> for a body that is not text, such as an image or an archive. For text with one record on each line, use <code>Core\\Http\\Stream::lines</code>. For server-sent events, use <code>Core\\Http\\Stream::events</code>.</p>\n<p>The body of a stream can be read only once. After <code>chunks()</code>, a call to <code>chunks()</code>, <code>lines()</code>, <code>events()</code> or <code>saveTo()</code> on the same stream throws a <code>LogicError</code>. You can stop the loop with <code>break</code>, and the rest of the body is not read. A second <code>foreach</code> over the same <code>Core\\Http\\Chunks</code> continues after the last piece the first loop read.</p>\n<p>A server that sends nothing for longer than the call's <code>idle</code> time throws a <code>TimeoutError</code> in the loop. A body that takes longer than <code>maxDuration</code> throws one too. A connection that fails before the body ends throws an <code>IOError</code>.</p>"
+        },
+        {
+          "code": "<?nvs\n// `Core\\Test::answerHttp` gives a fake reply, so this example does not use the network.\nCore\\Test::answerHttp('https://files.example.com/report.csv', 200, {\n    body: \"date,sales\\n2026-09-01,120\\n2026-09-02,95\\n\",\n});\n\nCore\\Http\\Stream $download = Core\\Http\\Client::stream(Core\\Http\\Method::Get, 'https://files.example.com/report.csv');\nuint $size = 0;\nforeach ($download->chunks() as tainted bytes $piece) {\n    $size = $size + Core\\Bytes::length($piece);\n    // This loop stops when the download is larger than 1 MB.\n    if ($size > 1000000) {\n        echo \"the download is too large\\n\";\n        break;\n    }\n}\necho 'received ', $size, \" bytes\\n\";\n\n// The body was already read, so a second call throws a `LogicError`.\ntry {\n    $download->lines();\n} catch (LogicError $error) {\n    echo \"the body cannot be read twice\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "received 40 bytes\nthe body cannot be read twice",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Stream::chunks",
+          "url": "/reference/core/http-stream/chunks/"
         }
       ]
     },
@@ -15079,7 +15321,8 @@
         {
           "html": "<p>Sends HTTP requests to other servers, with one method for each HTTP verb. Each call returns the reply as a <code>Core\\Http\\Response</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Http.Event",
@@ -15150,7 +15393,8 @@
         {
           "html": "<p>One server-sent event: its data, its name and its id. A <code>foreach</code> over <code>Core\\Http\\Stream::events()</code> gives one for each event the server finished sending.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Http.Events",
@@ -15164,7 +15408,21 @@
       "url": "/reference/core/http-events/",
       "summaryBlocks": [
         {
-          "html": "<p>The server-sent events of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::events()</code> gives each one as a <code>Core\\Http\\Event</code>.</p>"
+          "html": "<p>The server-sent events of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::events()</code> gives each one as a <code>Core\\Http\\Event</code>.</p>\n<p><code>Core\\Http\\Events</code> is the body of a streamed reply, read as server-sent events. <code>Core\\Http\\Stream::events</code> returns it. Server-sent events are a text format for a series of messages from a server, sent with the content type <code>text/event-stream</code>. You read it with a <code>foreach</code> loop, and each item is a <code>Core\\Http\\Event</code>.</p>\n<p>A server sends one event as a few <code>data</code>, <code>event</code> and <code>id</code> lines, and ends it with a blank line. The loop gets the event when that blank line arrives. <code>data()</code> returns a <code>tainted string</code>, with the <code>data</code> lines joined by a newline. <code>name()</code> returns the <code>event</code> line, or <code>null</code>. <code>id()</code> returns the last <code>id</code> the server sent, and later events keep it until a new one arrives. A line that starts with <code>:</code> is a comment and is skipped. Use <code>events()</code> for a <code>text/event-stream</code> reply, such as an AI service that sends its answer word by word. For plain lines of text, use <code>Core\\Http\\Stream::lines</code>.</p>\n<p>An event that the connection ends before its blank line is not given to the loop. One line may have at most 64 KB, and the data of one event at most 1 MB. A longer one throws a <code>RuntimeError</code>. Text that is not valid UTF-8 throws a <code>RuntimeError</code> too. A server that sends nothing for longer than the call's <code>idle</code> time throws a <code>TimeoutError</code>.</p>\n<p>The body of a stream can be read only once. After <code>events()</code>, a call to <code>events()</code>, <code>lines()</code>, <code>chunks()</code> or <code>saveTo()</code> on the same stream throws a <code>LogicError</code>.</p>"
+        },
+        {
+          "code": "<?nvs\n// `Core\\Test::answerHttp` gives a fake reply, so this example does not use the network.\n// The first line is a comment. The second event has two `data` lines.\nCore\\Test::answerHttp('https://prices.example.com/live', 200, {\n    body: \": connected\\nevent: price\\nid: 41\\ndata: apples 1.20\\n\\nevent: notice\\ndata: The market\\ndata: closes soon.\\n\\n\",\n    headers: ['content-type' => 'text/event-stream'],\n});\n\nCore\\Http\\Stream $feed = Core\\Http\\Client::stream(Core\\Http\\Method::Get, 'https://prices.example.com/live');\nforeach ($feed->events() as Core\\Http\\Event $event) {\n    // The second event has no `id` line, so `id()` still returns 41.\n    echo $event->name() ?? 'message', ' #', $event->id() ?? '-', ': ', $event->data(), \"\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "price #41: apples 1.20\nnotice #41: The market\ncloses soon.",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Stream::events",
+          "url": "/reference/core/http-stream/events/"
         }
       ]
     },
@@ -15234,7 +15492,8 @@
         {
           "html": "<p>A client certificate and its key. A request sends it when the server asks the client to prove who it is.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Http.Lines",
@@ -15248,7 +15507,21 @@
       "url": "/reference/core/http-lines/",
       "summaryBlocks": [
         {
-          "html": "<p>The lines of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::lines()</code> gives each line as a <code>tainted string</code>.</p>"
+          "html": "<p>The lines of a streamed reply's body, in the order they arrived. A <code>foreach</code> over <code>Core\\Http\\Stream::lines()</code> gives each line as a <code>tainted string</code>.</p>\n<p><code>Core\\Http\\Lines</code> is the body of a streamed reply, one line at a time. <code>Core\\Http\\Stream::lines</code> returns it. You read it with a <code>foreach</code> loop. Each line is a <code>tainted string</code>, because another server sent it.</p>\n<p>A line ends at <code>\\n</code>, and a <code>\\r</code> just before the <code>\\n</code> is removed too. An empty line is an empty string. The last line is given even when it has no line ending. Use <code>lines()</code> for text with one record on each line, such as JSON Lines or a CSV export. For server-sent events, use <code>Core\\Http\\Stream::events</code>. For a body that is not text, use <code>Core\\Http\\Stream::chunks</code>.</p>\n<p>Only the current line is kept in memory, so the body can be larger than the memory your program may use. A line longer than 64 KB throws a <code>RuntimeError</code>. A line that is not valid UTF-8 throws a <code>RuntimeError</code> too. A server that sends nothing for longer than the call's <code>idle</code> time throws a <code>TimeoutError</code>. A connection that fails before the body ends throws an <code>IOError</code>.</p>\n<p>The body of a stream can be read only once. After <code>lines()</code>, a call to <code>lines()</code>, <code>chunks()</code>, <code>events()</code> or <code>saveTo()</code> on the same stream throws a <code>LogicError</code>. A second <code>foreach</code> over the same <code>Core\\Http\\Lines</code> continues after the last line the first loop read.</p>"
+        },
+        {
+          "code": "<?nvs\n// `Core\\Test::answerHttp` gives a fake reply, so this example does not use the network.\n// The first two lines end with \"\\r\\n\". The last line has no line ending.\nCore\\Test::answerHttp('https://shop.example.com/export/orders.csv', 200, {\n    body: \"id,total\\r\\n1,20\\r\\n2,15\\n3,7\",\n});\n\nCore\\Http\\Stream $export = Core\\Http\\Client::stream(Core\\Http\\Method::Get, 'https://shop.example.com/export/orders.csv');\nCore\\Http\\Lines $lines = $export->lines();\n\n// The first loop reads only the header line.\nforeach ($lines as tainted string $header) {\n    echo '[', $header, \"]\\n\";\n    break;\n}\n\n// This loop continues with the next line. Each line has the form \"id,total\".\nint $sum = 0;\nforeach ($lines as tainted string $line) {\n    array<tainted string> $columns = Core\\Str::split($line, ',');\n    $sum = $sum + ($columns[1] as ?int ?? 0);\n}\n// This prints \"total: 42\".\necho 'total: ', $sum, \"\\n\";",
+          "lang": "nvs"
+        },
+        {
+          "code": "[id,total]\ntotal: 42",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Stream::lines",
+          "url": "/reference/core/http-stream/lines/"
         }
       ]
     },
@@ -15381,7 +15654,8 @@
         {
           "html": "<p>Describes a request body, or one field of a multipart body. A file part is read from disk while it is sent, so the whole file is never in memory.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Http.Response",
@@ -15586,6 +15860,36 @@
       "summaryBlocks": [
         {
           "html": "<p>The reply to an outbound HTTP call: its status code, its headers, its body, and the TLS connection it came over. <code>Core\\Http\\Client::get()</code> returns one.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Client::get",
+          "url": "/reference/core/http-client/get/"
+        },
+        {
+          "name": "Core\\Http\\Client::post",
+          "url": "/reference/core/http-client/post/"
+        },
+        {
+          "name": "Core\\Http\\Client::put",
+          "url": "/reference/core/http-client/put/"
+        },
+        {
+          "name": "Core\\Http\\Client::patch",
+          "url": "/reference/core/http-client/patch/"
+        },
+        {
+          "name": "Core\\Http\\Client::delete",
+          "url": "/reference/core/http-client/delete/"
+        },
+        {
+          "name": "Core\\Http\\Client::head",
+          "url": "/reference/core/http-client/head/"
+        },
+        {
+          "name": "Core\\Http\\Client::request",
+          "url": "/reference/core/http-client/request/"
         }
       ]
     },
@@ -15796,6 +16100,12 @@
       "summaryBlocks": [
         {
           "html": "<p>A WebSocket connection your program opened to another server: it sends and receives messages until one side closes it. <code>Core\\Http\\Client::openSocket()</code> returns one.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Client::openSocket",
+          "url": "/reference/core/http-client/opensocket/"
         }
       ]
     },
@@ -16043,6 +16353,12 @@
         {
           "html": "<p>A reply whose body is read while it arrives. <code>status()</code> and the header methods work at any time. The body can be read once, with one of <code>events()</code>, <code>lines()</code>, <code>chunks()</code> or <code>saveTo()</code>.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Client::stream",
+          "url": "/reference/core/http-client/stream/"
+        }
       ]
     },
     {
@@ -16057,7 +16373,21 @@
       "url": "/reference/core/http-target/",
       "summaryBlocks": [
         {
-          "html": "<p>A URL that <code>Core\\Http::allowUrl</code> checked, with the addresses it was approved for. A call connects only to those addresses, so a second name lookup cannot send it somewhere else.</p>"
+          "html": "<p>A URL that <code>Core\\Http::allowUrl</code> checked, with the addresses it was approved for. A call connects only to those addresses, so a second name lookup cannot send it somewhere else.</p>\n<p><code>Core\\Http\\Target</code> is a URL that <code>Core\\Http::allowUrl</code> checked. You pass it to a <code>Core\\Http\\Client</code> method, such as <code>get</code>, <code>post</code> or <code>stream</code>, in place of the URL. You can use the same <code>Core\\Http\\Target</code> for more than one request.</p>\n<p>A URL that a user typed is <code>tainted</code>. A <code>Core\\Http\\Client</code> method does not accept a <code>tainted</code> URL, and the program does not compile. Without this check, a user could make your server send requests to machines inside your own network. So a program calls <code>Core\\Http::allowUrl</code> first, and passes the result to the client.</p>\n<p><code>Core\\Http::allowUrl</code> checks three things. The scheme must be <code>http</code>, <code>https</code>, <code>ws</code> or <code>wss</code>, and the URL must have a host. If <code>net.connect</code> in <code>nvs.toml</code> lists hosts, the host must be one of them. And the host's addresses must not be private, link-local or unspecified, unless <code>net.internal</code> lists them. A loopback address such as <code>127.0.0.1</code> is allowed on the command line and in development mode.</p>\n<p>A URL that fails the check throws a <code>RuntimeError</code>, and the message gives the reason. No request is sent. The <code>Core\\Http\\Target</code> has the addresses that were checked, at most eight. The request connects only to these addresses. The host name is not looked up a second time.</p>"
+        },
+        {
+          "code": "<?nvs\n// `Core\\Test::answerHttp` gives a fake reply, so this example does not use the network.\nCore\\Test::answerHttp('https://203.0.113.10/*', 200, { json: ['received' => true] });\n\n// Text from a user is `tainted`. `Core\\Http::allowUrl` checks it and returns a `Core\\Http\\Target`.\ntainted string $typed = 'https://203.0.113.10/hooks/order';\nCore\\Http\\Target $hook = Core\\Http::allowUrl($typed);\nCore\\Http\\Response $reply = Core\\Http\\Client::post($hook, { json: ['order' => 7] });\necho $reply->status(), ' ', $reply->text(), \"\\n\";\n\n// 10.0.0.7 is a private address, so `allowUrl` throws a `RuntimeError`.\ntry {\n    Core\\Http\\Target $inside = Core\\Http::allowUrl('http://10.0.0.7/admin');\n} catch (RuntimeError $error) {\n    echo $error->message, \"\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "200 {\"received\":true}\nCore\\Http::allowUrl cannot connect to 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except\nhelp: add `internal = [\"10.0.0.7\"]` under `[capabilities.net]` in nvs.toml",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http::allowUrl",
+          "url": "/reference/core/http/allowurl/"
         }
       ]
     },
@@ -16223,6 +16553,16 @@
       "summaryBlocks": [
         {
           "html": "<p>The details of the TLS connection a reply came over: the TLS version, the cipher, the server's certificates, and whether they were checked. <code>Core\\Http\\Response::tls()</code> returns one.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Response::tls",
+          "url": "/reference/core/http-response/tls/"
+        },
+        {
+          "name": "Core\\Test::tlsSession",
+          "url": "/reference/core/test/tlssession/"
         }
       ]
     },
@@ -17457,7 +17797,8 @@
           "code": "11 bytes\nalpha\nbeta\ngamma\nmissing: no such file\noutside: refused",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "IO.File",
@@ -17790,6 +18131,12 @@
         {
           "html": "<p>An open file. <code>Core\\IO::open</code> returns one. It reads and writes a part of the file at a time, and <code>seek</code> and <code>tell</code> move to a position and return it. <code>close</code> closes it, and a handle that is still open is closed when the request ends.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\IO::open",
+          "url": "/reference/core/io/open/"
+        }
       ]
     },
     {
@@ -17804,7 +18151,25 @@
       "url": "/reference/core/io-lines/",
       "summaryBlocks": [
         {
-          "html": "<p>The lines of a file, which <code>Core\\IO::lines</code> returns. Use it in a <code>foreach</code> loop to get one line at a time, as a string.</p>"
+          "html": "<p>The lines of a file, which <code>Core\\IO::lines</code> returns. Use it in a <code>foreach</code> loop to get one line at a time, as a string.</p>\n<p><code>Core\\IO\\Lines</code> contains the lines of a text file. <code>Core\\IO::lines</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is a <code>string</code> with one line, without its line break. A line ends at <code>\\n</code>, <code>\\r\\n</code> or a single <code>\\r</code>. An empty line in the middle of the file is an empty string. A line break at the end of the file does not add an empty last line.</p>\n<p><code>Core\\IO::lines</code> reads the whole file and closes it before it returns. A change to the file after that does not change the result. You can loop over the result as often as you like. Each loop starts at the first line again.</p>\n<p><code>Core\\IO::lines</code> throws an <code>IOError</code> when the file does not exist or cannot be read. It throws a <code>RuntimeError</code> when the file is not valid UTF-8 text, or when the program may not read the path. The loop itself does not throw an error.</p>"
+        },
+        {
+          "code": "buy milk\ncall the bank\nwater the plants",
+          "lang": "txt"
+        },
+        {
+          "code": "<?nvs\nvar $lines = Core\\IO::lines('todo.txt');\n\nuint $number = 0;\nforeach ($lines as string $line) {\n    $number = $number + 1;\n    echo $number, ': ', $line, \"\\n\";\n}\n\n// A second loop starts at the first line again.\nforeach ($lines as string $line) {\n    echo Core\\Str::length($line), ' ';\n}\necho \"\\n\";",
+          "lang": "nvs"
+        },
+        {
+          "code": "1: buy milk\n2: call the bank\n3: water the plants\n8 13 16",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\IO::lines",
+          "url": "/reference/core/io/lines/"
         }
       ]
     },
@@ -17895,6 +18260,12 @@
         {
           "html": "<p>What <code>Core\\IO::stat</code> returns about one path: its size, when it was last changed, and whether it is a file or a directory. All four are read at the same moment. They do not change when the file changes later, so call <code>stat</code> again to get new values.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\IO::stat",
+          "url": "/reference/core/io/stat/"
+        }
       ]
     },
     {
@@ -17909,7 +18280,33 @@
       "url": "/reference/core/io-walk/",
       "summaryBlocks": [
         {
-          "html": "<p>Every file and directory under a directory, which <code>Core\\IO::walk</code> returns. Use it in a <code>foreach</code> loop to get each path, relative to the directory you started from.</p>"
+          "html": "<p>Every file and directory under a directory, which <code>Core\\IO::walk</code> returns. Use it in a <code>foreach</code> loop to get each path, relative to the directory you started from.</p>\n<p><code>Core\\IO\\Walk</code> contains every file and folder under one folder, including the ones in its sub-folders. <code>Core\\IO::walk</code> returns it. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is a <code>string</code> path relative to the folder you started from, such as <code>images/logo.svg</code>. On Windows, the folder names are separated by <code>\\</code>. <code>Core\\Path::SEPARATOR</code> is the separator of the system the program runs on. <code>Core\\Path::join</code> puts the starting folder in front again. A symbolic link is an item, but <code>walk</code> does not follow it.</p>\n<p>The items of one folder come before the items of the folders inside it. Inside one folder, the order is the order the operating system gives. Sort the paths if you need a fixed order.</p>\n<p><code>Core\\IO::walk</code> reads the whole tree before it returns. A file written after that is not in the result. You can loop over the result as often as you like. <code>walk</code> throws an <code>IOError</code> when the path does not exist, when it is a file, or when a folder cannot be read. It throws a <code>RuntimeError</code> when the program may not read a folder. The loop itself does not throw an error.</p>"
+        },
+        {
+          "code": "<h1>Home</h1>",
+          "lang": "txt"
+        },
+        {
+          "code": "<svg/>",
+          "lang": "txt"
+        },
+        {
+          "code": "<svg/>",
+          "lang": "txt"
+        },
+        {
+          "code": "<?nvs\narray<string> $paths = [];\nforeach (Core\\IO::walk('site') as string $entry) {\n    // This changes `\\` to `/`, so the output is the same on every system.\n    $paths[] = Core\\Str::replace($entry, Core\\Path::SEPARATOR, '/');\n}\n\n// The folders are items too. This prints five paths in alphabetical order.\nforeach (Core\\Arr::sort($paths) as string $path) {\n    echo $path, \"\\n\";\n}",
+          "lang": "nvs"
+        },
+        {
+          "code": "images\nimages/icons\nimages/icons/cart.svg\nimages/logo.svg\nindex.html",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\IO::walk",
+          "url": "/reference/core/io/walk/"
         }
       ]
     },
@@ -18257,7 +18654,8 @@
           "code": "{\"id\":7,\"tags\":[\"a\",\"b\"],\"ok\":true}\n{\n  \"n\": 3.5,\n  \"list\": [\n    1,\n    2\n  ]\n}\nAda unknown {\"name\":\"Ada\",\"age\":null,\"is_admin\":true}\ninvalid\n3 issues\nAda admin\nBen user",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Json.Elements",
@@ -18271,7 +18669,29 @@
       "url": "/reference/core/json-elements/",
       "summaryBlocks": [
         {
-          "html": "<p>The elements of a JSON array, read one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>"
+          "html": "<p>The elements of a JSON array, read one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>\n<p><code>Core\\Json\\Elements&lt;T&gt;</code> contains the elements of a JSON array. <code>Core\\Json::decodeEach&lt;T&gt;</code> returns it. It reads an open <code>Core\\IO\\File</code> or a stream of bytes, such as <code>Core\\Request::bodyStream()</code>. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is one element, as a <code>T</code>. <code>T</code> can be a class with the <code>#[Core\\Json\\Derive]</code> attribute, a shape such as <code>{ name: string, age: int }</code>, or <code>mixed</code>. Each element is checked against <code>T</code>. When <code>T</code> is <code>mixed</code>, every string in an element is a <code>tainted string</code>.</p>\n<p>The JSON is read while the loop runs, and only one element is in memory at a time. You can read the elements only once. A second loop continues after the last element the first loop read. After the last element, a loop gives no items.</p>\n<p>The loop throws a <code>ParseError</code> when the JSON is not valid or an element does not match <code>T</code>. The message gives the byte offset. Your loop has already received the elements before it. The loop throws a <code>RuntimeError</code> when the file is closed or cannot be read. <code>decodeEach</code> does not close the file. Call <code>close()</code> on the file when the loop is done.</p>"
+        },
+        {
+          "code": "[\n  {\"name\": \"Ada\", \"age\": 36},\n  {\"name\": \"Ben\", \"age\": 41}\n]",
+          "lang": "json"
+        },
+        {
+          "code": "[1, 2, oops]",
+          "lang": "json"
+        },
+        {
+          "code": "<?nvs\nCore\\IO\\File $users = Core\\IO::open('users.json', Core\\IO::FileMode::Read);\nforeach (Core\\Json::decodeEach<{ name: string, age: int }>($users) as var $user) {\n    echo $user->name, ' is ', $user->age, \"\\n\";\n}\n$users->close();\n\n// The third element is not valid JSON. The loop prints 1 and 2 first.\nCore\\IO\\File $broken = Core\\IO::open('broken.json', Core\\IO::FileMode::Read);\ntry {\n    foreach (Core\\Json::decodeEach<mixed>($broken) as mixed $n) {\n        echo $n as ?int ?? 0, \"\\n\";\n    }\n} catch (ParseError $e) {\n    echo \"not valid JSON\\n\";\n}\n$broken->close();",
+          "lang": "nvs"
+        },
+        {
+          "code": "Ada is 36\nBen is 41\n1\n2\nnot valid JSON",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Json::decodeEach",
+          "url": "/reference/core/json/decodeeach/"
         }
       ]
     },
@@ -18287,7 +18707,21 @@
       "url": "/reference/core/json-pieces/",
       "summaryBlocks": [
         {
-          "html": "<p>The text of a JSON document in pieces of <code>bytes</code>, written one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>"
+          "html": "<p>The text of a JSON document in pieces of <code>bytes</code>, written one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>\n<p><code>Core\\Json\\Pieces</code> contains the JSON text of a list, in pieces. <code>Core\\Json::encodeEach</code> returns it. It takes an array or an iterable, such as the rows of a database query. The class has no methods. You read it with a <code>foreach</code> loop.</p>\n<p>Each item is <code>tainted bytes</code>, at most 64 KiB long. The <code>[</code>, the commas and the <code>]</code> are part of the pieces. With <code>{ lines: true }</code>, the text is JSON Lines: one value on each line, with no brackets. Use <code>$piece as string</code> when you need the text of a piece.</p>\n<p>Nothing is encoded until the loop starts. The method takes the next item only when it needs it, so the whole document is never in memory at once. You can read the pieces only once. After the last piece, a loop gives no items.</p>\n<p>The loop throws a <code>LogicError</code> when an item cannot be written as JSON, as <code>Core\\Json::encode</code> does. An object whose class does not have <code>#[Core\\Json\\Derive]</code> is one example. Your loop may already have received some pieces before the error. To write the pieces to a file, pass them to <code>Core\\IO::writeStream</code>.</p>"
+        },
+        {
+          "code": "<?nvs\narray<{ id: int, name: string }> $users = [\n    { id: 1, name: 'Ada' },\n    { id: 2, name: 'Ben' },\n];\n\n// A short list fits in one piece.\nforeach (Core\\Json::encodeEach($users) as var $piece) {\n    echo $piece as string, \"\\n\";\n}\n\n// `writeStream` writes the pieces to a file. This file has one user on each line.\nstring $path = Core\\Path::join(Core\\IO::temporaryDir(), 'users.jsonl');\nCore\\IO::writeStream($path, Core\\Json::encodeEach($users, { lines: true }), { overwrite: true });\necho Core\\IO::read($path);",
+          "lang": "nvs"
+        },
+        {
+          "code": "[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Ben\"}]\n{\"id\":1,\"name\":\"Ada\"}\n{\"id\":2,\"name\":\"Ben\"}",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Json::encodeEach",
+          "url": "/reference/core/json/encodeeach/"
         }
       ]
     },
@@ -18420,7 +18854,8 @@
         {
           "html": "<p>Encrypts a text into a JWE token that only the holder of the right key can read. <code>encrypt</code> writes the token and <code>decrypt</code> reads the text back. The key is a <code>Jwe\\Key</code>, and the method that made the key chooses the algorithm.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Jwe.Key",
@@ -18587,7 +19022,8 @@
         {
           "html": "<p>The key for <code>Core\\Jwe</code>. Each static method makes one kind of key: <code>shared</code> from 32 secret bytes, <code>password</code> from a password, <code>recipient</code> from another party's public key, and <code>own</code> from your own key pair. You cannot read the key back out.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Jwt",
@@ -18955,7 +19391,8 @@
         {
           "html": "<p>Signs and checks JSON Web Tokens (JWT). <code>sign</code> and <code>signObject</code> write a token that always expires. <code>verify</code> checks a token your own program signed, and <code>verifyIssued</code> checks a token from another service. Both throw an error when the token is not valid.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Jwt.KeySet",
@@ -19024,7 +19461,8 @@
         {
           "html": "<p>The public keys another service uses to sign its tokens. <code>read</code> reads them from the JWKS document that service publishes. <code>Core\\Jwt::verifyIssued</code> then checks a token with the one key its <code>kid</code> names.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ldap",
@@ -19173,7 +19611,8 @@
         {
           "html": "<p>Opens a connection to an LDAP directory, such as Active Directory. The name of a directory in the server's configuration is enough, or the program can give the settings itself.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ldap.Ad",
@@ -19370,7 +19809,8 @@
         {
           "html": "<p>Filters that only Active Directory understands: group membership through nested groups, enabled and disabled accounts, and a test of the bits in a flag attribute. Each function returns a <code>Core\\Ldap\\Filter</code>, which you can combine with the filters of that class.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ldap.Ad.AccountFlags",
@@ -19974,6 +20414,12 @@
         {
           "html": "<p>The flags of a user or computer account, read from <code>userAccountControl</code>. Each flag is a function that returns a <code>bool</code>. <code>bits</code> returns the whole number. It includes every bit, also the bits that have no function of their own.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Entry::accountFlags",
+          "url": "/reference/core/ldap-entry/accountflags/"
+        }
       ]
     },
     {
@@ -20212,6 +20658,12 @@
         {
           "html": "<p>The type of a group, read from <code>groupType</code>. Each flag is a function that returns a <code>bool</code>. <code>bits</code> returns the whole number.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Entry::groupType",
+          "url": "/reference/core/ldap-entry/grouptype/"
+        }
       ]
     },
     {
@@ -20421,7 +20873,8 @@
         {
           "html": "<p>One change to one attribute, for <code>Connection::modify</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Ldap.Changes",
@@ -20461,6 +20914,12 @@
       "summaryBlocks": [
         {
           "html": "<p>The entries that changed since a cookie. A <code>foreach</code> loop gets them one at a time. After the loop, <code>cookie()</code> returns the cookie for the next call to <code>changes</code>.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Connection::changes",
+          "url": "/reference/core/ldap-connection/changes/"
         }
       ]
     },
@@ -21213,6 +21672,16 @@
         {
           "html": "<p>An open connection to one LDAP directory. The connection is closed when the request ends.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap::connect",
+          "url": "/reference/core/ldap/connect/"
+        },
+        {
+          "name": "Core\\Ldap::open",
+          "url": "/reference/core/ldap/open/"
+        }
       ]
     },
     {
@@ -21476,6 +21945,12 @@
         {
           "html": "<p>A DN (distinguished name), the path of an entry in a directory, such as <code>CN=Ann Lee,OU=Staff,DC=example,DC=test</code>. Build one from an attribute and a value. The value can be user input, because each special character in it is escaped.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Entry::dn",
+          "url": "/reference/core/ldap-entry/dn/"
+        }
       ]
     },
     {
@@ -21528,6 +22003,12 @@
       "summaryBlocks": [
         {
           "html": "<p>The entries a search found. A <code>foreach</code> loop gets them one at a time, and reads the next page from the server when it needs it.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Connection::search",
+          "url": "/reference/core/ldap-connection/search/"
         }
       ]
     },
@@ -22110,6 +22591,12 @@
       "summaryBlocks": [
         {
           "html": "<p>One entry from a directory: its DN and its attributes. Attribute names ignore upper and lower case, so <code>mail</code> and <code>Mail</code> are the same attribute.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Connection::read",
+          "url": "/reference/core/ldap-connection/read/"
         }
       ]
     },
@@ -22698,6 +23185,28 @@
         {
           "html": "<p>Which entries a search returns. A filter is built from an attribute name and a value. The value is sent as data and never as filter text, so a value from a user cannot change what the filter matches.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Ad::memberOf",
+          "url": "/reference/core/ldap-ad/memberof/"
+        },
+        {
+          "name": "Core\\Ldap\\Ad::enabled",
+          "url": "/reference/core/ldap-ad/enabled/"
+        },
+        {
+          "name": "Core\\Ldap\\Ad::disabled",
+          "url": "/reference/core/ldap-ad/disabled/"
+        },
+        {
+          "name": "Core\\Ldap\\Ad::bitAnd",
+          "url": "/reference/core/ldap-ad/bitand/"
+        },
+        {
+          "name": "Core\\Ldap\\Ad::bitOr",
+          "url": "/reference/core/ldap-ad/bitor/"
+        }
       ]
     },
     {
@@ -22826,6 +23335,12 @@
         {
           "html": "<p>A SID (security identifier), the number Windows uses for a user, a group or a computer, such as <code>S-1-5-21-1004336348-1177238915-682003330-512</code>.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Entry::sid",
+          "url": "/reference/core/ldap-entry/sid/"
+        }
       ]
     },
     {
@@ -22910,7 +23425,8 @@
         {
           "html": "<p>Writes log records. <code>write</code> writes one record as one line of JSON, with a level, a message and any extra fields. The server's <code>[log]</code> settings decide where records go and which levels are kept.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Mail",
@@ -23039,7 +23555,8 @@
         {
           "html": "<p>Sends email. <code>send</code> gives one message to the mail server that a <code>[mail.&lt;name&gt;]</code> block of <code>nvs.toml</code> names. The program writes the block's name. The host, the port, the password and the sender address stay in the block.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Math",
@@ -24693,7 +25210,8 @@
           "code": "7 2.5 -1\n9 10\n3 1.23 2\n1 2 -1\n3 1 1.5\n4 5 2\n1 180\nff 255 101\n1,234,567.89\n6 12\nnan 9223372036854775807",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Metrics",
@@ -24886,7 +25404,8 @@
         {
           "html": "<p>Counts and measures what your program does, for a monitoring system to collect. <code>increment</code> adds to a counter, <code>observe</code> records a measurement and <code>gauge</code> sets a level. A program cannot read the values back.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Mime",
@@ -24979,7 +25498,8 @@
         {
           "html": "<p>Finds out what kind of file some bytes are, such as a PNG image or a PDF, by reading the first bytes. <code>detect</code> returns a <code>Core\\Mime::Type</code> case, and <code>mediaType</code> gives its name, such as <code>image/png</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Net",
@@ -25279,7 +25799,8 @@
         {
           "html": "<p>Opens network sockets. <code>connect</code> and <code>listen</code> open a TCP connection or a TCP listener, <code>bindDatagram</code> opens a UDP socket, and <code>connectLocal</code> and <code>listenLocal</code> do the same over a Unix-domain socket path. Each one needs a grant in the configuration.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Net.Datagram",
@@ -25490,6 +26011,12 @@
         {
           "html": "<p>A UDP socket, returned by <code>Core\\Net::bindDatagram</code>. <code>send</code> sends one message to an address, and <code>receive</code> waits for one message and returns it as a <code>Core\\Net\\Datagram\\Message</code>.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Net::bindDatagram",
+          "url": "/reference/core/net/binddatagram/"
+        }
       ]
     },
     {
@@ -25560,6 +26087,12 @@
       "summaryBlocks": [
         {
           "html": "<p>One message that <code>Core\\Net\\Datagram::receive</code> returned. <code>payload</code> gives its bytes, and <code>host</code> and <code>port</code> give the address it came from, which is where a reply goes.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Net\\Datagram::receive",
+          "url": "/reference/core/net-datagram/receive/"
         }
       ]
     },
@@ -25676,6 +26209,16 @@
       "summaryBlocks": [
         {
           "html": "<p>A TCP server socket, returned by <code>Core\\Net::listen</code> and <code>Core\\Net::listenLocal</code>. <code>accept</code> waits for the next client and returns a <code>Core\\Net\\Stream</code> for it.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Net::listen",
+          "url": "/reference/core/net/listen/"
+        },
+        {
+          "name": "Core\\Net::listenLocal",
+          "url": "/reference/core/net/listenlocal/"
         }
       ]
     },
@@ -25836,6 +26379,20 @@
         {
           "html": "<p>A connection to one client or server, returned by <code>Core\\Net::connect</code>, <code>Core\\Net::connectLocal</code> and <code>Core\\Net\\Listener::accept</code>. <code>read</code> and <code>write</code> move bytes, and each waits no longer than its <code>$within</code>.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Net::connect",
+          "url": "/reference/core/net/connect/"
+        },
+        {
+          "name": "Core\\Net::connectLocal",
+          "url": "/reference/core/net/connectlocal/"
+        },
+        {
+          "name": "Core\\Net\\Listener::accept",
+          "url": "/reference/core/net-listener/accept/"
+        }
       ]
     },
     {
@@ -25955,7 +26512,8 @@
         {
           "html": "<p>Makes barcodes: lines of bars that a scanner reads, and the square DataMatrix code.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Image.Color",
@@ -26048,7 +26606,8 @@
         {
           "html": "<p>A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Image.Diff",
@@ -26123,6 +26682,12 @@
         {
           "html": "<p>The result of <code>Image::compare</code>. A delta is the largest difference in one channel, from 0 to 255. <code>ssim</code> is <code>1.0</code> for identical images. <code>diff</code> is a PNG with the differing pixels in red, or <code>null</code>.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Novis\\Image\\Image::compare",
+          "url": "/reference/core/novis-image-image/compare/"
+        }
       ]
     },
     {
@@ -26166,7 +26731,8 @@
         {
           "html": "<p>A TrueType or OpenType font file that <code>Image::text</code> and <code>Image::measureText</code> draw with. Your program reads the file itself. There are no system fonts.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Image.Image",
@@ -27253,7 +27819,8 @@
           "code": "image/jpeg 6x4",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Image.QrCode",
@@ -27378,7 +27945,8 @@
         {
           "html": "<p>Makes QR codes: square images that a phone camera can read back to text.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.Collator",
@@ -27511,7 +28079,8 @@
         {
           "html": "<p>Sorts strings by the rules of a language and region. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;sv-SE&quot;</code>, and sorts the whole list in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.DateFormat",
@@ -27680,7 +28249,8 @@
         {
           "html": "<p>Writes dates and times the way a language and region write them. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;en-GB&quot;</code>, and formats the whole list in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.ListFormat",
@@ -27752,7 +28322,8 @@
         {
           "html": "<p>Joins the items of a list with the words a language uses, such as &quot;Shop, Blog, and Wiki&quot;. The method takes many lists and a locale tag, such as <code>&quot;de&quot;</code>, and joins them all in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.Locale",
@@ -27862,7 +28433,8 @@
         {
           "html": "<p>Chooses a language for a request, and shows which language data a locale tag uses.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.NumberFormat",
@@ -28084,7 +28656,8 @@
         {
           "html": "<p>Writes numbers the way a language and region write them. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;en-IN&quot;</code>, and formats the whole list in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.PluralRules",
@@ -28169,7 +28742,8 @@
         {
           "html": "<p>Gives the plural category of numbers in a language. You use the category to choose the right form of a word, such as &quot;1 file&quot; or &quot;2 files&quot;. Each method takes a whole list and a locale tag.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.RelativeTime",
@@ -28257,7 +28831,8 @@
         {
           "html": "<p>Writes an amount of time before or after now, such as &quot;3 days ago&quot;, the way a language writes it. The method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code>, and formats it in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Intl.Segmenter",
@@ -28342,7 +28917,8 @@
         {
           "html": "<p>Splits text into words or sentences, the way a language does. The methods take many strings and a locale tag, such as <code>&quot;ja&quot;</code>, and split them all in one call.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Pdf.Document",
@@ -28655,7 +29231,8 @@
           "code": "a PDF file\n1 page",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Pdf.Page",
@@ -28847,7 +29424,8 @@
         {
           "html": "<p>One page of a document. <code>Document::render</code> calls a header or footer function once for each page, with that page's <code>Page</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Pdf.Pages",
@@ -28924,7 +29502,8 @@
         {
           "html": "<p>Pages chosen from an existing PDF file. <code>Pages::merge</code> puts the chosen pages of several files into one file.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Pdf.Reader",
@@ -29036,7 +29615,8 @@
         {
           "html": "<p>An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Pdf.Rendered",
@@ -29123,6 +29703,12 @@
       "summaryBlocks": [
         {
           "html": "<p>The result of <code>Document::render</code>: the PDF file, its page count, and what the render could not draw.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Novis\\Pdf\\Document::render",
+          "url": "/reference/core/novis-pdf-document/render/"
         }
       ]
     },
@@ -29248,7 +29834,8 @@
         {
           "html": "<p>One value with its own <code>Style</code>, or one cell of rich text. Make one with <code>Cell::of</code> or <code>Cell::rich</code> and put it in a row in place of the value.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Chart",
@@ -29637,7 +30224,8 @@
         {
           "html": "<p>One chart for a sheet. Start it with its type, such as <code>Chart::column()</code>, then add its data with <code>series</code>. <code>Sheet::chart</code> puts the chart on a sheet. A <code>Chart</code> does not change: each method returns a new chart.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Export",
@@ -29804,6 +30392,16 @@
         {
           "html": "<p>A whole workbook from <code>Workbook::fromRows</code> or <code>Template::fill</code>. The method you call on it sets where the file goes.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Novis\\Spreadsheet\\Template::fill",
+          "url": "/reference/core/novis-spreadsheet-template/fill/"
+        },
+        {
+          "name": "Novis\\Spreadsheet\\Workbook::fromRows",
+          "url": "/reference/core/novis-spreadsheet-workbook/fromrows/"
+        }
       ]
     },
     {
@@ -29889,7 +30487,8 @@
         {
           "html": "<p>An Excel formula for one cell, such as <code>SUM(C2:C9)</code>. Make one with <code>Formula::of</code>. A string is always written as text. Only a <code>Formula</code> is written as a formula.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Reader",
@@ -30254,7 +30853,8 @@
         {
           "html": "<p>A spreadsheet file that your program reads row by row, such as an upload. It can be xlsx, xlsm, xlsb, xls, ods or CSV. Open one with <code>Reader::open</code>. Every string and <code>bytes</code> value it returns is <code>tainted</code>, because it comes from the file.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Row",
@@ -30305,7 +30905,8 @@
         {
           "html": "<p>One row that <code>Reader::rows</code> read. <code>number</code> is the row number in the file, and the first row is 1. <code>values</code> has the values of the row, by header text or by column letter.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Sheet",
@@ -30923,6 +31524,12 @@
         {
           "html": "<p>One sheet of a <code>Workbook</code>. Add its rows in order with <code>add</code> or <code>addAll</code>, and a row cannot be changed after that. The other methods add merged cells, links, notes, tables and more. They can use any row you already added.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Novis\\Spreadsheet\\Workbook::sheet",
+          "url": "/reference/core/novis-spreadsheet-workbook/sheet/"
+        }
       ]
     },
     {
@@ -31066,7 +31673,8 @@
         {
           "html": "<p>A set of style fields for a cell, a row, a column or a header row. Make one with <code>Style::of</code>. A cell uses each field from its own style first, then from its row, then from its column.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Template",
@@ -31186,7 +31794,8 @@
         {
           "html": "<p>A workbook designed in Excel, with placeholders such as <code>{{customer.name}}</code> in its cells. Open one with <code>Template::open</code>. <code>fill</code> puts your data in the placeholders. A row with a list placeholder, such as <code>{{items.qty}}</code>, is written once for each item.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Workbook",
@@ -31483,7 +32092,8 @@
         {
           "html": "<p>An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in <code>.ods</code> or <code>.csv</code>, or <code>format: 'ods'</code> or <code>format: 'csv'</code>, sets the format. Each <code>create</code> method sets where the file goes. Add a sheet with <code>sheet</code>, add its rows, and call <code>finish</code> at the end.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Novis.Spreadsheet.Written",
@@ -31541,6 +32151,20 @@
       "summaryBlocks": [
         {
           "html": "<p>The result of <code>Workbook::finish</code>. <code>rows</code> has the number of rows of each sheet, by sheet name. <code>size</code> is the size of the file in bytes. <code>bytes</code> is the whole file from <code>createInMemory</code>, or <code>null</code>.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Novis\\Spreadsheet\\Export::save",
+          "url": "/reference/core/novis-spreadsheet-export/save/"
+        },
+        {
+          "name": "Novis\\Spreadsheet\\Export::to",
+          "url": "/reference/core/novis-spreadsheet-export/to/"
+        },
+        {
+          "name": "Novis\\Spreadsheet\\Workbook::finish",
+          "url": "/reference/core/novis-spreadsheet-workbook/finish/"
         }
       ]
     },
@@ -31801,7 +32425,8 @@
           "code": "red=4\nother red=-1\ncount=2\nred blue\nblue gone\nkeys=1 values=1",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "ObjectSet",
@@ -32078,7 +32703,8 @@
           "code": "count=2\nhas red\nno other red\nunion=3\nboth=1\nonly seen=1\nblue\nnot empty",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Os",
@@ -32209,7 +32835,8 @@
         {
           "html": "<p>Facts about the machine your program runs on and about the program itself. <code>pid</code> returns the process number, <code>hostname</code> the machine's name and <code>cpuCount</code> how many cores the program may use. <code>residentBytes</code> returns the memory of the whole process, and <code>loadAverage</code> how busy the machine is. These methods need no capability.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Out",
@@ -32282,7 +32909,8 @@
           "code": "captured=[ab]\nouter<inner>\n[]\nthrew: stop",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Passkey",
@@ -32622,7 +33250,8 @@
         {
           "html": "<p>Passkey sign-in (WebAuthn). A passkey replaces a password. <code>registerOptions</code> and <code>verifyRegistration</code> add a passkey to an account. <code>signInOptions</code> and <code>verifySignIn</code> sign the user in with it. In the browser, JavaScript calls <code>navigator.credentials</code> with the options.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Passkey.Credential",
@@ -32796,6 +33425,16 @@
         {
           "html": "<p>A passkey that a user registered. Save its four values with the account, and create it again with <code>of</code>. It contains no secret, because a public key can only check signatures.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Passkey::verifyRegistration",
+          "url": "/reference/core/passkey/verifyregistration/"
+        },
+        {
+          "name": "Core\\Passkey::verifySignIn",
+          "url": "/reference/core/passkey/verifysignin/"
+        }
       ]
     },
     {
@@ -32954,7 +33593,8 @@
           "code": "stored under argon2id, v19\nthe right password verifies\nthe wrong one does not\nfresh is current, m=8192 has fallen behind\ndone",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Path",
@@ -33443,7 +34083,8 @@
           "code": "index.php index php\n/var/www/html /var/www\n/var/www/html/index.html\n/var/www/html/index.php\n/var/log/app.log\n../log/app.log\netc,hosts abs rel\nnone",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Process",
@@ -33624,7 +34265,8 @@
         {
           "html": "<p>Runs other programs. A program is started directly with a list of arguments, never through a shell, so an argument cannot add a second command. <code>run</code> waits for the program to end, and <code>spawn</code> returns a handle while it runs. Both need the <code>process.exec</code> capability.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Process.Handle",
@@ -33796,6 +34438,12 @@
         {
           "html": "<p>A program that <code>Core\\Process::spawn</code> started and that may still be running. <code>readStdout</code> and <code>readStderr</code> read its output a part at a time, and <code>writeStdin</code> writes to its input. <code>wait</code> waits for the end and returns a <code>Core\\Process\\Result</code>, and <code>kill</code> stops the program at once. Call one of them before your script or request ends. A program that is still running then is stopped, and Novis reports an error.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Process::spawn",
+          "url": "/reference/core/process/spawn/"
+        }
       ]
     },
     {
@@ -33866,6 +34514,16 @@
       "summaryBlocks": [
         {
           "html": "<p>The result of a program that has ended. <code>Core\\Process::run</code> and <code>Core\\Process\\Handle::wait</code> return one. <code>exitCode</code> returns the program's exit code, and <code>stdout</code> and <code>stderr</code> return what it wrote to its output and its error output. The program has already ended, so these methods never throw an error.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Process::run",
+          "url": "/reference/core/process/run/"
+        },
+        {
+          "name": "Core\\Process\\Handle::wait",
+          "url": "/reference/core/process-handle/wait/"
         }
       ]
     },
@@ -33997,7 +34655,8 @@
           "code": "found 2\nHey!\nGood day.\nid is 64 characters, and stable within the run: yes",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Queue",
@@ -34420,7 +35079,8 @@
         {
           "html": "<p>Runs work in the background. <code>push</code> saves a job as a row in the database set by <code>[queue] connection</code>, and a worker runs the job later. Inside a transaction on that connection, the job is saved only when the transaction commits. <code>status</code>, <code>cancel</code> and <code>delete</code> work on one job. <code>stats</code> and <code>purge</code> work on a whole queue.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Queue.Id",
@@ -34434,7 +35094,25 @@
       "url": "/reference/core/queue-id/",
       "summaryBlocks": [
         {
-          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. It has no methods of its own.</p>"
+          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. It has no methods of its own.</p>\n<p><code>Core\\Queue\\Id</code> identifies one background job and the queue that the job is in. <code>Core\\Queue::push</code> returns it. You pass it to <code>Core\\Queue::status</code>, <code>Core\\Queue::cancel</code> and <code>Core\\Queue::delete</code>. An <code>Id</code> has no methods, and it cannot be printed or converted to a <code>string</code>.</p>\n<p>When you call <code>push</code> with a <code>key</code>, and a pending job already has that key, <code>push</code> adds no job. It returns an <code>Id</code> for the pending job, so <code>status</code>, <code>cancel</code> and <code>delete</code> work on that job.</p>\n<p><code>status</code> reads the state of the job from the database on every call. <code>cancel</code> returns <code>false</code> when the job is no longer waiting. After <code>delete</code> removes the job, <code>status</code> throws a <code>RuntimeError</code> for its <code>Id</code>.</p>\n<p>The example below creates the two queue tables itself, because its database is in memory. On a server, <code>nvs queue migrate</code> creates them.</p>"
+        },
+        {
+          "code": "[db.jobs]\ndriver = \"sqlite\"\npath = \":memory:\"\n\n[capabilities.db]\nconnect = [\"jobs\"]\n\n[queue]\nconnection = \"jobs\"\nworkers = 0",
+          "lang": "toml"
+        },
+        {
+          "code": "<?nvs\nuse Core\\Queue;\n\nvar $db = Core\\Db::connect('jobs');\n$db->execute(<<<'SQL'\ncreate table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,\n    script text not null, args text, state smallint not null, attempts integer not null,\n    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,\n    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),\n    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,\n    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))\nSQL, []);\n$db->execute(<<<'SQL'\ncreate table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,\n    script text not null, args text, attempts integer not null, max_attempts integer not null,\n    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),\n    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,\n    errors text not null, primary key (id))\nSQL, []);\n\nCore\\Queue\\Id $first = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });\necho Queue::status($first) == Queue::State::Pending ? 'pending' : 'not pending', \"\\n\";\n\n// The key is the same, so this returns an `Id` for the first job.\nCore\\Queue\\Id $again = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });\necho Queue::cancel($again) ? 'cancelled' : 'not cancelled', \"\\n\";\necho Queue::status($first) == Queue::State::Cancelled ? 'cancelled' : 'not cancelled', \"\\n\";\n\n// The job is not waiting any more, so `cancel` returns `false`.\necho Queue::cancel($first) ? 'cancelled' : 'not cancelled', \"\\n\";",
+          "lang": "nvs"
+        },
+        {
+          "code": "pending\ncancelled\ncancelled\nnot cancelled",
+          "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Queue::push",
+          "url": "/reference/core/queue/push/"
         }
       ]
     },
@@ -34560,6 +35238,12 @@
       "summaryBlocks": [
         {
           "html": "<p>The numbers that <code>Core\\Queue::stats</code> returns for one queue. All five are read at the same moment. Each number is a method, so you write <code>$stats-&gt;pending()</code>, not <code>$stats-&gt;pending</code>.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Queue::stats",
+          "url": "/reference/core/queue/stats/"
         }
       ]
     },
@@ -34850,7 +35534,8 @@
           "code": "7\na die face\nace\n5\n2\n16\n16\nin [0, 1)\nnothing to pick\nempty range\none seed, one sequence\nand it stays that way",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Random.Seeded",
@@ -35131,7 +35816,8 @@
         {
           "html": "<p>A random generator that starts from a seed you give it, so the same seed gives the same values every time. Use it for tests and simulations. For a key, a code or a token, use <code>Core\\Random</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "RateLimit",
@@ -35312,7 +35998,8 @@
         {
           "html": "<p>Limits how often something may happen for one key, such as one account or one API key. <code>consume</code> counts in the shared store, so every server gives the same answer. <code>shed</code> counts in the memory of this server process only, to drop load quickly. Both return a <code>Core\\RateLimit\\Decision</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "RateLimit.Decision",
@@ -35400,6 +36087,16 @@
       "summaryBlocks": [
         {
           "html": "<p>The result of one <code>Core\\RateLimit::consume</code> or <code>shed</code> call. <code>allowed</code> says whether the call was inside the limit. <code>limit</code>, <code>remaining</code> and <code>retryAfter</code> give the numbers for <code>RateLimit</code> and <code>Retry-After</code> response headers.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\RateLimit::consume",
+          "url": "/reference/core/ratelimit/consume/"
+        },
+        {
+          "name": "Core\\RateLimit::shed",
+          "url": "/reference/core/ratelimit/shed/"
         }
       ]
     },
@@ -35572,7 +36269,8 @@
         {
           "html": "<p>Describes a value or a class while the program runs. <code>typeOf</code> returns what kind of value you have. <code>forClass</code> and <code>forObject</code> return a <code>Core\\Reflect\\ClassInfo</code> with the class's properties, methods, constants and attributes.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.AttributeInfo",
@@ -35700,7 +36398,8 @@
         {
           "html": "<p>One <code>#[...]</code> attribute written on a class or on one of its properties or methods, as <code>Core\\Reflect\\ClassInfo::attributes</code> returns it. <code>target</code> and <code>parameter</code> say where it is written. <code>fields</code> lists its payload's field names, and <code>field</code> returns one value.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.ClassInfo",
@@ -36166,6 +36865,16 @@
         {
           "html": "<p>One class, as <code>Core\\Reflect::forClass</code> and <code>Core\\Reflect::forObject</code> return it. <code>properties</code>, <code>methods</code>, <code>constants</code> and <code>attributes</code> list what the class declares. <code>get</code>, <code>set</code>, <code>call</code> and <code>construct</code> use a class whose name is only known at run time.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Reflect::forClass",
+          "url": "/reference/core/reflect/forclass/"
+        },
+        {
+          "name": "Core\\Reflect::forObject",
+          "url": "/reference/core/reflect/forobject/"
+        }
       ]
     },
     {
@@ -36237,7 +36946,8 @@
         {
           "html": "<p>One class constant, as <code>Core\\Reflect\\ClassInfo::constants</code> returns it. <code>name</code> and <code>isPublic</code> describe the declaration. <code>hasValue</code> says whether <code>Core\\Reflect\\ClassInfo::constant</code> can return its value.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.EnumInfo",
@@ -36380,7 +37090,8 @@
         {
           "html": "<p>One enum, as <code>Core\\Reflect\\EnumInfo::of</code> returns it for the enum's name. <code>cases</code> lists the names of its cases, <code>valueOf</code> returns the value of one case, and <code>isUnsigned</code> says whether the values are <code>uint</code> or <code>int</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.MethodInfo",
@@ -36469,7 +37180,8 @@
         {
           "html": "<p>One method of a class, as <code>Core\\Reflect\\ClassInfo::methods</code> returns it. <code>name</code> and <code>isPublic</code> describe the declaration. <code>parameterCount</code> and <code>parameters</code> describe what the method takes.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.ParameterInfo",
@@ -36522,7 +37234,8 @@
         {
           "html": "<p>One parameter of a method, as <code>Core\\Reflect\\MethodInfo::parameters</code> returns it. <code>name</code> returns the name of the parameter, and <code>type</code> returns its declared type.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Reflect.PropertyInfo",
@@ -36593,7 +37306,8 @@
         {
           "html": "<p>One property of a class, as <code>Core\\Reflect\\ClassInfo::properties</code> returns it. <code>name</code> and <code>isPublic</code> describe the declaration. <code>type</code> returns the type the property is declared with.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Regex",
@@ -37097,7 +37811,8 @@
           "code": "has status\n2026-08-30 at 0 day=30\nGET /a\nPOST /b\n30/08/2026\na<1>b<22>\na|b|c\nword\na\\.b\\*c\\?",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Regex.Match",
@@ -37215,6 +37930,12 @@
           "code": "lait 8 lait lait\n0=lait;drink=lait;1=lait;\nno b c",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Regex::match",
+          "url": "/reference/core/regex/match/"
+        }
       ]
     },
     {
@@ -37238,6 +37959,12 @@
         {
           "code": "<a>\nB.n.n. 3\nrefused",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Regex::compile",
+          "url": "/reference/core/regex/compile/"
         }
       ]
     },
@@ -38081,7 +38808,8 @@
           "code": "no request here",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Request.BodyStream",
@@ -38119,6 +38847,12 @@
           "code": "no request here",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Request::bodyStream",
+          "url": "/reference/core/request/bodystream/"
+        }
       ]
     },
     {
@@ -38149,6 +38883,12 @@
         {
           "code": "no request here",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Request::files",
+          "url": "/reference/core/request/files/"
         }
       ]
     },
@@ -38217,6 +38957,12 @@
         {
           "code": "nothing was mounted here",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Request::mount",
+          "url": "/reference/core/request/mount/"
         }
       ]
     },
@@ -38454,7 +39200,8 @@
         {
           "html": "<p>Every one of those needs a request in front of it; <code>Core\\Request\\Files</code> is where the walk that produces a part is described, and what it does in a program answering no request.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Request.PartContent",
@@ -38484,6 +39231,12 @@
         {
           "code": "no request here",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Request\\Part::content",
+          "url": "/reference/core/request-part/content/"
         }
       ]
     },
@@ -39064,7 +39817,8 @@
         {
           "html": "<p>The response your program sends back to a request. <code>html()</code>, <code>text()</code>, <code>json()</code>, <code>bytes()</code>, <code>sendFile()</code> and <code>stream()</code> write the body, and each one sets the matching <code>Content-Type</code>. <code>setStatus()</code>, <code>setHeader()</code>, <code>redirect()</code> and <code>addCookie()</code> change the status line and the headers.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Response.Stream",
@@ -39189,6 +39943,12 @@
       "summaryBlocks": [
         {
           "html": "<p>A response body that your program sends in parts. <code>Core\\Response::stream()</code> returns it, and its <code>write()</code> method sends each part. The body ends when the program ends, or when your program calls <code>end()</code>.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Response::stream",
+          "url": "/reference/core/response/stream/"
         }
       ]
     },
@@ -39566,7 +40326,8 @@
           "code": "/users\n/users/7\n/users/7/files/a%20b/c.txt\nhttps://example.test/users/7",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Router.Match",
@@ -39753,6 +40514,20 @@
           "code": "no request here",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Request::route",
+          "url": "/reference/core/request/route/"
+        },
+        {
+          "name": "Core\\Router::signedRoute",
+          "url": "/reference/core/router/signedroute/"
+        },
+        {
+          "name": "Core\\Router::match",
+          "url": "/reference/core/router/match/"
+        }
       ]
     },
     {
@@ -39839,7 +40614,8 @@
         {
           "html": "<p>The script that is running now. <code>args()</code> returns the value the script was started with. <code>onExit()</code> adds a function that runs when the script ends, and <code>finish()</code> ends the script at once.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Script.ExitReport",
@@ -39938,7 +40714,8 @@
         {
           "html": "<p>Describes how a script ended. Each function added with <code>Core\\Script::onExit()</code> receives one. <code>reason()</code> returns the kind of ending, <code>status()</code> returns the exit status, <code>error()</code> returns the exception that ended the script, if there was one, and <code>memoryPeak()</code> returns the most memory the script used. The values cannot change.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Script.Handle",
@@ -39970,7 +40747,8 @@
           "code": "spawned\nok=true\noutput=child says hello\nvalue=42\na handle is awaited once",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Secret",
@@ -40085,7 +40863,8 @@
           "code": "hunter2\nBearer hunter2\n7\n[  spaced  ]",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Serialize",
@@ -40188,7 +40967,8 @@
           "code": "n=7\ncycle=1\nrefused",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Server",
@@ -40247,7 +41027,8 @@
         {
           "html": "<p>Tells a program about the server it runs under. <code>isDraining()</code> returns <code>true</code> when the server has started to shut down. <code>traceId()</code> returns the id of the current request.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Session",
@@ -40670,7 +41451,8 @@
         {
           "html": "<p>Keeps values for one visitor from one request to the next. Call <code>start()</code> first, then use <code>get()</code> and <code>set()</code>. By default, the values are saved in a SQLite file in the data folder. <code>[session] backend = &quot;shared&quot;</code> saves them in the shared cache instead.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Signal",
@@ -40720,7 +41502,8 @@
         {
           "html": "<p>Runs a function of your program when the process gets a signal to stop. The program can then finish its work cleanly. <code>Core\\Server::isDraining()</code> tells whether a shutdown has started.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Signature",
@@ -40855,7 +41638,8 @@
         {
           "html": "<p>Signs a set of named values with a secret key, so your program can check later that nobody changed them. Signed links and password reset tokens are typical uses. The values are readable by anyone who has the token, so do not sign a secret.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "SignedCookie",
@@ -41006,7 +41790,8 @@
         {
           "html": "<p>Stores a value in a cookie. The browser keeps the cookie, but cannot read or change the value. <code>seal</code> encrypts the value with a secret key, and <code>open</code> checks the cookie and returns the value again.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Socket",
@@ -41252,7 +42037,8 @@
         {
           "html": "<p>A WebSocket connection from a client to your server. A request calls <code>upgrade</code> to turn itself into a connection that runs a script of its own. That script calls <code>current</code> to get the connection, then <code>receive</code> and <code>send</code> to talk to the client.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Socket.Message",
@@ -41340,6 +42126,16 @@
       "summaryBlocks": [
         {
           "html": "<p>One message on a WebSocket connection, as <code>Core\\Socket::receive</code> returns it. A message from the client has <code>text</code> or <code>bytes</code>. A message from a topic has a <code>topic</code> and a <code>value</code>.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Http\\Socket::receive",
+          "url": "/reference/core/http-socket/receive/"
+        },
+        {
+          "name": "Core\\Socket::receive",
+          "url": "/reference/core/socket/receive/"
         }
       ]
     },
@@ -41623,7 +42419,8 @@
         {
           "html": "<p>An event stream from your server to a client, as a browser's <code>EventSource</code> reads it. A request calls <code>stream</code> to answer with events, or <code>upgrade</code> to start a script that keeps sending after the request ends. Code that did not open the stream calls <code>current</code> to get it, and <code>send</code> writes one event.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Sse.Message",
@@ -41675,6 +42472,12 @@
       "summaryBlocks": [
         {
           "html": "<p>One value that arrived on an event stream's script, returned by <code>Core\\Sse-&gt;receive</code>. <code>topic</code> returns the name of the topic it was published to, and <code>value</code> returns what was published.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Sse::receive",
+          "url": "/reference/core/sse/receive/"
         }
       ]
     },
@@ -41931,7 +42734,8 @@
         {
           "html": "<p>Saves files by name in a folder that <code>nvs.toml</code> sets up as a disk. <code>put</code> writes a file, <code>get</code> reads it back, <code>delete</code> removes it and <code>list</code> returns the names on the disk. A name is one plain word such as <code>invoice-1042.pdf</code>, never a path.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Str",
@@ -43852,7 +44656,8 @@
           "code": "14 GRÜSSE AUS KÖLN\nGrüße|ü|éfac\n6 none\nyes 1\n3 Köln-aus-Grüße\nGrüße aus Bonn|Grüße\n007 ababab SSig\nid    |003.1|ff\n-1 1",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Taint",
@@ -43959,7 +44764,8 @@
         {
           "html": "<p>A <code>tainted</code> value came from outside the program, such as a visitor's request. <code>assertTrusted()</code> returns it as a plain <code>string</code> after your own check, and <code>assertTrustedBytes()</code> returns plain <code>bytes</code>. Each call needs a reason, which says what was checked.</p>\n<p><code>Core\\Taint::assertTrusted</code> answers its operand with the <code>tainted</code> qualifier dropped, on your own written authority. Every other way out of <code>tainted</code> is <em>sink-named</em>: <code>Core\\Html::escape</code> for HTML text, <code>Core\\Regex::quote</code> for a pattern, <code>Core\\Uri::encodeComponent</code> for a URI component. That is deliberate — a value safe for HTML text is not safe for a shell argument, and a generic <code>sanitize()</code> would invite exactly the false confidence taint tracking exists to prevent. This member is the one case that rule cannot cover: you validated the value yourself, and you need to say so.</p>\n<p>It is modeled on the <code>unsafe</code> keyword's job in Rust rather than on a cast. It is forbidden by default, it is rare, it is greppable by its own name, and it carries in the source the reason the value can be trusted. Nothing reads that reason at run time; it is written for the next person to read the line.</p>\n<p>The place it is not a fallback but the only route is a database host. <code>Core\\Db\\Settings.host</code> refuses a <code>tainted</code> value and has <strong>no launderer of its own</strong>, because no string check can establish that a hostname is safe to send credentials to — a malicious server can answer any query with a <code>LOCAL INFILE</code> request and read files off the application host. An Adminer-style tool where a human genuinely types the host is the case that call site exists for, and this is its honest spelling.</p>\n<p>Asserting a value that was never <code>tainted</code> is the identity and is legal: refusing it would cost a diagnostic and prevent no injection.</p>\n<p>The two qualifiers are independent bits, and this member answers on one of them. A <code>secret</code> operand is refused outright — <code>Core\\Secret::reveal</code> is the escape hatch on that axis. A value carrying both reveals first, whose answer is still <code>tainted</code>, and asserts second; the other order does not compile.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Task",
@@ -44164,7 +44970,8 @@
           "code": "all=3\nfig:3\npear:4\ndeadline hit",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Task.Channel",
@@ -44240,7 +45047,8 @@
           "code": "1 4 9 16 25 36",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Test",
@@ -45616,7 +46424,8 @@
           "code": "  CartTest\n    ✓ sumsWhatWasAdded\n    ✓ refusesANegativePrice\n  0 failed, 2 passed",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Test.Outcome",
@@ -45723,7 +46532,8 @@
         {
           "html": "<p>How one run of one test ended. A method with <code>#[AfterEachTest]</code> can take one as its parameter. The test runner creates it. You cannot create one yourself.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Test.Response",
@@ -45972,6 +46782,12 @@
         {
           "html": "<p><strong>A request may not be made from inside one.</strong> The program answering an in-process request is the same program that asked for it, so a second one would answer its own request forever; the call throws <code>RuntimeError</code> instead, naming why. The same throw is what a call outside <code>nvs test</code> or <code>nvs run</code> gets, there being no program under test to answer it.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Test::request",
+          "url": "/reference/core/test/request/"
+        }
       ]
     },
     {
@@ -46076,7 +46892,8 @@
         {
           "html": "<p>One HTTP request your program sent to a fake web service in a test. <code>Core\\Test::sentHttp</code> returns a list of them. <code>method()</code>, <code>url()</code>, <code>header()</code> and <code>body()</code> return what the program sent. You cannot create one yourself.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Test.Summary",
@@ -46201,7 +47018,8 @@
         {
           "html": "<p>How all tests of one test class ended. A method with <code>#[AfterClass]</code> can take one as its parameter. The test runner creates it. You cannot create one yourself.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Time",
@@ -46557,7 +47375,8 @@
           "code": "2024-03-01 09:30\n2024-03-05 00:00:00\n2024-03-01T09:30:00Z\nsame instant\nThursday, 1 January 1970\n10:30 Europe/Berlin\n2024-03-31 12:00\n2024-03-31 13:00\n30 February does not exist",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Time.Date",
@@ -46877,6 +47696,16 @@
         {
           "code": "2024-01-31\nWednesday, 31 January\n2024-02-29\nTue 30 Jan\n2024-03-31\n-1\n2023-02-29 does not exist\n1/3/2024",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Row::date",
+          "url": "/reference/core/db-row/date/"
+        },
+        {
+          "name": "Core\\Time\\DateTime::date",
+          "url": "/reference/core/time-datetime/date/"
         }
       ]
     },
@@ -47508,6 +48337,20 @@
         {
           "code": "2024-01-31 09:30:00\nWednesday, 31 January 2024 at 9:30 AM\n2024-02-29\n2024-01-24\n2024-02-05 09:30\n2024-03-01\n00:00 31 23:59:59.999\n2\nmidweek\n31 leap\n2024-01-31T09:30:00Z",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Time::parse",
+          "url": "/reference/core/time/parse/"
+        },
+        {
+          "name": "Core\\Time::at",
+          "url": "/reference/core/time/at/"
+        },
+        {
+          "name": "Core\\Time\\Instant::in",
+          "url": "/reference/core/time-instant/in/"
         }
       ]
     },
@@ -48143,6 +48986,28 @@
           "code": "1h30m\n5400\n1h45m\n-30m\n3h\n-1h30m\n250\n0\n1d1h1m1s\n1s500ms\nnot a duration",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Ldap\\Entry::duration",
+          "url": "/reference/core/ldap-entry/duration/"
+        },
+        {
+          "name": "Core\\RateLimit\\Decision::retryAfter",
+          "url": "/reference/core/ratelimit-decision/retryafter/"
+        },
+        {
+          "name": "Core\\Time::monotonic",
+          "url": "/reference/core/time/monotonic/"
+        },
+        {
+          "name": "Core\\Time\\Instant::since",
+          "url": "/reference/core/time-instant/since/"
+        },
+        {
+          "name": "Core\\Time\\Zone::offsetAt",
+          "url": "/reference/core/time-zone/offsetat/"
+        }
       ]
     },
     {
@@ -48422,6 +49287,44 @@
         {
           "code": "2024-03-01T12:00:00Z\n1709294400\n1709294400000\n2024-03-03T00:00:00Z\n1d12h\n2024-03-01T11:30:00Z\n-1\n2024-03-01 21:00\n2024-03-01T12:00:00.5Z",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Row::instant",
+          "url": "/reference/core/db-row/instant/"
+        },
+        {
+          "name": "Core\\Http\\TlsInfo::expiry",
+          "url": "/reference/core/http-tlsinfo/expiry/"
+        },
+        {
+          "name": "Core\\IO::modifiedAt",
+          "url": "/reference/core/io/modifiedat/"
+        },
+        {
+          "name": "Core\\IO\\Metadata::modifiedAt",
+          "url": "/reference/core/io-metadata/modifiedat/"
+        },
+        {
+          "name": "Core\\Ldap\\Entry::instant",
+          "url": "/reference/core/ldap-entry/instant/"
+        },
+        {
+          "name": "Core\\Time::now",
+          "url": "/reference/core/time/now/"
+        },
+        {
+          "name": "Core\\Time::fromEpoch",
+          "url": "/reference/core/time/fromepoch/"
+        },
+        {
+          "name": "Core\\Time::fromIso",
+          "url": "/reference/core/time/fromiso/"
+        },
+        {
+          "name": "Core\\Time\\DateTime::toInstant",
+          "url": "/reference/core/time-datetime/toinstant/"
         }
       ]
     },
@@ -48757,6 +49660,16 @@
           "code": "23:30:00\n11:30 PM\n00:30\n22:45\n23:30:45\n1\n2024-03-01 23:30\n09:00",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Row::time",
+          "url": "/reference/core/db-row/time/"
+        },
+        {
+          "name": "Core\\Time\\DateTime::timeOfDay",
+          "url": "/reference/core/time-datetime/timeofday/"
+        }
       ]
     },
     {
@@ -48916,6 +49829,12 @@
           "code": "1h\n2h\n14:00 +02:00 Europe/Berlin\n17:30 +05:30\n0\n2024-07-15T12:00:00Z\nnot in the database",
           "lang": "output"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Time\\DateTime::zone",
+          "url": "/reference/core/time-datetime/zone/"
+        }
       ]
     },
     {
@@ -49062,7 +49981,8 @@
         {
           "html": "<p>Sends values between WebSocket connections and event streams. A connection joins a topic by name with <code>subscribe</code>. Any script can send a value to everyone who joined with <code>publish</code>, and the value arrives at their next <code>receive()</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Totp",
@@ -49181,7 +50101,8 @@
         {
           "html": "<p>One-time codes for two-factor login (TOTP, RFC 6238). These are the six-digit codes that an authenticator app on a phone shows, and a new one starts every 30 seconds. <code>code</code> returns the current code for a secret, and <code>check</code> tests a code that a user typed.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Uri",
@@ -49963,7 +50884,8 @@
           "code": "https example.com 8443\n/a/b%20c x=1&y=2 top\nhttps://example.com:8443/c?x=1&y=2#end\nhttps://example.com:8443/d?z=3\nrelative\nnot a uri\nsame uri\na,b\nname=a+b&page=2\n1\nhttps://example.com:8443/a/b%20c?x=1&z=3#top\na%20b%26c a+b%26c",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Uuid",
@@ -50170,6 +51092,20 @@
         {
           "code": "36\n4\n7\n123e4567-e89b-12d3-a456-426614174000\ninvalid\nvalid\ndifferent objects\nsame value\nbraces refused",
           "lang": "output"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Db\\Row::uuid",
+          "url": "/reference/core/db-row/uuid/"
+        },
+        {
+          "name": "Core\\Ldap\\Entry::uuid",
+          "url": "/reference/core/ldap-entry/uuid/"
+        },
+        {
+          "name": "Core\\Router\\Match::param",
+          "url": "/reference/core/router-match/param/"
         }
       ]
     },
@@ -50403,7 +51339,8 @@
           "code": "ada@example.test email\nno-at-sign not\nada@localhost not\ndomain\nip\nnot v4\nv6\nmac\nnot ascii\nprintable\nnot\nint",
           "lang": "output"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "WebPush",
@@ -50593,7 +51530,8 @@
         {
           "html": "<p>Sends push notifications to a browser (Web Push). The browser gives your page a subscription. Your server reads it with <code>subscription</code>. Each message is encrypted for that one browser, and only that browser can read it.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "WebPush.Sent",
@@ -50646,6 +51584,12 @@
         {
           "html": "<p>The answer of the browser's push service to one message that <code>Core\\WebPush::send</code> sent. Check <code>gone()</code> to know when to delete a subscription.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\WebPush::send",
+          "url": "/reference/core/webpush/send/"
+        }
       ]
     },
     {
@@ -50680,6 +51624,12 @@
       "summaryBlocks": [
         {
           "html": "<p>A browser's push subscription, after <code>Core\\WebPush::subscription</code> checked it. It contains the URL of the browser's push service and the two keys that encrypt a message for this browser. Save the JSON text with the user, and read it again when you send.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\WebPush::subscription",
+          "url": "/reference/core/webpush/subscription/"
         }
       ]
     },
@@ -50805,7 +51755,8 @@
         {
           "html": "<p>Reads and writes XML documents. <code>parse</code> reads a whole document into a tree of <code>Core\\Xml\\Node</code> objects. <code>reader</code> returns the nodes of a document one at a time and does not build a tree. <code>writer</code> builds a new document one node at a time, and escapes every text for you.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     },
     {
       "id": "Xml.Node",
@@ -50964,6 +51915,20 @@
         {
           "html": "<p>One node of a document tree. <code>Core\\Xml::parse</code> and <code>Core\\Html::parse</code> return the document node, and you reach the other nodes through <code>children</code>. A node is an element, a text, a comment, a processing instruction or the document itself, and <code>kind</code> tells you which. Every string you read from a node is <code>tainted</code>, because it came from outside the program.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Html::parse",
+          "url": "/reference/core/html/parse/"
+        },
+        {
+          "name": "Core\\Xml::parse",
+          "url": "/reference/core/xml/parse/"
+        },
+        {
+          "name": "Core\\Xml\\Reader::read",
+          "url": "/reference/core/xml-reader/read/"
+        }
       ]
     },
     {
@@ -51022,6 +51987,12 @@
       "summaryBlocks": [
         {
           "html": "<p>Goes through an XML document one node at a time. <code>Core\\Xml::reader</code> returns a reader. Each call to <code>read</code> returns the next node, and <code>null</code> at the end of the document. The reader does not build a tree, so a large document does not need a lot of memory. <code>depth</code> tells you how deeply the current node is nested.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Xml::reader",
+          "url": "/reference/core/xml/reader/"
         }
       ]
     },
@@ -51409,6 +52380,12 @@
         {
           "html": "<p>Builds a new XML document one node at a time. <code>Core\\Xml::writer</code> returns a writer. <code>startDocument</code> begins the document, and <code>endDocument</code> returns it as a string. Between them, <code>startElement</code> and <code>endElement</code> open and close each element. The writer escapes every text and every attribute value for you, and it throws a <code>LogicError</code> for any call that would make the document invalid.</p>"
         }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Xml::writer",
+          "url": "/reference/core/xml/writer/"
+        }
       ]
     },
     {
@@ -51623,7 +52600,8 @@
         {
           "html": "<p>Reads zip archives. <code>entries</code> lists the names in an archive, <code>read</code> returns one file from it, and <code>extract</code> writes its files into a folder. Every archive is checked before any name or file is returned. An archive with an unsafe name, such as <code>../config.php</code>, throws a <code>ParseError</code>.</p>"
         }
-      ]
+      ],
+      "returnedBy": []
     }
   ]
 }
