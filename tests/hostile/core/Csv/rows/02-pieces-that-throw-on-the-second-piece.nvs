@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program reads CSV from a loop of `bytes` pieces, and the loop throws an error instead
+// of the second piece. The first piece ends inside a record, a quoted field or a character. `Core\Csv::rows` should give the records before the error and then throw that error.
+
+class Upload
+{
+    // This method gives `$first`, and then throws an error instead of the second piece.
+    public static function pieces(bytes $first, string $message): Iterator<bytes>
+    {
+        yield $first;
+        throw new RuntimeError($message);
+    }
+
+    // This method reads every record and prints how many it read and the class of the error.
+    public static function read(int $step, Core\Csv\Rows<string> $rows): void
+    {
+        uint $records = 0;
+        try {
+            foreach ($rows as array<string> $record) {
+                $records = $records + 1;
+            }
+            echo 'step ', $step, ': ', $records, " records, and no error\n";
+        } catch (RuntimeError $stopped) {
+            echo 'step ', $step, ': ', $records, ' records, then ', $stopped::class, "\n";
+        }
+    }
+}
+
+// 1. The first piece ends in the middle of the third record.
+Upload::read(1, Core\Csv::rows(Upload::pieces("id,name\n1,fig\n2,pl" as bytes, 'the upload stopped')));
+
+// 2. The first piece ends inside a quoted field of one million characters.
+bytes $open = Core\Bytes::join(['1,"' as bytes, Core\Str::repeat('x', 1000000) as bytes]);
+Upload::read(2, Core\Csv::rows(Upload::pieces($open, 'the upload stopped')));
+
+// 3. The first piece ends after the first byte of a two-byte UTF-8 character.
+Upload::read(3, Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('612c62630a782cc3'), 'the upload stopped')));
+
+// 4. UTF-16 text with a byte order mark. The first piece ends after half of a character.
+Upload::read(4, Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('fffe61002c0062000a007800'), 'the upload stopped'), { charset: Core\Charset::Utf16Le }));
+
+// 5. The header record is in the first piece, and the error message is one million characters long.
+Upload::read(5, Core\Csv::rows(Upload::pieces("id,name\n1,fig\n" as bytes, Core\Str::repeat('e', 1000000)), { header: true }));
+
+// 6. The same rows are read again after the error. The loop gives no record.
+Core\Csv\Rows<string> $rows = Core\Csv::rows(Upload::pieces("1,fig\n2,plum\n" as bytes, 'the upload stopped'));
+Upload::read(6, $rows);
+Upload::read(6, $rows);
+
+// 7. The loop stops after the first record, before the error is thrown. This runs 1000 times.
+uint $i = 0;
+while ($i < 1000) {
+    foreach (Core\Csv::rows(Upload::pieces("1,fig\n2,plum\n" as bytes, 'the upload stopped')) as array<string> $record) {
+        break;
+    }
+    $i = $i + 1;
+}
+echo "step 7: done\n";
+
+// 8. Steps 1 to 4 run 1000 times each. The memory each one used is freed.
+array<bytes> $firsts = ["id,name\n1,fig\n2,pl" as bytes, $open, Core\Encoding::fromHex('612c62630a782cc3')];
+$i = 0;
+uint $errors = 0;
+while ($i < 1000) {
+    foreach ($firsts as bytes $first) {
+        try {
+            foreach (Core\Csv::rows(Upload::pieces($first, 'the upload stopped')) as array<string> $record) {
+            }
+        } catch (RuntimeError $stopped) {
+            $errors = $errors + 1;
+        }
+    }
+    try {
+        foreach (Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('fffe61002c0062000a007800'), 'the upload stopped'), { charset: Core\Charset::Utf16Le }) as array<string> $record) {
+        }
+    } catch (RuntimeError $stopped) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 8: ', $errors, " errors\n";

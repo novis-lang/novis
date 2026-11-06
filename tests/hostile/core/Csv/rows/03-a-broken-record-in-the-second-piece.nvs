@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program reads CSV from a loop of `bytes` pieces, and the second piece has bytes that
+// are not text. `Core\Csv::rows` should give the records before them and then throw a `ParseError`.
+
+class Upload
+{
+    // This method gives `$first` and then `$second`.
+    public static function pieces(bytes $first, bytes $second): Iterator<bytes>
+    {
+        yield $first;
+        yield $second;
+        yield "9,last\n" as bytes;
+    }
+
+    // This method reads every record and prints how many it read and the class of the error.
+    public static function read(int $step, Core\Csv\Rows<string> $rows): void
+    {
+        uint $records = 0;
+        try {
+            foreach ($rows as array<string> $record) {
+                $records = $records + 1;
+            }
+            echo 'step ', $step, ': ', $records, " records, and no error\n";
+        } catch (ParseError $broken) {
+            echo 'step ', $step, ': ', $records, ' records, then ', $broken::class, "\n";
+        }
+    }
+}
+
+// 1. The second piece has the byte `ff`, which is never part of UTF-8 text.
+Upload::read(1, Core\Csv::rows(Upload::pieces("1,fig\n2,plum\n" as bytes, Core\Encoding::fromHex('332c6b69ff0a'))));
+
+// 2. The first piece ends after the first byte of a two-byte character. The second piece does not finish it.
+Upload::read(2, Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('312c666967c3'), Core\Encoding::fromHex('410a'))));
+
+// 3. A quoted field starts in the first piece. The broken byte is in the second piece, inside the quotes.
+bytes $quoted = Core\Bytes::join(['1,"' as bytes, Core\Str::repeat('x', 1000000) as bytes]);
+Upload::read(3, Core\Csv::rows(Upload::pieces($quoted, Core\Encoding::fromHex('78fe220a'))));
+
+// 4. UTF-16 text. The second piece has half of a character pair and then a normal character.
+Upload::read(4, Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('fffe31002c0061000a00'), Core\Encoding::fromHex('00d832000a00')), { charset: Core\Charset::Utf16Le }));
+
+// 5. Shift JIS text, with the header record in the first piece. The second piece has a byte that Shift JIS does not use.
+Upload::read(5, Core\Csv::rows(Upload::pieces("id,name\n1,fig\n" as bytes, Core\Encoding::fromHex('322c8180a00a')), { header: true, charset: Core\Charset::ShiftJis }));
+
+// 6. The same rows are read again after the error. The loop gives no record.
+Core\Csv\Rows<string> $rows = Core\Csv::rows(Upload::pieces("1,fig\n" as bytes, Core\Encoding::fromHex('ff0a')));
+Upload::read(6, $rows);
+Upload::read(6, $rows);
+
+// 7. Steps 1 to 4 run 1000 times each. The memory each one used is freed.
+uint $errors = 0;
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        foreach (Core\Csv::rows(Upload::pieces("1,fig\n2,plum\n" as bytes, Core\Encoding::fromHex('332c6b69ff0a'))) as array<string> $record) {
+        }
+    } catch (ParseError $broken) {
+        $errors = $errors + 1;
+    }
+    try {
+        foreach (Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('312c666967c3'), Core\Encoding::fromHex('410a'))) as array<string> $record) {
+        }
+    } catch (ParseError $broken) {
+        $errors = $errors + 1;
+    }
+    try {
+        foreach (Core\Csv::rows(Upload::pieces($quoted, Core\Encoding::fromHex('78fe220a'))) as array<string> $record) {
+        }
+    } catch (ParseError $broken) {
+        $errors = $errors + 1;
+    }
+    try {
+        foreach (Core\Csv::rows(Upload::pieces(Core\Encoding::fromHex('fffe31002c0061000a00'), Core\Encoding::fromHex('00d832000a00')), { charset: Core\Charset::Utf16Le }) as array<string> $record) {
+        }
+    } catch (ParseError $broken) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 7: ', $errors, " errors\n";

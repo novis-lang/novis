@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program makes a file of 64 GB that takes almost no space on disk, and reads it whole.
+// The read should stop the program at its memory limit before it allocates the 64 GB.
+// requires: unix
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-sparse');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'sparse.bin');
+
+// 1. `truncate` makes the empty file 64 GB long. The file system stores no bytes for the new part.
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
+$file->truncate(68719476736);
+$file->close();
+echo 'step 1: ', Core\IO::size($path), " bytes\n";
+
+// 2. Reads 4096 bytes from the middle of the file. They are all zeros.
+Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
+$reader->seek(34359738368);
+bytes $middle = $reader->readBytes(4096);
+echo 'step 2: ', Core\Bytes::length($middle), ' bytes, zeros: ', $middle == Core\Bytes::fill(4096, 0) ? 'yes' : 'no', "\n";
+$reader->close();
+
+// 3. Lowers the memory limit to 16 MiB, then reads the whole file. This stops the program at its memory limit.
+echo 'memory: ', Core\Config::set('memory', '16M') ? 'changed' : 'refused', "\n";
+echo "step 3\n";
+echo Core\Bytes::length(Core\IO::readBytes($path)), "\n";

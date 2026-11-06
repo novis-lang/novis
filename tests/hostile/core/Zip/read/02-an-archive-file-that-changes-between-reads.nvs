@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a program lists a zip file, and then another handle changes the file before each read.
+// Each read should return an entry of the file as it is now, or throw a `ParseError`.
+
+class Attack
+{
+    // This method reads `$name` from `$archive` and prints its length, or the class of the error.
+    public static function read(int $step, Core\IO\File $archive, string $name): void
+    {
+        try {
+            tainted bytes $entry = Core\Zip::read($archive, $name);
+            echo 'step ', $step, ': ', Core\Bytes::length($entry), " bytes\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ': ', $e::class, "\n";
+        }
+    }
+
+    // This method replaces everything in the file with `$content`.
+    public static function replace(Core\IO\File $file, bytes $content): void
+    {
+        $file->truncate(0);
+        $file->seek(0);
+        $file->write($content);
+    }
+}
+
+// Two small archives, written as base64 text. Both contain `readme.txt`. In the first it is
+// compressed, and in the second it is stored as it is, at another place in the file.
+bytes $packed = Core\Encoding::fromBase64('UEsDBBQAAAAIAAAAIVykiLt8KQAAACcAAAAKAAAAcmVhZG1lLnR4dAvJSMzLVqjML1VIyy9SSMkvz8vJT0zJzEtXKMnILFYoSi3ILyrR4wIAUEsDBBQAAAAIAAAAIVx17X2pLgAAADIAAAAOAAAAZGF0YS9zYWxlcy5jc3bLzc8rydApyS9JzOHySswrTSyq1DE0MjDgcktNKoLwjE0NuHwTi5IzdAwNgRIAUEsBAhQAFAAAAAgAAAAhXKSIu3wpAAAAJwAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAACAAAACFcde19qS4AAAAyAAAADgAAAAAAAAAAAAAApIFRAAAAZGF0YS9zYWxlcy5jc3ZQSwUGAAAAAAIAAgB0AAAAqwAAAAAA');
+bytes $stored = Core\Encoding::fromBase64('UEsDBBQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAcmVhZG1lLnR4dEhlbGxvUEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAHAAAAaW1hZ2VzL1BLAwQUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAGltYWdlcy9sb2dvLnBuZ1BOR1BLAwQUAAAAAAAAACFcj7atpwsAAAALAAAACgAAAGluZGV4Lmh0bWw8aDE+SGk8L2gxPlBLAQIUABQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAAAAAAAAAAACkgQAAAAByZWFkbWUudHh0UEsBAhQAFAAAAAAAAAAhXAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAO1BLQAAAGltYWdlcy9QSwECFAAUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAAAAAAAAAAAApIFSAAAAaW1hZ2VzL2xvZ28ucG5nUEsBAhQAFAAAAAAAAAAhXI+2racLAAAACwAAAAoAAAAAAAAAAAAAAKSBggAAAGluZGV4Lmh0bWxQSwUGAAAAAAQABADiAAAAtQAAAAAA');
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-zip-changes');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'upload.zip');
+Core\IO::write($path, $packed);
+Core\IO\File $archive = Core\IO::open($path, Core\IO::FileMode::Read);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
+echo 'entries: ', Core\Arr::count(Core\Zip::entries($archive)), "\n";
+
+// 1. The file is replaced with the other archive. `data/sales.csv` is not in it.
+Attack::replace($writer, $stored);
+Attack::read(1, $archive, 'readme.txt');
+Attack::read(1, $archive, 'data/sales.csv');
+
+// 2. The file loses its last 150 bytes. Then it is cut to one byte, and then to nothing.
+Attack::replace($writer, $packed);
+$writer->truncate(Core\Bytes::length($packed) - 150);
+Attack::read(2, $archive, 'readme.txt');
+$writer->truncate(1);
+Attack::read(2, $archive, 'readme.txt');
+$writer->truncate(0);
+Attack::read(2, $archive, 'readme.txt');
+
+// 3. The compressed data of `readme.txt` is replaced with zeros. Its CRC-32 no longer matches.
+Attack::replace($writer, $packed);
+$writer->seek(40);
+$writer->write(Core\Bytes::repeat(Core\Encoding::fromHex('00'), 41));
+Attack::read(3, $archive, 'readme.txt');
+
+// 4. The file is made 64 MB longer with zeros after the archive. The end record is no longer at the end.
+Attack::replace($writer, $packed);
+$writer->truncate(Core\Bytes::length($packed) + 67108864);
+Attack::read(4, $archive, 'readme.txt');
+
+// 5. The archive is listed and read 1000 times, and the file is replaced between each pair.
+uint $i = 0;
+uint $failed = 0;
+while ($i < 1000) {
+    Attack::replace($writer, $i % 2 == 0 ? $packed : $stored);
+    try {
+        Core\Zip::entries($archive);
+        Attack::replace($writer, $i % 2 == 0 ? $stored : $packed);
+        Core\Zip::read($archive, 'readme.txt');
+    } catch (ParseError $changed) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 5: ', $failed, " reads threw a ParseError\n";
+
+$archive->close();
+$writer->close();
+Core\IO::remove($path);
+Core\IO::removeDir($dir);

@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a program moves a file's position far past its end, and then gives the file to readers.
+// `Core\Hash::of` and `Core\Csv::rows` should read the whole file from its first byte.
+// `Core\Mime::detect` should read its first bytes, and the position should stay where it was.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-past-the-end');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'image.png');
+bytes $content = Core\Bytes::join([Core\Encoding::fromHex('89504e470d0a1a0a'), Core\Str::repeat("fig,2\n", 1000) as bytes]);
+Core\IO::write($path, $content);
+bytes $expected = Core\Hash::of($content, Core\Hash::Digest::Sha256);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+
+// 1. Moves the position 1 GB past the end, then hashes the file. The digest is the digest of the whole file.
+$file->seek(1073741824);
+bytes $digest = Core\Hash::of($file, Core\Hash::Digest::Sha256);
+echo 'step 1: ', Core\Hash::equals($digest, $expected) ? 'the whole file' : 'other bytes', "\n";
+
+// 2. Moves the position past the end again, then checks the type. This prints `image/png`.
+$file->seek(1073741824);
+Core\Mime::Type $type = Core\Mime::detect($file);
+echo 'step 2: ', Core\Mime::mediaType($type), ', position ', $file->tell(), "\n";
+
+// 3. Moves the position to the largest value there is. Each reader returns a result or throws an error.
+try {
+    $file->seek(9223372036854775807);
+    Core\Mime::Type $far = Core\Mime::detect($file);
+    echo 'step 3: ', Core\Mime::mediaType($far), "\n";
+    bytes $farDigest = Core\Hash::of($file, Core\Hash::Digest::Sha256);
+    echo 'step 3: ', Core\Hash::equals($farDigest, $expected) ? 'the whole file' : 'other bytes', "\n";
+} catch (Throwable $tooFar) {
+    echo 'step 3: ', $tooFar::class, "\n";
+}
+
+// 4. Moves the position past the end, then reads the file as CSV. The file starts with the
+// bytes of a PNG image, which are not text, so this throws a `ParseError`.
+try {
+    $file->seek(1073741824);
+    uint $records = 0;
+    foreach (Core\Csv::rows($file) as array<string> $record) {
+        $records = $records + 1;
+    }
+    echo 'step 4: ', $records, " records\n";
+} catch (Throwable $csv) {
+    echo 'step 4: ', $csv::class, "\n";
+}
+
+// 5. Moves the position past the end, then lists the file as a zip archive. It is not one, so this throws a `ParseError`.
+try {
+    $file->seek(1073741824);
+    Core\Zip::entries($file);
+    echo "step 5: a file that is not an archive was listed\n";
+} catch (ParseError $notZip) {
+    echo "step 5: ParseError\n";
+}
+
+// 6. Reads the rest of the file from where the position is now. This returns empty `bytes`.
+echo 'step 6: ', Core\Bytes::length($file->readBytes(4096)), " bytes\n";
+
+$file->close();
+Core\IO::remove($path);
+Core\IO::removeDir($dir);

@@ -1,0 +1,27 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=attack-51c8
+--BODY_CRLF--
+--attack-51c8
+Content-Disposition: form-data; name="invoice"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7
+1 0 obj
+<< /Type /Catalog >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF
+--attack-51c8
+Content-Disposition: form-data; name="photo"; filename="photo.gif"
+Content-Type: image/gif
+
+GIF89a and then some bytes that are not an image
+--attack-51c8--

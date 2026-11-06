@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program calls `peek` with a `max` larger than the memory of the request. It also calls
+// `peek` after an upload was read, and after the loop moved on. Each wrong call should throw a `LogicError`.
+
+?Core\Request\Part $first = null;
+uint $index = 0;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $index = $index + 1;
+    if ($index == 1) {
+        $first = $part;
+
+        // 1. Calls `peek` with the largest `max` there is. This throws a `LogicError` and reads nothing.
+        try {
+            $part->peek(18446744073709551615);
+            echo "step 1: the largest max was accepted\n";
+        } catch (LogicError $tooMuch) {
+            echo "step 1: LogicError\n";
+        }
+
+        // 2. Calls `peek` for zero bytes, then for far more bytes than the upload has.
+        echo 'step 2: ', Core\Bytes::length($part->peek(0)), " bytes\n";
+        tainted bytes $whole = $part->peek(1000001);
+        echo 'step 2: ', Core\Bytes::length($whole), " bytes\n";
+
+        // 3. Peeks 10000 times with a `max` from 0 to 63. `readAll` still returns every byte.
+        uint $i = 0;
+        while ($i < 10000) {
+            $part->peek($i % 64);
+            $i = $i + 1;
+        }
+        echo 'step 3: ', Core\Bytes::length($part->readAll()), " bytes\n";
+
+        // 4. Calls `peek` after `readAll`. This throws a `LogicError`, which is caught.
+        try {
+            $part->peek(1);
+            echo "step 4: a peek after readAll was accepted\n";
+        } catch (LogicError $read) {
+            echo "step 4: LogicError\n";
+        }
+        continue;
+    }
+
+    // 5. Calls `peek` inside a `content()` loop. This throws a `LogicError`, which is caught.
+    uint $total = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $total = $total + Core\Bytes::length($chunk);
+        try {
+            $part->peek(1);
+            echo "step 5: a peek inside the loop was accepted\n";
+        } catch (LogicError $started) {
+            echo "step 5: LogicError\n";
+        }
+    }
+    echo 'step 5: the loop read ', $total, " bytes\n";
+
+    // 6. Calls `peek` on the first upload, which the loop has passed. This throws a `LogicError`.
+    try {
+        $first?->peek(1);
+        echo "step 6: a peek on a passed upload was accepted\n";
+    } catch (LogicError $passed) {
+        echo "step 6: LogicError\n";
+    }
+}
+
+// 7. Calls `peek` on the first upload after the loop ended. This throws a `LogicError`.
+try {
+    $first?->peek(1);
+    echo "step 7: a peek after the loop was accepted\n";
+} catch (LogicError $gone) {
+    echo "step 7: LogicError\n";
+}

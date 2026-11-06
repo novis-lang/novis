@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program gives a file that it opened only for writing to functions that read a file.
+// Each function should throw an error, and the file should keep its content.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-write-only');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.csv');
+
+// 1. A handle opened with `Write`. Opening it empties the file, so the program writes the content
+// again. Then six functions try to read the file. Each error is caught and its class is printed.
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
+$writer->write("fig,2\napple,10\n" as bytes);
+try {
+    Core\Hash::of($writer, Core\Hash::Digest::Sha256);
+    echo "step 1: Core\\Hash::of read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: Core\Hash::of ', $e::class, "\n";
+}
+try {
+    Core\Mime::detect($writer);
+    echo "step 1: Core\\Mime::detect read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: Core\Mime::detect ', $e::class, "\n";
+}
+try {
+    Core\Zip::entries($writer);
+    echo "step 1: Core\\Zip::entries read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: Core\Zip::entries ', $e::class, "\n";
+}
+try {
+    Core\Compress::decompress($writer, Core\Compress::Codec::Gzip);
+    echo "step 1: Core\\Compress::decompress read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: Core\Compress::decompress ', $e::class, "\n";
+}
+try {
+    $writer->readBytes(16);
+    echo "step 1: readBytes read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: readBytes ', $e::class, "\n";
+}
+try {
+    foreach (Core\Csv::rows($writer) as array<string> $record) {
+    }
+    echo "step 1: Core\\Csv::rows read the file\n";
+} catch (Throwable $e) {
+    echo 'step 1: Core\Csv::rows ', $e::class, "\n";
+}
+$writer->close();
+
+// 2. A handle opened with `Append`. Three functions try to read it 1000 times each.
+Core\IO\File $appender = Core\IO::open($path, Core\IO::FileMode::Append);
+uint $thrown = 0;
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        Core\Hash::of($appender, Core\Hash::Digest::Sha256);
+    } catch (Throwable $e) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        Core\Mime::detect($appender);
+    } catch (Throwable $e) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        foreach (Core\Csv::rows($appender) as array<string> $record) {
+        }
+    } catch (Throwable $e) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+$appender->write("plum,3\n" as bytes);
+$appender->close();
+echo 'step 2: ', $thrown, " errors\n";
+
+// 3. The file has its two records and the one the `Append` handle wrote.
+echo 'step 3: ', Core\IO::read($path) == "fig,2\napple,10\nplum,3\n" ? 'unchanged' : 'changed', "\n";
+
+Core\IO::remove($path);
+Core\IO::removeDir($dir);

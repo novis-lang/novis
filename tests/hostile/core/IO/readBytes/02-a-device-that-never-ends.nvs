@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a program reads `/dev/zero` whole. That device gives zeros without end, and its size is 0.
+// The read should stop the program at its memory limit.
+// requires: unix
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+
+// 1. Gets the size of the device. The result is 0 bytes, or `size` throws an `IOError`.
+try {
+    uint $size = Core\IO::size('/dev/zero');
+    echo 'step 1: ', $size, " bytes\n";
+} catch (IOError $notAFile) {
+    echo "step 1: IOError\n";
+}
+
+// 2. Reads 4096 bytes from the device through a handle. They are all zeros.
+Core\IO\File $device = Core\IO::open('/dev/zero', Core\IO::FileMode::Read);
+bytes $start = $device->readBytes(4096);
+echo 'step 2: ', Core\Bytes::length($start), ' bytes, zeros: ', $start == Core\Bytes::fill(4096, 0) ? 'yes' : 'no', "\n";
+$device->close();
+
+// 3. Lowers the memory limit to 16 MiB, then reads the whole device. This stops the program at its memory limit.
+echo 'memory: ', Core\Config::set('memory', '16M') ? 'changed' : 'refused', "\n";
+echo "step 3\n";
+echo Core\Bytes::length(Core\IO::readBytes('/dev/zero')), "\n";

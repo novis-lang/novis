@@ -989,6 +989,12 @@ fn read_sources(
                 ));
             };
             let size = size?;
+            // The copy that crosses and the guest's own copy are both alive while the call
+            // runs, so the request must afford the size twice before anything is read.
+            nvs_runtime::affordable(
+                size.checked_mul(2).and_then(|twice| usize::try_from(twice).ok()),
+                "a component reading a `Core\\Bytes::Source`",
+            )?;
             Ok(Crossed::Bytes(nvs_stdlib::extension_source_range(
                 ctx, value, 0, size,
             )?))

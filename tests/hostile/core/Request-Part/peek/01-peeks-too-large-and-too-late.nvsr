@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=attack-7f3a
+--BODY_CRLF--
+--attack-7f3a
+Content-Disposition: form-data; name="first"; filename="notes.txt"
+Content-Type: text/plain
+
+the first upload, which every peek reads
+--attack-7f3a
+Content-Disposition: form-data; name="second"; filename="more.txt"
+Content-Type: text/plain
+
+the second upload, which a content loop reads
+--attack-7f3a--

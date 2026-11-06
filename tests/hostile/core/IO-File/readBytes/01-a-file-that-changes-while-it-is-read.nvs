@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a program reads a file in parts while a second handle shortens it, empties it and makes
+// it longer. Each read should return the bytes the file has at that moment, or empty `bytes`.
+// No read should return bytes past the end of the file.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read-bytes');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'data.bin');
+Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('00ff'), 524288));
+
+Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
+
+// 1. Reads 4096 bytes at a time. After each read, the second handle cuts 8192 bytes from the end.
+uint $total = 0;
+uint $size = 1048576;
+bytes $part = $reader->readBytes(4096);
+while (Core\Bytes::length($part) > 0) {
+    $total = $total + Core\Bytes::length($part);
+    $size = $size > 8192 ? $size - 8192 : 0;
+    $writer->truncate($size);
+    $part = $reader->readBytes(4096);
+}
+if ($total > 1048576) {
+    throw new LogicError('the reads returned more bytes than the file ever had');
+}
+echo 'step 1: read ', $total, " bytes\n";
+
+// 2. Empties the file while the reader is in the middle of it. The next read returns empty `bytes`.
+$writer->truncate(0);
+$writer->seek(0);
+$writer->write(Core\Bytes::repeat(Core\Encoding::fromHex('41'), 100000));
+$reader->seek(50000);
+$writer->truncate(0);
+echo 'step 2: ', Core\Bytes::length($reader->readBytes(4096)), " bytes after the file was emptied\n";
+
+// 3. The second handle adds 100 bytes after each read, 1000 times. The loop ends when it stops.
+$writer->seek(0);
+$writer->write(Core\Bytes::repeat(Core\Encoding::fromHex('42'), 100));
+$reader->seek(0);
+uint $added = 0;
+$total = 0;
+$part = $reader->readBytes(64);
+while (Core\Bytes::length($part) > 0) {
+    $total = $total + Core\Bytes::length($part);
+    if ($added < 1000) {
+        $writer->write(Core\Bytes::repeat(Core\Encoding::fromHex('42'), 100));
+        $added = $added + 1;
+    }
+    $part = $reader->readBytes(64);
+}
+echo 'step 3: read ', $total, " bytes\n";
+
+// 4. Calls `readBytes` with the largest number there is. This returns the file, or throws an error.
+$reader->seek(0);
+try {
+    bytes $all = $reader->readBytes(18446744073709551615);
+    echo 'step 4: ', Core\Bytes::length($all), " bytes\n";
+} catch (Throwable $tooMuch) {
+    echo 'step 4: ', $tooMuch::class, "\n";
+}
+
+// 5. `Core\Csv::rows` reads the file, and the second handle shortens it inside the loop.
+// The loop ends early or throws an error, which is caught.
+$writer->truncate(0);
+$writer->seek(0);
+$writer->write(Core\Str::repeat("fig,2\napple,10\n", 20000) as bytes);
+uint $records = 0;
+try {
+    foreach (Core\Csv::rows($reader) as array<string> $record) {
+        $records = $records + 1;
+        if ($records == 100) {
+            $writer->truncate(1000);
+        }
+    }
+    echo 'step 5: ', $records, " records\n";
+} catch (Throwable $cut) {
+    echo 'step 5: ', $cut::class, "\n";
+}
+
+// 6. `Core\Hash::of` reads the file after the second handle has emptied it.
+$writer->truncate(0);
+bytes $digest = Core\Hash::of($reader, Core\Hash::Digest::Sha256);
+echo 'step 6: ', Core\Encoding::toHex($digest), "\n";
+
+$reader->close();
+$writer->close();
+Core\IO::remove($path);
+Core\IO::removeDir($dir);

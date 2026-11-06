@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program checks the type of an upload and then saves it, and checks uploads that were
+// already read or that the loop has passed. The saved file should have every byte of the upload.
+// Each late check should throw a `LogicError`.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-detect-uploads');
+Core\IO::makeDir($dir);
+?Core\Request\Part $first = null;
+uint $index = 0;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $index = $index + 1;
+    if ($index == 1) {
+        $first = $part;
+
+        // 1. Checks the type 1000 times, then saves the upload. The file has all 82 bytes of the upload.
+        Core\Mime::Type $type = Core\Mime::Type::Unknown;
+        uint $i = 0;
+        while ($i < 1000) {
+            $type = Core\Mime::detect($part);
+            $i = $i + 1;
+        }
+        string $path = Core\Path::join($dir, 'first.pdf');
+        $part->saveTo($path);
+        echo 'step 1: ', Core\Mime::mediaType($type), ', saved ', Core\IO::size($path), " bytes\n";
+
+        // 2. Checks the type after `saveTo`. This throws a `LogicError`, which is caught.
+        try {
+            Core\Mime::detect($part);
+            echo "step 2: a check after saveTo was accepted\n";
+        } catch (LogicError $saved) {
+            echo "step 2: LogicError\n";
+        }
+        continue;
+    }
+
+    // 3. Checks the first upload, which the loop has passed. This throws a `LogicError`, which is caught.
+    try {
+        Core\Mime::detect($first ?? $part);
+        echo "step 3: a check on a passed upload was accepted\n";
+    } catch (LogicError $passed) {
+        echo "step 3: LogicError\n";
+    }
+
+    // 4. Checks this upload, then reads it in a `content()` loop. The loop reads every byte.
+    Core\Mime::Type $second = Core\Mime::detect($part);
+    uint $total = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $total = $total + Core\Bytes::length($chunk);
+
+        // 5. Checks the type inside the loop. This throws a `LogicError`, which is caught.
+        try {
+            Core\Mime::detect($part);
+            echo "step 5: a check inside the loop was accepted\n";
+        } catch (LogicError $started) {
+            echo "step 5: LogicError\n";
+        }
+    }
+    echo 'step 4: ', Core\Mime::mediaType($second), ', the loop read ', $total, " bytes\n";
+}
+
+// 6. Checks the first upload after the loop ended. This throws a `LogicError`, which is caught.
+try {
+    if ($first != null) {
+        Core\Mime::detect($first);
+    }
+    echo "step 6: a check after the loop was accepted\n";
+} catch (LogicError $gone) {
+    echo "step 6: LogicError\n";
+}

@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program opens a valid PDF file of 40 MB from disk with a memory limit of 32 MiB.
+// The reader should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early 3 FATAL
+use Novis\Pdf\Reader;
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-pdf-size');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'large.pdf');
+
+// 1. Writes the start of the file, and then 40 MB of comment lines, one million bytes at a time.
+string $line = '%' . Core\Str::repeat('x', 98) . "\n";
+string $piece = Core\Str::repeat($line, 10000);
+Core\IO::write($path, "%PDF-1.7\n");
+uint $i = 0;
+while ($i < 40) {
+    Core\IO::append($path, $piece);
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\IO::size($path), " bytes\n";
+
+// 2. Writes one page and the table of where each object starts. This makes the file a valid PDF.
+int $at = 9 + 40000000;
+array<string> $objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>',
+];
+string $body = '';
+string $table = "xref\n0 4\n0000000000 65535 f \n";
+uint $n = 0;
+foreach ($objects as string $object) {
+    $n = $n + 1;
+    $table .= Core\Str::padStart(($at + Core\Str::length($body) as int) as string, 10, '0') . " 00000 n \n";
+    $body .= "{$n} 0 obj\n{$object}\nendobj\n";
+}
+int $start = $at + Core\Str::length($body) as int;
+Core\IO::append($path, $body . $table . "trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n{$start}\n%%EOF\n");
+echo 'step 2: ', Core\IO::size($path), " bytes\n";
+
+// 3. Lowers the memory limit to 32 MiB, then opens the file. The reader reads the whole file,
+// so this stops the program at its memory limit.
+echo 'memory: ', Core\Config::set('memory', '32M') ? 'changed' : 'refused', "\n";
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+echo "step 3\n";
+Reader $reader = Reader::open($file);
+echo 'pages: ', $reader->pageCount, "\n";
