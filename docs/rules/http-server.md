@@ -591,7 +591,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 **An uploaded file is a stream, and `Core\Request::files(): Iterable<Part>` is the only way to receive one.** There is no temp file — no `tmp_name`, no `move_uploaded_file`, no temp directory to configure, permission or clean up after a crash — because where a part lands is an application's explicit call under `fs.write` ([`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream)), never the runtime's default.
 
-`Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
+`Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds. Its start is readable without consuming it: `Core\Mime::detect(Core\Request::bodyStream())` reads the first bytes and holds them on the stream, and the loop over it gives them first, so a raw `PUT` upload is checked and then saved whole. A prefix read after the loop has started throws `LogicError`.
 
 <sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file).</sub>
 
@@ -1148,7 +1148,10 @@ parser differential is a security property, so that framing is not an applicatio
 **Memory:** one wire chunk per in-flight request while a part is read, whatever the size of the
 upload. A buffered part costs more than its size: a `bytes` value has its payload inline and cannot
 point into another buffer, so a part copied out of an accumulated body holds the body and the copy at
-once, and a permitted 2G upload would be a 4G peak.
+once, and a permitted 2G upload would be a 4G peak. A `peek` or a `Core\Mime::detect` of a part holds
+what it read, and a random read of a part holds the part under `[limits] request_body`, which is what
+a bare `readAll` costs. Both are freed when the walk advances
+([`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways)), so the peak stays O(in-flight).
 
 The cost is usability. Every program that accepts a file writes a loop, which is three lines in the
 common case, and one of them is `saveTo`. A slow client still holds a connection for as long as
@@ -1198,7 +1201,14 @@ foreach (Core\Request::files() as $part) {
 - **`content(): Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the iterator's current one. A part the walk has moved past refuses rather than reading the current one.
 - **`saveTo(string $path, {max?, overwrite?})`** — the shorthand for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), to which it delegates under the same bag, and the path nearly every upload takes. Its path is a sink: a `tainted` `filename()` reaching it is a compile error, and `Core\IO::within` is the launderer.
 
-A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which.
+A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which.
+
+**A part is held only by a prefix or random read, until the walk advances.** Two kinds of read take a part as a `Core\Bytes::Source` ([`core-api/a-member-takes-the-source-the-program-holds`](core-api.md#core-api-a-member-takes-the-source-the-program-holds)) and consume nothing:
+
+- **`peek(uint $max): tainted bytes`** and `Core\Mime::detect` read its start. The bytes read are held on the part. A second `peek` with a larger `max` reads further. A `max` over `[limits] memory` throws before a byte is read.
+- **A random read** (`Core\Zip`, `Core\Image`, `Core\Pdf`) holds the whole part, under bare `readAll`'s `[limits] request_body` bound. Past the bound, the error names `saveTo`, a `Core\IO\File` and `readAll({ max })`.
+
+Each of the three consumers gives the held bytes first and then the rest off the wire, so `Core\Mime::detect($part)` followed by `saveTo` writes the whole file. The hold is freed when the walk opens the next part. A prefix read after a consumer has started, or on a part the walk has passed, throws `LogicError`, because the start it would give is gone. `readAll` buffering into the application's own variable still leaves nothing behind on the request for a second reader to find.
 
 **Declined:**
 - **Streaming only, with no way to read a part into memory.** A small avatar to hash, a CSV about to be parsed or a value for a database column wants bytes, and forcing a loop on them buys no safety once the bound sits at the call site.

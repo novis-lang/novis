@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/io.rs, docs/rules/types/string-is-utf8.md, docs/rules/core-api/each-door-takes-a-different-thing.md, docs/rules/tooling/no-raw-handle-onto-standard-output.md, crates/nvs-stdlib/tests/capability.rs]
   - id: 5
     title: "an upload part and a request body are sources, and reading their start consumes nothing"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/mime.rs, docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md, docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md, docs/rules/http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it.md]
   - id: 6
     title: "Core\\Csv::rows decodes a charset as it reads, and the spreadsheet reader has one CSV path"
@@ -535,7 +535,7 @@ tool is missed.
   constant; its card and internal message are rewritten. `crates/nvs-stdlib/src/mime.rs:212`,
   `crates/nvs-stdlib/src/mime.rs:579`
 - [x] The tests of the `part-source` and `mime-sources` checks.
-- [ ] The two upload rules say what is true now.
+- [x] The two upload rules say what is true now.
   `docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`
 
 ### 6. Core\Csv::rows decodes a charset as it reads, and the spreadsheet reader has one CSV path
@@ -642,41 +642,35 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5's code is done (`1aaad843fd`), and its rules item is left.
-The multipart parse holds a part's start (`crates/nvs-stdlib/src/multipart.rs`, `Multipart::hold`),
-and `next_chunk` gives it first, so every consumer gives it with no change of its own.
-`Core\Request\Part::peek` is at `crates/nvs-stdlib/src/request.rs:4530`. `Part` is not a
-capability-bearing class, so `peek` has no capability row. `part_hold` (`request.rs:4611`)
-serves prefix and random reads, and `part_pull` (`request.rs:4655`) the forward read.
-`BodyStream` has `chunk`, `held` and `state` slots, read by `body_stream_hold`
-(`request.rs:3681`). `byte_source.rs` has `Kind::Part` and `Kind::Stream`. `part_parse` takes
-the full member name. `Core\Mime::detect` reads `DETECT_PREFIX = 12` bytes through
-`detect_source` (`crates/nvs-stdlib/src/mime.rs:626`). `request.rs`' test fixtures are
-`pub(crate)` for `mime.rs`. The `part-source` and `mime-sources` checks pass, not yet in WSL.
+Stages 1 to 5 are done. The upload rules say a part or a body stream is held only by a prefix
+or random read, until the walk advances. The `part-source` and `mime-sources` checks pass, and
+`mime::tests::detect_reads_*` pass in WSL. A part's start is held by `Multipart::hold`
+(`crates/nvs-stdlib/src/multipart.rs`); `Part::peek` is `request.rs:4530`, `part_hold`
+`request.rs:4611`, `body_stream_hold` `request.rs:3681`, `detect_source` `mime.rs:626`.
 `stdinStream` and `peek` owe feature proofs in stage 10.
 
 Tests that may go red at the gate: `Mime::detect` and `Part` card, meta and LSP snapshots; a
 conformance case giving `detect` a non-`bytes` value; a pin of `part_parse`'s old
 `Core\Request::<member>` message; `Mime::detect`'s perf-ledger figure; and the stage 2 to 4
 snapshots (`Csv::rows`, `decodeEach`, `Core\IO`, `render.test.ts`). The sweep's reds are stale:
-nightly `42201104003` built `26dda36627`, and `env-secret-proofs` has no check anywhere.
+nightly `42201104003` built `26dda36627`, and its three Miri timeouts are `ignore`d under Miri
+at HEAD. `env-secret-proofs` has no check anywhere.
 
 ### Next
 
-**Finish stage 5**, then mark it done in the front matter.
+**Stage 6**, as its items say (decision 5's `Csv::rows` bullet and decision 7).
 
-- [ ] `docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`: "a part is never
-  held" becomes "held only by a prefix or random read, until the walk advances". Add `peek` to
-  the list, and say a consumer gives the held bytes first.
-- [ ] `docs/rules/http-server/an-upload-is-received-only-through-files.md:12`: add what a
-  `peek`, `Core\Mime::detect` or a random read of a part holds (decision 14).
-- [ ] `docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md:5`: `bodyStream()`
-  gives its start to `Core\Mime::detect` without being consumed.
-- [ ] `bun nv linux-test` for `crates/nvs-stdlib/src/mime.rs:986`
-  (decision 10: a change to file positions runs in WSL).
+- [ ] `crates/nvs-stdlib/src/csv.rs:259`: `charset?: Core\Charset` on `Core\Csv::rows`, decoded
+  one chunk at a time with a cut character carried over and a byte order mark dropped, and the
+  three `csv-charset` tests.
+- [ ] `extensions/spreadsheet/nvs/Reader.nvs:436`: `csvFile` and `head` read with `readBytes` and
+  go through `Core\Csv::rows` with `charset`; `csv.encoding` (`Reader.nvs:25`) becomes `charset`.
+- [ ] `extensions/spreadsheet/src/lib.rs:1338`: `Reader::open` and `Template::open` take
+  `Core\Bytes::Source`, then `Engine::sourceBytes` is deleted.
+- [ ] `a_latin1_csv_file_is_read_without_holding_it_whole`. `crates/nvs-ext/tests/spreadsheet_read.rs:1`
+- [ ] `docs/rules/core-classes/spreadsheet-has-no-io.md:34` says what is true now.
 
-**Then stage 6** (`crates/nvs-stdlib/src/csv.rs`, `extensions/spreadsheet/src/lib.rs:1338`),
-as the stage's items say.
+Stages 7, 8 and 9 touch files disjoint from stage 6 and may run beside it (decision 13).
 
 ### Backlog
 

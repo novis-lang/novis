@@ -12,7 +12,10 @@ parser differential is a security property, so that framing is not an applicatio
 **Memory:** one wire chunk per in-flight request while a part is read, whatever the size of the
 upload. A buffered part costs more than its size: a `bytes` value has its payload inline and cannot
 point into another buffer, so a part copied out of an accumulated body holds the body and the copy at
-once, and a permitted 2G upload would be a 4G peak.
+once, and a permitted 2G upload would be a 4G peak. A `peek` or a `Core\Mime::detect` of a part holds
+what it read, and a random read of a part holds the part under `[limits] request_body`, which is what
+a bare `readAll` costs. Both are freed when the walk advances
+(`rule:http-server/a-part-is-consumed-in-one-of-three-ways`), so the peak stays O(in-flight).
 
 The cost is usability. Every program that accepts a file writes a loop, which is three lines in the
 common case, and one of them is `saveTo`. A slow client still holds a connection for as long as

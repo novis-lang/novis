@@ -409,8 +409,10 @@ The terminal's substitution is uniform, so a `Core\IO\File` over descriptor 1 or
 convenience beside the sink — it would be the way around it, available to exactly the computed-escape
 case [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink) exists to catch. `Cli::write` already *is* writing to
 those streams, and no operation is reachable two ways
-([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). So the standard-stream surface is `Core\IO::stdin()`
-alone, the reading half being neither a sink nor a second spelling of anything. The price, recorded
+([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). So the standard-stream surface is the reading half
+alone: `Core\IO::stdin()` for the input as text, and `Core\IO::stdinStream()` for it as `tainted bytes`
+chunks. Neither is a sink, and they take the same input and give different things
+([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)). The price, recorded
 rather than hidden: a program cannot emit byte-exact binary on its standard output, and one whose
 output is bytes names a file.
 
