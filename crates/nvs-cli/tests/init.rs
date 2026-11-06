@@ -643,9 +643,9 @@ fn writable_by_this_account(dir: &Path, writable: bool) {
 /// The install chapter's table of messages, row by row: every refusal names a path, and what the
 /// table says to do about that path is the whole repair.
 ///
-/// A folder a group of ordinary accounts may write is named in the message, the outer folder here
-/// although the file was going one level below it, and on Windows the SID to remove is printed
-/// beside it. A file already there is kept byte for byte, and deleting it is what lets the next
+/// A folder a group of ordinary accounts may write is named in the message when it is the folder
+/// the file goes into, which is the one folder `nvs init` checks, and on Windows the SID to remove
+/// is printed beside it. A file already there is kept byte for byte, and deleting it is what lets the next
 /// run write one. A folder that passes the check and that this account may not write is the
 /// operating system's own refusal: its error number, the file named, and no remedy, because
 /// nothing about the folder is too open. A cache folder that fails the check is a `warning:` and a
@@ -686,23 +686,26 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
             String::from_utf8_lossy(&ran.stderr).into_owned(),
         )
     };
-    let outer_named = format!(
-        "`{}` ",
-        nvs_config::trust::canonical(&outer)
-            .expect("the folder exists")
-            .display()
-    );
+    let named = |folder: &Path| {
+        format!(
+            "`{}` ",
+            nvs_config::trust::canonical(folder)
+                .expect("the folder exists")
+                .display()
+        )
+    };
+    let (inner_named, outer_named) = (named(&inner), named(&outer));
 
     // Row 1: a group of ordinary accounts can write to the named path.
     #[cfg(windows)]
     let open: [(&dyn Fn(), &str); 1] = [(
-        &|| writable_by_others(&outer, true),
+        &|| writable_by_others(&inner, true),
         "grants write access to `BUILTIN\\Users` (`*S-1-5-32-545`",
     )];
     #[cfg(unix)]
     let chmod = |bits: u32| {
         use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(&outer, std::fs::Permissions::from_mode(bits))
+        std::fs::set_permissions(&inner, std::fs::Permissions::from_mode(bits))
             .expect("a scratch directory's mode is this process's to change");
     };
     #[cfg(unix)]
@@ -720,11 +723,11 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
             "a folder others may write is a refusal: {stderr}"
         );
         assert!(
-            stderr.starts_with("error:") && stderr.contains(&format!("{outer_named}{said}")),
-            "the message names the outer folder and says `{said}`: {stderr}"
+            stderr.starts_with("error:") && stderr.contains(&format!("{inner_named}{said}")),
+            "the message names the folder the file goes into and says `{said}`: {stderr}"
         );
         assert!(!target.exists(), "and nothing is written");
-        writable_by_others(&outer, false);
+        writable_by_others(&inner, false);
     }
     let (status, stderr) = init();
     assert!(
