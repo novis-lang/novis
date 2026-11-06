@@ -1289,6 +1289,14 @@ impl CoreTy {
                 Some(Qual::Contagious) => Some(Qual::Contagious),
                 _ => None,
             },
+            // `Core\IO::writeStream`'s chunks: a walk whose element is written
+            // `Neutral` puts no byte of it into the answer, so it admits a
+            // walk of tainted elements, such as `Core\Request::bodyStream()`.
+            // Every other element mark answers `None`, as an array's does.
+            Self::Iterated(elem) => match elem.classification() {
+                Some(Qual::Neutral) => Some(Qual::Neutral),
+                _ => None,
+            },
             _ => None,
         }
     }

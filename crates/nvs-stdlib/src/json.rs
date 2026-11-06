@@ -880,7 +880,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-
 // ============================================================================
 // Depth
 // ============================================================================
@@ -5797,6 +5796,11 @@ mod each_probe;
 
 mod each;
 mod pieces;
+
+/// The two walks' entry points, for `crate::io`'s case that writes
+/// `encodeEach`'s pieces through `Core\IO::writeStream` and reads them back.
+#[cfg(test)]
+pub(crate) use {each::nvs_core_json_decode_each, pieces::nvs_core_json_encode_each};
 
 #[cfg(test)]
 pub(crate) mod tests {

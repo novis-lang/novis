@@ -609,6 +609,40 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
     }
 }
 
+/// The declared type with the element of each `array<T>`, `Iterable<T>` and
+/// `Iterator<T>` member set `tainted`, and every other member left as it was.
+///
+/// The admission at a [`Qual::Neutral`] walk parameter, `Core\IO::writeStream`'s
+/// chunks. [`untainted_entries`] clears the bit on an argument, which cannot
+/// reach a class: `Core\Request\BodyStream` fixed `Iterable<tainted bytes>` in
+/// its own declaration, and a generic argument is invariant. So the call
+/// compares that argument against this twin instead, and the array arm is
+/// tainted with the others because [`untainted_entries`] reaches an array only
+/// where the whole parameter is one. Nothing is widened past the element: an
+/// `Iterable<int>` argument still meets `Iterable<int>`, since an `int` has no
+/// `tainted` form, and the mismatch names the declared type.
+pub(crate) fn tainted_walks(declared: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match interner.get(declared).clone() {
+        Ty::Class(q, args)
+            if args.len() == 1
+                && (q == QName::parse(nvs_hir::interfaces::ITERABLE)
+                    || q == QName::parse(nvs_hir::interfaces::ITERATOR)) =>
+        {
+            let elem = tainted_result(args[0], interner);
+            interner.generic_class(q, vec![elem])
+        }
+        Ty::Array(_) => tainted_result(declared, interner),
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| tainted_walks(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => declared,
+    }
+}
+
 /// `rule:security/unclassified-parameter-refuses-tainted`'s admission as one question: does a parameter the registry
 /// classified `qual` accept an argument carrying `tainted`?
 ///

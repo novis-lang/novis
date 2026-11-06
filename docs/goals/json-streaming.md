@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/io.rs]
   - id: 3
     title: "Core\\Json::encodeEach writes an array or JSON Lines in pieces"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/io.rs]
   - id: 4
     title: "both members carry their feature proofs, and the JSON guide shows them"
@@ -163,11 +163,11 @@ class, its slots and its iteration trio, as `file:line` with one line each.
 
 - [x] The writer, pulling one item at a time into 64 KiB pieces. `crates/nvs-stdlib/src/json/pieces.rs:1`
 - [x] The three tests the `stream-write` check names. `crates/nvs-stdlib/src/json/pieces.rs:1`
-- [ ] `Core\IO::writeStream` takes a `Core` walk of `tainted bytes`, such as `encodeEach`'s pieces
+- [x] `Core\IO::writeStream` takes a `Core` walk of `tainted bytes`, such as `encodeEach`'s pieces
   and `Core\Request::bodyStream()`. `crates/nvs-stdlib/src/io.rs:147`
-  - [ ] Find where the checker matches a `Core` iterable class against `CoreTy::Iterated`.
-  - [ ] A `tainted bytes` element passes a `Blob(Qual::Neutral)` parameter; the fix and a checker test.
-- [ ] A Rust test that writes `encodeEach`'s pieces through `Core\IO::writeStream` and reads them back
+  - [x] Find where the checker matches a `Core` iterable class against `CoreTy::Iterated`.
+  - [x] A `tainted bytes` element passes a `Blob(Qual::Neutral)` parameter; the fix and a checker test.
+- [x] A Rust test that writes `encodeEach`'s pieces through `Core\IO::writeStream` and reads them back
   with `decodeEach`. `crates/nvs-stdlib/src/io.rs:3142`
 
 ### 4. both members carry their feature proofs, and the JSON guide shows them

@@ -3878,6 +3878,75 @@ mod tests {
         (dir, path)
     }
 
+    // covers: Core\Json::encodeEach
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn write_stream_writes_encode_each_pieces_that_decode_each_reads_back() {
+        // Enough items for several 64 KiB pieces, so the file is written from
+        // more than one chunk and every seam between two pieces is read back.
+        let mut ctx = writing();
+        let (_dir, path) = scratch("items.json");
+        let expected: Vec<String> = (0..3000)
+            .map(|at| format!("item-{at}-{}", "x".repeat(60)))
+            .collect();
+        let mut items = NvsArray::new();
+        for item in &expected {
+            items.append(Value::text(item));
+        }
+        let args = [Value::array(items), Value::bool(false)];
+        let pieces = nvs_runtime::call(crate::json::nvs_core_json_encode_each, &mut ctx, &args)
+            .expect("the walk starts");
+        for arg in args {
+            discard(arg);
+        }
+        stream_to_disk(&mut ctx, &path, pieces, u64::MAX, false, WRITE_STREAM)
+            .expect("writeStream takes encodeEach's pieces");
+        discard(pieces);
+
+        let written = std::fs::read(&path).expect("the file");
+        assert!(
+            written.len() > 3 * 64 * 1024,
+            "the document spans several pieces"
+        );
+        let chunks: Vec<&[u8]> = written.chunks(4096).collect();
+        let args = [
+            Value::null(),
+            Value::bool(false),
+            Value::null(),
+            source(&chunks),
+            Value::text(""),
+            Value::bool(false),
+            Value::uint(u64::from(crate::json::DEFAULT_MAX_DEPTH_U32)),
+        ];
+        let elements = nvs_runtime::call(crate::json::nvs_core_json_decode_each, &mut ctx, &args)
+            .expect("the read starts");
+        for arg in args {
+            discard(arg);
+        }
+        let cursor = nvs_runtime::sequence::start(&mut ctx, elements, "the case").expect("a walk");
+        let mut from = 0;
+        let mut read = Vec::new();
+        while let Some(element) =
+            nvs_runtime::sequence::pull(&mut ctx, cursor, &mut from, "the case")
+                .expect("valid JSON")
+        {
+            read.push(
+                element
+                    .as_text()
+                    .expect("every element is a string")
+                    .to_owned(),
+            );
+            discard(element);
+        }
+        discard(cursor);
+        discard(elements);
+        assert_eq!(read, expected, "every item comes back, in order");
+        let _ = std::fs::remove_file(&path);
+    }
+
     // covers: Core\IO::writeStream
     #[cfg_attr(
         miri,

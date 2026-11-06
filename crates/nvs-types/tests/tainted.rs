@@ -107,6 +107,25 @@ fn a_neutral_parameter_of_a_generic_member_admits_a_tainted_argument() {
 }
 
 #[test]
+fn a_neutral_walk_parameter_admits_a_walk_of_tainted_bytes() {
+    // `Core\IO::writeStream` writes its chunks and returns nothing, so a walk
+    // whose class fixed `tainted bytes`, such as `encodeEach`'s pieces, passes,
+    // and so does an array of tainted chunks. The element type is still checked.
+    let diags = check_in_method(
+        "array<mixed> $items = [1, 2];\n\
+         Core\\IO::writeStream(\"a.json\", Core\\Json::encodeEach($items));\n\
+         array<tainted bytes> $chunks = [];\n\
+         Core\\IO::writeStream(\"b.json\", $chunks);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_in_method(
+        "array<int> $numbers = [1, 2];\n\
+         Core\\IO::writeStream(\"c.json\", $numbers);\n",
+    );
+    assert!(diags.has_errors(), "an `array<int>` is not a walk of bytes");
+}
+
+#[test]
 fn a_contagious_parameter_admits_a_tainted_argument_and_taints_the_result() {
     // `Core\Str::join`'s separator decides which bytes come back, so the
     // answer is tainted whenever the separator was.

@@ -651,7 +651,18 @@ fn check_arg_admitting_quals(
     }
     if is_assignable(compared, expected, env.interner, env.graph, env.signatures) {
         note_float_widening(value, compared, expected, env);
+        return actual;
+    }
+    // A walk of tainted elements, such as `Core\Request::bodyStream()`, fixed
+    // its element in its own class, so `tainted_walks` taints the declared
+    // walk's element instead of clearing the argument's.
+    let walks = if admitted.tainted {
+        tainted_walks(expected, env.interner)
     } else {
+        expected
+    };
+    if walks == expected || !is_assignable(compared, walks, env.interner, env.graph, env.signatures)
+    {
         report_mismatch(value.span, expected, actual, env);
     }
     actual
