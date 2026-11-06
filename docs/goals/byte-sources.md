@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-stdlib/src/csv.rs, extensions/spreadsheet/nvs/Reader.nvs, extensions/spreadsheet/nvs/Template.nvs, extensions/spreadsheet/src/lib.rs, docs/rules/core-classes/spreadsheet-has-no-io.md, docs/rules/core-classes/spreadsheet-reads-as-a-stream.md]
   - id: 7
     title: "Core\\Zip, Core\\Hash, Core\\Compress and Core\\Storage::put read from every source"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/zip.rs, crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/compress.rs, crates/nvs-stdlib/src/storage.rs, docs/rules/core-classes/decompression-bound.md]
   - id: 8
     title: "Core\\Xml::reader reads a document of any size one window at a time"
@@ -493,6 +493,21 @@ has no memory check; and the decompression ratio needs the input's length.
       `Decompressor` does" had no such floor to copy: `Decompressor` checks once at `finish`.
     - `Storage::put` removes the object it began when its source fails part way, so `get` never
       reads half an upload. With `overwrite`, the object it replaced is already gone.
+21. **The archive, as built in stage 7.**
+    - `zip::Archive` borrows a `bytes` value for every range, so that call costs what a slice did,
+      and reads any other source through `ByteSource::range`. The end record is found in the last
+      `22 + 65535` bytes. The directory is walked through `Archive::view`, a window of at least
+      `READ_CHUNK` that is read again when a record leaves it, so a hostile `begins` offset costs
+      one window and never the file. **What it spends:** one window and one compressed piece per
+      call, each about `READ_CHUNK`.
+    - Each entry is read through `zip::Window`, an `io::Read` of at most `READ_CHUNK` per range.
+      A range that comes back empty before the entry's end, or an entry whose end is past the
+      archive's size, is `short`: a `ParseError` naming the entry. A fault the window kept wins
+      over the decoder's message. The end that wraps `u64` keeps its pinned message
+      (`zip-refuses-an-entry-whose-zip64-size-runs-past-the-address-space.nvst`).
+    - The repeated-name refusal runs after the walk, over the names the entries own, because the
+      window does not keep a name it has passed. An archive with a repeated name and a hostile
+      entry after it is now refused for the hostile entry. Both refuse the whole archive.
 
 ## Stages
 
@@ -597,9 +612,9 @@ tool is missed.
 
 **Split:** Zip is one item group; Hash, Compress and Storage another. They share no file.
 
-- [ ] Zip: the directory through `range()` under `affordable`. `crates/nvs-stdlib/src/zip.rs:559`
-- [ ] Zip: each entry inflated through a bounded reader over its range. `crates/nvs-stdlib/src/zip.rs:773`
-- [ ] Zip: a short range is a `ParseError`; the four tests of `zip-file`. `crates/nvs-stdlib/src/zip.rs:1093`
+- [x] Zip: the directory through `range()` under `affordable`. `crates/nvs-stdlib/src/zip.rs:759`
+- [x] Zip: each entry inflated through a bounded reader over its range. `crates/nvs-stdlib/src/zip.rs:1040`
+- [x] Zip: a short range is a `ParseError`; the four tests of `zip-file`. `crates/nvs-stdlib/src/zip.rs:903`
 - [x] `Core\Hash::of` and `hmac` through `for_each_chunk`. `crates/nvs-stdlib/src/hash.rs:336`
 - [x] `Core\Compress` through `reader()`, with the running ratio. `crates/nvs-stdlib/src/compress.rs:644`
 - [x] `Core\Storage::put` through `for_each_chunk`. `crates/nvs-stdlib/src/storage.rs:188`
@@ -688,18 +703,17 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's Hash, Compress and Storage lane is done (decision 20).
-`Core\Hash::of` and `hmac`, `Core\Compress::compress` and `decompress`, and `Core\Storage::put`
-take `Core\Bytes::Source|Core\Bytes::Chunks` (a `string` arm stays on Hash and `compress`).
-`byte_source.rs` gained `for_each_chunk` and `Reader`. `hash-sources` and `compress-sources` pass
-(all of `hash::tests` and `compress::tests` ran green). The rule states the running ratio, and the
-four cards name the sources. `Storage::put`'s source path has no test yet; stage 11's "an
-`Iterable` that throws on its second chunk" covers its removal of a partial object.
-
-The sweep's reds were stale: `env-secret-proofs` has no check or log, and nightly `42201104003`'s
-three Miri timeouts are 8 MiB tests that HEAD already skips under Miri.
+Stages 1 to 7 are done. Stage 7's Zip lane landed (decision 21): `Core\Zip::entries`, `read` and
+`extract` take `Core\Bytes::Source`, read by ranges through `zip::Archive`
+(`crates/nvs-stdlib/src/zip.rs:485`), with `bytes` borrowed directly. A short range is a
+`ParseError` naming the entry. All 21 `zip::tests` ran green on Windows and in WSL, the four
+`zip-file` tests among them. `Storage::put`'s source path (decision 20) has no test yet; stage 11
+covers it. The sweep's reds are stale: `env-secret-proofs` has no check and no log, and nightly
+`42201104003`'s Miri jobs are 8 MiB tests HEAD already skips under Miri.
 
 Tests that may go red at the gate: the cards, meta, LSP stub and `nvs agent` snapshots of
+`Core\Zip::entries`, `read` and `extract` (a widened first parameter and new `archive` cards), and
+their perf-ledger figures; the cards, meta, LSP stub and `nvs agent` snapshots of
 `Core\Hash::of`, `hmac`, `Core\Compress::compress`, `decompress` and `Core\Storage::put` (a
 widened first or third parameter); their perf-ledger figures (now hashed with `byte_source.rs`);
 `BodyStream`'s card, meta, LSP stub and `nvs agent` snapshots
@@ -713,20 +727,20 @@ perf-ledger figure; the stage 2 to 4 snapshots (`decodeEach`, `Core\IO`, `render
 
 ### Next
 
-**Stage 7's Zip lane** (decision 5), one session of its own.
+**Stage 8: `Core\Xml::reader` reads one window at a time** (decision 5), one session of its own.
 
-- [ ] `crates/nvs-stdlib/src/zip.rs:559`: `directory(archive: &[u8])` reads the end record, the
-  zip64 locator and the central directory through `ByteSource::range()` and `size()`
-  (`crates/nvs-stdlib/src/byte_source.rs:378`), which check `affordable` per `READ_CHUNK`.
-  `bytes` keeps its slice path.
-- [ ] `crates/nvs-stdlib/src/zip.rs:773`: each entry is inflated through a bounded reader over its
-  range, under `Budget` and `Bound` as now. A short range read is a `ParseError` naming the entry,
-  never a slice panic. The registry rows take
-  `CoreTy::Alias(r"Core\Bytes::Source", …)` as `crates/nvs-stdlib/src/mime.rs:221` writes it.
-- [ ] The four `zip-file` tests beside `crates/nvs-stdlib/src/zip.rs:1093`, built on a file handle
-  as `crates/nvs-stdlib/src/compress.rs`'s `file_of` test helper does.
+- [ ] `crates/nvs-stdlib/src/xml.rs:2792`: `nvs_core_xml_reader` takes
+  `Core\Bytes::Source|Core\Bytes::Chunks` and keeps the `ByteSource` and its holder as
+  `Core\Csv::rows` does (`crates/nvs-stdlib/src/csv.rs`, its walk's filed state), reading one
+  chunk per `advance()` through `next_chunk` (`crates/nvs-stdlib/src/byte_source.rs:295`). If the
+  parser cannot resume across a chunk edge in one session, split the stage first.
+- [ ] `crates/nvs-stdlib/src/xml.rs:2828`: the declared-encoding check. A document declares UTF-8
+  or UTF-16, and any other `encoding=` throws `ParseError` naming `Core\Encoding`. Then the three
+  `xml-stream` tests.
+- [ ] `docs/rules/core-classes/xml-tree-and-stream.md:1` says the stream holds one window of any
+  source.
 
-Stages 8 and 9 touch files disjoint from stage 7 and may run beside it (decision 13).
+Stage 9 touches files disjoint from stage 8 and may run beside it (decision 13).
 
 ### Backlog
 
