@@ -391,8 +391,12 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
 - Four from-html `url-scheme` entries cite the converters' link code, pinned to a commit, because
   neither library has a report about it.
 
-- [ ] `crates/nvs-stdlib/src/markdown.rs` with `toHtml`, registered beside `html` and with its reference
+- [x] `crates/nvs-stdlib/src/markdown.rs` with `toHtml`, registered beside `html` and with its reference
   card. `crates/nvs-stdlib/src/lib.rs:162`
+  - [x] The class row at rank 1045, its card, `address` and the `classes.rs` line.
+  - [x] `Renderer` builds `Parsed` from the engine's events with cmark's newlines.
+  - [x] Ours over the events: `prepared`, unused footnotes, one `language-`, no empty `tbody`.
+  - [x] Extended autolinks in `markdown/autolink.rs`, linear by `MAX_DOMAIN` and one paren count.
 - [x] `pulldown-cmark` vendored under `vendor/` with an entry in `[patch.crates-io]`, and the
   patches of `rule:core-classes/markdown-to-html`'s engine paragraph, each with a catalogue entry
   that pins it. `Cargo.toml:1314`
@@ -408,14 +412,21 @@ check is green: `cargo test --test markdown_known_bugs` runs two tests and ignor
   - [x] `input` on the list, written only as a disabled checkbox (`inert_checkbox`).
   - [x] One test per entry, each also asserting the rebuild stays a fixed point.
   - [x] The mXSS corpus test counts an attribute that passed its value test as granted.
-- [ ] Raw HTML through the sanitizer's rebuild, URLs through the shared check, output as a tree
+- [x] Raw HTML through the sanitizer's rebuild, URLs through the shared check, output as a tree
   (decision 5). `crates/nvs-stdlib/src/html.rs:1671`
-- [ ] The nesting flatten and the added-output budget (decision 5). `crates/nvs-stdlib/src/markdown.rs:1`
+- [x] The nesting flatten and the added-output budget (decision 5). `crates/nvs-stdlib/src/markdown.rs:1`
 - [ ] The six tests of the `to-html` check. The spec tests read the vendored files.
   `crates/nvs-stdlib/src/markdown.rs:1`
+  - [x] The two spec tests, with the nine emphasis examples, the tag filter and the five
+    autolinked examples as `rule:core-classes/markdown-to-html` reads them.
+  - [x] `sanitizing_the_output_again_changes_nothing`, which found that `rebuilt` kept leading
+    whitespace a second parse drops (`without_leading_whitespace`).
+  - [x] `nesting_past_512_flattens_as_the_html_parser_does` and
+    `added_output_past_its_budget_renders_as_source_text`.
+  - [ ] `work_grows_linearly_over_every_catalogued_slow_input`, counting the engine's steps.
 - [ ] The catalogue test is no longer ignored, and every entry passes. An entry that fails is fixed in
   the code, never removed from the catalogue. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
-- [ ] `docs/reference/core/Markdown.md` names the class. `docs/reference/core/Markdown.md:1`
+- [x] `docs/reference/core/Markdown.md` names the class. `docs/reference/core/Markdown.md:1`
 
 ### 4. a program changes links, images, headings and code blocks through callbacks
 
@@ -497,44 +508,46 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 3 has two of its eight items, each in its own commit.
+Stage 3 has six of its eight items. The engine and the sanitizer's list each have a commit, and
+`toHtml` with its tests and page has one (`6463e25a`).
 
-- **The engine is vendored.** `vendor/pulldown-cmark/` is 0.13.6's library (no `html` module, binary
-  or build script), built through `Cargo.toml:1329`, and `nvs-stdlib` takes it. The seven patches
-  each carry a `// Novis:` comment naming their catalogue entry: `firstpass.rs` `parse_atx_heading`
-  and `finish_list`, `scanners.rs` `is_ascii_whitespace_no_nl`, `scan_closing_code_fence` and
-  `scan_link_dest`, `parse.rs` `make_code_span` and the footnote branch of the link pass.
-  The vertical-tab patch narrows line whitespace to space and tab everywhere, as 0.31.2 says.
-- **Measured with a scratch probe** (deleted) that rendered with upstream's `push_html`. Every
-  pinning input rendered as its entry says. The spec results did not change: CommonMark 0 failures
-  and GFM 21, namely 9 emphasis (398, 426, 434-436, 473-475, 477), 11 extended autolinks
-  (621-631) and 1 tag filter (652). That comparison read `&quot;` as `"`, `style="text-align: x"`
-  as `align="x"`, dropped the newlines between tags and dropped an empty `tbody`. Our serializer
-  owes the same: `Core\Html`'s writer puts no newline between tags, so the spec tests must
-  normalize those, or `markdown.rs` writes the newlines as text nodes where the spec has them.
-- **The sanitizer's list** has `CHECKED` (`crates/nvs-stdlib/src/html.rs:1944`) beside
-  `ELEMENTS`, and `input` admitted only by `inert_checkbox` (`html.rs:2002`). Five tests,
-  `align_on_a_table_cell_*`, `class_on_code_*`, `an_input_is_written_*`, `a_checkbox_carries_*`
-  and `an_id_is_kept_only_*`, pass, as do the two allowlist tests they touch. The html-sanitize
-  conformance case uses `class` and `id` on a `p` with plain values, so it stays green.
+- **`Core\Markdown::toHtml` renders.** `crates/nvs-stdlib/src/markdown.rs` is registered at rank
+  1045 with its card. `Renderer` builds `Parsed` from the engine's events, writing cmark's newlines
+  between tags as text nodes, so the output compares to the spec after only a reparse. Raw HTML is
+  a text node named `RAW_SOURCE` (`html.rs:1689`). Such a tree, or one past the parser's depth cap,
+  is serialized, parsed and rebuilt (`rendered`, `markdown.rs:859`). `url_allowed`
+  (`markdown.rs:170`) is the one URL check that stage 4's callbacks reuse. Footnotes are an `ol`
+  after an `hr`, with `md-fn-N` and `md-fnref-N`, and the rule now says so.
+- **Five of the six `to-html` tests pass**, run once by name: both spec tests, the fixed point, the
+  nesting flatten and the budget. The spec tests take the nine emphasis examples from CommonMark,
+  skip the tag filter, and pin the five examples a bare URL makes a link (`AUTOLINKED` in
+  `markdown/tests.rs`). The rule records that last reading.
+- **`sanitize` changed.** `rebuilt` now removes whitespace before the first element
+  (`without_leading_whitespace`, `html.rs:2202`), because a second parse dropped it, so `sanitize`
+  was not a fixed point. The 37 `html::` tests pass, with `Core\Markdown::toHtml` added to the
+  launderer roster.
+- **The two sweep reds were stale.** No `env-secret-proofs` check exists, since `byte-sources`
+  retired it. The three Miri timeouts ran at `26dda366`, and `f13f4064` ignores all three under Miri.
 
 ### Next
 
-**Stage 3** goes on with `crates/nvs-stdlib/src/markdown.rs`. Write its checkpoints first:
+**Stage 3** ends with its two open items. Write their checkpoints first:
 
-- [ ] `markdown.rs` with `toHtml`, its registration and its card. `crates/nvs-stdlib/src/lib.rs:163`
-  It builds `crate::xml::Parsed` from the events and writes it with `source` (`html.rs:1710`).
-  URLs go through `addressable` (`html.rs:2051`), and raw HTML through `parse` and `rebuilt`
-  (`html.rs:1578`, `html.rs:2153`). Those need `pub(crate)`.
-- [ ] Ours over the events. `crates/nvs-stdlib/src/html.rs:1944`
-  NUL to U+FFFD, a leading BOM, unused footnotes, one `language-`, no empty `tbody`, extended
-  autolinks and the added-output budget (stage 3's notes).
-- [ ] The six `to-html` tests over the vendored spec files. `tests/data/markdown/spec/gfm-0.29.txt:368`
+- [ ] `work_grows_linearly_over_every_catalogued_slow_input`. `crates/nvs-stdlib/src/markdown/tests.rs:1`
+  It needs the
+  engine's work counted, and the events alone do not show it. Recommended: one `// Novis:` patch
+  with a thread-local step counter, bumped in the per-byte loops of `firstpass.rs` and of
+  `parse.rs`'s inline pass, read by a `#[cfg(test)]` helper. Each `work = "linear"` entry then
+  checks steps at n and at 4n, as `crates/nvs-stdlib/src/html.rs:2322` does.
 - [ ] `outcome` written and the `#[ignore]` removed. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:226`
-- [ ] `docs/reference/core/Markdown.md`, shaped like `Html`'s. `docs/reference/core/Html.md:1`
+  An integration test reaches only public items. Add `#[doc(hidden)] pub fn markdown(text) ->
+  String` to `crates/nvs-stdlib/src/fuzz.rs:153`, which stage 9's fuzz target needs too. An `html`
+  entry compares after a reparse, as `spec_normal` does. A `html_lacks` string with a `"` is checked
+  against the parsed output's attributes (stage 3's notes). `output = "bounded"` checks the
+  output against the input's length plus `ADDED_OUTPUT_SLACK` plus the markup a row or a use writes.
 
-No test is expected to go red from this session's commits. Stages 7 and 8 may run as a side goal
-(decision 12).
+Expected red: the floor check `proofs-gate`, since `Core\Markdown::toHtml` owes its feature proofs
+until stage 10 writes them. Stages 7 and 8 may run as a side goal (decision 12).
 
 ### Backlog
 
