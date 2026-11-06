@@ -156,6 +156,10 @@ nvs-test.workspace = true
 # `nvs_hir::errors::OWN_PROPERTIES`. `nvs-hir` depends on nothing in this
 # crate, so the edge adds no cycle.
 nvs-hir.workspace = true
+# `json`'s reader probe drives serde_json inside a coroutine of its own, the
+# way `nvs-host` runs a task. The crate is already in the graph through
+# `nvs-host`, so this adds nothing to any binary.
+corosensei.workspace = true
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
 # `ast.rs`'s seed replay asks the compiler's own parser for its verdict, and

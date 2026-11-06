@@ -347,8 +347,40 @@
 //!
 //! A faster parser than serde_json is a goal of its own, and only once
 //! serde_json's own parse is over half a member's time at 1 MiB or more and that
-//! member still misses the bound above. Reading or writing a document larger
-//! than memory would be a new `Core` API.
+//! member still misses the bound above. A document larger than memory is read
+//! and written by `decodeEach` and `encodeEach`, below.
+//!
+//! # A document read one element at a time
+//!
+//! `Core\Json::decodeEach` runs serde_json inside a coroutine of its own. The
+//! coroutine suspends after each element it builds, and whenever serde_json
+//! needs the next chunk of the source. serde_json stays the only JSON parser,
+//! [`Decode`] and `decodeAs`'s checks build each element, and a message names
+//! the line and column in the whole document. The rule is
+//! `rule:core-classes/json-whole-and-stream`.
+//!
+//! `each_probe` chose it among the three readers of the goal `json-streaming`'s
+//! decision 6. Each walked `/items` of a document of small objects, in chunks of
+//! 64 KiB, on the `proof` profile:
+//!
+//! | reader | ns per byte at 1 MiB | peak at 1 MiB | at 16 MiB | at 256 MiB | message for a bad element |
+//! |---|---|---|---|---|---|
+//! | `read` of the whole document | 15.9 | the document's | | | `line 1 column 35` |
+//! | (a) serde_json in a coroutine | 19.2 | 311,735 | 318,907 | 318,907 | `line 1 column 35` |
+//! | (c) a framer before [`read`] | 10.8 | 190,564 | 196,780 | 196,780 | `line 1 column 7` |
+//!
+//! Both keep memory flat within 8 KiB from 1 MiB to 256 MiB, under the bar's
+//! 64 KiB, and both are under twice the whole read's time. (a) is the first
+//! that meets all three legs, so it is built. (c) is faster but names a
+//! position inside the element, and it is a hand-written parser of JSON's outer
+//! structure, which RFC 8259 being a dependency rules out. (b), a pull-reader
+//! crate, parses values with its own grammar and writes its own messages, so it
+//! fails the message leg before any figure. The peak does not count the
+//! coroutine's stack, which is reserved like a task's and resident only in the
+//! pages the parse touches.
+//!
+//! **What it spends:** one coroutine stack per walk in flight, plus one chunk
+//! of the source and the element being built.
 
 use std::borrow::Cow;
 use std::fmt;
@@ -5524,6 +5556,9 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
         ))
     })
 }
+
+#[cfg(test)]
+mod each_probe;
 
 #[cfg(test)]
 pub(crate) mod tests {
