@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/products/import
+--HEADERS--
+content-type: application/json
+--BODY--
+{"source":"warehouse","items":[{"sku":"MUG-01","stock":12},{"sku":"CUP-07","stock":30},{"sku":"LID-02","stock":0}]}

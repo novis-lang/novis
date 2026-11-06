@@ -1,0 +1,35 @@
+<?nvs
+// Shows a request that sends a list of products and gets back the ones that are in stock.
+
+#[Core\Json\Derive]
+class Product
+{
+    public string $sku;
+    public int $stock;
+
+    public function constructor(string $sku, int $stock)
+    {
+        $this->sku = $sku;
+        $this->stock = $stock;
+    }
+}
+
+class Stock
+{
+    // This function reads the body one product at a time. It gives only the products in stock.
+    public static function available(): Iterator<Product>
+    {
+        foreach (Core\Json::decodeEach<Product>(Core\Request::bodyStream()) as Product $product) {
+            if ($product->stock > 0) {
+                yield $product;
+            }
+        }
+    }
+}
+
+// `encodeEach` writes the JSON array in pieces, so neither list is in memory as a whole.
+// This prints `[{"sku":"MUG-01","stock":12},{"sku":"CUP-07","stock":30}]`.
+foreach (Core\Json::encodeEach(Stock::available()) as tainted bytes $piece) {
+    echo $piece as string;
+}
+echo "\n";

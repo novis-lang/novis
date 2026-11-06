@@ -1,0 +1,3 @@
+{"event":"login","user":"ada"}
+{"event":"upload","user":"ada"}
+{"event":"logout","user":"ben"}

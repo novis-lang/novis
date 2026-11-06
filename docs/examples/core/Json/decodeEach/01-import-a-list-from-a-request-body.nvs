@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to read a large list from a request body one item at a time.
+
+#[Core\Json\Derive]
+class Product
+{
+    public string $sku;
+    public int $stock;
+
+    public function constructor(string $sku, int $stock)
+    {
+        $this->sku = $sku;
+        $this->stock = $stock;
+    }
+}
+
+int $count = 0;
+int $stock = 0;
+
+// The body is read in pieces, as it arrives. `'/items'` is the path of the array
+// inside the document. Each element of that array is checked as a `Product`.
+foreach (Core\Json::decodeEach<Product>(Core\Request::bodyStream(), '/items') as Product $product) {
+    echo $product->sku, ': ', $product->stock, "\n";
+    $count = $count + 1;
+    $stock = $stock + $product->stock;
+}
+
+// This prints `3 products, 42 in stock`.
+echo $count, ' products, ', $stock, " in stock\n";

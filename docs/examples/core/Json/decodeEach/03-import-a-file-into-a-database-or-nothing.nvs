@@ -1,0 +1,34 @@
+<?nvs
+// Shows an import that saves every customer of a file, or none of them when the file is broken.
+
+// The third customer in this file is cut off, so the file is not valid JSON.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'customers.json');
+Core\IO::write(
+    $path,
+    "[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Ben\"},{\"id\":3,\"na",
+);
+
+// `:memory:` is a database that lasts as long as the program runs.
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table customers (id integer primary key, name text not null)', []);
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+try {
+    // Each customer is added as soon as it is read. The loop gets the first two
+    // customers before the broken part of the file is read.
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
+        foreach (Core\Json::decodeEach<{ id: int, name: string }>($file) as { id: int, name: string } $customer) {
+            $tx->execute('insert into customers (id, name) values (?, ?)', [$customer->id, $customer->name]);
+            echo 'added ', $customer->name, "\n";
+        }
+    });
+} catch (ParseError $error) {
+    // The message gives the byte where the file stops being valid JSON.
+    echo $error->message, "\n";
+}
+$file->close();
+
+// The error ended the transaction, so both added rows were undone. This prints `0 customers`.
+echo $db->query('select count(*) as n from customers', [])->all()[0]->int('n') ?? 0, " customers\n";
+
+$db->close();

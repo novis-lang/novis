@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to read a JSON Lines log file, where each line is one JSON object.
+
+// The program writes a small log first, so that it has one to read.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'app.jsonl');
+Core\IO::write(
+    $path,
+    "{\"level\":\"info\",\"message\":\"server started\"}\n"
+        . "{\"level\":\"error\",\"message\":\"disk is full\"}\n"
+        . "{\"level\":\"info\",\"message\":\"request done\"}\n"
+        . "{\"level\":\"error\",\"message\":\"mail server timed out\"}\n",
+);
+
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
+
+// `{ lines: true }` reads one JSON value from each line. The second argument
+// must be `''`, because there is no array to point into.
+var $entries = Core\Json::decodeEach<{ level: string, message: string }>($file, '', { lines: true });
+
+int $errors = 0;
+foreach ($entries as { level: string, message: string } $entry) {
+    if ($entry->level == 'error') {
+        echo $entry->message, "\n";
+        $errors = $errors + 1;
+    }
+}
+
+$file->close();
+
+// This prints `2 errors`.
+echo $errors, " errors\n";

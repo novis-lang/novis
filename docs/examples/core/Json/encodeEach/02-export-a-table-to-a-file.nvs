@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to export a database table to a JSON file, one row at a time.
+
+// `Core\Db\Derive` fills the class from a row. `Core\Json\Derive` writes it as a JSON object.
+#[Core\Db\Derive]
+#[Core\Json\Derive]
+class Order
+{
+    public uint $id;
+    // A text column arrives as `tainted`, because the value comes from the database.
+    public tainted string $customer;
+    public int $cents;
+
+    public function constructor(uint $id, tainted string $customer, int $cents)
+    {
+        $this->id = $id;
+        $this->customer = $customer;
+        $this->cents = $cents;
+    }
+}
+
+// `:memory:` is a database that lasts as long as the program runs.
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table orders (id integer primary key, customer text not null, cents integer not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)', ['Ada', 2500, 'Ben', 1200, 'Cleo', 900]);
+
+// `streamAs` reads one row at a time. `encodeEach` takes the next row only when it needs it.
+// So you can export a table that is larger than memory.
+var $orders = $db->streamAs<Order>('select id, customer, cents from orders order by id', []);
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.json');
+Core\IO::writeStream($path, Core\Json::encodeEach($orders), { overwrite: true });
+
+$db->close();
+
+// This prints the JSON array with the three orders.
+echo Core\IO::read($path), "\n";

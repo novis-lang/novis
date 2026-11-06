@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/products/in-stock
+--HEADERS--
+content-type: application/json
+--BODY--
+[{"sku":"MUG-01","stock":12},{"sku":"LID-02","stock":0},{"sku":"CUP-07","stock":30}]

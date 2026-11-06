@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to write a list of events as JSON Lines, one JSON object on each line.
+
+array<{ event: string, user: string }> $events = [
+    { event: 'login', user: 'ada' },
+    { event: 'upload', user: 'ada' },
+    { event: 'logout', user: 'ben' },
+];
+
+// `{ lines: true }` writes each item on its own line, with no `[` and no commas between items.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'events.jsonl');
+Core\IO::writeStream($path, Core\Json::encodeEach($events, { lines: true }), { overwrite: true });
+
+// This prints three lines. Another program can add a line to the file without reading it first.
+echo Core\IO::read($path);
