@@ -10,7 +10,7 @@ stages:
     context: [tests/hostile/README.md]
   - id: 2
     title: "the engine is chosen by the catalogue, and the rules are written"
-    status: open
+    status: done
     context: [docs/rules/core-classes/json-whole-and-stream.md, docs/rules/core-api/one-paradigm-per-operation.md, docs/rules/packaging/search-sorts-by-the-readers-choice.md]
   - id: 3
     title: "Core\\Markdown::toHtml renders a whole document safely and in linear time"
@@ -299,6 +299,16 @@ names a Markdown renderer as a sink.
     `input`, then `repeat` n times, then `suffix`. Stage 3 adds a second growing part if an
     approximated entry needs it (*Backlog*). The test file's module doc and the catalogue's header
     hold the shape.
+15. **The sanitizer's list grows by what Markdown's output needs** (stage 2, recorded in
+    `rule:core-classes/markdown-to-html` and `html-sanitize`). CommonMark and GFM output carries
+    `align`, a `language-` class, task-list checkboxes and anchors, which the list did not grant, and
+    decision 5's fixed point needs the list to hold them. Each is granted with a closed value: `align`
+    on `td` and `th` is `left`, `center` or `right`; `class` on `code` is `language-` and letters, digits
+    and `+-_#.`; `input` only as `type="checkbox"` with `disabled` and `checked`; `id` on `h1` to `h6`,
+    `a` and `li` starts with `md-`. The hyphen keeps an `id` from naming a script's global, so the
+    DOM-clobbering reason for refusing `id` still holds. The `heading` callback's answer is written
+    after `md-`, and footnotes use `md-fn-N` and `md-fnref-N`. Declined: a separate list for Markdown,
+    which would make `sanitize` over Markdown's output change it.
 
 ## Stages
 
@@ -321,24 +331,73 @@ removes duplicates by bug class and input, and writes the file.
 
 **Does:** settles the engine by measurement, then writes the rules before any member exists.
 
-- [ ] A scratch harness under `.agent-tmp/` runs the catalogue and the spec examples through both
+- [x] A scratch harness under `.agent-tmp/` runs the catalogue and the spec examples through both
   candidates, counts failures, work steps on the slow inputs, and time on a large document. Its result
   goes into `markdown-to-html`'s reasons. The harness is deleted afterwards. `.agent-tmp/markdown-engine/:1`
-- [ ] The engine in the workspace dependencies, vendored if it needs patches (decision 4). `Cargo.toml:1034`
-- [ ] The four rules of decision 11. `docs/rules/core-classes/markdown-to-html.md:1`
-- [ ] `rule:core-classes/html-sanitize` names `Core\Markdown` as a launderer that rebuilds through the
+- [x] The engine in the workspace dependencies, vendored if it needs patches (decision 4). `Cargo.toml:1034`
+- [x] The four rules of decision 11. `docs/rules/core-classes/markdown-to-html.md:1`
+- [x] `rule:core-classes/html-sanitize` names `Core\Markdown` as a launderer that rebuilds through the
   same list. `docs/rules/core-classes/html-sanitize.md:1`
-- [ ] The Declined entry for rendered readmes says what is still missing now that `Core` renders
+- [x] The Declined entry for rendered readmes says what is still missing now that `Core` renders
   Markdown, and a gap record names the registry goal that owes it.
   `docs/rules/packaging/search-sorts-by-the-readers-choice.md:61`
-- [ ] `bun nv rules --check` is green over the new fragments.
+- [x] `bun nv rules --check` is green over the new fragments.
 
 ### 3. Core\Markdown::toHtml renders a whole document safely and in linear time
 
 **Does:** the keystone. Every later member uses this renderer.
 
+**What the engine measurement found:**
+- pulldown-cmark's `push_html` writes `"` in text where the spec writes `&quot;`. Every CommonMark
+  failure was that alone. Our serializer decides this, and the spec tests compare after reading
+  `&quot;` as `"` in text, or the serializer writes `&quot;` there.
+- Its real faults are the seven patches the rule lists, which the catalogue pins: `cmark-reg-655-definition-only-item`,
+  `commonmark-js-reg-116-atx-closing-tabs`, `md4c-reg-292-closing-fence-trailing-tab`,
+  `marked-cve-2026-41680-tab-vtab` (renders nothing), `md4c-pr-443-del-ends-destination`,
+  `md4c-reg-201-lazy-indented-fence`, and the two `cmark-gfm-reg-footnote-strikethrough-uaf-*`.
+- Ours, not the engine's: NUL to U+FFFD before parsing (six entries), a leading BOM
+  (`pulldown-cmark-issue-1156`), unused footnotes not written (`cmark-gfm-reg-adjacent-unused-footnotes-uaf`),
+  no doubled `language-` (`commonmark-js-reg-277-language-prefix`), an empty `tbody` not written,
+  extended autolinks (11 GFM examples and `cmark-gfm-cve-2023-22485-validate-protocol-oob`), and the
+  added-output budget (9 of 10 `output-blowup` entries fail in both engines).
+- Nine GFM 0.29 emphasis examples disagree with CommonMark 0.31.2, and both engines follow 0.31.2.
+  The rule says the GFM test takes CommonMark's output for those nine.
+- Four `attribute-injection` entries (`mistune-cve-2026-44897-heading-id`,
+  `league-commonmark-ghsa-f8fg-pg57-v4j8-onclick` and `-onerror`, `parsedown-issue-210`) have
+  `html_lacks` strings with a `"`. Those strings may match safe text, because `Core\Html` writes `"`
+  as it is in text (`crates/nvs-stdlib/src/html.rs:1819`). Stage 3 checks such an entry against the
+  attributes of the parsed output, or turns it into an exact `html`. A stage 3 session must not
+  delete it.
+
+Stage 1's catalogue: `tests/data/markdown/known-bugs.toml` has 508 entries over all fourteen libraries,
+and no library has fewer than 21. The classes are 190 slow, 114 wrong-output, 72 crash, 48 url-scheme,
+26 deep-nesting, 19 markdown-injection, 17 attribute-injection, 12 xss and 10 output-blowup. The
+merge dropped 22 duplicates by class, direction and input. The spec texts are vendored unchanged:
+`commonmark-0.31.2.txt` with 652 examples and `gfm-0.29.txt` with 672, of which 2 are `disabled`.
+Each example starts with a line of 32 backticks and `example`, and a GFM one may add `table`,
+`strikethrough`, `autolink` or `tagfilter`. `→` in an example stands for a tab. The `catalogue`
+check is green: `cargo test --test markdown_known_bugs` runs two tests and ignores
+`every_known_bug_renders_as_the_catalogue_expects`, whose `outcome` stub stage 3 fills.
+
+**The collectors' caveats**, to judge as entries fail:
+- No `html` was checked against a renderer. Each came from an upstream test file pinned to a commit,
+  or from the spec. md4c's outputs were rewritten into cmark's format. Two entries are the least sure:
+  `pulldown-cmark-issue-398` (a blank line was added to its input) and `comrak-back-to-back-ranges`.
+- Some ReDoS and advisory inputs are built from the regex or the description, because no exploit
+  string was published: marked's CVE-2015-8854, GHSA-ch52, GHSA-7m7q and GHSA-wjmf, mistune's
+  CVE-2022-34749, and Turndown's issues 501, 505, 429 and 58. They still hold a linear bound.
+- An exploit with two parts that grow together, such as `[` n times then `]` n times, is approximated
+  by one `repeat` and a fixed `suffix`.
+- Four from-html `url-scheme` entries cite the converters' link code, pinned to a commit, because
+  neither library has a report about it.
+
 - [ ] `crates/nvs-stdlib/src/markdown.rs` with `toHtml`, registered beside `html` and with its reference
   card. `crates/nvs-stdlib/src/lib.rs:162`
+- [ ] `pulldown-cmark` vendored under `vendor/` with an entry in `[patch.crates-io]`, and the
+  patches of `rule:core-classes/markdown-to-html`'s engine paragraph, each with a catalogue entry
+  that pins it. `Cargo.toml:1314`
+- [ ] The sanitizer's list grows by decision 15's five value-checked entries, with a test each.
+  `crates/nvs-stdlib/src/html.rs:1860`
 - [ ] Raw HTML through the sanitizer's rebuild, URLs through the shared check, output as a tree
   (decision 5). `crates/nvs-stdlib/src/html.rs:1671`
 - [ ] The nesting flatten and the added-output budget (decision 5). `crates/nvs-stdlib/src/markdown.rs:1`
@@ -428,39 +487,29 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Stage 1 is done. `tests/data/markdown/known-bugs.toml` has 508 entries over all fourteen libraries,
-and no library has fewer than 21. The classes are 190 slow, 114 wrong-output, 72 crash, 48 url-scheme,
-26 deep-nesting, 19 markdown-injection, 17 attribute-injection, 12 xss and 10 output-blowup. The
-merge dropped 22 duplicates by class, direction and input. The spec texts are vendored unchanged:
-`commonmark-0.31.2.txt` with 652 examples and `gfm-0.29.txt` with 672, of which 2 are `disabled`.
-Each example starts with a line of 32 backticks and `example`, and a GFM one may add `table`,
-`strikethrough`, `autolink` or `tagfilter`. `→` in an example stands for a tab. The `catalogue`
-check is green: `cargo test --test markdown_known_bugs` runs two tests and ignores
-`every_known_bug_renders_as_the_catalogue_expects`, whose `outcome` stub stage 3 fills.
+Stage 2 is done. The engine is `pulldown-cmark` 0.13, measured against comrak 0.59. The table and
+reasons are in `rule:core-classes/markdown-to-html`. It is a workspace dependency (`Cargo.toml:1050`)
+that no crate takes yet. The four rules are written as `designed`, owned by this goal.
+`html-sanitize` names `Core\Markdown`. Decision 15 records the sanitizer's list growth. The readme
+Declined entry names the new goal `registry-readme`, which is last on the chain. The gap
+`data/gaps/registry/readme-is-shown-as-text.json` points at that goal.
 
-Collectors' caveats, for stage 3 to judge as entries fail:
-- No `html` was checked against a renderer. Each came from an upstream test file pinned to a commit,
-  or from the spec. md4c's outputs were rewritten into cmark's format. Two entries are the least sure:
-  `pulldown-cmark-issue-398` (a blank line was added to its input) and `comrak-back-to-back-ranges`.
-- Some ReDoS and advisory inputs are built from the regex or the description, because no exploit
-  string was published: marked's CVE-2015-8854, GHSA-ch52, GHSA-7m7q and GHSA-wjmf, mistune's
-  CVE-2022-34749, and Turndown's issues 501, 505, 429 and 58. They still hold a linear bound.
-- An exploit with two parts that grow together, such as `[` n times then `]` n times, is approximated
-  by one `repeat` and a fixed `suffix`.
-- Four from-html `url-scheme` entries cite the converters' link code, pinned to a commit, because
-  neither library has a report about it.
+The catalogue check is green, and the catalogue test stays ignored until stage 3. Stage 3's
+notes hold what the measurement and the collectors found.
 
 ### Next
 
-**Stage 2**, a measurement in `.agent-tmp/markdown-engine/` and then the four rules; no gate.
+**Stage 3**, the keystone. Before the first item, write its checkpoints into the stage. Take them in
+this order:
 
-- [ ] Measure both candidates. `docs/rules/core-classes/markdown-to-html.md:1`
-- [ ] The engine in the workspace dependencies (decision 4). `Cargo.toml:1034`
-- [ ] The four rules of decision 11. `docs/rules/core-classes/markdown-to-html.md:1`
-- [ ] `html-sanitize` names `Core\Markdown`. `docs/rules/core-classes/html-sanitize.md:1`
-- [ ] The rendered-readmes Declined entry. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:61`
+- [ ] Vendor `pulldown-cmark` and write the seven patches. `Cargo.toml:1314`
+- [ ] The five value-checked entries of decision 15. `crates/nvs-stdlib/src/html.rs:1860`
+- [ ] `crates/nvs-stdlib/src/markdown.rs`, `toHtml` and its registration. `crates/nvs-stdlib/src/lib.rs:162`
+- [ ] The six `to-html` tests, then the catalogue test un-ignored. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:226`
 
-No test is expected to go red. The catalogue test stays ignored until stage 3.
+Stages 7 and 8 may now run as a side goal (decision 12). Stage 3 may make
+`html-sanitize`'s conformance cases go red where they pin the old list
+(`tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst`).
 
 ### Backlog
 

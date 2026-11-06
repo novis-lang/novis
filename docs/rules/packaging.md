@@ -2589,9 +2589,11 @@ the only per-address data, and both are deleted when the day ends.
 - **Storing addresses to count downloads.** An address is personal data, and a daily salt counts
   unique fetches as well.
 - **A `summary` key in `package.toml`.** It grows the manifest for a fact the readme already carries.
-- **A rendered markdown readme.** `Core` has no markdown renderer, and one for text any publisher
-  writes is a new parser on the request path and a new way to inject markup. It waits for a `Core`
-  renderer with its own goal.
+- **A rendered markdown readme, for now.** `Core\Markdown` ([`core-classes/markdown-to-html`](core-classes.md#core-classes-markdown-to-html))
+  removes the injection half of the reason. What is still missing is the page's half: the readme is
+  rendered once per version when `nvs registry build` reads it, and stored, so no page view parses it.
+  Its relative links and images are rewritten to the commit it was built from through the `link` and
+  `image` callbacks, and its heading anchors through `heading`. The `registry-readme` goal owns it.
 - **A cached score table.** The facts are computed per request in one query, O(packages matched); a
   cache waits until a few thousand packages make that cost measurable.
 - **A separate search service.** SQLite's full-text index covers a few thousand packages.
