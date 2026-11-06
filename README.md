@@ -131,7 +131,7 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Setup in any order.** *Working on it now.* You can run `nvs run`, `nvs init` and `nvs service install` in any order, and the service starts every time. `nvs init` sets up the data folder and the project file. A command that needs admin rights asks for them itself.
-2. **Binary files and uploads.** `Core\IO` reads a binary file, such as an image or an archive, as `bytes`. `Core\Mime`, `Core\Zip`, `Core\Hash`, `Core\Csv`, `Core\Image` and `Core\Pdf` take bytes, an open file or an upload, and read only what they need. `Core\Mime::detect($upload)` reads the start of an upload, and you can still save the whole file after it.
+2. **Binary files and uploads.** `Core\IO` reads a binary file, such as an image or an archive, as `bytes`. `Core\Mime`, `Core\Zip`, `Core\Hash`, `Core\Csv`, `Core\Image` and `Core\Pdf` take bytes, an open file or an upload, and read only what they need. `Core\Mime::detect($upload)` reads the start of an upload, and you can still save the whole file after it. A command-line tool can read binary input from `stdin`.
 3. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
 <!-- roadmap:end -->
 
