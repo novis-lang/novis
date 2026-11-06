@@ -3530,12 +3530,13 @@
   },
   "/reference/core/compress/compress/": {
     "feature": "Core\\Compress::compress",
-    "hash": "09d00cc87d7ef079",
+    "hash": "2edbca94e9741c2a",
     "questions": [
       "How do I gzip a string?",
       "Compress data before sending it over the network",
       "Make data smaller with brotli or zstd",
-      "Compress bytes in one call",
+      "Compress a large file without loading it into memory",
+      "Gzip an uploaded file before storing it",
       "Create a zlib or deflate compressed block"
     ]
   },
@@ -3551,13 +3552,14 @@
   },
   "/reference/core/compress/decompress/": {
     "feature": "Core\\Compress::decompress",
-    "hash": "aa80be96c49926a4",
+    "hash": "d4de66bf5cd4d7f4",
     "questions": [
       "How do I decompress gzip data?",
-      "Unzip compressed bytes back to the original",
       "Limit the size of decompressed output",
       "How do I stop a decompression bomb?",
-      "Decompress a request body safely"
+      "Decompress a request body safely",
+      "Decompress a gzip file from disk piece by piece",
+      "Unpack a compressed upload without loading it into memory"
     ]
   },
   "/reference/core/compress/decompressor/": {
@@ -3582,7 +3584,7 @@
   },
   "/reference/core/compress-compressor/add/": {
     "feature": "Core\\Compress\\Compressor::add",
-    "hash": "e888f6eea23b59fd",
+    "hash": "39c8f975f8b87b4b",
     "questions": [
       "How do I add a chunk to a compression stream?",
       "Feed more data to a streaming compressor",
@@ -3768,7 +3770,7 @@
   },
   "/reference/core/crypto/generatekeypair/": {
     "feature": "Core\\Crypto::generateKeyPair",
-    "hash": "003d2025bd9fd94e",
+    "hash": "5c2b401ffae2e606",
     "questions": [
       "How do I generate a public and private key pair?",
       "Create a new Ed25519 signing key",
@@ -3984,13 +3986,14 @@
   },
   "/reference/core/csv/rows/": {
     "feature": "Core\\Csv::rows",
-    "hash": "542d5d0b7aa6316d",
+    "hash": "b5d66fa619e9f8b7",
     "questions": [
       "How do I read a large CSV file line by line?",
       "Loop over CSV records without loading the whole file",
-      "Stream rows from a CSV file",
       "Read a CSV file bigger than memory",
-      "Process an open CSV file one record at a time"
+      "Process an open CSV file one record at a time",
+      "Read the rows of an uploaded CSV file one at a time",
+      "Import a CSV file sent as the request body"
     ]
   },
   "/reference/core/csv-rows/": {
@@ -5191,24 +5194,25 @@
   },
   "/reference/core/hash/hmac/": {
     "feature": "Core\\Hash::hmac",
-    "hash": "e9fc27b9322ddb33",
+    "hash": "f07cc67a769255fb",
     "questions": [
       "How do I sign data with a secret key?",
       "Compute an HMAC with SHA-256",
       "Verify that nobody changed a cookie or a URL",
-      "Create a signature for a webhook",
+      "Check the signature of a webhook request body",
+      "Compute an HMAC of a large file",
       "Make a signed token for a download link"
     ]
   },
   "/reference/core/hash/of/": {
     "feature": "Core\\Hash::of",
-    "hash": "5b2eb415b446e33c",
+    "hash": "6192862573000de8",
     "questions": [
       "How do I compute the SHA-256 of a string?",
       "Get the MD5 checksum of some data",
       "Turn a hash into a hex string",
-      "Create a fingerprint of some data",
-      "Compute a CRC32 checksum",
+      "How do I hash a large file without loading it?",
+      "Compute the checksum of an uploaded file",
       "Is SHA-1 safe for storing passwords?"
     ]
   },
@@ -5410,7 +5414,7 @@
   },
   "/reference/core/http/allowurl/": {
     "feature": "Core\\Http::allowUrl",
-    "hash": "00a7f39897b0c19b",
+    "hash": "ccfce14bfaad582b",
     "questions": [
       "Send a request to a URL the user gave",
       "How do I protect against server-side request forgery?",
@@ -5835,7 +5839,7 @@
   },
   "/reference/core/http-stream/chunks/": {
     "feature": "Core\\Http\\Stream::chunks",
-    "hash": "e2a3e86ae08ff439",
+    "hash": "56ebf8c7cdb09956",
     "questions": [
       "How do I read a streamed reply as raw bytes?",
       "Read a download in chunks as they arrive",
@@ -5846,7 +5850,7 @@
   },
   "/reference/core/http-stream/events/": {
     "feature": "Core\\Http\\Stream::events",
-    "hash": "80d5cda233dcc43d",
+    "hash": "a9716cb56e41bab1",
     "questions": [
       "How do I parse a text/event-stream reply?",
       "Read server-sent events one at a time",
@@ -5879,7 +5883,7 @@
   },
   "/reference/core/http-stream/lines/": {
     "feature": "Core\\Http\\Stream::lines",
-    "hash": "9cad7d494cf80b84",
+    "hash": "20b57ee070499ed4",
     "questions": [
       "How do I read a reply one line at a time?",
       "Process a JSON Lines response as it arrives",
@@ -6011,10 +6015,11 @@
   },
   "/reference/core/io/": {
     "feature": "Core\\IO",
-    "hash": "09978fcea176c6d9",
+    "hash": "50c6bd7df4b797d8",
     "questions": [
       "How do I work with files and folders?",
       "Read, write, copy and delete files",
+      "Read text files, binary files and standard input",
       "How do I give my program permission to use files?",
       "Why does reading a file throw a permission error?",
       "File system functions for scripts and web servers"
@@ -6022,11 +6027,12 @@
   },
   "/reference/core/io/append/": {
     "feature": "Core\\IO::append",
-    "hash": "5fb42871b06fbd7a",
+    "hash": "162c7406a3a1e3d3",
     "questions": [
       "How do I add text to the end of a file?",
       "Add a line to a log file",
       "Write to a file without deleting what is already in it",
+      "Add bytes to the end of a binary file",
       "Can two programs add lines to the same log safely?",
       "Create a file if missing, otherwise add to it"
     ]
@@ -6105,13 +6111,14 @@
   },
   "/reference/core/io/lines/": {
     "feature": "Core\\IO::lines",
-    "hash": "479121fcf054366a",
+    "hash": "ae5906150124287b",
     "questions": [
       "How do I read a file line by line?",
       "Loop over each line of a text file",
       "Read lines without the line break characters",
       "Read a text file with Windows or Linux line endings",
-      "Get all lines of a file with foreach"
+      "Get all lines of a file with foreach",
+      "Why does reading lines fail for a file that is not UTF-8?"
     ]
   },
   "/reference/core/io/list/": {
@@ -6181,6 +6188,17 @@
       "Why can my server not read a file whose name starts with a dot?"
     ]
   },
+  "/reference/core/io/readbytes/": {
+    "feature": "Core\\IO::readBytes",
+    "hash": "e6ef257e0a916f56",
+    "questions": [
+      "How do I read an image or PDF file as bytes?",
+      "Read a binary file into memory",
+      "Read a file exactly as it is on disk",
+      "Load a ZIP archive from disk as bytes",
+      "Why does reading a large file throw a RuntimeError?"
+    ]
+  },
   "/reference/core/io/readtext/": {
     "feature": "Core\\IO::readText",
     "hash": "f49c8f9b2358b258",
@@ -6243,6 +6261,17 @@
       "Why does my script wait when reading input in a terminal?"
     ]
   },
+  "/reference/core/io/stdinstream/": {
+    "feature": "Core\\IO::stdinStream",
+    "hash": "f0bdcb90ba8860b4",
+    "questions": [
+      "How do I read a large standard input in pieces?",
+      "Compute a checksum of everything piped into my program",
+      "Read binary data from stdin",
+      "Read input that is not UTF-8 from a pipe",
+      "Count the bytes my program receives on standard input"
+    ]
+  },
   "/reference/core/io/temporarydir/": {
     "feature": "Core\\IO::temporaryDir",
     "hash": "eb914a4736baeb1a",
@@ -6278,12 +6307,12 @@
   },
   "/reference/core/io/write/": {
     "feature": "Core\\IO::write",
-    "hash": "105683c935f82e29",
+    "hash": "bca9836d1218bfde",
     "questions": [
       "How do I write a string to a file?",
+      "Save bytes such as an image to a file",
       "Save text to a file and replace old content",
       "Create a new file with some content",
-      "Overwrite a file completely",
       "Why does writing a file fail when the folder is missing?",
       "Why does writing a file fail on my server but not from the command line?"
     ]
@@ -6302,12 +6331,13 @@
   },
   "/reference/core/io-file/": {
     "feature": "Core\\IO\\File",
-    "hash": "af9657c8fc376fb0",
+    "hash": "401190a09584559c",
     "questions": [
       "What can I do with an open file handle?",
       "Read and write parts of a file",
       "Work with a file opened for random access",
-      "Methods for an open file"
+      "Methods for an open file",
+      "Read text or bytes from an open file"
     ]
   },
   "/reference/core/io-file/close/": {
@@ -6349,6 +6379,17 @@
       "Read a file in small parts",
       "Read the next block of text from an open file",
       "How do I know I reached the end of a file?"
+    ]
+  },
+  "/reference/core/io-file/readbytes/": {
+    "feature": "Core\\IO\\File::readBytes",
+    "hash": "c122fb1533327a21",
+    "questions": [
+      "How do I read part of a binary file?",
+      "Read a file in fixed-size blocks of bytes",
+      "Check the first bytes of an image file",
+      "Read the next bytes from an open file",
+      "What does reading bytes at the end of a file return?"
     ]
   },
   "/reference/core/io-file/readline/": {
@@ -6403,7 +6444,7 @@
   },
   "/reference/core/io-lines/": {
     "feature": "Core\\IO\\Lines",
-    "hash": "9e612950eea18f0a",
+    "hash": "c3bcb06e75006ef4",
     "questions": [
       "What does reading the lines of a file return?",
       "Type of the value I loop over for file lines",
@@ -6464,6 +6505,16 @@
       "Why is the file size larger than the number of characters?"
     ]
   },
+  "/reference/core/io-stdinstream/": {
+    "feature": "Core\\IO\\StdinStream",
+    "hash": "c1019e0a8ed455fc",
+    "questions": [
+      "What does reading standard input in pieces return?",
+      "Type of the stdin value in a foreach loop",
+      "Loop over the bytes of standard input",
+      "Is each piece of standard input tainted?"
+    ]
+  },
   "/reference/core/io-walk/": {
     "feature": "Core\\IO\\Walk",
     "hash": "cf607ff730c37050",
@@ -6510,7 +6561,7 @@
   },
   "/reference/core/json/decodeeach/": {
     "feature": "Core\\Json::decodeEach",
-    "hash": "f58300221a296d72",
+    "hash": "52e7685c567cfb42",
     "questions": [
       "How do I read a JSON file larger than memory?",
       "Read one element of a JSON array at a time",
@@ -6533,7 +6584,7 @@
   },
   "/reference/core/json/encodeeach/": {
     "feature": "Core\\Json::encodeEach",
-    "hash": "8ac5b7466f4686c6",
+    "hash": "6181e8e777a716fe",
     "questions": [
       "How do I write a very long list as JSON?",
       "Export database rows to a JSON file without much memory",
@@ -8382,18 +8433,19 @@
   },
   "/reference/core/mime/detect/": {
     "feature": "Core\\Mime::detect",
-    "hash": "13e8ff6100d62552",
+    "hash": "25f7f72a8ca7a921",
     "questions": [
       "How do I check if an upload is a PNG or a PDF?",
       "Find the file type from the first bytes",
       "Only accept image uploads",
       "Why is the file name not used to find the type?",
-      "Detect a ZIP archive from its bytes"
+      "Detect the type of an open file without moving its position",
+      "Check the type of an upload and still save the whole file"
     ]
   },
   "/reference/core/mime/mediatype/": {
     "feature": "Core\\Mime::mediaType",
-    "hash": "07ded047e69f0214",
+    "hash": "1b8e453fc3d62f2d",
     "questions": [
       "How do I get the media type name like image/png?",
       "Set the Content-Type header for a download",
@@ -8777,13 +8829,14 @@
   },
   "/reference/core/novis-image-image/compare/": {
     "feature": "Novis\\Image\\Image::compare",
-    "hash": "12fd31b3cc8fca53",
+    "hash": "0c62261dde3f514d",
     "questions": [
       "How do I check if two images are the same?",
       "Compare two screenshots in a visual test",
       "Show the pixels that changed between two images",
       "Image similarity score for a snapshot test",
-      "Allow small pixel differences when comparing pictures"
+      "Allow small pixel differences when comparing pictures",
+      "Compare an uploaded image with a file on disk"
     ]
   },
   "/reference/core/novis-image-image/composite/": {
@@ -8911,13 +8964,14 @@
   },
   "/reference/core/novis-image-image/hash/": {
     "feature": "Novis\\Image\\Image::hash",
-    "hash": "e154c452e7407c25",
+    "hash": "89f8b2fdf0405254",
     "questions": [
       "How do I find duplicate images?",
       "Make a fingerprint of a picture to store in a database",
       "Perceptual hash of an uploaded photo",
       "Detect the same picture saved in another format",
-      "Find copies of an image that was resized"
+      "Find copies of an image that was resized",
+      "Compute an image hash directly from an open file"
     ]
   },
   "/reference/core/novis-image-image/hashdistance/": {
@@ -8932,7 +8986,7 @@
   },
   "/reference/core/novis-image-image/info/": {
     "feature": "Novis\\Image\\Image::info",
-    "hash": "3e9911981bcae90a",
+    "hash": "3f829fcb7c1908da",
     "questions": [
       "How do I get the width and height of an image?",
       "Read the image size without loading the pixels",
@@ -8975,10 +9029,10 @@
   },
   "/reference/core/novis-image-image/open/": {
     "feature": "Novis\\Image\\Image::open",
-    "hash": "8e26910840794ea3",
+    "hash": "2de09af5b9c5c643",
     "questions": [
       "How do I load an uploaded image?",
-      "Open a JPEG, AVIF or JPEG XL file from bytes",
+      "Open a JPEG, AVIF or JPEG XL file from disk",
       "Fix photos from a phone that show sideways",
       "Limit the number of pixels an upload may have",
       "Convert image colours to sRGB when loading",
@@ -8987,7 +9041,7 @@
   },
   "/reference/core/novis-image-image/palette/": {
     "feature": "Novis\\Image\\Image::palette",
-    "hash": "5d012f26ff246f68",
+    "hash": "9de4992324d2c269",
     "questions": [
       "How do I get the main colours of a photo?",
       "Find the dominant colour of an image",
@@ -8997,7 +9051,7 @@
   },
   "/reference/core/novis-image-image/placeholder/": {
     "feature": "Novis\\Image\\Image::placeholder",
-    "hash": "0118c9e54c804eed",
+    "hash": "59fb547d05887bb5",
     "questions": [
       "How do I show a blurred preview while an image loads?",
       "Make a BlurHash for an uploaded image",
@@ -9610,18 +9664,19 @@
   },
   "/reference/core/novis-pdf-pages/of/": {
     "feature": "Novis\\Pdf\\Pages::of",
-    "hash": "b1709189e3276058",
+    "hash": "bc582170820da3a1",
     "questions": [
       "Choose pages 1 and 3 of a PDF",
       "Reorder the pages of a PDF",
       "Take the first page of each invoice",
       "Use the same page twice",
-      "Remove pages from a PDF"
+      "Remove pages from a PDF",
+      "Merge pages from an uploaded PDF with a file on disk"
     ]
   },
   "/reference/core/novis-pdf-reader/": {
     "feature": "Novis\\Pdf\\Reader",
-    "hash": "6c21b3ca8af386b0",
+    "hash": "53e847f5d80fae71",
     "questions": [
       "Read an existing PDF file",
       "Get information from an uploaded PDF",
@@ -9641,7 +9696,7 @@
   },
   "/reference/core/novis-pdf-reader/invoicexml/": {
     "feature": "Novis\\Pdf\\Reader::invoiceXml",
-    "hash": "7b23a9c8d3eecfaf",
+    "hash": "f30a782fd2acb85e",
     "questions": [
       "Read the XML from a ZUGFeRD or XRechnung invoice",
       "Check if an uploaded PDF is an electronic invoice",
@@ -9651,7 +9706,7 @@
   },
   "/reference/core/novis-pdf-reader/open/": {
     "feature": "Novis\\Pdf\\Reader::open",
-    "hash": "d4e025b5f5a9b38e",
+    "hash": "be815d1bb77a1e94",
     "questions": [
       "Get the page count of an uploaded PDF",
       "Read the title and author of a PDF",
@@ -9663,7 +9718,7 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "d5c0db8ee2d08cc1",
+    "hash": "e137aca4febae404",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
@@ -10034,7 +10089,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "0f25e0e5c5633bdd",
+    "hash": "891141c8abfdfb31",
     "questions": [
       "Open an uploaded spreadsheet",
       "Read a CSV file that starts with a sep= line",
@@ -10391,7 +10446,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "131075cdfdbbed19",
+    "hash": "3156798f8852ccfa",
     "questions": [
       "Write an Excel file to a path row by row",
       "Is the old file kept when writing the new one fails?",
@@ -10445,7 +10500,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "313deb25997256ce",
+    "hash": "62f653d12ebcbe74",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -12350,13 +12405,14 @@
   },
   "/reference/core/request/files/": {
     "feature": "Core\\Request::files",
-    "hash": "b51867a2e9609425",
+    "hash": "990d7a33c5a7af59",
     "questions": [
       "How do I handle file uploads from a form?",
       "Loop over the files a form uploaded",
       "Read the file name and type of an upload",
       "How do I process several uploaded files one by one?",
-      "Read a multipart form with files"
+      "Read a multipart form with files",
+      "Why are the text fields of the form not in the upload loop?"
     ]
   },
   "/reference/core/request/header/": {
@@ -12541,12 +12597,24 @@
   },
   "/reference/core/request-bodystream/": {
     "feature": "Core\\Request\\BodyStream",
-    "hash": "7420bfcb878b5669",
+    "hash": "ee4ba2e198d23dc8",
     "questions": [
       "What object does reading the body in pieces return?",
       "Loop over the request body with foreach",
       "Request body pieces as bytes in a loop",
-      "Body stream type for large requests"
+      "Body stream type for large requests",
+      "Pass the request body directly to a hash or a parser"
+    ]
+  },
+  "/reference/core/request-bodystream/peek/": {
+    "feature": "Core\\Request\\BodyStream::peek",
+    "hash": "75a1b70bdec9720a",
+    "questions": [
+      "How do I look at the start of the request body?",
+      "Check the header row of a CSV body before saving it",
+      "Read the first bytes of a request without using them up",
+      "Reject an old file version from its first bytes",
+      "Can I still loop over the whole body after peeking?"
     ]
   },
   "/reference/core/request-files/": {
@@ -12593,12 +12661,13 @@
   },
   "/reference/core/request-part/": {
     "feature": "Core\\Request\\Part",
-    "hash": "a1a7cfa026961243",
+    "hash": "bcddfc7b52e539dd",
     "questions": [
       "What is one part of a multipart upload?",
       "Work with each uploaded file in a multipart request",
       "What information do I get about an uploaded file?",
-      "How do I process several uploaded files one after another?"
+      "How do I process several uploaded files one after another?",
+      "Ways to read the content of an uploaded file"
     ]
   },
   "/reference/core/request-part/content/": {
@@ -12643,15 +12712,27 @@
       "Handle avatar and document upload fields differently"
     ]
   },
+  "/reference/core/request-part/peek/": {
+    "feature": "Core\\Request\\Part::peek",
+    "hash": "bf195ab70d2aab34",
+    "questions": [
+      "How do I check the first bytes of an uploaded file?",
+      "Read the first line of an uploaded CSV before saving it",
+      "Look at the start of an upload and still save all of it",
+      "Check an uploaded text file for a zero byte",
+      "Why does checking the start of an upload throw a LogicError?"
+    ]
+  },
   "/reference/core/request-part/readall/": {
     "feature": "Core\\Request\\Part::readAll",
-    "hash": "d12127de7acb2ab7",
+    "hash": "7c4e887a7fb6df7f",
     "questions": [
       "How do I read a small uploaded file into memory?",
       "Get the whole content of an upload as one value",
       "Set a maximum size when reading an uploaded file",
-      "Check that an uploaded file really is a PDF",
-      "What is the default size limit for reading an upload?"
+      "What is the default size limit for reading an upload?",
+      "Send an uploaded PDF to another service as Base64",
+      "Do I need to read an upload into memory before hashing it?"
     ]
   },
   "/reference/core/request-part/saveto/": {
@@ -13163,7 +13244,7 @@
   },
   "/reference/core/serialize/decode/": {
     "feature": "Core\\Serialize::decode",
-    "hash": "06b0e8a3022f5cc8",
+    "hash": "39a579f259246ced",
     "questions": [
       "How do I load an object back from saved bytes?",
       "Rebuild an array or object from stored data",
@@ -13663,13 +13744,13 @@
   },
   "/reference/core/storage/put/": {
     "feature": "Core\\Storage::put",
-    "hash": "a5487b97885943be",
+    "hash": "fed6e476115f1d4e",
     "questions": [
       "How do I save bytes as a file?",
       "Write an uploaded file to disk under a safe name",
       "Save a file only if the name is not used yet",
       "Can a user choose the file name of an upload safely?",
-      "Replace a stored file with new contents",
+      "Store a large upload without loading it into memory",
       "Do I need a permission to save files from a command-line script?"
     ]
   },
@@ -16149,12 +16230,13 @@
   },
   "/reference/core/xml/reader/": {
     "feature": "Core\\Xml::reader",
-    "hash": "22cb42575b3ca213",
+    "hash": "2146313513ccc1b7",
     "questions": [
       "How do I read a huge XML file without building a tree?",
       "Stream a large XML export piece by piece",
       "Get only a few values from a big XML document",
-      "How do I start reading XML one node at a time?"
+      "How do I start reading XML one node at a time?",
+      "Read an uploaded XML file node by node"
     ]
   },
   "/reference/core/xml/writer/": {
@@ -16269,7 +16351,7 @@
   },
   "/reference/core/xml-reader/read/": {
     "feature": "Core\\Xml\\Reader::read",
-    "hash": "d3ba12df8bd437e8",
+    "hash": "28ab62bc3670bb8c",
     "questions": [
       "How do I get the next node from a streaming XML reader?",
       "Move forward one node in an XML stream",
@@ -16400,33 +16482,36 @@
   },
   "/reference/core/zip/entries/": {
     "feature": "Core\\Zip::entries",
-    "hash": "93f4e9013cd9745a",
+    "hash": "629f9f500add532a",
     "questions": [
       "How do I list the files in a zip archive?",
       "See what is inside a zip without unpacking it",
       "Check an uploaded zip before accepting it",
-      "Detect paths like ../ in an archive"
+      "Detect paths like ../ in an archive",
+      "List a zip file on disk without loading it into memory"
     ]
   },
   "/reference/core/zip/extract/": {
     "feature": "Core\\Zip::extract",
-    "hash": "0edb8444d29756fc",
+    "hash": "ec5d8cf24e37ba4c",
     "questions": [
       "How do I unzip an archive into a folder?",
       "Unpack all files from a zip upload",
       "Protect against zip bombs when unpacking",
       "Install themes that users upload as zip files",
+      "Unzip an archive sent as the request body",
       "Where can a server unpack a zip without a permission?"
     ]
   },
   "/reference/core/zip/read/": {
     "feature": "Core\\Zip::read",
-    "hash": "e17b247562e9a532",
+    "hash": "d39ec862c1506dc6",
     "questions": [
       "How do I get one file out of a zip archive?",
       "Read a single file from a zip in memory",
       "Limit the size of a decompressed file",
-      "Import text files from an uploaded zip"
+      "Import text files from an uploaded zip",
+      "Read one file from a zip archive on disk"
     ]
   },
   "/reference/types/api-keyin/": {
@@ -16493,7 +16578,7 @@
   },
   "/reference/types/charset/": {
     "feature": "Core\\Charset",
-    "hash": "78d77960aca78bf3",
+    "hash": "6b747fccac100e02",
     "questions": [
       "Convert text from Latin-1 or Windows-1252",
       "Which character encodings are supported?",
@@ -16747,7 +16832,7 @@
   },
   "/reference/types/hash-digest/": {
     "feature": "Core\\Hash::Digest",
-    "hash": "b7a5d4dbc9bc0731",
+    "hash": "c48faf6bd82bdb4a",
     "questions": [
       "Which hash algorithms can I use?",
       "How do I compute a SHA-256 hash of a string?",
@@ -16902,7 +16987,7 @@
   },
   "/reference/types/mime-type/": {
     "feature": "Core\\Mime::Type",
-    "hash": "941886dc63454640",
+    "hash": "9ac357aabc2ca5a9",
     "questions": [
       "How do I detect the real file type of an upload?",
       "Check if uploaded bytes are a PNG or JPEG image",
