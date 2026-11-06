@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/json/each.rs, crates/nvs-runtime/src/sequence.rs, crates/nvs-host/src/stack.rs, docs/rules/core-classes/json-whole-and-stream.md, docs/rules/core-api/a-lifetime-is-an-object.md]
   - id: 4
     title: "Core\\IO reads and writes bytes, and standard input is a byte stream"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/io.rs, docs/rules/types/string-is-utf8.md, docs/rules/core-api/each-door-takes-a-different-thing.md, docs/rules/tooling/no-raw-handle-onto-standard-output.md, crates/nvs-stdlib/tests/capability.rs]
   - id: 5
     title: "an upload part and a request body are sources, and reading their start consumes nothing"
@@ -513,14 +513,14 @@ tool is missed.
 
 - [x] `Core\IO\File::readBytes`, and `File` remembers its mode. `crates/nvs-stdlib/src/io.rs:1376`,
   `crates/nvs-stdlib/src/io.rs:1474`
-- [ ] `Core\IO::readBytes` and `Core\IO::stdinStream`. `crates/nvs-stdlib/src/io.rs:99`,
+- [x] `Core\IO::readBytes` and `Core\IO::stdinStream`. `crates/nvs-stdlib/src/io.rs:99`,
   `crates/nvs-stdlib/src/io.rs:396`
 - [x] `Core\IO::write` and `append` take `string|bytes`. `crates/nvs-stdlib/src/io.rs:113`
-- [ ] Each text read passes its hint into `text_of`, one sentence each and no dash.
+- [x] Each text read passes its hint into `text_of`, one sentence each and no dash.
   `crates/nvs-stdlib/src/io.rs:2072`
-- [ ] Capability rows: `readBytes` and `stdinStream` beside `read` and `stdin`, `File::readBytes`
+- [x] Capability rows: `readBytes` and `stdinStream` beside `read` and `stdin`, `File::readBytes`
   with none. `crates/nvs-stdlib/src/registry.rs:1903`
-- [ ] The seven tests of the `io-bytes` check, run in WSL too, and a conformance case that reads
+- [x] The seven tests of the `io-bytes` check, run in WSL too, and a conformance case that reads
   back a PNG it wrote. `tests/conformance/core/io-read-bytes-gives-a-binary-file-as-it-is.nvst:1`
 - [x] The pinned message in the readLine case. `tests/conformance/core/io-readline-a-line-that-is-not-text-does-not-move-and-a-cr-on-a-chunk-edge-is-one-terminator.nvst:53`
 
@@ -642,45 +642,47 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stage 4 is half done. `Core\IO::readBytes` (`crates/nvs-stdlib/src/io.rs:113`, on `OWN_FILE_READS`
-and `PREPARED_MEMBERS` beside `read`) and `Core\IO\File::readBytes` (`io.rs:1432`) exist, and
-`write` and `append` take `string|bytes`. A `File` has a third slot, `mode`: build one with
-`io::file_handle` (`io.rs:2515`) and read it with `io::mode_of`. `ByteSource::from_arg` throws
-`io::write_only`'s `LogicError` for `Write` and `Append`. Every text read's message is
-`not_text`'s two sentences with a hint; `Core\IO::stdin`'s `STDIN_HINT` (`io.rs:2433`) is empty
-until `stdinStream` exists. Six of the seven `io-bytes` tests pass, and
-`io-read-bytes-gives-a-binary-file-as-it-is.nvst` and the readLine case pass on the debug binary.
-They have not run in WSL yet.
+Stages 1 to 4 are done. `Core\IO::stdinStream` answers `Core\IO\StdinStream`
+(`crates/nvs-stdlib/src/io.rs:1351`, helpers from `io.rs:2521`), its own iterator as
+`Core\Request\BodyStream` is. Its `ITERABLES` row fixes `TaintedBytes`, so
+`registry::carries_tainted_bytes` (`crates/nvs-stdlib/src/registry.rs:3709`) reads it as a
+carrier with no `TAINTED_SOURCES` entry: it is not in `Core\Bytes::Source`, only in `Chunks`.
+It is on `classes.rs`, the dispatch roster, `HANDLES`, `ext_world`'s `READER` list, and has a
+`None` capability row. `STDIN_HINT` names it, and `rule:tooling/no-raw-handle-onto-standard-output`
+names both reading members. All seven `io-bytes` tests and the other 44 `io::` tests pass in WSL.
+The three closed-list guards pass by name.
 
-Stages 1 to 3 are done. A part is read forward as `Kind::Chunks` through
+`Core\IO::stdinStream` has no feature proofs yet (stage 10 owes them: about page, a Novis test,
+three examples, a bench, an attack). A part is read forward as `Kind::Chunks` through
 `request::part_content_walk` (`crates/nvs-stdlib/src/request.rs:4008`) until stage 5.
 
 Tests that may go red at the gate: registry invariants over a `Union` of `Alias` arms or over
 `CELL_CLASSES`; `nvs meta --json` and card snapshots of `Csv::rows` and `decodeEach`; LSP stubs
 naming `Core\Csv\Rows` without `<T>`; `tools/nv/test/render.test.ts` (`descHtml`); a `decodeEach`
 case that moved a file's position; `Core\IO` and `Core\IO\File` snapshots (two new members, a
-union); a pin of the old "is where it stops being text" message. The sweep's reds are stale:
-run `42201104003` predates `d2a3a8e63d`, and `env-secret-proofs` has no check or log.
+union, and `stdinStream` with its class); a pin of the old "is where it stops being text"
+message; `nvs meta --json` or a cards snapshot listing `Core\IO`'s members. The sweep's reds are
+stale: nightly run `42201104003` built `26dda36627`, before the three Miri ignores landed
+(`d2a3a8e63d` and `request.rs:5472`), and `env-secret-proofs` has no check and no log.
 
 ### Next
 
-**Stage 4**, `crates/nvs-stdlib/src/io.rs` alone (decision 13 lets stage 5 run beside it).
+**Stage 5**, `crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/byte_source.rs` and
+`crates/nvs-stdlib/src/mime.rs`. Take it in this order, one commit each.
 
-- [ ] `Core\IO::stdinStream(): Iterable<tainted bytes>` (`crates/nvs-stdlib/src/io.rs:409`, beside
-  `stdin`). It needs a class of its own, `Core\IO\StdinStream`, shaped as `Core\Request\BodyStream`
-  (`crates/nvs-stdlib/src/request.rs:1245`): its own iterator, one slot for the last chunk, an
-  `ITERABLES` row fixing `TaintedBytes`, and a `TAINTED_SOURCES`-style carrier so it is tainted.
-  Each `advance()` reads one `STDIN_CHUNK` through `StdinUntil` under the wall bound, and a
-  `#[Test]` run gives no chunk, as `nvs_core_io_stdin` (`io.rs:2372`) does. The playbook's
-  "A new `Core` class trips three closed lists" names the three lists to run by name.
-- [ ] Its capability row `None` beside `stdin` (`crates/nvs-stdlib/src/registry.rs:2088`), and
-  `STDIN_HINT` (`io.rs:2433`) names `Core\IO::stdinStream`.
-- [ ] The seventh test, `stdin_stream_gives_tainted_chunks`, at `crates/nvs-stdlib/src/io.rs:5899`
-  beside the `stdin` test. Then the seven tests in WSL with `bun nv linux-test`, and stage 4's
-  three open items ticked.
-
-Then stage 5: the part's own `Kind` in `byte_source.rs` for prefix and random reads, beside the
-forward arm stage 3 added.
+- [ ] The part's prefix buffer and held bytes (`crates/nvs-stdlib/src/request.rs:3695`,
+  `request.rs:4125`), on the part's filed state beside the walk (decision 6). `content()`,
+  `readAll` and `saveTo` give the buffered bytes first, and the walk's advance frees both.
+- [ ] `Core\Request\Part::peek(uint $max): tainted bytes` (`request.rs:1435`) with its card, its
+  `None` capability row beside the part's rows in `registry.rs`, and the `readAll` ceiling check
+  (`request.rs:4111`) before it reads.
+- [ ] A `Part` and a `BodyStream` `Kind` (`crates/nvs-stdlib/src/byte_source.rs:1`) for `prefix`
+  and `range`, beside the forward arm that reads through `request::part_content_walk`
+  (`crates/nvs-stdlib/src/request.rs:4008`) today.
+- [ ] `Core\Mime::detect` takes `Core\Bytes::Source` (`crates/nvs-stdlib/src/mime.rs:212`) and
+  reads `prefix` up to a widest-signature constant a test checks against the table (`mime.rs:579`).
+- [ ] The two upload rules (`docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`),
+  and the `part-source` and `mime-sources` tests run by name.
 
 ### Backlog
 
