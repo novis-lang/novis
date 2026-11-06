@@ -17,6 +17,11 @@ than it should?* — the second on the very first run, before there is anything 
 `benches/members/<the feature's path>.nvs` — one file, not a directory, because a feature has one
 figure: `benches/members/core/Str/length.nvs`. `bun nv proofs --id '<feature>'` prints the path.
 
+A feature that adds several forms measures the one that costs something while the program runs. A
+form compiled away is not a figure. `lang:types/values-written-in-the-code` adds number literals,
+interpolation and html templates, and its bench fills an html template with a string hole and an
+`int` hole: two allocations, the join and its `Markup`.
+
 ## What a bench is
 
 ```nvs

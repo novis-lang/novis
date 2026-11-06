@@ -13,6 +13,16 @@
 //! part's kind word ([`IntPlaceholder::kind_word`]). The join unpacks it and
 //! parses nothing.
 //!
+//! # What does not pack
+//!
+//! A width or a precision above [`PACKED_MAX`] does not fit the word, and the
+//! template parser already stops at four digits. `%s` over a `string` with a
+//! flag, a width or a precision stays a converted piece, rendered by
+//! `nvs_core_str_format_piece` and joined as a string part, because its width
+//! counts graphemes and `nvs_stdlib::granularity` owns that count. A float
+//! placeholder stays there too. So a template prints the same text and throws
+//! the same error whichever of the two paths renders each placeholder.
+//!
 //! # Memory
 //!
 //! Nothing on the heap. The digits are written into a buffer on the stack,
