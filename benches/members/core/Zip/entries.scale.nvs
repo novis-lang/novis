@@ -2,6 +2,7 @@
 // Measures `Core\Zip::entries` on one archive file of 16 files, at growing file sizes.
 // bench: start 16384
 // bench: max 262144
+// bench: rounds 64
 
 class Bench
 {
@@ -63,7 +64,7 @@ class Bench
         return Core\Bytes::join([Core\Bytes::join($locals), $directory, $end]);
     }
 
-    public static function run(uint $size): uint
+    public static function run(uint $size, uint $rounds): uint
     {
         array<string> $names = [];
         uint $n = 0;
@@ -77,7 +78,7 @@ class Bench
         Core\IO\File $archive = Core\IO::open($path, Core\IO::FileMode::Read);
         uint $total = 0;
         uint $i = 0;
-        while ($i < 64) {
+        while ($i < $rounds) {
             $total = $total + Core\Arr::count(Core\Zip::entries($archive));
             $i = $i + 1;
         }
@@ -86,4 +87,4 @@ class Bench
     }
 }
 
-echo Bench::run(16384), "\n";
+echo Bench::run(16384, 64), "\n";

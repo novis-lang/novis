@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, printedInputs, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, perOpOf, printedFiles, printedInputs, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch, withRounds,
 } from "../cmd/scaling.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -182,4 +182,31 @@ test("an lsp session opens the document without its cursor, edits it, and asks a
 test("an increment is the cost beyond the batch before, per added operation, so set-up cancels", () => {
   const b = ramp((n) => 5 * n, 123_456);
   expect(increments(b, (x) => x.counts.statements!)).toEqual([5, 5, 5]);
+});
+
+test("a constant bench's sibling is judged per operation, so an input that grows its set-up passes and a cost that follows the input fails", () => {
+  const keys = ["statements", "calls", "allocations", "bytes"] as const;
+  // At input `size`, a batch of `n` operations costs `setup(size) + op(size) * n` in every count.
+  const perOpRamp = (setup: (s: number) => number, op: (s: number) => number) =>
+    ladderSizes(1024, 16384).map((size) => {
+      const at = (n: number): Batch => {
+        const c = setup(size) + op(size) * n;
+        return { size: n, counts: { statements: c, calls: c, allocations: c, bytes: c }, ns: c };
+      };
+      return perOpOf(size, at(128), at(256), keys);
+    });
+  const flat = perOpRamp((s) => 3 * s, () => 12);
+  expect(flat.map((b) => b.counts.bytes)).toEqual([12, 12, 12, 12, 12]);
+  expect(judgeCounts(flat, keys, boundsOf("constant").count).over).toEqual([]);
+  const totals = flat.map((b) => ({ ...b, counts: Object.fromEntries(keys.map((k) => [k, 3 * b.size + 12 * 256])) }));
+  expect(judgeCounts(totals, keys, boundsOf("constant").count).over).toHaveLength(4);
+  const follows = perOpRamp((s) => 3 * s, (s) => s);
+  expect(judgeCounts(follows, keys, boundsOf("constant").count).over).toHaveLength(4);
+});
+
+test("a sibling that runs its member itself passes the size where it passed start and the batch where it passed its rounds", () => {
+  const src = "<?nvs\n// bench: start 16384\n// bench: rounds 64\necho Bench::run(16384, 64), \"\\n\";\n";
+  expect(withRounds(src, 16384, 32768, 64, 32)).toBe("<?nvs\n// bench: start 16384\n// bench: rounds 64\necho Bench::run(32768, 32), \"\\n\";\n");
+  expect(withRounds(src, 16384, 64, 64, 32)).toBeNull();
+  expect(withRounds("echo Bench::run(16384), \"\\n\";\n", 16384, 32768, 64, 32)).toBeNull();
 });

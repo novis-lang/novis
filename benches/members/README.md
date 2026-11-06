@@ -110,7 +110,12 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   `linear`, `nlogn`, or another class `EXPECT` in `tools/nv/cmd/scaling.ts` names, and never
   `quadratic`. Every bench carries one. Its growth is checked by that tool's ramp, which is the
   ramp's one home: the bench runs at doubling batches of its operation, and a cost per operation
-  that rises as the batches double fails. `constant` needs nothing more. Any other class also needs
+  that rises as the batches double fails. `constant` needs nothing more. A `constant` bench may
+  still have a `.scale.nvs` sibling, as below, to show its cost does not grow with its input. Its
+  totals grow with the input it builds or loads, so the ramp judges one operation instead: at each
+  size it runs half the bench's rounds and all of them, and their difference per operation must not
+  grow. A sibling that runs the member itself, and does not print its bench's input, declares
+  `// bench: rounds N` and passes `N` beside `start` in its closing call. Any other class also needs
   a sibling **`<name>.scale.nvs`** that runs the operation over an input of a given size, with
   `// bench: start N` and `// bench: max N` in place of `iterations`, and whose closing
   `echo Bench::run(N)` passes `start` as one literal, as a ladder's does. The ramp doubles that size

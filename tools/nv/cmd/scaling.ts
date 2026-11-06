@@ -196,6 +196,9 @@ const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(\S+)/;
 const SIZE_RE = /(?:\/\/|#)\s*bench:\s*(start|max)\s+([0-9_]+)/g;
 /** `// bench: prints` in a `.scale.nvs` sibling: it prints its bench's input at each size, and the bench is measured. */
 const PRINTS_RE = /^(?:\/\/|#)\s*bench:\s*prints\s*$/m;
+/** `// bench: rounds 64` in a `constant` bench's `.scale.nvs` sibling that runs the member itself: how many
+ * operations its closing call passes beside `start`. `rampPerOp` runs half of them and all of them. */
+const ROUNDS_RE = /(?:\/\/|#)\s*bench:\s*rounds\s+([0-9_]+)/;
 /** `==12345== Collected : 987654321`, the instruction total callgrind prints at exit. */
 const COLLECTED_RE = /Collected\s*:\s*(\d+)/;
 /** The WSL target directory the WSL leg and `nv garden` build in, which `DEFAULT_WSL_NVS` is in. */
@@ -1061,6 +1064,97 @@ export async function rampSize(sibling: string, expect: string, opts: Options, m
   return rampAt(judged, source, seen.start, sizes, boundsOf(expect), measure, opts, PRINTS_RE.test(source));
 }
 
+/** What one operation costs at one input size: the difference between a batch of `hi.size` operations and
+ * one of `lo.size`, per added operation, so everything the program does once cancels. The result's `size`
+ * is the input size. */
+export function perOpOf(input: number, lo: Batch, hi: Batch, keys: readonly string[]): Batch {
+  const per = (a: number, b: number) => (b - a) / (hi.size - lo.size);
+  return { size: input, counts: Object.fromEntries(keys.map((k) => [k, per(lo.counts[k]!, hi.counts[k]!)])), ns: per(lo.ns, hi.ns) };
+}
+
+/**
+ * A `constant` bench's `.scale.nvs` sibling, judged by what one operation costs at each input size.
+ * Whole-run totals cannot judge it: the set-up that builds the input grows with it, and a `--request`
+ * run loads the whole body, so every total grows. At each size the program runs at two batches, half its
+ * rounds and all of them, and their difference per operation (`perOpOf`) is judged against `expect`'s
+ * bound as a size ramp's totals are. A `// bench: prints` sibling prints its bench's input, and the bench's
+ * `iterations` are its rounds. Any other sibling declares `// bench: rounds N` and its closing call passes
+ * N beside `start`. The clock of one operation is the difference of two runs, which is noise next to a
+ * count, so it is recorded and not judged; the bench's own batch ramp judges its clock.
+ */
+export async function rampPerOp(sibling: string, bench: string, expect: string, opts: Options, measure: Measure = RUN): Promise<Judged> {
+  const judged: Judged = { bench: sibling, verdict: "invalid", sizes: [], slopes: {}, clock: null, notes: [] };
+  const source = read(sibling);
+  const seen: Record<string, number> = Object.fromEntries([...source.matchAll(SIZE_RE)].map((m) => [m[1]!, number(m[2]!)]));
+  if (seen.start === undefined || seen.max === undefined) return { ...judged, notes: ["it needs `// bench: start N` and `// bench: max N`"] };
+  const start = seen.start;
+  const sizes = ladderSizes(start, seen.max);
+  if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${start}\` to \`max ${seen.max}\` is fewer than ${MIN_BATCHES} doublings`] };
+  const prints = PRINTS_RE.test(source);
+  const own = prints ? read(bench) : source;
+  const m = (prints ? ITER_RE : ROUNDS_RE).exec(own);
+  if (!m) return { ...judged, notes: [prints ? `${bench} declares no \`// bench: iterations N\`` : "a sibling that does not print its bench's input needs `// bench: rounds N`"] };
+  const rounds = number(m[1]!);
+  if (rounds < 2) return { ...judged, notes: [`${rounds} rounds cannot be halved`] };
+  const lo = rounds >> 1;
+  // The text of the sibling at `size`, and of the measured program at `size` and `batch`.
+  const siblingAt = (size: number) => withBatch(source, start, size);
+  const programAt = (size: number, batch: number) => (prints ? withBatch(own, rounds, batch) : withRounds(source, start, size, rounds, batch));
+  for (const size of sizes) {
+    if (siblingAt(size) === null || programAt(size, lo) === null || programAt(size, rounds) === null) {
+      return { ...judged, notes: [`its closing \`echo Bench::run(...)\` does not pass \`start\` and the rounds as one literal each at size ${size}`] };
+    }
+  }
+  const missing = await servicesFor(own);
+  if (missing) throw new PerfError(`${sibling} ${missing}`);
+  const root = join(opts.scratch, sibling.replace(/[\\/]/g, "~"));
+  const copy = copyBench(sibling, root);
+  const target = prints ? copy.replace(/\.scale\.nvs$/, ".nvs") : copy;
+  const measured = prints ? bench : sibling;
+  const ramp = async (): Promise<Batch[]> => {
+    const out: Batch[] = [];
+    for (const size of sizes) {
+      progress(`scaling: ${sibling} at ${size}, one operation`);
+      if (prints) {
+        writeCopy(sibling, root, siblingAt(size)!);
+        await printBeside(copy, target, sibling, opts);
+      }
+      const at = async (batch: number): Promise<Batch> => {
+        writeCopy(measured, root, programAt(size, batch)!);
+        return { size: batch, ...(await measure.take(target, sibling, opts, size)) };
+      };
+      out.push(perOpOf(size, await at(lo), await at(rounds), measure.keys));
+    }
+    return out;
+  };
+  const bound = boundsOf(expect).count;
+  const batches = await ramp();
+  judged.sizes = sizes;
+  judged.perOp = batches.at(-1)!.counts;
+  const { slopes, over } = judgeCounts(batches, measure.keys, bound);
+  if (over.length) {
+    // As in `rampAt`, a count fails only when a second run puts it over its bound too.
+    const second = judgeCounts(await ramp(), measure.keys, bound);
+    for (const o of [...over]) {
+      const k = o.slice(0, o.indexOf(" "));
+      if (second.over.some((s) => s.startsWith(`${k} `))) continue;
+      over.splice(over.indexOf(o), 1);
+      judged.notes.push(`${o}, which did not repeat on a second run`);
+    }
+  }
+  judged.slopes = slopes;
+  judged.clock = clockSlope(batches);
+  if (over.length) return { ...judged, verdict: "grows", notes: [...judged.notes, ...over] };
+  return { ...judged, verdict: "flat" };
+}
+
+/** A sibling's source with its closing call passing `size` where it passed `start`, and `batch` where it
+ * passed `rounds`. Null when either is not one literal there, which includes a `size` equal to `rounds`. */
+export function withRounds(source: string, start: number, size: number, rounds: number, batch: number): string | null {
+  const sized = withBatch(source, start, size);
+  return sized === null ? null : withBatch(sized, rounds, batch);
+}
+
 /** What the perf proof's growth found for one bench: what it declares, every ramp it ran, and each way
  * those ramps miss the declaration. */
 export interface Growth {
@@ -1109,8 +1203,13 @@ export async function growthOf(bench: string, opts: Options, required: boolean, 
       batched.notes.push(`callgrind settled the ramp at ${batched.threshold}, so \`iterations\` is now ${2 * batched.threshold}`);
     }
   }
-  if (!known || complexity === "constant") return growth;
+  if (!known) return growth;
   const sibling = bench.replace(/\.nvs$/, ".scale.nvs");
+  if (complexity === "constant") {
+    // A `constant` bench needs no sibling, and one it has is judged by what one operation costs.
+    if (existsSync(abs(sibling))) await judge(sibling, () => rampPerOp(sibling, bench, complexity, opts, measure), "one operation costs more as its input doubles");
+    return growth;
+  }
   if (!existsSync(abs(sibling))) {
     growth.findings.push(`declares \`complexity ${complexity}\` and has no ${sibling} to ramp its input`);
     return growth;
