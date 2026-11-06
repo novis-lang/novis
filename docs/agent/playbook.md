@@ -26,6 +26,12 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **Git Bash on Windows rewrites a leading-slash argument into a path under its own install.**
+  `bun nv site --questions --stamp /reference/core/json/` arrives as `C:/Program Files/Git/reference/...`
+  and answers "no built page has this URL". Prefix the call with `MSYS_NO_PATHCONV=1`. See `tools/nv/cmd/site.ts`.
+- **A union in a diagnostic prints its members in intern order**, so a new `Core` registry type can
+  reorder a message such as `tainted bytes|bytes` and turn a conformance case that pins it red. Update
+  the case to the new text. See `crates/nvs-types/src/ty.rs`. `until: gone crates/nvs-types/src/ty.rs:ids.sort_by_key(|id| id.0)`
 - **A changed parameter list on a built-in component's export needs three edits outside the
   component, and the build passes without any of them.** `wit/<name>.wit`, the component's
   `manifest.json` and `crates/nvs-ext/src/typed/<name>.rs`'s signature list must agree. A stale

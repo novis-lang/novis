@@ -22,7 +22,7 @@ stages:
     context: [benches/members/README.md, tests/hostile/README.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: stream-read
@@ -218,52 +218,41 @@ AGENTS.md § *Text an end user reads*, and `bun nv proofs --comments <paths>` is
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-**Stages 1 to 4 are done.** Decision 11 landed (`18fa8e0554`): `Skip` peeks with
-`deserialize_option`, a skipped string goes through `deserialize_ignored_any`, and
-`decode_each_does_not_keep_a_skipped_string` is green with the `stream-read` check's five tests.
-The perf records for all six `Core\Json` members are in `d9fb9751c8` (measured after the fix).
-`bun nv proofs --run --only` both members: 6 examples and 5 attacks pass. `bun nv proofs --gate
---group 'Core\Json'` owes nothing. `Core\Json\Elements` and `Core\Json\Pieces` are not proofs
-groups (`no group`), so that gate covers them.
+**The goal is reached: every stage is done.** The third `looper verify` is green. `bun nv verify
+--doc`, `bun nv owners --closes json-streaming` and `bun nv ci --check` are green, and
+`looper check --name stream` passes `stream-read` and `stream-write`.
 
-`bun nv scaling --budget --write` stored nothing while any bench was over, and 46 benches of other
-features are over (about 40 `novis/Spreadsheet-*`, plus `core/Cap/has`, `core/Metrics/*` and
-`lang/expressions/the-pipeline-operator*`). No gate runs `--budget`, so the ledger had not been
-written since 2026-10-20. `--write` now stores every share that is within budget, keeps an over
-bench's old share, and still exits 1 (`budgetAfter`, `tools/nv/cmd/scaling.ts`, tested in
-`tools/nv/test/proof-growth.test.ts`). Both new shares are stored: `decodeEach.nvs` 4106,
-`encodeEach.nvs` 1286.
+The gate stage fixed: a `Suspendable` parse's resume and unwind now run inside the sanitizer's fiber
+bracket (`634f091cbe`). The capability scans no longer stop at a `#[cfg(test)] mod name;`
+declaration (`ed20e2a658`). The `init` refusal test opens the folder `nvs init` checks
+(`c57a6cb5f6`). Two `reject/` cases expect `tainted bytes|bytes`, because a union prints in intern
+order (`bf630798d4`). The rule `core-classes/json-whole-and-stream` is `shipped`, with its guards
+named (`10caa99d19`). The website data, eight pages' questions, a roadmap theme for
+`setup-in-any-order` and a shorter `what-novis-checks` about page are in `cd68dc232b`.
 
-Facts: `decodeEach<int>` does not compile (E0465), so plain values use `decodeEach<mixed>`. The CPU
-limit counts from the start of the program. `decodeEach`'s perf record says `growth: unclear`
-(counts and callgrind did not agree by the ceiling); its `size_growth` is `flat`, and the gate
-accepts it. The sweep's `env-secret-proofs` red is stale driver state: no goal or floor names that
-check (`looper check --name env-secret-proofs` answers `no check matches`). The uncommitted
-`docs/rules/core-classes.md` is another session's.
+`bun nv proofs --gate --group 'Core\Json'` owes nothing. `decodeEach`'s perf record says `growth:
+unclear` with `size_growth: flat`, which the gate accepts. The sweep's `env-secret-proofs` red is
+stale driver state: `looper check --name env-secret-proofs` answers `no check matches`.
 
 ### Next
 
-**Stage 5, the gate. One session, no subagents.**
-
-1. Start `looper verify` with `run_in_background`, write the handoff, end the turn.
-2. Fix every failure it names in one pass. Expected red: a snapshot of `nvs meta --json` gains two
-   members, two classes, the `source` and `items` slots, and `writeStream`'s chunks parameter
-   classified `neutral`. A type-checker snapshot or test that pinned E0401 for a `Core` walk of a
-   narrower element now sees no error (decision 12). Update each snapshot to the new truth.
-3. The `tsan` leg was never run: `src/tsan.rs` brackets a task's resume with a fiber switch, and a
-   `suspendable` resume (`decodeEach`'s coroutine) has no bracket. Read it before the goal ends.
-4. Run `looper verify` once more, then the goal-end gates (AGENTS.md § *In the loop*):
-   `bun nv verify --doc`, `bun nv owners --closes json-streaming`, `bun nv ci --check`.
+Nothing. The driver retires the goal, and `setup-in-any-order` is next on the chain. The `tsan` leg
+was not run here; it needs Linux nightly (`tools/tsan.sh`), and CI runs it.
 
 ### Backlog
+
+- A union in a diagnostic prints its members in intern order (`TypeInterner::make_union`,
+  `crates/nvs-types/src/ty.rs:597`), so a registry change elsewhere reorders a message such as
+  `tainted bytes|bytes` and breaks every case that pins it. Printing members in a stable order,
+  such as by their text, would end that churn. Not this goal's work.
 
 Two follow-ups on the request path, left by `strings-in-place` and carried by `compare-recorded`.
 Neither is this goal's work.
