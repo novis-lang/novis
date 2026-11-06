@@ -526,15 +526,15 @@ tool is missed.
 
 ### 5. an upload part and a request body are sources, and reading their start consumes nothing
 
-- [ ] The prefix buffer and the held part (decision 6). `crates/nvs-stdlib/src/request.rs:3695`,
+- [x] The prefix buffer and the held part (decision 6). `crates/nvs-stdlib/src/request.rs:3695`,
   `crates/nvs-stdlib/src/request.rs:4125`
-- [ ] `Core\Request\Part::peek` (decision 5), and its capability row. `crates/nvs-stdlib/src/request.rs:1435`
-- [ ] `Core\Request\BodyStream` as a source. `crates/nvs-stdlib/src/request.rs:1183`
-- [ ] The `Part` and `BodyStream` arms of `byte_source.rs`. `crates/nvs-stdlib/src/byte_source.rs:1`
-- [ ] `Core\Mime::detect` takes `Core\Bytes::Source` and reads at most its widest-signature
+- [x] `Core\Request\Part::peek` (decision 5), and its capability row. `crates/nvs-stdlib/src/request.rs:1435`
+- [x] `Core\Request\BodyStream` as a source. `crates/nvs-stdlib/src/request.rs:1183`
+- [x] The `Part` and `BodyStream` arms of `byte_source.rs`. `crates/nvs-stdlib/src/byte_source.rs:1`
+- [x] `Core\Mime::detect` takes `Core\Bytes::Source` and reads at most its widest-signature
   constant; its card and internal message are rewritten. `crates/nvs-stdlib/src/mime.rs:212`,
   `crates/nvs-stdlib/src/mime.rs:579`
-- [ ] The tests of the `part-source` and `mime-sources` checks.
+- [x] The tests of the `part-source` and `mime-sources` checks.
 - [ ] The two upload rules say what is true now.
   `docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`
 
@@ -642,47 +642,41 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 4 are done. `Core\IO::stdinStream` answers `Core\IO\StdinStream`
-(`crates/nvs-stdlib/src/io.rs:1351`, helpers from `io.rs:2521`), its own iterator as
-`Core\Request\BodyStream` is. Its `ITERABLES` row fixes `TaintedBytes`, so
-`registry::carries_tainted_bytes` (`crates/nvs-stdlib/src/registry.rs:3709`) reads it as a
-carrier with no `TAINTED_SOURCES` entry: it is not in `Core\Bytes::Source`, only in `Chunks`.
-It is on `classes.rs`, the dispatch roster, `HANDLES`, `ext_world`'s `READER` list, and has a
-`None` capability row. `STDIN_HINT` names it, and `rule:tooling/no-raw-handle-onto-standard-output`
-names both reading members. All seven `io-bytes` tests and the other 44 `io::` tests pass in WSL.
-The three closed-list guards pass by name.
+Stages 1 to 4 are done. Stage 5's code is done (`1aaad843fd`), and its rules item is left.
+The multipart parse holds a part's start (`crates/nvs-stdlib/src/multipart.rs`, `Multipart::hold`),
+and `next_chunk` gives it first, so every consumer gives it with no change of its own.
+`Core\Request\Part::peek` is at `crates/nvs-stdlib/src/request.rs:4530`. `Part` is not a
+capability-bearing class, so `peek` has no capability row. `part_hold` (`request.rs:4611`)
+serves prefix and random reads, and `part_pull` (`request.rs:4655`) the forward read.
+`BodyStream` has `chunk`, `held` and `state` slots, read by `body_stream_hold`
+(`request.rs:3681`). `byte_source.rs` has `Kind::Part` and `Kind::Stream`. `part_parse` takes
+the full member name. `Core\Mime::detect` reads `DETECT_PREFIX = 12` bytes through
+`detect_source` (`crates/nvs-stdlib/src/mime.rs:626`). `request.rs`' test fixtures are
+`pub(crate)` for `mime.rs`. The `part-source` and `mime-sources` checks pass, not yet in WSL.
+`stdinStream` and `peek` owe feature proofs in stage 10.
 
-`Core\IO::stdinStream` has no feature proofs yet (stage 10 owes them: about page, a Novis test,
-three examples, a bench, an attack). A part is read forward as `Kind::Chunks` through
-`request::part_content_walk` (`crates/nvs-stdlib/src/request.rs:4008`) until stage 5.
-
-Tests that may go red at the gate: registry invariants over a `Union` of `Alias` arms or over
-`CELL_CLASSES`; `nvs meta --json` and card snapshots of `Csv::rows` and `decodeEach`; LSP stubs
-naming `Core\Csv\Rows` without `<T>`; `tools/nv/test/render.test.ts` (`descHtml`); a `decodeEach`
-case that moved a file's position; `Core\IO` and `Core\IO\File` snapshots (two new members, a
-union, and `stdinStream` with its class); a pin of the old "is where it stops being text"
-message; `nvs meta --json` or a cards snapshot listing `Core\IO`'s members. The sweep's reds are
-stale: nightly run `42201104003` built `26dda36627`, before the three Miri ignores landed
-(`d2a3a8e63d` and `request.rs:5472`), and `env-secret-proofs` has no check and no log.
+Tests that may go red at the gate: `Mime::detect` and `Part` card, meta and LSP snapshots; a
+conformance case giving `detect` a non-`bytes` value; a pin of `part_parse`'s old
+`Core\Request::<member>` message; `Mime::detect`'s perf-ledger figure; and the stage 2 to 4
+snapshots (`Csv::rows`, `decodeEach`, `Core\IO`, `render.test.ts`). The sweep's reds are stale:
+nightly `42201104003` built `26dda36627`, and `env-secret-proofs` has no check anywhere.
 
 ### Next
 
-**Stage 5**, `crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/byte_source.rs` and
-`crates/nvs-stdlib/src/mime.rs`. Take it in this order, one commit each.
+**Finish stage 5**, then mark it done in the front matter.
 
-- [ ] The part's prefix buffer and held bytes (`crates/nvs-stdlib/src/request.rs:3695`,
-  `request.rs:4125`), on the part's filed state beside the walk (decision 6). `content()`,
-  `readAll` and `saveTo` give the buffered bytes first, and the walk's advance frees both.
-- [ ] `Core\Request\Part::peek(uint $max): tainted bytes` (`request.rs:1435`) with its card, its
-  `None` capability row beside the part's rows in `registry.rs`, and the `readAll` ceiling check
-  (`request.rs:4111`) before it reads.
-- [ ] A `Part` and a `BodyStream` `Kind` (`crates/nvs-stdlib/src/byte_source.rs:1`) for `prefix`
-  and `range`, beside the forward arm that reads through `request::part_content_walk`
-  (`crates/nvs-stdlib/src/request.rs:4008`) today.
-- [ ] `Core\Mime::detect` takes `Core\Bytes::Source` (`crates/nvs-stdlib/src/mime.rs:212`) and
-  reads `prefix` up to a widest-signature constant a test checks against the table (`mime.rs:579`).
-- [ ] The two upload rules (`docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`),
-  and the `part-source` and `mime-sources` tests run by name.
+- [ ] `docs/rules/http-server/a-part-is-consumed-in-one-of-three-ways.md:13`: "a part is never
+  held" becomes "held only by a prefix or random read, until the walk advances". Add `peek` to
+  the list, and say a consumer gives the held bytes first.
+- [ ] `docs/rules/http-server/an-upload-is-received-only-through-files.md:12`: add what a
+  `peek`, `Core\Mime::detect` or a random read of a part holds (decision 14).
+- [ ] `docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md:5`: `bodyStream()`
+  gives its start to `Core\Mime::detect` without being consumed.
+- [ ] `bun nv linux-test` for `crates/nvs-stdlib/src/mime.rs:986`
+  (decision 10: a change to file positions runs in WSL).
+
+**Then stage 6** (`crates/nvs-stdlib/src/csv.rs`, `extensions/spreadsheet/src/lib.rs:1338`),
+as the stage's items say.
 
 ### Backlog
 
