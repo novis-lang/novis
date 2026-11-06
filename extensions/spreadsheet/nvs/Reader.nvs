@@ -24,23 +24,22 @@ final class Reader
 
     type OpenOptions = ?{ csv?: { separator?: string, quote?: string, escape?: string, charset?: Core\Charset } };
     type Dialect = { separator: string, quote: string, escape: string };
-    type Source = tainted bytes|Core\IO\File|Core\Request\Part;
 
     // `$reader` is `null` for a CSV file. `$charset` is the charset of a CSV file.
     // `$sep` is `true` when the first record of a CSV file is a `sep=` line, which is not a row.
     private function constructor(
         private readonly ?Reading $reader,
-        private readonly Source $source,
+        private readonly Core\Bytes::Source $source,
         private readonly Core\Charset $charset,
         private readonly bool $sep,
         private readonly Dialect $dialect,
     )
     {}
 
-    /// `Reader::open` opens the spreadsheet in `$source`: the bytes of the file, a file your program opened, or an uploaded file. Other bytes throw a `ParseError`.
+    /// `Reader::open` opens the spreadsheet in `$source`: the bytes of the file, a file your program opened, an uploaded file, or the body of the request. Other bytes throw a `ParseError`.
     /// A CSV file is UTF-8 text, or UTF-16 text with a byte order mark. Other CSV text needs `csv`'s `charset`, or it throws a `ParseError`.
     /// A first CSV line such as `sep=;` sets the separator, and it is not a row. When you set the `separator` option, that line is a normal row.
-    public static function open(Source $source, OpenOptions $options = null): Reader
+    public static function open(Core\Bytes::Source $source, OpenOptions $options = null): Reader
     {
         var $csv = $options?->csv ?? null;
         Dialect $dialect = { separator: $csv?->separator ?? ',', quote: $csv?->quote ?? '"', escape: $csv?->escape ?? '' };
@@ -401,8 +400,8 @@ final class Reader
         return { name: 'Sheet1', position: 0, visibility: Visibility::Visible, rows: $rows, columns: $columns, kind: SheetKind::Worksheet };
     }
 
-    // The first 4 KiB of the source. A file keeps its position, and an uploaded file still gives every byte after this.
-    private static function head(Source $source): tainted bytes
+    // The first 4 KiB of the source. A file keeps its position, and an upload or a request body still gives every byte after this.
+    private static function head(Core\Bytes::Source $source): tainted bytes
     {
         if ($source is bytes) {
             return Core\Bytes::slice($source, 0, 4096);
@@ -417,7 +416,10 @@ final class Reader
         if ($source is Core\Request\Part) {
             return $source->peek(4096);
         }
-        throw new LogicError('`Reader::open` reads bytes, an open file or an uploaded file.');
+        if ($source is Core\Request\BodyStream) {
+            return $source->peek(4096);
+        }
+        throw new LogicError('`Reader::open` reads bytes, an open file, an uploaded file or a request body.');
     }
 
     // CSV is text. Its first 4 KiB have no NUL byte and no control character other than tab, line feed, form feed and carriage return.
@@ -485,7 +487,7 @@ final class Reader
 
     // A reader of a CSV file in `$charset`, whose first characters are `$start`.
     // When `$chosen` is false, a first line that is `sep=` and one character sets the separator and is not a row.
-    private static function csvReader(Source $source, Core\Charset $charset, tainted string $start, Dialect $dialect, bool $chosen): Reader
+    private static function csvReader(Core\Bytes::Source $source, Core\Charset $charset, tainted string $start, Dialect $dialect, bool $chosen): Reader
     {
         ?tainted string $line = $chosen ? null : self::sepLine($start, $dialect->quote);
         if ($line == null) {
