@@ -211,6 +211,14 @@ pub struct ResolvedCall {
     /// At most one of the two is `Some`, and a member off that roster records
     /// neither.
     pub written_shape: Option<WrittenShape>,
+    /// Whether the type argument was `mixed`, which `Core\Json::decodeEach`
+    /// alone takes: each element is read as `Core\Json::decode` reads a
+    /// document, so there is no class to build.
+    ///
+    /// When it is `true`, [`Self::written_class`] and [`Self::written_shape`]
+    /// are both `None`. `nvs-ir` emits a zero descriptor word, a `false` list
+    /// flag and a zero contract word, so the member keeps its one ABI.
+    pub written_mixed: bool,
     /// The **enum** a member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`
     /// was written with — `Core\Router\Match::accessAs<App\Role>` records
     /// `App\Role`.

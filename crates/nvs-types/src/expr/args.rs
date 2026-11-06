@@ -1897,7 +1897,14 @@ pub(crate) enum WrittenTarget {
     Class(QName),
     /// An inline shape, `Core\Arr::shapeAs<{ n: int }>`.
     Shape(crate::expr_table::WrittenShape),
+    /// `mixed`, which only [`MIXED_MEMBER`] takes.
+    Mixed,
 }
+
+/// The one written-class member that takes `mixed`: `Core\Json::decodeEach`
+/// reads each element as `Core\Json::decode` would. `Core\Json::decodeAs<mixed>`
+/// stays an error, because `Core\Json::decode` is that call.
+const MIXED_MEMBER: (&str, &str) = ("Core\\Json", "decodeEach");
 
 impl WrittenTarget {
     /// Writes this target onto the call record, with the list flag both halves
@@ -1910,6 +1917,7 @@ impl WrittenTarget {
         match self {
             Self::Class(class) => call.written_class = Some(class),
             Self::Shape(shape) => call.written_shape = Some(shape),
+            Self::Mixed => call.written_mixed = true,
         }
         call.written_class_is_list = list;
     }
@@ -2057,6 +2065,14 @@ pub(crate) fn written_class_of(
         }
         let shape = crate::expr_table::WrittenShape { label, codec: span };
         return Some((WrittenTarget::Shape(shape), list));
+    }
+    // `mixed` builds no class, so it records none of the deferred sites: each
+    // element is a plain decoded value, tainted as `Core\Json::decode`'s are.
+    if !list
+        && matches!(env.interner.get(element), Ty::Mixed)
+        && (owner_name.as_str(), method) == MIXED_MEMBER
+    {
+        return Some((WrittenTarget::Mixed, false));
     }
     let found = env.interner.describe(first);
     let span = type_args.first().map_or(call_span, |ty| ty.span);

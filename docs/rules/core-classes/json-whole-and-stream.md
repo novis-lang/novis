@@ -22,8 +22,9 @@ refusal. A program picks the shape that fits how much of the document it needs a
   is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::stream` or
   `Core\IO::writeStream`, so there is no response member either.
 
-**A walk is taken once.** The iterable reads forward, and a second `foreach` gives nothing, as
-`Core\Csv::rows` does.
+**A walk is taken once.** The iterable reads forward, as `Core\Csv::rows` does. A second `foreach`
+goes on from the element after the last one given, so after a `break` it gives the rest, and once the
+walk has ended it gives nothing.
 
 **A failure halfway throws where it is found.** The elements already given to the program stay given,
 and the `ParseError` names the line, the column and the byte offset in the whole document. A program

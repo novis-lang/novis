@@ -1809,6 +1809,8 @@ pub(crate) fn resolved_call(
         // Its counterpart for a type argument that is an inline shape, set
         // beside it and by the same call — see the field's own doc comment.
         written_shape: None,
+        // Set beside them, for `Core\Json::decodeEach<mixed>` alone.
+        written_mixed: false,
         // Set by both call arms and both callable-reference arms, for a member
         // on `registry::WRITTEN_ENUM_MEMBERS` — see the field's own doc comment.
         written_enum: None,

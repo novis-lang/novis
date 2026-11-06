@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-host/src/stack.rs, deny.toml]
   - id: 2
     title: "Core\\Json::decodeEach reads one element at a time from a file or a byte stream"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/io.rs]
   - id: 3
     title: "Core\\Json::encodeEach writes an array or JSON Lines in pieces"
@@ -151,10 +151,10 @@ class, its slots and its iteration trio, as `file:line` with one line each.
 - [x] The pointer walk and the skipping of decision 5. `crates/nvs-stdlib/src/json.rs:1`
 - [x] JSON Lines. `crates/nvs-stdlib/src/json.rs:1`
 - [x] The five tests the `stream-read` check names. `crates/nvs-stdlib/src/json.rs:1`
-- [ ] `decodeEach<mixed>` type-checks, and a Novis case walks a typed array and a `mixed` one.
+- [x] `decodeEach<mixed>` type-checks, and a Novis case walks a typed array and a `mixed` one.
   `crates/nvs-types/src/expr/args.rs:2067`
-  - [ ] The checker takes `mixed` for `decodeEach` alone; the lowering writes a zero word in slot 0.
-  - [ ] A scratch `nvs run` walks `decodeEach<Order>` and `decodeEach<mixed>` over a file and over
+  - [x] The checker takes `mixed` for `decodeEach` alone; the lowering writes a zero word in slot 0.
+  - [x] A scratch `nvs run` walks `decodeEach<Order>` and `decodeEach<mixed>` over a file and over
     `bodyStream()`-shaped chunks, and a constructor that throws ends the walk.
 
 ### 3. Core\Json::encodeEach writes an array or JSON Lines in pieces

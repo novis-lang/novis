@@ -2938,6 +2938,16 @@ impl<'a> Lowering<'a> {
         b: BlockId,
         call: &nvs_types::expr_table::ResolvedCall,
     ) -> [ValueId; 3] {
+        if call.written_mixed {
+            // `decodeEach<mixed>` builds no class. Its descriptor slot is the
+            // zero word, which `ShapeCodecConst`'s `None` emits at the same
+            // `Ty::ClassDesc` spelling.
+            let (desc, _) = self.emit(b, Ty::ClassDesc, InstKind::ShapeCodecConst { shape: None });
+            let (list, _) = self.emit(b, Ty::Bool, InstKind::ConstBool(false));
+            let (codec, _) =
+                self.emit(b, Ty::ClassDesc, InstKind::ShapeCodecConst { shape: None });
+            return [desc, list, codec];
+        }
         let class = written_class_label(call);
         // Copied out of the field so the table's borrow is the checker run's
         // and not this frame's: `record_shape_class` below needs `self` back.
