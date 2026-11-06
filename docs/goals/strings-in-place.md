@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-render/src/html.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/core-classes/html-auto-escape.md]
   - id: 2
     title: "interpolated strings and html templates lower their holes to typed parts"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/ir.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/src/lib.rs]
   - id: 3
     title: "a literal Core\\Str::format writes each placeholder into the result"
@@ -121,13 +121,13 @@ every html template, and every literal `Core\Str::format` call.
 **Split:** an `Explore` subagent lists every producer of `InstKind::Concat` and every reader of its
 pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one line each.
 
-- [ ] Give `InstKind::Concat`'s pieces a kind, and keep every pass that reads the pieces right.
+- [x] Give `InstKind::Concat`'s pieces a kind, and keep every pass that reads the pieces right.
   `rule:types/string-holes` `crates/nvs-ir/src/ir.rs:1636`
-- [ ] Lower an `int` hole of an interpolated string to an `Int` part instead of converting it first.
+- [x] Lower an `int` hole of an interpolated string to an `Int` part instead of converting it first.
   `crates/nvs-ir/src/lower/expr.rs:1014` `crates/nvs-ir/src/lower/expr.rs:2272`
-- [ ] Lower an escaped html template hole to an `HtmlText` part. `rule:core-classes/html-template`
+- [x] Lower an escaped html template hole to an `HtmlText` part. `rule:core-classes/html-template`
   `crates/nvs-ir/src/lower/expr.rs:2585` `crates/nvs-ir/src/lower/expr.rs:2675`
-- [ ] Emit `nvs_str_concat_parts` for a join with any part that is not a string.
+- [x] Emit `nvs_str_concat_parts` for a join with any part that is not a string.
   `crates/nvs-codegen/src/emit.rs:3953` `crates/nvs-codegen/src/lib.rs:2086`
 
 ### 3. a literal Core\Str::format writes each placeholder into the result
@@ -165,41 +165,38 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 ### State
 
-Stage 1 is done, and `parts-join` is green. The figures in *Why* were taken on 2026-11-05 at
-`293a3b9b9`.
+Stages 1 and 2 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
 
-- `nvs_render::html` has `escaped_len` and `escape_into(text, &mut impl FnMut(&str))`
-  (`crates/nvs-render/src/html.rs:184`). `escape_into` takes a sink rather than a `&mut String`,
-  because the runtime writes into a `StrWriter` that `nvs-render` cannot name. `escape` is built on
-  the same private `changes`, `changed_len` and `write_changed`, so the table stays in one place.
-- `crate::helpers::write_decimal` writes an `i64` or `u64` into a 21-byte stack buffer, and
-  `decimal_digits` is built on it (`crates/nvs-runtime/src/helpers.rs:63`).
-- `StrPart` is `#[repr(C)]`, two `u64` words, kind first: `STR = 0`, `INT = 1`, `HTML_TEXT = 2`
-  (`crates/nvs-runtime/src/string.rs:1560`). A pointer payload goes through `expose_provenance` and
-  `with_exposed_provenance`. An unknown kind is a miscompile and panics, which aborts across
-  `extern "C"`. Stage 3 adds `FORMAT = 3`.
-- `nvs_str_concat_parts(parts, count)` reads every part and consumes none, unlike
-  `nvs_str_concat_n`, which consumes its first operand (`crates/nvs-runtime/src/string.rs:1721`).
-  The lowering in stage 2 releases each string operand itself. A total of zero answers the static
-  empty string. The symbol is registered and `StrPart` is re-exported from `nvs_runtime`.
+- Each `Concat` piece is a `ConcatPart`: a `PartKind` (`Str`, `Int`, `HtmlText`) and a value.
+  A join of strings alone consumes its leading piece. A typed join consumes none
+  (`Lowering::emit_concat`, `ConcatPart::all_str`), and may hold one non-`Str` piece.
+- `interpolated_hole` and `lower_html_template_hole` make the typed pieces. `echo` of a template
+  converts or escapes each typed hole in `html_hole_bytes`, the escape call's only user.
+- Codegen's `emit_concat_parts` stores two words per piece (`crates/nvs-codegen/src/emit.rs:4019`).
+- `StrPart` kinds are `STR = 0`, `INT = 1`, `HTML_TEXT = 2` (`crates/nvs-runtime/src/string.rs:1560`).
+  Stage 3 adds `FORMAT = 3`.
+- `env-secret-proofs` is the driver's stale state for a retired check, and its command exits 0.
 
-The sweep's `env-secret-proofs` red is the driver's stale state for a check `defaults-that-work`
-retired. Its command, `bun nv proofs --gate --only 'Core\Env::secret'`, exits 0 this session too.
-
-No test is expected to go red: `escape` answers the same bytes, and nothing calls the join yet.
+Expected red in stage 5: each `nvs-ir` snapshot of an interpolation with an `int` hole or a template
+with a hole. It now prints `int vN` and `html vN` pieces and releases the leading literal after the
+join. `INSTA_UPDATE=always bun nv verify -p nvs-ir` rewrites them; check each diff for that shape.
 
 ### Next
 
-**Stage 2**, files `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-codegen/src/emit.rs` and `crates/nvs-codegen/src/lib.rs`. No gate. Follow its
-`**Split:**` line first.
+**Stage 3**, files `crates/nvs-stdlib/src/format.rs`, `crates/nvs-runtime/src/string.rs`,
+`crates/nvs-ir/src/lower/expr.rs` and `crates/nvs-codegen/src/emit.rs`. No gate.
 
-- [ ] A kind on `InstKind::Concat`'s pieces, and every reader kept right. `crates/nvs-ir/src/ir.rs:1636`
-- [ ] An `int` hole as an `Int` part. `crates/nvs-ir/src/lower/expr.rs:1014`
-  `crates/nvs-ir/src/lower/expr.rs:2272`
-- [ ] An escaped template hole as an `HtmlText` part. `crates/nvs-ir/src/lower/expr.rs:2585`
-  `crates/nvs-ir/src/lower/expr.rs:2675`
-- [ ] Emit `nvs_str_concat_parts` over `StrPart`s. `crates/nvs-codegen/src/emit.rs:3953`
-  `crates/nvs-codegen/src/lib.rs:2086` `crates/nvs-runtime/src/string.rs:1721`
+**The design call first:** `Spec` and its conversion are in `nvs-stdlib`, and
+`nvs_str_concat_parts` is in `nvs-runtime`, which cannot depend on `nvs-stdlib`. So decision 4's
+part writer cannot call `Spec` from the runtime's `Piece`. Decide where the `Format` part is
+measured and written, record it under *Standing decisions*, and build on it.
+
+- [ ] The `Format` part, through `Spec`'s conversion and padding. `crates/nvs-stdlib/src/format.rs:470`
+  `crates/nvs-stdlib/src/format.rs:624` `crates/nvs-stdlib/src/format.rs:699`
+  `crates/nvs-runtime/src/string.rs:1560`
+- [ ] A converted placeholder as a `Format` piece. `crates/nvs-ir/src/lower/expr.rs:2422`
+  `crates/nvs-ir/src/lower/expr.rs:2550` Its spec is pre-parsed, and decision 4's fallback stays.
+- [ ] Codegen of the `Format` piece. `crates/nvs-codegen/src/emit.rs:4019`
+- [ ] The docs of `PIECE_SYMBOL` and the piece helper. `crates/nvs-stdlib/src/format.rs:142`
 
 ### Backlog
