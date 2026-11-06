@@ -430,13 +430,14 @@
   },
   "/guides/simple-programs/json-api/": {
     "feature": "guides/simple-programs/json-api.mdx",
-    "hash": "645ffc1696cc1041",
+    "hash": "29ff0c20d0c9829c",
     "questions": [
       "Example of a JSON API in Novis",
       "How do I return one product as JSON by its id?",
-      "How do I read a number from the URL path?",
       "What should my API return when a product does not exist?",
-      "Build a small REST endpoint that returns 404 for unknown ids"
+      "Build a small REST endpoint that returns 404 for unknown ids",
+      "Return a very long list as JSON without much memory",
+      "Import a large JSON array from a request body"
     ]
   },
   "/guides/simple-programs/scheduled-job/": {
@@ -1003,14 +1004,14 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "993ee7bb23b4d585",
+    "hash": "2c2d36d10ac2117d",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
       "Which folder permissions does Novis check before it starts?",
       "Why does nvs warn that it cannot use its data folder?",
       "Set folder permissions for Novis on Windows with icacls",
-      "Check config file owners for the account my service runs as"
+      "Which folder does nvs init check before it writes nvs.toml?"
     ]
   },
   "/licenses/": {
@@ -6289,11 +6290,11 @@
   },
   "/reference/core/io/writestream/": {
     "feature": "Core\\IO::writeStream",
-    "hash": "ff014e23f4d005d4",
+    "hash": "54a392fdfe195615",
     "questions": [
       "How do I save a large upload to disk without using much memory?",
       "Write a file from chunks of data",
-      "Stream a download straight into a file",
+      "Write a large JSON array to a file piece by piece",
       "Limit the maximum size of a file being written",
       "Avoid half-written files when a write fails",
       "Which folders may a server program stream a file into?"
@@ -6475,12 +6476,13 @@
   },
   "/reference/core/json/": {
     "feature": "Core\\Json",
-    "hash": "be5d497f74a3665c",
+    "hash": "0021e85f7aa0f5d7",
     "questions": [
       "How do I work with JSON data?",
       "Convert values to JSON text and back",
-      "Read and write JSON",
       "Parse JSON from a request body",
+      "Read a JSON file too large for memory one element at a time",
+      "Read and write JSON Lines",
       "Which tools exist for JSON in the standard library?"
     ]
   },
@@ -6506,6 +6508,18 @@
       "Map a JSON body to a typed object"
     ]
   },
+  "/reference/core/json/decodeeach/": {
+    "feature": "Core\\Json::decodeEach",
+    "hash": "f58300221a296d72",
+    "questions": [
+      "How do I read a JSON file larger than memory?",
+      "Read one element of a JSON array at a time",
+      "Decode a huge JSON upload without loading it all",
+      "Read only the array at /items inside a JSON document",
+      "Read a JSON Lines file line by line",
+      "What happens to my loop when the JSON breaks halfway?"
+    ]
+  },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
     "hash": "8c0cda578efecfd8",
@@ -6517,6 +6531,17 @@
       "Escape non-ASCII characters in JSON output"
     ]
   },
+  "/reference/core/json/encodeeach/": {
+    "feature": "Core\\Json::encodeEach",
+    "hash": "8ac5b7466f4686c6",
+    "questions": [
+      "How do I write a very long list as JSON?",
+      "Export database rows to a JSON file without much memory",
+      "Stream a large JSON array in a response",
+      "Write JSON Lines, one value on each line",
+      "What happens when an item cannot be encoded halfway?"
+    ]
+  },
   "/reference/core/json/isvalid/": {
     "feature": "Core\\Json::isValid",
     "hash": "be130121751b51fa",
@@ -6525,6 +6550,26 @@
       "Test JSON text without parsing it into a value",
       "Reject a request body that is not JSON",
       "Validate each line of a JSON log file"
+    ]
+  },
+  "/reference/core/json-elements/": {
+    "feature": "Core\\Json\\Elements",
+    "hash": "3a47b4e2a0434152",
+    "questions": [
+      "What does Core\\Json::decodeEach return?",
+      "Loop over the elements of a large JSON array",
+      "Can I loop over the decodeEach result twice?",
+      "Stop reading a JSON array early with break"
+    ]
+  },
+  "/reference/core/json-pieces/": {
+    "feature": "Core\\Json\\Pieces",
+    "hash": "89f4883600577199",
+    "questions": [
+      "What does Core\\Json::encodeEach return?",
+      "Loop over JSON text in pieces of bytes",
+      "Write JSON pieces to a file with writeStream",
+      "How large is each piece of JSON text?"
     ]
   },
   "/reference/core/jwe/": {

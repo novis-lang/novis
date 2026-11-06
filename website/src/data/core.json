@@ -17448,7 +17448,7 @@
     {
       "id": "Json",
       "name": "Core\\Json",
-      "summary": "Converts values to JSON text and back. `encode` writes a value as JSON, `decode` reads JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. A document that is not valid JSON throws a `ParseError`.",
+      "summary": "Converts values to JSON text and back. `encode` writes a value as JSON, `decode` reads JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. `decodeEach` and `encodeEach` read and write a large document one element at a time. A document that is not valid JSON throws a `ParseError`.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -17649,11 +17649,159 @@
           "slug": "isvalid",
           "url": "/reference/core/json/isvalid/",
           "examples": "core/Json/isValid"
+        },
+        {
+          "id": "Json.decodeEach",
+          "name": "decodeEach",
+          "static": true,
+          "receiver": null,
+          "generics": "<T>",
+          "signature": "decodeEach<T>(Core\\IO\\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes> $source, string $at = \"\", { lines?: bool, maxDepth?: uint }): Core\\Json\\Elements<T>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "Core\\IO\\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "at",
+              "type": "string",
+              "default": "\"\"",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "lines",
+              "type": "bool"
+            },
+            {
+              "name": "maxDepth",
+              "type": "uint"
+            }
+          ],
+          "returnType": "Core\\Json\\Elements<T>",
+          "doc": {
+            "shortHtml": "Reads the elements of a JSON array one at a time, in a <code>foreach</code> loop. Each element is checked as <code>decodeAs</code> checks a document. Only one element is in memory at a time, so a document larger than memory works. You can loop over the result only once.",
+            "params": [
+              {
+                "name": "source",
+                "descHtml": "The JSON to read. It is an open <code>Core\\IO\\File</code>, read from its current position, or chunks of bytes such as <code>Core\\Request::bodyStream()</code>."
+              },
+              {
+                "name": "at",
+                "descHtml": "A JSON Pointer to the array to read, such as <code>/items</code>. The default is <code>''</code>, which is the whole document."
+              },
+              {
+                "name": "lines",
+                "descHtml": "When <code>true</code>, the source is JSON Lines: one JSON value on each line. Then <code>at</code> must be <code>''</code>. The default is <code>false</code>."
+              },
+              {
+                "name": "maxDepth",
+                "descHtml": "The deepest nesting allowed in the document. The default is <code>512</code>, and the largest value is <code>1024</code>."
+              }
+            ],
+            "returnHtml": "The elements, one at a time. Each element is a new <code>T</code>. When <code>T</code> is <code>mixed</code>, each element is read as <code>decode</code> reads a document. Nothing is read until the loop starts.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "The JSON is not valid, nests deeper than <code>maxDepth</code>, or an element does not match <code>T</code>. It is also thrown when <code>at</code> does not name an array. The error is thrown when the loop reaches the problem. Your loop has already received the elements before it. The message gives the byte offset."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>T</code> cannot be read from JSON, or <code>maxDepth</code> is <code>0</code> or above <code>1024</code>. It is also thrown when <code>lines</code> is <code>true</code> and <code>at</code> is not <code>''</code>."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The file is closed, or reading from the source fails."
+              }
+            ]
+          },
+          "slug": "decodeeach",
+          "url": "/reference/core/json/decodeeach/",
+          "examples": "core/Json/decodeEach"
+        },
+        {
+          "id": "Json.encodeEach",
+          "name": "encodeEach",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "encodeEach(array<mixed>|Iterable<mixed>|Iterator<mixed> $items, { lines?: bool }): Core\\Json\\Pieces",
+          "params": [
+            {
+              "kind": "param",
+              "name": "items",
+              "type": "array<mixed>|Iterable<mixed>|Iterator<mixed>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "lines",
+              "type": "bool"
+            }
+          ],
+          "returnType": "Core\\Json\\Pieces",
+          "doc": {
+            "shortHtml": "Writes a JSON array in pieces, in a <code>foreach</code> loop. It takes the next item from <code>$items</code> only when it needs it, and encodes each item as <code>encode</code> does. You can write the pieces to a file with <code>Core\\IO::writeStream</code>.",
+            "params": [
+              {
+                "name": "items",
+                "descHtml": "The values to write. It can be an array or an iterable, such as a database stream."
+              },
+              {
+                "name": "lines",
+                "descHtml": "When <code>true</code>, it writes JSON Lines: one value on each line, with no brackets and no commas. The default is <code>false</code>."
+              }
+            ],
+            "returnHtml": "The JSON text as <code>bytes</code>, in pieces of at most 64 KiB. The first piece starts with <code>[</code> and the last piece ends with <code>]</code>. Nothing is encoded until the loop starts.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "An item contains something that JSON cannot represent, as for <code>encode</code>. The error is thrown when the loop reaches that item. Your loop has already received the pieces before it."
+              }
+            ]
+          },
+          "slug": "encodeeach",
+          "url": "/reference/core/json/encodeeach/",
+          "examples": "core/Json/encodeEach"
         }
       ],
       "slug": "json",
       "url": "/reference/core/json/",
-      "summaryHtml": "<p>Converts values to JSON text and back. <code>encode</code> writes a value as JSON, <code>decode</code> reads JSON into arrays and scalars, and <code>decodeAs</code> reads it into a class or a shape. A document that is not valid JSON throws a <code>ParseError</code>.</p>\n<p><code>Core\\Json::encode</code> writes any scalar, array or instance of a class carrying <code>#[Core\\Json\\Derive]</code> as JSON: a list becomes a JSON array, any other array a JSON object with its insertion order kept, and an instance of a class without the attribute is refused. <code>decode</code> answers <code>mixed</code> — an object as a string-keyed array — and throws <code>ParseError</code> on a malformed or too-deep document. <code>decodeAs&lt;T&gt;</code> reads a document straight into a class that carries <code>#[Core\\Json\\Derive]</code>, checking every declared field — private ones included — against its type (<code>?T</code> is the only way a field admits <code>null</code>) and reporting every failure at once in one <code>ParseError</code>'s <code>issues</code>. <code>#[Core\\Json\\Field(name: &quot;…&quot;)]</code> gives one field its wire name. <code>T</code> is that class or an <code>array&lt;T&gt;</code> of it, and nothing else: <code>decodeAs&lt;array&lt;User&gt;&gt;</code> reads a document whose top level is a JSON array as one <code>User</code> per element, reporting a bad element under its index.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\n#[Core\\Json\\Derive]\nclass User\n{\n    public string $name;\n    public ?int $age;\n    #[Core\\Json\\Field(name: 'is_admin')]\n    public bool $admin;\n    public function constructor(string $name, ?int $age, bool $admin)\n    {\n        $this-&gt;name = $name;\n        $this-&gt;age = $age;\n        $this-&gt;admin = $admin;\n    }\n}\necho Core\\Json::encode(['id' =&gt; 7, 'tags' =&gt; ['a', 'b'], 'ok' =&gt; true]), &quot;\\n&quot;;\nvar $doc = Core\\Json::decode(&quot;{\\&quot;n\\&quot;: 3.5, \\&quot;list\\&quot;: [1, 2]}&quot;);\necho Core\\Json::encode($doc, { pretty: true }), &quot;\\n&quot;;\nUser $u = Core\\Json::decodeAs&lt;User&gt;(&quot;{\\&quot;name\\&quot;:\\&quot;Ada\\&quot;,\\&quot;age\\&quot;:null,\\&quot;is_admin\\&quot;:true}&quot;);\necho $u-&gt;name, ' ', $u-&gt;age ?? 'unknown', ' ', Core\\Json::encode($u), &quot;\\n&quot;;\necho Core\\Json::isValid('{oops}') ? 'valid' : 'invalid', &quot;\\n&quot;;\ntry {\n    Core\\Json::decodeAs&lt;User&gt;(&quot;{\\&quot;name\\&quot;:1}&quot;);\n} catch (ParseError $e) {\n    echo Core\\Arr::count($e-&gt;issues), &quot; issues\\n&quot;;\n}</code></pre>\n<pre class=\"output\"><code>{&quot;id&quot;:7,&quot;tags&quot;:[&quot;a&quot;,&quot;b&quot;],&quot;ok&quot;:true}\n{\n  &quot;n&quot;: 3.5,\n  &quot;list&quot;: [\n    1,\n    2\n  ]\n}\nAda unknown {&quot;name&quot;:&quot;Ada&quot;,&quot;age&quot;:null,&quot;is_admin&quot;:true}\ninvalid\n3 issues</code></pre>"
+      "summaryHtml": "<p>Converts values to JSON text and back. <code>encode</code> writes a value as JSON, <code>decode</code> reads JSON into arrays and scalars, and <code>decodeAs</code> reads it into a class or a shape. <code>decodeEach</code> and <code>encodeEach</code> read and write a large document one element at a time. A document that is not valid JSON throws a <code>ParseError</code>.</p>\n<p><code>Core\\Json::encode</code> writes any scalar, array or instance of a class carrying <code>#[Core\\Json\\Derive]</code> as JSON: a list becomes a JSON array, any other array a JSON object with its insertion order kept, and an instance of a class without the attribute is refused. <code>decode</code> answers <code>mixed</code> — an object as a string-keyed array — and throws <code>ParseError</code> on a malformed or too-deep document. <code>decodeAs&lt;T&gt;</code> reads a document straight into a class that carries <code>#[Core\\Json\\Derive]</code>, checking every declared field — private ones included — against its type (<code>?T</code> is the only way a field admits <code>null</code>) and reporting every failure at once in one <code>ParseError</code>'s <code>issues</code>. <code>#[Core\\Json\\Field(name: &quot;…&quot;)]</code> gives one field its wire name. <code>T</code> is that class or an <code>array&lt;T&gt;</code> of it, and nothing else: <code>decodeAs&lt;array&lt;User&gt;&gt;</code> reads a document whose top level is a JSON array as one <code>User</code> per element, reporting a bad element under its index.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\n#[Core\\Json\\Derive]\nclass User\n{\n    public string $name;\n    public ?int $age;\n    #[Core\\Json\\Field(name: 'is_admin')]\n    public bool $admin;\n    public function constructor(string $name, ?int $age, bool $admin)\n    {\n        $this-&gt;name = $name;\n        $this-&gt;age = $age;\n        $this-&gt;admin = $admin;\n    }\n}\necho Core\\Json::encode(['id' =&gt; 7, 'tags' =&gt; ['a', 'b'], 'ok' =&gt; true]), &quot;\\n&quot;;\nvar $doc = Core\\Json::decode(&quot;{\\&quot;n\\&quot;: 3.5, \\&quot;list\\&quot;: [1, 2]}&quot;);\necho Core\\Json::encode($doc, { pretty: true }), &quot;\\n&quot;;\nUser $u = Core\\Json::decodeAs&lt;User&gt;(&quot;{\\&quot;name\\&quot;:\\&quot;Ada\\&quot;,\\&quot;age\\&quot;:null,\\&quot;is_admin\\&quot;:true}&quot;);\necho $u-&gt;name, ' ', $u-&gt;age ?? 'unknown', ' ', Core\\Json::encode($u), &quot;\\n&quot;;\necho Core\\Json::isValid('{oops}') ? 'valid' : 'invalid', &quot;\\n&quot;;\ntry {\n    Core\\Json::decodeAs&lt;User&gt;(&quot;{\\&quot;name\\&quot;:1}&quot;);\n} catch (ParseError $e) {\n    echo Core\\Arr::count($e-&gt;issues), &quot; issues\\n&quot;;\n}</code></pre>\n<pre class=\"output\"><code>{&quot;id&quot;:7,&quot;tags&quot;:[&quot;a&quot;,&quot;b&quot;],&quot;ok&quot;:true}\n{\n  &quot;n&quot;: 3.5,\n  &quot;list&quot;: [\n    1,\n    2\n  ]\n}\nAda unknown {&quot;name&quot;:&quot;Ada&quot;,&quot;age&quot;:null,&quot;is_admin&quot;:true}\ninvalid\n3 issues</code></pre>"
+    },
+    {
+      "id": "Json.Elements",
+      "name": "Core\\Json\\Elements",
+      "summary": "The elements of a JSON array, read one at a time while a `foreach` loop runs. The whole document is never in memory at once.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [],
+      "slug": "json-elements",
+      "url": "/reference/core/json-elements/",
+      "summaryHtml": "<p>The elements of a JSON array, read one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>"
+    },
+    {
+      "id": "Json.Pieces",
+      "name": "Core\\Json\\Pieces",
+      "summary": "The text of a JSON document in pieces of `bytes`, written one at a time while a `foreach` loop runs. The whole document is never in memory at once.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [],
+      "slug": "json-pieces",
+      "url": "/reference/core/json-pieces/",
+      "summaryHtml": "<p>The text of a JSON document in pieces of <code>bytes</code>, written one at a time while a <code>foreach</code> loop runs. The whole document is never in memory at once.</p>"
     },
     {
       "id": "Jwe",

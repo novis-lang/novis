@@ -10,6 +10,13 @@
       ]
     },
     {
+      "title": "Setup in any order",
+      "text": "You can run `nvs run`, `nvs init` and `nvs service install` in any order, and the service starts every time. `nvs init` sets up the data folder and the project file. A command that needs admin rights asks for them itself.",
+      "goals": [
+        "setup-in-any-order"
+      ]
+    },
+    {
       "title": "Example apps and checked examples",
       "text": "The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.",
       "goals": [

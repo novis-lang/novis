@@ -131,7 +131,8 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **JSON of any size.** *Working on it now.* `Core\Json::decodeEach` reads a large JSON document one element at a time, from a file or a request body. `Core\Json::encodeEach` writes one in parts. Memory stays the same however large the document is. Both also read and write JSON Lines.
-2. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
+2. **Setup in any order.** You can run `nvs run`, `nvs init` and `nvs service install` in any order, and the service starts every time. `nvs init` sets up the data folder and the project file. A command that needs admin rights asks for them itself.
+3. **Example apps and checked examples.** The chat app uses WebSockets, and the poll app uses server-sent events. You can start a real project from either one. Every block of code on this website is run by a test, or it says why it is not.
 <!-- roadmap:end -->
 
 ## Contributing

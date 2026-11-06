@@ -61,6 +61,8 @@ Conventions the whole file uses:
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
 | [`Core\Json`](#core-core-json) | JSON in and out — `encode` any value, `decode` to `mixed`, `decodeAs<T>` straight into a class that declares its codec |
+| [`Core\Json\Elements<T>`](#core-core-json-elements) |  |
+| [`Core\Json\Pieces`](#core-core-json-pieces) |  |
 | [`Core\Encoding`](#core-core-encoding) | the seam between `string` and `bytes` — charset conversion, and base64, base64url, base32 and hex spellings of a buffer |
 | [`Core\Bytes`](#core-core-bytes) | octet buffers — read, search, compare, build and lay out as a wire format with `pack`/`unpack` |
 | [`Core\Path`](#core-core-path) | path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem |
@@ -34450,7 +34452,7 @@ refused
 <a id="core-core-json"></a>
 ### `Core\Json`
 
-Keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydration, typed decoding, JSON to class, Derive, Field, encode, decode, decodeAs, isValid
+Keywords: JSON, encode, decode, parse JSON, validate JSON, pretty print, hydration, typed decoding, JSON to class, Derive, Field, encode, decode, decodeAs, isValid, decodeEach, encodeEach
 
 `Core\Json::encode` writes any scalar, array or instance of a class carrying `#[Core\Json\Derive]`
 as JSON: a list becomes a JSON array, any other array a JSON object with its insertion order kept,
@@ -34511,6 +34513,8 @@ invalid
 | [`Core\Json::decode`](#core-core-json-decode) | `decode(string $json, { maxDepth?: uint }): mixed` |
 | [`Core\Json::decodeAs`](#core-core-json-decodeas) | `decodeAs<T>(string $json, { maxDepth?: uint }): T` |
 | [`Core\Json::isValid`](#core-core-json-isvalid) | `isValid(string $json): bool` |
+| [`Core\Json::decodeEach`](#core-core-json-decodeeach) | `decodeEach<T>(Core\IO\File\|array<tainted bytes>\|Iterable<tainted bytes>\|Iterator<tainted bytes> $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>` |
+| [`Core\Json::encodeEach`](#core-core-json-encodeeach) | `encodeEach(array<mixed>\|Iterable<mixed>\|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces` |
 
 <a id="core-core-json-encode"></a>
 #### `Core\Json::encode`
@@ -34581,6 +34585,60 @@ Checks whether `decode` accepts `$json` at the default depth of `512`. It parses
 | `$json` | `string` (neutral) | The JSON text to check. |
 
 **Returns** `bool` — `true` when `$json` parses. `false` for text that is not valid JSON, nesting deeper than `512`, or a whole number too large for `int`.
+
+<a id="core-core-json-decodeeach"></a>
+#### `Core\Json::decodeEach`
+
+```nvs skip
+Core\Json::decodeEach<T>(Core\IO\File|array<tainted bytes>|Iterable<tainted bytes>|Iterator<tainted bytes> $source, string $at = "", { lines?: bool, maxDepth?: uint }): Core\Json\Elements<T>
+```
+
+Reads the elements of a JSON array one at a time, in a `foreach` loop. Each element is checked as `decodeAs` checks a document. Only one element is in memory at a time, so a document larger than memory works. You can loop over the result only once.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `Core\IO\File\|array<tainted bytes>\|Iterable<tainted bytes>\|Iterator<tainted bytes>` | The JSON to read. It is an open `Core\IO\File`, read from its current position, or chunks of bytes such as `Core\Request::bodyStream()`. |
+| `$at` | `string` (default `""`, neutral) | A JSON Pointer to the array to read, such as `/items`. The default is `''`, which is the whole document. |
+| `{ lines: … }` | `bool` (default `false`) | When `true`, the source is JSON Lines: one JSON value on each line. Then `at` must be `''`. The default is `false`. |
+| `{ maxDepth: … }` | `uint` (default `512`) | The deepest nesting allowed in the document. The default is `512`, and the largest value is `1024`. |
+
+**Returns** `Core\Json\Elements<T>` — The elements, one at a time. Each element is a new `T`. When `T` is `mixed`, each element is read as `decode` reads a document. Nothing is read until the loop starts.
+
+**Throws** `ParseError` — The JSON is not valid, nests deeper than `maxDepth`, or an element does not match `T`. It is also thrown when `at` does not name an array. The error is thrown when the loop reaches the problem. Your loop has already received the elements before it. The message gives the byte offset.; `LogicError` — `T` cannot be read from JSON, or `maxDepth` is `0` or above `1024`. It is also thrown when `lines` is `true` and `at` is not `''`.; `RuntimeError` — The file is closed, or reading from the source fails.
+
+<a id="core-core-json-encodeeach"></a>
+#### `Core\Json::encodeEach`
+
+```nvs skip
+Core\Json::encodeEach(array<mixed>|Iterable<mixed>|Iterator<mixed> $items, { lines?: bool }): Core\Json\Pieces
+```
+
+Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from `$items` only when it needs it, and encodes each item as `encode` does. You can write the pieces to a file with `Core\IO::writeStream`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$items` | `array<mixed>\|Iterable<mixed>\|Iterator<mixed>` | The values to write. It can be an array or an iterable, such as a database stream. |
+| `{ lines: … }` | `bool` (default `false`) | When `true`, it writes JSON Lines: one value on each line, with no brackets and no commas. The default is `false`. |
+
+**Returns** `Core\Json\Pieces` — The JSON text as `bytes`, in pieces of at most 64 KiB. The first piece starts with `[` and the last piece ends with `]`. Nothing is encoded until the loop starts.
+
+**Throws** `LogicError` — An item contains something that JSON cannot represent, as for `encode`. The error is thrown when the loop reaches that item. Your loop has already received the pieces before it.
+
+<a id="core-core-json-elements"></a>
+### `Core\Json\Elements<T>`
+
+Keywords:
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-json-pieces"></a>
+### `Core\Json\Pieces`
+
+Keywords:
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-encoding"></a>
 ### `Core\Encoding`
@@ -35485,7 +35543,7 @@ Writes a sequence of `bytes` chunks to `$path` as they arrive. Only one chunk is
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (sink) | The file to write. It must not already exist unless `overwrite` says otherwise. |
-| `$src` | `array<bytes>\|Iterable<bytes>\|Iterator<bytes>` | The chunks, in order: an `array<bytes>`, an `Iterable<bytes>` or an `Iterator<bytes>`. Each chunk is written and then freed, so memory use does not grow with the length of the source. |
+| `$src` | `array<bytes>\|Iterable<bytes>\|Iterator<bytes>` (neutral) | The chunks, in order: an `array<bytes>`, an `Iterable<bytes>` or an `Iterator<bytes>`. Each chunk is written and then freed, so memory use does not grow with the length of the source. |
 | `{ max: … }` | `uint` (default `18446744073709551615`) | The most bytes to accept across the whole stream. When it is not given, there is no limit. Nothing else limits the size of a file on disk, so this is the only limit. |
 | `{ overwrite: … }` | `bool` (default `false`) | Whether an existing file may be replaced. It is `false` by default, because the file name usually comes from a client. |
 
@@ -57689,15 +57747,18 @@ This is what each command checks:
 | Command | Checks | If the check fails |
 |---|---|---|
 | `nvs serve`, at the start and at each reload | every configuration file, and the folder that contains it | the server does not start, or it keeps its configuration and logs `E0607` |
-| `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
+| `nvs init` | the folder it writes into | nothing is written and the exit status is `1` |
 | `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, **also the folder that contains it** | one `warning:` line. The command runs without the data folder |
 | every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
 
 `nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
 
-The check on the cache folder and in `nvs init` also looks at the folder one level up. If
-`D:\srv\novis\config` has the correct permissions and `D:\srv\novis` does not, the message names
-`D:\srv\novis`. That is the folder to change.
+The check on the cache folder also looks at the folder one level up. If `D:\srv\novis\cache` has
+the correct permissions and `D:\srv\novis` does not, the warning names `D:\srv\novis`. That is the
+folder to change.
+
+`nvs init` checks the same folder that `nvs serve` checks later. It does not check the folder
+above it, so it never asks you to change a folder like `D:\srv` that other projects share.
 
 The default data folder, `.nvsdata` next to `nvs`, is the one exception. The folder that contains it
 is the folder of the `nvs` program, and Novis does not check that folder. An account that can change
