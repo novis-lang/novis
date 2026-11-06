@@ -549,6 +549,39 @@ has no memory check; and the decompression ratio needs the input's length.
       (`nvs_test::request::split_octets`), so a test uploads an image or a PDF as a part.
     - **What it spends:** the source's size twice while the call runs, the host's copy and the
       component's; a part also stays held until the walk advances.
+24. **The benches and the ledger, as built in stage 11.**
+    - A feature has one bench file, so decision 8's benches replace the old ones: `Mime/detect`
+      reads an uploaded part, `Hash/of` a file, `Zip/entries` an archive file. The text and `bytes`
+      paths keep their direct code and are covered by their unit tests.
+    - `Zip/entries.scale.nvs` keeps the entry count fixed and grows each file's data, so the ramp
+      shows memory flat in the archive's size. `entries.nvs` declares `complexity constant`.
+    - `SHARED_IMPL` (`tools/nv/proofs/collect.ts`) lists `byte_source.rs`. A Rust file that names
+      `byte_source::` hashes with its tier joined, by text, so a file that names it only in tests
+      is staled too: the conservative direction. The extensions' members read through the host's
+      `extension_source_range` and are not joined; their impl files never name the module.
+25. **What stage 11's proofs found.**
+    - **A component's source must fit twice.** The host's whole read was checked piece by piece and
+      the guest's copy never was, so a Pdf file that fit `[limits] memory` once but not twice
+      tripped the debug overshoot backstop. `read_sources` (`crates/nvs-cli/src/extensions.rs`)
+      now calls `affordable(size × 2)` before it reads; the hostile case
+      `Pdf-Reader/open/03-...-once-but-not-twice.nvs` pins it.
+    - **A `constant` bench's `.scale.nvs` is never ramped** (`tools/nv/cmd/scaling.ts:1112`
+      returns early). Ramping whole-run totals is wrong for it: a `--request` run loads the whole
+      body, and a set-up that builds the input grows, so every count grows with the input. The
+      ramp is to run two batch sizes at each input size and judge their difference, the
+      per-operation counts, against the class. Measured by hand at 1 KiB and 64 KiB: `detect` is
+      1 allocation and 12 bytes per call, `peek` 2 and 72, at both sizes.
+    - **`Hash::of` allocates a 64 KiB read buffer per call even for a 360-byte file.** That is
+      latency on a hot path. The buffer is sized `min(READ_CHUNK, the file's size)` where the size
+      is known.
+    - **The first `peek` or `detect` of a part holds a whole wire run** (`Multipart::hold`,
+      `crates/nvs-stdlib/src/multipart.rs:400`), and `--request`'s buffered body is one run. On a
+      server a run is bounded by the wire chunk, so the hold stays O(in-flight). Accepted.
+    - `Zip::entries` on a file allocates up to about 256 KiB per call, flat above that: its
+      windows, as decision 21 says.
+    - **The ASAN leg runs no `.nvs` program,** so the two chunk attacks on `Csv::rows` run under
+      valgrind through `bun nv proofs --run --valgrind`, which reads every hostile case. Stage 13
+      runs it for them in WSL. A CI step for it is not added by this goal.
 
 ## Stages
 
@@ -702,12 +735,16 @@ tool is missed.
 
 **Split:** benches and attacks are two writing subagents; their files are disjoint.
 
-- [ ] The four benches of decision 8, and their shares with `bun nv scaling --budget --write`,
+- [x] The four benches of decision 8, and their shares with `bun nv scaling --budget --write`,
   which also stores stage 10's `IO/readBytes.scale.nvs` and `IO/stdinStream.scale.nvs`.
   `benches/members/core/Mime/detect.scale.nvs:1`
-- [ ] `rule:testing/member-perf-ledger` hashes `byte_source.rs` for its consumers.
+- [x] `rule:testing/member-perf-ledger` hashes `byte_source.rs` for its consumers.
   `docs/rules/testing/member-perf-ledger.md:1`
-- [ ] The attacks of decision 9. `tests/hostile/core/IO-File/readBytes/01-a-file-that-changes-while-it-is-read.nvs:1`
+- [x] The attacks of decision 9. `tests/hostile/core/IO-File/readBytes/01-a-file-that-changes-while-it-is-read.nvs:1`
+- [ ] The ramp judges a `constant` bench's `.scale.nvs` by per-operation counts (decision 25).
+  `tools/nv/cmd/scaling.ts:1112`
+- [ ] `Hash::of` on a small file allocates no 64 KiB buffer (decision 25).
+  `crates/nvs-stdlib/src/byte_source.rs:1`
 
 ### 12. the examples, cards and rules show the direct call
 
@@ -738,6 +775,8 @@ Storage; IO, Serialize and Charset. None builds.
 ### 13. the goal is verified once, and every failure is fixed
 
 - [ ] `bun nv proofs --record-perf` over the classes whose figures are stale.
+- [ ] `bun nv proofs --run --valgrind --only 'Core\Csv::rows'` in WSL, for the two chunk attacks
+  (decision 25).
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
@@ -746,15 +785,18 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Stages 1 to 10 are done. Stage 10: the five new members each have an about page, three examples
-and the Novis case they owed, and their class introductions name them. Benches exist for
-`File::readBytes` (constant), `IO::readBytes` and `stdinStream` (linear, each with a `.scale.nvs`
-that meets its growth on the debug binary) and `BodyStream::peek` (constant). Attacks exist for
-`stdinStream` and `BodyStream::peek`. Stage 11 owes the bench of `Part::peek` and the attacks on
-`File::readBytes`, `IO::readBytes` and `Part::peek` (decisions 8 and 9). Every new bench's perf
-reads stale until stage 13's `--record-perf`. The three new `.nvst` cases passed under
-`nvs test`. The sweep's reds are stale: no `env-secret-proofs` check exists, and the three Miri
-timeouts are `ignore`d under Miri at HEAD (the nightly ran at `26dda366`).
+Stages 1 to 10 are done, and stage 11's three planned items landed. The benches of decision 8
+(`Mime/detect`, `Request-Part/peek`, `Hash/of`, `Zip/entries`) pass `scaling --growth` on the
+debug binary, and their shares are stored (decision 24). `SHARED_IMPL` in
+`tools/nv/proofs/collect.ts` joins `byte_source.rs` into its consumers' hash, so every figure of
+`io.rs`, `request.rs`, `mime.rs`, `hash.rs`, `zip.rs`, `compress.rs`, `csv.rs`, `xml.rs`,
+`storage.rs` and `json/each.rs` is stale until stage 13. Fourteen hostile cases cover decision 9,
+and all but the two Unix-only ones passed on Windows. One of them found that a component's source
+did not have to fit twice, and `read_sources` now checks it (decision 25). Stage 11 owes the two
+items decision 25 added. The sweep's reds were stale (no `env-secret-proofs` check; Miri ran
+at `26dda366`). `scaling --budget --write` still exits 1 on benches this goal did not touch (many
+`novis/Spreadsheet-*`, `core/Cap/has`, `core/Metrics/*`, the pipeline operator and its twin,
+`Image-Image/compare`), measured on a release binary older than the tree.
 
 May go red at the gate: the cards, meta, LSP stub, `nvs agent` and perf-ledger snapshots of every
 widened member (`Xml::reader`, `Zip`, `Hash`, `Compress`, `Storage::put`, `BodyStream::peek`,
@@ -767,19 +809,19 @@ spreadsheet cases quoting the old CSV path; `llms-full.txt` (`sourceBytes`); a p
 
 ### Next
 
-**Stage 11: every source kind has a bench with its growth, and every attack on a source is a
-hostile case**, one session, split into two writing subagents (benches; attacks) with disjoint files.
+**The end of stage 11**, one session with no subagents, then stage 12 in the same session if it
+fits.
 
-- [ ] The four benches of decision 8, then their shares. `benches/members/core/Mime/detect.scale.nvs:1`
-- [ ] The perf ledger hashes `byte_source.rs`. `docs/rules/testing/member-perf-ledger.md:1`
-- [ ] The attacks of decision 9. `tests/hostile/core/IO-File/readBytes/01-a-file-that-changes-while-it-is-read.nvs:1`
+- [ ] The ramp judges a `constant` bench's sibling by per-operation counts. `tools/nv/cmd/scaling.ts:1112`
+- [ ] `Hash::of` on a small file sizes its buffer to the file. `crates/nvs-stdlib/src/byte_source.rs:1`
 
-The benches are `Mime::detect`, `Part::peek`, `Hash::of` and `Zip::entries`, and their shares are
-written with `bun nv scaling --budget --write`. A bench whose `complexity` is not `constant` needs a `.scale.nvs` sibling
-(`benches/members/README.md:113`); `bun nv scaling --growth --nvs target/debug/nvs.exe <path>`
-checks one without a release build. A binary `.in` or `.nvsr` is written by a script under
-`.agent-tmp/`, since the Write tool cannot write those bytes. A hostile case's directives are in
-`tests/hostile/README.md`. Stage 12 follows.
+The ramp: at each input size, run two batch sizes and judge their difference against the class
+(decision 25). `Mime/detect`, `Request-Part/peek` and `Zip/entries` are the three constant benches
+with a sibling, and each should pass once it lands. Update `benches/members/README.md` where it
+says `constant` needs nothing more, and add a test beside the ramp's existing tests under
+`tools/nv/test/`. The buffer: `next_chunk` reads a file into a reused buffer; size it to
+`min(READ_CHUNK, size)` when the size is known, then recheck `Hash/of.nvs`'s
+`// bench: bytes` and `allocations` lines with `scaling --growth`. Then stage 12.
 
 ### Backlog
 
