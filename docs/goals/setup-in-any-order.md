@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/service.rs, docs/reference/tools/15-install.md, website/src/content/docs/install/server.mdx]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: admin-owner
@@ -244,43 +244,41 @@ website's install page, and another the Windows install example. Their files are
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 landed `crates/nvs-cli/tests/setup_order.rs` (decision 13), green
-once by name on Windows, and the install pages: `docs/reference/tools/15-install.md:8` opens with
-`# Set up a server`, `## What nvs init does` and `## Admin rights`; the website's
-`install/server.mdx:13` has the same in short; `guides/production/run-as-a-service.mdx:19` links to
-`#admin-rights`; the Windows example's `about.md` gives the three steps first. `llms-full.txt` was
-rendered, and only the install hunks were committed: the other hunks come from another session's
-uncommitted `docs/reference/core/IO.md` and `website/src/data/core.json`, so `render --website
---check` stays red until that session commits.
+Every stage is done, and all five acceptance checks are green (`looper check --name` each). The gate's verify found five reds, each fixed at its cause: `prepares` lists `init`
+(`crates/nvs-cli/src/main.rs` test), the named-folder trust test grants a right that can replace
+the folder (`crates/nvs-config/src/data.rs`, `replaceable_by_others`), the junction helper gives
+`cmd` backslash paths (`crates/nvs-cli/tests/live_edit.rs`, `point`), the spreadsheet reader's
+requests get a one-day CPU deadline (`crates/nvs-ext/tests/spreadsheet_read.rs`, `CPU`), and
+`nvs_coverage`'s check-cfg moved to `[workspace.lints.rust]` with `bun nv lints` rendering a list.
+The last full verify was 23 of 23 green. A later run's one red was another session's untracked
+`tools/nv/cmd/walkthrough.ts`.
 
-Elevation is `crates/nvs-cli/src/elevate.rs` (`asks` at `:42`, `route` at `:95`, `before` at
-`:140`). Its `runas` path has never run (it needs a person at a prompt), and its Unix half and
-`restrict`'s have never compiled. Green this session: `looper check --name any-order`, clippy.
+Goal-end gates: `bun nv verify --doc` is green after the `platform::attach` link fix in
+`elevate.rs:14`, `bun nv owners --closes` names no gap. `bun nv ci --check` has no red of this
+goal's: `tools:install/set-up-a-server` now has its proofs, the Windows `about.md` fits its bound,
+and both install pages' questions are stamped. What stays red there is other sessions' work: stale
+perf on `arr.rs`, `reflect.rs` and `queue.rs`, the walkthrough pages, the `http`, `io` and `json`
+pages' questions, and four chain goals missing from `roadmap.json`'s themes. `bun nv linux-test`
+built the Unix half of `elevate.rs` and `restrict`, and `--test init` (7) and `elevate::` (2) pass
+on Linux.
 
-The sweep's `env-secret-proofs` red is stale state in looper's service: it has no log, and no check
-by that name exists in the tree. Another session's uncommitted edits sit in the tree (`nvs-db`,
-`nvs-stdlib`, `nvs-runtime`, `IO.md`, `core.json`); never stage them.
+The sweep's nightly Miri reds were three 8 MiB JSON ladder tests timing out at 300 s.
+`request.rs`'s one is committed with `cfg_attr(miri, ignore)`. The two in
+`crates/nvs-stdlib/src/json.rs` carry the same attribute in the tree, uncommitted: the guard
+refused to stage that file while session goal `json-streaming` claims it.
 
 ### Next
 
-**Stage 6**, the gate: `looper verify` over the whole goal in the background, fix every failure in
-one pass, run it once more. Then the goal-end gates: `bun nv verify --doc` (the new
-`#admin-rights` link in `run-as-a-service.mdx:19`), `bun nv owners --closes setup-in-any-order`,
-`bun nv ci --check`. Run `bun nv linux-test` for the Unix half of `elevate.rs` and `restrict`,
-which has never compiled.
-
-Expected red: none known. Not run since their change: `the_icacls_steps_…` and
-`nvs_init_checks_its_folder_alone_…` (`crates/nvs-cli/tests/init.rs`), whose refusals carry the
-`--yes` help line. A doc test that pins the install chapter's old first heading or wording may go
-red, as may the website render check if the other session's `IO.md` work is still uncommitted.
+Nothing in this goal. The goal is reached. The `json.rs` Miri attributes go in with
+`json-streaming`'s next commit, or in a commit of their own once its claim ends.
 
 ### Backlog
 
