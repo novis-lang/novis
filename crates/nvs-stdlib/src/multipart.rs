@@ -137,6 +137,15 @@ pub(crate) struct Multipart {
     /// `catch` names for the caller. Recording the source at the one place it
     /// is known costs a `bool` and saves the reader from guessing at a message.
     from_the_wire: bool,
+    /// The start of the current part, read by a prefix or random read and not
+    /// yet given to a forward read. [`Self::next_chunk`] gives these bytes
+    /// first, and [`Self::next_part`] frees them.
+    held: Vec<u8>,
+    /// How much of [`Self::held`] a forward read has given.
+    held_at: usize,
+    /// Whether a forward read of the current part has begun. A prefix or
+    /// random read after that point would miss the bytes already given.
+    consumed: bool,
 }
 
 /// Where the cursor stands between calls.
@@ -225,6 +234,9 @@ impl Multipart {
             cap,
             ended: false,
             from_the_wire: false,
+            held: Vec::new(),
+            held_at: 0,
+            consumed: false,
         }
     }
 
@@ -305,6 +317,10 @@ impl Multipart {
         if let Some(why) = &self.failed {
             return Err(why.clone());
         }
+        // The part being left takes what was held of it along.
+        self.held = Vec::new();
+        self.held_at = 0;
+        self.consumed = false;
         let walked = self.walk(body);
         self.keep(walked)
     }
@@ -336,6 +352,9 @@ impl Multipart {
 
     /// The next run of the current part's body, `Ok(None)` at its end.
     ///
+    /// The bytes a prefix or random read held come first, in one run, and are
+    /// freed by the call after it.
+    ///
     /// The slice is borrowed from this parse's own buffer and is **invalidated
     /// by the next call**, which is [`RequestBody::next_chunk`]'s contract one
     /// layer up and for the same reason: a reader that keeps bytes copies them
@@ -352,9 +371,53 @@ impl Multipart {
         if let Some(why) = &self.failed {
             return Err(why.clone());
         }
+        self.consumed = true;
+        if self.held_at < self.held.len() {
+            let from = self.held_at;
+            self.held_at = self.held.len();
+            return Ok(Some(&self.held[from..]));
+        }
+        if !self.held.is_empty() {
+            self.held = Vec::new();
+            self.held_at = 0;
+        }
         let span = self.chunk(body);
         let span = self.keep(span)?;
         Ok(span.map(|span| &self.buf[span]))
+    }
+
+    /// The current part's first bytes: at least `want` of them, or the whole
+    /// part where it is shorter. Nothing is consumed, since
+    /// [`Self::next_chunk`] gives the held bytes first.
+    ///
+    /// The pull is whole wire runs, so what is held may pass `want` by one run.
+    /// **What it spends:** the held bytes, until the walk opens the next part
+    /// or a forward read has given them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::next_part`]. A caller checks [`Self::consumed`] first.
+    pub(crate) fn hold(
+        &mut self,
+        body: &mut dyn RequestBody,
+        want: usize,
+    ) -> Result<&[u8], Box<str>> {
+        if let Some(why) = &self.failed {
+            return Err(why.clone());
+        }
+        while self.held.len() < want {
+            let span = self.chunk(body);
+            match self.keep(span)? {
+                None => break,
+                Some(span) => self.held.extend_from_slice(&self.buf[span]),
+            }
+        }
+        Ok(&self.held)
+    }
+
+    /// Whether a forward read of the current part has begun.
+    pub(crate) fn consumed(&self) -> bool {
+        self.consumed
     }
 
     /// Records `result`'s error as the one every later call returns.

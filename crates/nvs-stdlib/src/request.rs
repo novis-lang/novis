@@ -1192,9 +1192,22 @@ pub(crate) const BODY_STREAM_ADVANCE_SYMBOL: &str = "nvs_core_request_body_strea
 /// The symbol behind `Iterator<tainted bytes>::current()`.
 pub(crate) const BODY_STREAM_CURRENT_SYMBOL: &str = "nvs_core_request_body_stream_current";
 
-/// [`BODY_STREAM`]'s one slot: the chunk the last `advance()` pulled, which
+/// [`BODY_STREAM`]'s first slot: the chunk the last `advance()` pulled, which
 /// `current()` answers, and `null` before the first one.
 const BODY_STREAM_CHUNK: usize = 0;
+/// The start of the body a prefix or random read took off the wire, as one
+/// `bytes` value, or `null`. The first `advance()` gives it as its chunk.
+const BODY_STREAM_HELD: usize = 1;
+/// Where the walk stands, as a `uint`: [`STREAM_FRESH`], [`STREAM_ENDED`] or
+/// [`STREAM_WALKED`].
+const BODY_STREAM_STATE: usize = 2;
+/// Nothing has walked the stream, and the wire may have more.
+const STREAM_FRESH: u64 = 0;
+/// A prefix or random read reached the end of the body, so the held bytes
+/// are the whole body.
+const STREAM_ENDED: u64 = 1;
+/// `advance()` has run, after which a prefix or random read throws.
+const STREAM_WALKED: u64 = 2;
 
 /// `Core\Request\BodyStream`'s class card — `rule:core-api/reference-card`.
 const BODY_STREAM_CARD: ClassDoc = ClassDoc {
@@ -1247,7 +1260,7 @@ pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     doc: Some(&BODY_STREAM_CARD),
     methods: &[],
     instance: &[],
-    slots: &["chunk"],
+    slots: &["chunk", "held", "started"],
     constants: &[],
 };
 
@@ -1461,6 +1474,15 @@ pub(crate) const PART: CoreClass = CoreClass {
             symbol: "nvs_core_request_part_save_to",
             doc: Some(&SAVE_TO_DOC),
         },
+        CoreMethod {
+            name: "peek",
+            names: &["max"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::TaintedBytes,
+            symbol: "nvs_core_request_part_peek",
+            doc: Some(&PEEK_DOC),
+        },
     ],
     slots: &["name", "filename", "contentType", "ordinal"],
     constants: &[],
@@ -1574,6 +1596,36 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
             desc: "The part is larger than the limit. The bytes over the limit are never stored, \
                    because the error is thrown at the piece that would pass it. Use `content()` \
                    for a part that does not fit.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was read, or the body ended before the \
+                   closing boundary.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not the multipart body the request declared.",
+        },
+    ],
+};
+
+/// `Core\Request\Part::peek`'s reference card — `rule:core-api/reference-card`.
+const PEEK_DOC: MethodDoc = MethodDoc {
+    short: "Returns the first bytes of this part and does not use them up. `content()`, \
+            `readAll()` and `saveTo()` still give every byte of the part after it.",
+    params: &[ParamDoc {
+        name: "max",
+        desc: "The most bytes to return. A part shorter than `max` is returned whole. A second \
+               call with a larger `max` reads further.",
+        shape: &[],
+    }],
+    ret: "The first `max` bytes of the part, or fewer. The value is `tainted`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not handling a request. Or the `files()` loop has moved to a \
+                   later part. Or `content()`, `readAll()` or `saveTo()` has already started to \
+                   read this part. Or `max` is larger than this request's `[limits] memory`.",
         },
         ErrorDoc {
             error: "IOError",
@@ -3503,7 +3555,10 @@ nvs_runtime::nvs_helper! {
         // refuses. What this member needs is the wire itself, so it must be the
         // first reader and it is the last.
         claim_body(ctx, "bodyStream", BodyNeed::Wire)?;
-        Ok(crate::instance::build(&BODY_STREAM, [Value::null()]))
+        Ok(crate::instance::build(
+            &BODY_STREAM,
+            [Value::null(), Value::null(), Value::uint(STREAM_FRESH)],
+        ))
     }
 }
 
@@ -3571,28 +3626,160 @@ fn body_stream_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
     // `a_body_stream_yields_the_chunks_the_wire_delivered`, which drives the
     // three names a `foreach` drives.
     inbound_of(ctx, "bodyStream")?;
-    let inbound = ctx
-        .inbound_mut()
-        .expect("the read above refuses a context that is answering no request");
-    let pulled = match inbound.body() {
-        None => None,
-        Some(body) => match body.next_chunk() {
-            Ok(chunk) => chunk.map(NvsStr::new),
-            Err(why) => {
-                // No case can reach this either, for `body`'s reason: a
-                // connection has to exist before it can fail under a body.
-                // Asserted by `a_body_stream_that_fails_mid_walk_throws_rather_than_ending`.
-                return Err(Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("Core\\Request::bodyStream(): the body did not arrive whole — {why}"),
-                ));
-            }
-        },
-    };
+    crate::instance::set_slot(receiver, BODY_STREAM_STATE, Value::uint(STREAM_WALKED));
+    // What a prefix or random read held comes first, as one chunk.
+    let held = crate::instance::take_slot(receiver, BODY_STREAM_HELD);
+    if held.as_bytes().is_some() {
+        crate::instance::set_slot(receiver, BODY_STREAM_CHUNK, held);
+        return Ok(Value::bool(true));
+    }
+    let pulled = body_stream_pull(ctx, NvsStr::new)?;
     let more = pulled.is_some();
     let held = pulled.map_or_else(Value::null, Value::bytes);
     crate::instance::set_slot(receiver, BODY_STREAM_CHUNK, held);
     Ok(Value::bool(more))
+}
+
+/// One pull off the request body's wire, given to `keep` while it is still the
+/// supplier's borrowed slice. `None` at the end of the body.
+///
+/// # Errors
+///
+/// `IOError` where the connection failed under the body.
+fn body_stream_pull<T>(ctx: &mut Ctx, keep: impl FnOnce(&[u8]) -> T) -> Result<Option<T>, Fault> {
+    let Some(inbound) = ctx.inbound_mut() else {
+        return Ok(None);
+    };
+    match inbound.body() {
+        None => Ok(None),
+        Some(body) => match body.next_chunk() {
+            Ok(chunk) => Ok(chunk.map(keep)),
+            // No case can reach this, for `body`'s reason: a connection has to
+            // exist before it can fail under a body. Asserted by
+            // `a_body_stream_that_fails_mid_walk_throws_rather_than_ending`.
+            Err(why) => Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!("Core\\Request::bodyStream(): the body did not arrive whole — {why}"),
+            )),
+        },
+    }
+}
+
+/// The start of the body `stream` walks, given to `read`: at least `want`
+/// bytes of it, or the whole body where it is shorter. Nothing is consumed:
+/// the bytes are kept in the stream's held slot, and its first `advance()`
+/// gives them.
+///
+/// `Core\Mime::detect(Core\Request::bodyStream())` reads the start of a raw
+/// upload this way. **What it spends:** the held bytes, until the walk gives
+/// them or the stream is freed.
+///
+/// # Errors
+///
+/// `LogicError` where the context answers no request, or where the walk has
+/// already started, since its first bytes are gone. `IOError` from the wire.
+fn body_stream_hold<T>(
+    ctx: &mut Ctx,
+    stream: Value,
+    want: usize,
+    who: &'static str,
+    read: impl FnOnce(&[u8]) -> T,
+) -> Result<T, Fault> {
+    let receiver = crate::instance::receiver(stream, &BODY_STREAM, who)?;
+    served(ctx, who)?;
+    let state = crate::instance::slot(receiver, BODY_STREAM_STATE)
+        .as_uint()
+        .unwrap_or(STREAM_FRESH);
+    if state == STREAM_WALKED {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}: this body stream has already been read by a loop, so its start is gone. \
+                 Call {who} before the loop"
+            ),
+        ));
+    }
+    let now = crate::instance::slot(receiver, BODY_STREAM_HELD);
+    let have = now.as_bytes().unwrap_or(&[]);
+    if have.len() >= want || state == STREAM_ENDED {
+        return Ok(read(have));
+    }
+    let mut held = have.to_vec();
+    let mut ended = false;
+    while held.len() < want {
+        nvs_runtime::affordable(Some(crate::byte_source::READ_CHUNK), who)?;
+        if body_stream_pull(ctx, |chunk| held.extend_from_slice(chunk))?.is_none() {
+            ended = true;
+            break;
+        }
+    }
+    let answer = read(&held);
+    let kept = if held.is_empty() {
+        Value::null()
+    } else {
+        Value::bytes(NvsStr::new(&held))
+    };
+    crate::instance::set_slot(receiver, BODY_STREAM_HELD, kept);
+    if ended {
+        crate::instance::set_slot(receiver, BODY_STREAM_STATE, Value::uint(STREAM_ENDED));
+    }
+    Ok(answer)
+}
+
+/// The first `max` bytes of the body `stream` walks, or the whole body where
+/// it is shorter. The walk still gives every byte afterwards.
+///
+/// # Errors
+///
+/// [`body_stream_hold`]'s.
+pub(crate) fn body_stream_prefix(
+    ctx: &mut Ctx,
+    stream: Value,
+    max: usize,
+    who: &'static str,
+) -> Result<Vec<u8>, Fault> {
+    body_stream_hold(ctx, stream, max, who, |held| {
+        held[..max.min(held.len())].to_vec()
+    })
+}
+
+/// The whole body `stream` walks, held under `[limits] request_body` for a
+/// member that reads it in any order, and given to `read`. As
+/// [`body_stream_prefix`], the walk still gives every byte afterwards.
+///
+/// # Errors
+///
+/// [`body_stream_hold`]'s, and `RuntimeError` for a body larger than
+/// `[limits] request_body`.
+pub(crate) fn body_stream_whole<T>(
+    ctx: &mut Ctx,
+    stream: Value,
+    who: &'static str,
+    read: impl FnOnce(&[u8]) -> T,
+) -> Result<T, Fault> {
+    let bound = request_body(ctx);
+    body_stream_hold(ctx, stream, bound.saturating_add(1), who, |whole| {
+        if whole.len() > bound {
+            return Err(Fault::thrown(format!(
+                "{who}: the request body is larger than `[limits] request_body` ({bound} bytes), \
+                 and reading it in any order needs all of it in memory. Write it to a file with \
+                 `Core\\IO::writeStream`, then pass the `Core\\IO\\File`"
+            )));
+        }
+        Ok(read(whole))
+    })?
+}
+
+/// Throws where `part` is not the part the files walk is on, so a member
+/// given a part the walk has passed learns it where it was called.
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals.
+pub(crate) fn part_current(ctx: &mut Ctx, part: Value, who: &'static str) -> Result<(), Fault> {
+    let ordinal = part_ordinal(part, "content")?;
+    part_parse(ctx, ordinal, who)?;
+    Ok(())
 }
 
 /// [`BODY_STREAM_CURRENT_SYMBOL`]'s body: the slot [`body_stream_step`] last
@@ -3941,7 +4128,7 @@ fn part_ordinal(value: Value, member: &'static str) -> Result<u64, Fault> {
 fn part_parse<'ctx>(
     ctx: &'ctx mut Ctx,
     ordinal: u64,
-    member: &'static str,
+    who: &'static str,
 ) -> Result<
     Option<(
         &'ctx mut crate::multipart::Multipart,
@@ -3952,7 +4139,7 @@ fn part_parse<'ctx>(
     // No case can reach this: a `.nvst` program answers no request, so it can
     // hold no part to read. Asserted by
     // `a_parts_content_walks_the_bytes_of_the_part_the_walk_is_on`.
-    inbound_of(ctx, member)?;
+    served(ctx, who)?;
     let inbound = ctx
         .inbound_mut()
         .expect("the read above refuses a context that is answering no request");
@@ -3970,7 +4157,7 @@ fn part_parse<'ctx>(
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "Core\\Request\\Part::{member}(): this part is not the one the walk is on — the \
+                "{who}(): this part is not the one the walk is on — the \
                  walk has opened part {opened} since this one was part {ordinal}, and a part's \
                  bytes are gone once it has. A part is read where it is yielded, or its bytes \
                  are copied there into something the program keeps"
@@ -4007,7 +4194,7 @@ nvs_runtime::nvs_helper! {
 /// [`part_parse`]'s two refusals, named after `content()`.
 pub(crate) fn part_content_walk(ctx: &mut Ctx, part: Value) -> Result<Value, Fault> {
     let ordinal = part_ordinal(part, "content")?;
-    part_parse(ctx, ordinal, "content")?;
+    part_parse(ctx, ordinal, CONTENT_WHO)?;
     Ok(crate::instance::build(
         &PART_CONTENT,
         [Value::null(), Value::uint(ordinal)],
@@ -4066,7 +4253,7 @@ fn part_content_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
     let ordinal = crate::instance::slot(receiver, PART_CONTENT_ORDINAL)
         .as_uint()
         .expect("`content()` builds this walk with the ordinal it read off the part");
-    let pulled = match part_parse(ctx, ordinal, "content")? {
+    let pulled = match part_parse(ctx, ordinal, CONTENT_WHO)? {
         None => None,
         Some((parse, mut body)) => match parse.next_chunk(&mut body) {
             Ok(chunk) => chunk.map(NvsStr::new),
@@ -4205,7 +4392,7 @@ fn part_read_all(
 ) -> Result<Vec<u8>, Fault> {
     let (bound, named) = bound;
     let mut whole: Vec<u8> = Vec::new();
-    let Some((parse, mut body)) = part_parse(ctx, ordinal, "readAll")? else {
+    let Some((parse, mut body)) = part_parse(ctx, ordinal, r"Core\Request\Part::readAll")? else {
         return Ok(whole);
     };
     loop {
@@ -4305,7 +4492,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let path = std::path::Path::new(path);
-        part_parse(ctx, ordinal, "saveTo")?;
+        part_parse(ctx, ordinal, SAVE_TO)?;
         let walk = crate::instance::build(&PART_CONTENT, [Value::null(), Value::uint(ordinal)]);
         let wrote = crate::io::stream_to_disk(ctx, path, walk, max, overwrite, SAVE_TO);
         #[expect(
@@ -4322,8 +4509,183 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// `Core\Request\Part::content`'s name, as [`part_parse`] quotes it.
+const CONTENT_WHO: &str = r"Core\Request\Part::content";
+
+/// `Core\Request\Part::peek`'s name, as its errors quote it.
+const PEEK: &str = r"Core\Request\Part::peek";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::peek(uint $max): tainted bytes` — the part's first
+    /// `min($max, size)` bytes, and nothing consumed.
+    ///
+    /// The bytes are held on the parse, so `content()`, `readAll` and `saveTo`
+    /// give them first and then the rest off the wire. A second `peek` with a
+    /// larger `$max` reads further. **What it spends:** what it read, until
+    /// the walk opens the next part or a consumer has given it.
+    ///
+    /// A `$max` over `[limits] memory` throws before a byte is read, as
+    /// `readAll`'s does, so the largest `uint` cannot ask the request to hold
+    /// more than it may.
+    fn nvs_core_request_part_peek(ctx, args: [2]) {
+        // unreachable from source: `max` is `CoreTy::Uint`, so `E0401` refuses
+        // anything else at the call site.
+        let asked = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PEEK} expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let asked = usize::try_from(asked).unwrap_or(usize::MAX);
+        let memory = ctx.memory_limit();
+        if memory > 0 && asked > memory {
+            // No case can reach this: a `.nvst` program answers no request.
+            // Asserted by `part_peek_over_the_memory_ceiling_throws_before_reading`.
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{PEEK}(): a `max` of {asked} bytes is larger than `[limits] memory` \
+                     ({memory} bytes), which is all this request may hold. Use a smaller `max`"
+                ),
+            ));
+        }
+        let start = part_prefix(ctx, args[0], asked, PEEK)?;
+        Ok(Value::bytes(NvsStr::new(&start)))
+    }
+}
+
+/// The first `max` bytes of `part`, or the whole part where it is shorter,
+/// held on the parse so every consumer still gives them first.
+///
+/// The one prefix read of a part: `peek`, and `Core\Mime::detect` through
+/// [`crate::byte_source`].
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals, a `LogicError` where a consumer has started
+/// to read the part, and the `IOError` / `ParseError` split of the wire.
+pub(crate) fn part_prefix(
+    ctx: &mut Ctx,
+    part: Value,
+    max: usize,
+    who: &'static str,
+) -> Result<Vec<u8>, Fault> {
+    part_hold(ctx, part, max, who, |held| held[..max.min(held.len())].to_vec())
+}
+
+/// The whole of `part`, held on the parse under `[limits] request_body` for
+/// a member that reads it in any order, such as `Core\Image::info`, and given
+/// to `read`. Every consumer still gives the whole part afterwards, so
+/// `Image::info($part)` and then `$part->saveTo(…)` writes the whole file.
+///
+/// **What it spends:** the part, as a bare `readAll` does, until the walk
+/// opens the next part or a consumer has given it. A second random read
+/// reads what is held and pulls nothing.
+///
+/// # Errors
+///
+/// [`part_prefix`]'s, and `RuntimeError` for a part larger than
+/// `[limits] request_body`.
+pub(crate) fn part_whole<T>(
+    ctx: &mut Ctx,
+    part: Value,
+    who: &'static str,
+    read: impl FnOnce(&[u8]) -> T,
+) -> Result<T, Fault> {
+    let bound = request_body(ctx);
+    part_hold(ctx, part, bound.saturating_add(1), who, |whole| {
+        if whole.len() > bound {
+            return Err(Fault::thrown(format!(
+                "{who}(): this upload is larger than `[limits] request_body` ({bound} bytes), \
+                 and reading it in any order needs all of it in memory. Save it with `saveTo()` \
+                 and pass the `Core\\IO\\File`, or read it with `readAll(max: …)` first"
+            )));
+        }
+        Ok(read(whole))
+    })?
+}
+
+/// [`part_prefix`] and [`part_whole`]'s pull: the held bytes, given to `read`
+/// after at least `want` of them were read or the part ended.
+fn part_hold<T>(
+    ctx: &mut Ctx,
+    part: Value,
+    want: usize,
+    who: &'static str,
+    read: impl FnOnce(&[u8]) -> T,
+) -> Result<T, Fault> {
+    let ordinal = part_ordinal(part, "peek")?;
+    let Some((parse, mut body)) = part_parse(ctx, ordinal, who)? else {
+        return Ok(read(&[]));
+    };
+    if parse.consumed() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}(): this part is already being read by `content()`, `readAll()` or \
+                 `saveTo()`, so its first bytes are gone. Call {who} before them"
+            ),
+        ));
+    }
+    match parse.hold(&mut body, want) {
+        Ok(held) => Ok(read(held)),
+        Err(why) => {
+            // No case can reach this: a `.nvst` program answers no request.
+            let (class, what) = if parse.failed_on_the_wire() {
+                (ThrownClass::Io, "the body did not arrive whole")
+            } else {
+                (
+                    ThrownClass::Parse,
+                    "this is not the multipart body the request declared",
+                )
+            };
+            Err(Fault::thrown_as(class, format!("{who}(): {what} — {why}")))
+        }
+    }
+}
+
+/// The next run of `part`'s bytes for a forward member such as
+/// `Core\Csv::rows`, copied into `out`: what a prefix or random read held,
+/// then the wire. `false` at the part's end.
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals, and the `IOError` / `ParseError` split.
+pub(crate) fn part_pull(
+    ctx: &mut Ctx,
+    part: Value,
+    who: &'static str,
+    out: &mut Vec<u8>,
+) -> Result<bool, Fault> {
+    out.clear();
+    let ordinal = part_ordinal(part, "content")?;
+    let Some((parse, mut body)) = part_parse(ctx, ordinal, who)? else {
+        return Ok(false);
+    };
+    match parse.next_chunk(&mut body) {
+        Ok(None) => Ok(false),
+        Ok(Some(chunk)) => {
+            out.extend_from_slice(chunk);
+            Ok(true)
+        }
+        Err(why) => {
+            // No case can reach this: a `.nvst` program answers no request.
+            let (class, what) = if parse.failed_on_the_wire() {
+                (ThrownClass::Io, "the body did not arrive whole")
+            } else {
+                (
+                    ThrownClass::Parse,
+                    "this is not the multipart body the request declared",
+                )
+            };
+            Err(Fault::thrown_as(class, format!("{who}: {what} — {why}")))
+        }
+    }
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{
         CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, client_text, cookie_of,
         field_text, grouped_fields, host_named, joined_field, method_ordinal,
@@ -4356,7 +4718,7 @@ mod tests {
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
     /// the connection dying under a body that had already started arriving.
-    struct Chunks {
+    pub(crate) struct Chunks {
         chunks: Vec<Vec<u8>>,
         at: usize,
         fails_at: Option<usize>,
@@ -4366,7 +4728,7 @@ mod tests {
     }
 
     impl Chunks {
-        fn of(pieces: &[&[u8]]) -> Self {
+        pub(crate) fn of(pieces: &[&[u8]]) -> Self {
             Self {
                 chunks: pieces.iter().map(|piece| piece.to_vec()).collect(),
                 at: 0,
@@ -4421,7 +4783,7 @@ mod tests {
 
     /// A context answering a request that declared `content_type`, with `body`
     /// still on the wire under it.
-    fn uploading(content_type: &str, body: Option<Chunks>) -> Ctx {
+    pub(crate) fn uploading(content_type: &str, body: Option<Chunks>) -> Ctx {
         let mut inbound = Inbound::new("POST", "/", "");
         inbound.push_header("content-type", content_type.as_bytes());
         if let Some(body) = body {
@@ -5871,7 +6233,7 @@ mod tests {
     /// One multipart body, split across the wire the way a real one arrives:
     /// a form field, a file part that declares its type, and a second file part
     /// that declares none.
-    const UPLOAD: &[&[u8]] = &[
+    pub(crate) const UPLOAD: &[&[u8]] = &[
         b"--X\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nQ3 report\r\n--X\r\n\
           Content-Disposition: form-data; name=\"doc\"; filename=\"report.pdf\"\r\n\
           Content-Type: application/pdf\r\n\r\n%PDF-1.4 and ",
@@ -6259,7 +6621,7 @@ mod tests {
     }
 
     /// Drops a reference the driver owns.
-    fn dropped(value: Value) {
+    pub(crate) fn dropped(value: Value) {
         #[expect(
             unsafe_code,
             reason = "the driver owns this reference and is done with it"
@@ -6274,7 +6636,7 @@ mod tests {
     ///
     /// The walk is its own iterator, so the value handed in is the cursor and
     /// there is nothing to build beside it.
-    fn next_part(ctx: &mut Ctx, files: Value) -> Result<Value, i32> {
+    pub(crate) fn next_part(ctx: &mut Ctx, files: Value) -> Result<Value, i32> {
         lend(files);
         let more = nvs_runtime::call(nvs_core_request_files_advance, ctx, &[files])?;
         assert_eq!(
@@ -6618,7 +6980,9 @@ mod tests {
         for member in super::PART.methods.iter().chain(super::PART.instance) {
             if matches!(member.return_ty, CoreTy::TaintedStr) {
                 declarations.push(member.name);
-            } else {
+            } else if member.name != "peek" {
+                // `peek` reads the start and consumes nothing, as
+                // `part_peek_gives_the_first_bytes_and_content_still_gives_all_of_them` shows.
                 consumers.push(member.name);
             }
         }
@@ -6688,7 +7052,7 @@ mod tests {
     /// `crate::io::tests::writing`'s reason: `rule:security/capability-check-at-the-door`'s own suite is where the
     /// grant decides anything, and a root here would only add a way for these
     /// cases to fail for a reason they are not about.
-    fn saving(body: Chunks) -> Ctx {
+    pub(crate) fn saving(body: Chunks) -> Ctx {
         let mut ctx = uploading("multipart/form-data; boundary=X", Some(body));
         ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
             config: nvs_config::tree::Config {
@@ -6708,14 +7072,14 @@ mod tests {
 
     /// A destination in a scratch directory one case owns, and the guard that
     /// deletes the directory when the case ends.
-    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+    pub(crate) fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
         let dir = nvs_repo::scratch("part-save-to");
         let path = dir.join(name);
         (dir, path)
     }
 
     /// `saveTo` on `part`, with the four slots the row flattens to.
-    fn save_to(
+    pub(crate) fn save_to(
         ctx: &mut Ctx,
         part: Value,
         path: &std::path::Path,
@@ -6830,6 +7194,282 @@ mod tests {
         dropped(stale);
         dropped(files);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The first file part of [`UPLOAD`], whole.
+    const FIRST_PART: &[u8] = b"%PDF-1.4 and the rest of it";
+
+    /// `peek` on `part`, at `max` bytes.
+    fn peek(ctx: &mut Ctx, part: Value, max: u64) -> Result<Vec<u8>, i32> {
+        let answer = nvs_runtime::call(
+            super::nvs_core_request_part_peek,
+            ctx,
+            &[part, Value::uint(max)],
+        )?;
+        let bytes = answer
+            .as_bytes()
+            .expect("`peek` answers `bytes`")
+            .to_vec();
+        dropped(answer);
+        Ok(bytes)
+    }
+
+    /// Sets `ctx`'s configuration to the TOML `written`.
+    fn configured(ctx: &mut Ctx, written: &str) {
+        let table: toml::Table = written.parse().expect("the fixture is valid TOML");
+        let config = toml::Value::Table(table.clone())
+            .try_into()
+            .expect("the fixture deserializes into the tree it is written for");
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config,
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+    }
+
+    /// A multipart body with one file part of `len` bytes.
+    fn one_part_of(len: usize) -> Vec<u8> {
+        let mut body =
+            b"--X\r\nContent-Disposition: form-data; name=\"doc\"; filename=\"big.bin\"\r\n\r\n"
+                .to_vec();
+        body.extend(std::iter::repeat_n(b'x', len));
+        body.extend_from_slice(b"\r\n--X--\r\n");
+        body
+    }
+
+    /// `peek` gives the part's first bytes, a larger `max` reads further, and
+    /// `content()` then still gives every byte of the part.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    // covers: Core\Request\Part::peek
+    #[test]
+    fn part_peek_gives_the_first_bytes_and_content_still_gives_all_of_them() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        assert_eq!(peek(&mut arriving, part, 4).expect("the part is fresh"), b"%PDF".to_vec());
+        assert_eq!(
+            peek(&mut arriving, part, 20).expect("a second peek reads further"),
+            b"%PDF-1.4 and the res".to_vec(),
+            "the second peek reads past the first wire run"
+        );
+        assert_eq!(
+            peek(&mut arriving, part, 1000).expect("a `max` past the part gives the part"),
+            FIRST_PART.to_vec()
+        );
+        assert_eq!(
+            content_of(&mut arriving, part).expect("the part walks").concat(),
+            FIRST_PART.to_vec(),
+            "nothing a peek read is lost"
+        );
+        let second = next_part(&mut arriving, files).expect("the walk reaches the second part");
+        assert_eq!(
+            read_all(&mut arriving, second, 0).expect("the second part reads"),
+            b"jotted down".to_vec()
+        );
+        dropped(second);
+        dropped(part);
+        dropped(files);
+    }
+
+    /// `peek` and then `saveTo` writes the whole part.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn part_peek_then_save_to_writes_the_whole_part() {
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let (_dir, path) = scratch("peeked.pdf");
+
+        assert_eq!(peek(&mut arriving, part, 5).expect("the part is fresh"), b"%PDF-".to_vec());
+        save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
+        assert_eq!(
+            std::fs::read(&path).expect("the file `saveTo` made"),
+            FIRST_PART.to_vec()
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// A `max` over `[limits] memory` throws before a byte is read, so the
+    /// part is still whole for the next reader.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn part_peek_over_the_memory_ceiling_throws_before_reading() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        arriving.set_memory_limit(1 << 20);
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        assert!(
+            peek(&mut arriving, part, u64::MAX).is_err(),
+            "the largest `uint` is more than this request may hold"
+        );
+        assert_eq!(
+            read_all(&mut arriving, part, 0).expect("the refused peek read nothing"),
+            FIRST_PART.to_vec()
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// A prefix read after a forward read has started throws, since the
+    /// bytes it gave are gone.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn a_prefix_read_after_a_consumer_started_throws() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        let (mut source, holder) =
+            crate::byte_source::ByteSource::from_arg(&mut arriving, part, r"Core\Csv::rows")
+                .expect("the part the walk is on is a source");
+        let first = source
+            .next_chunk(&mut arriving, holder)
+            .expect("the part reads")
+            .map(|chunk| chunk.bytes().to_vec());
+        assert_eq!(first, Some(b"%PDF-1.4 and ".to_vec()));
+        drop(source);
+        dropped(holder);
+
+        assert!(
+            peek(&mut arriving, part, 4).is_err(),
+            "the first bytes were given to a forward read"
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// A prefix read of a part the walk has passed throws, from `peek` and
+    /// from a member that takes the part as a source.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn a_prefix_read_of_a_part_the_walk_passed_throws() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let stale = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let current = next_part(&mut arriving, files).expect("and the walk reaches the second");
+
+        assert!(peek(&mut arriving, stale, 4).is_err());
+        assert!(
+            crate::byte_source::ByteSource::from_arg(&mut arriving, stale, r"Core\Mime::detect")
+                .is_err(),
+            "a member given a passed part throws where it is called"
+        );
+        assert_eq!(
+            peek(&mut arriving, current, 6).expect("the current part is fresh"),
+            b"jotted".to_vec()
+        );
+        dropped(stale);
+        dropped(current);
+        dropped(files);
+    }
+
+    /// A random read holds the part under `[limits] request_body`, and
+    /// `saveTo` afterwards still writes the whole part. A part over the bound
+    /// throws.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_random_read_of_a_part_is_held_under_request_body_and_save_to_still_writes_it() {
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        let (mut source, holder) =
+            crate::byte_source::ByteSource::from_arg(&mut arriving, part, r"Core\Image::info")
+                .expect("the part the walk is on is a source");
+        assert_eq!(
+            source.size(&mut arriving, holder).expect("the part is held"),
+            FIRST_PART.len() as u64
+        );
+        assert_eq!(
+            source.range(&mut arriving, holder, 4, 4).expect("a range of the held part"),
+            b"-1.4".to_vec()
+        );
+        drop(source);
+        dropped(holder);
+
+        let (_dir, path) = scratch("held.pdf");
+        save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
+        assert_eq!(
+            std::fs::read(&path).expect("the file `saveTo` made"),
+            FIRST_PART.to_vec(),
+            "the held bytes come first, and nothing is written twice"
+        );
+        dropped(part);
+        dropped(files);
+
+        let body = one_part_of(2048);
+        let mut over = uploading("multipart/form-data; boundary=X", Some(Chunks::of(&[&body])));
+        configured(&mut over, "[limits]\nrequest_body = \"1K\"\n");
+        let files = nvs_runtime::call(nvs_core_request_files, &mut over, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut over, files).expect("the body carries one file part");
+        let (mut source, holder) =
+            crate::byte_source::ByteSource::from_arg(&mut over, part, r"Core\Image::info")
+                .expect("the part the walk is on is a source");
+        assert!(
+            source.size(&mut over, holder).is_err(),
+            "a part over `[limits] request_body` is not held"
+        );
+        drop(source);
+        dropped(holder);
+        dropped(part);
+        dropped(files);
+    }
+
+    /// A body stream gives its start and consumes nothing: the loop then
+    /// gives every byte, and a prefix read after the loop throws.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[test]
+    fn a_body_stream_gives_its_start_without_being_consumed() {
+        let mut arriving = answering(Some(Chunks::of(&[b"\x89PNG\r\n\x1a\n", b"and the rest"])));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut arriving, &[])
+            .expect("a request with a body can be streamed");
+
+        assert_eq!(
+            super::body_stream_prefix(&mut arriving, stream, 4, r"Core\Mime::detect")
+                .expect("the stream is fresh"),
+            b"\x89PNG".to_vec()
+        );
+        assert_eq!(
+            super::body_stream_prefix(&mut arriving, stream, 12, r"Core\Mime::detect")
+                .expect("a second prefix reads further"),
+            b"\x89PNG\r\n\x1a\nand ".to_vec()
+        );
+        lend(stream);
+        assert_eq!(
+            walked(&mut arriving, stream).expect("the body walks").concat(),
+            b"\x89PNG\r\n\x1a\nand the rest".to_vec(),
+            "nothing the prefix read is lost"
+        );
+        assert!(
+            super::body_stream_prefix(&mut arriving, stream, 4, r"Core\Mime::detect").is_err(),
+            "the start is gone once the loop has read it"
+        );
+        dropped(stream);
     }
 
     /// A form written the way `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` describes one: a text field, a file,

@@ -11,6 +11,15 @@
 //! - **its start**, with [`ByteSource::prefix`], which consumes nothing;
 //! - **in any order**, with [`ByteSource::range`] and [`ByteSource::size`].
 //!
+//! # An upload part and a body stream
+//!
+//! A `Core\Request\Part` and a `Core\Request\BodyStream` are read off the
+//! wire, which cannot go back. A prefix read holds the start it read, and a
+//! random read holds the whole part or body under `[limits] request_body`.
+//! The held bytes stay with the request (`crate::request`), so a forward
+//! read, `saveTo` or a loop gives them first, and every byte still arrives.
+//! A part's held bytes are freed when the files walk moves to the next part.
+//!
 //! # A file is read whole, from its start
 //!
 //! Every kind of read starts at offset 0, wherever the program's position was.
@@ -76,7 +85,7 @@ pub(crate) struct ByteSource {
     ended: bool,
 }
 
-/// The three sources.
+/// The sources.
 #[derive(Debug)]
 enum Kind {
     /// An open `Core\IO\File`.
@@ -85,6 +94,11 @@ enum Kind {
     Bytes { at: usize },
     /// A walk of chunks, and where an array's walk goes on.
     Chunks { from: usize },
+    /// The `Core\Request\Part` the files walk is on, and the buffer each
+    /// forward read copies one wire run into.
+    Part { buffer: Vec<u8> },
+    /// A `Core\Request\BodyStream`, which is its own cursor.
+    Stream { from: usize },
 }
 
 /// An open `Core\IO\File`, read through a descriptor of its own.
@@ -210,17 +224,19 @@ impl ByteSource {
         } else if octets(&value).is_some() {
             Kind::Bytes { at: 0 }
         } else if crate::instance::is_instance(value, &crate::request::PART) {
-            // A part is read forward as `content()` reads it: the walk is its
-            // own cursor, and the one reference it is built with is the
-            // member's to keep.
-            let walk = crate::request::part_content_walk(ctx, value)?;
+            // A part the walk has passed throws here, where it was given.
+            crate::request::part_current(ctx, value, member)?;
+            Kind::Part { buffer: Vec::new() }
+        } else if crate::instance::is_instance(value, &crate::request::BODY_STREAM) {
+            // The stream is its own cursor, so `start` gives the stream back.
+            let cursor = nvs_runtime::sequence::start(ctx, value, member)?;
             return Ok((
                 Self {
                     member,
-                    kind: Kind::Chunks { from: 0 },
+                    kind: Kind::Stream { from: 0 },
                     ended: false,
                 },
-                walk,
+                cursor,
             ));
         } else {
             let cursor = nvs_runtime::sequence::start(ctx, value, member)?;
@@ -258,7 +274,9 @@ impl ByteSource {
     pub(crate) fn path(&self) -> Option<&str> {
         match &self.kind {
             Kind::File(file) => Some(&file.path),
-            Kind::Bytes { .. } | Kind::Chunks { .. } => None,
+            Kind::Bytes { .. } | Kind::Chunks { .. } | Kind::Part { .. } | Kind::Stream { .. } => {
+                None
+            }
         }
     }
 
@@ -289,7 +307,15 @@ impl ByteSource {
                 *at = end;
                 (end > start).then_some(Lent::Piece(holder, start, end))
             }
-            Kind::Chunks { from } => {
+            Kind::Part { buffer } => {
+                if crate::request::part_pull(ctx, holder, member, buffer)? {
+                    Some(Lent::Buffer(buffer))
+                } else {
+                    *buffer = Vec::new();
+                    None
+                }
+            }
+            Kind::Chunks { from } | Kind::Stream { from } => {
                 match nvs_runtime::sequence::pull(ctx, holder, from, member)? {
                     None => None,
                     Some(chunk) if octets(&chunk).is_some() => Some(Lent::Pulled(chunk)),
@@ -314,12 +340,9 @@ impl ByteSource {
     ///
     /// # Errors
     ///
-    /// [`Self::next_chunk`]'s for a file, and a fatal for a walk of chunks,
+    /// [`Self::next_chunk`]'s for a file, the request's for a part or a body
+    /// stream a forward read has started, and a fatal for a walk of chunks,
     /// which the checker does not let through.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "`Core\\Mime::detect` and `Part::peek` are its first callers")
-    )]
     pub(crate) fn prefix(
         &mut self,
         ctx: &mut Ctx,
@@ -337,6 +360,8 @@ impl ByteSource {
                 Ok(file.kept[..max.min(file.kept.len())].to_vec())
             }
             Kind::Bytes { .. } => Ok(range_of(&holder, 0, max)),
+            Kind::Part { .. } => crate::request::part_prefix(ctx, holder, max, member),
+            Kind::Stream { .. } => crate::request::body_stream_prefix(ctx, holder, max, member),
             Kind::Chunks { .. } => Err(no_random_read(member)),
         }
     }
@@ -372,6 +397,12 @@ impl ByteSource {
                 nvs_runtime::affordable(Some(len.min(all.saturating_sub(start))), member)?;
                 Ok(range_of(&holder, start, len))
             }
+            Kind::Part { .. } => {
+                crate::request::part_whole(ctx, holder, member, |all| window(all, offset, len, member))?
+            }
+            Kind::Stream { .. } => crate::request::body_stream_whole(ctx, holder, member, |all| {
+                window(all, offset, len, member)
+            })?,
             Kind::Chunks { .. } => Err(no_random_read(member)),
         }
     }
@@ -402,6 +433,12 @@ impl ByteSource {
                 Ok(file.kept.len() as u64)
             }
             Kind::Bytes { .. } => Ok(octets(&holder).map_or(0, <[u8]>::len) as u64),
+            Kind::Part { .. } => {
+                crate::request::part_whole(ctx, holder, member, |all| all.len() as u64)
+            }
+            Kind::Stream { .. } => {
+                crate::request::body_stream_whole(ctx, holder, member, |all| all.len() as u64)
+            }
             Kind::Chunks { .. } => Err(no_random_read(member)),
         }
     }
@@ -411,10 +448,6 @@ impl ByteSource {
     /// # Errors
     ///
     /// The `IOError` the seek back failed with.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "every prefix and random reader calls it")
-    )]
     pub(crate) fn finish(&mut self) -> Result<(), Fault> {
         let member = self.member;
         if let Kind::File(file) = &mut self.kind
@@ -548,6 +581,15 @@ impl FileSource {
         }
         Ok(())
     }
+}
+
+/// A copy of at most `len` bytes of `all` from `offset`, with the memory limit
+/// checked before the copy.
+fn window(all: &[u8], offset: u64, len: usize, member: &str) -> Result<Vec<u8>, Fault> {
+    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(all.len());
+    let piece = &all[start..start.saturating_add(len).min(all.len())];
+    nvs_runtime::affordable(Some(piece.len()), member)?;
+    Ok(piece.to_vec())
 }
 
 /// A copy of at most `len` bytes of `value` from `start`.

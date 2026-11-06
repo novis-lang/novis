@@ -31,8 +31,14 @@
 //! here is [`Qual::Launder`], and there is no member on this class that takes
 //! octets and answers text: the argument's octets have no route back out.
 //!
+//! **`detect` takes a `Core\Bytes::Source`** and reads its first
+//! [`DETECT_PREFIX`] bytes through [`crate::byte_source`]: a file from its
+//! start with its position put back, and an upload part or a body stream
+//! without consuming it, so the upload can still be saved whole.
+//!
 //! **What this spends** (`rule:programs/memory-priority`): nothing that
-//! outlives the call. `detect` copies no part of its argument and allocates
+//! outlives the call, past what a part or a body stream holds of its start
+//! until it is read. `detect` copies at most [`DETECT_PREFIX`] bytes and allocates
 //! nothing; the answer is an integer.
 //!
 //! **What a prefix cannot say, this class does not say**, and where that shows
@@ -51,7 +57,8 @@
 use nvs_runtime::{Fault, Value};
 
 use crate::registry::{
-    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -211,7 +218,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "detect",
             names: &["data"],
-            params: &[CoreTy::Blob(Qual::Neutral)],
+            params: &[CoreTy::Alias(
+                r"Core\Bytes::Source",
+                &CoreTy::Union(&[
+                    CoreTy::Blob(Qual::Neutral),
+                    CoreTy::Instance(crate::io::FILE_NAME),
+                    CoreTy::Instance(crate::request::PART_NAME),
+                    CoreTy::Instance(crate::request::BODY_STREAM_NAME),
+                ]),
+            )],
             defaults: &[],
             return_ty: CoreTy::Enum(TYPE_NAME),
             symbol: "nvs_core_mime_detect",
@@ -238,14 +253,27 @@ const DETECT_DOC: MethodDoc = MethodDoc {
             a file name, because an attacker can choose a file name's extension.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The bytes to check. Only the first 16 bytes or fewer are read. So the start of an \
-               upload gives the same result as the whole upload.",
+        desc: "What to check: a `bytes` value, an open `Core\\IO\\File`, an uploaded \
+               `Core\\Request\\Part` or `Core\\Request::bodyStream()`. Only the first 12 bytes \
+               are read. A file keeps its position. An upload is not used up, so you can still \
+               save it or read it after this call.",
         shape: &[],
     }],
     ret: "The case for the kind of file. It is `Core\\Mime::Type::Unknown` when no format \
           matches, and for every text format. **The result does not make the data safe.** Bytes \
           detected as `image/png` are still `tainted`, because only the first bytes were checked.",
-    errors: &[],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The part is not the one the `files()` loop is on. Or a loop, `readAll()` or \
+                   `saveTo()` has already started to read the upload, so its first bytes are \
+                   gone. Call `detect` before them.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The file or the connection failed while the first bytes were read.",
+        },
+    ],
 };
 
 /// `Core\Mime::mediaType`'s reference card — `rule:core-api/reference-card`.
@@ -548,6 +576,13 @@ const SIGNATURES: &[Signature] = &[
     },
 ];
 
+/// How many bytes `detect` reads from the start of its source: the end of the
+/// widest clause in [`SIGNATURES`], which a test checks.
+pub(crate) const DETECT_PREFIX: usize = 12;
+
+/// `Core\Mime::detect`'s name, as its errors quote it.
+const DETECT: &str = r"Core\Mime::detect";
+
 /// What `data` is, as far as [`SIGNATURES`] can say.
 ///
 /// Total: octets that match nothing are [`Media::Unknown`], which is an answer
@@ -571,22 +606,38 @@ pub(crate) fn detect_media(data: &[u8]) -> Media {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Mime::detect(bytes $data): Mime::Type` — replacing
+    /// `Core\Mime::detect(Core\Bytes::Source $data): Mime::Type` — replacing
     /// `mime_content_type`, `finfo_buffer` and `exif_imagetype`.
     ///
-    /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (`rule:enums/closed-integer-type`).
-    fn nvs_core_mime_detect(_ctx, args: [1]) {
-        // unreachable from source: the parameter is `CoreTy::Blob`, so anything
-        // that is not `bytes` is `E0401` at the call site.
-        let Some(data) = args[0].as_bytes() else {
-            return Err(Fault::fatal(format!(
-                "Core\\Mime::detect expected a `bytes`, got tag {}",
-                args[0].tag_byte()
-            )));
-        };
-        Ok(Value::int(detect_media(data).ordinal()))
+    /// It reads [`DETECT_PREFIX`] bytes from the start of the source and
+    /// consumes nothing. An enum answers as its ordinal, exactly as a
+    /// user-declared enum does (`rule:enums/closed-integer-type`).
+    fn nvs_core_mime_detect(ctx, args: [1]) {
+        detect_source(ctx, args[0]).map(|media| Value::int(media.ordinal()))
     }
+}
+
+/// [`nvs_core_mime_detect`]'s body: the start of `data`, read through the
+/// byte source and matched against [`SIGNATURES`].
+///
+/// # Errors
+///
+/// What [`crate::byte_source::ByteSource::prefix`] throws for the source.
+fn detect_source(ctx: &mut nvs_runtime::Ctx, data: Value) -> Result<Media, Fault> {
+    let (mut source, holder) = crate::byte_source::ByteSource::from_arg(ctx, data, DETECT)?;
+    let read = source.prefix(ctx, holder, DETECT_PREFIX);
+    let finished = source.finish();
+    drop(source);
+    #[expect(
+        unsafe_code,
+        reason = "`from_arg` gave this frame its own reference to the holder"
+    )]
+    unsafe {
+        holder.release();
+    }
+    let start = read?;
+    finished?;
+    Ok(detect_media(&start))
 }
 
 nvs_runtime::nvs_helper! {
@@ -687,12 +738,20 @@ mod tests {
         assert_eq!(detected, SIGNATURES.len());
 
         // The extension is never consulted because there is nowhere to put one:
-        // every parameter on this class is octets or a case, so a program has
-        // no way to hand a name in even by accident.
+        // every parameter on this class is octets, a source of octets or a
+        // case, so a program has no way to hand a name in even by accident. A
+        // `Core\IO\File` is read for its octets, and its path is never matched.
+        let octets_or_case = |param: &CoreTy| match param {
+            CoreTy::Blob(_) | CoreTy::Enum(_) => true,
+            CoreTy::Alias(_, CoreTy::Union(arms)) => arms
+                .iter()
+                .all(|arm| matches!(arm, CoreTy::Blob(_) | CoreTy::Instance(_))),
+            _ => false,
+        };
         for member in CLASS.members() {
             for param in member.params {
                 assert!(
-                    matches!(param, CoreTy::Blob(_) | CoreTy::Enum(_)),
+                    octets_or_case(param),
                     "`{}::{}` takes something a file name could arrive as",
                     CLASS.name,
                     member.name
@@ -774,8 +833,19 @@ mod tests {
     fn detected_bytes_are_still_tainted_because_detection_is_not_a_launderer() {
         let mut octets = 0;
         for member in CLASS.members() {
-            for param in member.params {
+            // `detect`'s source alias is a union of `bytes` and three handles,
+            // so its arms are what is checked.
+            let flat: Vec<&CoreTy> = member
+                .params
+                .iter()
+                .flat_map(|param| match param {
+                    CoreTy::Alias(_, CoreTy::Union(arms)) => arms.iter().collect(),
+                    other => vec![other],
+                })
+                .collect();
+            for param in flat {
                 match param {
+                    CoreTy::Instance(_) => {}
                     CoreTy::Blob(qual) => {
                         assert_eq!(
                             *qual,
@@ -854,6 +924,93 @@ mod tests {
         assert_eq!(Media::Ebml.media_type(), "video/matroska");
         for case in EVERY {
             assert_ne!(case.media_type(), "video/webm");
+        }
+    }
+
+    /// `detect` reads [`DETECT_PREFIX`] bytes, and that is exactly where the
+    /// widest clause in the table ends. A signature added past it would never
+    /// match a source.
+    #[test]
+    fn no_signature_reaches_past_the_prefix_detect_reads() {
+        let widest = SIGNATURES
+            .iter()
+            .flat_map(|signature| signature.clauses)
+            .map(|(at, octets)| at + octets.len())
+            .max()
+            .expect("the table has signatures");
+        assert_eq!(widest, DETECT_PREFIX);
+    }
+
+    /// `Core\Mime::detect` on `data`, as the case it answered.
+    fn detected(ctx: &mut nvs_runtime::Ctx, data: Value) -> Result<Media, i32> {
+        let answer = nvs_runtime::call(nvs_core_mime_detect, ctx, &[data])?;
+        Ok(answer
+            .as_int()
+            .and_then(Media::of_ordinal)
+            .expect("`detect` answers a case"))
+    }
+
+    /// `detect` reads an upload part's start, and `saveTo` afterwards still
+    /// writes the whole part.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn detect_reads_a_part_and_save_to_still_writes_the_whole_part() {
+        use crate::request::tests::{
+            Chunks, UPLOAD, dropped, next_part, save_to, saving, scratch,
+        };
+        let mut arriving = saving(Chunks::of(UPLOAD));
+        let files = nvs_runtime::call(crate::request::nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        assert_eq!(detected(&mut arriving, part).expect("the part is fresh"), Media::Pdf);
+        let (_dir, path) = scratch("detected.pdf");
+        save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
+        assert_eq!(
+            std::fs::read(&path).expect("the file `saveTo` made"),
+            b"%PDF-1.4 and the rest of it".to_vec(),
+            "detection consumed nothing"
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// `detect` reads a file from its start wherever the program's position
+    /// is, and puts the position back.
+    #[test]
+    fn detect_reads_a_file_from_its_start_and_puts_the_position_back() {
+        use std::io::{Seek, SeekFrom};
+
+        let dir = nvs_repo::scratch("mime-detect");
+        let path = dir.join("image.png");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n and some pixels").expect("the case writes");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let mut file = std::fs::File::open(&path).expect("the case opens its file");
+        file.seek(SeekFrom::Start(9)).expect("the case moves the position");
+        let key = ctx.hold_open_file(file);
+        let handle = crate::io::file_handle(
+            key,
+            Value::text("image.png"),
+            nvs_runtime::capability::Access::Read,
+        );
+
+        assert_eq!(detected(&mut ctx, handle).expect("an open file is a source"), Media::Png);
+        assert_eq!(
+            ctx.open_file_mut(key)
+                .expect("the handle is open")
+                .stream_position()
+                .expect("a regular file has a position"),
+            9,
+            "the program's position is where it was"
+        );
+        #[expect(unsafe_code, reason = "the case owns the one reference it releases")]
+        unsafe {
+            handle.release();
         }
     }
 }
