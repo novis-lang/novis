@@ -292,7 +292,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         &CoreTy::Iterated(&CoreTy::TaintedBytes),
                     ),
                 ]),
-                CoreTy::Options(PARSE_OPTIONS),
+                CoreTy::Options(ROWS_OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Str]),
@@ -495,6 +495,15 @@ const ROWS_DOC: MethodDoc = MethodDoc {
                    them as keys. By default, each field has its column number as the key.",
             shape: &[],
         },
+        ParamDoc {
+            name: "charset",
+            desc: "The charset of the bytes, such as `Core\\Charset::Windows1252`. The default is \
+                   `Core\\Charset::Utf8`. The bytes are converted to text one piece at a time, so \
+                   the whole file is never in memory. When the bytes start with a byte order mark \
+                   for UTF-8 or UTF-16, that mark sets the charset, and it is not part of the \
+                   first field.",
+            shape: &[],
+        },
     ],
     ret: "The records, one at a time. Each record is an array of `string` fields with the same \
           keys that `parse` gives. The fields are `tainted string` when the bytes come from the \
@@ -513,7 +522,8 @@ const ROWS_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "A field is not valid UTF-8. The message gives the line where the field ends, \
-                   and the loop stops there.",
+                   and the loop stops there. With another `charset`, the bytes are not text in \
+                   that charset. Then the message gives the position of the first wrong byte.",
         },
     ],
 };
@@ -531,7 +541,13 @@ const ROWS_DOC: MethodDoc = MethodDoc {
 /// compared against the document and never written into what either member
 /// answers, so the records carry the *document's* qualifier and never a
 /// separator's.
-const PARSE_OPTIONS: &[CoreOption] = &[
+const PARSE_OPTIONS: &[CoreOption] = ROWS_OPTIONS.split_at(4).0;
+
+/// `Core\Csv::rows`'s options: [`PARSE_OPTIONS`], written once here, and
+/// `charset`, which only a member that reads bytes takes
+/// (`rule:core-api/no-encoding-argument`). `parse` takes text, which is already
+/// decoded. UTF-8 by default, for `Core\IO::readText`'s reason.
+const ROWS_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "separator",
         ty: CoreTy::Text(Qual::Neutral),
@@ -551,6 +567,11 @@ const PARSE_OPTIONS: &[CoreOption] = &[
         name: "header",
         ty: CoreTy::Bool,
         default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "charset",
+        ty: CoreTy::Enum(crate::encoding::CHARSET_NAME),
+        default: Const::EnumCase(crate::encoding::CHARSET_NAME, "Utf8"),
     },
 ];
 
@@ -1097,9 +1118,18 @@ struct RowReader {
     origin: String,
     /// `csv-core`'s DFA, left mid-document between two `advance()` calls.
     reader: csv_core::Reader,
-    /// The chunk last read off the source. The source lends a chunk only
-    /// until its next read, and a record can end part way through one.
+    /// The chunk last read off the source, as UTF-8. The source lends a chunk
+    /// only until its next read, and a record can end part way through one.
     pending: Vec<u8>,
+    /// The source's first bytes, kept until there are enough to tell its byte
+    /// order mark, and `None` from then on.
+    head: Option<Vec<u8>>,
+    /// The `Core\Charset` case the program asked for, read once the start is
+    /// known.
+    asked: Value,
+    /// The source's charset, decoded one chunk at a time, or `None` where the
+    /// octets are UTF-8 already and each field is checked as it ends.
+    decoder: Option<crate::encoding::StreamDecoder>,
     /// How much of [`RowReader::pending`] the DFA has taken.
     at: usize,
     /// The field being unescaped, across as many turns as it takes.
@@ -1133,6 +1163,14 @@ enum Step {
     /// The request cannot afford the next field or row. The reader has given
     /// up its buffers, as at [`Step::End`].
     OverMemory,
+}
+
+/// Why [`RowReader::feed`] could not take a chunk.
+enum Unfed {
+    /// The byte at this offset in the source is not text in the charset.
+    NotText(u64),
+    /// The decoder's `FATAL` for a charset value that is no case.
+    Fault(Fault),
 }
 
 impl RowReader {
@@ -1210,11 +1248,48 @@ impl RowReader {
     /// Takes the bytes just read off the file — or, where `chunk` is empty,
     /// marks the end of it, which is how `csv-core` is told to flush the record
     /// it is part way through.
-    fn feed(&mut self, chunk: &[u8]) {
+    ///
+    /// The first [`StreamDecoder::MARK`](crate::encoding::StreamDecoder::MARK)
+    /// bytes are kept until the byte order mark can be told, and then the
+    /// charset is chosen once. A chunk in another charset is decoded here, so
+    /// the DFA only ever reads UTF-8.
+    fn feed(&mut self, chunk: &[u8]) -> Result<(), Unfed> {
         self.pending.clear();
-        self.pending.extend_from_slice(chunk);
         self.at = 0;
-        self.eof = chunk.is_empty();
+        let last = chunk.is_empty();
+        if let Some(head) = &mut self.head {
+            head.extend_from_slice(chunk);
+            if head.len() < crate::encoding::StreamDecoder::MARK && !last {
+                return Ok(());
+            }
+            let head = self.head.take().unwrap_or_default();
+            let (skip, decoder) =
+                crate::encoding::StreamDecoder::start(&self.asked, &head, ROWS_MEMBER)
+                    .map_err(Unfed::Fault)?;
+            self.decoder = decoder;
+            self.take(&head[skip..], false)?;
+            if last {
+                self.take(&[], true)?;
+            }
+        } else {
+            self.take(chunk, last)?;
+        }
+        self.eof = last;
+        Ok(())
+    }
+
+    /// Appends `raw` to [`RowReader::pending`], decoded where the source is
+    /// not UTF-8.
+    fn take(&mut self, raw: &[u8], last: bool) -> Result<(), Unfed> {
+        match &mut self.decoder {
+            None => {
+                self.pending.extend_from_slice(raw);
+                Ok(())
+            }
+            Some(decoder) => decoder
+                .decode(raw, last, &mut self.pending)
+                .map_err(Unfed::NotText),
+        }
     }
 
     /// Gives up every buffer at the end of the walk, leaving a reader that
@@ -1227,6 +1302,8 @@ impl RowReader {
     fn finish(&mut self) {
         self.done = true;
         self.source = None;
+        self.head = None;
+        self.decoder = None;
         self.pending = Vec::new();
         self.cell = Vec::new();
         self.field = Vec::new();
@@ -1255,6 +1332,19 @@ fn not_text(origin: &str, line: u64) -> Fault {
     Fault::thrown_as(
         nvs_runtime::ThrownClass::Parse,
         format!("{ROWS_MEMBER}: line {line} of {origin} has a field that is not valid UTF-8"),
+    )
+}
+
+/// The catchable `ParseError` for a source that is not text in its charset,
+/// naming the offset of the first wrong byte, as `Core\Encoding::decodeText`
+/// names it, and the charset.
+fn not_in_charset(origin: &str, offset: u64, case: &str) -> Fault {
+    Fault::thrown_as(
+        nvs_runtime::ThrownClass::Parse,
+        format!(
+            "{ROWS_MEMBER}: byte {offset} of {origin} is not text in `Core\\Charset::{case}`. \
+             Set the `charset` option to the charset the file is written in"
+        ),
     )
 }
 
@@ -1314,8 +1404,15 @@ fn next_record(
             // next step asks for more input again.
             Ok(Some(chunk)) if chunk.bytes().is_empty() => Ok(()),
             // An empty feed is how the DFA is told the document has ended.
-            Ok(chunk) => reader_at(ctx, key).map(|reader| {
-                reader.feed(chunk.as_ref().map_or(&[], |chunk| chunk.bytes()));
+            Ok(chunk) => reader_at(ctx, key).and_then(|reader| {
+                match reader.feed(chunk.as_ref().map_or(&[], |chunk| chunk.bytes())) {
+                    Ok(()) => Ok(()),
+                    Err(Unfed::Fault(fault)) => Err(fault),
+                    Err(Unfed::NotText(offset)) => {
+                        let case = reader.decoder.as_ref().map_or("Utf8", |d| d.case());
+                        Err(not_in_charset(&reader.origin, offset, case))
+                    }
+                }
             }),
             Err(fault) => Err(fault),
         };
@@ -1394,7 +1491,8 @@ fn rows_record(value: Value, member: &str) -> Result<Value, Fault> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Csv::rows(Core\Bytes::Source|Core\Bytes::Chunks $source,
-    /// {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows<string>` —
+    /// {separator?, quote?, escape?, header?: bool, charset?: Core\Charset}):
+    /// Core\Csv\Rows<string>` —
     /// `fgetcsv`'s other half, as a value a `foreach` walks.
     ///
     /// **Nothing is read here.** The dialect is checked, the source is taken
@@ -1410,7 +1508,7 @@ nvs_runtime::nvs_helper! {
     /// [`dialect_byte`]'s and [`distinct`]'s, for a dialect that is not
     /// distinct single ASCII bytes, and [`ByteSource::from_arg`]'s, such as
     /// the `RuntimeError` for a file that is already closed.
-    fn nvs_core_csv_rows(ctx, args: [5]) {
+    fn nvs_core_csv_rows(ctx, args: [6]) {
         let separator = dialect_byte(&args[1], "rows", "separator")?;
         let quote = dialect_byte(&args[2], "rows", "quote")?;
         let escape = optional_dialect_byte(&args[3], "rows", "escape")?;
@@ -1436,6 +1534,9 @@ nvs_runtime::nvs_helper! {
                 .escape(escape)
                 .build(),
             pending: Vec::new(),
+            head: Some(Vec::new()),
+            asked: args[5],
+            decoder: None,
             at: 0,
             field: Vec::new(),
             cell: vec![0_u8; CELL],
@@ -1838,7 +1939,24 @@ mod tests {
     /// The walk `rows` answers over an open handle, at the default dialect —
     /// taking over the handle's reference, as the member's caller does.
     fn walk(ctx: &mut Ctx, file: Value, header: bool) -> Value {
-        let args = [file, s(","), s("\""), s(""), Value::bool(header)];
+        walk_in(ctx, file, header, UTF8)
+    }
+
+    /// `Core\Charset::Utf8`'s, `Utf16Le`'s and `Latin1`'s integers.
+    const UTF8: i64 = 0;
+    const UTF16LE: i64 = 1;
+    const LATIN1: i64 = 4;
+
+    /// [`walk`], with the `Core\Charset` case `charset`.
+    fn walk_in(ctx: &mut Ctx, file: Value, header: bool, charset: i64) -> Value {
+        let args = [
+            file,
+            s(","),
+            s("\""),
+            s(""),
+            Value::bool(header),
+            Value::int(charset),
+        ];
         let answer = call(super::nvs_core_csv_rows, ctx, &args)
             .expect("the default dialect over an open handle never throws");
         for arg in &args {
@@ -2062,8 +2180,13 @@ mod tests {
 
     /// Every record of a walk over `source`, as the key/value pairs of each.
     fn walked(source: Value, header: bool) -> Vec<Vec<(String, String)>> {
+        walked_in(source, header, UTF8)
+    }
+
+    /// [`walked`], with the `Core\Charset` case `charset`.
+    fn walked_in(source: Value, header: bool, charset: i64) -> Vec<Vec<(String, String)>> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let rows = walk(&mut ctx, source, header);
+        let rows = walk_in(&mut ctx, source, header, charset);
         let mut seen = Vec::new();
         while advanced(&mut ctx, rows) {
             let record = standing(rows);
@@ -2138,6 +2261,118 @@ mod tests {
         assert_eq!(walked(chunked(&gapped), true), expected);
         // One `bytes` value is the same document.
         assert_eq!(walked(Value::bytes(NvsStr::new(document)), true), expected);
+    }
+
+    /// The message of the step that throws, after `good` records.
+    fn thrown_after(source: Value, charset: i64, good: usize) -> String {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let rows = walk_in(&mut ctx, source, false, charset);
+        for _ in 0..good {
+            assert!(advanced(&mut ctx, rows), "a record before the wrong byte");
+        }
+        let thrown = super::rows_step(&mut ctx, rows).expect_err("the wrong byte throws");
+        released(rows);
+        match thrown {
+            nvs_runtime::Fault::Thrown(_, message) => message.into_owned(),
+            other => panic!("a catchable error, not {other:?}"),
+        }
+    }
+
+    /// A Latin-1 document is decoded one chunk at a time: the first record is
+    /// given before the last chunk is read, and the walk never holds more than
+    /// one decoded chunk. Without the option, the same bytes are not UTF-8.
+    // covers: Core\Csv::rows
+    #[test]
+    fn csv_rows_decodes_latin1_one_chunk_at_a_time() {
+        const DOCUMENT: &str = "name,city\nRenée,Zürich\nJosé,\"Málaga, Spain\"\nÅsa,Øresund\n";
+        let latin1: Vec<u8> = DOCUMENT
+            .chars()
+            .map(|ch| u8::try_from(u32::from(ch)).expect("a Latin-1 character"))
+            .collect();
+        let pieces: Vec<&[u8]> = latin1.chunks(4).collect();
+        let expected = parse(DOCUMENT, true);
+        assert_eq!(fields(&expected[0]), ["Renée", "Zürich"]);
+        assert_eq!(walked_in(chunked(&pieces), true, LATIN1), expected);
+        assert_eq!(
+            walked_in(Value::bytes(NvsStr::new(&latin1)), true, LATIN1),
+            expected
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let rows = walk_in(&mut ctx, chunked(&pieces), true, LATIN1);
+        let receiver = rows.obj_ptr().expect("`rows` answers an object");
+        let key = crate::instance::slot(receiver, super::ROWS_READER_AT)
+            .as_uint()
+            .expect("the walk files its parse state under a key");
+        assert!(advanced(&mut ctx, rows), "the walk gives its first record");
+        let first = standing(rows);
+        assert_eq!(fields(&cells(&first)), ["Renée", "Zürich"]);
+        released(first);
+        let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
+        assert!(!parked.eof, "the first record is given before the last chunk");
+        assert!(
+            parked.pending.len() <= 2 * 4,
+            "one decoded chunk is held: {} bytes",
+            parked.pending.len()
+        );
+        released(rows);
+
+        let message = thrown_after(chunked(&pieces), UTF8, 1);
+        assert!(message.contains("not valid UTF-8"), "{message}");
+    }
+
+    /// A UTF-16 character cut between two chunks, a surrogate pair included,
+    /// reads as it does in one piece. A cut that the source never ends is not
+    /// text, and the message gives its offset and the charset.
+    // covers: Core\Csv::rows
+    #[test]
+    fn csv_rows_decodes_a_utf16_character_cut_across_two_chunks() {
+        const DOCUMENT: &str = "id,name\n1,\"Zoë 😀, first\"\n2,last\n";
+        let utf16: Vec<u8> = DOCUMENT.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let expected = parse(DOCUMENT, true);
+        assert_eq!(fields(&expected[0]), ["1", "Zoë 😀, first"]);
+        // Each byte is its own chunk, so every code unit and the pair are cut.
+        let bytewise: Vec<&[u8]> = utf16.chunks(1).collect();
+        assert_eq!(walked_in(chunked(&bytewise), true, UTF16LE), expected);
+        let odd: Vec<&[u8]> = utf16.chunks(3).collect();
+        assert_eq!(walked_in(chunked(&odd), true, UTF16LE), expected);
+
+        // A high surrogate with nothing after it ends the source.
+        let mut cut = "a\n".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>();
+        cut.extend_from_slice(&0xD83D_u16.to_le_bytes());
+        let message = thrown_after(Value::bytes(NvsStr::new(&cut)), UTF16LE, 1);
+        assert!(
+            message.contains("byte 4") && message.contains("Utf16Le"),
+            "{message}"
+        );
+    }
+
+    /// A UTF-8 or UTF-16 byte order mark is not part of the first field, and it
+    /// sets the charset, whatever the option says. A source shorter than a mark
+    /// is read as it is.
+    // covers: Core\Csv::rows
+    #[test]
+    fn csv_rows_drops_a_byte_order_mark() {
+        const DOCUMENT: &str = "name,qty\nfig,2\n";
+        let expected = parse(DOCUMENT, true);
+        let mut utf8 = b"\xEF\xBB\xBF".to_vec();
+        utf8.extend_from_slice(DOCUMENT.as_bytes());
+        let bytewise: Vec<&[u8]> = utf8.chunks(1).collect();
+        assert_eq!(walked_in(chunked(&bytewise), true, UTF8), expected);
+        assert_eq!(
+            walked_in(Value::bytes(NvsStr::new(&utf8)), true, LATIN1),
+            expected,
+            "the mark sets the charset"
+        );
+
+        let mut utf16 = b"\xFE\xFF".to_vec();
+        utf16.extend(DOCUMENT.encode_utf16().flat_map(u16::to_be_bytes));
+        assert_eq!(walked_in(Value::bytes(NvsStr::new(&utf16)), true, UTF8), expected);
+        assert_eq!(
+            walked_in(Value::bytes(NvsStr::new(b"a")), false, UTF8),
+            parse("a", false)
+        );
+        assert_eq!(walked_in(Value::bytes(NvsStr::new(b"")), false, UTF8), parse("", false));
     }
 
     /// Records past the request's memory limit stop the parse at the limit.

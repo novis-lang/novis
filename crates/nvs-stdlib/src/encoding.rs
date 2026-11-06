@@ -722,9 +722,14 @@ struct Charset {
 /// integer, so anything else here is a runtime-contract violation rather than
 /// something a program can cause.
 fn charset_of(args: &[Value], member: &str) -> Result<Charset, Fault> {
+    charset_value(&args[1], member)
+}
+
+/// The `Core\Charset` case `value` is, or [`charset_of`]'s `FATAL`.
+fn charset_value(value: &Value, member: &str) -> Result<Charset, Fault> {
     // One index into both tables, which is what makes their agreement worth
     // pinning: a case's integer *is* its row in `SCHEMES`.
-    args[1]
+    value
         .as_int()
         .and_then(|value| usize::try_from(value).ok())
         .and_then(|index| Some((CHARSET.cases.get(index)?, SCHEMES.get(index)?)))
@@ -735,10 +740,176 @@ fn charset_of(args: &[Value], member: &str) -> Result<Charset, Fault> {
         .ok_or_else(|| {
             Fault::fatal(format!(
                 "{member} expected a `Core\\Charset` case, got tag {} value {:?}",
-                args[1].tag_byte(),
-                args[1].as_int()
+                value.tag_byte(),
+                value.as_int()
             ))
         })
+}
+
+/// Text in one charset, decoded to UTF-8 one chunk at a time, for a member that
+/// reads a source forward (`rule:core-api/no-encoding-argument`).
+///
+/// [`decode_exact`] is the same conversion over a whole value. This one keeps
+/// a character cut across two chunks until the next chunk ends it, and a
+/// sequence that is not text throws at its offset in the whole source. UTF-8,
+/// UTF-16 and the standard's tables are `encoding_rs`'s streaming decoders run
+/// without replacement; `Ascii` and `Latin1` are one byte per character, so
+/// they need no state. **Memory:** the decoder's few bytes of carried state,
+/// per source.
+pub(crate) struct StreamDecoder {
+    /// The case, for a throw message.
+    case: &'static str,
+    /// How the octets are read.
+    kind: Stream,
+    /// The source's bytes taken before this chunk, so an offset is the whole
+    /// source's.
+    read: u64,
+}
+
+impl std::fmt::Debug for StreamDecoder {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StreamDecoder")
+            .field("case", &self.case)
+            .field("read", &self.read)
+            .finish_non_exhaustive()
+    }
+}
+
+/// [`StreamDecoder`]'s three ways to read octets.
+enum Stream {
+    /// Every octet is below `0x80`.
+    Ascii,
+    /// Every octet is the code point of the same value.
+    Latin1,
+    /// `encoding_rs`'s decoder, which carries a cut sequence itself.
+    Table(encoding_rs::Decoder),
+}
+
+/// The byte order marks a forward read recognises, and the case each names:
+/// UTF-8, UTF-16 little-endian and UTF-16 big-endian.
+const MARKS: [(&[u8], &str); 3] = [
+    (b"\xEF\xBB\xBF", "Utf8"),
+    (b"\xFF\xFE", "Utf16Le"),
+    (b"\xFE\xFF", "Utf16Be"),
+];
+
+impl StreamDecoder {
+    /// The longest byte order mark, which is how much of a source's start
+    /// [`StreamDecoder::start`] needs.
+    pub(crate) const MARK: usize = 3;
+
+    /// How a source that starts with `head` is read, when the program asked for
+    /// the `Core\Charset` case `asked`: the length of its byte order mark, and
+    /// the decoder, or `None` where the octets are UTF-8 already.
+    ///
+    /// **A byte order mark sets the charset and is dropped**, whatever `asked`
+    /// is, as the WHATWG Encoding Standard's *decode* does. So a UTF-16 export
+    /// reads with no option at all. `head` is at least [`Self::MARK`] bytes,
+    /// or the whole source.
+    ///
+    /// # Errors
+    ///
+    /// [`charset_of`]'s `FATAL` for an `asked` that is no case.
+    pub(crate) fn start(
+        asked: &Value,
+        head: &[u8],
+        member: &str,
+    ) -> Result<(usize, Option<Self>), Fault> {
+        let marked = MARKS.iter().find(|(mark, _)| head.starts_with(mark));
+        let (skip, charset) = match marked {
+            Some((mark, case)) => {
+                let index = CHARSET
+                    .cases
+                    .iter()
+                    .position(|(name, _)| name == case)
+                    .ok_or_else(|| Fault::fatal(format!("no `Core\\Charset::{case}` case")))?;
+                let charset = Charset {
+                    case: CHARSET.cases[index].0,
+                    scheme: SCHEMES[index],
+                };
+                (mark.len(), charset)
+            }
+            None => (0, charset_value(asked, member)?),
+        };
+        let kind = match charset.scheme {
+            Scheme::Utf8 => return Ok((skip, None)),
+            Scheme::Utf16 { little_endian: true } => {
+                Stream::Table(encoding_rs::UTF_16LE.new_decoder_without_bom_handling())
+            }
+            Scheme::Utf16 {
+                little_endian: false,
+            } => Stream::Table(encoding_rs::UTF_16BE.new_decoder_without_bom_handling()),
+            Scheme::Ascii => Stream::Ascii,
+            Scheme::Latin1 => Stream::Latin1,
+            Scheme::Whatwg(encoding) => Stream::Table(encoding.new_decoder_without_bom_handling()),
+        };
+        Ok((
+            skip,
+            Some(Self {
+                case: charset.case,
+                kind,
+                read: u64::try_from(skip).unwrap_or(u64::MAX),
+            }),
+        ))
+    }
+
+    /// Appends `raw` to `out` as UTF-8. `last` says no more octets follow, so a
+    /// sequence still cut there is not text.
+    ///
+    /// # Errors
+    ///
+    /// The offset in the whole source of the first sequence that is not text
+    /// in this charset. `out` then holds what was decoded before it.
+    pub(crate) fn decode(&mut self, raw: &[u8], last: bool, out: &mut Vec<u8>) -> Result<(), u64> {
+        let before = self.read;
+        let at = |offset: usize| before + u64::try_from(offset).unwrap_or(u64::MAX);
+        match &mut self.kind {
+            Stream::Ascii => {
+                if let Some(offset) = raw.iter().position(|octet| !octet.is_ascii()) {
+                    return Err(at(offset));
+                }
+                out.extend_from_slice(raw);
+            }
+            Stream::Latin1 => {
+                let mut buffer = [0u8; 2];
+                for &octet in raw {
+                    out.extend_from_slice(char::from(octet).encode_utf8(&mut buffer).as_bytes());
+                }
+            }
+            Stream::Table(decoder) => {
+                // The decoder writes into the spare room and never grows it, so
+                // the room is its own bound for this input. It is `None` only
+                // for an input within a factor of three of `usize::MAX`.
+                let room = decoder
+                    .max_utf8_buffer_length_without_replacement(raw.len())
+                    .unwrap_or(0);
+                let filled = out.len();
+                out.resize(filled + room, 0);
+                let (result, read, written) =
+                    decoder.decode_to_utf8_without_replacement(raw, &mut out[filled..], last);
+                out.truncate(filled + written);
+                match result {
+                    DecoderResult::InputEmpty => {}
+                    // The sequence may have started in an earlier chunk, so
+                    // its length is taken off the offset in the whole source.
+                    DecoderResult::Malformed(length, after) => {
+                        return Err(at(read).saturating_sub(
+                            u64::from(length) + u64::from(after),
+                        ));
+                    }
+                    DecoderResult::OutputFull => return Err(at(read)),
+                }
+            }
+        }
+        self.read = at(raw.len());
+        Ok(())
+    }
+
+    /// The case this decoder reads, as source writes it, such as `Latin1`.
+    pub(crate) fn case(&self) -> &'static str {
+        self.case
+    }
 }
 
 /// The `Core\Charset` case in slot 1, applied to `raw` — the conversion whole,
