@@ -665,6 +665,18 @@ with the path, the owner or the group's SID filled in: `chown` or `chmod go-w` o
 Windows `icacls /setowner *S-1-5-32-544` for an owner or `/inheritance:d` and `/remove:g <SID>` for a
 group. The help is built only for a breach, so a path that passes costs nothing more.
 
+**The directory that contains a checked folder fails only when another account can replace that
+folder.** It keeps the owner test. Its write test asks only for the rights that delete or rename an
+entry: on Windows `FILE_DELETE_CHILD`, `WRITE_DAC` or `WRITE_OWNER` for one of the untrusted groups
+below, and on Unix a write bit for the group or for others unless the sticky bit is set. With the
+sticky bit only an entry's owner, the directory's owner and root can remove an entry, and the folder
+has passed its own owner test. The folder's own `DELETE` right is in the folder's own test. Adding an
+entry beside the folder changes nothing Novis reads, so the `Modify` right Windows gives
+`Authenticated Users` on a non-system drive's root passes here, and so does `/tmp`. A **file's**
+directory keeps the full write test, because an account that can add an entry there can add one the
+configuration reads. Telling the two apart is one `stat` of the checked path, at boot and at reload.
+The narrower test is `trust::platform::check_parent`.
+
 **The directory that holds each link on the path as given is checked too.** A reload reads a root
 through its links again ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)), so whoever can write
 the directory a link sits in chooses the file the next reload reads. Every prefix of the path that is a
@@ -718,7 +730,7 @@ the container can read, and a check that trusted `0777` would trust every mount.
 running binary. Its parent is the binary's own directory, and an account that can write there can
 already replace the binary, so examining it guards nothing the binary does not — while on a stock
 Windows drive it would make the default folder unusable everywhere. A folder `--data` names, and every
-path the configuration names, keeps the full check, parent included. A file inside the data folder is
+path the configuration names, keeps its parent's check, the replace test for a folder's parent. A file inside the data folder is
 checked as any file is, with the private data folder as its directory. Novis creates the data folder
 private to its account and never re-permissions one that exists: it checks it.
 
@@ -727,6 +739,16 @@ checks for the file it writes. The directory above it guards nothing `serve` hol
 it sends an operator to change a shared folder such as `D:\srv`, which every project under it
 inherits from. The new file takes the directory's inheritable entries, and `serve`'s check of the file
 catches an entry that reaches files alone.
+
+**`nvs init` offers to repair the directory it writes into, and no other.** When that directory fails
+the write test for a group this account may take the right from, the breach carries a
+`trust::Repair`. `nvs init` asks `Restrict <folder> so only you and administrators can change it?` on a
+terminal, and `--yes` answers yes. The repair is the help's own commands: `icacls /inheritance:d`, then
+`/remove:g <SID>` on Windows, run from `System32` by its full path, and `chmod go-w` on Unix. Then the
+check runs again from the start. Without a terminal it asks nothing and refuses as before, with the
+help and a line naming `--yes`. An owner breach, a null DACL and a mode only `sudo` may change carry no
+repair. A file already in the directory is kept and checked as `nvs serve` checks it, so a second
+`nvs init` is a check that changes nothing.
 
 **The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
 and a command that sets up or reports on a service judges for the account the service runs as, through
@@ -743,6 +765,9 @@ account `LocalSystem` nor an administrator". `resolve::JudgedFor` resolves a tre
   writes needed a second call. Trusting an owner in the group covers both prompts with no write.
 - **Membership read from the token.** A service judges for another account, whose token it does not
   have, and an administrator's unelevated token holds the group as deny-only.
+- **The full write test on the directory that contains a folder.** It refused every folder under a
+  non-system drive's root, whose `Modify` right lets other accounts add entries but not replace one,
+  and its repair changed a folder that other projects share.
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
 - **Waiving the mode test on a read-only mount too.** A writable mode under `:ro` is either a

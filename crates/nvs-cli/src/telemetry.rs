@@ -133,7 +133,7 @@ impl Args {
         let out = &mut std::io::stdout();
         if matches!(self.verb, Verb::On) {
             return match nvs_config::data::prepare() {
-                Ok(folder) => on(&folder.telemetry(), &env, out),
+                Ok((folder, _)) => on(&folder.telemetry(), &env, out),
                 Err(unusable) => {
                     eprintln!("{}", unusable.warning());
                     eprintln!("error: telemetry needs the data folder, so it stays off");

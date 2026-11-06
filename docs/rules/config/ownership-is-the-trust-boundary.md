@@ -82,6 +82,16 @@ it sends an operator to change a shared folder such as `D:\srv`, which every pro
 inherits from. The new file takes the directory's inheritable entries, and `serve`'s check of the file
 catches an entry that reaches files alone.
 
+**`nvs init` offers to repair the directory it writes into, and no other.** When that directory fails
+the write test for a group this account may take the right from, the breach carries a
+`trust::Repair`. `nvs init` asks `Restrict <folder> so only you and administrators can change it?` on a
+terminal, and `--yes` answers yes. The repair is the help's own commands: `icacls /inheritance:d`, then
+`/remove:g <SID>` on Windows, run from `System32` by its full path, and `chmod go-w` on Unix. Then the
+check runs again from the start. Without a terminal it asks nothing and refuses as before, with the
+help and a line naming `--yes`. An owner breach, a null DACL and a mode only `sudo` may change carry no
+repair. A file already in the directory is kept and checked as `nvs serve` checks it, so a second
+`nvs init` is a check that changes nothing.
+
 **The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
 and a command that sets up or reports on a service judges for the account the service runs as, through
 the same function: `trust::check_as` with a `trust::Account`, a uid on Unix and a SID on Windows. On

@@ -62,7 +62,35 @@ pub enum Untrusted {
         /// filled in, so an operator can copy it. Built where the failure is found, because only
         /// there is it known which of the repairs applies.
         help: String,
+        /// The change this account may make itself to remove a write right another account has,
+        /// when the breach is one: `nvs init` applies it to the folder it writes into. `None` for
+        /// an owner, a null DACL, or a mode only `sudo` may change. Boxed, so the error every
+        /// trust check returns stays the size it was without it.
+        repair: Option<Box<Repair>>,
     },
+}
+
+/// A write right that other accounts have on a path, and that this account may take away itself.
+/// `help` names the same change as commands, so an operator who declines it can still make it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Repair {
+    path: PathBuf,
+    group: Option<String>,
+}
+
+impl Repair {
+    /// The path the right is on, as the check examined it.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// The group that has the right, as the SID `icacls` takes (`*S-1-5-32-545`), on Windows.
+    /// `None` on Unix, where the repair is `chmod go-w`.
+    #[must_use]
+    pub fn group(&self) -> Option<&str> {
+        self.group.as_deref()
+    }
 }
 
 impl Untrusted {
@@ -84,9 +112,35 @@ impl Untrusted {
         }
     }
 
+    /// The [`Repair`] this account may apply itself, when the breach has one.
+    #[must_use]
+    pub fn repair(&self) -> Option<&Repair> {
+        match self {
+            Self::Breach { repair, .. } => repair.as_deref(),
+            Self::Unreadable(_) => None,
+        }
+    }
+
     /// A breach of `message` that `help` repairs.
     pub(crate) fn breach(message: String, help: String) -> Self {
-        Self::Breach { message, help }
+        Self::Breach {
+            message,
+            help,
+            repair: None,
+        }
+    }
+
+    /// A breach of `message` that `help` repairs, and that this account may repair itself by
+    /// taking the write right on `path` away from `group`, or from group and others on Unix.
+    pub(crate) fn fixable(message: String, help: String, path: &Path, group: Option<&str>) -> Self {
+        Self::Breach {
+            message,
+            help,
+            repair: Some(Box::new(Repair {
+                path: path.to_path_buf(),
+                group: group.map(str::to_owned),
+            })),
+        }
     }
 
     /// The path a [`Breach`](Self::Breach) is about, prefixed onto its message.
@@ -97,9 +151,14 @@ impl Untrusted {
     /// is left alone because the resolver already names the path around it.
     fn about(self, path: &Path) -> Self {
         match self {
-            Self::Breach { message, help } => Self::Breach {
+            Self::Breach {
+                message,
+                help,
+                repair,
+            } => Self::Breach {
                 message: format!("`{}` {message}", path.display()),
                 help,
+                repair,
             },
             unreadable => unreadable,
         }
@@ -109,13 +168,18 @@ impl Untrusted {
     /// through, so the operator sees why a directory off the file's own path was examined.
     fn holding(self, holder: &Path, link: &Path) -> Self {
         match self {
-            Self::Breach { message, help } => Self::Breach {
+            Self::Breach {
+                message,
+                help,
+                repair,
+            } => Self::Breach {
                 message: format!(
                     "`{}`, which holds the link `{}`, {message}",
                     holder.display(),
                     link.display()
                 ),
                 help,
+                repair,
             },
             unreadable => unreadable,
         }
@@ -517,14 +581,14 @@ mod platform {
             (_, 0) => "group-writable",
             _ => "group- and world-writable",
         };
-        let sudo = if owner == me && account.name().is_none() {
-            ""
-        } else {
-            "sudo "
-        };
+        let message = format!("is {who} (mode {mode:04o}, gid {gid})");
+        if owner == me && account.name().is_none() {
+            let help = format!("run `chmod go-w {}`.", quoted(path));
+            return Err(Untrusted::fixable(message, help, path, None));
+        }
         Err(Untrusted::breach(
-            format!("is {who} (mode {mode:04o}, gid {gid})"),
-            format!("run `{sudo}chmod go-w {}`.", quoted(path)),
+            message,
+            format!("run `sudo chmod go-w {}`.", quoted(path)),
         ))
     }
 
@@ -606,9 +670,8 @@ mod platform {
     };
     use windows_sys::Win32::Storage::FileSystem::{
         DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_GENERIC_READ,
-        FILE_GENERIC_WRITE,
-        FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, WRITE_DAC,
-        WRITE_OWNER,
+        FILE_GENERIC_WRITE, FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA,
+        WRITE_DAC, WRITE_OWNER,
     };
     use windows_sys::Win32::System::SystemServices::{
         ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
@@ -1009,9 +1072,11 @@ mod platform {
                 } else {
                     "the right to delete the folders in it"
                 };
-                return Err(Untrusted::breach(
+                return Err(Untrusted::fixable(
                     format!("grants {what} to `{name}` (`{sid}`, rights {rights:#010x})"),
                     group_help(path, sid),
+                    path,
+                    Some(sid),
                 ));
             }
         }

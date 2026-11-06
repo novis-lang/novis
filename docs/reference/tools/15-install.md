@@ -78,9 +78,13 @@ scan = "*/public/index.nvs"
 prefix = "/{1:lower}"
 ```
 
-`nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
-it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
-file is never overwritten. `nvs run` and the other commands never write into the current directory.
+`nvs init` creates the data folder. Then it writes a `nvs.toml` in which every key is present and
+commented out. Without `--config` it writes `nvs.toml` into the current directory. The folder for
+the file must already exist. `nvs init` prints one line for each path: `created`, `kept` or an
+error. You can run it again at any time. It never overwrites a file, and it checks both paths
+again. If other accounts can change the folder for the file, `nvs init` asks to restrict it.
+`nvs init --yes` restricts it without asking. `nvs run` and the other commands never write into
+the current directory.
 When they find no configuration file, they write the same file into the data folder.
 
 Each key's line ends with a short note. `# default` means the value shown is what Novis uses when
@@ -244,6 +248,5 @@ the path filled in.
 | `... grants write access to ...` (Windows), `... is group-writable`, `... is world-writable` or `... is group- and world-writable` (Linux and macOS) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
 | `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator** |
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
-| `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |
 | `warning: Novis cannot use its data folder ...` | the data folder could not be created, or it failed the check | fix the named folder, or pass `--data` with a folder that only your account can change. Until then programs run without the compile cache |

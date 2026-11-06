@@ -912,7 +912,7 @@ fn trust_slot(target: &Path, files: &dyn Files) -> Result<(), Diagnostic> {
 pub(crate) fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
     match why {
         Untrusted::Unreadable(message) => unreadable(path, message, who),
-        Untrusted::Breach { message, help } => {
+        Untrusted::Breach { message, help, .. } => {
             Diagnostic::error(code::E_UNTRUSTED_CONFIG, message.clone())
                 .with_note(format!(
                     "{who}. No other account may write a configuration file, because whoever can \

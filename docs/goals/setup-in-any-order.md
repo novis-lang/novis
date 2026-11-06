@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-config/tests/trust.rs, crates/nvs-cli/tests/init.rs]
   - id: 3
     title: "nvs init sets up the data folder and the project file, and offers to restrict its folder"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/tests/init.rs]
   - id: 4
     title: "a command that needs admin rights asks for them itself"
@@ -186,12 +186,12 @@ The user's rules for this goal:
 
 **Does:** decisions 4, 5 and 6.
 
-- [ ] `init` joins `prepares`, and its summary prints one line per path.
+- [x] `init` joins `prepares`, and its summary prints one line per path.
   `crates/nvs-cli/src/main.rs:356` `crates/nvs-cli/src/config.rs:399`
-- [ ] The question, `--yes`, and the printed commands without a terminal. `crates/nvs-cli/src/config.rs:399`
-- [ ] The two named tests, and one for `--yes` on a folder every account may change.
+- [x] The question, `--yes`, and the printed commands without a terminal. `crates/nvs-cli/src/config.rs:399`
+- [x] The two named tests, and one for `--yes` on a folder every account may change.
   `crates/nvs-cli/tests/init.rs:1`
-- [ ] The help text of `nvs init` and `--yes`, held to AGENTS.md § *Text an end user reads*.
+- [x] The help text of `nvs init` and `--yes`, held to AGENTS.md § *Text an end user reads*.
   `crates/nvs-cli/src/main.rs:1`
 
 ### 4. a command that needs admin rights asks for them itself
@@ -237,36 +237,44 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Stages 1 and 2 are done. Stage 2: `check_as` gives a **folder's** parent `platform::check_parent`
-(owner test, then `REPLACE_RIGHTS` = `FILE_DELETE_CHILD | WRITE_DAC | WRITE_OWNER` on Windows; on
-Unix the group/other write bits are ignored when the sticky bit is set). A **file's** parent keeps
-`platform::check`. Which one is one `metadata` of the canonical path. The Windows breach for a parent
-reads "grants the right to delete the folders in it to `<group>`". Link holders are unchanged.
-In `crates/nvs-cli/tests/init.rs`, `writable_by_others` now sets `0o1757` on Unix (write, not
-replace) and the new `replaceable_by_others` grants `(DC)` / `0o757`; both cache halves use the
-latter for the warning. Ran by name, all green on Windows: the two new trust tests,
-`nvs_init_checks_its_folder_alone_…` and `each_refusal_names_a_path_…`. The Unix halves have not
-run; stage 6 runs them (or `bun nv linux-test`).
+Stages 1, 2 and 3 are done. Stage 3: `Folder::prepare` returns `Prepared::{Created, Kept}` and
+`Unusable` keeps the check's help. `main` calls `nvs_config::data::prepare` for `init` like every
+command in `prepares`, skips the warning for `init`, and hands the result to `config::init`
+(`crates/nvs-cli/src/config.rs:405`). That prints `created|kept the data folder `…``, then
+`created|kept the project file `…``, and exits `1` if either failed. A file already there is kept
+and given `trust::check` (file and folder), so a second run exits `0`. `Untrusted::Breach` gained
+`repair: Option<Box<Repair>>` (path, and the SID on Windows). `trust.rs` sets it for a group's write
+right on Windows and for a Unix mode this account may `chmod` without `sudo`. `restrict_folder`
+(`config.rs:524`) asks on a terminal or takes `--yes`. It applies `icacls /inheritance:d` and
+`/remove:g <SID>` from `System32`, or `chmod go-w`, to the checked folder only, then checks again.
+A refusal with a repair adds `help: `nvs init --yes` runs these commands for you`. Row 4 of the install
+table ("it already exists") is gone from `docs/reference/tools/15-install.md` and the website page.
+The rule fragment has the paragraph. Ran by name, green on Windows: the three new `init` tests and
+`each_refusal_names_a_path_…`; `looper check --name init-sets-up` is green. The Unix half of
+`restrict` has not compiled or run. Stage 6 runs it, or `bun nv linux-test`.
 
-The sweep's `env-secret-proofs` red is stale driver state: its log file does not exist, and
-`looper check --name env-secret-proofs` said `no check matches` last session. `bun nv rules --check`
-is red on `docs/goals/byte-sources.md:194,201,456`, another goal's citations, not this one's.
+The sweep's `env-secret-proofs` red is stale state in looper's service. No check by that name exists
+in the tree or its history since json-streaming retired, and `looper check --name env-secret-proofs`
+says `no check matches`. `bun nv rules --check` is red on `docs/goals/byte-sources.md:194,201,456`,
+another goal's citations.
 
 ### Next
 
-**Stage 3**, over `crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/main.rs`; no gate.
-Stage 4 may run beside it (decision 11).
+**Stage 4**, over `crates/nvs-cli/src/service.rs`, a new `crates/nvs-cli/src/elevate.rs` and
+`tools/nv/cmd/lints.ts`; no gate.
 
-- [ ] `init` joins `prepares`, and its summary prints one line per path. `crates/nvs-cli/src/main.rs:356`
-  (`prepares`), `crates/nvs-cli/src/config.rs:401` (`init`), `crates/nvs-config/src/data.rs:331`
-  (`Folder::prepare`)
-- [ ] The question, `--yes`, and the printed commands without a terminal. `crates/nvs-cli/src/config.rs:401`
-- [ ] The two named tests and the `--yes` one. `crates/nvs-cli/tests/init.rs:1`
-- [ ] The help text of `nvs init` and `--yes`. `crates/nvs-cli/src/main.rs:1`
+- [ ] The probe of decision 8 by hand, and its result into the new rule. `crates/nvs-cli/src/elevate.rs:1`
+- [ ] The closed list and the asking itself. `crates/nvs-cli/src/elevate.rs:1`
+  The elevated-token check, `runas` with wait and exit code, the output path, `sudo` on Unix.
+- [ ] The service verbs call it, at `Args::run` (`crates/nvs-cli/src/service.rs:446`). `nvs init`
+  calls it only when `restrict` fails with access denied on a folder another account owns
+  (`crates/nvs-cli/src/config.rs:524`, `restrict_folder`).
+- [ ] `--no-elevate` and the two named tests. `crates/nvs-cli/src/elevate.rs:1`
+- [ ] The rule and the roster reason. `docs/rules/packaging/the-installer-is-a-sink.md:1` `tools/nv/cmd/lints.ts:96`
 
-Expected red until stage 6: `the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into`
-(`crates/nvs-cli/tests/init.rs:497`) if it asserts a warning about an outer folder that only has
-`Modify`; it was not run.
+Expected red until stage 6: none known. Not run since the change: `the_icacls_steps_…`
+(`crates/nvs-cli/tests/init.rs`) and `nvs_init_checks_its_folder_alone_…`, whose refusals now
+also carry the `--yes` help line, which they do not assert against.
 
 ### Backlog
 

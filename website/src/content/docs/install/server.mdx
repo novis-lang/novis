@@ -257,6 +257,5 @@ nvs config check --as shop
 | `... grants write access to ...`, `... is group-writable` or `... is world-writable` | Remove the write permission from the named path. On Windows, the message prints the SID to use. |
 | `... is owned by ..., which is neither this account ...` | Make the owner the account the server runs as, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator**. |
 | `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
-| `... it already exists, and it is never overwritten` | `nvs init` found a file. Edit it, or delete it and run `nvs init` again. |
 | `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |
 | `warning: Novis cannot use its data folder ...` | Fix the named folder, or pass `--data` with a folder that only your account can change. Until then, programs run without the compile cache. |

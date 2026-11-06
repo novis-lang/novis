@@ -323,25 +323,41 @@ impl Folder {
     ///
     /// The check runs after the root exists and before anything is created inside it, so a folder
     /// another account can write never gains subfolders from this call. It does not write
-    /// `nvs.toml`.
+    /// `nvs.toml`. The result says whether this call created the folder itself, which `nvs init`
+    /// prints.
     ///
     /// # Errors
     ///
     /// [`Unusable`] naming this folder, when a create failed or the check did.
-    pub fn prepare(&self) -> Result<(), Unusable> {
-        let unusable = |reason: String| Unusable {
+    pub fn prepare(&self) -> Result<Prepared, Unusable> {
+        let unusable = |reason: String, help: Option<&str>| Unusable {
             folder: Some(self.root.clone()),
             reason,
+            help: help.map(str::to_owned),
         };
-        create_private_root(&self.root).map_err(|err| unusable(err.to_string()))?;
+        let prepared = if self.root.is_dir() {
+            Prepared::Kept
+        } else {
+            Prepared::Created
+        };
+        create_private_root(&self.root).map_err(|err| unusable(err.to_string(), None))?;
         self.check()
-            .map_err(|why| unusable(why.message().to_owned()))?;
+            .map_err(|why| unusable(why.message().to_owned(), why.help()))?;
         for sub in [self.cache(), self.tmp(), self.lsp_root(), self.logs()] {
             create_private_root(&sub)
-                .map_err(|err| unusable(format!("{}: {err}", sub.display())))?;
+                .map_err(|err| unusable(format!("{}: {err}", sub.display()), None))?;
         }
-        Ok(())
+        Ok(prepared)
     }
+}
+
+/// What [`Folder::prepare`] did with the folder itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Prepared {
+    /// The folder did not exist, and this call created it.
+    Created,
+    /// The folder was already there, and passed the check.
+    Kept,
 }
 
 /// Why the data folder cannot be used. The caller prints [`Unusable::warning`] once and carries on:
@@ -351,9 +367,17 @@ pub struct Unusable {
     /// `None` when the folder could not even be located.
     folder: Option<PathBuf>,
     reason: String,
+    /// The repair the ownership check named, when it named one.
+    help: Option<String>,
 }
 
 impl Unusable {
+    /// The repair, when the ownership check named one.
+    #[must_use]
+    pub fn help(&self) -> Option<&str> {
+        self.help.as_deref()
+    }
+
     /// The folder, when it was located.
     #[must_use]
     pub fn folder(&self) -> Option<&Path> {
@@ -632,14 +656,18 @@ pub fn check(dir: &Path) -> Result<PathBuf, trust::Untrusted> {
 /// # Errors
 ///
 /// [`Unusable`], for the caller to print as one warning.
-pub fn prepare() -> Result<&'static Folder, Unusable> {
+pub fn prepare() -> Result<(&'static Folder, Prepared), Unusable> {
     let folder = located().as_ref().map_err(|reason| Unusable {
         folder: None,
         reason: reason.clone(),
+        help: None,
     })?;
-    folder.prepare().map(|()| folder).inspect_err(|_| {
-        WITHDRAWN.store(true, Ordering::Relaxed);
-    })
+    folder
+        .prepare()
+        .map(|prepared| (folder, prepared))
+        .inspect_err(|_| {
+            WITHDRAWN.store(true, Ordering::Relaxed);
+        })
 }
 
 /// Creates `path` and every missing directory above it, privately; an existing directory is

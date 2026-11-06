@@ -20,61 +20,134 @@ fn scratch(name: &str) -> nvs_repo::Scratch {
     nvs_repo::scratch_private(name)
 }
 
-/// `nvs init`, run *in* `dir`.
-fn init(dir: &Path) -> Output {
+/// `nvs init`, run *in* `dir`, with `dir`'s own `data` as its data folder and `extra` after it.
+fn init(dir: &Path, extra: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(dir.join("data"))
         .arg("init")
+        .args(extra)
         .current_dir(dir)
         .output()
         .expect("the binary under test runs")
 }
 
-/// The explicit door, both halves: it writes the file a project command would have written for
-/// itself, byte for byte, and a second run refuses rather than replacing it.
-///
-/// The refusal is an `error:` and a non-zero exit, where the same refusal on a run is a note and
-/// nothing else — a command that exists only to produce this file has nothing to carry on with, and
-/// a script calling it has to be able to tell "one is already there" from "one was written".
+/// The setup command, first run: it creates the data folder with its subfolders through the same
+/// call `nvs run` makes, writes the shipped default file into the working directory, and prints one
+/// line for each path saying it was created.
 #[test]
-fn nvs_init_writes_the_same_file_and_refuses_to_overwrite_one() {
-    let dir = scratch("explicit");
+fn nvs_init_creates_the_data_folder_and_the_project_file() {
+    let dir = scratch("sets-up");
+    let data = dir.join("data");
     let written = dir.join("nvs.toml");
 
-    let first = init(&dir);
+    let first = init(&dir, &[]);
+    let stdout = String::from_utf8_lossy(&first.stdout);
     assert!(
-        first.status.success(),
-        "a directory this process created takes the file: {}",
+        first.status.success() && first.stderr.is_empty(),
+        "a directory this process created takes both: {}",
         String::from_utf8_lossy(&first.stderr)
     );
+    let lines: Vec<&str> = stdout.lines().collect();
     assert!(
-        String::from_utf8_lossy(&first.stdout).contains("nvs.toml"),
-        "and says where it went: {:?}",
-        String::from_utf8_lossy(&first.stdout)
+        lines.len() == 2
+            && lines[0].starts_with("created the data folder `")
+            && lines[0].ends_with("data`")
+            && lines[1].starts_with("created the project file `")
+            && lines[1].ends_with("nvs.toml`"),
+        "one line per path, each saying it was created: {stdout:?}"
     );
+    for sub in ["cache", "tmp", "lsp", "logs"] {
+        assert!(
+            data.join(sub).is_dir(),
+            "the data folder has `{sub}`, as `nvs run` creates it"
+        );
+    }
     assert_eq!(
         std::fs::read(&written).expect("the file the command reported is on disk"),
         nvs_config::default_file().as_bytes(),
         "what it wrote is the shipped default file and nothing else"
     );
+}
 
-    let second = init(&dir);
+/// Running the setup command again is a check: it creates nothing, leaves an edited file byte for
+/// byte, exits `0`, and prints the same summary with `kept` for each path.
+#[test]
+fn a_second_nvs_init_changes_nothing_and_reports_the_same() {
+    let dir = scratch("sets-up-again");
+    let written = dir.join("nvs.toml");
+
+    let first = init(&dir, &[]);
     assert!(
-        !second.status.success(),
-        "a second run is a refusal, not a rewrite"
+        first.status.success(),
+        "the first run sets up: {}",
+        String::from_utf8_lossy(&first.stderr)
     );
-    let stderr = String::from_utf8_lossy(&second.stderr);
+    let edited = "[limits]\nmemory = \"96M\"\n";
+    std::fs::write(&written, edited).expect("the configuration is editable");
+
+    let second = init(&dir, &[]);
     assert!(
-        stderr.starts_with("error:"),
-        "asking for a file that cannot be written is an error here: {stderr:?}"
-    );
-    assert!(
-        stderr.contains("never overwritten"),
-        "and it says why: {stderr:?}"
+        second.status.success() && second.stderr.is_empty(),
+        "a second run is a check that passes: {}",
+        String::from_utf8_lossy(&second.stderr)
     );
     assert_eq!(
-        std::fs::read(&written).expect("the file is still there"),
-        nvs_config::default_file().as_bytes(),
-        "the file the first run wrote is untouched"
+        String::from_utf8_lossy(&second.stdout),
+        String::from_utf8_lossy(&first.stdout).replace("created ", "kept "),
+        "and it reports the same paths, each kept"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&written).expect("the file is still there"),
+        edited,
+        "the edited file is kept byte for byte"
+    );
+}
+
+/// A folder every account may change, and `--yes`: `nvs init` applies the repair its help names to
+/// that one folder, says so, and writes the file. The folder then passes the check `nvs serve`
+/// runs. Without `--yes` and with no terminal to ask on, the same folder is a refusal that names
+/// `--yes`, and nothing changes.
+#[test]
+fn nvs_init_yes_restricts_a_folder_every_account_may_change() {
+    let dir = scratch("restricts");
+    let written = dir.join("nvs.toml");
+    writable_by_others(&dir, true);
+
+    let refused = init(&dir, &[]);
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert_eq!(
+        refused.status.code(),
+        Some(1),
+        "with no terminal nothing is asked, so the folder is refused: {stderr}"
+    );
+    assert!(
+        stderr.contains("help: `nvs init --yes` runs these commands for you") && !written.exists(),
+        "the refusal names `--yes`, and nothing is written: {stderr}"
+    );
+    assert!(
+        nvs_config::trust::check_alone(&dir).is_err(),
+        "and the folder is unchanged"
+    );
+
+    let restricted = init(&dir, &["--yes"]);
+    let stdout = String::from_utf8_lossy(&restricted.stdout);
+    assert!(
+        restricted.status.success() && written.exists(),
+        "`--yes` restricts the folder and writes the file: {}",
+        String::from_utf8_lossy(&restricted.stderr)
+    );
+    let canonical = nvs_config::trust::canonical(&dir).expect("the folder exists");
+    assert!(
+        stdout.contains(&format!(
+            "restricted `{}` so only you and ",
+            canonical.display()
+        )),
+        "and says which folder it changed: {stdout}"
+    );
+    assert!(
+        nvs_config::trust::check_alone(&dir).is_ok(),
+        "the folder now passes the check `nvs serve` runs"
     );
 }
 
@@ -308,7 +381,10 @@ fn replaceable_by_others(dir: &Path, open: bool) {
 /// Grants `BUILTIN\Users` the `rights` on `dir` on Windows, or sets `mode` on Unix, and with
 /// `open` false takes either back.
 #[cfg_attr(windows, expect(unused_variables, reason = "`mode` is the Unix half"))]
-#[cfg_attr(unix, expect(unused_variables, reason = "`rights` is the Windows half"))]
+#[cfg_attr(
+    unix,
+    expect(unused_variables, reason = "`rights` is the Windows half")
+)]
 fn others_may(dir: &Path, open: bool, rights: &str, mode: u32) {
     #[cfg(windows)]
     {
@@ -665,8 +741,8 @@ fn writable_by_this_account(dir: &Path, writable: bool) {
 ///
 /// A folder a group of ordinary accounts may write is named in the message when it is the folder
 /// the file goes into, which is the one folder `nvs init` checks, and on Windows the SID to remove
-/// is printed beside it. A file already there is kept byte for byte, and deleting it is what lets the next
-/// run write one. A folder that passes the check and that this account may not write is the
+/// is printed beside it. A file already there is no refusal: it is kept byte for byte, and the
+/// run exits `0`. A folder that passes the check and that this account may not write is the
 /// operating system's own refusal: its error number, the file named, and no remedy, because
 /// nothing about the folder is too open. A cache folder that fails the check is a `warning:` and a
 /// program that still runs, with nothing stored until the named folder is repaired.
@@ -755,19 +831,13 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
         "removing that right from the named folder is the whole repair: {stderr}"
     );
 
-    // Row 4: `nvs init` found a file at that path.
+    // A file already at that path is no refusal: it is kept, and the run passes.
     let edited = "[limits]\nmemory = \"96M\"\n";
     std::fs::write(&target, edited).expect("the configuration is editable");
     let (status, stderr) = init();
-    assert_eq!(
-        status,
-        Some(1),
-        "a file already there is a refusal: {stderr}"
-    );
     assert!(
-        stderr
-            .contains("nvs.toml` was not written: it already exists, and it is never overwritten"),
-        "the message names the file and says it is kept: {stderr}"
+        status == Some(0) && stderr.is_empty(),
+        "a file already there is kept: {stderr}"
     );
     assert_eq!(
         std::fs::read_to_string(&target).expect("the file is still there"),

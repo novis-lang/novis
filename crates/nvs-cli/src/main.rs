@@ -349,12 +349,18 @@ fn set_data_folder(flag: Option<&std::path::Path>) {
 }
 
 /// The commands that use the data folder, and so create it on startup: the
-/// project commands in [`initializes`], `lsp`, which keeps its editor
-/// files there, and `debug`, which keeps its index there. Every other command
-/// only reads what is already there, so an audit or a status query never
-/// creates a folder.
+/// project commands in [`initializes`], `init`, which sets it up, `lsp`, which
+/// keeps its editor files there, and `debug`, which keeps its index there.
+/// Every other command only reads what is already there, so an audit or a
+/// status query never creates a folder. Each of them creates it through the
+/// same `nvs_config::data::prepare`, so the folder is the same whichever
+/// runs first.
 fn prepares(command: &Command) -> bool {
-    initializes(command) || matches!(command, Command::Lsp(_) | Command::Debug(_))
+    initializes(command)
+        || matches!(
+            command,
+            Command::Init(_) | Command::Lsp(_) | Command::Debug(_)
+        )
 }
 
 /// Creates the data folder for a command in [`prepares`], or prints the one
@@ -771,8 +777,12 @@ fn main() -> ExitCode {
     if !matches!(&command, Command::Service(args) if args.runs_a_stored_line()) {
         set_data_folder(cli.data.as_deref());
     }
-    if prepares(&command) {
-        prepare_data_folder();
+    let prepared = prepares(&command).then(nvs_config::data::prepare);
+    // `nvs init` reports the folder in its own summary, as created, kept or failed.
+    if let Some(Err(unusable)) = &prepared
+        && !matches!(command, Command::Init(_))
+    {
+        eprintln!("{}", unusable.warning());
     }
     // [`run_hosted`] counts a stored line itself, once it has named that line's data folder.
     if !matches!(&command, Command::Service(args) if args.runs_a_stored_line()) {
@@ -797,7 +807,10 @@ fn main() -> ExitCode {
         Command::Pkg(args) => args.run(),
         Command::Registry(args) => args.run(),
         Command::Ext(args) => args.run(&cli.config),
-        Command::Init(args) => args.run(&cli.config),
+        Command::Init(args) => args.run(
+            &cli.config,
+            prepared.unwrap_or_else(nvs_config::data::prepare),
+        ),
         Command::Config(args) => args.run(&cli.config),
         Command::Queue(args) => args.run(&cli.config),
         Command::Schema(args) => args.run(&cli.config),

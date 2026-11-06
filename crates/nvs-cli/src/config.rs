@@ -281,7 +281,7 @@ impl Declined {
             Self::Untrusted(nvs_config::trust::Untrusted::Unreadable(why)) => {
                 format!("`{file}` was not written: its directory could not be examined: {why}")
             }
-            Self::Untrusted(nvs_config::trust::Untrusted::Breach { message, help }) => {
+            Self::Untrusted(nvs_config::trust::Untrusted::Breach { message, help, .. }) => {
                 let note = if one_level_up {
                     "\n  note: the ownership check covers the directory the file goes into and \
                      the directory that contains it"
@@ -371,34 +371,74 @@ fn write_template(path: PathBuf, text: &str) -> Result<PathBuf, Declined> {
     Ok(path)
 }
 
-/// `nvs init` — the same file, written because an operator asked for it.
+/// `nvs init` — the setup command: the data folder and the project's own `nvs.toml`, one summary
+/// line for each, and exit `0` only when both are usable. Running it again creates nothing,
+/// overwrites nothing, and prints the same summary with `kept` in place of `created`.
 ///
-/// The write is [`write_checked`]'s, as a project command's write into the data folder is. The file
-/// has no marker line, because it is the operator's to edit from the start and Novis never refreshes
-/// it ([`nvs_config::data::Folder::refresh_config`]).
+/// **The data folder is `main`'s [`nvs_config::data::prepare`]**, the same call every command in
+/// [`crate::prepares`] makes, so the folder is the same whichever command runs first. `data` is its
+/// result, which this prints as a line of the summary instead of the warning other commands print.
 ///
-/// **The ownership check is `nvs serve`'s, and no wider.** `serve` checks the file and the
-/// directory it is in, so this checks that directory alone, with
-/// [`nvs_config::trust::check_alone`]. The directory above it is not this file's: `nvs serve`
-/// never looks at it, and refusing over it would send an operator to change the permissions of a
-/// shared folder such as `D:\srv`, which every project under it inherits from. The new file takes the
-/// directory's inheritable entries, and `serve`'s own check of the file is the backstop for an entry
-/// that reaches files alone.
+/// **The file is the shipped default file with no marker line**, because it is the operator's to
+/// edit from the start and Novis never refreshes it
+/// ([`nvs_config::data::Folder::refresh_config`]). With no `--config` it is step 2's `nvs.toml` in
+/// this process's working directory, never the data folder. With one it is that path, resolved
+/// against the working directory as step 1 resolves it, so `nvs init --config <path>` and
+/// `nvs serve --config <path>` name the same file. More than one is refused: the flag is repeatable
+/// because a tree may have several roots, and a template is one file.
 ///
-/// **What differs from the implicit write is what a refusal means.** Nobody asked for the implicit
-/// write, so declining it is silent and the run carries on; this command exists only to produce
-/// the file, so a refusal is the answer to the question that was asked — an `error:` line and a
-/// non-zero exit, which is what a script that runs this can act on.
+/// **The ownership check is `nvs serve`'s, and no wider.** The folder the file goes into gets
+/// [`nvs_config::trust::check_alone`] before the write, and a file already there gets
+/// [`nvs_config::trust::check`], the file and its folder, which is what `serve` reads. The folder
+/// above is not this file's: `nvs serve` never looks at it, and refusing over it would send an
+/// operator to change a shared folder such as `D:\srv`, which every project under it inherits from.
+///
+/// **A folder another account may write is offered a repair, and no other folder is.** When the
+/// check's breach carries a [`nvs_config::trust::Repair`] for that folder, [`restrict_folder`]
+/// asks on a terminal, or takes `yes` as the answer, and applies the same commands the help prints.
+/// Then the check runs again from the start, so a second group with a write right is offered the
+/// same repair. Without a terminal, or with the answer no, the refusal is today's: the help's
+/// commands, an `error:` line, and exit `1`.
 ///
 /// It is not a project command and is not in [`crate::initializes`]: it resolves no tree and runs
 /// nothing, so there is no step 4 to reach.
-///
-/// **Where it writes is the project's own file**: with no `--config` that is step 2's `nvs.toml`
-/// in this process's working directory, never the data folder. With one it is that path, resolved
-/// against the working directory as step 1 resolves it, so `nvs init --config <path>` and
-/// `nvs serve --config <path>` name the same file. More than one is refused: the flag is
-/// repeatable because a tree may have several roots, and a template is one file.
-pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
+pub(crate) fn init(
+    config: &[PathBuf],
+    data: Result<
+        (
+            &'static nvs_config::data::Folder,
+            nvs_config::data::Prepared,
+        ),
+        nvs_config::data::Unusable,
+    >,
+    yes: bool,
+) -> ExitCode {
+    let mut failed = false;
+    match data {
+        Ok((folder, prepared)) => println!(
+            "{} the data folder `{}`",
+            done(prepared == nvs_config::data::Prepared::Created),
+            folder.root().display()
+        ),
+        Err(unusable) => {
+            failed = true;
+            let head = match unusable.folder() {
+                Some(folder) => format!(
+                    "error: Novis cannot use its data folder `{}`: {}",
+                    folder.display(),
+                    unusable.reason()
+                ),
+                None => format!(
+                    "error: Novis cannot find its data folder: {}",
+                    unusable.reason()
+                ),
+            };
+            let help = unusable.help().unwrap_or(
+                "pass `--data <folder>` to use a folder that only your account can change.",
+            );
+            eprintln!("{head}\n  help: {help}");
+        }
+    }
     let cwd = match working_directory() {
         Ok(cwd) => cwd,
         Err(diagnostic) => {
@@ -419,20 +459,175 @@ pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match write_checked(
-        &target,
-        nvs_config::default_file(),
-        nvs_config::trust::check_alone,
-    ) {
-        Ok(written) => {
-            println!("wrote `{}`", written.display());
-            ExitCode::SUCCESS
-        }
-        Err(declined) => {
-            eprintln!("error: {}", declined.note_about(&target, false));
-            ExitCode::FAILURE
+    match project_file(&target, yes) {
+        Ok((path, created)) => println!("{} the project file `{}`", done(created), path.display()),
+        Err(error) => {
+            failed = true;
+            eprintln!("error: {error}");
         }
     }
+    if failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// The first word of a summary line.
+fn done(created: bool) -> &'static str {
+    if created { "created" } else { "kept" }
+}
+
+/// [`init`]'s project file at `target`: its path and whether this call created it, or the text of
+/// the one `error:` line that says why it cannot be used.
+fn project_file(target: &Path, yes: bool) -> Result<(PathBuf, bool), String> {
+    let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
+        return Err(
+            Declined::Unwritable(format!("`{}` does not name a file", target.display()))
+                .note_about(target, false),
+        );
+    };
+    let dir = restrict_folder(dir, yes).map_err(|declined| {
+        let mut note = declined.note_about(target, false);
+        if matches!(&declined, Declined::Untrusted(why) if why.repair().is_some()) {
+            note.push_str("\n  help: `nvs init --yes` runs these commands for you");
+        }
+        note
+    })?;
+    match write_template(dir.join(name), nvs_config::default_file()) {
+        Ok(path) => Ok((path, true)),
+        // `create_new` lost to a file that is there, so it is kept and checked as `nvs serve`
+        // checks it.
+        Err(Declined::Exists) => {
+            let path = dir.join(name);
+            match nvs_config::trust::check(&path) {
+                Ok(path) => Ok((path, false)),
+                Err(nvs_config::trust::Untrusted::Unreadable(why)) => Err(format!(
+                    "`{}` is kept, and it could not be examined: {why}",
+                    path.display()
+                )),
+                Err(why) => Err(format!(
+                    "`{}` is kept, and `nvs serve` will not read it: {}\n  help: {}",
+                    path.display(),
+                    why.message(),
+                    why.help().unwrap_or_default()
+                )),
+            }
+        }
+        Err(declined) => Err(declined.note_about(target, false)),
+    }
+}
+
+/// `dir`, canonical, once [`nvs_config::trust::check_alone`] passes it, repairing on the way each
+/// write right another account has on `dir` itself when the operator agrees. Never changes another
+/// folder: a repair for any path but `dir` is returned as the refusal it came with.
+fn restrict_folder(dir: &Path, yes: bool) -> Result<PathBuf, Declined> {
+    let mut applied: Vec<nvs_config::trust::Repair> = Vec::new();
+    loop {
+        let why = match nvs_config::trust::check_alone(dir) {
+            Ok(dir) => return Ok(dir),
+            Err(why) => why,
+        };
+        let Some(repair) = why.repair().cloned() else {
+            return Err(Declined::Untrusted(why));
+        };
+        let own = nvs_config::trust::canonical(dir).is_ok_and(|dir| dir == repair.path());
+        // A repair already applied that did not remove the breach is not applied twice.
+        if !own || applied.contains(&repair) {
+            return Err(Declined::Untrusted(why));
+        }
+        if applied.is_empty() && !yes && !agreed(repair.path()) {
+            return Err(Declined::Untrusted(why));
+        }
+        restrict(&repair).map_err(|err| {
+            Declined::Unwritable(format!(
+                "`{}` could not be restricted: {err}",
+                repair.path().display()
+            ))
+        })?;
+        println!(
+            "restricted `{}` so only you and {} can change it",
+            repair.path().display(),
+            ADMINISTRATORS
+        );
+        applied.push(repair);
+    }
+}
+
+/// Who may still change a folder [`restrict`] changed, in the summary and the question.
+#[cfg(windows)]
+const ADMINISTRATORS: &str = "administrators";
+#[cfg(not(windows))]
+const ADMINISTRATORS: &str = "root";
+
+/// Whether the operator agrees to [`restrict`] `folder`. Asked only when standard input and
+/// standard error are both a terminal, and an empty answer is yes. Without a terminal the answer
+/// is no, so a script never waits.
+fn agreed(folder: &Path) -> bool {
+    use std::io::{BufRead as _, IsTerminal as _};
+    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+        return false;
+    }
+    eprint!(
+        "Restrict `{}` so only you and {ADMINISTRATORS} can change it? [Y/n] ",
+        folder.display()
+    );
+    let _ = std::io::stderr().flush();
+    let mut answer = String::new();
+    if std::io::stdin().lock().read_line(&mut answer).is_err() {
+        return false;
+    }
+    let answer = answer.trim();
+    answer.is_empty() || answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes")
+}
+
+/// Applies `repair`: `chmod go-w` on Unix, and on Windows the two `icacls` commands the breach's
+/// help names, `/inheritance:d` and then `/remove:g` for the group. The second also removes the
+/// group's right to read, as the help says.
+fn restrict(repair: &nvs_config::trust::Repair) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let path = repair.path();
+        let mode = std::fs::metadata(path)
+            .map_err(|err| err.to_string())?
+            .permissions()
+            .mode();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & !0o022))
+            .map_err(|err| err.to_string())
+    }
+    #[cfg(windows)]
+    {
+        let Some(group) = repair.group() else {
+            return Err("the check named no group".to_string());
+        };
+        icacls(repair.path(), &["/inheritance:d"])?;
+        icacls(repair.path(), &["/remove:g", group])
+    }
+}
+
+/// One `icacls` edit of `path`, run from the system folder by its full path, so a program named
+/// `icacls` in the working directory or on `PATH` is never the one that runs.
+#[cfg(windows)]
+fn icacls(path: &Path, edit: &[&str]) -> Result<(), String> {
+    let system =
+        std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+    let ran = std::process::Command::new(system.join("System32").join("icacls.exe"))
+        .arg(path)
+        .args(edit)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|err| format!("`icacls` did not start: {err}"))?;
+    if ran.status.success() {
+        return Ok(());
+    }
+    let said = String::from_utf8_lossy(&ran.stdout);
+    let said = said
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("")
+        .trim();
+    Err(format!("`icacls {}` failed: {said}", edit.join(" ")))
 }
 
 /// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, `rule:config/later-wins-and-every-override-is-recorded`'s ordered

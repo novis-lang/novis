@@ -69,6 +69,7 @@ impl Files for Fake {
                     path.display()
                 ),
                 help: format!("run `chmod go-w {}`.", path.display()),
+                repair: None,
             });
         }
         if !self.exists(path) {
