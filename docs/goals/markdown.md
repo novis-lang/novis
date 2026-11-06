@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/html.rs, docs/rules/core-classes/html-sanitize.m
 stages:
   - id: 1
     title: "the known-bug catalogue and the spec examples are in the tree"
-    status: open
+    status: done
     context: [tests/hostile/README.md]
   - id: 2
     title: "the engine is chosen by the catalogue, and the rules are written"
@@ -289,6 +289,16 @@ names a Markdown renderer as a sink.
     a side goal at any point after stage 3. Stage 9 needs 3 and 7. Stage 10 needs 3 to 8.
 13. **The gate with `byte-sources`:** stage 5 starts once `crates/nvs-stdlib/src/byte_source.rs` exists.
     The goal comes after `byte-sources` on the chain, so this holds when the goal goes live.
+14. **The catalogue's expectations.** Decision 3's "HTML, Markdown, or a bound on work" is six keys,
+    and an entry sets exactly one: `html` and `markdown` (exact), `html_lacks` and `markdown_lacks`
+    (substrings that never appear), `work = "linear"` and `output = "bounded"` (bounds over `repeat`).
+    The `_lacks` keys exist because a security entry's exact HTML depends on the sanitizer's rebuild,
+    which stage 2 writes. A collector cannot know that output before the rule exists, and a guessed
+    exact string would fail for a reason that is not a bug. A from-html `html` is what the produced
+    Markdown renders back to, so a legitimate escaping style does not fail it. A grown input is
+    `input`, then `repeat` n times, then `suffix`. Stage 3 adds a second growing part if an
+    approximated entry needs it (*Backlog*). The test file's module doc and the catalogue's header
+    hold the shape.
 
 ## Stages
 
@@ -302,9 +312,9 @@ decision 3: (cmark, cmark-gfm, commonmark.js, md4c), (markdown-it, marked, mistu
 entries in the catalogue's shape, with no excerpts beyond the minimal input. The session merges them,
 removes duplicates by bug class and input, and writes the file.
 
-- [ ] `tests/data/markdown/known-bugs.toml`, in the shape of decision 3. `tests/data/markdown/known-bugs.toml:1`
-- [ ] The spec examples and their licence file (decision 9). `tests/data/markdown/spec/LICENSE:1`
-- [ ] `markdown_known_bugs.rs` with the two stage-1 tests of the `catalogue` check. The third test is
+- [x] `tests/data/markdown/known-bugs.toml`, in the shape of decision 3. `tests/data/markdown/known-bugs.toml:1`
+- [x] The spec examples and their licence file (decision 9). `tests/data/markdown/spec/LICENSE:1`
+- [x] `markdown_known_bugs.rs` with the two stage-1 tests of the `catalogue` check. The third test is
   written now and marked `#[ignore]` until stage 3. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
 
 ### 2. the engine is chosen by the catalogue, and the rules are written
@@ -418,19 +428,45 @@ end, then runs `bun nv proofs --id` for each member.
 
 ### State
 
-Written by the interactive session of 2026-11-06, after the research of that day (see *Why*). Nothing
-of it is built.
+Stage 1 is done. `tests/data/markdown/known-bugs.toml` has 508 entries over all fourteen libraries,
+and no library has fewer than 21. The classes are 190 slow, 114 wrong-output, 72 crash, 48 url-scheme,
+26 deep-nesting, 19 markdown-injection, 17 attribute-injection, 12 xss and 10 output-blowup. The
+merge dropped 22 duplicates by class, direction and input. The spec texts are vendored unchanged:
+`commonmark-0.31.2.txt` with 652 examples and `gfm-0.29.txt` with 672, of which 2 are `disabled`.
+Each example starts with a line of 32 backticks and `example`, and a GFM one may add `table`,
+`strikethrough`, `autolink` or `tagfilter`. `→` in an example stands for a tab. The `catalogue`
+check is green: `cargo test --test markdown_known_bugs` runs two tests and ignores
+`every_known_bug_renders_as_the_catalogue_expects`, whose `outcome` stub stage 3 fills.
+
+Collectors' caveats, for stage 3 to judge as entries fail:
+- No `html` was checked against a renderer. Each came from an upstream test file pinned to a commit,
+  or from the spec. md4c's outputs were rewritten into cmark's format. Two entries are the least sure:
+  `pulldown-cmark-issue-398` (a blank line was added to its input) and `comrak-back-to-back-ranges`.
+- Some ReDoS and advisory inputs are built from the regex or the description, because no exploit
+  string was published: marked's CVE-2015-8854, GHSA-ch52, GHSA-7m7q and GHSA-wjmf, mistune's
+  CVE-2022-34749, and Turndown's issues 501, 505, 429 and 58. They still hold a linear bound.
+- An exploit with two parts that grow together, such as `[` n times then `]` n times, is approximated
+  by one `repeat` and a fixed `suffix`.
+- Four from-html `url-scheme` entries cite the converters' link code, pinned to a commit, because
+  neither library has a report about it.
 
 ### Next
 
-**Stage 1**, over `tests/data/markdown/` and one new Rust test; no gate.
+**Stage 2**, a measurement in `.agent-tmp/markdown-engine/` and then the four rules; no gate.
 
-- [ ] The catalogue. `tests/data/markdown/known-bugs.toml:1`
-- [ ] The spec examples. `tests/data/markdown/spec/LICENSE:1`
-- [ ] `markdown_known_bugs.rs`. `crates/nvs-stdlib/tests/markdown_known_bugs.rs:1`
+- [ ] Measure both candidates. `docs/rules/core-classes/markdown-to-html.md:1`
+- [ ] The engine in the workspace dependencies (decision 4). `Cargo.toml:1034`
+- [ ] The four rules of decision 11. `docs/rules/core-classes/markdown-to-html.md:1`
+- [ ] `html-sanitize` names `Core\Markdown`. `docs/rules/core-classes/html-sanitize.md:1`
+- [ ] The rendered-readmes Declined entry. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:61`
+
+No test is expected to go red. The catalogue test stays ignored until stage 3.
 
 ### Backlog
 
 - Front matter (`---` YAML at the top) is common in content sites. Once `Core` reads YAML, a member
   that returns it is a candidate for a later goal.
 - AST editing (decision 1) is out of scope for this goal.
+- A second growing part for a catalogue entry (`close`, written n times before `suffix`) would turn
+  the approximated two-part exploits back into the originals: cmark's CVE-2023-24824 and
+  CVE-2023-22483, md4c's issue 172, and comrak's GHSA-j7hq-qg5v-47jq, which was left out.

@@ -1,0 +1,4958 @@
+# The known-bug catalogue of the `markdown` goal: bugs that major Markdown libraries shipped, each
+# one a case `Core\Markdown` must pass. `crates/nvs-stdlib/tests/markdown_known_bugs.rs` reads this
+# file, holds its shape, and fails naming each entry that does not render as expected.
+#
+# Every entry is one `[[bug]]` table:
+#
+#   id          unique lowercase slug, starting with the library's
+#   library     the library that shipped the bug, one of the fourteen the test lists
+#   source      the public advisory, CVE, issue, pull request or pinned test file that records it
+#   class       slow | output-blowup | deep-nesting | crash | xss | url-scheme |
+#               attribute-injection | wrong-output | markdown-injection
+#   direction   to-html (Markdown in) or from-html (HTML in)
+#   input       the minimal input
+#   repeat      optional: a unit written n times after `input`; the test picks n
+#   suffix      optional: written after the repeats
+#
+# and exactly one expectation:
+#
+#   html            the exact HTML; for from-html, the HTML the produced Markdown renders to
+#   html_lacks      substrings the HTML never contains
+#   markdown        the exact Markdown
+#   markdown_lacks  substrings the Markdown never contains
+#   work            "linear": work grows linearly with n
+#   output          "bounded": output is at most the input's length plus 64 KiB
+#
+# `html_lacks` stands where the exact HTML depends on the sanitizer's rebuild, which the goal's
+# stage 2 writes into the rules; stage 3 may turn one into an exact `html`. Every string is a TOML
+# basic string, so a control character is written as an escape.
+
+[[bug]]
+id = "cmark-path-emph-closers-no-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "a_ "
+work = "linear"
+
+[[bug]]
+id = "cmark-path-emph-openers-no-closers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "_a "
+work = "linear"
+
+[[bug]]
+id = "cmark-path-link-closers-no-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "a]"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-link-openers-no-closers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-mismatched-openers-closers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*a_ "
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-178-openers-closers-multiple-of-3"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/178"
+class = "slow"
+direction = "to-html"
+input = "a**b"
+repeat = "c* "
+work = "linear"
+
+[[bug]]
+id = "cmark-path-link-openers-emph-closers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[ a_"
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-285-broken-link-titles"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/285"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[ (]("
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-218-unclosed-pointy-links"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/218"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a](<b"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-unclosed-links-b"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a](b"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-image-bracket-link"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "![[]()"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-nested-strong-emph"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*a **a "
+suffix = "b"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-nested-inlines"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*"
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-284-broken-thematic-break"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/284"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "* "
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-299-cdata-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/299"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "a <![CDATA["
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-379-processing-instruction-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/379"
+class = "slow"
+direction = "to-html"
+input = "a"
+repeat = "<?"
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-379-declaration-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/379"
+class = "slow"
+direction = "to-html"
+input = "a"
+repeat = "<!D "
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-457-html-comment-openers"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/457"
+class = "slow"
+direction = "to-html"
+input = "a"
+repeat = "<!--"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-nested-brackets"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "["
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-nested-block-quotes"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "> "
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-empty-lines-nested-lists"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "- "
+suffix = "x\n\n\n\n\n\n\n\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-issue-357-reference-output-growth"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/357"
+class = "output-blowup"
+direction = "to-html"
+input = "[x]: /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n"
+repeat = "[x] "
+output = "bounded"
+
+[[bug]]
+id = "cmark-issue-9-list-item-indented-code-uaf"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/9"
+class = "crash"
+direction = "to-html"
+input = "*     a\n"
+html = "<ul>\n<li>\n<pre><code>a\n</code></pre>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "cmark-issue-81-empty-link-null-deref"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/81"
+class = "crash"
+direction = "to-html"
+input = "[]()\n"
+html = "<p><a href=\"\"></a></p>\n"
+
+[[bug]]
+id = "cmark-issue-82-heading-nul-heap-overflow"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/82"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "# 000000[0\u0000\u000000000000000000000\u00000\u0000000000000](p0000\\\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-path-nul-in-input"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/pathological_tests.py"
+class = "crash"
+direction = "to-html"
+input = "abc\u0000de\u0000"
+html = "<p>abc\uFFFDde\uFFFD</p>\n"
+
+[[bug]]
+id = "cmark-issue-59-hard-link-emph"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/issues/59"
+class = "wrong-output"
+direction = "to-html"
+input = "**x [a*b**c*](d)"
+html = "<p>**x <a href=\"d\">a<em>b**c</em></a></p>\n"
+
+[[bug]]
+id = "cmark-reg-113-cr-cr-lf"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "line1\r\r\nline2\n"
+html = "<p>line1</p>\n<p>line2</p>\n"
+
+[[bug]]
+id = "cmark-reg-177-emphasis"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "a***b* c*\n"
+html = "<p>a*<em><em>b</em> c</em></p>\n"
+
+[[bug]]
+id = "cmark-reg-530-link-corner-cases"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](\\ b)\n\n[a](<<b)\n\n[a](<b\n)\n"
+html = "<p>[a](\\ b)</p>\n<p>[a](&lt;&lt;b)</p>\n<p>[a](&lt;b\n)</p>\n"
+
+[[bug]]
+id = "cmark-reg-289-pointy-destination"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](<b) c>\n"
+html = "<p>[a](&lt;b) c&gt;</p>\n"
+
+[[bug]]
+id = "cmark-reg-383-emphasis"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "*****Hello*world****\n"
+html = "<p>**<em><strong>Hello<em>world</em></strong></em></p>\n"
+
+[[bug]]
+id = "cmark-reg-424-emphasis-before-link"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "*text* [link](#section)\n"
+html = "<p><em>text</em> <a href=\"#section\">link</a></p>\n"
+
+[[bug]]
+id = "cmark-reg-607-unterminated-title"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[f]: z \"\\\"\n\n[f]\n"
+html = "<p>[f]: z &quot;&quot;</p>\n<p>[f]</p>\n"
+
+[[bug]]
+id = "cmark-reg-608-empty-item-then-break"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "-\n  ---\n\n  b\n"
+html = "<ul>\n<li>\n<hr />\n<p>b</p>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "cmark-reg-468-title-trailing-garbage"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[bla]: /bla\n\"The title\" garbage\n[bla]\n"
+html = "<p>&quot;The title&quot; garbage\n<a href=\"/bla\">bla</a></p>\n"
+
+[[bug]]
+id = "cmark-reg-619-break-after-definition"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[f]:r\n---\n"
+html = "<hr />\n"
+
+[[bug]]
+id = "cmark-reg-pointy-destination-backslash-newline"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](<b\\\nc>)\n"
+html = "<p>[a](&lt;b<br />\nc&gt;)</p>\n"
+
+[[bug]]
+id = "cmark-reg-single-pass-escape-entity-decoding"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](\\&copy; \"\\&copy;\")\n\n[b](&#92;&#42;)\n"
+html = "<p><a href=\"&amp;copy;\" title=\"&amp;copy;\">a</a></p>\n<p><a href=\"%5C*\">b</a></p>\n"
+
+[[bug]]
+id = "cmark-reg-655-definition-only-item"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "- [r]:x\n\n \n  l\n"
+html = "<ul>\n<li>l</li>\n</ul>\n"
+
+[[bug]]
+id = "cmark-reg-548-noncharacter-entities"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "(&#xFFFE;&#xFFFF;)\n"
+html = "<p>(\uFFFE\uFFFF)</p>\n"
+
+[[bug]]
+id = "cmark-reg-underscore-delimiter-pairs"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "__!_!__\n\n__!x!__\n\n**!*!**\n\n---\n\n_*__*_*\n\n_*xx*_*\n\n_*__-_-\n\n_*xx-_-\n"
+html = "<p><strong>!_!</strong></p>\n<p><strong>!x!</strong></p>\n<p><strong>!*!</strong></p>\n<hr />\n<p><em><em>__</em></em>*</p>\n<p><em><em>xx</em></em>*</p>\n<p><em>*__-</em>-</p>\n<p><em>*xx-</em>-</p>\n"
+
+[[bug]]
+id = "cmark-api-safe-javascript-mixed-case"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/api_test/main.c"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](JAVAscript:alert('hi'))\n"
+html_lacks = ["JAVAscript:", "javascript:"]
+
+[[bug]]
+id = "cmark-api-safe-file-image"
+library = "cmark"
+source = "https://github.com/commonmark/cmark/blob/dfd5bdd53a0a75089f22205bc80f18ebd4fe7b2d/api_test/main.c"
+class = "url-scheme"
+direction = "to-html"
+input = "![image](file:my.js)\n"
+html_lacks = ["file:"]
+
+[[bug]]
+id = "cmark-gfm-cve-2023-37463-footnote-definitions"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-w4qg-3vf7-m9x5"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[^1]:"
+suffix = "\n\n\n\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-37463-table-row-padding"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-w4qg-3vf7-m9x5"
+class = "output-blowup"
+direction = "to-html"
+input = "|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|\n|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|\n"
+repeat = "a\n"
+output = "bounded"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-26485-underscore-runs"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-r8vr-c48j-fcc5"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "_"
+suffix = "._"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-24824-emph-in-deep-blockquote"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-66g8-4hjf-77xh"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = ">"
+suffix = "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-24824-nested-list-blank-lines"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-66g8-4hjf-77xh"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = " -"
+suffix = "x\n\n\n\n\n\n\n\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22486-image-bracket-link"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-r572-jvj2-3m8p"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "![[]() "
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22485-validate-protocol-oob"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-c944-cv5f-hpvr"
+class = "crash"
+direction = "to-html"
+input = "to:person@example.com\n"
+html = "<p>to:<a href=\"mailto:person@example.com\">person@example.com</a></p>\n"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22484-unclosed-comments"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-24f7-9frr-5h2r"
+class = "slow"
+direction = "to-html"
+input = "</"
+repeat = "<!--"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-processing-instructions-in-item"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = "-1"
+repeat = "<?x"
+suffix = "y"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-table-in-quote-rows"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "|-\nt>|-\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-table-many-pipes"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = "x\n| - |\n"
+repeat = "|"
+suffix = "y"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-autolink-www-underscore"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "z_www."
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-reference-title-lines"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = "[f]:u\n\"\n"
+repeat = "[f]\n"
+suffix = "[f]:u \"t\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-autolink-closing-parens"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = "www."
+repeat = ")"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-table-colon-lines"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = ":-\n"
+repeat = ":\n"
+suffix = ":-\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-unclosed-autolinks"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "<http://s"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-strikethrough-closers"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "slow"
+direction = "to-html"
+input = "~e"
+repeat = ",z~~"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2023-22483-deep-quote-dots"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-29g3-96g3-jg6c"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = ">"
+suffix = "................................................................"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2022-39209-unclosed-images-autolink"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-cgh3-p57x-9q7q"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "![l"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2022-24724-table-column-overflow"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-mc3g-88wq-6f4x"
+class = "crash"
+direction = "to-html"
+input = "a\n"
+repeat = "|-"
+suffix = "|\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-cve-2020-5238-table-rows"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/security/advisories/GHSA-7gc6-9qr5-hc85"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "aaa\rbbb\n-\u000B\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-pr-128-table-buffer-overread"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/pull/128"
+class = "crash"
+direction = "to-html"
+input = "|\n-|\n"
+html = "<p>|\n-|</p>\n"
+
+[[bug]]
+id = "cmark-gfm-ext-table-odd-marker-assert"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/extensions.txt"
+class = "crash"
+direction = "to-html"
+input = "| a |\n--- |\n"
+html = "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n</table>\n"
+
+[[bug]]
+id = "cmark-gfm-ext-strikethrough-delimiter-buffer"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/extensions.txt"
+class = "crash"
+direction = "to-html"
+input = "a "
+repeat = "~"
+suffix = "striked~"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-ext-autolink-underscore-email-crash"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/extensions.txt"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "(_A_@_.A\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-pr-125-autolink-recursion"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/pull/125"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "a@b.co "
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-reg-footnote-strikethrough-uaf-table"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/regression.txt"
+class = "crash"
+direction = "to-html"
+input = "|Tot.....[^_a_]|\n"
+html = "<p>|Tot.....[^_a_]|</p>\n"
+
+[[bug]]
+id = "cmark-gfm-reg-footnote-strikethrough-uaf-label"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/regression.txt"
+class = "crash"
+direction = "to-html"
+input = "[^~~is~~1]\n"
+html = "<p>[^~~is~~1]</p>\n"
+
+[[bug]]
+id = "cmark-gfm-reg-adjacent-unused-footnotes-uaf"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/regression.txt"
+class = "crash"
+direction = "to-html"
+input = "Hello world\n\n\n[^a]:[^b]:\n"
+html = "<p>Hello world</p>\n"
+
+[[bug]]
+id = "cmark-gfm-issue-241-list-in-footnote-crash"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/issues/241"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "[^1]\n[^1]: - list\n\n"
+work = "linear"
+
+[[bug]]
+id = "cmark-gfm-ext-footnote-label-script"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/extensions.txt"
+class = "attribute-injection"
+direction = "to-html"
+input = "Hello[^\"><script>alert(1)</script>]\n\n[^\"><script>alert(1)</script>]: pwned\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "cmark-gfm-ext-tagfilter"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/extensions.txt"
+class = "xss"
+direction = "to-html"
+input = "a <script>alert(1)</script> <textarea> <xmp> <iframe src=\"https://example.com\">\n"
+html_lacks = ["<script", "<textarea", "<xmp", "<iframe"]
+
+[[bug]]
+id = "cmark-gfm-reg-strikethrough-strong-emph-code"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "~~**_`this`_**~~\n"
+html = "<p><del><strong><em><code>this</code></em></strong></del></p>\n"
+
+[[bug]]
+id = "cmark-gfm-reg-tilde-in-href"
+library = "cmark-gfm"
+source = "https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[x](http://members.aon.at/~nkehrer/ibm_5110/emu5110.html)\n"
+html = "<p><a href=\"http://members.aon.at/~nkehrer/ibm_5110/emu5110.html\">x</a></p>\n"
+
+[[bug]]
+id = "commonmark-js-issue-157-bracket-backslashes"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/issues/157"
+class = "slow"
+direction = "to-html"
+input = "["
+repeat = "\\"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-test-backslashes-unclosed-title"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "slow"
+direction = "to-html"
+input = "[test](\\url \""
+repeat = "\\"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-issue-172-emphasis-quadratic"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/issues/172"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*_* _ "
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-test-link-openers-emph-closers"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[ a_ "
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-test-link-closers-no-openers"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "a] "
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-test-link-openers-no-closers"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a "
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-pr-295-whitespace-trim-regex"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/pull/295"
+class = "slow"
+direction = "to-html"
+input = "a"
+repeat = " "
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-issue-160-nested-lists"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/issues/160"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "- "
+suffix = "a\n"
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-test-nested-block-quotes"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "> "
+suffix = "a\n"
+work = "linear"
+
+[[bug]]
+id = "commonmark-js-safe-javascript-link"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](javascript:alert(1))\n"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "commonmark-js-safe-uppercase-javascript-link"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](JAVASCRIPT:alert(1))\n"
+html_lacks = ["JAVASCRIPT:", "javascript:"]
+
+[[bug]]
+id = "commonmark-js-safe-vbscript-link"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](vbscript:msgbox(1))\n"
+html_lacks = ["vbscript:"]
+
+[[bug]]
+id = "commonmark-js-safe-file-link"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](file:///etc/passwd)\n"
+html_lacks = ["file:"]
+
+[[bug]]
+id = "commonmark-js-safe-data-html-image"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/test.js"
+class = "url-scheme"
+direction = "to-html"
+input = "![img](data:text/html,x)\n"
+html_lacks = ["data:text/html"]
+
+[[bug]]
+id = "commonmark-js-reg-double-encoded-colon"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "url-scheme"
+direction = "to-html"
+input = "[XSS](javascript&amp;colon;alert%28&#039;XSS&#039;%29)\n"
+html_lacks = ["href=\"javascript:", "href=\"javascript&colon;"]
+
+[[bug]]
+id = "commonmark-js-reg-partial-tab-continuation"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "* foo\n\tbar\n"
+html = "<ul>\n<li>foo\nbar</li>\n</ul>\n"
+
+[[bug]]
+id = "commonmark-js-reg-109-setext-trailing-tab"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "hi\n--\t\n"
+html = "<h2>hi</h2>\n"
+
+[[bug]]
+id = "commonmark-js-reg-108-cjk-punctuation"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "**\u3002**\u8BDD\n"
+html = "<p>**\u3002**\u8BDD</p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-backslash-end-of-label"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[\\]: test\n"
+html = "<p>[]: test</p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-121-ascii-punctuation-flanking"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "^_test_\n"
+html = "<p>^<em>test</em></p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-116-atx-closing-tabs"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "# foo\t#\t\n"
+html = "<h1>foo</h1>\n"
+
+[[bug]]
+id = "commonmark-js-reg-escaped-space-in-destination"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[link](a\\ b)\n"
+html = "<p>[link](a\\ b)</p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-161-hard-break-after-emphasis"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "*failed to be italic!*\\\ntext\n"
+html = "<p><em>failed to be italic!</em><br />\ntext</p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-211-backslash-newline-label"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[\\\nfoo]: /uri\n\n[\\\nfoo]\n"
+html = "<p><a href=\"/uri\"><br />\nfoo</a></p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-label-whitespace-collapse"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[foo][one two\n  three]\n\n[one two three]: /url \"title\"\n"
+html = "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-258-closing-fence-trailing-spaces"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "```\nabc\n```     \n"
+html = "<pre><code>abc\n</code></pre>\n"
+
+[[bug]]
+id = "commonmark-js-reg-277-language-prefix"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "```language-r\nx <- 1\n```\n"
+html = "<pre><code class=\"language-r\">x &lt;- 1\n</code></pre>\n"
+
+[[bug]]
+id = "commonmark-js-reg-278-legacy-entity-prefix"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "&parag;\n\n&para\n\n&para;\n"
+html = "<p>&amp;parag;</p>\n<p>&amp;para</p>\n<p>\u00B6</p>\n"
+
+[[bug]]
+id = "commonmark-js-reg-281-quotes-after-definition"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/blob/898886961b49c1df1175666d03c3ac66c9cc9040/test/regression.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[test]:example\n\"\"third [test]\n"
+html = "<p>&quot;&quot;third <a href=\"example\">test</a></p>\n"
+
+[[bug]]
+id = "commonmark-js-pr-179-percent-encoded-destination"
+library = "commonmark.js"
+source = "https://github.com/commonmark/commonmark.js/pull/179"
+class = "wrong-output"
+direction = "to-html"
+input = "[link](https://www.example.com/home/%25batty)\n"
+html = "<p><a href=\"https://www.example.com/home/%25batty\">link</a></p>\n"
+
+[[bug]]
+id = "md4c-issue-63-triple-emph-openers"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/63"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "a***"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-many-links"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[t](/u) "
+work = "linear"
+
+[[bug]]
+id = "md4c-path-images-with-brackets-in-urls"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[![img](url[)]() "
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-57-html-openers-closers"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/57"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "<>"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-processing-instruction-openers"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "slow"
+direction = "to-html"
+input = "x"
+repeat = "<?"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-73-cdata-openers"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/73"
+class = "slow"
+direction = "to-html"
+input = "x"
+repeat = "<![CDATA["
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-59-backticks-and-escapes"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/59"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "\\``"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-broken-www-autolinks"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "www._"
+suffix = "x"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-236-many-broken-links"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/236"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "]([\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-many-invalid-autolinks"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "www.xx.xx#("
+suffix = "[x]()"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-172-reference-lookup-brackets"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/172"
+class = "slow"
+direction = "to-html"
+input = "[x]: /foo\n\n"
+repeat = "["
+suffix = "x]"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-nested-footnote-references"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "deep-nesting"
+direction = "to-html"
+input = "[^na]:\n\n"
+repeat = "[^"
+suffix = "x"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-implicit-nested-blocks-blank-lines"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "- "
+suffix = "x\n\n  \n\n  \n\n  \n"
+work = "linear"
+
+[[bug]]
+id = "md4c-path-link-ref-instantiations"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/pathological-tests.py"
+class = "output-blowup"
+direction = "to-html"
+input = "[x]: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+repeat = "\n[x]"
+output = "bounded"
+
+[[bug]]
+id = "md4c-issue-345-table-implicit-cells"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/345"
+class = "output-blowup"
+direction = "to-html"
+input = "x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x\n-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|\n"
+repeat = "x\n"
+output = "bounded"
+
+[[bug]]
+id = "md4c-issue-65-lone-backtick"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/65"
+class = "crash"
+direction = "to-html"
+input = "`\n"
+html = "<p>`</p>\n"
+
+[[bug]]
+id = "md4c-issue-74-definition-list-code"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/74"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "[f]:\n-\n    xx\n-\n\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-33-fence-info-entities-overflow"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/33"
+class = "crash"
+direction = "to-html"
+input = "```&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;\n"
+html = "<pre><code class=\"language-&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;\"></code></pre>\n"
+
+[[bug]]
+id = "md4c-issue-47-entity-after-www-autolink"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/47"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "www.x.y&&y&&&y&&&&y&&y&&\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-51-table-cell-pipe-definitions"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/51"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "[|]: u\n\n[|]: u\n---|\n\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-212-table-cell-link-assert"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/212"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "x\n|-\n|[*x*]()\n\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-issue-259-table-cell-emph-link"
+library = "md4c"
+source = "https://github.com/mity/md4c/issues/259"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "| [*A*](B) |\n| - |\n\n"
+work = "linear"
+
+[[bug]]
+id = "md4c-pr-376-image-alt-raw-html"
+library = "md4c"
+source = "https://github.com/mity/md4c/pull/376"
+class = "attribute-injection"
+direction = "to-html"
+input = "![<x title=\" y\" onerror=\"alert(1)\">](/url)\n"
+html_lacks = ["onerror=\"", "\" y\""]
+
+[[bug]]
+id = "md4c-reg-4-image-alt-entity"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "![alt text with *entity* &copy;](img.png 'title')\n"
+html = "<p><img src=\"img.png\" alt=\"alt text with entity \u00A9\" title=\"title\" /></p>\n"
+
+[[bug]]
+id = "md4c-reg-11-entity-in-title"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "x [link](/url \"foo &ndash; bar\") x\n"
+html = "<p>x <a href=\"/url\" title=\"foo \u2013 bar\">link</a> x</p>\n"
+
+[[bug]]
+id = "md4c-reg-15-emphasis"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "***b* c*\n"
+html = "<p>*<em><em>b</em> c</em></p>\n"
+
+[[bug]]
+id = "md4c-reg-21-emphasis"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "a*b**c*\n"
+html = "<p>a<em>b**c</em></p>\n"
+
+[[bug]]
+id = "md4c-reg-36-underscore-emphasis"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "__x_ _x___\n"
+html = "<p><em><em>x</em> <em>x</em></em>_</p>\n"
+
+[[bug]]
+id = "md4c-reg-40-multiline-title"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[x](url\n'title'\n)x\n"
+html = "<p><a href=\"url\" title=\"title\">x</a>x</p>\n"
+
+[[bug]]
+id = "md4c-reg-78-sharp-s-case-fold"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[SS \u1E9E]: /url\n[\u1E9E SS]\n"
+html = "<p><a href=\"/url\">\u1E9E SS</a></p>\n"
+
+[[bug]]
+id = "md4c-reg-83-empty-blockquote-after-paragraph"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "foo\n>\n"
+html = "<p>foo</p>\n<blockquote>\n</blockquote>\n"
+
+[[bug]]
+id = "md4c-reg-96-reference-label-prefix"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[ab]: /foo\n[a] [ab] [abc]\n"
+html = "<p>[a] <a href=\"/foo\">ab</a> [abc]</p>\n"
+
+[[bug]]
+id = "md4c-reg-97-emphasis"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "*a **b c* d**\n"
+html = "<p><em>a <em><em>b c</em> d</em></em></p>\n"
+
+[[bug]]
+id = "md4c-reg-107-emphasis"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "***foo *bar baz***\n"
+html = "<p>*<strong>foo <em>bar baz</em></strong></p>\n"
+
+[[bug]]
+id = "md4c-reg-124-tilde-fence-deep-indent"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "~~~\n                x\n~~~\n\n~~~\n                 x\n~~~\n"
+html = "<pre><code>                x\n</code></pre>\n<pre><code>                 x\n</code></pre>\n"
+
+[[bug]]
+id = "md4c-reg-131-image-in-reference-link"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[![alt][img]][link]\n\n[img]: img_url\n[link]: link_url\n"
+html = "<p><a href=\"link_url\"><img src=\"img_url\" alt=\"alt\" /></a></p>\n"
+
+[[bug]]
+id = "md4c-reg-142-ligature-case-fold"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[foo\uFB17]: /url\n[foo\uFB15]\n"
+html = "<p>[foo\uFB15]</p>\n"
+
+[[bug]]
+id = "md4c-reg-190-empty-item-then-code"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "-\n\n    foo\n"
+html = "<ul>\n<li></li>\n</ul>\n<pre><code>foo\n</code></pre>\n"
+
+[[bug]]
+id = "md4c-reg-201-lazy-indented-fence"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "foo\n    ```\n    bar\n    ```\n"
+html = "<p>foo\n<code>bar</code></p>\n"
+
+[[bug]]
+id = "md4c-reg-210-nested-image-alt"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "![outer ![inner](img_inner \"inner title\")](img_outer \"outer title\")\n"
+html = "<p><img src=\"img_outer\" alt=\"outer inner\" title=\"outer title\" /></p>\n"
+
+[[bug]]
+id = "md4c-reg-222-single-tilde-strikethrough"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "~foo ~bar baz~\n"
+html = "<p>~foo <del>bar baz</del></p>\n"
+
+[[bug]]
+id = "md4c-reg-223-code-span-leading-newline"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "`\nfoo`\n"
+html = "<p><code> foo</code></p>\n"
+
+[[bug]]
+id = "md4c-reg-271-code-span-in-list-item"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "* `\n  foo\n  ` bar\n"
+html = "<ul>\n<li><code>foo</code>\nbar</li>\n</ul>\n"
+
+[[bug]]
+id = "md4c-reg-292-closing-fence-trailing-tab"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "```\nfoo\n```\t\nbar\n"
+html = "<pre><code>foo\n</code></pre>\n<p>bar</p>\n"
+
+[[bug]]
+id = "md4c-reg-413-item-break-blank-paragraph"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "-\n  ---\n\n  foo bar\n"
+html = "<ul>\n<li>\n<hr />\n<p>foo bar</p>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "md4c-reg-414-break-after-stripped-definition"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[foo]:bar\n---\nbaz\n"
+html = "<hr />\n<p>baz</p>\n"
+
+[[bug]]
+id = "md4c-pr-325-surrogate-references"
+library = "md4c"
+source = "https://github.com/mity/md4c/pull/325"
+class = "wrong-output"
+direction = "to-html"
+input = "&#xD800; &#xDFFF; &#55296; &#57343;\n"
+html = "<p>\uFFFD \uFFFD \uFFFD \uFFFD</p>\n"
+
+[[bug]]
+id = "md4c-reg-367-bracket-in-image-destination"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[![img](url[)]()\n"
+html = "<p><a href=\"\"><img src=\"url%5B\" alt=\"img\" /></a></p>\n"
+
+[[bug]]
+id = "md4c-reg-367-bracket-in-link-destination"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[[link](url[)](/outer)\n"
+html = "<p>[<a href=\"url%5B\">link</a>](/outer)</p>\n"
+
+[[bug]]
+id = "md4c-reg-full-reference-label-spans"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "[a][*b] c*\n\n[*b]: /url\n"
+html = "<p><a href=\"/url\">a</a> c*</p>\n"
+
+[[bug]]
+id = "md4c-reg-435-lowercase-cdata"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "<![cdata[ text ]]>\n"
+html = "<p>&lt;![cdata[ text ]]&gt;</p>\n"
+
+[[bug]]
+id = "md4c-reg-two-blank-lines-in-item"
+library = "md4c"
+source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259ed1a/test/regressions.txt"
+class = "wrong-output"
+direction = "to-html"
+input = "\n\n- a\n\n\n  b\n"
+html = "<ul>\n<li>\n<p>a</p>\n<p>b</p>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "md4c-pr-443-del-ends-destination"
+library = "md4c"
+source = "https://github.com/mity/md4c/pull/443"
+class = "wrong-output"
+direction = "to-html"
+input = "[a](b\u007Fc)\n"
+html = "<p>[a](b\u007Fc)</p>\n"
+
+[[bug]]
+id = "markdown-it-cve-2022-21670-newline"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-6vfc-qv3f-vr6c"
+class = "slow"
+direction = "to-html"
+input = "x "
+repeat = " "
+suffix = "x  \nx"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111766-comment"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-vfgh-jcmw-g37q"
+class = "slow"
+direction = "to-html"
+input = "x <!--"
+repeat = "<!--"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111766-processing"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-vfgh-jcmw-g37q"
+class = "slow"
+direction = "to-html"
+input = "x <?x"
+repeat = "<?x"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111766-declaration"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-vfgh-jcmw-g37q"
+class = "slow"
+direction = "to-html"
+input = "x <!A"
+repeat = "<!A"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111766-cdata"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-vfgh-jcmw-g37q"
+class = "slow"
+direction = "to-html"
+input = "x <![CDATA["
+repeat = "<![CDATA["
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-close-then-comments"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "</<!--"
+repeat = "<!--"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2015-10005-cdata"
+library = "markdown-it"
+source = "https://github.com/advisories/GHSA-j5p7-jf4q-742q"
+class = "slow"
+direction = "to-html"
+input = "x <![CDATA[a"
+repeat = "a"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111758-ref-title"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-gfr2-rv44-r23c"
+class = "slow"
+direction = "to-html"
+input = "[a]: /u \""
+repeat = "x\n"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-111758-ref-label"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-gfr2-rv44-r23c"
+class = "slow"
+direction = "to-html"
+input = "[a\n"
+repeat = "a\n"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-48988-smartquotes"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-6v5v-wf23-fmfq"
+class = "slow"
+direction = "to-html"
+input = "\""
+repeat = "\""
+work = "linear"
+
+[[bug]]
+id = "markdown-it-ghsa-253c-linkify-emails"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-253c-mchw-3w2r"
+class = "slow"
+direction = "to-html"
+input = "ping a@b.co ok\n"
+repeat = "ping a@b.co ok\n"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-ghsa-253c-linkify-schemes"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/security/advisories/GHSA-253c-mchw-3w2r"
+class = "slow"
+direction = "to-html"
+input = "a://"
+repeat = "a://"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-cve-2026-2327-linkify-asterisks"
+library = "markdown-it"
+source = "https://github.com/advisories/GHSA-38c4-r59v-3vqw"
+class = "slow"
+direction = "to-html"
+input = "https://test.com?"
+repeat = "*"
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-issue-1000-table-padding"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/issues/1000"
+class = "output-blowup"
+direction = "to-html"
+input = "x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|\n-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|\n"
+repeat = "x|\n"
+output = "bounded"
+
+[[bug]]
+id = "markdown-it-issue-742-tilde-crash"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/issues/742"
+class = "crash"
+direction = "to-html"
+input = "-~~~~;~~~~~~"
+html = "<p>-~~~~;~~~~~~</p>\n"
+
+[[bug]]
+id = "markdown-it-issue-1201-label-code-span"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/issues/1201"
+class = "wrong-output"
+direction = "to-html"
+input = "[foo `bar` baz`"
+html = "<p>[foo <code>bar</code> baz`</p>\n"
+
+[[bug]]
+id = "markdown-it-pathological-nested-inlines"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "**"
+repeat = "*"
+suffix = "a**********"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-nested-strong-emph"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "*a **a "
+repeat = "*a **a "
+suffix = "b a** a*"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-emph-closers"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "a_ "
+repeat = "a_ "
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-emph-openers"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "_a "
+repeat = "_a "
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-link-closers"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "a]"
+repeat = "a]"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-link-openers"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "[a"
+repeat = "[a"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-mismatched-emph"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "*a_ "
+repeat = "*a_ "
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-cmark-389"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "*a "
+repeat = "*a "
+suffix = "_a*_ _a*_ _a*_ _a*_ "
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-link-openers-emph-closers"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "[ a_"
+repeat = "[ a_"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-bracket-paren"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "[ (]("
+repeat = "[ (]("
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-image-brackets"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "![[]()"
+repeat = "![[]()"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-nested-brackets"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "deep-nesting"
+direction = "to-html"
+input = "[["
+repeat = "["
+suffix = "a]]]]]]]]]]"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-nested-blockquotes"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "deep-nesting"
+direction = "to-html"
+input = "> "
+repeat = "> "
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-nul"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "abc\u0000de\u0000"
+repeat = "abc\u0000de\u0000"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-unclosed-link-angle"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "[a](<b"
+repeat = "[a](<b"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-unclosed-link"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "[a](b"
+repeat = "[a](b"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-empty-lines-nested-lists"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "deep-nesting"
+direction = "to-html"
+input = "- "
+repeat = "- "
+suffix = "x\n\n\n\n\n\n\n\n"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-empty-lines-lists-in-quote"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "deep-nesting"
+direction = "to-html"
+input = "> - "
+repeat = "- "
+suffix = "x\n>\n>\n>\n>\n"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-emph-in-deep-quote"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "deep-nesting"
+direction = "to-html"
+input = ">>"
+repeat = ">"
+suffix = "a*a*a*a*a*a*a*a*"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-emph-underscore-star"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "**_* "
+repeat = "**_* "
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-backtick-escape"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "``\\"
+repeat = "``\\"
+work = "linear"
+
+[[bug]]
+id = "markdown-it-pathological-autolink-angles"
+library = "markdown-it"
+source = "https://github.com/markdown-it/markdown-it/blob/a8c00d474ec9b304fad9b71c16d6fa8b4909279e/test/markdown-it/pathological.test.mjs"
+class = "slow"
+direction = "to-html"
+input = "<<"
+repeat = "<"
+suffix = ">"
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2026-41680-tab-vtab"
+library = "marked"
+source = "https://github.com/markedjs/marked/security/advisories/GHSA-6v9c-7cg6-27q7"
+class = "crash"
+direction = "to-html"
+input = "\t\u000b\n"
+html = "<pre><code>\u000b\n</code></pre>\n"
+
+[[bug]]
+id = "marked-cve-2022-21680-block-def"
+library = "marked"
+source = "https://github.com/markedjs/marked/security/advisories/GHSA-rrrm-qjm4-v8hf"
+class = "slow"
+direction = "to-html"
+input = "[x]:"
+repeat = " "
+suffix = "x                                                                 x"
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2022-21681-reflink-search"
+library = "marked"
+source = "https://github.com/markedjs/marked/security/advisories/GHSA-5v2h-r2cx-5xgj"
+class = "slow"
+direction = "to-html"
+input = "[x]: x\n\n\\[\\]("
+repeat = "\\[\\]("
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2021-21306-underscore"
+library = "marked"
+source = "https://github.com/markedjs/marked/security/advisories/GHSA-4r62-v4vq-hr96"
+class = "slow"
+direction = "to-html"
+input = "_"
+repeat = "_"
+suffix = " a"
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2018-25110-html-attributes"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/redos_html_closing.md"
+class = "slow"
+direction = "to-html"
+input = "<tag "
+repeat = " \"\" "
+suffix = "<\" />a'a"
+work = "linear"
+
+[[bug]]
+id = "marked-ghsa-ch52-label-nolink"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/redos_nolink.md"
+class = "slow"
+direction = "to-html"
+input = "![\\[[]"
+repeat = "\\[[]"
+suffix = "!\\"
+work = "linear"
+
+[[bug]]
+id = "marked-ghsa-7m7q-parens-in-links"
+library = "marked"
+source = "https://github.com/advisories/GHSA-7m7q-q53v-j47v"
+class = "slow"
+direction = "to-html"
+input = "[a](b(c)d)"
+repeat = " [a](b(c)d)"
+work = "linear"
+
+[[bug]]
+id = "marked-ghsa-xf5p-email-quadratic"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_email.cjs"
+class = "slow"
+direction = "to-html"
+input = "a"
+repeat = "a"
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2015-8854-em"
+library = "marked"
+source = "https://github.com/advisories/GHSA-hjcp-j389-59ff"
+class = "slow"
+direction = "to-html"
+input = "_a"
+repeat = "__"
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "marked-cve-2014-3743-fence-lang"
+library = "marked"
+source = "https://github.com/advisories/GHSA-9cw2-jqp5-7x39"
+class = "attribute-injection"
+direction = "to-html"
+input = "```\"><script>alert(1)</script>\nx\n```\n"
+html_lacks = ["\"><script>", "<script>"]
+
+[[bug]]
+id = "marked-cve-2014-3743-javascript-url"
+library = "marked"
+source = "https://github.com/advisories/GHSA-9cw2-jqp5-7x39"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](javascript:alert(1))"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "marked-cve-2016-10531-entity-colon"
+library = "marked"
+source = "https://github.com/advisories/GHSA-vfvf-mqq8-rwqc"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](javascript&#58;alert(1))"
+html_lacks = ["javascript:", "javascript&#58;"]
+
+[[bug]]
+id = "marked-ghsa-8wp3-uppercase-hex-entity"
+library = "marked"
+source = "https://github.com/advisories/GHSA-8wp3-cp9v-44fm"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](javascript&#X3A;alert(1))"
+html_lacks = ["javascript:", "javascript&#X3A;"]
+
+[[bug]]
+id = "marked-cve-2015-1370-vbscript"
+library = "marked"
+source = "https://github.com/advisories/GHSA-cfjh-p3g4-3q2f"
+class = "url-scheme"
+direction = "to-html"
+input = "[xss link](vbscript:alert(1&#41;)"
+html_lacks = ["vbscript:"]
+
+[[bug]]
+id = "marked-cve-2017-1000427-data-uri"
+library = "marked"
+source = "https://github.com/advisories/GHSA-7px7-7xjx-hxm8"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)"
+html_lacks = ["data:"]
+
+[[bug]]
+id = "marked-ghsa-wjmf-href-breakout"
+library = "marked"
+source = "https://github.com/advisories/GHSA-wjmf-58vc-xqjr"
+class = "attribute-injection"
+direction = "to-html"
+input = "[x](http://a.b/\"onmouseover=\"alert(1))"
+html_lacks = ["\"onmouseover=\""]
+
+[[bug]]
+id = "marked-issue-3896-image-alt"
+library = "marked"
+source = "https://github.com/markedjs/marked/pull/3896"
+class = "attribute-injection"
+direction = "to-html"
+input = "![x\" onerror=\"alert(1)](y.png)"
+html_lacks = ["\" onerror=\""]
+
+[[bug]]
+id = "marked-issue-3741-raw-iframe"
+library = "marked"
+source = "https://github.com/markedjs/marked/issues/3741"
+class = "xss"
+direction = "to-html"
+input = "<iframe src=\"\">"
+html_lacks = ["<iframe"]
+
+[[bug]]
+id = "marked-issue-1462-blockquote-recursion"
+library = "marked"
+source = "https://github.com/markedjs/marked/issues/1462"
+class = "deep-nesting"
+direction = "to-html"
+input = ">"
+repeat = ">"
+work = "linear"
+
+[[bug]]
+id = "marked-issue-97-nul-loop"
+library = "marked"
+source = "https://github.com/markedjs/marked/pull/97"
+class = "crash"
+direction = "to-html"
+input = "a\u0000b"
+html = "<p>a\ufffdb</p>\n"
+
+[[bug]]
+id = "marked-issue-3916-label-backticks"
+library = "marked"
+source = "https://github.com/markedjs/marked/issues/3916"
+class = "slow"
+direction = "to-html"
+input = "[``x`` "
+repeat = "``x`` "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-backticks-in-link-label"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/backticks_in_link_label.md"
+class = "slow"
+direction = "to-html"
+input = "[`"
+repeat = "`"
+suffix = "](https://example.com)"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-backticks-alternating-in-link"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/backticks_alternating_in_link.md"
+class = "slow"
+direction = "to-html"
+input = "[` a "
+repeat = "` a "
+suffix = "`](https://example.com)"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-cubic-link-title"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/cubic_link_title.cjs"
+class = "slow"
+direction = "to-html"
+input = "a[b](c"
+repeat = "a[b](c"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-cubic-link-nbsp"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/cubic_link_unicode_space.cjs"
+class = "slow"
+direction = "to-html"
+input = "[](\u00a0"
+repeat = "\u00a0"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-link-empty-href"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_link_empty_href.cjs"
+class = "slow"
+direction = "to-html"
+input = "[]( "
+repeat = " "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-quadratic-br"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_br.cjs"
+class = "slow"
+direction = "to-html"
+input = "a "
+repeat = " "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-em-mask-brackets"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_em_mask.cjs"
+class = "slow"
+direction = "to-html"
+input = "[.["
+repeat = "[."
+work = "linear"
+
+[[bug]]
+id = "marked-redos-em-mask-angles"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_em_mask.cjs"
+class = "slow"
+direction = "to-html"
+input = "<"
+repeat = "<"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-heading-spaces"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_heading.cjs"
+class = "slow"
+direction = "to-html"
+input = "# #"
+repeat = " "
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-html-block-close"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_html_block_close.cjs"
+class = "slow"
+direction = "to-html"
+input = "<!x "
+repeat = "a>"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-html-prefix-interrupt"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_html_prefix_interrupt.cjs"
+class = "slow"
+direction = "to-html"
+input = "a\n<prefix/>"
+repeat = "a\n<prefix/>"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-inline-masking-escapes"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_inline_masking.cjs"
+class = "slow"
+direction = "to-html"
+input = "\\."
+repeat = "\\."
+work = "linear"
+
+[[bug]]
+id = "marked-redos-inline-masking-code"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_inline_masking.cjs"
+class = "slow"
+direction = "to-html"
+input = "`x` "
+repeat = "`x` "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-inline-masking-reflinks"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_inline_masking.cjs"
+class = "slow"
+direction = "to-html"
+input = "[a]: x\n\n"
+repeat = "[a] "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-quadratic-lists"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_lists.cjs"
+class = "slow"
+direction = "to-html"
+input = "- a\n"
+repeat = "- a\n"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-nested-reflink-defs"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_nested_reflink_defs.cjs"
+class = "slow"
+direction = "to-html"
+input = "[id]: /u\n\n"
+repeat = "[[x]][id] "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-footnote-refs"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_footnote_defs.cjs"
+class = "slow"
+direction = "to-html"
+input = "[^a]: x\n\n"
+repeat = "[^a] "
+work = "linear"
+
+[[bug]]
+id = "marked-redos-reflink-search-escaped"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_reflink_search.cjs"
+class = "slow"
+direction = "to-html"
+input = "[\t\\["
+repeat = "\t\\["
+suffix = "["
+work = "linear"
+
+[[bug]]
+id = "marked-redos-tilde-paragraph-interrupt"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_tilde_paragraph_interrupt.cjs"
+class = "slow"
+direction = "to-html"
+input = "intro\n~~~"
+repeat = "~"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-unmatched-emphasis-list"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_unmatched_emphasis.cjs"
+class = "slow"
+direction = "to-html"
+input = "- *"
+repeat = "- *"
+work = "linear"
+
+[[bug]]
+id = "marked-redos-unmatched-emphasis-text"
+library = "marked"
+source = "https://github.com/markedjs/marked/blob/ba50aa95636ac8f97f46446bbfeb04592ed22216/test/specs/redos/quadratic_unmatched_emphasis.cjs"
+class = "slow"
+direction = "to-html"
+input = "*x *x "
+repeat = "*x *x "
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-qp42-emphasis-fixup"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qp42-r9j6-83g9"
+class = "slow"
+direction = "to-html"
+input = "*a_b"
+repeat = "*a_b"
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-qp42-emphasis-strong-fixup"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qp42-r9j6-83g9"
+class = "slow"
+direction = "to-html"
+input = "*a**b"
+repeat = "*a**b"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-97699-image-precedence"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-ww7q-mxrj-5ffg"
+class = "slow"
+direction = "to-html"
+input = "!["
+repeat = "!["
+suffix = "x]]]]]]]]"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-97698-empty-label-href"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-phmp-hrw4-r36r"
+class = "slow"
+direction = "to-html"
+input = "[]("
+repeat = "[]("
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-76098-emphasis-recursion"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-6m44-fpc8-c3rq"
+class = "deep-nesting"
+direction = "to-html"
+input = "*"
+repeat = "*"
+suffix = "a"
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-47p6-balanced-brackets"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-47p6-w2rc-5qf7"
+class = "slow"
+direction = "to-html"
+input = "["
+repeat = "["
+suffix = "x]]]]]]]]"
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-xrpv-unmatched-brackets"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-xrpv-r66x-8p7j"
+class = "slow"
+direction = "to-html"
+input = "[x["
+repeat = "["
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-xrpv-double-brackets"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-xrpv-r66x-8p7j"
+class = "slow"
+direction = "to-html"
+input = "[["
+repeat = "[["
+suffix = "]]]]"
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-3q64-bracket-then-missing-ref"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_inline.py"
+class = "slow"
+direction = "to-html"
+input = "[x"
+repeat = "["
+suffix = "x][missing]"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-59928-ref-defs"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-ffq3-xpv3-j92q"
+class = "slow"
+direction = "to-html"
+input = "[a]: u\n"
+repeat = "[a]: u\n"
+suffix = "[click][a]"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-59925-strong-pairs"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-4j32-57v6-6g45"
+class = "slow"
+direction = "to-html"
+input = "**x**"
+repeat = "**x**"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-59925-strong-emph-pairs"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-4j32-57v6-6g45"
+class = "slow"
+direction = "to-html"
+input = "***x***"
+repeat = "***x***"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-59922-strikethrough-pairs"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-c8j7-8cv4-2xmq"
+class = "slow"
+direction = "to-html"
+input = "~~x~~"
+repeat = "~~x~~"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2026-33079-link-title"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8mp2-v27r-99xp"
+class = "slow"
+direction = "to-html"
+input = "[x](y \""
+repeat = "\\!"
+suffix = ")"
+work = "linear"
+
+[[bug]]
+id = "mistune-cve-2022-34749-asterisk-backslashes"
+library = "mistune"
+source = "https://github.com/advisories/GHSA-fw3v-x4f2-v673"
+class = "slow"
+direction = "to-html"
+input = "**\\"
+repeat = "\\"
+work = "linear"
+
+[[bug]]
+id = "mistune-ghsa-8ppg-percent-scheme-javascript"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8ppg-4vv7-9p53"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](jav%61script:alert(1))"
+html_lacks = ["href=\"jav%61script:"]
+
+[[bug]]
+id = "mistune-ghsa-8ppg-percent-scheme-upper"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8ppg-4vv7-9p53"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](JAVA%53CRIPT:alert(1))"
+html_lacks = ["href=\"JAVA%53CRIPT:"]
+
+[[bug]]
+id = "mistune-ghsa-8ppg-percent-scheme-data-image"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8ppg-4vv7-9p53"
+class = "url-scheme"
+direction = "to-html"
+input = "![x](dat%61:text/html,<script>alert(1)</script>)"
+html_lacks = ["src=\"dat%61:", "<script>"]
+
+[[bug]]
+id = "mistune-cve-2026-59923-percent-colon"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8c25-4j27-2rv3"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](javascript%3Aalert%281%29)"
+html_lacks = ["href=\"javascript%3A"]
+
+[[bug]]
+id = "mistune-ghsa-jxhr-percent-colon-reference"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-jxhr-4j38-fpxg"
+class = "url-scheme"
+direction = "to-html"
+input = "[x][ref]\n\n[ref]: javascript%3Aalert%281%29"
+html_lacks = ["href=\"javascript%3A"]
+
+[[bug]]
+id = "mistune-cve-2026-59929-feed-scheme"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qfrw-5rxm-mhh2"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](feed:javascript:alert(1))"
+html_lacks = ["href=\"feed:", "javascript:"]
+
+[[bug]]
+id = "mistune-cve-2026-59929-view-source-scheme"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qfrw-5rxm-mhh2"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](view-source:javascript:alert(1))"
+html_lacks = ["href=\"view-source:", "javascript:"]
+
+[[bug]]
+id = "mistune-cve-2026-59929-livescript-scheme"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qfrw-5rxm-mhh2"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](livescript:alert(1))"
+html_lacks = ["href=\"livescript:"]
+
+[[bug]]
+id = "mistune-cve-2026-59929-ms-its-scheme"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qfrw-5rxm-mhh2"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](ms-its:javascript:alert(1))"
+html_lacks = ["href=\"ms-its:", "javascript:"]
+
+[[bug]]
+id = "mistune-cve-2026-59929-autolink-feed"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-qfrw-5rxm-mhh2"
+class = "url-scheme"
+direction = "to-html"
+input = "<feed:javascript:alert(1)>"
+html_lacks = ["href=\"feed:"]
+
+[[bug]]
+id = "mistune-tests-unknown-x-javascript-scheme"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_urls.py"
+class = "url-scheme"
+direction = "to-html"
+input = "[h][r]\n\n[r]: x-javascript:alert(1)"
+html_lacks = ["href=\"x-javascript:"]
+
+[[bug]]
+id = "mistune-tests-double-percent-colon"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_urls.py"
+class = "url-scheme"
+direction = "to-html"
+input = "[h](%20javascript%3Aalert(1))"
+html_lacks = ["javascript%3A"]
+
+[[bug]]
+id = "mistune-tests-image-alt-escaping"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_urls.py"
+class = "attribute-injection"
+direction = "to-html"
+input = "![a\"<b>](https://example.com/image.png \"t\\\"itle\")"
+html_lacks = ["alt=\"a\"", "<b>", "title=\"t\"itle\""]
+
+[[bug]]
+id = "mistune-cve-2026-44897-heading-id"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-v87v-83h2-53w7"
+class = "attribute-injection"
+direction = "to-html"
+input = "## foo\" onmouseover=\"alert(document.cookie)\" x=\"\n"
+html_lacks = ["\" onmouseover=\""]
+
+[[bug]]
+id = "mistune-cve-2026-44898-toc-anchor"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-6269-cqxg-mhhv"
+class = "xss"
+direction = "to-html"
+input = "## x\"><script>alert(document.cookie)</script><a href=\"\n"
+html_lacks = ["<script>", "\"><"]
+
+[[bug]]
+id = "mistune-cve-2026-44708-math-escape"
+library = "mistune"
+source = "https://github.com/lepture/mistune/security/advisories/GHSA-8g87-j6q8-g93x"
+class = "xss"
+direction = "to-html"
+input = "$<script>alert(document.cookie)</script>$\n"
+html_lacks = ["<script>"]
+
+[[bug]]
+id = "mistune-cve-2017-15612-newline-scheme"
+library = "mistune"
+source = "https://github.com/advisories/GHSA-hpv5-v8g5-c864"
+class = "url-scheme"
+direction = "to-html"
+input = "[x](javasc\nript:alert`1`)"
+html_lacks = ["href=\"javasc"]
+
+[[bug]]
+id = "mistune-cve-2017-16876-footnote-key"
+library = "mistune"
+source = "https://github.com/advisories/GHSA-98gj-wwxm-cj3h"
+class = "xss"
+direction = "to-html"
+input = "[^<script>alert(1)</script>]\n\n[^<script>alert(1)</script>]: x\n"
+html_lacks = ["<script>"]
+
+[[bug]]
+id = "mistune-tests-blank-list-continuations"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_edge_cases.py"
+class = "slow"
+direction = "to-html"
+input = "- first\n"
+repeat = "\n"
+suffix = "  last\n"
+work = "linear"
+
+[[bug]]
+id = "mistune-tests-dense-emphasis"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_edge_cases.py"
+class = "slow"
+direction = "to-html"
+input = "*a"
+repeat = "*a"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "mistune-tests-deep-images"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_inline.py"
+class = "deep-nesting"
+direction = "to-html"
+input = "!["
+repeat = "!["
+suffix = "a](u)](u)](u)](u)"
+work = "linear"
+
+[[bug]]
+id = "mistune-tests-deep-links"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_security_inline.py"
+class = "deep-nesting"
+direction = "to-html"
+input = "[[["
+repeat = "["
+suffix = "a](u)](u)](u)](u)"
+work = "linear"
+
+[[bug]]
+id = "mistune-tests-unclosed-inline-html"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_inline_limits.py"
+class = "slow"
+direction = "to-html"
+input = "prefix <!DOCTYPE text text "
+repeat = "<!DOCTYPE text text "
+suffix = "[ok](/ok) *em* `code`"
+work = "linear"
+
+[[bug]]
+id = "mistune-tests-links-inside-pending-images"
+library = "mistune"
+source = "https://github.com/lepture/mistune/blob/f7ec702edfc1ad5579a76f881238841af266d93c/tests/test_inline_limits.py"
+class = "slow"
+direction = "to-html"
+input = "![[text](/inner) "
+repeat = "![[text](/inner) "
+suffix = "](/image) [ok](/ok)"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-cve-2025-69534-cdata-open"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1534"
+class = "crash"
+direction = "to-html"
+input = "<!["
+html = "<p>&lt;![</p>\n"
+
+[[bug]]
+id = "python-markdown-cve-2025-69534-cdata-junk"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1534"
+class = "crash"
+direction = "to-html"
+input = "<![ g'\"7z5r7cojSO;2LAo0(1Vv5G>,-P"
+html = "<p>&lt;![ g'&quot;7z5r7cojSO;2LAo0(1Vv5G&gt;,-P</p>\n"
+
+[[bug]]
+id = "python-markdown-issue-1586-conditional-comment"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1586"
+class = "crash"
+direction = "to-html"
+input = "Test `<!--[if mso]>` and `<!--[if !mso]>`"
+html = "<p>Test <code>&lt;!--[if mso]&gt;</code> and <code>&lt;!--[if !mso]&gt;</code></p>\n"
+
+[[bug]]
+id = "python-markdown-issue-1578-close-tag-code-spans"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1578"
+class = "crash"
+direction = "to-html"
+input = "`</` and `</`"
+html = "<p><code>&lt;/</code> and <code>&lt;/</code></p>\n"
+
+[[bug]]
+id = "python-markdown-tests-many-unclosed-comments"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/blob/40eca048f57456d855a491e7f94ba215594f3f57/tests/test_syntax/blocks/test_html_blocks.py"
+class = "slow"
+direction = "to-html"
+input = "<!--<!--"
+repeat = "<!--"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1651-unclosed-end-tag"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1651"
+class = "wrong-output"
+direction = "to-html"
+input = "Run `cmd 2</dev/null` here.\n\nThis paragraph disappears."
+html = "<p>Run <code>cmd 2&lt;/dev/null</code> here.</p>\n<p>This paragraph disappears.</p>\n"
+
+[[bug]]
+id = "python-markdown-issue-1554-malformed-comment-close"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1554"
+class = "slow"
+direction = "to-html"
+input = "<!-- a -- >\n"
+repeat = "x\n\n"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1055-hr-backtracking"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1055"
+class = "slow"
+direction = "to-html"
+input = "-"
+repeat = "-"
+suffix = "hello---------------------"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-777-nested-square-brackets"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/777"
+class = "slow"
+direction = "to-html"
+input = "[ "
+repeat = "[ -99966.00320, 1048576 ]"
+suffix = " ]"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1607-mixed-case-javascript"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1607"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](jAvAsCrIpT:alert(1))"
+html_lacks = ["jAvAsCrIpT:"]
+
+[[bug]]
+id = "python-markdown-issue-1607-hex-entity-colon"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1607"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](javascript&#x3A;alert(1))"
+html_lacks = ["javascript:", "javascript&#x3A;"]
+
+[[bug]]
+id = "python-markdown-issue-1607-data-html"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1607"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](data:text/html,<script>alert(1)</script>)"
+html_lacks = ["data:text/html", "<script>"]
+
+[[bug]]
+id = "python-markdown-issue-1607-vbscript"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1607"
+class = "url-scheme"
+direction = "to-html"
+input = "[click](vbscript:alert(1))"
+html_lacks = ["vbscript:"]
+
+[[bug]]
+id = "python-markdown-issue-1654-image-brackets"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1654"
+class = "slow"
+direction = "to-html"
+input = "![["
+repeat = "![["
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1654-ref-open"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1654"
+class = "slow"
+direction = "to-html"
+input = "[a]["
+repeat = "[a]["
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1654-footnote-open"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1654"
+class = "slow"
+direction = "to-html"
+input = "[^"
+repeat = "[^"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-798-brackets"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/798"
+class = "slow"
+direction = "to-html"
+input = "[[["
+repeat = "["
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1679-nested-ordered-lists"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1679"
+class = "deep-nesting"
+direction = "to-html"
+input = "1. "
+repeat = "1. "
+suffix = "x"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-799-blockquotes"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/799"
+class = "deep-nesting"
+direction = "to-html"
+input = ">>>"
+repeat = ">"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1617-backtick-redos"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1617"
+class = "slow"
+direction = "to-html"
+input = "`"
+repeat = "`"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1545-heading-backslashes"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1545"
+class = "slow"
+direction = "to-html"
+input = "#\\"
+repeat = "\\"
+suffix = "X"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1545-table-backslashes"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/issues/1545"
+class = "slow"
+direction = "to-html"
+input = "\\\\"
+repeat = "\\"
+suffix = "|"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-tests-heading-hash-run"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/blob/40eca048f57456d855a491e7f94ba215594f3f57/tests/test_syntax/blocks/test_headers.py"
+class = "slow"
+direction = "to-html"
+input = "# ##"
+repeat = "#"
+suffix = "x"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-tests-reference-trailing-spaces"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/blob/40eca048f57456d855a491e7f94ba215594f3f57/tests/test_syntax/blocks/test_reference_links.py"
+class = "slow"
+direction = "to-html"
+input = "[id]:"
+repeat = " "
+work = "linear"
+
+[[bug]]
+id = "python-markdown-pr-1621-many-inline-links"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/pull/1621"
+class = "slow"
+direction = "to-html"
+input = "[link](x)"
+repeat = "[link](x)"
+work = "linear"
+
+[[bug]]
+id = "python-markdown-pr-1680-unclosed-link-parens"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/pull/1680"
+class = "slow"
+direction = "to-html"
+input = "[t](u("
+repeat = "[t](u("
+work = "linear"
+
+[[bug]]
+id = "python-markdown-issue-1667-fence-lang"
+library = "Python-Markdown"
+source = "https://github.com/Python-Markdown/markdown/pull/1667"
+class = "attribute-injection"
+direction = "to-html"
+input = "```\"><script>\nx\n```\n"
+html_lacks = ["\"><script>"]
+
+[[bug]]
+id = "pulldown-cmark-issue-1154"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1154"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*a_"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-1136"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/pull/1136"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[^x\n"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-934"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/934"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "!-- <"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-832"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/832"
+class = "output-blowup"
+direction = "to-html"
+input = "x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|x|\n-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|\n"
+repeat = "x\n"
+output = "bounded"
+
+[[bug]]
+id = "pulldown-cmark-issue-246"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/246"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[]("
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-247"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/247"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "``\\"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-255"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/255"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[*_a"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-322"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/322"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a]: u\n"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-437"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/437"
+class = "crash"
+direction = "to-html"
+input = "<foo"
+html = "<p>&lt;foo</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-596"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/596"
+class = "crash"
+direction = "to-html"
+input = "/********************************"
+html = "<p>/********************************</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-651"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = "`````````````````````````````````x`"
+html = "<p>`````````````````````````````````x`</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-1112"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1112"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "<!S\r:"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-1133"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/pull/1133"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "<!n\r%"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-1129"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1129"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "+\t[\u0000]:d\n\u000b"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-1084"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1084"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "* [ ] ~![=?\\*\u000c\u0000\u0000  \r* [  1=1\u0000\r<!]:[=?\\\r\u000c\n* [ ] \r\u000c%    "
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-1095"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1095"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "- [n]:Z\r\n\t\t"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-398"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/398"
+class = "crash"
+direction = "to-html"
+input = "[`cargo\npackage`]\n\n[`cargo package`]: https://example.com\n"
+html = "<p><a href=\"https://example.com\"><code>cargo package</code></a></p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-319"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/319"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "|\r-]([^"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-303"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/303"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "[^\r\ra]"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-313"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/313"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "\r\r*]-[^"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-306"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/306"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "- _(__"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-304"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/304"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "\\\\\r\r"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-316"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/316"
+class = "crash"
+direction = "to-html"
+input = "\\ \\\\ \\\\\\ \\\\\\\\"
+html = "<p>\\ \\ \\\\ \\\\</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-283"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/283"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "\U0001bc9f<td:^\U0001bc9f"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-352"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/352"
+class = "crash"
+direction = "to-html"
+input = "&#0018446744073709551616;"
+html = "<p>&amp;#0018446744073709551616;</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-49"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/49"
+class = "crash"
+direction = "to-html"
+input = "4444444444444444444444444444444444444444444444444444444444!"
+html = "<p>4444444444444444444444444444444444444444444444444444444444!</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-unterminated-link"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = "[](\\"
+html = "<p>[](\\</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-unterminated-autolink"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = "<a"
+html = "<p>&lt;a</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-infinite-loop"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = "[<!W\n\\\n"
+html = "<p>[&lt;!W\n\\</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-script-bom"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = "<script﻿"
+html = "<p>&lt;script﻿</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-521-a"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/521"
+class = "crash"
+direction = "to-html"
+input = "><a\n"
+html = "<blockquote>\n<p>&lt;a</p>\n</blockquote>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-521-b"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/521"
+class = "crash"
+direction = "to-html"
+input = "><a a\n"
+html = "<blockquote>\n<p>&lt;a a</p>\n</blockquote>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-521-unicode"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/521"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "><a a=\n毿>\n"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-input-1"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = ">\n >>><N\n"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-input-2"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = " \u000b\\\r- "
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-input-6"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "*\t[][\n\t<p]>\n\t[]"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-input-13"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = ".\r> ^](\r\u000c\r\u0000\u0000\r.\r[^\u0000\u0000\\\u0000\u0000\u0000^^^^^]"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-fuzz-lists-in-code-spans"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/errors.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "- `\nx\n**\n  *\n  `\n"
+work = "linear"
+
+[[bug]]
+id = "pulldown-cmark-issue-715"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/715"
+class = "wrong-output"
+direction = "to-html"
+input = "one\ntwo \t"
+html = "<p>one\ntwo</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-1131-crlf"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/html.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "` tag\r\n    *   x\r\n    *   `\r\n"
+html = "<p><code>tag *   x *  </code></p>\n"
+
+[[bug]]
+id = "pulldown-cmark-newline-within-code"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/html.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "`\nx \ny\n`x"
+html = "<p><code>x  y</code>x</p>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-819"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/819"
+class = "wrong-output"
+direction = "to-html"
+input = "# \\\r\n"
+html = "<h1>\\</h1>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-1156"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/blob/f7c6deaa2c75c3ecf04ce04711dd5882d3e29617/pulldown-cmark/tests/html.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "﻿# Heading\n"
+html = "<h1>Heading</h1>\n"
+
+[[bug]]
+id = "pulldown-cmark-issue-1074"
+library = "pulldown-cmark"
+source = "https://github.com/pulldown-cmark/pulldown-cmark/issues/1074"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](javascript:alert(1))"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "comrak-ghsa-xg9p-p4jc-c46g-parens"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/security/advisories/GHSA-xg9p-p4jc-c46g"
+class = "slow"
+direction = "to-html"
+input = "http://a.b"
+repeat = ")"
+work = "linear"
+
+[[bug]]
+id = "comrak-ghsa-xg9p-p4jc-c46g-www-parens"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/security/advisories/GHSA-xg9p-p4jc-c46g"
+class = "slow"
+direction = "to-html"
+input = "www.a.b"
+repeat = ")"
+work = "linear"
+
+[[bug]]
+id = "comrak-ghsa-xxmq-4vph-956w"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/security/advisories/GHSA-xxmq-4vph-956w"
+class = "output-blowup"
+direction = "to-html"
+input = "[a]: uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n\n"
+repeat = "[a] "
+output = "bounded"
+
+[[bug]]
+id = "comrak-reference-limit-nul"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/reference_limit.rs"
+class = "output-blowup"
+direction = "to-html"
+input = "[a]: \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\n\n"
+repeat = "[a] "
+output = "bounded"
+
+[[bug]]
+id = "comrak-issue-107"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/issues/107"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "<"
+work = "linear"
+
+[[bug]]
+id = "comrak-issue-24"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/issues/24"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "_a* "
+work = "linear"
+
+[[bug]]
+id = "comrak-issue-829"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/issues/829"
+class = "slow"
+direction = "to-html"
+input = "<table>\n"
+repeat = "<tr><td>a</td></tr>\n"
+work = "linear"
+
+[[bug]]
+id = "comrak-pathological-table-autocompleted-cells"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/pathological.rs"
+class = "output-blowup"
+direction = "to-html"
+input = "|||||||||||||||||||||||||||||||||\n|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|\n"
+repeat = "|a\n"
+output = "bounded"
+
+[[bug]]
+id = "comrak-pathological-footnotes"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/pathological.rs"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = "[^1]:"
+work = "linear"
+
+[[bug]]
+id = "comrak-pathological-footnote-label-reconstruction"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/pathological.rs"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[^"
+work = "linear"
+
+[[bug]]
+id = "comrak-no-stack-smash"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = ">"
+work = "linear"
+
+[[bug]]
+id = "comrak-issue-37"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/issues/37"
+class = "crash"
+direction = "to-html"
+input = "it’s"
+html = "<p>it’s</p>\n"
+
+[[bug]]
+id = "comrak-issue-34"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/issues/34"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "[a\n]: a\n-|-:\n"
+work = "linear"
+
+[[bug]]
+id = "comrak-fuzz-pointy-brace-open"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = "<!-"
+html = "<p>&lt;!-</p>\n"
+
+[[bug]]
+id = "comrak-fuzz-line-end"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = "\u0002\n\\\n\t-"
+html = "<p>\u0002\n<br />\n-</p>\n"
+
+[[bug]]
+id = "comrak-fuzz-nul-in-link"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = "![](\\#\u0000)"
+html = "<p><img src=\"#%EF%BF%BD\" alt=\"\" /></p>\n"
+
+[[bug]]
+id = "comrak-fuzz-truncate-info-string"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = "~~~ ú"
+html = "<pre><code class=\"language-ú\"></code></pre>\n"
+
+[[bug]]
+id = "comrak-fuzz-table-nul"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = "\u0000|.\n-|-\nZ"
+html = "<table>\n<thead>\n<tr>\n<th>�</th>\n<th>.</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Z</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n"
+
+[[bug]]
+id = "comrak-fuzz-email-autolinks"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/fuzz.rs"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "<U@.J<AA@.J"
+work = "linear"
+
+[[bug]]
+id = "comrak-empty-bookended-atx-heading"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "crash"
+direction = "to-html"
+input = "#  #"
+html = "<h1></h1>\n"
+
+[[bug]]
+id = "comrak-no-control-characters-in-reference-links"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "[A]:\u001b\n\nX [A] Y\n"
+html = "<p>[A]:\u001b</p>\n<p>X [A] Y</p>\n"
+
+[[bug]]
+id = "comrak-back-to-back-ranges"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "**bold*****bold+italic***"
+html = "<p><strong>bold</strong><em><strong>bold+italic</strong></em></p>\n"
+
+[[bug]]
+id = "comrak-nul-at-eof"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "foo\u0000"
+html = "<p>foo�</p>\n"
+
+[[bug]]
+id = "comrak-hex-entity-seven-digits"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "&#x0000041;\n"
+html = "<p>&amp;#x0000041;</p>\n"
+
+[[bug]]
+id = "comrak-decimal-entity-seven-digits"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "&#0000100;\n"
+html = "<p>d</p>\n"
+
+[[bug]]
+id = "comrak-tab-indented-fence-in-list"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "- a\n\n\t```\n\tx\n\t```\n"
+html = "<ul>\n<li>\n<p>a</p>\n<pre><code>x\n</code></pre>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "comrak-tab-indented-fence-in-block-quote"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "> \t```\n> \tx\n> \t```\n"
+html = "<blockquote>\n<pre><code>x\n</code></pre>\n</blockquote>\n"
+
+[[bug]]
+id = "comrak-example-61"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "wrong-output"
+direction = "to-html"
+input = "\n`Foo\n----\n`\n\n<a title=\"a lot\n---\nof dashes\"/>\n"
+html = "<h2>`Foo</h2>\n<p>`</p>\n<h2>&lt;a title=&quot;a lot</h2>\n<p>of dashes&quot;/&gt;</p>\n"
+
+[[bug]]
+id = "comrak-link-entity-regression"
+library = "comrak"
+source = "https://github.com/kivikakk/comrak/blob/56af9279c8aef466f915f37ee7a37eb78e4bce2a/src/tests/regressions.rs"
+class = "url-scheme"
+direction = "to-html"
+input = "[link](&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29)"
+html_lacks = ["javascript:", "href=\"&#x6A"]
+
+[[bug]]
+id = "comrak-cve-2021-27671-javascript"
+library = "comrak"
+source = "https://github.com/advisories/GHSA-xmr7-v725-2jjr"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](JaVaScRiPt:alert(1))"
+html_lacks = ["JaVaScRiPt:"]
+
+[[bug]]
+id = "comrak-cve-2021-27671-data"
+library = "comrak"
+source = "https://github.com/advisories/GHSA-xmr7-v725-2jjr"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](Data:text/html,x)"
+html_lacks = ["Data:"]
+
+[[bug]]
+id = "comrak-cve-2021-38186-no-semicolon"
+library = "comrak"
+source = "https://github.com/advisories/GHSA-6wj2-g87r-pm62"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](&#x64&#x61&#x74&#x61&#x3atext/html,x)"
+html_lacks = ["href=\"&#x64"]
+
+[[bug]]
+id = "comrak-cve-2021-38186-entities"
+library = "comrak"
+source = "https://github.com/advisories/GHSA-6wj2-g87r-pm62"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](&#x64;&#x61;&#x74;&#x61;&#x3a;text/html,x)"
+html_lacks = ["data:"]
+
+[[bug]]
+id = "league-commonmark-ghsa-97jj-33gv-5xf9"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-97jj-33gv-5xf9"
+class = "xss"
+direction = "to-html"
+input = "<div>\n<script\n\n<span src=\"/evil.js\">\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "league-commonmark-ghsa-4v6x-c7xx-hw9f"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-4v6x-c7xx-hw9f"
+class = "xss"
+direction = "to-html"
+input = "<script\n>alert(1)</script>\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "league-commonmark-ghsa-3527-qv2q-pfvx"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-3527-qv2q-pfvx"
+class = "attribute-injection"
+direction = "to-html"
+input = "![](){onerror=alert(1)}"
+html_lacks = [" onerror="]
+
+[[bug]]
+id = "league-commonmark-ghsa-f8fg-pg57-v4j8-onclick"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-f8fg-pg57-v4j8"
+class = "attribute-injection"
+direction = "to-html"
+input = "hello {\u000conclick=\"alert(1)\"}"
+html_lacks = ["onclick=\""]
+
+[[bug]]
+id = "league-commonmark-ghsa-f8fg-pg57-v4j8-onerror"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-f8fg-pg57-v4j8"
+class = "attribute-injection"
+direction = "to-html"
+input = "![x](https://example.com/x.png){\u000conerror=\"alert(1)\"}"
+html_lacks = ["onerror=\""]
+
+[[bug]]
+id = "league-commonmark-ghsa-29pj-957v-52mc"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-29pj-957v-52mc"
+class = "url-scheme"
+direction = "to-html"
+input = "[a](https://example.com){href=\"java\tscript:alert(1)\"}"
+html_lacks = ["href=\"java"]
+
+[[bug]]
+id = "league-commonmark-cve-2019-10010"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-3v43-877x-qgmq"
+class = "url-scheme"
+direction = "to-html"
+input = "[XSS](javascript&amp;colon;alert%28&#039;XSS&#039;%29)"
+html_lacks = ["href=\"javascript&colon;", "javascript:"]
+
+[[bug]]
+id = "league-commonmark-cve-2018-20583"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/issues/337"
+class = "url-scheme"
+direction = "to-html"
+input = "[Click me](javascri%0Apt:alert('XSS'))"
+html_lacks = ["javascri\npt:", "javascript:"]
+
+[[bug]]
+id = "league-commonmark-ghsa-3q6v-r5mr-hxv8-paragraph"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-3q6v-r5mr-hxv8"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "12345678\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-ghsa-3q6v-r5mr-hxv8-delimiter-row"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "|\n"
+repeat = "-|"
+suffix = "|\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-ghsa-3q6v-r5mr-hxv8-delimiter-row-multibyte"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "|\n"
+repeat = "-|"
+suffix = "é\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-ghsa-3q6v-r5mr-hxv8-header-multibyte"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "é"
+repeat = "a|"
+suffix = "\n|-|\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-ghsa-j8pm-gj4c-rq4x-fence"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-j8pm-gj4c-rq4x"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "`"
+suffix = "a`\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2026-71488-leading-whitespace"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-2q4p-g7hv-5rgv"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = " "
+suffix = "é"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2026-71488-inline-delimiters"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-2q4p-g7hv-5rgv"
+class = "slow"
+direction = "to-html"
+input = "é"
+repeat = "a_"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2026-71488-link-destination"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-2q4p-g7hv-5rgv"
+class = "slow"
+direction = "to-html"
+input = "é.![i](data:image/png;base64,"
+repeat = "A"
+suffix = ")"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2026-71488-autolink-prefixes"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-2q4p-g7hv-5rgv"
+class = "slow"
+direction = "to-html"
+input = "é "
+repeat = "www. "
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-ghsa-jfm3-95jq-q3rf"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/security/advisories/GHSA-jfm3-95jq-q3rf"
+class = "output-blowup"
+direction = "to-html"
+input = ""
+repeat = "[^a]\n\n[^a]: x\n\n"
+output = "bounded"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22486"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "![[]()"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22484"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "</"
+repeat = "<!--"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-processing-instruction"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "-1"
+repeat = "<?x"
+suffix = "y\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-tables-1"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "|-\nt>|-\n"
+suffix = "y\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-tables-2"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "x\n| - |\n"
+repeat = "|"
+suffix = "y\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-autolink-www"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "z_www."
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-autolink-angle"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "<http://s"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-22483-strikethrough"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "~e"
+repeat = ",z~~"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-24824-nested-lists"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = " -"
+suffix = "x\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-26485-ordered"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "1.\n"
+repeat = " 2.\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-26485-empty-items"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = " -\n"
+suffix = "x\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-cve-2023-37463-footnotes"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[^1]:\n"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-pathological-unclosed-links-whitespace"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "[a]( b"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-pathological-unclosable-backtick-opener"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = "`` "
+repeat = "`a "
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-pathological-huge-thematic-break"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "slow"
+direction = "to-html"
+input = ""
+repeat = "*"
+suffix = "\n"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-issue-37"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/issues/37"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "![ [ [](link) ](link) ](image)"
+work = "linear"
+
+[[bug]]
+id = "league-commonmark-pathological-nul"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "wrong-output"
+direction = "to-html"
+input = "abc\u0000def\u0000\n"
+html = "<p>abc�def�</p>\n"
+
+[[bug]]
+id = "league-commonmark-pathological-line-endings"
+library = "league/commonmark"
+source = "https://github.com/thephpleague/commonmark/blob/3164fa3d41d78857384a29e1c606c456cbab9600/tests/pathological/test.php"
+class = "wrong-output"
+direction = "to-html"
+input = "- a\n- b\r- c\r\n- d"
+html = "<ul>\n<li>a</li>\n<li>b</li>\n<li>c</li>\n<li>d</li>\n</ul>\n"
+
+[[bug]]
+id = "parsedown-cve-2018-1000162-script"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_text_encoding.md"
+class = "xss"
+direction = "to-html"
+input = "<script>alert(1)</script>\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "parsedown-cve-2018-1000162-split-script"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_text_encoding.md"
+class = "xss"
+direction = "to-html"
+input = "<script>\n\nalert(1)\n\n</script>\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "parsedown-xss-attribute-encoding-link"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_attribute_encoding.md"
+class = "attribute-injection"
+direction = "to-html"
+input = "[xss](https://www.example.com\")"
+html_lacks = ["example.com\"\""]
+
+[[bug]]
+id = "parsedown-xss-attribute-encoding-image"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_attribute_encoding.md"
+class = "attribute-injection"
+direction = "to-html"
+input = "![xss](https://www.example.com\")"
+html_lacks = ["example.com\"\""]
+
+[[bug]]
+id = "parsedown-xss-attribute-encoding-alt"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_attribute_encoding.md"
+class = "attribute-injection"
+direction = "to-html"
+input = "![xss\"](https://www.example.com)"
+html_lacks = ["xss\"\""]
+
+[[bug]]
+id = "parsedown-xss-bad-url-leading-space"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_bad_url.md"
+class = "url-scheme"
+direction = "to-html"
+input = "[xss]( javascript:alert(1))"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "parsedown-xss-bad-url-colon-entity"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_bad_url.md"
+class = "url-scheme"
+direction = "to-html"
+input = "[xss](javascript&colon;alert(1))"
+html_lacks = ["javascript"]
+
+[[bug]]
+id = "parsedown-xss-bad-url-image"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_bad_url.md"
+class = "url-scheme"
+direction = "to-html"
+input = "![xss](javascript:alert(1))"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "parsedown-xss-bad-url-data"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_bad_url.md"
+class = "url-scheme"
+direction = "to-html"
+input = "[xss](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)"
+html_lacks = ["data:"]
+
+[[bug]]
+id = "parsedown-xss-bad-url-data-colon-entity"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/blob/4e433a8d57078645b55d21fd12c887d3ba6ca01e/test/data/xss_bad_url.md"
+class = "url-scheme"
+direction = "to-html"
+input = "![xss](data&colon;text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)"
+html_lacks = ["data:", "data&colon;"]
+
+[[bug]]
+id = "parsedown-cve-2019-10905"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/699"
+class = "attribute-injection"
+direction = "to-html"
+input = "```js any-class-name with spaces\ncode\n```\n"
+html_lacks = ["any-class-name"]
+
+[[bug]]
+id = "parsedown-issue-210"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/210"
+class = "attribute-injection"
+direction = "to-html"
+input = "![\" onerror=\"alert(1)](0 \"\"alert(2);\")"
+html_lacks = [" onerror=\""]
+
+[[bug]]
+id = "parsedown-issue-706"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/706"
+class = "xss"
+direction = "to-html"
+input = "#```<script>alert(\"1\")</script>\nhello\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "parsedown-issue-632-inline-script"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/632"
+class = "xss"
+direction = "to-html"
+input = "Some text <script type=\"text/javascript\">alert(\"test\");</script> Text after\n"
+html_lacks = ["<script"]
+
+[[bug]]
+id = "parsedown-issue-632-raw-link"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/632"
+class = "url-scheme"
+direction = "to-html"
+input = "<a href=\"javascript:alert(1)\">xss</a>\n"
+html_lacks = ["javascript:"]
+
+[[bug]]
+id = "parsedown-issue-943"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/943"
+class = "attribute-injection"
+direction = "to-html"
+input = "<a href=\"http://example.com\">link</a>\n"
+html_lacks = ["href=\"<a"]
+
+[[bug]]
+id = "parsedown-issue-681"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/681"
+class = "deep-nesting"
+direction = "to-html"
+input = ""
+repeat = ">"
+suffix = "x"
+work = "linear"
+
+[[bug]]
+id = "parsedown-issue-901"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/901"
+class = "crash"
+direction = "to-html"
+input = ""
+repeat = "______ R2_________________\n/            _________\n"
+work = "linear"
+
+[[bug]]
+id = "parsedown-issue-458"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/458"
+class = "crash"
+direction = "to-html"
+input = "[a](http://a/"
+repeat = "a"
+suffix = ")"
+work = "linear"
+
+[[bug]]
+id = "parsedown-issue-352-link-text"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/352"
+class = "crash"
+direction = "to-html"
+input = "["
+repeat = "a"
+suffix = "](u)"
+work = "linear"
+
+[[bug]]
+id = "parsedown-issue-352-emphasis"
+library = "Parsedown"
+source = "https://github.com/erusev/parsedown/issues/352"
+class = "crash"
+direction = "to-html"
+input = "_"
+repeat = "a"
+suffix = "_"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-501-blockquote"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/501"
+class = "slow"
+direction = "from-html"
+input = "<blockquote><pre>a"
+repeat = "\n"
+suffix = "b</pre>!</blockquote>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-501-listitem"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/501"
+class = "slow"
+direction = "from-html"
+input = "<ul><li><pre>a"
+repeat = "\n"
+suffix = "b</pre>x</li></ul>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-505"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/505"
+class = "slow"
+direction = "from-html"
+input = "<p>x "
+repeat = "\t"
+suffix = "\u000by</p>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-543-pre"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/543"
+class = "slow"
+direction = "from-html"
+input = "<pre>a"
+repeat = " "
+suffix = "b</pre>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-543-code"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/543"
+class = "slow"
+direction = "from-html"
+input = "<p>x<code><br>"
+repeat = "a"
+suffix = "</code></p>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-429"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/429"
+class = "slow"
+direction = "from-html"
+input = "<pre><code>TEST\n"
+repeat = " "
+suffix = "\n    END</code></pre>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-552"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/552"
+class = "slow"
+direction = "from-html"
+input = "<div>"
+repeat = "<p>a</p>"
+suffix = "</div>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-370"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/370"
+class = "slow"
+direction = "from-html"
+input = ""
+repeat = "<img src=\"1\" />\n"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-58"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/58"
+class = "slow"
+direction = "from-html"
+input = "<ol><li> first text\n"
+repeat = " "
+suffix = "some text</li></ol>"
+work = "linear"
+
+[[bug]]
+id = "turndown-issue-210"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/210"
+class = "xss"
+direction = "from-html"
+input = "<p>a</p><script>alert(\"x\")</script><style>p{color:red}</style>"
+markdown_lacks = ["alert(", "color:red"]
+
+[[bug]]
+id = "turndown-link-javascript-scheme"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/src/commonmark-rules.js#L153"
+class = "url-scheme"
+direction = "from-html"
+input = "<a href=\"javascript:alert(1)\">x</a>"
+markdown_lacks = ["javascript:"]
+
+[[bug]]
+id = "turndown-link-data-scheme"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/src/commonmark-rules.js#L153"
+class = "url-scheme"
+direction = "from-html"
+input = "<a href=\"data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;\">x</a>"
+markdown_lacks = ["data:text/html"]
+
+[[bug]]
+id = "turndown-issue-134"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/134"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>-_- test -_-</p>"
+html = "<p>-_- test -_-</p>\n"
+
+[[bug]]
+id = "turndown-issue-195"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/195"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>*\\*</p>"
+html = "<p>*\\*</p>\n"
+
+[[bug]]
+id = "turndown-issue-381"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/381"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>1) ordered list item</p>"
+html = "<p>1) ordered list item</p>\n"
+
+[[bug]]
+id = "turndown-issue-395"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/395"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&lt;h1&gt;1. Hello world&lt;/h1&gt;</p>"
+html = "<p>&lt;h1&gt;1. Hello world&lt;/h1&gt;</p>\n"
+
+[[bug]]
+id = "turndown-issue-106"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/106"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&lt;iframe src=\"http://example.com\"&gt;&lt;/iframe&gt;</p>"
+html = "<p>&lt;iframe src=&quot;http://example.com&quot;&gt;&lt;/iframe&gt;</p>\n"
+
+[[bug]]
+id = "turndown-issue-470"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/470"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p><span># here's a comment</span></p>"
+html = "<p># here's a comment</p>\n"
+
+[[bug]]
+id = "turndown-issue-431"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/431"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&amp;amp; &amp;copy;</p>"
+html = "<p>&amp;amp; &amp;copy;</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-setext-equals"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L91"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>a<br>===</p>"
+html = "<p>a<br />\n===</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-hr-asterisks"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L828"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>* * *</p>"
+html = "<p>* * *</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-hr-dashes"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L833"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>- - -</p>"
+html = "<p>- - -</p>\n"
+
+[[bug]]
+id = "turndown-issue-181"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L853"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>1984. by George Orwell</p>"
+html = "<p>1984. by George Orwell</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-ul-plus"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L873"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>+ An unordered list item</p>"
+html = "<p>+ An unordered list item</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-blockquote-no-space"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L908"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&gt;Blockquote in markdown</p>"
+html = "<p>&gt;Blockquote in markdown</p>\n"
+
+[[bug]]
+id = "turndown-test-escape-bracket-in-link"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L928"
+class = "markdown-injection"
+direction = "from-html"
+input = "<a href=\"http://www.example.com\">c[iao</a>"
+html = "<p><a href=\"http://www.example.com\">c[iao</a></p>\n"
+
+[[bug]]
+id = "turndown-test-escape-delimiters-short-words"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L944"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>_Really_? Is that what it _is_? A **2000** year-old computer?</p>"
+html = "<p>_Really_? Is that what it _is_? A **2000** year-old computer?</p>\n"
+
+[[bug]]
+id = "turndown-issue-527"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/pull/527"
+class = "wrong-output"
+direction = "from-html"
+input = "<p>x<em>e</em>t</p>"
+html = "<p>x<em>e</em>t</p>\n"
+
+[[bug]]
+id = "turndown-issue-405"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/405"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><em>foo<br></em></p>"
+html = "<p><em>foo</em></p>\n"
+
+[[bug]]
+id = "turndown-issue-433"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/433"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><span>foo</span><strong><br></strong><span>bar</span></p>"
+html = "<p>foo<br />\nbar</p>\n"
+
+[[bug]]
+id = "turndown-test-code-with-backtick"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L55"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><code>There is a literal backtick (`) here</code></p>"
+html = "<p><code>There is a literal backtick (`) here</code></p>\n"
+
+[[bug]]
+id = "turndown-test-code-starting-with-backtick"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L70"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><code>`starting with a backtick</code></p>"
+html = "<p><code>`starting with a backtick</code></p>\n"
+
+[[bug]]
+id = "turndown-issue-316"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/316"
+class = "wrong-output"
+direction = "from-html"
+input = "<p>x<code> foo</code></p>"
+html = "<p>x<code> foo</code></p>\n"
+
+[[bug]]
+id = "turndown-test-triple-ticks-in-code-block"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/blob/b86e2b18539fa4922acf7001902255e2ce5bf0b9/test/index.html#L1018"
+class = "wrong-output"
+direction = "from-html"
+input = "<pre><code>```\nCode\n```\n</code></pre>"
+html = "<pre><code>```\nCode\n```\n</code></pre>\n"
+
+[[bug]]
+id = "turndown-issue-355"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/355"
+class = "wrong-output"
+direction = "from-html"
+input = "<pre><code>a<br>b</code></pre>"
+html = "<pre><code>a\nb\n</code></pre>\n"
+
+[[bug]]
+id = "turndown-issue-498"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/498"
+class = "wrong-output"
+direction = "from-html"
+input = "<pre>\n<code>a</code></pre>"
+html = "<pre><code>a\n</code></pre>\n"
+
+[[bug]]
+id = "turndown-issue-459"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/459"
+class = "wrong-output"
+direction = "from-html"
+input = "<a href=\"https://example.com/file(1).jpg\">link</a>"
+html = "<p><a href=\"https://example.com/file(1).jpg\">link</a></p>\n"
+
+[[bug]]
+id = "turndown-issue-473"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/473"
+class = "wrong-output"
+direction = "from-html"
+input = "<img src=\"https://example.com/file 1).jpg\">"
+html = "<p><img src=\"https://example.com/file%201).jpg\" alt=\"\" /></p>\n"
+
+[[bug]]
+id = "turndown-issue-467"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/467"
+class = "wrong-output"
+direction = "from-html"
+input = "<a href=\"https://example.com/a b\">x</a>"
+html = "<p><a href=\"https://example.com/a%20b\">x</a></p>\n"
+
+[[bug]]
+id = "turndown-issue-546"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/pull/546"
+class = "wrong-output"
+direction = "from-html"
+input = "<a href=\"http://example.com/a\\\">t</a>"
+html = "<p><a href=\"http://example.com/a%5C\">t</a></p>\n"
+
+[[bug]]
+id = "turndown-issue-513"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/513"
+class = "wrong-output"
+direction = "from-html"
+input = "<img src=\"a.png\" alt=\"a]b\">"
+html = "<p><img src=\"a.png\" alt=\"a]b\" /></p>\n"
+
+[[bug]]
+id = "turndown-issue-246"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/246"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol start=\"10\"><li><p>A</p><p>B</p></li></ol>"
+html = "<ol start=\"10\">\n<li>\n<p>A</p>\n<p>B</p>\n</li>\n</ol>\n"
+
+[[bug]]
+id = "turndown-issue-547"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/pull/547"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol start=\"abc\"><li>a</li></ol>"
+html = "<ol>\n<li>a</li>\n</ol>\n"
+
+[[bug]]
+id = "turndown-issue-125"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/125"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol><li>Number 1</li><li>Number Two</li><ol><li>Number 1</li><li>Number Two</li></ol></ol>"
+html = "<ol>\n<li>Number 1</li>\n<li>Number Two\n<ol>\n<li>Number 1</li>\n<li>Number Two</li>\n</ol>\n</li>\n</ol>\n"
+
+[[bug]]
+id = "turndown-issue-450"
+library = "Turndown"
+source = "https://github.com/mixmark-io/turndown/issues/450"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol><li>A<ol><li>B<ol><li>C</li></ol></li></ol></li><li>D</li></ol>"
+html = "<ol>\n<li>A\n<ol>\n<li>B\n<ol>\n<li>C</li>\n</ol>\n</li>\n</ol>\n</li>\n<li>D</li>\n</ol>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-45"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/pull/45"
+class = "slow"
+direction = "from-html"
+input = "<div>"
+repeat = "<li>a</li>"
+suffix = "</div>"
+work = "linear"
+
+[[bug]]
+id = "html-to-markdown-link-data-scheme"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/blob/290df46a279e3d7d9011dbbb199658dfcb5ec272/converter/url.go#L56"
+class = "url-scheme"
+direction = "from-html"
+input = "<a href=\"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\">x</a>"
+markdown_lacks = ["data:text/html"]
+
+[[bug]]
+id = "html-to-markdown-issue-30"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/30"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&lt;not a tag&gt;</p>"
+html = "<p>&lt;not a tag&gt;</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-42"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/42"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>[this should be escaped](http://test)</p>"
+html = "<p>[this should be escaped](http://test)</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-31"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/31"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>first [literal] brackets</p><p>then &#91;one&#93; way</p>"
+html = "<p>first [literal] brackets</p>\n<p>then [one] way</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-178"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/178"
+class = "markdown-injection"
+direction = "from-html"
+input = "<p>&amp;copy; &amp;#65;</p>"
+html = "<p>&amp;copy; &amp;#65;</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-223"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/223"
+class = "wrong-output"
+direction = "from-html"
+input = "<p>a\u0007b</p>"
+html = "<p>a\u0007b</p>\n"
+
+[[bug]]
+id = "html-to-markdown-test-table-pipe-in-cell"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/blob/290df46a279e3d7d9011dbbb199658dfcb5ec272/plugin/table/testdata/GoldenFiles/basics.out.md#L74"
+class = "wrong-output"
+direction = "from-html"
+input = "<table><tr><th>A | B</th><th>C</th></tr><tr><td>1</td><td>2</td></tr></table>"
+html = "<table>\n<thead>\n<tr>\n<th>A | B</th>\n<th>C</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n"
+
+[[bug]]
+id = "html-to-markdown-test-code-mixed-backticks"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/blob/290df46a279e3d7d9011dbbb199658dfcb5ec272/plugin/commonmark/testdata/GoldenFiles/code.in.html#L174"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><code>a ``` b ```` c ` d</code></p>"
+html = "<p><code>a ``` b ```` c ` d</code></p>\n"
+
+[[bug]]
+id = "html-to-markdown-test-code-block-fence-chars"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/blob/290df46a279e3d7d9011dbbb199658dfcb5ec272/plugin/commonmark/testdata/GoldenFiles/code.in.html#L203"
+class = "wrong-output"
+direction = "from-html"
+input = "<pre><code>\nSome ```\ntotally `````` normal\n` code\n</code></pre>"
+html = "<pre><code>\nSome ```\ntotally `````` normal\n` code\n</code></pre>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-126"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/126"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol><li>One</li><ol><li>One point one</li><li>One point two</li></ol></ol>"
+html = "<ol>\n<li>One\n<ol>\n<li>One point one</li>\n<li>One point two</li>\n</ol>\n</li>\n</ol>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-84"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/84"
+class = "wrong-output"
+direction = "from-html"
+input = "<ol start=\"3\"><li>a</li></ol>"
+html = "<ol start=\"3\">\n<li>a</li>\n</ol>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-183"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/183"
+class = "wrong-output"
+direction = "from-html"
+input = "<blockquote><pre>line 1\nline 2</pre></blockquote>"
+html = "<blockquote>\n<pre><code>line 1\nline 2\n</code></pre>\n</blockquote>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-135"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/pull/135"
+class = "wrong-output"
+direction = "from-html"
+input = "<ul><li>list item:<pre>line 1\nline 2</pre></li></ul>"
+html = "<ul>\n<li>list item:\n<pre><code>line 1\nline 2\n</code></pre>\n</li>\n</ul>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-224"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/224"
+class = "wrong-output"
+direction = "from-html"
+input = "<pre><div>a</div><div>b</div></pre>"
+html = "<pre><code>a\nb\n</code></pre>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-40"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/40"
+class = "wrong-output"
+direction = "from-html"
+input = "<p>a<br>b</p>"
+html = "<p>a<br />\nb</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-43"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/43"
+class = "wrong-output"
+direction = "from-html"
+input = "<ul><li>reviewed <em>Drosophila</em> entries</li></ul>"
+html = "<ul>\n<li>reviewed <em>Drosophila</em> entries</li>\n</ul>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-95"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/95"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><a href=\"https://example.com\">Hello</a>. \"<a href=\"https://example.com\">Ex</a>\".</p>"
+html = "<p><a href=\"https://example.com\">Hello</a>. &quot;<a href=\"https://example.com\">Ex</a>&quot;.</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-78"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/78"
+class = "wrong-output"
+direction = "from-html"
+input = "<div><span>import</span> <span>\"fmt\"</span></div>"
+html = "<p>import &quot;fmt&quot;</p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-23"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/23"
+class = "wrong-output"
+direction = "from-html"
+input = "<p><a href=\"https://example.com/a\">go</a> <a href=\"https://example.com/b\">golang</a></p>"
+html = "<p><a href=\"https://example.com/a\">go</a> <a href=\"https://example.com/b\">golang</a></p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-110"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/110"
+class = "wrong-output"
+direction = "from-html"
+input = "<p>a <a href=\"https://example.com/t\">#<span>x</span></a> <span><a href=\"https://example.com/u\">@<span>y</span></a></span></p>"
+html = "<p>a <a href=\"https://example.com/t\">#x</a> <a href=\"https://example.com/u\">@y</a></p>\n"
+
+[[bug]]
+id = "html-to-markdown-issue-180"
+library = "html-to-markdown"
+source = "https://github.com/JohannesKaufmann/html-to-markdown/issues/180"
+class = "wrong-output"
+direction = "from-html"
+input = "<a name=\"intro\">Introduction</a>"
+html = "<p>Introduction</p>\n"

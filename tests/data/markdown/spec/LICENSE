@@ -1,0 +1,18 @@
+The two files in this directory are copies, unchanged, of two published specifications. They are
+test data: the tests read their examples, and nothing here is compiled into a binary.
+
+commonmark-0.31.2.txt
+    The CommonMark Spec, version 0.31.2 (2024-01-28).
+    Copyright (C) 2014-16 John MacFarlane.
+    Source: https://github.com/commonmark/commonmark-spec/blob/0.31.2/spec.txt
+
+gfm-0.29.txt
+    The GitHub Flavored Markdown Spec, version 0.29-gfm (2019-04-06), which extends the CommonMark
+    Spec with GitHub's additions.
+    Copyright (C) 2014-16 John MacFarlane, and GitHub, Inc. for the additions.
+    Source: https://github.com/github/cmark-gfm/blob/27d942c8b0a62d192f616e5bf3578f4b6a89e180/test/spec.txt
+
+Both are released under the Creative Commons Attribution-ShareAlike 4.0 International licence
+(CC-BY-SA 4.0): https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+The licence applies to these two files only. It does not extend to any other file in this repository.
