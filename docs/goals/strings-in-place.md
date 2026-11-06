@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/format.rs]
   - id: 4
     title: "the changed features are measured again, and their allocation counts are declared"
-    status: open
+    status: done
     context: [benches/members/README.md, benches/compare/profile.sh]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -109,6 +109,15 @@ every html template, and every literal `Core\Str::format` call.
    `string` with a flag, a width or a precision stays a `Converted` piece through
    `nvs_core_str_format_piece`, because its width counts graphemes, which `nvs_stdlib::granularity`
    owns. Floats stay with decision 5. Memory: none, the digits are written on the stack.
+11. **A `.` join and a `uint` hole keep their conversion in this goal.** The goal is reached by
+   interpolation, templates and `Core\Str::format`. `'n ' . $int` still lowers through
+   `helper.int_to_string`, and a `uint` hole through `helper.uint_to_string`, so
+   `lang:expressions/string-operators` stays at 4 allocations. A `.` chain lowered as interpolation
+   is, and a `Uint` part, are the Backlog's follow-up.
+12. **Html templates are the literals feature's figure.** Html templates and interpolation belong to
+   `lang:types/values-written-in-the-code`, which has one bench file. It added number literals, which
+   cost nothing once compiled. It now fills a template with a string and an `int` hole, the one
+   literal with a cost while the program runs: 2 allocations, the join and its `Markup`.
 
 ## Stages
 
@@ -162,14 +171,18 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 **Does:** records what the goal bought, in counts, and makes the counts a bound.
 
-- [ ] An `Explore` subagent lists the bench of each changed feature: html templates, strings with
+- [x] An `Explore` subagent lists the bench of each changed feature: html templates, strings with
   holes, `.` and `+` joins, and `Core\Str::format`. Where html templates with holes have no bench, add
   one at the path `bun nv proofs --id '<feature>'` prints. `benches/members/README.md:1`
-- [ ] Run `bun nv proofs --record-perf --force --id '<feature>'` for each, and for every other figure
+  - [x] Templates and interpolation are `lang:types/values-written-in-the-code`, and its bench now
+    fills a template (decision 12).
+- [x] Run `bun nv proofs --record-perf --force --id '<feature>'` for each, and for every other figure
   `bun nv proofs --gate` then names as stale. Today `Core\Str::format` makes 2 allocations per call and
   `lang:expressions/string-operators` 4.
-- [ ] Add a `// bench: allocations N` line to each of those benches, with the new count.
-- [ ] Run `bun nv bench-compare --profile html-page`, and put its shares and counts beside the ones in
+  - [x] `Core\Str::format` 2 → 1 allocation, 121 → 59 bytes. `string-operators` stays 4 (decision 11).
+  - [x] `bun nv proofs --gate` owes nothing.
+- [x] Add a `// bench: allocations N` line to each of those benches, with the new count.
+- [x] Run `bun nv bench-compare --profile html-page`, and put its shares and counts beside the ones in
   *Why* in the commit message. `benches/compare/profile.sh:1`
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -182,19 +195,20 @@ pieces in `nvs-ir`, `nvs-codegen` and the IR passes, as `file:line` with one lin
 
 ### State
 
-Stages 1 to 3 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
+Stages 1 to 4 are done, and `parts-join` is green. *Why*'s figures are from `293a3b9b9`.
+
+- Stage 4's profile: 11,192 requests a second, 89.3 µs each, against *Why*'s 10,551 and 94.8 µs.
+  Escaping fell from 11.4% to 5.6%. `nvs_core_str_format_piece` is gone, and `IntPlaceholder` takes
+  about 1.3%. `nvs_str_concat_parts` takes 10.2%, because the copy and the escape now run inside it.
+  The allocator's accounting fell from about 12% to 9.9%.
+- Ledger: `Core\Str::format` makes 1 allocation (was 2). The template bench makes 2, the join and its
+  `Markup` (decision 12). `string-operators` stays 4 (decision 11). All three declare their counts.
 
 - Each `Concat` piece is a `ConcatPart`: a `PartKind` (`Str`, `Int`, `HtmlText`, `Format(word)`) and
   a value. A join of strings alone consumes its leading piece. A typed join consumes none
   (`Lowering::emit_concat`, `ConcatPart::all_str`). A typed piece alone is still joined
   (`join_pieces`), so `Core\Str::format("%04d", $n)` is one `concat format 0x… vN`.
-- Decision 10 is how a placeholder is written: `IntPlaceholder` (`crates/nvs-runtime/src/placeholder.rs`),
-  `integer_part` (`crates/nvs-stdlib/src/format.rs`), `FormatPiece::Integer`
-  (`crates/nvs-types/src/expr_table.rs`). `a_packed_integer_part_writes_what_format_writes` and
-  `a_placeholder_packs_into_a_kind_word_and_back` pass.
-- A smoke run printed `[-0042] [ff    ] [*****255] [+7]`, `0009` and `ab      |   12|`.
-- `env-secret-proofs` is the driver's stale state for a retired check: `looper check --name
-  env-secret-proofs` says no check matches, and nothing in the tree names it.
+- `env-secret-proofs` is stale driver state: `looper check --name env-secret-proofs` matches nothing.
 
 Expected red in stage 5:
 - Each `nvs-ir` snapshot of an interpolation with an `int` hole or a template with a hole. It now
@@ -206,9 +220,17 @@ Expected red in stage 5:
 
 ### Next
 
-**Stage 4**, files `benches/members/`, `benches/compare/profile.sh` and the perf ledgers. No code.
-Follow the stage's items in order: the `Explore` subagent lists the benches first.
-`Core\Str::format`'s count was 2 allocations per call. With an integer placeholder it should now be
-1. A `%-10s` over a string still makes 2.
+**Stage 5**, the gate. Start `looper verify` with `run_in_background`, fix every failure in one pass
+(the `nvs-ir` snapshots above first), and run it once more. Then the goal-end gates in AGENTS.md
+§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes strings-in-place`, `bun nv ci --check`.
+Before the file is deleted, move decisions 1, 4, 10 and 12 into the module docs of
+`crates/nvs-runtime/src/string.rs` and `crates/nvs-runtime/src/placeholder.rs` and into
+`benches/members/README.md`, and move the Backlog item into a goal file.
 
 ### Backlog
+
+- A `.` chain with an `int` piece lowers as interpolation does, and a `Uint` part writes a `uint` hole
+  (decision 11). `lang:expressions/string-operators` would fall from 4 allocations. Anchors:
+  `crates/nvs-ir/src/lower/expr.rs:2356`, `crates/nvs-codegen/src/emit.rs:4035`.
+- `Core\Str::format('%d', $n)` alone in a template hole still makes its own string through
+  `nvs_int_to_string` (4.6% in the profile). Writing it as an `Int` part of the template would remove it.
