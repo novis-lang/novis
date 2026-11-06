@@ -3,8 +3,9 @@ summary: whole-file read and write on paths the configuration has granted
 keywords: file, read a file, write a file, file system, fs.read, fs.write, capability, permission, nvs.toml, path
 ---
 
-`Core\IO` reads or replaces a whole file as text. `readBytes` reads a file that is not text, such as
-an image, as `bytes`. Every call first checks a capability. The path
+`Core\IO` reads or replaces a whole file. `read` reads it as text. `readBytes` reads a file that is
+not text, such as an image, as `bytes`. `write` and `append` take a `string` or `bytes`. Every call
+first checks a capability. The path
 must be inside a folder that `nvs.toml` grants as `fs.read` or `fs.write`. A read grant does not
 allow writing. A path the configuration does not grant throws a `RuntimeError` that names the
 capability. Your program can catch it and continue. A path the configuration allows but the

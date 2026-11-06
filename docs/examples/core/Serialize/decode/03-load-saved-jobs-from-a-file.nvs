@@ -21,12 +21,12 @@ JobList $list = new JobList();
 $list->jobs[] = new Job('send-invoices', 0);
 $list->jobs[] = new Job('resize-images', 2);
 
-// `Core\IO::write` saves text, so the bytes are saved as Base64 text.
+// `Core\Serialize::encode` gives `bytes`. `Core\IO::write` saves them to the file as they are.
 string $path = Core\Path::join(Core\IO::temporaryDir(), 'jobs.bin');
-Core\IO::write($path, Core\Encoding::toBase64(Core\Serialize::encode($list)));
+Core\IO::write($path, Core\Serialize::encode($list));
 
-// On the next run, the tool reads the file and builds the list again.
-bytes $saved = Core\Encoding::fromBase64(Core\IO::read($path));
+// On the next run, the tool reads the bytes back and builds the list again.
+bytes $saved = Core\IO::readBytes($path);
 JobList $loaded = Core\Serialize::decode($saved) as JobList;
 
 // This prints each job and how many times it was tried.

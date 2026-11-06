@@ -1,6 +1,6 @@
 <?nvs
 // Shows how a server keeps one key pair when it restarts. The pair is drawn
-// once, stored as text, and read back the next time the program starts.
+// once, saved to a file, and read back the next time the program starts.
 
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 
@@ -10,12 +10,13 @@ bytes $stored = Core\Secret::revealBytes(
     $pair->write(),
     'the server key is written to disk and read back at the next start',
 );
-string $onDisk = Core\Encoding::toHex($stored);
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'server-key.bin');
+Core\IO::write($path, $stored);
 
-// This is what the next start does. You name the kind, because the stored bytes
-// do not say which kind you expect.
+// This is what the next start does. `Core\IO::readBytes` reads the saved bytes.
+// You name the kind, because the stored bytes do not say which kind you expect.
 Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read(
-    Core\Encoding::fromHex($onDisk),
+    Core\IO::readBytes($path),
     Core\Crypto\KeyKind::P256,
 );
 

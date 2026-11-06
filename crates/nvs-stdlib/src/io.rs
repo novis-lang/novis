@@ -3416,7 +3416,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::append(string $path, string $content): void` — replacing
+    /// `Core\IO::append(string $path, string|bytes $content): void` — replacing
     /// `file_put_contents`'s `FILE_APPEND` flag, which is a member here for
     /// `rule:core-api/shape-rules` R6's reason: an option that changes *what a member does* is a
     /// second member.

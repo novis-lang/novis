@@ -11,7 +11,7 @@ bytes $start = $file->readBytes(2);
 echo Core\Encoding::toHex($start), "\n";
 
 // A UTF-16 file often starts with ff fe, so this prints "UTF-16: yes".
-echo 'UTF-16: ', $start ==Core\Encoding::fromHex('fffe') ? 'yes' : 'no', "\n";
+echo 'UTF-16: ', $start == Core\Encoding::fromHex('fffe') ? 'yes' : 'no', "\n";
 
 // The rest of the file is "ID" in UTF-16. This prints "49004400".
 echo Core\Encoding::toHex($file->readBytes(100)), "\n";
