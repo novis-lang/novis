@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [setup-in-any-order, byte-sources, markdown, realtime-example-apps, website-code-checked]
+chain: [setup-in-any-order, byte-sources, markdown, realtime-example-apps, website-code-checked, example-config-shown, queue-id-and-json-stream]
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,7 +37,7 @@ floor:
 
 # Goals
 
-The chain holds 5 goal(s). `setup-in-any-order` is live.
+The chain holds 7 goal(s). `setup-in-any-order` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
@@ -46,6 +46,8 @@ The chain holds 5 goal(s). `setup-in-any-order` is live.
 | 3 | [`markdown`](markdown.md) | Reached when Core\Markdown converts Markdown to HTML whole, in chunks and as it arrives, and HTML to Markdown, every catalogued bug of the major Markdown libraries is a passing test, every CommonMark and GFM spec example passes, rendering in chunks gives the same HTML as the whole document, and work grows linearly over every catalogued slow input. | **1 the known-bug catalogue and the spec examples are in the tree** · 2 the engine is chosen by the catalogue, and the rules are written · 3 Core\Markdown::toHtml renders a whole document safely and in linear time · 4 a program changes links, images, headings and code blocks through callbacks · 5 Core\Markdown::toHtmlEach renders a document of any size one block group at a time · 6 Core\Markdown\Live renders text that arrives in pieces · 7 Core\Markdown::fromHtml writes Markdown from HTML · 8 fromHtml reads a large document without holding the whole tree · 9 two fuzz targets, and a differential fuzz against a second engine · 10 the four members carry their feature proofs · 11 the extension guide shows a crate Core does not ship · 12 the goal is verified once, and every failure is fixed |
 | 4 | [`realtime-example-apps`](realtime-example-apps.md) | Reached when apps/chat and apps/poll pass bun nv site --check apps, a browser test drives each app's own script in Chromium, and a guide page tells a reader when to use a WebSocket and when an event stream. | **1 both apps land with one production setup, and the website's app check is green over them** · 2 a browser test drives chat.js and poll.js in Chromium against the served apps · 3 a guide page says when to use a WebSocket and when an event stream, and links both apps · 4 a request's wall_time no longer ends a WebSocket or an event stream it upgraded · 5 the goal is verified once, and every failure is fixed |
 | 5 | [`website-code-checked`](website-code-checked.md) | Reached when bun nv site --check code fails on any code block of a hand-written page or an example app that no check runs and that no marker exempts with a reason, and is green. | **1 every code block of the website is listed with what checks it, and the code part exists** · 2 every TOML, JSON and YAML block is parsed by the tool that reads it · 3 every shell and output block is a run, a parsed nvs command, or marked with its reason · 4 every nginx, Caddy and Dockerfile block, and every app's deploy/ folder, passes its own validator · 5 the code part runs in CI and in bun nv ci --check, and its rule is written · 6 the goal is verified once, and every failure is fixed |
+| 6 | [`example-config-shown`](example-config-shown.md) | Reached when every Core, type and language page shows the nvs.toml its examples run with, no block of the root nvs.toml configures or names anything under docs/examples/ or website/snippets/, a test fails when one does, and every example still prints its .out. | **1 Core, type and language pages show the nvs.toml their examples run with** · 2 the Db examples' configuration moves into their own directories: connections, transactions and plans · 3 the Db examples' configuration moves into their own directories: rows, schemas and Db errors · 4 the Ldap examples' configuration moves into their own directories · 5 the Http, Mail, Cap and configuration examples carry their own nvs.toml · 6 a test fails when the root nvs.toml configures an example, and the rule is written · 7 the goal is verified once, and every failure is fixed |
+| 7 | [`queue-id-and-json-stream`](queue-id-and-json-stream.md) | Reached when Core\Queue\Id has a string form that a later request parses back, a guessed or changed string finds no job, Core\Json::encodeEach's pieces carry what Core\Json::encode's text carries so Core\Response::stream writes them, and each changed member carries its feature proofs, with an attack on a forged and another user's id. | **1 Core\Json::encodeEach's pieces carry what Core\Json::encode's text carries, and a response streams them** · 2 a job row carries a random token, and every statement that takes an Id matches it · 3 every queue table the tree creates by hand has the token column · 4 Core\Queue\Id has toString, parse and tryParse · 5 the three Id members carry their feature proofs, and an attack sends a forged and another user's id · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`ci-green`](ci-green.md).
 
