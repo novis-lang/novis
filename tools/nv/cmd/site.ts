@@ -751,9 +751,10 @@ export function structureProblems(root: string = ROOT): string[] {
   if (!/export const INSTALL = \{ label: 'Install', href: '\/install\/' \}/.test(site)) problems.push("website/config/site.mjs: INSTALL is not `{ label: 'Install', href: '/install/' }`");
 
   const header = readAt(root, "website/src/components/Header.astro");
-  const order = ["areas.map(", "install.href", "sponsoring.href"].map((s) => header.indexOf(s));
+  if (!/export const NAV_EXTRAS = \[[^\n]*label: 'Sponsoring'[^\n]*href: '\/sponsoring\/'/.test(site)) problems.push("website/config/site.mjs: NAV_EXTRAS does not list Sponsoring at `/sponsoring/`");
+  const order = ["areas.map(", "install.href", "extras.map("].map((s) => header.indexOf(s));
   if (order.some((i) => i < 0) || order[0]! > order[1]! || order[1]! > order[2]!) {
-    problems.push("website/src/components/Header.astro: the nav is not the areas, then Install, then Sponsoring");
+    problems.push("website/src/components/Header.astro: the nav is not the areas, then Install, then NAV_EXTRAS");
   }
   const footer = readAt(root, "website/src/components/Footer.astro");
   if (footer.includes("Pagination")) problems.push("website/src/components/Footer.astro: still shows prev/next (`Pagination`)");

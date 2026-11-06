@@ -60,6 +60,15 @@ export const AREAS = [
 export const INSTALL = { label: 'Install', href: '/install/' }
 
 /**
+ * The header's links after Install: pages that are not an area and have no
+ * sidebar of their own. The mobile menu lists them too, each with its
+ * subtitle; the header shows a subtitle only in its More menu. When the bar
+ * is too narrow, its links move into More from the end, so the last link here
+ * is the first to move.
+ */
+export const NAV_EXTRAS = [{ label: 'Sponsoring', subtitle: 'Support the project', href: '/sponsoring/' }]
+
+/**
  * The ways to give money, in the order the sponsoring page lists them. A
  * channel whose `url` is empty has no account yet: the page shows it as
  * opening soon. Set the URL when the account exists. Bank transfer has no

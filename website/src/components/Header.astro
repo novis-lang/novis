@@ -3,7 +3,7 @@
  * Header override: the default Starlight header (the mark, search, social
  * icons, theme switch) plus the site navigation: the five areas from AREAS in
  * config/site.mjs, each with its subtitle on a second, smaller line, then
- * Install as the bar's one primary button, then Sponsoring.
+ * Install as the bar's one primary button, then the links in NAV_EXTRAS.
  *
  * `<SiteTitle />` (src/components/SiteTitle.astro) is the mark with the name
  * Novis-Lang beside it, on two lines, and links to the home page. The mark's
@@ -11,16 +11,26 @@
  *
  * The theme select is an icon alone, styled below.
  *
- * Every item in the bar is centered on the bar's midline. As the window
- * narrows, the parts that are also in the footer go first: the subtitles
- * below 90rem, the social icons below 68rem, Sponsoring below 58rem. Below
- * 50rem the whole navigation moves into the mobile menu, and the bar keeps two
- * links beside the mark: the first area and Install. Below 22rem only Install
- * stays.
+ * Every item in the bar is centered on the bar's midline. The mark and Install
+ * never shrink and never move. When the bar is too narrow for everything, the
+ * script at the end of the bar removes parts until the bar fits, in this
+ * order: the subtitles, the social icons (they are in the footer too), the
+ * search button's text, and then the links one at a time, from the end. A
+ * removed link moves into the More menu, which shows each link with its
+ * subtitle. More appears only when it has a link in it. It is orange when the
+ * current page is one of its links. The script measures the bar instead of
+ * using fixed widths, so a new link in AREAS or NAV_EXTRAS needs no change
+ * here. It runs again only when the bar changes width or the fonts finish
+ * loading. Without JavaScript every link stays in the bar.
+ *
+ * Below 50rem the whole navigation moves into the mobile menu, and the bar
+ * keeps two links beside the mark: the first area and Install. Below 22rem
+ * only Install stays.
  */
 import config from 'virtual:starlight/user-config'
 
-import { AREAS, INSTALL } from '@config/site.mjs'
+import { Icon } from '@astrojs/starlight/components'
+import { AREAS, INSTALL, NAV_EXTRAS } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
 
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect'
@@ -33,9 +43,11 @@ import SiteTitle from './SiteTitle.astro'
 const shouldRenderSearch =
   config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro'
 
-const areas = AREAS.map((area) => ({ ...area, href: withBase(area.href) }))
 const install = { ...INSTALL, href: withBase(INSTALL.href) }
-const sponsoring = { label: 'Sponsoring', href: withBase('/sponsoring/') }
+/** Every link that can move into More, in bar order. `item` pairs a bar link with its copy in the menu. */
+const links = [...AREAS, ...NAV_EXTRAS].map((link, item) => ({ ...link, href: withBase(link.href), item }))
+const areas = links.slice(0, AREAS.length)
+const extras = links.slice(AREAS.length)
 
 const { pathname } = Astro.url
 const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined)
@@ -49,7 +61,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     <nav class="site-nav sl-hidden md:sl-flex print:hidden" aria-label="Site">
       {
         areas.map((area) => (
-          <a href={area.href} aria-current={current(area.href)} class="area">
+          <a href={area.href} aria-current={current(area.href)} class="area" data-nav-item={area.item}>
             <span class="area-label">{area.label}</span>
             <span class="area-subtitle">{area.subtitle}</span>
           </a>
@@ -58,10 +70,28 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       <a href={install.href} aria-current={current(install.href)} class="install">
         {install.label}
       </a>
-      <a href={sponsoring.href} aria-current={current(sponsoring.href)} class="sponsoring">
-        {sponsoring.label}
-      </a>
+      {
+        extras.map((link) => (
+          <a href={link.href} aria-current={current(link.href)} class="area" data-nav-item={link.item}>
+            <span class="area-label">{link.label}</span>
+          </a>
+        ))
+      }
+      <button type="button" class="more-button" popovertarget="nv-more-menu" hidden>
+        More
+        <Icon name="down-caret" size="0.9em" />
+      </button>
     </nav>
+    <div id="nv-more-menu" class="more-menu print:hidden" popover>
+      {
+        links.map((link) => (
+          <a href={link.href} aria-current={current(link.href)} data-nav-item={link.item} hidden>
+            <span class="more-label">{link.label}</span>
+            <span class="more-subtitle">{link.subtitle}</span>
+          </a>
+        ))
+      }
+    </div>
     <nav class="phone-nav print:hidden" aria-label="Quick links">
       <a href={areas[0].href} aria-current={current(areas[0].href)}>{areas[0].label}</a>
       <a href={install.href} aria-current={current(install.href)} class="install">
@@ -79,6 +109,69 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     <ThemeSelect />
     <LanguageSelect />
   </div>
+  <script is:inline aria-hidden="true">
+    // Fits the bar to its width; the doc comment at the top of this file
+    // gives the order. The script is inline and last in the bar, so it runs
+    // while the page is parsed, before the first paint. Each run starts from
+    // the full bar and removes one part at a time until nothing overflows.
+    ;(() => {
+      try {
+        const bar = document.currentScript.parentElement
+        const button = bar.querySelector('.more-button')
+        const menu = bar.querySelector('.more-menu')
+        // Each bar link with its copy in the menu, the last link first.
+        const pairs = [...bar.querySelectorAll('.site-nav [data-nav-item]')]
+          .map((link) => [link, menu.querySelector(`[data-nav-item="${link.dataset.navItem}"]`)])
+          .reverse()
+        const wide = matchMedia('(min-width: 50rem)')
+        const steps = ['subtitles', 'social', 'search']
+        const overflows = () => bar.scrollWidth > bar.clientWidth + 1
+        let moved = 0
+        const fit = () => {
+          bar.removeAttribute('data-squeeze')
+          button.hidden = true
+          for (const [link, copy] of pairs) {
+            link.hidden = false
+            copy.hidden = true
+          }
+          let count = 0
+          if (wide.matches) {
+            const removed = []
+            for (const step of steps) {
+              if (!overflows()) break
+              removed.push(step)
+              bar.setAttribute('data-squeeze', removed.join(' '))
+            }
+            if (overflows()) button.hidden = false
+            for (const [link, copy] of pairs) {
+              if (button.hidden || !overflows()) break
+              link.hidden = true
+              copy.hidden = false
+              count++
+            }
+          }
+          button.toggleAttribute(
+            'data-current',
+            pairs.some(([link]) => link.hidden && link.hasAttribute('aria-current')),
+          )
+          if (count !== moved && menu.matches(':popover-open')) menu.hidePopover()
+          moved = count
+        }
+        // The menu opens under the More button, inside the window.
+        menu.addEventListener('beforetoggle', (event) => {
+          if (event.newState !== 'open') return
+          const at = button.getBoundingClientRect()
+          const width = parseFloat(getComputedStyle(menu).width)
+          const right = document.documentElement.clientWidth - 8
+          menu.style.top = `${at.bottom + 6}px`
+          menu.style.left = `${Math.max(8, Math.min(at.left, right - width))}px`
+        })
+        fit()
+        new ResizeObserver(fit).observe(bar)
+        if (document.fonts) document.fonts.ready.then(fit)
+      } catch {}
+    })()
+  </script>
 </div>
 
 <style>
@@ -102,6 +195,17 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       --mark-size: 1.75rem;
       gap: var(--nv-space-3);
     }
+  }
+  /* The mark and the links keep their width. When they do not fit, the bar
+     overflows, and the script at the end of the bar sees that and removes
+     parts until it fits. */
+  @media (min-width: 50rem) {
+    .start-group {
+      flex-shrink: 0;
+    }
+  }
+  .header [hidden] {
+    display: none !important;
   }
 
   .title-wrapper {
@@ -163,8 +267,10 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   .site-nav a:not(.install):active {
     background-color: var(--nv-wash);
   }
-  /* The current area: orange text and a short bar under it. */
-  .site-nav a:not(.install)::after {
+  /* The current area: orange text and a short bar under it. More looks the
+     same when the current page is one of its links. */
+  .site-nav a:not(.install)::after,
+  .more-button::after {
     content: '';
     position: absolute;
     inset-inline: 0.7rem;
@@ -178,23 +284,97 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   .site-nav a[aria-current='page']:not(.install) {
     color: var(--sl-color-text-accent);
   }
-  .site-nav a[aria-current='page']:not(.install)::after {
+  .site-nav a[aria-current='page']:not(.install)::after,
+  .more-button[data-current]::after {
     transform: scaleX(1);
   }
   .site-nav .area-subtitle {
-    display: none;
     margin-top: 0.1rem;
     font-size: var(--sl-text-2xs);
     font-weight: 500;
     color: var(--sl-color-gray-3);
   }
-  @media (min-width: 90rem) {
-    .site-nav .area-subtitle {
-      display: block;
-    }
-    .site-nav a {
-      min-height: 2.75rem;
-    }
+  .site-nav .area {
+    min-height: 2.75rem;
+  }
+  .header[data-squeeze~='subtitles'] .area-subtitle {
+    display: none;
+  }
+  .header[data-squeeze~='subtitles'] .site-nav .area {
+    min-height: 2.5rem;
+  }
+
+  /* More: a plain link in the bar with a caret, and the menu it opens. */
+  .more-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 2.5rem;
+    margin: 0;
+    padding: 0.25rem 0.6rem 0.25rem 0.7rem;
+    border: 0;
+    border-radius: var(--nv-radius);
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .more-button:hover {
+    color: var(--sl-color-white);
+    background-color: var(--nv-hover);
+  }
+  .more-button:active {
+    background-color: var(--nv-wash);
+  }
+  .more-button[data-current] {
+    color: var(--sl-color-text-accent);
+  }
+  .more-menu {
+    position: fixed;
+    inset: auto;
+    width: 15rem;
+    margin: 0;
+    padding: 0.25rem;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius);
+    background-color: var(--sl-color-bg-nav);
+    color: inherit;
+    box-shadow: var(--nv-shadow-lg);
+  }
+  .more-menu a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--nv-radius-sm);
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .more-menu a:hover,
+  .more-menu a:focus-visible {
+    background-color: var(--nv-hover);
+    color: var(--sl-color-white);
+  }
+  .more-menu a[aria-current='page'] {
+    color: var(--sl-color-text-accent);
+  }
+  .more-label {
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+  }
+  .more-subtitle {
+    font-size: var(--sl-text-2xs);
+    font-weight: 500;
+    color: var(--sl-color-gray-3);
   }
 
   /* Install: the one primary button in the bar. */
@@ -279,7 +459,23 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   .search-wrapper {
     flex: 1 1 auto;
     justify-content: flex-end;
-    min-width: 0;
+  }
+  /* The search button is never narrower than its text, so a bar that is too
+     full overflows instead of squeezing it. When space is short, it is the
+     magnifier alone. */
+  @media (min-width: 50rem) {
+    .search-wrapper :global(button[data-open-modal]) {
+      min-width: max-content;
+    }
+    .header[data-squeeze~='search'] .search-wrapper :global(button[data-open-modal]) {
+      justify-content: center;
+      width: 2.5rem;
+      min-width: 0;
+      padding: 0;
+    }
+    .header[data-squeeze~='search'] .search-wrapper :global(button[data-open-modal] > :not(svg)) {
+      display: none !important;
+    }
   }
 
   .right-group {
@@ -381,15 +577,8 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     margin-inline-start: auto;
   }
 
-  @media (max-width: 68rem) {
-    .social-icons {
-      display: none;
-    }
-  }
-  @media (max-width: 58rem) {
-    .site-nav a.sponsoring {
-      display: none;
-    }
+  .header[data-squeeze~='social'] .social-icons {
+    display: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .title-wrapper :global(.site-title:hover img) {

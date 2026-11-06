@@ -7,7 +7,7 @@
  * sidebar it is the whole of the mobile menu (see PageFrame.astro).
  */
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
-import { AREAS, INSTALL } from '@config/site.mjs'
+import { AREAS, INSTALL, NAV_EXTRAS } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
 ---
 
@@ -24,10 +24,14 @@ import { withBase } from '~/lib/base'
     <span class="label">{INSTALL.label}</span>
     <span class="subtitle">Build and set up nvs</span>
   </a>
-  <a href={withBase('/sponsoring/')}>
-    <span class="label">Sponsoring</span>
-    <span class="subtitle">Support the project</span>
-  </a>
+  {
+    NAV_EXTRAS.map((link) => (
+      <a href={withBase(link.href)}>
+        <span class="label">{link.label}</span>
+        <span class="subtitle">{link.subtitle}</span>
+      </a>
+    ))
+  }
 </nav>
 <Default><slot /></Default>
 
