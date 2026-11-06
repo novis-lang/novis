@@ -534,15 +534,16 @@ pub(crate) const ELEMENTS_CURRENT_SYMBOL: &str = "nvs_core_json_elements_current
 /// dispatched by name, which makes it a handle beside `Core\Csv\Rows`.
 ///
 /// Its slots are the key the reader's suspended parse is filed under, `0` once
-/// the walk has ended, and the element the last `advance()` built — the one
-/// element the walk holds, whatever the document's size.
+/// the walk has ended, the element the last `advance()` built — the one
+/// element the walk holds, whatever the document's size — and the source.
+/// [`each`] owns the walk.
 // rank: 101
 pub(crate) const ELEMENTS: CoreClass = CoreClass {
     name: ELEMENTS_NAME,
     doc: Some(&ELEMENTS_CARD),
     methods: &[],
     instance: &[],
-    slots: &["reader", "element"],
+    slots: &["reader", "element", "source"],
     constants: &[],
 };
 
@@ -865,13 +866,13 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_json_decode" => (nvs_core_json_decode as *const ()).cast(),
         "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
         "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
-        "nvs_core_json_decode_each" => (nvs_core_json_decode_each as *const ()).cast(),
+        "nvs_core_json_decode_each" => (each::nvs_core_json_decode_each as *const ()).cast(),
         "nvs_core_json_encode_each" => (nvs_core_json_encode_each as *const ()).cast(),
         // The two walks' trios, which no registry row names: they are reached
         // by name through the dispatch roster, which resolves them here.
-        ELEMENTS_ITERATE_SYMBOL => (nvs_core_json_elements_iterate as *const ()).cast(),
-        ELEMENTS_ADVANCE_SYMBOL => (nvs_core_json_elements_advance as *const ()).cast(),
-        ELEMENTS_CURRENT_SYMBOL => (nvs_core_json_elements_current as *const ()).cast(),
+        ELEMENTS_ITERATE_SYMBOL => (each::nvs_core_json_elements_iterate as *const ()).cast(),
+        ELEMENTS_ADVANCE_SYMBOL => (each::nvs_core_json_elements_advance as *const ()).cast(),
+        ELEMENTS_CURRENT_SYMBOL => (each::nvs_core_json_elements_current as *const ()).cast(),
         PIECES_ITERATE_SYMBOL => (nvs_core_json_pieces_iterate as *const ()).cast(),
         PIECES_ADVANCE_SYMBOL => (nvs_core_json_pieces_advance as *const ()).cast(),
         PIECES_CURRENT_SYMBOL => (nvs_core_json_pieces_current as *const ()).cast(),
@@ -883,21 +884,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // One element at a time — `decodeEach` and `encodeEach`
 // ============================================================================
 
-/// The one failure every entry point below gives until the goal
-/// `json-streaming`'s stages 2 and 3 build the walks: the rows and cards are
+/// The one failure every `encodeEach` entry point below gives until the goal
+/// `json-streaming`'s stage 3 builds the walk: the rows and cards are
 /// registered first so the feature is stated before it is built.
+/// `decodeEach`'s walk is [`each`]'s.
 fn not_built(member: &'static str) -> Fault {
     Fault::thrown(format!("`Core\\Json::{member}` is not available in this build yet."))
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Core\Json::decodeEach<T>($source, string $at = '', { lines?: bool,
-    /// maxDepth?: uint }): Iterable<T>`. Slots 0 to 2 are
-    /// `registry::WRITTEN_CLASS_MEMBERS`' block, as `decodeAs`'s are.
-    fn nvs_core_json_decode_each(_ctx, args: [7]) {
-        let _ = args;
-        Err(not_built("decodeEach"))
-    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -908,29 +900,6 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-nvs_runtime::nvs_helper! {
-    /// `Iterable<T>::iterate()` on a `Core\Json\Elements`.
-    fn nvs_core_json_elements_iterate(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("decodeEach"))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Iterator<T>::advance()` on a `Core\Json\Elements`.
-    fn nvs_core_json_elements_advance(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("decodeEach"))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `Iterator<T>::current()` on a `Core\Json\Elements`.
-    fn nvs_core_json_elements_current(_ctx, args: [1]) {
-        let _ = args;
-        Err(not_built("decodeEach"))
-    }
-}
 
 nvs_runtime::nvs_helper! {
     /// `Iterable<bytes>::iterate()` on a `Core\Json\Pieces`.
@@ -5869,6 +5838,8 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 
 #[cfg(test)]
 mod each_probe;
+
+mod each;
 
 #[cfg(test)]
 pub(crate) mod tests {

@@ -31,12 +31,22 @@ that must apply all or nothing wraps the walk in a transaction.
 
 **Outside the pointer, nothing is built.** A value on the way to `$at`, or after the array ends, is
 checked for syntax and depth and then skipped, and a skipped string is not kept. The document after
-the array is read to its end, so trailing garbage still fails the walk.
+the array is read to its end, so trailing garbage still fails the walk. A skipped string passes through
+the parser's scratch buffer, whose capacity stays at the longest string read until the walk ends: that
+is O(longest string), counted against the request, and never O(document).
+
+**JSON Lines is values separated by whitespace.** Each value is an element and blank lines are allowed.
+Two values on one line are read as two elements, as every JSON Lines reader reads them, because the
+parse cannot tell a newline it consumed after a number from one it did not.
 
 **The reader is serde_json, driven inside a coroutine** that suspends after each element and whenever
 it needs the next chunk. JSON keeps one parser, and a message names a position in the whole document.
 `crates/nvs-stdlib/src/json.rs`'s module doc, § *A document read one element at a time*, holds the
-probe's figures.
+probe's figures. The coroutine builds each element as `decode` builds a document and runs no compiled
+code. A typed walk then builds `T` from that value on the task's own stack, through the tree-first path
+`decodeAs` takes for a class that reads its own document, so a constructor never runs on a suspended
+stack. A typed element is built twice, which is time spent per element in place of a second decoder
+that runs compiled code across suspensions. `crates/nvs-stdlib/src/json/each.rs` owns the walk.
 
 **Bounds.** Every element is built under the request's memory limit, and the walk runs under its CPU
 and wall-time limits. A byte stream keeps the bounds its source documents, such as `bodyStream`'s. No

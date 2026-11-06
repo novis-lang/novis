@@ -350,6 +350,96 @@ fn pump(
     Ok(())
 }
 
+/// The cursor a walk of `sequence` pulls from with [`pull`], one element per
+/// call, for a member whose walk is driven by a loop it does not own.
+///
+/// [`for_each`] drives the whole sequence inside one call. A `Core` walk that
+/// a `foreach` advances, such as `Core\Json::decodeEach`'s, needs the next
+/// chunk only when its parse runs out, so it keeps this between calls. An
+/// array answers itself, and an object answers `iterate()`'s cursor where it
+/// has one and itself where it is already an iterator. Each is an owned
+/// reference the caller keeps and releases.
+///
+/// # Errors
+///
+/// [`for_each`]'s, for its reasons.
+pub fn start(ctx: &mut Ctx, sequence: Value, what: &str) -> Result<Value, Fault> {
+    if sequence.array_ptr().is_none() && sequence.obj_ptr().is_none() {
+        return Err(Fault::fatal(format!(
+            "internal error: {what} was handed tag {} where a sequence was expected",
+            sequence.tag_byte()
+        )));
+    }
+    if sequence.obj_ptr().is_some()
+        && let Some(iterate) = method_address(sequence, ITERATE, what)?
+    {
+        return call_member(ctx, sequence, iterate);
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this argument, and the cursor \
+                  handed back needs one of its own"
+    )]
+    unsafe {
+        sequence.retain();
+    }
+    Ok(sequence)
+}
+
+/// The next element of a walk [`start`] began, as an owned reference, or
+/// `None` once the sequence has ended. `from` is where an array's walk goes on,
+/// and the caller keeps it between calls starting at `0`. A cursor ignores it.
+///
+/// # Errors
+///
+/// [`for_each`]'s, for its reasons.
+pub fn pull(
+    ctx: &mut Ctx,
+    cursor: Value,
+    from: &mut usize,
+    what: &str,
+) -> Result<Option<Value>, Fault> {
+    if let Some(array) = cursor.array_ptr() {
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns a reference to the array, so it is live for \
+                      the length of this call"
+        )]
+        let subject = ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
+        let Some(slot) = subject.next_slot(*from) else {
+            return Ok(None);
+        };
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        #[expect(
+            unsafe_code,
+            reason = "the entry is owned by the array, so the copy handed to the \
+                      caller needs a reference of its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        *from = slot + 1;
+        return Ok(Some(value));
+    }
+    let advance = required_member(cursor, ADVANCE, what)?;
+    let more = call_member(ctx, cursor, advance)?;
+    match more.as_bool() {
+        Some(true) => {}
+        Some(false) => return Ok(None),
+        None => {
+            return Err(Fault::fatal(format!(
+                "internal error: {what} drove an `{ADVANCE}` answering tag {} rather than a \
+                 bool",
+                more.tag_byte()
+            )));
+        }
+    }
+    let current = required_member(cursor, CURRENT, what)?;
+    call_member(ctx, cursor, current).map(Some)
+}
+
 /// [`method_address`] where the member is owed rather than optional — the two
 /// `Iterator<T>` halves, which `nvs_types::conformance` already made a
 /// compile error to omit.

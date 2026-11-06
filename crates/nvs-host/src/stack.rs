@@ -191,6 +191,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use corosensei::stack::{DefaultStack, Stack as _};
+use corosensei::{Coroutine, Yielder};
 
 /// The address space one task's stack reserves, guard page excluded.
 ///
@@ -260,6 +261,38 @@ pub fn on_spare_stack_within<R>(f: impl FnOnce(usize, usize) -> R) -> R {
     });
     result
 }
+
+/// A coroutine that runs on a stack of its own, for a parse that stops in the
+/// middle and goes on in a later call.
+///
+/// [`on_spare_stack`] runs a closure to its end before it returns. A parse a
+/// `foreach` loop drives stops after each element and goes on at the next
+/// `advance()`, so its frames have to live between calls: `Core\Json::decodeEach`
+/// is the caller. `body` runs inside [`native_frame`], as every closure handed
+/// to `corosensei` does.
+///
+/// `body` must not call compiled Novis code, for [`on_spare_stack`]'s reason.
+/// A coroutine dropped while it is suspended unwinds its stack, so every value
+/// its frames own is dropped then.
+///
+/// **What it spends:** [`SPARE_STACK_SIZE`] of address space per coroutine, of
+/// which only the pages the parse touches are committed. It is freed when the
+/// coroutine drops, so it is O(walks in flight).
+///
+/// # Errors
+///
+/// The operating system's error where it refuses to reserve the stack.
+pub fn suspendable<I: 'static, Y: 'static, R: 'static>(
+    body: impl FnOnce(&Yielder<I, Y>, I) -> R + 'static,
+) -> std::io::Result<Suspendable<I, Y, R>> {
+    let stack = DefaultStack::new(SPARE_STACK_SIZE)?;
+    Ok(Coroutine::with_stack(stack, move |yielder: &Yielder<I, Y>, input: I| {
+        native_frame(|| body(yielder, input))
+    }))
+}
+
+/// A coroutine [`suspendable`] made.
+pub type Suspendable<I, Y, R> = Coroutine<I, Y, R, DefaultStack>;
 
 /// Calls `f` in a frame of its own: the one wrapper every closure handed to
 /// `corosensei` runs inside.
