@@ -1006,17 +1006,16 @@ fn malformed(codec: Codec, why: &str, member: &str) -> Fault {
 /// answer.
 fn over_bound(codec: Codec, input: usize, bound: Bound, ceiling: u64, member: &str) -> Fault {
     let half = if ceiling == bound.bytes {
-        format!("the {} octet ceiling", bound.bytes)
+        format!("the limit of {} bytes", bound.bytes)
     } else {
-        format!("the {}:1 ratio over {input} octets of input", bound.ratio)
+        format!("{} times its {input} bytes of input", bound.ratio)
     };
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "{member}: a `Core\\Compress::Codec::{}` frame decompressing past {half} is refused rather than \
-             truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and \
-             `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming \
-             `$maxBytes` or `$maxRatio` lowers and nothing raises.",
+            "{member}: a `Core\\Compress::Codec::{}` frame decompresses to more than {half}, so \
+             it is not read. A call can lower the limit with `$maxBytes` or `$maxRatio`. It cannot \
+             raise it past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.",
             codec.spelled()
         ),
     )
@@ -1032,10 +1031,9 @@ fn over_window(requested: u64, member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "{member}: the `Core\\Compress::Codec::Zstd` frame asks for a {requested} octet decoding \
-             window, past the {ZSTD_WINDOW} this process holds for one. Refused before the \
-             window is allocated, because a frame's header alone asks for it \
-             (rule:core-classes/decompression-bound)."
+            "{member}: the `Core\\Compress::Codec::Zstd` frame needs a decoding window of \
+             {requested} bytes, and the largest window is {ZSTD_WINDOW} bytes. The frame is not \
+             read, and the window is never allocated."
         ),
     )
 }
@@ -1647,11 +1645,11 @@ mod tests {
                     .expect_err("a 64 KiB expansion passes a 2:1 ratio"),
             );
             assert!(
-                why.contains("rule:core-classes/decompression-bound"),
-                "the refusal names the rule: {why}"
+                why.contains("decompresses to more than"),
+                "the refusal says the output passed the bound: {why}"
             );
             assert!(
-                why.contains("ratio"),
+                why.contains("times its"),
                 "the refusal names the half that stopped it: {why}"
             );
             refused += 1;
@@ -1675,7 +1673,7 @@ mod tests {
                 &decompress_within(codec, &frame, bound, MEMBER).expect_err("32 KiB passes 1 KiB"),
             );
             assert!(
-                why.contains("1024 octet ceiling"),
+                why.contains("the limit of 1024 bytes"),
                 "the refusal names the ceiling it hit: {why}"
             );
 
@@ -1907,9 +1905,9 @@ mod tests {
 
             let refused =
                 nvs_runtime::call(nvs_core_compress_decompress, &mut ctx, &tight).is_err();
-            let caught = ctx.take_pending().is_some_and(|why| {
-                why.contains("rule:core-classes/decompression-bound") && why.contains(NAME)
-            });
+            let caught = ctx
+                .take_pending()
+                .is_some_and(|why| why.contains("decompresses to more than") && why.contains(NAME));
             if answered && refused && caught {
                 agreed += 1;
             }
@@ -2036,7 +2034,7 @@ mod tests {
                     .is_err();
             let caught = ctx
                 .take_pending()
-                .is_some_and(|why| why.contains("rule:core-classes/decompression-bound"));
+                .is_some_and(|why| why.contains("decompresses to more than"));
             if answered && refused && caught {
                 agreed += 1;
             }
@@ -2256,7 +2254,7 @@ mod tests {
                     .is_err();
             let bound = ctx
                 .take_pending()
-                .is_some_and(|why| why.contains("rule:core-classes/decompression-bound"));
+                .is_some_and(|why| why.contains("decompresses to more than"));
 
             let twice =
                 nvs_runtime::call(nvs_core_compress_decompressor_finish, &mut ctx, &[stream])

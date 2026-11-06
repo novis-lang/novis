@@ -822,7 +822,7 @@ fn no_ordering(left: Value, right: Value) -> Fault {
         }
         (Some(Tag::Object), Some(Tag::Object)) => {
             " — ordering two objects needs the `Comparable` class named where the comparison is \
-             written (`rule:classes/comparable`)"
+             written"
         }
         _ => "",
     };
@@ -2556,8 +2556,9 @@ fn arithmetic_error(operation: &str) -> Fault {
     Fault::thrown_as(
         crate::ThrownClass::Arithmetic,
         format!(
-            "`decimal` {operation} is outside the type's range (`rule:types/decimal`: a 96-bit \
-             mantissa at a scale of 0 to 28), or divides by zero"
+            "the result of this `decimal` {operation} is too large for a `decimal`, or the \
+             operation divides by zero. A `decimal` has at most 28 digits after the point, and \
+             its largest value is 79228162514264337593543950335"
         ),
     )
 }

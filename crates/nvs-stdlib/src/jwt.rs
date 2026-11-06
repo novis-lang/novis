@@ -1681,9 +1681,8 @@ nvs_runtime::nvs_helper! {
             .and_then(serde_json::Value::as_i64)
             .ok_or_else(|| {
                 Fault::thrown(format!(
-                    "{NAME}::verify(): the token carries no `exp`, and expiry is not optional \
-                     (`rule:security/algorithm-comes-from-the-key`). There is no flag that accepts one, because a caller who \
-                     wants a credential that never expires is not using JWT for what JWT is."
+                    "{NAME}::verify(): the token carries no `exp`. Expiry is not optional, and \
+                     no option accepts a token without one."
                 ))
             })?;
         let now = now_seconds(ctx, "verify")?;
@@ -1740,9 +1739,8 @@ fn not_issued() -> Fault {
 /// reader who ever sees it is holding a token the issuer really signed.
 fn outside_the_window(said: &str) -> Fault {
     Fault::thrown(format!(
-        "{NAME}::verifyIssued(): the token {said}. Expiry is not optional \
-         (`rule:security/jwt-expiry-is-mandatory`) and `leeway` widens the window at both ends \
-         rather than removing it."
+        "{NAME}::verifyIssued(): the token {said}. Expiry is not optional. `leeway` makes the \
+         time window wider at both ends, but it does not remove the window."
     ))
 }
 

@@ -1475,9 +1475,8 @@ fn coding_of(headers: &[(String, String)], member: &str) -> Result<Option<compre
 /// and one of the two would name a coding [`coding_of`] then refuses.
 fn own_offer(member: &str, name: &str) -> Fault {
     Fault::thrown(format!(
-        "{member}: `{name}` is this client's own header and not a program's — every request \
-         offers `{OFFERED}`, which is exactly the set a reply is decoded from under \
-         `rule:core-classes/decompression-bound`."
+        "{member}: `{name}` is set by this client, and a program cannot set it. Every \
+         request offers `{OFFERED}`, and those are the only codings a reply is decoded from."
     ))
 }
 
@@ -4888,8 +4887,8 @@ pub(crate) mod tests {
         let refused = send(&bounded, &mut never).expect_err("a bomb past the bound");
         let why = format!("{refused:?}");
         assert!(
-            why.contains("rule:core-classes/decompression-bound"),
-            "the refusal names the rule: {why}"
+            why.contains("decompresses to more than"),
+            "the refusal says the reply passed the bound: {why}"
         );
         assert!(
             why.contains("test"),

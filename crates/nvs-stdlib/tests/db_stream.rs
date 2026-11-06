@@ -345,23 +345,15 @@ fn probe(conn: &mut Connection) -> io::Result<()> {
     }
 }
 
-/// Whether a refusal names both fixes `rule:core-classes/db-streaming` requires
-/// of it: `->all()`, or a `{shared: false}` connection.
+/// Whether a refusal names the fixes `rule:core-classes/db-streaming` requires
+/// of it: read the rows with `query`, or open a `{ shared: false }` connection.
 ///
-/// Two wordings rather than one because there are two: the four drivers with a
-/// wire share `pg.rs`'s `second_statement`, and SQLite writes its own for a
-/// connection that has no stream object underneath it at all
-/// (`rule:core-classes/db-connection-busy-state`). Both name the same pair — read the rows you have,
-/// or open a second connection — and what this asserts is that the developer
-/// who reaches one is told which two things to look at.
-fn names_both_fixes(driver: Driver, refusal: &str) -> bool {
-    match driver {
-        Driver::Sqlite => {
-            refusal.contains("read or drop the rows")
-                && refusal.contains("open a second connection")
-        }
-        _ => refusal.contains("->all()") && refusal.contains("{ shared: false }"),
-    }
+/// One wording for every driver: SQLite, which has no stream object underneath
+/// it at all (`rule:core-classes/db-connection-busy-state`), returns `pg.rs`'s
+/// `second_statement` like the four drivers with a wire, so the developer who
+/// reaches one reads the same sentence whatever the database is.
+fn names_both_fixes(refusal: &str) -> bool {
+    refusal.contains("`query` instead of `stream`") && refusal.contains("{ shared: false }")
 }
 
 /// Asserts a driver that answered no walk refused in the shape the goal's
@@ -624,7 +616,7 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
 
     let refused = probe(&mut conn).expect_err("a second statement is refused while a walk is open");
     assert!(
-        names_both_fixes(driver, &refused.to_string()),
+        names_both_fixes(&refused.to_string()),
         "the refusal names both of the busy connection's fixes: {refused}"
     );
     assert_eq!(

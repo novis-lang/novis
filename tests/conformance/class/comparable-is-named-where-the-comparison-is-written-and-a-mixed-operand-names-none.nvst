@@ -69,7 +69,7 @@ if ($small != $sameCents) {
 echo ($small->compareTo($sameCents) == 0) as string, "|\n";
 --EXPECT--
 agreed 5/5
-throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written (`rule:classes/comparable`)
+throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written
 equality still answers
 equal contents are not equality
 1|

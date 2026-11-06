@@ -153,18 +153,20 @@ pub enum Fault {
 impl Fault {
     /// A [`Fault::Thrown`] with a message, as `RuntimeError`.
     #[must_use]
+    #[track_caller]
     pub fn thrown(message: impl Into<std::borrow::Cow<'static, str>>) -> Self {
-        Self::Thrown(crate::ThrownClass::Runtime, message.into())
+        Self::Thrown(crate::ThrownClass::Runtime, plain(message.into()))
     }
 
     /// A [`Fault::Thrown`] with a message, as a *named* class of the `Core\Error`
     /// tree — what a member whose own signature promises one throws.
     #[must_use]
+    #[track_caller]
     pub fn thrown_as(
         class: crate::ThrownClass,
         message: impl Into<std::borrow::Cow<'static, str>>,
     ) -> Self {
-        Self::Thrown(class, message.into())
+        Self::Thrown(class, plain(message.into()))
     }
 
     /// A [`Fault::ThrownWithSlots`] filling `slot` on the object the throw
@@ -173,13 +175,14 @@ impl Fault {
     ///
     /// Takes over `value`'s reference; see that variant for where it goes.
     #[must_use]
+    #[track_caller]
     pub fn thrown_with_slot(
         class: crate::ThrownClass,
         message: impl Into<std::borrow::Cow<'static, str>>,
         slot: usize,
         value: crate::Value,
     ) -> Self {
-        Self::ThrownWithSlots(class, message.into(), Box::new([(slot, value)]))
+        Self::ThrownWithSlots(class, plain(message.into()), Box::new([(slot, value)]))
     }
 
     /// [`Self::thrown_with_slot`] for a class filling more than one of its own
@@ -189,12 +192,13 @@ impl Fault {
     ///
     /// Takes over every value's reference.
     #[must_use]
+    #[track_caller]
     pub fn thrown_with_slots(
         class: crate::ThrownClass,
         message: impl Into<std::borrow::Cow<'static, str>>,
         slots: Vec<(usize, crate::Value)>,
     ) -> Self {
-        Self::ThrownWithSlots(class, message.into(), slots.into_boxed_slice())
+        Self::ThrownWithSlots(class, plain(message.into()), slots.into_boxed_slice())
     }
 
     /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — `rule:core-classes/derive-reports-every-field`'s
@@ -204,6 +208,7 @@ impl Fault {
     ///
     /// Takes over `issues`' reference.
     #[must_use]
+    #[track_caller]
     pub fn thrown_with_issues(
         class: crate::ThrownClass,
         message: impl Into<std::borrow::Cow<'static, str>>,
@@ -214,9 +219,58 @@ impl Fault {
 
     /// A [`Fault::Fatal`] with a message.
     #[must_use]
+    #[track_caller]
     pub fn fatal(message: impl Into<std::borrow::Cow<'static, str>>) -> Self {
-        Self::Fatal(message.into())
+        Self::Fatal(plain(message.into()))
     }
+}
+
+/// Whether `message` names a rule id: `rule:`, an area, a `/` and a name, the
+/// shape every id under `docs/rules/` has, such as `rule:types/decimal`.
+///
+/// The shape and not the bare `rule:`, because a message may quote a
+/// program's own text, and English has words like "the firewall rule:" that
+/// are no id at all.
+#[must_use]
+pub(crate) fn names_a_rule_id(message: &str) -> bool {
+    fn is_id_char(c: char) -> bool {
+        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'
+    }
+    message.match_indices("rule:").any(|(at, prefix)| {
+        let rest = &message[at + prefix.len()..];
+        let area = rest.find(|c: char| !is_id_char(c)).unwrap_or(rest.len());
+        area > 0
+            && rest[area..]
+                .strip_prefix('/')
+                .is_some_and(|name| name.starts_with(is_id_char))
+    })
+}
+
+/// `message`, checked in a debug build to name no rule id — the one check
+/// every [`Fault`] constructor runs on the words it carries.
+///
+/// **Why:** a [`Fault`]'s message is what a program's `catch` reads, what its
+/// log prints and what the person running it sees in a `FATAL` line. That
+/// reader looked a feature up and has never seen this repository, so a rule id
+/// tells them nothing: the rules are internal docs. A message says what
+/// happened and what to do, and the rule it follows belongs in the comment
+/// beside the code that writes it.
+///
+/// A debug assertion and not a test over the sources, because most messages
+/// are built with `format!` and only exist at run time. `#[track_caller]`
+/// makes the failure name the line that built the message. A [`Fault`]
+/// written as a variant directly, without these constructors, is not checked.
+///
+/// **What it spends:** nothing in a release build. A debug build scans the
+/// message once per constructed fault.
+#[track_caller]
+fn plain(message: std::borrow::Cow<'static, str>) -> std::borrow::Cow<'static, str> {
+    debug_assert!(
+        !names_a_rule_id(&message),
+        "an error a program sees names no rule id, because the program's user reads it and \
+         rule ids are internal; say what happened in plain words instead: {message}"
+    );
+    message
 }
 
 /// How many bytes of a caller's text an error message quotes, at most.
@@ -1131,6 +1185,41 @@ mod tests {
             quoted(&"a".repeat(QUOTED_BYTES)).to_string().len(),
             QUOTED_BYTES
         );
+    }
+
+    /// A message in plain words passes [`plain`]'s check and is carried as it
+    /// was written, and only the shape of a rule id counts as one.
+    #[test]
+    fn a_message_in_plain_words_is_thrown_as_it_was_written() {
+        let said = "Core\\Db::inList() was given an empty list. An empty list is not allowed";
+        let fault = Fault::thrown_as(crate::ThrownClass::Logic, said);
+        let Fault::Thrown(class, message) = &fault else {
+            panic!("`thrown_as` builds a `Fault::Thrown`: {fault:?}");
+        };
+        assert!(matches!(class, crate::ThrownClass::Logic), "{class:?}");
+        assert_eq!(message, said);
+        let Fault::Fatal(fatal) = Fault::fatal(said) else {
+            panic!("`fatal` builds a `Fault::Fatal`");
+        };
+        assert_eq!(fatal, said);
+
+        assert!(names_a_rule_id(
+            "refused (rule:core-classes/decompression-bound)"
+        ));
+        assert!(names_a_rule_id("`rule:types/decimal`'s range"));
+        assert!(!names_a_rule_id("the firewall rule: deny all"));
+        assert!(!names_a_rule_id(
+            "a rule:/ with no area, and rule:area with no name"
+        ));
+    }
+
+    /// A message naming a rule id stops a debug build at the line that built
+    /// it, because a program's user would read it.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "an error a program sees names no rule id")]
+    fn a_message_naming_a_rule_id_panics_in_a_debug_build() {
+        let _ = Fault::thrown("refused (rule:core-classes/decompression-bound)");
     }
 
     nvs_helper! {

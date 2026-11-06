@@ -48,7 +48,7 @@ echo "still running", "\n";
 [capabilities.fs]
 read = []
 --EXPECTF--
-Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
+Core\Db::open: `tls` is `Tls::Disabled`, but every TCP connection uses `Tls::VerifyFull`. A weaker mode is not allowed. For a private certificate authority, set `tls_ca_file` in the `[db.<name>]` block. The certificates are then still checked
 Core\Db::open needs the capability `fs.read` for %sshop.db, which is not granted
 help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
 still running

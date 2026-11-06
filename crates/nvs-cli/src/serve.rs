@@ -2509,9 +2509,8 @@ fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Op
     (routes.absolute_links() && mount.origin.is_none()).then(|| {
         format!(
             "the mount at `{}` serves `{}`, which builds an absolute link, and no origin \
-             resolves for it. `rule:routing/an-origin-is-per-mount-and-checked-at-boot`: give \
-             this mount's `[[server.mount]]` block an `origin`, or `[[app]] origin` for every \
-             mount that has none of its own",
+             is set for it. Give this mount's `[[server.mount]]` block an `origin`, or set \
+             `[[app]] origin` for every mount that has none of its own",
             mount.prefix,
             mount.entry.display()
         )

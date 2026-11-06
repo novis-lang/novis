@@ -677,10 +677,9 @@ pub(super) fn batch_of(
                 return Err(Fault::thrown_as(
                     ThrownClass::Logic,
                     format!(
-                        "{named}: the set at {at} binds `{}` where the first set binds `{first}`, \
-                         and `rule:core-classes/db-one-api`'s cache is keyed on the statement's expansion — so two \
-                         sets whose `inList`s differ in width are two statements and not one \
-                         batch, and each of them wants its own call",
+                        "{named}: the set at {at} binds `{}` where the first set binds `{first}`. \
+                         Two sets whose `inList`s have different lengths are two different \
+                         statements. Run each of them with its own call",
                         one.sql
                     ),
                 ));

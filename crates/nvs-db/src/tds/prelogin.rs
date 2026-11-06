@@ -219,8 +219,8 @@ pub fn prelogin<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<()> {
     let offered = encryption_of(&answer.payload)?;
     if !offered.covers_the_session() {
         return Err(malformed(format!(
-            "this server answered PRELOGIN with encryption 0x{:02X}, which leaves everything after \
-             the login in plaintext; `rule:core-classes/db-capabilities` has no spelling for that",
+            "this server answered PRELOGIN with encryption 0x{:02X}, which sends everything after \
+             the login in plaintext. A connection without encryption is not allowed",
             offered.byte()
         )));
     }

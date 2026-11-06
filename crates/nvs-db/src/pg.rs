@@ -2119,15 +2119,7 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
             }
             hex
         }
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "a value of tag {} has no form this driver can bind",
-                    value.tag_byte()
-                ),
-            ));
-        }
+        _ => return Err(crate::sql::unbindable(value)),
     };
     Ok(Some(rendered.into_bytes()))
 }
@@ -3417,8 +3409,8 @@ fn execute_many<S: Read + Write>(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "one executeMany bound {arity} parameters in its first set and {} in another, and \
-                 `rule:core-classes/db-statement-members`'s one prepare has one parameter count",
+                "one executeMany bound {arity} parameters in its first set and {} in another. \
+                 Every set must bind the same number of parameters",
                 odd.len()
             ),
         ));
@@ -3983,33 +3975,35 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 /// `rule:core-classes/db-statement-members`'s refusal of a second statement, and the one place its wording
 /// lives.
 ///
-/// **It names both fixes, always**, because `rule:core-classes/db-streaming`
-/// requires the refusal to: the
-/// buffered read that frees the connection, and the `{ shared: false }`
-/// connection that gives this statement one of its own. Those are the only two
-/// answers, they fix different programs — one loop wants its rows in memory,
-/// one genuinely wants two connections — and a message saying only that the
+/// **A busy connection's sentence names every fix, always**, because
+/// `rule:core-classes/db-streaming` requires the refusal to: read the rows
+/// already running, read them with `query` instead of `stream`, or open a
+/// `{ shared: false }` connection that gives this statement one of its own.
+/// They fix different programs — one loop wants its rows in memory, one
+/// genuinely wants two connections — and a message saying only that the
 /// connection is busy leaves the caller to guess which of them their code
-/// needs.
+/// needs. SQLite's `busy` returns this same sentence, so every driver says it
+/// the same way.
 ///
-/// `nvs-stdlib` re-words this as that rule's `LogicError`: the fault class is its own
-/// and so is the call site's spelling, per [`State::may_start_statement`].
-/// What it re-words is this sentence, which is also the one a log carries
-/// wherever nothing has — so it is the whole answer rather than a hint.
-///
-/// The state is quoted because it is the difference between the two bugs this
-/// catches: `Streaming` is an unread stream, and `Poisoned` is a connection
-/// that is not going to work again whatever the caller does next.
+/// `nvs-stdlib` prefixes it with the member that was called and throws it as
+/// that rule's `LogicError`, per [`State::may_start_statement`]. A program
+/// reads it, so it names no internal state: the state picks the sentence
+/// instead. `Poisoned` is a connection that is not going to work again
+/// whatever the caller does next, and every other busy state is an unread
+/// result.
 pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!(
-            "a statement was written to a connection that is {:?}, and `rule:core-classes/db-statement-members` allows one at \
-             a time: read the first statement's rows into memory (`->all()`), or open a \
-             `{{ shared: false }}` connection so this statement has one of its own",
-            state.get()
-        ),
-    )
+    let said = match state.get() {
+        State::Poisoned => {
+            "this connection stopped in the middle of an earlier statement, and it cannot be \
+             used again"
+        }
+        State::Idle | State::Executing | State::Streaming => {
+            "this connection is still reading the rows of an earlier statement, and it runs \
+             statements one at a time. Read all of those rows first, use `query` instead of \
+             `stream`, or open a second connection with `{ shared: false }`"
+        }
+    };
+    io::Error::new(io::ErrorKind::InvalidInput, said)
 }
 
 /// Poisons the connection over a message the extended-query sequence does not
@@ -5900,7 +5894,7 @@ mod tests {
 
     /// `rule:core-classes/db-streaming` does not only require the refusal — it
     /// requires it to name **both**
-    /// fixes, `->all()` *or* a `{ shared: false }` connection, because they fix
+    /// fixes, `query` *or* a `{ shared: false }` connection, because they fix
     /// different programs. Asserted for every entry point that can refuse, so a
     /// member added later with a message of its own fails here rather than
     /// shipping half the answer.
@@ -5926,7 +5920,7 @@ mod tests {
 
         for said in refusals {
             assert!(
-                said.contains("->all()"),
+                said.contains("`query` instead of `stream`"),
                 "the buffered read is unnamed: {said}"
             );
             assert!(
@@ -6948,8 +6942,9 @@ mod tests {
     }
 
     /// `rule:core-classes/db-connection-busy-state` governs these three like
-    /// any other statement, and all three answer
-    /// the refusal that names both of its fixes rather than a third wording.
+    /// any other statement, and all three answer [`super::second_statement`]'s
+    /// refusal rather than a wording of their own: the one naming every fix for
+    /// a busy connection, and the one saying a poisoned connection is done.
     #[test]
     fn a_transaction_command_on_a_busy_connection_writes_nothing_and_is_refused() {
         for busy in [State::Executing, State::Streaming, State::Poisoned] {
@@ -6962,8 +6957,12 @@ mod tests {
             let checked = |refused: &io::Error| {
                 assert_eq!(refused.kind(), io::ErrorKind::InvalidInput, "{busy:?}");
                 let said = refused.to_string();
-                assert!(said.contains("->all()"), "{said}");
-                assert!(said.contains("shared: false"), "{said}");
+                if busy == State::Poisoned {
+                    assert!(said.contains("cannot be used again"), "{said}");
+                } else {
+                    assert!(said.contains("`query` instead of `stream`"), "{said}");
+                    assert!(said.contains("shared: false"), "{said}");
+                }
             };
             checked(
                 &super::begin(&mut wire, &state, &depth, None, false)

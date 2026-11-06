@@ -27,5 +27,5 @@ echo "still running", "\n";
 driver = "postgres"
 host = "127.0.0.1"
 --EXPECT--
-Core\Queue::push: this deployment writes no `[queue]` block, so nothing names the database a job would live in — `rule:core-classes/queue-storage-is-a-table` is the block, and `connection` is the field
+Core\Queue::push: this deployment writes no `[queue]` block, so nothing names the database a job would live in. Add a `[queue]` block to `nvs.toml` and set its `connection` field
 still running

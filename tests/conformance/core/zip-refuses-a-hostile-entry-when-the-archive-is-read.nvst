@@ -55,9 +55,9 @@ try {
     echo "a hostile archive is a ParseError, not an IOError\n";
 }
 --EXPECT--
-Core\Zip refuses an entry when the archive is read: it traverses out of the archive with a `..` component: "../../etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
-Core\Zip refuses an entry when the archive is read: it names an absolute path: "/etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
-Core\Zip refuses an entry when the archive is read: it is a symlink, whatever its name says: "notes/link" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+Core\Zip does not read an entry that could leave its folder: it traverses out of the archive with a `..` component: "../../etc/passwd". The archive is checked when it is read, before anything is extracted.
+Core\Zip does not read an entry that could leave its folder: it names an absolute path: "/etc/passwd". The archive is checked when it is read, before anything is extracted.
+Core\Zip does not read an entry that could leave its folder: it is a symlink, whatever its name says: "notes/link". The archive is checked when it is read, before anything is extracted.
 Core\Zip will not read an entry: the archive names it twice, and which of the two a reader answers is what the attack turns on: "notes/one.txt".
 reading one harmless entry of that archive: refused as well
 a hostile archive is a ParseError, not an IOError

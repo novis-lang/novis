@@ -74,7 +74,7 @@ final class AlphaTest {
     ✗ aCaughtFailureStillFails         %f ms
       Core\Test::assertSame failed: `$actual` is "actual", `$expected` is "expected"
     ✗ aTestThatAssertsNothingFails     %f ms
-      it asserted nothing: `rule:testing/runner-is-strict` fails a test whose ledger is empty — write `Core\Test::assertDoesNotThrow` where the claim is that a call completes
+      it asserted nothing, and a test without an assertion fails. To test that a call does not throw, use `Core\Test::assertDoesNotThrow`
   ZebraTest
     ✓ zulu                             %f ms
 

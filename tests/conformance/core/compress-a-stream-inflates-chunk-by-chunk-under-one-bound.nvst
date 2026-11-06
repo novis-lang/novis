@@ -95,4 +95,4 @@ chunkings refused at 16383: 4
 accepted at 1000:1: 4
 refused at 100:1: 4
 a streamed frame is bounded the same
-Core\Compress\Decompressor::finish(): a `Core\Compress::Codec::Gzip` frame decompressing past the 1024 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming `$maxBytes` or `$maxRatio` lowers and nothing raises.
+Core\Compress\Decompressor::finish(): a `Core\Compress::Codec::Gzip` frame decompresses to more than the limit of 1024 bytes, so it is not read. A call can lower the limit with `$maxBytes` or `$maxRatio`. It cannot raise it past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.

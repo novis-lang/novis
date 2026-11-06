@@ -380,8 +380,9 @@ pub fn scalar<'a>(column: &TdsColumn, value: Option<&'a [u8]>) -> io::Result<Tds
         // which is the one answer worse than no answer.
         TY_VARIANT | TY_UDT => {
             return Err(malformed(format!(
-                "column `{name}` is a `sql_variant` or a CLR type, which this driver has no \
-                 reading for — cast it in the statement to a type `rule:core-classes/db-column-types`'s table names"
+                "column `{name}` is a `sql_variant` or a CLR type, which this driver cannot \
+                 read. Cast it in the statement to a column type that Novis reads, such as \
+                 `nvarchar` or `int`"
             )));
         }
         // `char`, `varchar`, `text` — and every type byte this driver has no

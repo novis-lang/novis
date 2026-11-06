@@ -4091,8 +4091,8 @@ fn equals(ctx: &mut Ctx, actual: Value, expected: Value) -> Result<bool, Fault> 
         .map(|ordering| ordering == 0)
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Test::assertEquals expected an `int` from `compareTo`, got tag {}",
-                answer.tag_byte()
+                "Core\\Test::assertEquals expected an `int` from `compareTo`, got a `{}`",
+                answer.tag().map_or("value", nvs_runtime::Tag::describe)
             ))
         })
 }

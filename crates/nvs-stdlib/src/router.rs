@@ -1600,8 +1600,8 @@ fn with_origin(ctx: &nvs_runtime::Ctx, path: &str) -> HelperResult {
     let Some(origin) = ctx.origin() else {
         return Err(Fault::thrown(format!(
             "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
-             has no absolute form. `rule:routing/an-absolute-link-takes-a-configured-origin` refuses to derive one from a request header, \
-             so give `nvs.toml` an `[[app]] origin`"
+             has no absolute form. The origin is never taken from a request header, so give \
+             `nvs.toml` an `[[app]] origin`"
         )));
     };
     produced(&format!("{origin}{path}"))

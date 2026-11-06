@@ -28,7 +28,7 @@ $db->transaction(fn (Core\Db\Transaction $tx): void => {
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0770]: this query and its parameters do not agree: the statement has 2 `?` placeholder(s) and was given 1 argument(s), and `rule:core-classes/db-parameters` binds them one for one — an `inList` counts as the one argument it is, however many values it holds
+error[E0770]: this query and its parameters do not agree: the statement has 2 `?` placeholder(s) and was given 1 argument(s). Each `?` needs one argument, and an `inList` counts as one argument, however many values it has
    --> case.nvs:14:25
 %A
 error: aborting due to 2 errors

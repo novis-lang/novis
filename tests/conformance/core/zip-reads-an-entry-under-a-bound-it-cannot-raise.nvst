@@ -54,9 +54,9 @@ try {
 }
 --EXPECT--
 entries: 1
-Core\Zip: an entry decompressing past the 65535 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound): "big.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+Core\Zip: the entry "big.txt" decompresses to more than the limit of 65535 bytes, so it is not read. Lower `$maxBytes` or `$maxRatio` to read less. Neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
 at the ceiling: 65536 octets
-Core\Zip: an entry decompressing past the 100:1 ratio over 79 octets of input is refused rather than truncated (rule:core-classes/decompression-bound): "big.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+Core\Zip: the entry "big.txt" decompresses to more than 100 times its 79 bytes of input, so it is not read. Lower `$maxBytes` or `$maxRatio` to read less. Neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
 asking for zero octets: refused
 under the defaults: 65536 octets
 a bounded-out read answers: nothing at all

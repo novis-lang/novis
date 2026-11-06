@@ -14,18 +14,18 @@ Every member that orders through `nvs_stdlib::ordering`'s one helper refuses the
 // its own wording — costs the row a point while still reading correctly on
 // its own line.
 final class Refusals {
-    // The one message, minus the member name in front of it and the two tag
-    // numbers in the middle. A refusal that does not end this way is a second
+    // The one message, minus the member name in front of it and the two type
+    // names in the middle. A refusal that does not end this way is a second
     // wording, which is the thing this case exists to catch. Single-quoted so
-    // that every backslash and brace is literal.
+    // that every backslash is literal.
     private static function sharedTail(): string {
-        return 'two numbers, two strings, two bools or two nulls have one and no other pair does. '
-             . '`Core\Arr::sort` takes `{comparator: ...}`; for an object `rule:classes/comparable` makes '
-             . '`Comparable` the answer';
+        return 'Only two numbers, two strings, two bools or two nulls have one. '
+             . 'Give `Core\Arr::sort` a `comparator`, or implement `Comparable` in the class '
+             . 'of the objects.';
     }
 
     public static function names(string $message, string $member): bool {
-        return Core\Str::startsWith($message, $member . ' has no natural order for tag ')
+        return Core\Str::startsWith($message, $member . ' has no natural order for a `')
             && Core\Str::endsWith($message, Refusals::sharedTail());
     }
 
@@ -148,12 +148,12 @@ for (; $row < $rows; ) {
 }
 echo "agreements ", $total, " of ", $rows * 7, "\n";
 --EXPECT--
-string against int: 7 members refuse, 0 of 7 agreed
-null against int: 7 members refuse, 0 of 7 agreed
-bool against int: 7 members refuse, 0 of 7 agreed
-null against string: 7 members refuse, 0 of 7 agreed
-bool against string: 7 members refuse, 0 of 7 agreed
-array against int: 7 members refuse, 0 of 7 agreed
+string against int: 7 members refuse, 7 of 7 agreed
+null against int: 7 members refuse, 7 of 7 agreed
+bool against int: 7 members refuse, 7 of 7 agreed
+null against string: 7 members refuse, 7 of 7 agreed
+bool against string: 7 members refuse, 7 of 7 agreed
+array against int: 7 members refuse, 7 of 7 agreed
 int against int: 7 members accept, 7 of 7 agreed
 string against string: 7 members accept, 7 of 7 agreed
-agreements 14 of 56
+agreements 56 of 56

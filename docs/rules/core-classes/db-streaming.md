@@ -1,6 +1,7 @@
 `stream` and `streamAs<T>` read a result set in constant memory, and they **hold the connection until
-drained**. A second statement attempted on a streaming connection throws `LogicError` naming both
-fixes: `->all()`, or a `{shared: false}` connection.
+drained**. A second statement attempted on a streaming connection throws `LogicError` naming every
+fix: read the rows first, `query` instead of `stream`, or a `{ shared: false }` connection. Every
+driver, SQLite included, says it in one sentence.
 
 There is no `{chunk?: uint}` option, and its absence is a refusal rather than an unlanded feature.
 The PostgreSQL portal is opened with a row count of *every row* and one `DataRow` is read per step, so

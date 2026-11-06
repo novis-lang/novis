@@ -338,8 +338,12 @@ impl Ctx {
             // `Fault` is `#[non_exhaustive]`, and the remaining variants reach
             // a callable call only as `crate::call_callable`'s own two engine
             // faults — a value that is not a callable, or one declaring more
-            // parameters than the one report there is to offer.
-            other => self.set_pending(format!("a `Core\\Script::onExit` hook failed: {other:?}")),
+            // parameters than the one report there is to offer. The fault's own
+            // words go into the message and never its `Debug`, because a
+            // program's log reads it and a Rust variant name means nothing there.
+            crate::Fault::Fatal(message) | crate::Fault::ThrownWithSlots(_, message, _) => {
+                self.set_pending(format!("a `Core\\Script::onExit` hook failed: {message}"));
+            }
         }
         let thrown = self.take_thrown();
         let mut record = crate::floor::uncaught(&thrown);

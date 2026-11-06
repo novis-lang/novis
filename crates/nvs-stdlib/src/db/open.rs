@@ -563,10 +563,9 @@ pub(super) fn settings_tls(value: &Value) -> Result<(), Fault> {
         }
     };
     Err(Fault::thrown(format!(
-        "{OPEN}: `tls` asks for `Tls::{asked}`, and this runtime opens every TCP connection at \
-         `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private \
-         certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose \
-         certificates are believed and not whether they are checked"
+        "{OPEN}: `tls` is `Tls::{asked}`, but every TCP connection uses `Tls::VerifyFull`. \
+         A weaker mode is not allowed. For a private certificate authority, set `tls_ca_file` \
+         in the `[db.<name>]` block. The certificates are then still checked"
     )))
 }
 
@@ -1168,9 +1167,9 @@ nvs_runtime::nvs_helper! {
         if count == 0 {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
-                "Core\\Db::inList() was given an empty list, and `rule:core-classes/db-parameters` refuses one: an \
-                 empty list matches nothing inside `IN` and everything inside `NOT IN`, the \
-                 rewriter cannot tell which it is in, and the caller has to branch"
+                "Core\\Db::inList() was given an empty list. An empty list is not allowed, \
+                 because it would match nothing inside `IN` and everything inside `NOT IN`. \
+                 Check for an empty list before you call it"
                     .to_owned(),
             ));
         }

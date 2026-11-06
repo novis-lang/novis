@@ -564,7 +564,10 @@ fn fill(child: &mut Ctx, callable: Value, deadline: Option<Duration>, error: &[u
             Value::str(NvsStr::new(error))
         }
         Some(Outcome::TimedOut) => {
-            let mut record = crate::floor::note(Level::Error, "a `later` slot passed its deadline");
+            let mut record = crate::floor::note(
+                Level::Error,
+                "a `Core\\Html::later` part did not finish before its deadline",
+            );
             record
                 .envelope
                 .fields
@@ -599,7 +602,15 @@ fn render(ctx: &mut Ctx, callable: Value) -> Value {
             return Value::null();
         }
         Err(other) => {
-            ctx.set_pending(format!("a `later` slot failed: {other:?}"));
+            // The fault's own words and never its `Debug`: a program reads this
+            // message, and a Rust variant name is nothing it can act on.
+            let message = match &other {
+                crate::Fault::Fatal(message)
+                | crate::Fault::Thrown(_, message)
+                | crate::Fault::ThrownWithSlots(_, message, _) => message.to_string(),
+                crate::Fault::Pending(_) => String::new(),
+            };
+            ctx.set_pending(format!("a `Core\\Html::later` part failed: {message}"));
             return Value::null();
         }
     };
@@ -655,4 +666,4 @@ fn release(value: Value) {
 }
 
 /// The `origin` field a slot's failure carries in its log record.
-const ORIGIN: &str = "a later slot";
+const ORIGIN: &str = "Core\\Html::later";

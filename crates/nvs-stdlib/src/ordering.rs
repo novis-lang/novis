@@ -45,7 +45,7 @@ use nvs_runtime::{Ctx, Decimal, Fault, Tag, Value};
 ///   reads only its own class.
 ///
 /// Anything else — an array, a `bytes`, an object whose class has no
-/// `compareTo`, or two different rows above — is `THROWN`, naming both tags
+/// `compareTo`, or two different rows above — is `THROWN`, naming both types
 /// and the `member` that asked. A `bytes` is worth calling out: it shares the
 /// `string` heap shape and would order bytewise the same way, but
 /// `rule:types/bytes` gives it no ordering and [`Value::as_str_bytes`]
@@ -103,11 +103,11 @@ pub(crate) fn compare_values(
         return sign_of(verdict, member);
     }
     Err(Fault::thrown(format!(
-        "{member} has no natural order for tag {} against tag {}: two numbers, two strings, two \
-         bools or two nulls have one and no other pair does. `Core\\Arr::sort` takes \
-         `{{ comparator: ... }}`; for an object `rule:classes/comparable` makes `Comparable` the answer",
-        left.tag_byte(),
-        right.tag_byte()
+        "{member} has no natural order for a `{}` against a `{}`. Only two numbers, two \
+         strings, two bools or two nulls have one. Give `Core\\Arr::sort` a `comparator`, or \
+         implement `Comparable` in the class of the objects.",
+        left.tag().map_or("value", Tag::describe),
+        right.tag().map_or("value", Tag::describe)
     )))
 }
 

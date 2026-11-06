@@ -30,6 +30,6 @@ if (Core\Arr::isEmpty($none)) {
     Core\Db::inList($none);
 }
 --EXPECT--
-Core\Db::inList() was given an empty list, and `rule:core-classes/db-parameters` refuses one: an empty list matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot tell which it is in, and the caller has to branch
+Core\Db::inList() was given an empty list. An empty list is not allowed, because it would match nothing inside `IN` and everything inside `NOT IN`. Check for an empty list before you call it
 a run of one null is not an empty list
 the caller branches

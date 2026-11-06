@@ -1292,9 +1292,9 @@ pub unsafe fn construct_and_call(
             return Err(crate::abi::record_fault(
                 ctx,
                 Fault::thrown(format!(
-                    "`{}`'s constructor declares {} parameter(s), and this runner supplies \
-                     none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and fixtures \
-                     fill the test method's own parameters",
+                    "`{}`'s constructor declares {} parameter(s), and the test runner gives \
+                     it none. The constructor is the test's set-up, and fixtures go into the \
+                     parameters of each test method",
                     desc.name(),
                     row.arity
                 )),

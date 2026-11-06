@@ -812,9 +812,9 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     // recoverable and a wrong `FATAL` ends the request.
     let Some(names) = nvs_runtime::callable_param_names(entry)? else {
         return Err(Fault::thrown(format!(
-            "`{member}` was handed a `callable` that records no parameter names, so `rule:security/isolate-shares-nothing`'s \
-             `args:` binding has nothing to bind by. Name a static method — `Chat::run` — \
-             or the file the connection runs"
+            "`{member}` was given a `callable` with no parameter names, so `args:` cannot be \
+             matched to its parameters. Give a static method such as `Chat::run`, or the file \
+             the connection runs"
         )));
     };
     if let Err(message) = crate::script::entry_names_agree(member, &names, args) {

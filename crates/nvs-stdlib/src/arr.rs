@@ -2796,8 +2796,8 @@ fn key_bytes<'a>(value: &'a Value, member: &str) -> Result<KeyBytes<'a>, Fault> 
         return Ok(KeyBytes::rendered(uint));
     }
     Err(Fault::fatal(format!(
-        "Core\\Arr::{member} expected an `int|string` key, got tag {}",
-        value.tag_byte()
+        "Core\\Arr::{member} expected an `int|string` key, got a `{}`",
+        value.tag().map_or("value", nvs_runtime::Tag::describe)
     )))
 }
 
@@ -6171,7 +6171,7 @@ nvs_runtime::nvs_helper! {
                 .ok_or_else(|| {
                     Fault::thrown(
                         "Core\\Arr::average has no `decimal` answer for this subject: the \
-                         quotient is outside `rule:types/decimal`'s range"
+                         average does not fit in a `decimal`"
                             .to_owned(),
                     )
                 }),
@@ -6321,9 +6321,9 @@ fn fold(
         })?;
         total = operation(total, entry).ok_or_else(|| {
             Fault::thrown(format!(
-                "Core\\Arr::{member} has no answer for this subject: the running total either \
-                 left its type's range or met a `float` and a `decimal` in one array, which \
-                 have no common type (`rule:types/arithmetic`, `rule:types/arithmetic`)"
+                "Core\\Arr::{member} has no answer for this subject. Either the running total \
+                 is too large for its type, or the array has both a `float` and a `decimal`, \
+                 which have no common type"
             ))
         })?;
     }

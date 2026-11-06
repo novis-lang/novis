@@ -935,9 +935,8 @@ fn escapes(name: &str, resolved: &Path) -> Fault {
     // asserts it instead, on the hosts that allow the link.
     Fault::thrown(format!(
         "Core\\Zip::extract(): a directory this archive asked for resolved outside the \
-         destination, and the extraction stopped there: \"{name}\" resolves to \"{}\" \
-         (rule:security/path-scope-canonicalise-then-prefix). Each level is resolved and compared \
-         before anything is created inside it, so nothing of this entry reached the disk.",
+         destination, so the extraction stopped: \"{name}\" resolves to \"{}\". Nothing of \
+         this entry was written to the disk.",
         resolved.display()
     ))
 }
@@ -982,10 +981,8 @@ fn refuses_path(what: &str, name: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "Core\\Zip refuses an entry when the archive is read: {what}: \"{name}\" \
-             (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's \
-             rather than the extraction's, so a program that walks the entries itself has nothing \
-             left it could have checked."
+            "Core\\Zip does not read an entry that could leave its folder: {what}: \"{name}\". \
+             The archive is checked when it is read, before anything is extracted."
         ),
     )
 }
@@ -1009,25 +1006,21 @@ fn refuses_entry(what: &str, name: &str) -> Fault {
 /// read as a ceiling nobody configured.
 fn over_bound(name: &str, input: usize, budget: &Budget, ceiling: u64, streamed: bool) -> Fault {
     let half = if streamed || ceiling < budget.left {
-        format!(
-            "the {}:1 ratio over {input} octets of input",
-            budget.bound.ratio
-        )
+        format!("{} times its {input} bytes of input", budget.bound.ratio)
     } else if budget.left == budget.bound.bytes {
-        format!("the {} octet ceiling", budget.bound.bytes)
+        format!("the limit of {} bytes", budget.bound.bytes)
     } else {
         format!(
-            "the {} octets this archive had left of its {} octet ceiling",
+            "the {} bytes left of this archive's limit of {} bytes",
             budget.left, budget.bound.bytes
         )
     };
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "Core\\Zip: an entry decompressing past {half} is refused rather than truncated \
-             (rule:core-classes/decompression-bound): \"{name}\". Lower `$maxBytes` or `$maxRatio` \
-             to read less; neither can be raised past `[limits] max_decompressed` and \
-             `[limits] max_decompression_ratio`."
+            "Core\\Zip: the entry \"{name}\" decompresses to more than {half}, so it is not \
+             read. Lower `$maxBytes` or `$maxRatio` to read less. Neither can be raised past \
+             `[limits] max_decompressed` and `[limits] max_decompression_ratio`."
         ),
     )
 }
@@ -1760,7 +1753,7 @@ mod tests {
     }
 
     /// Stage 4's first refusal: a `..` entry is refused when the archive is
-    /// read, and the refusal names the rule.
+    /// read, by the one sentence all three path refusals share.
     ///
     /// The archive is otherwise ordinary and the traversing entry is second, so
     /// a reader that judged only the first entry — or that judged at extraction
@@ -1777,8 +1770,8 @@ mod tests {
             "{message}"
         );
         assert!(
-            message.contains("rule:security/path-scope-canonicalise-then-prefix"),
-            "the refusal names the rule: {message}"
+            message.contains("does not read an entry that could leave its folder"),
+            "the refusal is the path refusal: {message}"
         );
 
         // A `..` anywhere in the name, not only at its front, and under either
@@ -1823,7 +1816,7 @@ mod tests {
                 "{name}: {message}"
             );
             assert!(
-                message.contains("rule:security/path-scope-canonicalise-then-prefix"),
+                message.contains("does not read an entry that could leave its folder"),
                 "{name}: {message}"
             );
         }
@@ -1844,7 +1837,7 @@ mod tests {
         ]);
         assert!(message.contains("it is a symlink"), "{message}");
         assert!(
-            message.contains("rule:security/path-scope-canonicalise-then-prefix"),
+            message.contains("does not read an entry that could leave its folder"),
             "{message}"
         );
 
@@ -1937,11 +1930,8 @@ mod tests {
         .read(&raw, &entries[0])
         .expect_err("an entry past the ceiling is refused");
         let message = refusal(refused);
-        assert!(message.contains("the 4095 octet ceiling"), "{message}");
-        assert!(
-            message.contains("rule:core-classes/decompression-bound"),
-            "{message}"
-        );
+        assert!(message.contains("the limit of 4095 bytes"), "{message}");
+        assert!(message.contains("decompresses to more than"), "{message}");
 
         assert_eq!(
             Budget::new(Bound {
@@ -1978,13 +1968,10 @@ mod tests {
                 .expect_err("the archive's total passes the ceiling"),
         );
         assert!(
-            message.contains("this archive had left of its 6000 octet ceiling"),
+            message.contains("left of this archive's limit of 6000 bytes"),
             "{message}"
         );
-        assert!(
-            message.contains("rule:core-classes/decompression-bound"),
-            "{message}"
-        );
+        assert!(message.contains("decompresses to more than"), "{message}");
 
         // What is charged is the octets read and not the entry count: the same
         // two entries under a ceiling their total fits both read.
@@ -2048,7 +2035,7 @@ mod tests {
                 .read(&raw, &entry)
                 .expect_err("the same part held is over the ceiling"),
         );
-        assert!(message.contains("the 1000 octet ceiling"), "{message}");
+        assert!(message.contains("the limit of 1000 bytes"), "{message}");
 
         let message = refusal(
             streamed(
@@ -2062,13 +2049,10 @@ mod tests {
             .expect_err("one step under the ratio is refused"),
         );
         assert!(
-            message.contains(&format!("the {}:1 ratio over {input} octets", enough - 1)),
+            message.contains(&format!("{} times its {input} bytes", enough - 1)),
             "{message}"
         );
-        assert!(
-            message.contains("rule:core-classes/decompression-bound"),
-            "{message}"
-        );
+        assert!(message.contains("decompresses to more than"), "{message}");
     }
 
     /// A part held whole is refused by whichever half is smaller, each on both
@@ -2084,10 +2068,10 @@ mod tests {
             100_000
         );
         let message = refusal(read(99_999, enough).expect_err("one octet under the ceiling"));
-        assert!(message.contains("the 99999 octet ceiling"), "{message}");
+        assert!(message.contains("the limit of 99999 bytes"), "{message}");
         let message = refusal(read(100_000, enough - 1).expect_err("one step under the ratio"));
         assert!(
-            message.contains(&format!("the {}:1 ratio", enough - 1)),
+            message.contains(&format!("{} times its", enough - 1)),
             "{message}"
         );
     }
@@ -2125,7 +2109,7 @@ mod tests {
                 .expect_err("a second hold passes what is left"),
         );
         assert!(
-            message.contains("this archive had left of its 6000 octet ceiling"),
+            message.contains("left of this archive's limit of 6000 bytes"),
             "{message}"
         );
         assert_eq!(
@@ -2284,7 +2268,7 @@ mod tests {
             "{message}"
         );
         assert!(
-            message.contains("rule:security/path-scope-canonicalise-then-prefix"),
+            message.contains("Nothing of this entry was written to the disk"),
             "{message}"
         );
 

@@ -341,9 +341,8 @@ pub(super) fn text_of(value: &[u8], marker: usize) -> io::Result<&str> {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "the value bound at {} is not UTF-8 and is not marked binary, so it is neither \
-                 form this driver sends — `rule:core-classes/db-column-types`'s `bytes` reaches \
-                 here from `nvs_db::tds::encode` and these octets did not",
+                "the value bound at {} is not valid UTF-8 text and is not `bytes`, so this \
+                 driver cannot send it",
                 Dialect::SqlServer.marker(marker)
             ),
         )
@@ -642,15 +641,7 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
             marked.extend_from_slice(octets);
             return Ok(Some(marked));
         }
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "a value of tag {} has no form this driver can bind",
-                    value.tag_byte()
-                ),
-            ));
-        }
+        _ => return Err(crate::sql::unbindable(value)),
     };
     Ok(Some(rendered.into_bytes()))
 }
@@ -1055,8 +1046,9 @@ mod tests {
     /// values that carry none are still refused at [`encode`] rather than
     /// written as something the server would read as text.
     ///
-    /// The refusal names the **tag** and never the value, which is what lets a
-    /// case assert it without quoting a program's data back into a message.
+    /// The refusal names the value's **type** and never the value, which is
+    /// what lets a case assert it without quoting a program's data back into a
+    /// message.
     /// An object and a callable take the same arm and are not built here: this
     /// crate forbids `unsafe`, and an instance comes from `NvsObj::new`, which
     /// is one — so the arm is asked through the tags a safe caller can mint.
@@ -1068,8 +1060,8 @@ mod tests {
         let refused = encode(array).expect_err("an `array` has no T-SQL form");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert!(
-            refused.to_string().contains(&array.tag_byte().to_string()),
-            "the refusal names the tag: {refused}"
+            refused.to_string().contains("of type `array`"),
+            "the refusal names the type: {refused}"
         );
 
         for outside in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {

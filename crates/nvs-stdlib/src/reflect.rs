@@ -923,8 +923,8 @@ fn subject_of(
 ) -> Result<*mut nvs_runtime::ObjHeader, Fault> {
     let ptr = subject.obj_ptr().ok_or_else(|| {
         Fault::thrown(format!(
-            "{CLASS_INFO_NAME}::{member}() expected an object, got tag {}",
-            subject.tag_byte()
+            "{CLASS_INFO_NAME}::{member}() expected an object, got a `{}`",
+            subject.tag().map_or("value", nvs_runtime::Tag::describe)
         ))
     })?;
     // `as_text` rather than the bytes: the slot was written by `forObject`
@@ -2259,8 +2259,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_reflect_for_object(_ctx, args: [1]) {
         let ptr = args[0].obj_ptr().ok_or_else(|| {
             Fault::thrown(format!(
-                "{NAME}::forObject() expected an object, got tag {}",
-                args[0].tag_byte()
+                "{NAME}::forObject() expected an object, got a `{}`",
+                args[0].tag().map_or("value", nvs_runtime::Tag::describe)
             ))
         })?;
         #[expect(

@@ -42,7 +42,7 @@ final class UnbuildableTest {
     ✓ itReadsWhatTheSetupPrepared      %f ms
   UnbuildableTest
     ✗ itIsReportedAsFailing            %f ms
-      `UnbuildableTest`'s constructor declares 1 parameter(s), and this runner supplies none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and fixtures fill the test method's own parameters
+      `UnbuildableTest`'s constructor declares 1 parameter(s), and the test runner gives it none. The constructor is the test's set-up, and fixtures go into the parameters of each test method
 
   1 failed, 1 passed, 0 skipped, 0 flaky in %d ms
 --EXPECTF-ERROR--

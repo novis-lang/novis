@@ -921,11 +921,8 @@ mod tests {
         // the rule is the mapping rather than the sentence.
         let busy = std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            format!(
-                "a statement was written to a connection that is {:?}, and `rule:core-classes/db-statement-members` allows \
-                 one at a time",
-                nvs_db::State::Streaming
-            ),
+            "this connection is still reading the rows of an earlier statement, and it runs \
+             statements one at a time",
         );
         let block = Value::null();
         for member in [STREAM_MEMBER, QUERY, QUERY_AS, EXECUTE, EXECUTE_MANY] {
@@ -938,7 +935,7 @@ mod tests {
                 "the refusal names the member the program called: {why}"
             );
             assert!(
-                why.contains("Streaming"),
+                why.contains("still reading the rows"),
                 "and carries the driver's own sentence, which names both of the busy connection's fixes: {why}"
             );
         }

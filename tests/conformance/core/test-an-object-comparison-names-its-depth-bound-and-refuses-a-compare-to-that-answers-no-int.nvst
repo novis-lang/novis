@@ -87,4 +87,4 @@ Core\Test::assertEqualsDeep walked 64 levels of containment at
 Core\Test::assertEqualsDeep failed: the two differ at `$actual->name`: `$actual` is "a", `$expected` is "z"
 an int-answering compareTo is read as an ordering
 --EXPECT-ERROR--
-FATAL: Core\Test::assertEquals expected an `int` from `compareTo`, got tag 5
+FATAL: Core\Test::assertEquals expected an `int` from `compareTo`, got a `string`

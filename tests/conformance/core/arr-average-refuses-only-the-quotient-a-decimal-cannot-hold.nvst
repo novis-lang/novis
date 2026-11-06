@@ -63,7 +63,7 @@ echo $answered, "|", $refused, "|", $summed, "\n";
 array<float> $reals = [5545971375998503631548076523.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 echo Core\Arr::average($reals) ?? 0.0, "\n";
 --EXPECT--
-Core\Arr::average has no `decimal` answer for this subject: the quotient is outside `rule:types/decimal`'s range
+Core\Arr::average has no `decimal` answer for this subject: the average does not fit in a `decimal`
 792281625142643375935439503.34
 792281625142643375935439503.4
 13|1|14

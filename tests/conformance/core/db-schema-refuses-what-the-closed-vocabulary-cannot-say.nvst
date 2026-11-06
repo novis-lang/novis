@@ -61,7 +61,7 @@ array<mixed> $accepted = [
 echo Core\Json::encode(Core\Db\Schema::fromArray($accepted)->toArray()), "\n";
 --EXPECT--
 Core\Db\Schema::fromArray(): `serial` is not one of the column types the vocabulary contains
-Core\Db\Schema::fromArray(): the array["tables"][0]["columns"][0]["default"] holds `null`, where a key a schema does not set is left out instead. A schema array holds only strings, integers, floats, booleans and arrays of those — `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is closed and there is nowhere in it to put anything else
+Core\Db\Schema::fromArray(): the array["tables"][0]["columns"][0]["default"] holds `null`, where a key a schema does not set is left out instead. A schema array can contain only strings, integers, floats, booleans and arrays of those
 Core\Db\Schema::fromArray(): `notes; drop table users` is not a bare identifier — a letter or `_`, then letters, digits or `_`
 Core\Db\Schema::fromArray(): identity column `id` is not in its table's primary key, which SQLite requires and the other four assume
 {"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true}],"primary_key":["id"],"unique":[],"indexes":[]}]}

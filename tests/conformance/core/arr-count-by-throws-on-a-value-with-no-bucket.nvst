@@ -29,4 +29,4 @@ echo "unreached\n";
 red=2;blue=1;
 1.5=2;2.5=1;
 --EXPECT-ERROR--
-FATAL: Core\Arr::countBy expected an `int|string` key, got tag 4
+FATAL: Core\Arr::countBy expected an `int|string` key, got a `float`

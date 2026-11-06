@@ -290,12 +290,9 @@ fn hand_written(
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{QUERY_AS}: `{}` carries no `#[Db\\Derive]` and declares no `{FROM_ROW}`, so \
-                 there is neither a column mapping to build one from nor a member to hand the row \
-                 to — `rule:core-classes/derive-attribute`'s opt-in is that attribute, and \
-                 `rule:core-classes/derive-generates-what-is-missing` is the hand-written half \
-                 beside it. `E0806` is where a call site that wrote such a class is refused while \
-                 compiling",
+                "{QUERY_AS}: `{}` has no `#[Db\\Derive]` attribute and no `{FROM_ROW}` method, \
+                 so a row cannot be turned into one. Add the attribute, or write `{FROM_ROW}` \
+                 yourself. The compiler reports this as `E0806` where it can see the class",
                 desc.name()
             ),
         )
@@ -316,8 +313,8 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
             Ok(held)
         } else {
             Err(
-                "the column is SQL NULL and the property is not declared `?T` — `rule:core-classes/db-column-types` reads a \
-                 NULL back as `null` whatever the column's type is"
+                "the column is SQL NULL and the property is not declared `?T`. A NULL column \
+                 is read as `null`, so the property needs a nullable type"
                     .to_owned(),
             )
         };
@@ -335,9 +332,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
     // declaration, and this is the backstop for a descriptor built by hand.
     if element.element.is_some() {
         return Err(
-            "this property is a list of lists, and `rule:core-classes/db-column-types` maps no \
-             column to one"
-                .to_owned(),
+            "this property is a list of lists, and no column can be read as one".to_owned(),
         );
     }
     let held_ptr = held
@@ -505,8 +500,7 @@ pub(super) fn converted(
                 Ok(held)
             } else {
                 Err(format!(
-                    "the column came back as a `{}` and this property declares `{declared}` — `rule:core-classes/db-column-types`'s \
-                     type map is what each column reads back as",
+                    "the column came back as a `{}` and this property declares `{declared}`",
                     found.name()
                 ))
             }
@@ -532,12 +526,8 @@ pub(super) fn converted(
 /// field's declared type in hand rather than a reader's name.
 pub(super) fn wanted(want: &str, held: Value) -> String {
     format!(
-        "the column came back as {} and this property declares {want} — `rule:core-classes/db-column-types`'s type map is \
-         what each column reads back as",
-        held.tag().map_or_else(
-            || format!("tag {}", held.tag_byte()),
-            |tag| tag.describe().to_owned()
-        )
+        "the column came back as {} and this property declares {want}",
+        held.tag().map_or("an unknown type", Tag::describe)
     )
 }
 
@@ -547,8 +537,8 @@ pub(super) fn wanted(want: &str, held: Value) -> String {
 /// a field and a reader say the same thing about the same value.
 pub(super) fn lossy(want: &str, holds: &str) -> String {
     format!(
-        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-column-types` \
-         converts losslessly or throws"
+        "the column holds {holds}, so reading it as {want} would change the value. A column \
+         is converted only when the value stays the same"
     )
 }
 
@@ -616,8 +606,8 @@ pub(super) fn column_name<'a>(
 ) -> Result<&'a [u8], Fault> {
     value.as_str_bytes().ok_or_else(|| {
         Fault::fatal(format!(
-            "{class}::{member} expected a `string` column name, got tag {}",
-            value.tag_byte()
+            "{class}::{member} expected a `string` column name, got {}",
+            value.tag().map_or("an unknown type", Tag::describe)
         ))
     })
 }
@@ -682,14 +672,10 @@ pub(super) fn wrong_column_type(member: &str, name: &[u8], value: Value, want: &
     Fault::thrown_as(
         ThrownClass::Logic,
         format!(
-            "{ROW_NAME}::{member}: the column `{}` came back as {} and this reader answers {want} \
-             only — `rule:core-classes/db-column-types` converts losslessly or throws, and `->get()` plus `as` is the \
-             universal path",
+            "{ROW_NAME}::{member}: the column `{}` came back as {}, and this method returns \
+             {want} only. Use `->get()` with `as` to convert it yourself",
             String::from_utf8_lossy(name),
-            value.tag().map_or_else(
-                || format!("tag {}", value.tag_byte()),
-                |tag| tag.describe().to_owned()
-            )
+            value.tag().map_or("an unknown type", Tag::describe)
         ),
     )
 }
@@ -701,7 +687,7 @@ pub(super) fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fau
         ThrownClass::Logic,
         format!(
             "{ROW_NAME}::{member}: the column `{}` holds {holds}, so reading it as `{member}` \
-             would not be the same value — `rule:core-classes/db-column-types` converts losslessly or throws",
+             would change the value",
             String::from_utf8_lossy(name)
         ),
     )

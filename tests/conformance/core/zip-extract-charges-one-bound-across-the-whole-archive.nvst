@@ -34,6 +34,6 @@ read = ["."]
 write = ["."]
 --EXPECT--
 at 11 octets: 2 file(s)
-Core\Zip: an entry decompressing past the 0 octets this archive had left of its 5 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound): "notes/two.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+Core\Zip: the entry "notes/two.txt" decompresses to more than the 0 bytes left of this archive's limit of 5 bytes, so it is not read. Lower `$maxBytes` or `$maxRatio` to read less. Neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
 spent/notes/one.txt: first
 spent/notes/two.txt: never written

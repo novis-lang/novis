@@ -34,5 +34,5 @@ driver = "postgres"
 host = "127.0.0.1"
 port = 1
 --EXPECT--
-Core\Queue::push: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue that created it — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` makes attempts finite, not optional
+Core\Queue::push: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue that created it. A job needs at least one attempt
 still running

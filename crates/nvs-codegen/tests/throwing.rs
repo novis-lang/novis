@@ -386,7 +386,7 @@ fn a_fatal_releases_the_frames_locals() {
     let pending = ctx.take_pending();
     assert_eq!(
         pending.as_deref(),
-        Some("Core\\Arr::countBy expected an `int|string` key, got tag 4")
+        Some("Core\\Arr::countBy expected an `int|string` key, got a `float`")
     );
     drop(pending);
     drop(ctx.take_buffered_output());

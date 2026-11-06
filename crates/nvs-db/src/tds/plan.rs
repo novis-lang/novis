@@ -218,8 +218,8 @@ pub fn execute_many<S: Read + Write>(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "one executeMany bound {arity} parameters in its first set and {} in another, and \
-                 `rule:core-classes/db-statement-members`'s one prepare has one parameter count",
+                "one executeMany bound {arity} parameters in its first set and {} in another. \
+                 Every set must bind the same number of parameters",
                 odd.len()
             ),
         ));

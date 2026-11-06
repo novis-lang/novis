@@ -1069,10 +1069,9 @@ pub(crate) fn read_greeting<S: Read + Write>(
         return Err(io::Error::new(
             io::ErrorKind::ConnectionRefused,
             format!(
-                "the server offers no {missing:?}, and this driver needs \
-                 {required:?}: `rule:core-classes/db-capabilities` has no spelling for a \
-                 connection without plugin authentication, or without TLS where the \
-                 transport is a network"
+                "the server does not offer {missing:?}, and this driver needs \
+                 {required:?}. A connection without plugin authentication is not allowed, and \
+                 neither is a network connection without TLS"
             ),
         ));
     }
@@ -1592,10 +1591,9 @@ pub(crate) fn read_answer<S: Read + Write>(
             Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 format!(
-                    "the server asked this client to send the local file `{named}`, and \
-                     `rule:core-classes/db-capabilities` turns `LOCAL INFILE` off with no option to enable it: \
-                     `CLIENT_LOCAL_FILES` was never offered, so a server that asks is \
-                     one this connection stops talking to"
+                    "the server asked this client to send the local file `{named}`. \
+                     `LOCAL INFILE` is always off, and no setting turns it on. This client \
+                     never offered it, so the connection is closed"
                 ),
             ))
         }
@@ -2320,9 +2318,8 @@ pub(crate) fn execute<S: Read + Write>(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "the statement takes {} parameter(s) and {} were bound — `rule:core-classes/db-parameters`'s \
-                 rewriter is what keeps those two numbers equal, and the `inList` expansion \
-                 has already moved the arity by the time the SQL reaches here",
+                "the statement takes {} parameter(s) and {} were bound. The two numbers must \
+                 be equal",
                 stmt.params,
                 params.len()
             ),
@@ -2604,8 +2601,8 @@ pub(crate) fn execute_many<S: Read + Write>(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "one executeMany bound {arity} parameters in its first set and {} in another, and \
-                 `rule:core-classes/db-statement-members`'s one prepare has one parameter count",
+                "one executeMany bound {arity} parameters in its first set and {} in another. \
+                 Every set must bind the same number of parameters",
                 odd.len()
             ),
         ));
@@ -3272,15 +3269,7 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
         Some(Tag::Bytes) => {
             return Ok(Some(value.as_bytes().unwrap_or_default().to_vec()));
         }
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "a value of tag {} has no form this driver can bind",
-                    value.tag_byte()
-                ),
-            ));
-        }
+        _ => return Err(crate::sql::unbindable(value)),
     };
     Ok(Some(rendered.into_bytes()))
 }

@@ -785,9 +785,9 @@ fn expand(
         Binding::List(0) => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "argument {arg} is an empty `inList`, and `rule:core-classes/db-parameters` refuses one: an empty list \
-                 matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot \
-                 tell which it is in, and the caller has to branch"
+                "argument {arg} is an empty `inList`. An empty list is not allowed, because it \
+                 would match nothing inside `IN` and everything inside `NOT IN`. Check for an \
+                 empty list before the query"
             ),
         )),
         Binding::List(len) => {
@@ -811,8 +811,8 @@ fn named_against_a_list(name: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(
-            "the statement binds `:{name}` but its arguments are a list, and `rule:core-classes/db-parameters` reads \
-             the array's keys as the choice: give the array string keys, or write `?` in the SQL"
+            "the statement binds `:{name}` but its arguments are a list. Give the array string \
+             keys, or write `?` in the SQL"
         ),
     )
 }
@@ -821,8 +821,8 @@ fn named_against_a_list(name: &str) -> io::Error {
 fn positional_against_names() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "the statement binds `?` but its arguments are string-keyed, and `rule:core-classes/db-parameters` reads the \
-         array's keys as the choice: write `:name` in the SQL, or give the array list keys",
+        "the statement binds `?` but its arguments are string-keyed. Write `:name` in the SQL, \
+         or give the array list keys",
     )
 }
 
@@ -832,8 +832,28 @@ fn positional_mismatch(placeholders: usize, arguments: usize) -> io::Error {
         io::ErrorKind::InvalidInput,
         format!(
             "the statement has {placeholders} `?` placeholder(s) and was given {arguments} \
-             argument(s), and `rule:core-classes/db-parameters` binds them one for one — an `inList` counts as the one \
-             argument it is, however many values it holds"
+             argument(s). Each `?` needs one argument, and an `inList` counts as one argument, \
+             however many values it has"
+        ),
+    )
+}
+
+/// The error for a bound value whose type no driver can send, naming that type
+/// in the words a program uses.
+///
+/// Every driver's `encode` binds the same eight types, so the four of them
+/// share this sentence. The value's type is all it names: the value itself
+/// never reaches an error, for the reason [`crate::tds::encode`] gives.
+pub(crate) fn unbindable(value: nvs_runtime::Value) -> io::Error {
+    let named = value.tag().map_or_else(
+        || "of an unknown type".to_owned(),
+        |tag| format!("of type `{}`", tag.describe()),
+    );
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "a parameter {named} cannot be bound. A parameter must be `null`, `bool`, `int`, \
+             `uint`, `float`, `decimal`, `string` or `bytes`"
         ),
     )
 }

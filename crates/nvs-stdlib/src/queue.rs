@@ -2974,7 +2974,7 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
             ThrownClass::Logic,
             format!(
                 "{PUSH}: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue \
-                 that created it — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` makes attempts finite, not optional"
+                 that created it. A job needs at least one attempt"
             ),
         ));
     }
@@ -3362,8 +3362,8 @@ fn configured_queue(
         .ok_or_else(|| {
             Fault::thrown(format!(
                 "{member}: this deployment writes no `[queue]` block, so nothing names the \
-                 database a job would live in — `rule:core-classes/queue-storage-is-a-table` is the block, and `connection` is the \
-                 field"
+                 database a job would live in. Add a `[queue]` block to `nvs.toml` and set its \
+                 `connection` field"
             ))
         })
 }

@@ -59,9 +59,8 @@ fn node_of(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node,
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "Core\\Db\\Schema::fromArray(): {at} holds {holds}. A schema array holds only \
-                 strings, integers, floats, booleans and arrays of those — `rule:core-classes/schema-vocabulary-is-closed`'s \
-                 vocabulary is closed and there is nowhere in it to put anything else"
+                "Core\\Db\\Schema::fromArray(): {at} holds {holds}. A schema array can contain \
+                 only strings, integers, floats, booleans and arrays of those"
             ),
         )
     };
@@ -498,8 +497,8 @@ fn introspected(
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{named}: this database holds something `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary cannot name, so \
-                 no plan against it would be total: {why}"
+                "{named}: this database contains something a schema cannot describe, so no \
+                 complete plan can be made for it: {why}"
             ),
         )
     })

@@ -37,6 +37,6 @@ if (Core\IO::exists("out/notes/one.txt")) {
 read = ["."]
 write = ["."]
 --EXPECT--
-Core\Zip refuses an entry when the archive is read: it traverses out of the archive with a `..` component: "../../etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+Core\Zip does not read an entry that could leave its folder: it traverses out of the archive with a `..` component: "../../etc/passwd". The archive is checked when it is read, before anything is extracted.
 out: never created
 out/notes/one.txt: never written

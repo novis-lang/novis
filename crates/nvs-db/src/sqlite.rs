@@ -422,12 +422,7 @@ pub fn encode(value: Value) -> io::Result<SqliteValue> {
         // The one arm SQL Server has no answer for at all: a `BLOB` is an
         // ordinary storage class here, so the type map's `bytes` row needs no gap.
         Some(Tag::Bytes) => SqliteValue::Blob(value.as_bytes().unwrap_or_default().to_vec()),
-        _ => {
-            return Err(refused(format!(
-                "a value of tag {} has no form this driver can bind",
-                value.tag_byte()
-            )));
-        }
+        _ => return Err(crate::sql::unbindable(value)),
     })
 }
 
@@ -2070,14 +2065,14 @@ fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusql
 /// `rule:core-classes/db-statement-members`'s refusal, when a statement is asked for on a connection that is
 /// not at rest.
 ///
-/// The wording names both of that rule's fixes, as `pg.rs`'s `second_statement` does
-/// and for the same reason: a developer who reaches this has either kept a
+/// The wording is `pg.rs`'s `second_statement`, so a program reads the same
+/// sentence from every driver: a developer who reaches this has either kept a
 /// result set alive or shared a connection across two flows, and the message is
-/// the only place that says which two things to look at. `nvs-stdlib` re-words
-/// it as the `LogicError` `rule:core-classes/db-connection-busy-state` specifies.
+/// the only place that says which things to look at. `nvs-stdlib` throws it as
+/// the `LogicError` `rule:core-classes/db-connection-busy-state` specifies.
 ///
 /// **`InvalidInput` is what carries the class across the crate boundary**, and
-/// it is the same kind `second_statement` uses. This crate builds no fault —
+/// `second_statement` returns that kind. This crate builds no fault —
 /// its `Cargo.toml` says a protocol failure becomes one in `nvs-stdlib` — so the
 /// only thing a refusal can say
 /// about *whose* mistake it is is its [`io::ErrorKind`], and `nvs-stdlib`'s
@@ -2086,13 +2081,7 @@ fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusql
 /// program as `Core\Db\DbError` carrying a `kind` no engine ever answered,
 /// where the uniform busy rule is a `LogicError` on every driver.
 fn busy(state: State) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!(
-            "this SQLite connection is {state:?}: read or drop the rows of the statement already \
-             running before starting another, or open a second connection for the second flow"
-        ),
-    )
+    crate::pg::second_statement(&std::cell::Cell::new(state))
 }
 
 /// SQLite's refusal as an `io::Error` carrying `rule:core-classes/db-error`'s normalised kind.
@@ -3434,8 +3423,10 @@ mod tests {
 
         let refused = conn.begin(None, false).expect_err("the connection is busy");
         assert!(
-            refused.to_string().contains("Streaming"),
-            "the refusal names the busy-connection rule and both its fixes: {refused}"
+            refused
+                .to_string()
+                .contains("still reading the rows of an earlier statement"),
+            "the refusal says the connection is busy and names its fixes: {refused}"
         );
         assert_eq!(conn.depth(), 0);
         drop(rows);

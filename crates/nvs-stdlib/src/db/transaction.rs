@@ -634,7 +634,9 @@ pub(super) fn owned(value: Value) -> Value {
 /// worded as when they read a `[db.<name>]` block or file a connection —
 /// [`CONNECT`]'s slot, filled by the mechanism rather than by a member, since
 /// no `Core` member is on the stack when either of these runs.
-const TEST_TRANSACTION: &str = "`rule:testing/db-transaction`'s transaction";
+/// What a message about the transaction a database test runs in calls it. A
+/// test's author reads it, so it names no rule id.
+const TEST_TRANSACTION: &str = "the test's database transaction";
 
 /// A [`Fault`] as the one line a caller outside this crate reports it on.
 ///

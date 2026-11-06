@@ -4183,8 +4183,8 @@ fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>, bench: bool) -> O
         // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
         // like any other assertion.
         return Outcome::failed(
-            "it asserted nothing: `rule:testing/runner-is-strict` fails a test whose ledger is empty — write \
-             `Core\\Test::assertDoesNotThrow` where the claim is that a call completes",
+            "it asserted nothing, and a test without an assertion fails. To test that a call \
+             does not throw, use `Core\\Test::assertDoesNotThrow`",
         );
     }
     Outcome::Passed

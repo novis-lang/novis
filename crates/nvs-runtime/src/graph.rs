@@ -261,10 +261,10 @@ fn walk<C: Carrier>(
         )));
     }
     let tag = value.tag().ok_or_else(|| {
-        GraphError(format!(
-            "a value with tag {} has no meaning on the other side",
-            value.tag_byte()
-        ))
+        GraphError(
+            "a value of an unknown type has no meaning on the other side of a copy boundary"
+                .to_owned(),
+        )
     })?;
     match tag {
         Tag::Null
