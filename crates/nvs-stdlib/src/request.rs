@@ -1216,6 +1216,30 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
             is never in memory at once.",
 };
 
+/// `Core\Request\BodyStream::peek`'s reference card — `rule:core-api/reference-card`.
+const BODY_STREAM_PEEK_DOC: MethodDoc = MethodDoc {
+    short: "Returns the first bytes of the request body and does not use them up. A `foreach` \
+            loop over this value still gives every byte of the body after it.",
+    params: &[ParamDoc {
+        name: "max",
+        desc: "The most bytes to return. A body shorter than `max` is returned whole. A second \
+               call with a larger `max` reads further.",
+        shape: &[],
+    }],
+    ret: "The first `max` bytes of the body, or fewer. The value is `tainted`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not handling a request. Or a `foreach` loop has already read \
+                   this value. Or `max` is larger than this request's `[limits] memory`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was read.",
+        },
+    ],
+};
+
 /// The class `bodyStream` answers with — its published `Iterable<bytes>`, given
 /// the name the registry needs to write it.
 ///
@@ -1241,25 +1265,27 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
 /// own — a program that keeps one keeps a value the wire cannot revoke. **What
 /// it spends:** one chunk, resident, for as long as the loop body holds it.
 ///
-/// # Why it has no members
+/// # Its one member
 ///
-/// [`crate::io::LINES`]'s answer: everything it does is the three names on
-/// [`crate::instance`]'s dispatch roster, so it is a *handle* in the sense
-/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
-/// names. The registry writes `bodyStream(): Iterable<bytes>` and no member on the
-/// thing it answers with.
-///
-/// What `Core\Request::bodyStream` answers with, and the whole of its
-/// `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
-/// `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own
-/// iterator rather than a snapshot, and its own docs say why: the next chunk
-/// of a request body does not exist yet when the walk is named.
+/// `peek` gives the start of the body and consumes nothing, as
+/// `Core\Request\Part::peek` does for a part. A program needs it to tell
+/// one format from another before it chooses a reader, as the spreadsheet
+/// `Reader::open` does. The three walk names stay on [`crate::instance`]'s
+/// dispatch roster, as `Core\Task\Channel`'s do beside its members.
 // rank: 720
 pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     name: BODY_STREAM_NAME,
     doc: Some(&BODY_STREAM_CARD),
     methods: &[],
-    instance: &[],
+    instance: &[CoreMethod {
+        name: "peek",
+        names: &["max"],
+        params: &[CoreTy::Uint],
+        defaults: &[],
+        return_ty: CoreTy::TaintedBytes,
+        symbol: "nvs_core_request_body_stream_peek",
+        doc: Some(&BODY_STREAM_PEEK_DOC),
+    }],
     slots: &["chunk", "held", "started"],
     constants: &[],
 };
@@ -1785,6 +1811,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_part_read_all" => (nvs_core_request_part_read_all as *const ()).cast(),
         "nvs_core_request_part_save_to" => (nvs_core_request_part_save_to as *const ()).cast(),
         "nvs_core_request_part_peek" => (nvs_core_request_part_peek as *const ()).cast(),
+        "nvs_core_request_body_stream_peek" => {
+            (nvs_core_request_body_stream_peek as *const ()).cast()
+        }
         PART_CONTENT_ITERATE_SYMBOL => (nvs_core_request_part_content_iterate as *const ()).cast(),
         PART_CONTENT_ADVANCE_SYMBOL => (nvs_core_request_part_content_advance as *const ()).cast(),
         PART_CONTENT_CURRENT_SYMBOL => (nvs_core_request_part_content_current as *const ()).cast(),
@@ -4529,31 +4558,60 @@ nvs_runtime::nvs_helper! {
     /// `readAll`'s does, so the largest `uint` cannot ask the request to hold
     /// more than it may.
     fn nvs_core_request_part_peek(ctx, args: [2]) {
-        // unreachable from source: `max` is `CoreTy::Uint`, so `E0401` refuses
-        // anything else at the call site.
-        let asked = args[1].as_uint().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{PEEK} expected {:?} for its max, got tag {}",
-                Tag::Uint,
-                args[1].tag_byte()
-            ))
-        })?;
-        let asked = usize::try_from(asked).unwrap_or(usize::MAX);
-        let memory = ctx.memory_limit();
-        if memory > 0 && asked > memory {
-            // No case can reach this: a `.nvst` program answers no request.
-            // Asserted by `part_peek_over_the_memory_ceiling_throws_before_reading`.
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{PEEK}(): a `max` of {asked} bytes is larger than `[limits] memory` \
-                     ({memory} bytes), which is all this request may hold. Use a smaller `max`"
-                ),
-            ));
-        }
+        let asked = peek_max(ctx, args[1], PEEK)?;
         let start = part_prefix(ctx, args[0], asked, PEEK)?;
         Ok(Value::bytes(NvsStr::new(&start)))
     }
+}
+
+/// `Core\Request\BodyStream::peek`'s name, as its errors quote it.
+const BODY_STREAM_PEEK: &str = r"Core\Request\BodyStream::peek";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\BodyStream::peek(uint $max): tainted bytes` — the body's
+    /// first `min($max, size)` bytes, and nothing consumed.
+    ///
+    /// The bytes are held in the stream's held slot, so the walk's first
+    /// `advance()` gives them. **What it spends:** what it read, until the
+    /// walk gives it or the stream is freed. A `$max` over `[limits] memory`
+    /// throws before a byte is read, as `Part::peek`'s does.
+    fn nvs_core_request_body_stream_peek(ctx, args: [2]) {
+        let asked = peek_max(ctx, args[1], BODY_STREAM_PEEK)?;
+        let start = body_stream_prefix(ctx, args[0], asked, BODY_STREAM_PEEK)?;
+        Ok(Value::bytes(NvsStr::new(&start)))
+    }
+}
+
+/// A `peek`'s `$max`, checked against `[limits] memory` before a byte is
+/// read, so the largest `uint` cannot ask the request to hold more than it may.
+///
+/// # Errors
+///
+/// `LogicError` for a `$max` over `[limits] memory`.
+fn peek_max(ctx: &Ctx, max: Value, who: &'static str) -> Result<usize, Fault> {
+    // unreachable from source: `max` is `CoreTy::Uint`, so `E0401` refuses
+    // anything else at the call site.
+    let asked = max.as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{who} expected {:?} for its max, got tag {}",
+            Tag::Uint,
+            max.tag_byte()
+        ))
+    })?;
+    let asked = usize::try_from(asked).unwrap_or(usize::MAX);
+    let memory = ctx.memory_limit();
+    if memory > 0 && asked > memory {
+        // No case can reach this: a `.nvst` program answers no request.
+        // Asserted by `part_peek_over_the_memory_ceiling_throws_before_reading`.
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}(): a `max` of {asked} bytes is larger than `[limits] memory` \
+                 ({memory} bytes), which is all this request may hold. Use a smaller `max`"
+            ),
+        ));
+    }
+    Ok(asked)
 }
 
 /// The first `max` bytes of `part`, or the whole part where it is shorter,
@@ -4572,7 +4630,9 @@ pub(crate) fn part_prefix(
     max: usize,
     who: &'static str,
 ) -> Result<Vec<u8>, Fault> {
-    part_hold(ctx, part, max, who, |held| held[..max.min(held.len())].to_vec())
+    part_hold(ctx, part, max, who, |held| {
+        held[..max.min(held.len())].to_vec()
+    })
 }
 
 /// The whole of `part`, held on the parse under `[limits] request_body` for
@@ -7207,10 +7267,7 @@ pub(crate) mod tests {
             ctx,
             &[part, Value::uint(max)],
         )?;
-        let bytes = answer
-            .as_bytes()
-            .expect("`peek` answers `bytes`")
-            .to_vec();
+        let bytes = answer.as_bytes().expect("`peek` answers `bytes`").to_vec();
         dropped(answer);
         Ok(bytes)
     }
@@ -7250,7 +7307,10 @@ pub(crate) mod tests {
             .expect("a request that declared a multipart body can be walked");
         let part = next_part(&mut arriving, files).expect("the body carries two file parts");
 
-        assert_eq!(peek(&mut arriving, part, 4).expect("the part is fresh"), b"%PDF".to_vec());
+        assert_eq!(
+            peek(&mut arriving, part, 4).expect("the part is fresh"),
+            b"%PDF".to_vec()
+        );
         assert_eq!(
             peek(&mut arriving, part, 20).expect("a second peek reads further"),
             b"%PDF-1.4 and the res".to_vec(),
@@ -7261,7 +7321,9 @@ pub(crate) mod tests {
             FIRST_PART.to_vec()
         );
         assert_eq!(
-            content_of(&mut arriving, part).expect("the part walks").concat(),
+            content_of(&mut arriving, part)
+                .expect("the part walks")
+                .concat(),
             FIRST_PART.to_vec(),
             "nothing a peek read is lost"
         );
@@ -7290,7 +7352,10 @@ pub(crate) mod tests {
         let part = next_part(&mut arriving, files).expect("the body carries two file parts");
         let (_dir, path) = scratch("peeked.pdf");
 
-        assert_eq!(peek(&mut arriving, part, 5).expect("the part is fresh"), b"%PDF-".to_vec());
+        assert_eq!(
+            peek(&mut arriving, part, 5).expect("the part is fresh"),
+            b"%PDF-".to_vec()
+        );
         save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
         assert_eq!(
             std::fs::read(&path).expect("the file `saveTo` made"),
@@ -7401,11 +7466,15 @@ pub(crate) mod tests {
             crate::byte_source::ByteSource::from_arg(&mut arriving, part, r"Core\Image::info")
                 .expect("the part the walk is on is a source");
         assert_eq!(
-            source.size(&mut arriving, holder).expect("the part is held"),
+            source
+                .size(&mut arriving, holder)
+                .expect("the part is held"),
             FIRST_PART.len() as u64
         );
         assert_eq!(
-            source.range(&mut arriving, holder, 4, 4).expect("a range of the held part"),
+            source
+                .range(&mut arriving, holder, 4, 4)
+                .expect("a range of the held part"),
             b"-1.4".to_vec()
         );
         drop(source);
@@ -7422,7 +7491,10 @@ pub(crate) mod tests {
         dropped(files);
 
         let body = one_part_of(2048);
-        let mut over = uploading("multipart/form-data; boundary=X", Some(Chunks::of(&[&body])));
+        let mut over = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::of(&[&body])),
+        );
         configured(&mut over, "[limits]\nrequest_body = \"1K\"\n");
         let files = nvs_runtime::call(nvs_core_request_files, &mut over, &[])
             .expect("a request that declared a multipart body can be walked");
@@ -7462,12 +7534,62 @@ pub(crate) mod tests {
         );
         lend(stream);
         assert_eq!(
-            walked(&mut arriving, stream).expect("the body walks").concat(),
+            walked(&mut arriving, stream)
+                .expect("the body walks")
+                .concat(),
             b"\x89PNG\r\n\x1a\nand the rest".to_vec(),
             "nothing the prefix read is lost"
         );
         assert!(
             super::body_stream_prefix(&mut arriving, stream, 4, r"Core\Mime::detect").is_err(),
+            "the start is gone once the loop has read it"
+        );
+        dropped(stream);
+    }
+
+    /// `BodyStream::peek` gives the body's first bytes, a larger `max` reads
+    /// further, and the loop afterwards gives every byte.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request.
+    // covers: Core\Request\BodyStream::peek
+    #[test]
+    fn body_stream_peek_gives_the_first_bytes_and_the_loop_still_gives_all_of_them() {
+        let mut arriving = answering(Some(Chunks::of(&[b"PK\x03\x04", b"rest of the zip"])));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut arriving, &[])
+            .expect("a request with a body can be streamed");
+        let peek = |ctx: &mut Ctx, max: u64| -> Result<Vec<u8>, i32> {
+            let answer = nvs_runtime::call(
+                super::nvs_core_request_body_stream_peek,
+                ctx,
+                &[stream, Value::uint(max)],
+            )?;
+            let bytes = answer.as_bytes().expect("`peek` answers `bytes`").to_vec();
+            dropped(answer);
+            Ok(bytes)
+        };
+
+        assert_eq!(
+            peek(&mut arriving, 2).expect("the stream is fresh"),
+            b"PK".to_vec()
+        );
+        assert_eq!(
+            peek(&mut arriving, 8).expect("a second peek reads further"),
+            b"PK\x03\x04rest".to_vec()
+        );
+        assert_eq!(
+            peek(&mut arriving, 1000).expect("a `max` past the body gives the body"),
+            b"PK\x03\x04rest of the zip".to_vec()
+        );
+        lend(stream);
+        assert_eq!(
+            walked(&mut arriving, stream)
+                .expect("the body walks")
+                .concat(),
+            b"PK\x03\x04rest of the zip".to_vec(),
+            "nothing a peek read is lost"
+        );
+        assert!(
+            peek(&mut arriving, 2).is_err(),
             "the start is gone once the loop has read it"
         );
         dropped(stream);

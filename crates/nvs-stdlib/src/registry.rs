@@ -940,13 +940,17 @@ impl CoreAlias {
     /// `Core\Bytes::Source`.
     #[must_use]
     pub fn owner(&self) -> &'static str {
-        self.name.split_once("::").map_or(self.name, |(owner, _)| owner)
+        self.name
+            .split_once("::")
+            .map_or(self.name, |(owner, _)| owner)
     }
 
     /// The alias's own name, after its owner's `::`.
     #[must_use]
     pub fn short_name(&self) -> &'static str {
-        self.name.rsplit_once("::").map_or(self.name, |(_, short)| short)
+        self.name
+            .rsplit_once("::")
+            .map_or(self.name, |(_, short)| short)
     }
 }
 
@@ -6331,8 +6335,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("{}: no class {}", alias.name, alias.owner()));
             assert!(!alias.doc.short.is_empty(), "{}: no card", alias.name);
             assert!(
-                owner.constant(alias.short_name()).is_none()
-                    && core_enum(alias.name).is_none(),
+                owner.constant(alias.short_name()).is_none() && core_enum(alias.name).is_none(),
                 "{}: the name is also a constant or an enum",
                 alias.name
             );
@@ -6729,7 +6732,6 @@ mod tests {
             crate::db::IN_LIST_NAME,
             crate::db::STREAM_NAME,
             crate::queue::ID_NAME,
-            crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,
             crate::request::PART_CONTENT_NAME,
             crate::jwe::KEY_NAME,
