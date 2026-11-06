@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Json` reads and writes a whole document, or one element at a time, and the two share every check",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/xml-tree-and-stream",
+    "core-api/one-paradigm-per-operation",
+    "core-classes/derive-reports-every-field"
+  ],
+  "guardedBy": [],
+  "goal": "json-streaming"
+}

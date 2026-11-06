@@ -25,6 +25,7 @@
     "core-classes/html-parsing",
     "core-classes/xml-tree-and-stream",
     "core-classes/xml-refuses-by-construction",
+    "core-classes/json-whole-and-stream",
     "core-classes/validate-has-no-type-predicates",
     "core-classes/secret-reveal",
     "core-classes/reflect",
