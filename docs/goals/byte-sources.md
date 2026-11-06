@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/registry.rs, docs/rules/core-api/one-paradigm-pe
 stages:
   - id: 1
     title: "the rules, and taint follows a part, a body stream and tainted chunks"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/expr/args.rs, docs/rules/security/unclassified-parameter-refuses-tainted.md, docs/rules/core-api/no-encoding-argument.md]
   - id: 2
     title: "Core can declare a type alias, and Core\\Bytes::Source and Chunks exist"
@@ -410,6 +410,16 @@ has no memory check; and the decompression ratio needs the input's length.
     random read of a part holds the part, which is what `readAll` costs today, and frees it when the
     walk advances. A source holds one reused chunk buffer. Every other change reads less than
     today. Each member's doc comment says what it holds, per call.
+15. **The carriers, as built in stage 1.** `carries_tainted` (`crates/nvs-types/src/expr/quals.rs`)
+    reads an `Iterable<T>` or `Iterator<T>` whose `T` carries `tainted`, and an instance of a
+    `Core` class `nvs_stdlib::registry::carries_tainted_bytes` names. That is `TAINTED_SOURCES`
+    (`Part`, `BodyStream`) and every class whose `ITERABLES` row fixes a tainted element:
+    `PartContent`, the HTTP client's `Chunks` and `Lines`, and `Json\Pieces`. Without the second
+    half, `$part->content()` would launder, since its type is its own class and not
+    `Iterable<tainted bytes>`. The wider reach is applied at every caller of `carries_tainted`,
+    since each only adds the bit. **The reject conformance cases moved to stage 3:** no `Core`
+    member has a contagious parameter that takes a `Part` or a walk of chunks before
+    `Core\Csv::rows` takes the forward source, so no program can show the carrier earlier.
 
 ## Stages
 
@@ -417,15 +427,14 @@ has no memory check; and the decompression ratio needs the input's length.
 
 **Does:** closes the hole the widened arms would open, before any arm exists.
 
-- [ ] The three rules of decision 1, with data files and the rendered chapters.
+- [x] The three rules of decision 1, with data files and the rendered chapters.
   `docs/rules/core-api/the-first-call-is-the-best-one.md:1`,
   `docs/rules/core-api/a-member-takes-the-source-the-program-holds.md:1`,
   `docs/rules/core-api/no-encoding-argument.md:1`
-- [ ] `carries_tainted` learns the two carriers of decision 2, and the registry marks `Part` and
+- [x] `carries_tainted` learns the two carriers of decision 2, and the registry marks `Part` and
   `BodyStream`. `crates/nvs-types/src/expr/quals.rs:131`, `crates/nvs-types/src/expr/args.rs:747`
-- [ ] The three tests of the `taint-carriers` check, and one reject conformance case per carrier:
-  a contagious result from a part assigned to a plain `string` does not compile.
-  `tests/conformance/reject/a-result-read-from-an-upload-part-is-tainted.nvst:1`
+- [x] The three tests of the `taint-carriers` check. The reject conformance cases moved to stage 3
+  (decision 15). `crates/nvs-types/src/expr/quals.rs:2245`
 
 ### 2. Core can declare a type alias, and Core\Bytes::Source and Chunks exist
 
@@ -457,6 +466,10 @@ tool is missed.
   `crates/nvs-stdlib/src/registry.rs:3546`
 - [ ] The three tests of the `csv-forward` check, and conformance cases for an `Iterable` that throws
   on its second chunk and a parse error inside chunk 2. `crates/nvs-stdlib/src/csv.rs:1056`
+- [ ] One reject conformance case per carrier (decision 15): a `Core\Csv::rows` cell read from a
+  `Part`, from `Core\Request::bodyStream()` and from an `Iterable<tainted bytes>`, assigned to a
+  plain `string`, does not compile.
+  `tests/conformance/reject/a-result-read-from-an-upload-part-is-tainted.nvst:1`
 - [ ] The rules that quote the old signatures say what is true now.
   `docs/rules/core-classes/json-whole-and-stream.md:10`, `docs/rules/core-api/a-lifetime-is-an-object.md:6`
 
@@ -593,18 +606,30 @@ Storage; IO, Serialize and Charset. None builds.
 
 ### State
 
-Written by the interactive session of 2026-11-06, from a read of the code, the corpus and the docs,
-rewritten around the user's principle in *Why*, and corrected after two independent reviews. Nothing
-of it is built. The tree had uncommitted work in `crates/nvs-stdlib/src/io.rs`, `json.rs` and
-`compress.rs` when this was written; stages 3, 4 and 7 start from whatever is committed then.
+Stage 1 is done. `taint-carriers` passes: `cargo test --lib quals::tests` runs its three tests,
+green. `carries_tainted` reads an `Iterable`/`Iterator` of tainted elements and every `Core` class
+`registry::carries_tainted_bytes` names (decision 15). The two new rules are `designed`, owned by this
+goal, and `no-encoding-argument` has its `charset` sentence. The rulebook renders clean. The reject
+conformance cases moved to stage 3, because no member can show a carrier before `Csv::rows` takes
+the forward source. No test is expected to go red: every widened `carries_tainted` caller only adds
+the bit, and no `Core` row admitted a `Part` or a tainted walk at a contagious mark before.
+
+The sweep's reds were stale. The three nightly Miri timeouts predate `f13f40646a`, and no check
+named `env-secret-proofs` exists in the tree. setup-in-any-order's last handoff already said this.
 
 ### Next
 
-**Stage 1**, over the checker's taint and the three rules; no gate.
+**Stage 2**, `Core` type aliases and `Core\Bytes::Source`/`Chunks`; its `**Split:**` line sends an
+`Explore` subagent out first.
 
-- [ ] The three rules. `docs/rules/core-api/the-first-call-is-the-best-one.md:1`
-- [ ] The two taint carriers. `crates/nvs-types/src/expr/quals.rs:131`
-- [ ] Its tests and reject cases. `tests/conformance/reject/a-result-read-from-an-upload-part-is-tainted.nvst:1`
+- [ ] `CoreTy::Alias` and a `types` field on `CoreClass`. `crates/nvs-stdlib/src/registry.rs:1265`
+- [ ] The HIR resolver seeded with `Core` aliases, as enums are. `crates/nvs-hir/src/aliases.rs:783`,
+  `crates/nvs-types/src/enums.rs:196`
+- [ ] The `core-alias` tests. `crates/nvs-types/tests/class_scoped_aliases.rs:1`
+
+A trap for stage 3: `CoreTy::Iterated(elem)`'s mark is `None` unless `elem` is `Neutral`
+(`crates/nvs-stdlib/src/registry.rs:1296`). A `Chunks` arm under a contagious `Csv::rows` needs a
+`Contagious` element to answer `Contagious`, as `Array`'s does. Otherwise the arm refuses a tainted walk.
 
 ### Backlog
 
