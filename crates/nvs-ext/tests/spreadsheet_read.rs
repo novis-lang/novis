@@ -17,6 +17,11 @@ use nvs_ext::convert::{Key, Value};
 use nvs_ext::handle::RANGE_MOST;
 use nvs_ext::load::{Extension, Loader};
 
+/// The CPU budget every request here runs under. `Meter`'s budget is a wall-clock deadline from
+/// the request's start, and no test here is about it, so it is a day: a loaded runner never
+/// reaches it, and a call that never returns still hits the test binary's time limit.
+const CPU: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// `future` polled on this thread until it finishes. A guest call yields at every epoch tick, and
 /// polling again resumes it.
 fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -294,7 +299,7 @@ impl Read {
     fn open_under(bytes: Vec<u8>, bound: Value) -> Self {
         let host = Host::new(2, |_| Ok(())).expect("the host starts");
         let extension = spreadsheet(&host);
-        let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
+        let meter = Arc::new(Meter::new(CPU, None));
         let request = host.request(meter.clone());
         let source = Value::Bytes(bytes);
         let reader =
@@ -569,7 +574,7 @@ fn a_lent_source_is_read_through_the_budget_a_block_at_a_time() {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let lends = Arc::new(Lends {
-        meter: Meter::new(Duration::from_secs(60), None),
+        meter: Meter::new(CPU, None),
         source: bytes,
         reads: Mutex::new(Vec::new()),
     });
@@ -1286,7 +1291,7 @@ fn a_document_type_declaration_is_never_read() {
     )];
     let host = Host::new(1, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
-    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    let request = host.request(Arc::new(Meter::new(CPU, None)));
     let err = block_on(request.call_values(
         &extension,
         "readerOpen",
@@ -2476,7 +2481,7 @@ fn xlsm_xls_and_ods_are_read_whole() {
     let old = compound(&[("Book", biff(0x0809, &[0; 16]))]);
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
-    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let request = host.request(Arc::new(Meter::new(CPU, None)));
     let refused =
         block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(old), shipped()]))
             .expect_err("an Excel 95 file is not read");
@@ -3863,7 +3868,7 @@ fn an_ods_cell_text_uses_the_files_own_number_style() {
 fn open_failure(bytes: Vec<u8>, bound: Value) -> String {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
-    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let request = host.request(Arc::new(Meter::new(CPU, None)));
     match block_on(request.call_values(&extension, "readerOpen", vec![Value::Bytes(bytes), bound]))
     {
         Ok(value) => panic!("`readerOpen` answered {value:?}"),
@@ -4130,7 +4135,7 @@ fn sheets_reads_each_sheet_once_per_reader() {
     let host = Host::new(2, |_| Ok(())).expect("the host starts");
     let extension = spreadsheet(&host);
     let lends = Arc::new(Lends {
-        meter: Meter::new(Duration::from_secs(60), None),
+        meter: Meter::new(CPU, None),
         source: bytes,
         reads: Mutex::new(Vec::new()),
     });

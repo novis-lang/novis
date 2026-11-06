@@ -1125,12 +1125,15 @@ fn point(link: &Path, target: &Path) {
         if link.exists() {
             std::fs::remove_dir(link).expect("the old junction is removed");
         }
+        // `cmd` reads a `/` inside a path as the start of an option, and the target directory
+        // may come with forward slashes, so both paths are rebuilt with `\` alone.
+        let native = |path: &Path| path.components().collect::<std::path::PathBuf>();
         let made = nvs_repo::spawn("cmd", &[])
             .arg("/C")
             .arg("mklink")
             .arg("/J")
-            .arg(link)
-            .arg(target)
+            .arg(native(link))
+            .arg(native(target))
             .stdout(Stdio::null())
             .output()
             .expect("`cmd` starts");

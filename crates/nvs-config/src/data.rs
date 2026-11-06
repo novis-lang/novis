@@ -1015,16 +1015,38 @@ mod tests {
         }
     }
 
+    /// Lets every signed-in account replace what `dir` contains: mode `0777` on Unix, and full
+    /// control for `Authenticated Users` on Windows, whose delete-child right the stock `Modify`
+    /// grant lacks.
+    fn replaceable_by_others(dir: &Path) {
+        #[cfg(unix)]
+        open_to_others(dir);
+        #[cfg(windows)]
+        {
+            let granted = nvs_repo::spawn("icacls", &[])
+                .arg(dir)
+                .arg("/grant")
+                .arg("*S-1-5-11:(OI)(CI)(F)")
+                .output()
+                .expect("`icacls` ships with every supported Windows");
+            assert!(
+                granted.status.success(),
+                "{}",
+                String::from_utf8_lossy(&granted.stderr)
+            );
+        }
+    }
+
     /// The default folder is checked without the binary's directory, which other accounts may
-    /// change here; the same folder named by `--data` is checked with it and is unusable. The
-    /// cache and temporary folders inside the default one pass the full check, because their
-    /// parent is the private data folder.
+    /// change here; the same folder named by `--data` is checked with it and is unusable,
+    /// because another account can replace it. The cache and temporary folders inside the
+    /// default one pass the full check, because their parent is the private data folder.
     #[test]
     fn the_default_folder_is_checked_without_its_parent_and_a_named_one_with_it() {
         let dir = nvs_repo::scratch_private("data-default-trust");
         let bin = dir.join("bin");
         std::fs::create_dir(&bin).unwrap();
-        open_to_others(&bin);
+        replaceable_by_others(&bin);
         trust::check(&bin).expect_err("the binary's directory fails the full check");
 
         let default = Folder::beside(&bin);

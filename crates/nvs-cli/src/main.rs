@@ -3763,13 +3763,14 @@ mod tests {
         }
 
         assert!(creates(&["nvs", "lsp"]));
+        // `nvs init` sets the data folder up with the same call `nvs run` makes.
+        assert!(creates(&["nvs", "init"]));
         assert!(creates(&["nvs", "debug"]));
         assert!(!writes(&["nvs", "debug"]));
         for read_only in [
             &["nvs", "config", "check"][..],
             &["nvs", "config", "dump"],
             &["nvs", "tmp", "clean"],
-            &["nvs", "init"],
             &["nvs", "service", "status", "shop"],
         ] {
             assert!(!creates(read_only), "{read_only:?}");
