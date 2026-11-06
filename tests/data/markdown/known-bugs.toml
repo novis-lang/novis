@@ -1488,7 +1488,7 @@ source = "https://github.com/mity/md4c/blob/f9e5eb232b95b737373ae706648cb75bd259
 class = "wrong-output"
 direction = "to-html"
 input = "* `\n  foo\n  ` bar\n"
-html = "<ul>\n<li><code>foo</code>\nbar</li>\n</ul>\n"
+html = "<ul>\n<li><code>foo</code> bar</li>\n</ul>\n"
 
 [[bug]]
 id = "md4c-reg-292-closing-fence-trailing-tab"

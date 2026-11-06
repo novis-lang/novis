@@ -6,16 +6,53 @@
 //! a minimal input and what the right result is. This file reads the catalogue
 //! three ways. The first two hold its shape: every library the `markdown` goal
 //! names has entries, and every entry is complete. The third renders each
-//! entry and fails naming every entry whose result is not the expected one;
-//! it is ignored until `Core\Markdown::toHtml` exists.
+//! entry and fails naming every entry whose result is not the expected one.
 //!
 //! An entry's input is `input`, then `repeat` written `n` times, then
 //! `suffix`. A `work` or `output` expectation is a bound over `n`, so it needs
 //! a `repeat`; every other expectation renders the entry once at `n = 1`.
+//!
+//! How each expectation is checked:
+//!
+//! - **`html`** compares both sides after the sanitizer's parse and rebuild,
+//!   so a quote written as `&quot;` and one written as `"` are the same.
+//! - **`html_lacks`** searches only the HTML's tags
+//!   ([`nvs_stdlib::fuzz::html_tags`]). Every such string names markup: a
+//!   tag, an attribute or a URL scheme. The same characters in text are
+//!   escaped where they must be and harmless, and the serializer writes `"`
+//!   as it is there. `[x](vbscript:alert(1&#41;)` is not a link, so its
+//!   `vbscript:` is text.
+//! - **An md4c `html`** is written as cmark writes it. md4c's own tests
+//!   compare after collapsing whitespace, so a line feed there may be a
+//!   space here.
+//! - **`output = "bounded"`** renders at `n` and at `4n`. The longer output
+//!   is at most four times the shorter plus the budget, and at most
+//!   [`MARKUP_PER_BYTE`] bytes per input byte plus the budget.
+//! - **`work = "linear"`** is rendered here once, and its bound is
+//!   `work_grows_linearly_over_every_catalogued_slow_input` in the crate's
+//!   own tests, which can count the engine's steps.
+//! - **A `from-html` entry** waits for `Core\Markdown::fromHtml`, which the
+//!   `markdown` goal's stage 7 builds. Until then [`FROM_HTML_BUILT`] is
+//!   `false` and such an entry is skipped.
 
 use std::collections::BTreeSet;
 
+use nvs_stdlib::fuzz::{html_sanitized, html_tags, markdown};
 use serde::Deserialize;
+
+/// Whether `Core\Markdown::fromHtml` exists. Stage 7 of the `markdown` goal
+/// sets it and writes the from-html arm of [`outcome`].
+const FROM_HTML_BUILT: bool = false;
+
+/// The `n` a bound over `repeat` renders at, and then at four times it.
+const N: usize = 1000;
+
+/// The most HTML one input byte may write, past the budget. `>` is one byte
+/// and opens a `<blockquote>` with its line feed and its end tag.
+const MARKUP_PER_BYTE: usize = 32;
+
+/// `rule:core-classes/markdown-cost`'s budget for added output, 64 KiB.
+const ADDED_OUTPUT_SLACK: usize = 64 << 10;
 
 /// The libraries whose shipped bugs the catalogue covers, as an entry spells
 /// its `library`.
@@ -75,6 +112,19 @@ struct Bug {
 }
 
 impl Bug {
+    /// The entry's input with `repeat` written `n` times.
+    fn text(&self, n: usize) -> String {
+        let repeat = self.repeat.as_deref().unwrap_or("");
+        let suffix = self.suffix.as_deref().unwrap_or("");
+        let mut text = String::with_capacity(self.input.len() + repeat.len() * n + suffix.len());
+        text.push_str(&self.input);
+        for _ in 0..n {
+            text.push_str(repeat);
+        }
+        text.push_str(suffix);
+        text
+    }
+
     /// The names of the expectations this entry sets.
     fn expectations(&self) -> Vec<&'static str> {
         [
@@ -220,15 +270,47 @@ fn every_catalogue_entry_has_a_source_a_class_an_input_and_an_expectation() {
 }
 
 /// Whether `bug` renders as the catalogue expects, and what went wrong if not.
-///
-/// `Core\Markdown` does not exist yet, so every entry is unrendered. Stage 3
-/// of the `markdown` goal writes this body and removes the `#[ignore]` below.
-fn outcome(_bug: &Bug) -> Result<(), String> {
-    Err("not rendered: `Core\\Markdown::toHtml` does not exist yet".to_owned())
+fn outcome(bug: &Bug) -> Result<(), String> {
+    if bug.direction == "from-html" {
+        return if FROM_HTML_BUILT {
+            Err("the from-html arm is not written".to_owned())
+        } else {
+            Ok(())
+        };
+    }
+    if bug.output.is_some() {
+        let (short, long) = (bug.text(N), bug.text(4 * N));
+        let (small, large) = (markdown(&short).len(), markdown(&long).len());
+        if large > 4 * small + ADDED_OUTPUT_SLACK {
+            return Err(format!(
+                "the output grows faster than the input: {small} bytes at n = {N}, {large} at 4n"
+            ));
+        }
+        if large > MARKUP_PER_BYTE * long.len() + ADDED_OUTPUT_SLACK {
+            return Err(format!(
+                "{large} bytes of output for {} bytes of input",
+                long.len()
+            ));
+        }
+        return Ok(());
+    }
+    let html = markdown(&bug.text(1));
+    if let Some(want) = &bug.html {
+        let (got, want) = (html_sanitized(&html), html_sanitized(want));
+        if got != want {
+            return Err(format!("renders {got:?}, want {want:?}"));
+        }
+    }
+    let tags = html_tags(&html);
+    for lack in bug.html_lacks.iter().flatten() {
+        if tags.contains(lack.as_str()) {
+            return Err(format!("{lack:?} is in the tags of {html:?}"));
+        }
+    }
+    Ok(())
 }
 
 #[test]
-#[ignore = "stage 3 of the markdown goal builds Core\\Markdown::toHtml"]
 fn every_known_bug_renders_as_the_catalogue_expects() {
     let catalogue = catalogue();
     let report: Vec<String> = catalogue
