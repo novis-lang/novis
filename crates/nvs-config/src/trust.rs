@@ -12,7 +12,8 @@
 //!
 //! **Unix is the mode bits. Windows is the DACL**, and `rule:config/ownership-is-the-trust-boundary`'s answer for which ACEs it accepts is
 //! implemented here: the owner must be this account,
-//! `BUILTIN\Administrators` or `NT AUTHORITY\SYSTEM`, and no *effective* write right may reach
+//! `BUILTIN\Administrators`, `NT AUTHORITY\SYSTEM` or a member of `Administrators`, because an
+//! administrator can take ownership of any file anyway. No *effective* write right may reach
 //! `Everyone`, `NT AUTHORITY\Authenticated Users`, `BUILTIN\Users`, `BUILTIN\Guests` or
 //! `ANONYMOUS LOGON`. Effective rather than by ACE, so a deny entry counts, an inherited grant is
 //! seen, and the question asked is the one that matters — can that principal write this file —
@@ -36,7 +37,8 @@
 //! here says which one this is. Integrity is enforced; confidentiality is advised.
 //!
 //! Cost: two `stat`s per file on Unix, two security-descriptor reads and one walk of each DACL on
-//! Windows, at boot and again at each reload, plus one more of either for each secret
+//! Windows, plus one group lookup for an owner that is not this account, `SYSTEM` or
+//! `Administrators`, at boot and again at each reload, plus one more of either for each secret
 //! file's advisory. Nothing here runs per request. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is the one caller
 //! outside boot — it checks its own directory once per process, which is why the Windows half is
 //! kept cheap enough to disappear beside the work around it.
@@ -263,6 +265,15 @@ impl Account {
         self.name.as_deref()
     }
 
+    /// Whether this account is a member of `BUILTIN\Administrators`, directly or through a nested
+    /// group. A lookup that fails answers `false`. It is the test the owner check applies to an
+    /// owner that is not the judged account, `SYSTEM` or `Administrators` itself.
+    #[cfg(windows)]
+    #[must_use]
+    pub fn administrator(&self) -> bool {
+        platform::in_administrators(platform::as_psid(&self.id))
+    }
+
     /// The account as a breach message names it.
     fn label(&self) -> String {
         match &self.name {
@@ -295,14 +306,6 @@ pub fn exposure(path: &Path) -> Option<String> {
 #[must_use]
 pub(crate) fn owner_sid() -> Option<String> {
     platform::owner_sid()
-}
-
-/// Whether this process's token has `BUILTIN\Administrators` enabled, which is what an elevated
-/// administrator's has. [`mod@crate::data`] names that group as the owner of what it creates then.
-#[cfg(windows)]
-#[must_use]
-pub(crate) fn administrator() -> bool {
-    platform::administrator()
 }
 
 #[cfg(unix)]
@@ -550,16 +553,21 @@ mod platform {
     use windows_sys::Win32::Foundation::{
         CloseHandle, ERROR_SUCCESS, GENERIC_ALL, GENERIC_READ, GENERIC_WRITE, HANDLE, LocalFree,
     };
+    use windows_sys::Win32::NetworkManagement::NetManagement::{
+        LG_INCLUDE_INDIRECT, LOCALGROUP_USERS_INFO_0, MAX_PREFERRED_LENGTH, NERR_Success,
+        NetApiBufferFree, NetUserGetLocalGroups,
+    };
     use windows_sys::Win32::Security::Authorization::{
         ConvertSidToStringSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
     };
     use windows_sys::Win32::Security::{
-        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CheckTokenMembership, CreateWellKnownSid,
-        DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetLengthSid, GetTokenInformation,
-        INHERIT_ONLY_ACE, LookupAccountNameW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
-        PSID, SECURITY_MAX_SID_SIZE, SID_NAME_USE, TOKEN_QUERY, TOKEN_USER, TokenUser,
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION,
+        EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE, LookupAccountNameW,
+        LookupAccountSidW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
+        SECURITY_MAX_SID_SIZE, SID_NAME_USE, SidTypeUser, TOKEN_QUERY, TOKEN_USER, TokenUser,
         WELL_KNOWN_SID_TYPE, WinAnonymousSid, WinAuthenticatedUserSid, WinBuiltinAdministratorsSid,
-        WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
+        WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalServiceSid, WinLocalSystemSid,
+        WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
         DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
@@ -695,6 +703,9 @@ mod platform {
         if is_local_system(name) {
             return well_known(WinLocalSystemSid).map_err(|why| why.message().to_string());
         }
+        if is_local_service(name) {
+            return well_known(WinLocalServiceSid).map_err(|why| why.message().to_string());
+        }
         let prefix = r"NT SERVICE\";
         if name.len() > prefix.len()
             && name.is_char_boundary(prefix.len())
@@ -712,6 +723,19 @@ mod platform {
             "SYSTEM",
             r"NT AUTHORITY\SYSTEM",
             r".\LocalSystem",
+        ]
+        .iter()
+        .any(|known| name.eq_ignore_ascii_case(known))
+    }
+
+    /// Whether `name` is one of the ways the service manager writes `LocalService`. Its display
+    /// name is localized, so a lookup by name finds it only on an English system.
+    fn is_local_service(name: &str) -> bool {
+        [
+            "LocalService",
+            "LOCAL SERVICE",
+            r"NT AUTHORITY\LocalService",
+            r"NT AUTHORITY\LOCAL SERVICE",
         ]
         .iter()
         .any(|known| name.eq_ignore_ascii_case(known))
@@ -900,10 +924,13 @@ mod platform {
             well_known(WinBuiltinAdministratorsSid)?,
             well_known(WinLocalSystemSid)?,
         ];
-        if !equal(owner, &account.id) && !trusted.iter().any(|sid| equal(owner, sid)) {
+        if !equal(owner, &account.id)
+            && !trusted.iter().any(|sid| equal(owner, sid))
+            && !in_administrators(owner)
+        {
             return Err(Untrusted::breach(
                 format!(
-                    "is owned by {}, which is neither {} nor an administrative one",
+                    "is owned by {}, which is neither {} nor an administrator",
                     sid_text(owner),
                     account.label()
                 ),
@@ -1131,24 +1158,138 @@ mod platform {
         bare.starts_with("S-").then(|| bare.to_string())
     }
 
-    /// [`super::administrator`]. A null token is this thread's own, as the call documents.
-    #[expect(
-        unsafe_code,
-        reason = "one `advapi32` call over a SID this frame owns and a flag it writes"
-    )]
-    pub(super) fn administrator() -> bool {
+    /// Whether the user `sid` names is a member of `BUILTIN\Administrators`, directly or through a
+    /// nested group. This is what the owner test asks about an owner that is not the judged
+    /// account, `SYSTEM` or `Administrators`, and an administrator can take ownership of any file,
+    /// so trusting one as owner gives nobody a new right.
+    ///
+    /// The groups are what `NetUserGetLocalGroups` lists with `LG_INCLUDE_INDIRECT`, so a domain
+    /// account in a domain group that is a member counts. That call names each group, and
+    /// `Administrators`'s name is localized, so the name compared is the one this machine gives
+    /// the well-known SID. A SID that is not a user's, or any lookup that fails, answers `false`,
+    /// so the check fails closed.
+    ///
+    /// Cost: two `LookupAccountSidW` and one `NetUserGetLocalGroups`, which may ask a domain
+    /// controller. It runs only for a path whose owner none of the three cheap tests accepts, and
+    /// only at boot and at reload.
+    pub(super) fn in_administrators(sid: PSID) -> bool {
+        let Some((user, kind)) = account_name(sid) else {
+            return false;
+        };
+        if kind != SidTypeUser {
+            return false;
+        }
         let Ok(administrators) = well_known(WinBuiltinAdministratorsSid) else {
             return false;
         };
-        let mut member = 0;
-        let asked = unsafe {
-            CheckTokenMembership(std::ptr::null_mut(), as_psid(&administrators), &mut member)
+        let Some((group, _)) = account_name(as_psid(&administrators)) else {
+            return false;
         };
-        asked != 0 && member != 0
+        let group = group.rsplit('\\').next().unwrap_or(&group).to_lowercase();
+        local_groups(&user).is_some_and(|groups| groups.iter().any(|g| g.to_lowercase() == group))
+    }
+
+    /// The account `sid` names as `DOMAIN\name`, and what kind of account it is, or `None` when
+    /// this machine cannot name it.
+    #[expect(
+        unsafe_code,
+        reason = "the two-call size-then-read shape `LookupAccountSidW` requires, into buffers \
+                  this function owns and sized as the first call said"
+    )]
+    fn account_name(sid: PSID) -> Option<(String, SID_NAME_USE)> {
+        let mut name_len = 0u32;
+        let mut domain_len = 0u32;
+        let mut kind: SID_NAME_USE = 0;
+        // The first call is the size query and is expected to fail with a too-small buffer.
+        unsafe {
+            LookupAccountSidW(
+                std::ptr::null(),
+                sid,
+                std::ptr::null_mut(),
+                &mut name_len,
+                std::ptr::null_mut(),
+                &mut domain_len,
+                &mut kind,
+            )
+        };
+        if name_len == 0 {
+            return None;
+        }
+        let mut name: Vec<u16> = vec![0; name_len as usize];
+        let mut domain: Vec<u16> = vec![0; domain_len.max(1) as usize];
+        domain_len = domain_len.max(1);
+        let found = unsafe {
+            LookupAccountSidW(
+                std::ptr::null(),
+                sid,
+                name.as_mut_ptr(),
+                &mut name_len,
+                domain.as_mut_ptr(),
+                &mut domain_len,
+                &mut kind,
+            )
+        };
+        if found == 0 {
+            return None;
+        }
+        let name = String::from_utf16_lossy(&name[..name_len as usize]);
+        let domain = String::from_utf16_lossy(&domain[..domain_len as usize]);
+        let full = if domain.is_empty() {
+            name
+        } else {
+            format!("{domain}\\{name}")
+        };
+        Some((full, kind))
+    }
+
+    /// The local groups `user` is a member of, directly or through another group, by name, or
+    /// `None` when the call fails.
+    #[expect(
+        unsafe_code,
+        reason = "`NetUserGetLocalGroups` allocates its result, which is read as the count of \
+                  entries it reports and freed with `NetApiBufferFree` on every path"
+    )]
+    fn local_groups(user: &str) -> Option<Vec<String>> {
+        let wide: Vec<u16> = user.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut buffer: *mut u8 = std::ptr::null_mut();
+        let (mut read, mut total) = (0u32, 0u32);
+        let status = unsafe {
+            NetUserGetLocalGroups(
+                std::ptr::null(),
+                wide.as_ptr(),
+                0,
+                LG_INCLUDE_INDIRECT,
+                &mut buffer,
+                MAX_PREFERRED_LENGTH,
+                &mut read,
+                &mut total,
+            )
+        };
+        if buffer.is_null() {
+            return None;
+        }
+        let groups = (status == NERR_Success).then(|| {
+            let entries = unsafe {
+                std::slice::from_raw_parts(buffer.cast::<LOCALGROUP_USERS_INFO_0>(), read as usize)
+            };
+            entries
+                .iter()
+                .map(|entry| {
+                    let text = entry.lgrui0_name;
+                    let mut len = 0;
+                    while unsafe { *text.add(len) } != 0 {
+                        len += 1;
+                    }
+                    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(text, len) })
+                })
+                .collect()
+        });
+        unsafe { NetApiBufferFree(buffer.cast()) };
+        groups
     }
 
     /// A SID buffer as the pointer every one of these calls takes.
-    fn as_psid(sid: &Sid) -> PSID {
+    pub(super) fn as_psid(sid: &Sid) -> PSID {
         sid.as_ptr().cast::<core::ffi::c_void>().cast_mut()
     }
 
@@ -1224,7 +1365,7 @@ mod platform {
             })
             .expect_err("`LocalSystem` does not trust an ordinary user's file");
             assert!(
-                why.contains("neither the account `LocalSystem` nor an administrative one"),
+                why.contains("neither the account `LocalSystem` nor an administrator"),
                 "{why}"
             );
         }

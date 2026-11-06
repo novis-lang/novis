@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/trust.rs, crates/nvs-config/src/data.rs, docs/ru
 stages:
   - id: 1
     title: "an owner that is an administrator passes the ownership check on Windows"
-    status: open
+    status: done
     context: [crates/nvs-config/tests/trust.rs]
   - id: 2
     title: "the folder above a checked folder fails only when another account can replace that folder"
@@ -159,14 +159,14 @@ The user's rules for this goal:
 
 **Does:** decision 2.
 
-- [ ] The owner test accepts a member of `Administrators`, through one membership lookup.
+- [x] The owner test accepts a member of `Administrators`, through one membership lookup.
   `crates/nvs-config/src/trust.rs:887`
-- [ ] `give_to_administrators` and its calls are deleted, with the module doc's paragraph about it.
+- [x] `give_to_administrators` and its calls are deleted, with the module doc's paragraph about it.
   `crates/nvs-config/src/data.rs:700` `crates/nvs-cli/src/config.rs:347`
-- [ ] The two named tests. The second one uses `LOCAL SERVICE` as the judged account and a scratch
+- [x] The two named tests. The second one uses `LOCAL SERVICE` as the judged account and a scratch
   folder owned by the test's own account. If that account is itself an administrator, the second test
   is skipped with a printed reason. `crates/nvs-config/tests/trust.rs:1`
-- [ ] The rule fragment says who may own a path, and why an administrator may.
+- [x] The rule fragment says who may own a path, and why an administrator may.
   `docs/rules/config/ownership-is-the-trust-boundary.md:26`
 
 ### 2. the folder above a checked folder fails only when another account can replace that folder
@@ -200,7 +200,8 @@ The user's rules for this goal:
 
 - [ ] The probe of decision 8, run by hand in Windows Terminal and in `cmd.exe`. Its result goes
   into the new rule. `crates/nvs-cli/src/elevate.rs:1`
-- [ ] `elevate.rs`: the closed list, the check for an elevated token (`crates/nvs-config/src/trust.rs:1139`),
+- [ ] `elevate.rs`: the closed list, the check for an elevated token (`CheckTokenMembership` with a
+  null token; stage 1 deleted the copy in `trust.rs`, so `elevate.rs` writes its own),
   `runas` with the wait and the exit code, the output path the probe chose, and `sudo` on Unix.
   `crates/nvs-cli/src/elevate.rs:1`
 - [ ] The service verbs and `nvs init` call it before they need the rights.
@@ -236,18 +237,31 @@ website's install page, and another the Windows install example. Their files are
 
 ### State
 
-Written by the interactive session of 2026-11-06. Nothing of it is built. `4366e4370d` already makes
-`nvs init` check only the folder it writes into.
+Stage 1 is done. On Windows the owner test accepts a member of `Administrators` through
+`platform::in_administrators` (`LookupAccountSidW`, then `NetUserGetLocalGroups` with
+`LG_INCLUDE_INDIRECT`, compared by this machine's name for the well-known SID). `Account::administrator`
+exposes it, and `Account::named` knows `LocalService` as a well-known SID. `give_to_administrators`,
+the `O:BA` owner on a created folder and `trust::administrator` are gone. The refusal now ends
+"nor an administrator". Both named tests ran: on this admin account the first passed and the second
+skipped, as written.
+
+The sweep's `env-secret-proofs` red is stale driver state: `looper check --name env-secret-proofs`
+says `no check matches`, as the json-streaming goal already recorded. `bun nv rules --check` is red
+on `docs/goals/byte-sources.md:158`, another session's new goal, not this one's.
 
 ### Next
 
-**Stage 1**, over `crates/nvs-config/src/trust.rs` and `crates/nvs-config/src/data.rs`; no gate.
-Stage 3 may run beside it as a side goal (decision 11).
+**Stage 2**, over `crates/nvs-config/src/trust.rs`; no gate. Stage 3 may run beside it (decision 11).
 
-- [ ] The owner test with the membership lookup. `crates/nvs-config/src/trust.rs:887`
-- [ ] `give_to_administrators` deleted. `crates/nvs-config/src/data.rs:700`
+- [ ] A parent test separate from the full one. `crates/nvs-config/src/trust.rs:174` (`check_as`),
+  `crates/nvs-config/src/trust.rs:330` (Unix `check`), `crates/nvs-config/src/trust.rs:822` (Windows `check`)
 - [ ] The two named tests. `crates/nvs-config/tests/trust.rs:1`
-- [ ] The rule fragment. `docs/rules/config/ownership-is-the-trust-boundary.md:26`
+- [ ] The cache half of the init test. `crates/nvs-cli/tests/init.rs:347`
+- [ ] The rule fragment and the install table. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
+  `docs/reference/tools/15-install.md:121`
+
+Expected red until stage 6: none known. A test outside `crates/nvs-config` that matches the old
+"an administrative one" text would fail; grep found none.
 
 ### Backlog
 

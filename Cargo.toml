@@ -256,6 +256,10 @@ windows-sys = { version = "0.61", features = [
     # DACL itself rather than paying `GetEffectiveRightsFromAclW` per principal, and these two name
     # the entries it accounts for. `crates/nvs-config/src/trust.rs` is the one caller.
     "Win32_System_SystemServices",
+    # `NetUserGetLocalGroups`: `rule:config/ownership-is-the-trust-boundary` trusts an owner that is
+    # a member of `Administrators`, nested groups included, and this is the call that lists them.
+    # `crates/nvs-config/src/trust.rs` is the one caller.
+    "Win32_NetworkManagement_NetManagement",
     "Win32_System_Threading",
     # `CreateJobObjectW`, `SetInformationJobObject` and `AssignProcessToJobObject`: every
     # `Core\Process` child runs in one job per `nvs` process, which ends the children still in it

@@ -363,7 +363,7 @@ fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
                 .starts_with(&format!("`{}` is owned by `S-1-5-80-", system.display()))
             && why
                 .message()
-                .ends_with("`, which is neither this account nor an administrative one"),
+                .ends_with("`, which is neither this account nor an administrator"),
         "the refusal names the path and the owner that is outside the boundary: {why:?}",
     );
     let help = why.help().expect("a breach carries its repair");
@@ -373,5 +373,67 @@ fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
             system.display()
         )) && help.contains("Run as administrator"),
         "the repair is the command for this path, in an elevated prompt: {help}",
+    );
+}
+
+/// The service account the two owner cases below judge for. It is never an administrator, so
+/// a folder it trusts is trusted for its owner alone.
+#[cfg(windows)]
+fn local_service() -> nvs_config::trust::Account {
+    nvs_config::trust::Account::named("LocalService").expect("a well-known account")
+}
+
+/// An owner that is a member of `Administrators` passes the owner test for every account. An
+/// administrator can take ownership of any file, so trusting one as owner gives nobody a new
+/// right. The scratch folder is owned by the test's own account, so the case needs that account
+/// to be an administrator, which a CI runner's is.
+// covers: tools:config/trust
+#[cfg(windows)]
+#[test]
+#[expect(
+    clippy::print_stdout,
+    reason = "an account that is not an administrator says why the case did not run"
+)]
+fn an_owner_in_administrators_passes_for_any_account() {
+    let me = nvs_config::trust::Account::current().expect("this process's token");
+    if !me.administrator() {
+        println!("skipped: this account is not a member of `Administrators`");
+        return;
+    }
+    let dir = scratch("administrator-owner");
+    let file = dir.join("nvs.toml");
+    fs::write(&file, "").expect("a configuration file");
+    for path in [dir.path(), file.as_path()] {
+        nvs_config::trust::check_alone_as(path, &local_service())
+            .unwrap_or_else(|why| panic!("{}: {}", path.display(), why.message()));
+    }
+}
+
+/// An owner outside `Administrators` passes only for its own account. Another account, here
+/// `LocalService`, gets a breach that names the owner, because that owner could change the file
+/// without being an administrator.
+// covers: tools:config/trust
+#[cfg(windows)]
+#[test]
+#[expect(
+    clippy::print_stdout,
+    reason = "an account that is an administrator says why the case did not run"
+)]
+fn an_owner_outside_administrators_is_refused_for_another_account() {
+    let me = nvs_config::trust::Account::current().expect("this process's token");
+    if me.administrator() {
+        println!("skipped: this account is a member of `Administrators`, so it owns as one");
+        return;
+    }
+    let dir = scratch("ordinary-owner");
+    nvs_config::trust::check_alone_as(dir.path(), &me).expect("the owner's own folder");
+    let why = nvs_config::trust::check_alone_as(dir.path(), &local_service())
+        .expect_err("`LocalService` does not trust an ordinary account's folder");
+    assert!(
+        matches!(why, Untrusted::Breach { .. })
+            && why
+                .message()
+                .ends_with("which is neither the account `LocalService` nor an administrator"),
+        "the refusal names the owner and the account it judged for: {why:?}",
     );
 }

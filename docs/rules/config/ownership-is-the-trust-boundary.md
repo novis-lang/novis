@@ -23,14 +23,24 @@ every one of them, and a running server publishes a saved file without a restart
 already gets this refusal, and a file that grants `process.exec` cannot have less protection than a
 directory of compiled code.
 
-**On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`
-or `NT AUTHORITY\SYSTEM`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
+**On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`,
+`NT AUTHORITY\SYSTEM` or a member of `Administrators`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
 `WRITE_DAC` or `WRITE_OWNER` — reaches `Everyone`, `Authenticated Users`, `BUILTIN\Users`,
 `BUILTIN\Guests` or `ANONYMOUS LOGON`. The two ACL rights are in the mask because either one buys all
 the others in a second step. Effective rights rather than the presence of an ACE, so a deny entry
 counts and an inherited grant is seen. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
+
+**An owner that is a member of `Administrators` passes on Windows, for every account the check judges
+for.** An administrator can take ownership of any file, so trusting one as owner gives nobody a right
+they lack. Without it, a folder an administrator creates from a normal prompt is owned by their own
+account, and a service running as `LocalSystem` or `NT SERVICE\<name>` refuses it. Membership is
+`NetUserGetLocalGroups` with `LG_INCLUDE_INDIRECT`, so a domain account in a nested group counts, and the
+group's name is compared as this machine names the well-known SID, because the name is localized. A SID
+that is not a user's, or a lookup that fails, is not a member, so the check fails closed. It costs one
+lookup for a path whose owner is not the account, `SYSTEM` or `Administrators`, at boot and at reload,
+never per request. Unix keeps `root` or the account: no group there can take ownership of a file.
 
 **On Unix, a file or directory on a read-only mount passes the owner test**: `statvfs` reports
 `ST_RDONLY` for its file system. No account on this host can change it through that mount, and that
@@ -63,13 +73,18 @@ catches an entry that reaches files alone.
 **The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
 and a command that sets up or reports on a service judges for the account the service runs as, through
 the same function: `trust::check_as` with a `trust::Account`, a uid on Unix and a SID on Windows. On
-Unix a number is a uid and a name comes from the password database. On Windows `LocalSystem` is the
-well-known SID, `NT SERVICE\<name>` is computed as Windows computes it (`S-1-5-80-` and the SHA-1 of
+Unix a number is a uid and a name comes from the password database. On Windows `LocalSystem` and `LocalService` are
+well-known SIDs, `NT SERVICE\<name>` is computed as Windows computes it (`S-1-5-80-` and the SHA-1 of
 the upper-case name in UTF-16LE), because that account does not resolve until the service exists, and
 any other name goes through `LookupAccountNameW`. A breach for a named account names it: "neither the
-account `LocalSystem` nor an administrative one". `resolve::JudgedFor` resolves a tree that way.
+account `LocalSystem` nor an administrator". `resolve::JudgedFor` resolves a tree that way.
 
 **Declined:**
+- **Making `Administrators` the owner of what an elevated process writes.** It needed an elevated
+  token, so a folder made from a normal prompt still failed for the service, and every file Novis
+  writes needed a second call. Trusting an owner in the group covers both prompts with no write.
+- **Membership read from the token.** A service judges for another account, whose token it does not
+  have, and an administrator's unelevated token holds the group as deny-only.
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
 - **Waiving the mode test on a read-only mount too.** A writable mode under `:ro` is either a

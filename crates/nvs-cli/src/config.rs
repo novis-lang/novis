@@ -342,17 +342,10 @@ fn write_checked(
 /// not be the installer's.
 pub(crate) fn write_default_in(folder: &nvs_config::data::Folder) -> Result<PathBuf, Declined> {
     let dir = folder.check().map_err(Declined::Untrusted)?;
-    let path = write_template(
+    write_template(
         dir.join(nvs_config::resolve::LOCAL_FILE),
         &nvs_config::data::config_template(),
-    )?;
-    // A service account trusts `Administrators` as the owner of its configuration, and not the
-    // account of the administrator who installed it.
-    if let Err(err) = nvs_config::data::give_to_administrators(&path) {
-        drop(std::fs::remove_file(&path));
-        return Err(Declined::Unwritable(err.to_string()));
-    }
-    Ok(path)
+    )
 }
 
 /// `text` written as the new file `path`, in a directory the caller has already checked.
