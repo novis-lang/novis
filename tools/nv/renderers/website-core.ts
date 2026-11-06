@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BUILT_NVS, newestNvs } from "../lib/nvs-binary.ts";
 import type { Output, Renderer } from "../lib/render.ts";
-import { memberPath, roster, type Meta } from "../proofs/roster.ts";
+import { introFile, memberPath, roster, type Meta } from "../proofs/roster.ts";
 import { REFERENCE_FILE, referenceData } from "./website-reference.ts";
 
 export const DATA_FILE = "website/src/data/core.json";
@@ -138,22 +138,31 @@ const tableRow = (line: string) =>
     .map((c) => c.trim());
 
 /**
- * Paragraphs, bullet lists, tables and fenced code, which is all a class introduction uses. A fence's
- * language is its class (`language-nvs`), and an `output` fence is what the example before it prints.
+ * One block of a class's summary: prose as HTML, or a fence's code as text. The page draws a fence with
+ * the site's `<Code>` component, so it is coloured the way every other code block on the site is. An
+ * `output` fence is what the example before it prints.
  */
-export function blocksHtml(md: string): string {
-  const out: string[] = [];
+export type IntroBlock = { html: string } | { code: string; lang: string };
+
+/** Paragraphs, bullet lists, tables and fenced code, which is all a class introduction uses. */
+export function introBlocks(md: string): IntroBlock[] {
+  const out: IntroBlock[] = [];
+  const html = (text: string) => {
+    const last = out[out.length - 1];
+    if (last && "html" in last) last.html += `\n${text}`;
+    else out.push({ html: text });
+  };
   let paragraph: string[] = [];
   let list: string[] | null = null;
   let table: string[][] | null = null;
   let fence: { lang: string; lines: string[] } | null = null;
   const flush = () => {
-    if (paragraph.length > 0) out.push(`<p>${inlineHtml(paragraph.join(" "))}</p>`);
-    if (list) out.push(`<ul>${list.map((item) => `<li>${inlineHtml(item)}</li>`).join("")}</ul>`);
+    if (paragraph.length > 0) html(`<p>${inlineHtml(paragraph.join(" "))}</p>`);
+    if (list) html(`<ul>${list.map((item) => `<li>${inlineHtml(item)}</li>`).join("")}</ul>`);
     if (table) {
       const [head, ...body] = table;
       const cells = (row: string[], tag: string) => `<tr>${row.map((c) => `<${tag}>${inlineHtml(c)}</${tag}>`).join("")}</tr>`;
-      out.push(`<table><thead>${cells(head!, "th")}</thead><tbody>${body.map((r) => cells(r, "td")).join("")}</tbody></table>`);
+      html(`<table><thead>${cells(head!, "th")}</thead><tbody>${body.map((r) => cells(r, "td")).join("")}</tbody></table>`);
     }
     paragraph = [];
     list = null;
@@ -163,8 +172,7 @@ export function blocksHtml(md: string): string {
     const trimmed = line.trim();
     if (fence) {
       if (trimmed === "```") {
-        const cls = fence.lang === "output" ? ' class="output"' : "";
-        out.push(`<pre${cls}><code${fence.lang && fence.lang !== "output" ? ` class="language-${fence.lang}"` : ""}>${escapeHtml(fence.lines.join("\n"))}</code></pre>`);
+        out.push({ code: fence.lines.join("\n"), lang: fence.lang || "txt" });
         fence = null;
       } else fence.lines.push(line);
     } else if (trimmed.startsWith("```")) {
@@ -189,7 +197,7 @@ export function blocksHtml(md: string): string {
   }
   if (fence) throw new Error(`a class introduction opens a \`\`\`${fence.lang} fence it never closes`);
   flush();
-  return out.join("\n");
+  return out;
 }
 
 // ---------------------------------------------------------------- signatures
@@ -361,7 +369,7 @@ interface Class {
   members: Member[];
   slug?: string;
   url?: string;
-  summaryHtml?: string;
+  summaryBlocks?: IntroBlock[];
 }
 
 const classIdOf = (name: string) => name.replace(/^Core\\/, "").replace(/\\/g, ".");
@@ -410,9 +418,7 @@ export function registryClasses(reg: Pick<Registry, "classes" | "enums">): Class
 
 /** The body of a class's introduction under `docs/reference/`, without its front matter, or `""`. */
 function introOf(root: string, name: string): string {
-  const novis = name.startsWith("Novis\\");
-  const stem = (name.startsWith("Core\\") ? name.slice(5) : novis ? name.slice(6) : name).replaceAll("\\", "-");
-  const path = join(root, "docs", "reference", novis ? "novis" : "core", `${stem}.md`);
+  const path = join(root, introFile(memberPath(name, "")));
   if (!existsSync(path)) return "";
   return readFileSync(path, "utf8").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").trim();
 }
@@ -467,7 +473,7 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
   for (const cls of classes) {
     cls.slug = cls.id.toLowerCase().replace(/\./g, "-");
     cls.url = `/reference/core/${cls.slug}/`;
-    cls.summaryHtml = blocksHtml([cls.summary, introOf(root, cls.name)].filter(Boolean).join("\n\n"));
+    cls.summaryBlocks = introBlocks([cls.summary, introOf(root, cls.name)].filter(Boolean).join("\n\n"));
     for (const m of cls.members) {
       m.slug = m.name.toLowerCase();
       m.url = `/reference/core/${cls.slug}/${m.slug}/`;

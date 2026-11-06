@@ -74,8 +74,11 @@ export interface CoreClass {
   name: string
   /** The class card's one sentence, as Markdown. */
   summary: string
-  /** The summary and the class's introduction under `docs/reference/`, as HTML. */
-  summaryHtml: string
+  /**
+   * The summary and the class's introduction under `docs/reference/`, in order: prose as HTML, and
+   * each code fence as its text and language (`output` for what the example before it prints).
+   */
+  summaryBlocks: ({ html: string } | { code: string; lang: string })[]
   enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
   /** The shape types the class declares, by the name its signatures use: `Info` and `{ format: Format, … }`. */
   types: { name: string; type: string }[]
@@ -88,18 +91,21 @@ export interface CoreClass {
 export const classes = (data as { classes: CoreClass[] }).classes
 
 // The generated data holds root-absolute URLs — as `url`/`slug` fields and
-// inside pre-rendered HTML (`summaryHtml`, `descHtml`, …). The
+// inside pre-rendered HTML (`summaryBlocks`, `descHtml`, …). The
 // site's `base` path is prefixed once here so everything downstream
 // (indexes included) uses the deployed URL verbatim. Attribute values in the
 // HTML strings are unescaped, while code samples inside them are escaped
-// (`&quot;`), so the pattern cannot touch example code.
+// (`&quot;`), so the pattern cannot touch example code. A `code` field is a
+// fence's raw text, and is left as written.
 const urlAttr = /(href|src)="(\/[^/"][^"]*|\/)"/g
 function prefixHtmlUrls(value: unknown): void {
   if (Array.isArray(value)) {
     value.forEach(prefixHtmlUrls)
   } else if (value && typeof value === 'object') {
     for (const [key, entry] of Object.entries(value)) {
-      if (typeof entry === 'string') {
+      if (key === 'code') {
+        continue
+      } else if (typeof entry === 'string') {
         ;(value as Record<string, unknown>)[key] = entry.replace(
           urlAttr,
           (_, attr, url) => `${attr}="${withBase(url)}"`

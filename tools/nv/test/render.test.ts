@@ -6,7 +6,7 @@ import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../li
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
-import { blocksHtml, parseSignature, registryClasses } from "../renderers/website-core.ts";
+import { introBlocks, parseSignature, registryClasses } from "../renderers/website-core.ts";
 import { referenceData } from "../renderers/website-reference.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { renderWebsiteCompare } from "../renderers/website-compare.ts";
@@ -211,16 +211,21 @@ describe("render", () => {
     expect(() => apply([{ path: "x", text: "" }, { path: "x", text: "" }], { check: true })).toThrow("two renderers");
   });
 
-  test("a class introduction's paragraphs, tables and fences become HTML, and an /llms-full.txt anchor is plain text", () => {
-    const html = blocksHtml(
-      ["See [testing](#lang-testing) and `a<b`.", "", "| A | B |", "|---|---|", "| `x` | y |", "", "```nvs", "echo 1;", "```", "", "```output", "1", "```"].join("\n"),
+  test("a class introduction's prose becomes HTML, each fence stays code for the page to colour, and an /llms-full.txt anchor is plain text", () => {
+    const blocks = introBlocks(
+      ["See [testing](#lang-testing) and `a<b`.", "", "| A | B |", "|---|---|", "| `x` | y |", "", "```nvs", "echo '<b>';", "```", "", "```output", "<b>", "```", "", "After."].join("\n"),
     );
-    expect(html.split("\n")).toEqual([
-      "<p>See testing and <code>a&lt;b</code>.</p>",
-      "<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td><code>x</code></td><td>y</td></tr></tbody></table>",
-      '<pre><code class="language-nvs">echo 1;</code></pre>',
-      '<pre class="output"><code>1</code></pre>',
+    expect(blocks).toEqual([
+      {
+        html: [
+          "<p>See testing and <code>a&lt;b</code>.</p>",
+          "<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td><code>x</code></td><td>y</td></tr></tbody></table>",
+        ].join("\n"),
+      },
+      { code: "echo '<b>';", lang: "nvs" },
+      { code: "<b>", lang: "output" },
+      { html: "<p>After.</p>" },
     ]);
-    expect(() => blocksHtml("```nvs\necho 1;\n")).toThrow("never closes");
+    expect(() => introBlocks("```nvs\necho 1;\n")).toThrow("never closes");
   });
 });

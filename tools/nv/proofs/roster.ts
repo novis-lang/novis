@@ -113,6 +113,12 @@ export function memberPath(cname: string, mname: string): string {
   return `core/${classTail(cname)}/${mname}`;
 }
 
+/** The introduction a class page shows above the class's members, from the path of one of its members:
+ * `core/Time-Date/at` -> `docs/reference/core/Time-Date.md`. Most classes have none on disk. */
+export function introFile(member: string): string {
+  return `docs/reference/${member.split("/").slice(0, 2).join("/")}.md`;
+}
+
 const lineAt = (text: string, offset: number) => text.slice(0, offset).split("\n").length;
 
 /** `("Throwable", None)` in `nvs_hir::errors::TREE` and `("Comparable", &[...])` in `nvs_hir::interfaces::RESERVED`. */

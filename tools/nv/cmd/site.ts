@@ -1701,8 +1701,8 @@ function referenceOwes(e: Entry): boolean {
  * The `reference` part. `core.json` and `reference.json` are what `bun nv render --website` writes from
  * this binary today. Every roster feature `referenceOwes` has a page, through the feature path both
  * files carry. Every name on an `about.md` file's `related:` line is a Core member with a page. And in
- * the built site, no page says "Not documented yet", and every Reference page shows one example block
- * per example file of every feature on it.
+ * the built site, no page says "Not documented yet", no page shows a code block without syntax colours,
+ * and every Reference page shows one example block per example file of every feature on it.
  */
 async function referenceProblems(w: World, nvs: string, root: string = ROOT): Promise<string[]> {
   const problems: string[] = [];
@@ -1738,7 +1738,11 @@ async function referenceProblems(w: World, nvs: string, root: string = ROOT): Pr
 
   if (!existsSync(join(root, DIST))) return [...problems, `${DIST}: no built site: run \`bun nv site --build\``];
   for (const path of filesUnder(root, DIST).filter((p) => p.endsWith(".html"))) {
-    if (readAt(root, path).includes("Not documented yet")) problems.push(`${path}: says "Not documented yet"`);
+    const html = readAt(root, path);
+    if (html.includes("Not documented yet")) problems.push(`${path}: says "Not documented yet"`);
+    // Expressive Code writes a coloured block with no `language-` class. One left in the page is a
+    // fence written out as plain HTML, which no highlighter coloured.
+    if (html.includes('<code class="language-')) problems.push(`${path}: shows a code block with no syntax colours`);
   }
   for (const [url, features] of shown) {
     const html = readAt(root, `${DIST}${url}index.html`);

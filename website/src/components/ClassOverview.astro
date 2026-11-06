@@ -1,11 +1,14 @@
 ---
 /**
  * The tool-owned body of a Core class page: the class's summary and
- * introduction, the member table, enums, shape types and constants. Renders from
+ * introduction, the member table, enums, shape types and constants. A code
+ * fence in the introduction is drawn with `<Code>`, as every example on the
+ * site is, and an `output` fence as its titled output. Renders from
  * src/data/core.json, which holds implemented members only. An enum with a
  * Types page links to it. `apps` are the example app pages that show the
  * class (src/lib/example-apps.ts), listed under "Example apps".
  */
+import { Code } from '@astrojs/starlight/components'
 import { findClass, shapeAnchor, typeLink } from '~/lib/core'
 import type { ExampleApp } from '~/lib/example-apps'
 import { shapeLines } from '~/lib/shape'
@@ -28,7 +31,21 @@ const enumPage = (name: string) => {
 ---
 
 <div class="class-overview">
-  {cls.summaryHtml && <div class="class-summary" set:html={cls.summaryHtml} />}
+  {
+    cls.summaryBlocks.length > 0 && (
+      <div class="class-summary">
+        {cls.summaryBlocks.map((block) =>
+          'html' in block ? (
+            <Fragment set:html={block.html} />
+          ) : block.lang === 'output' ? (
+            <Code code={block.code} lang="txt" title="Output" />
+          ) : (
+            <Code code={block.code} lang={block.lang} />
+          )
+        )}
+      </div>
+    )
+  }
 
   {
     cls.members.length > 0 && (
