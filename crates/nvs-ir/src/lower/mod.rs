@@ -87,7 +87,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Prepared, SlotCheck,
+    AbsentKey, BasicBlock, BinOp, ConcatPart, Function, Helper, Inst, InstKind, PartKind, Prepared,
+    SlotCheck,
     Terminator, TestedClass, UnOp,
 };
 use crate::ty::{EnumRepr, Ty};

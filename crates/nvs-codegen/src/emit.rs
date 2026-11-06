@@ -67,13 +67,14 @@ use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module};
 use nvs_ir::Ty;
 use nvs_ir::ids::{BlockId, ValueId};
 use nvs_ir::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
+    AbsentKey, BasicBlock, BinOp, ConcatPart, Function, Helper, Inst, InstKind, PartKind,
+    Terminator, TestedClass, UnOp,
 };
 use nvs_runtime::{
     DEBUG_FLAGS_OFFSET, DEBUG_FRAMES_OFFSET, DEBUG_STEP_OFFSET, DEPRECATED_OFFSET,
     Decimal as NvsDecimal, FRAME_CALLER_OFFSET, FRAME_FUNCTION_OFFSET, FRAME_RECORD_SIZE,
     FRAME_SITE_OFFSET, FRAME_SLOT_COUNT_OFFSET, FRAME_SLOTS_OFFSET, OK, SAFEPOINT_OFFSET,
-    STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
+    STACK_LIMIT_OFFSET, StrPart, THROWN, Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -3965,10 +3966,13 @@ impl Emitter<'_, '_> {
     /// nothing is retained or released around either here;
     /// `nvs_ir::ir::InstKind::Concat`'s own doc comment owns that protocol and
     /// `nvs-ir` emits the retains and releases the rest of the pieces need.
-    fn emit_concat(&mut self, pieces: &[ValueId]) -> Result<Value, CodegenError> {
+    fn emit_concat(&mut self, pieces: &[ConcatPart]) -> Result<Value, CodegenError> {
+        if !ConcatPart::all_str(pieces) {
+            return self.emit_concat_parts(pieces);
+        }
         let mut operands = Vec::with_capacity(pieces.len());
         for piece in pieces {
-            let (value, ty) = self.value(*piece)?;
+            let (value, ty) = self.value(piece.value)?;
             if !matches!(ty, Ty::Str | Ty::Bytes) {
                 return Err(internal(
                     "a concatenation operand that lowering left unconverted",
@@ -3998,6 +4002,54 @@ impl Emitter<'_, '_> {
         }
         let len = self.b.ins().iconst(types::I64, i64::from(count));
         let callee = self.runtime_ref("nvs_str_concat_n", RuntimeSig::StrConcat)?;
+        let call = self.b.ins().call(callee, &[base, len]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// A join with a piece that is not a string: one call to
+    /// `nvs_str_concat_parts` over a stack array of `nvs_runtime::StrPart`s.
+    ///
+    /// Each part is two words, its kind and then its payload: a `StrHeader`
+    /// pointer for a string kind, an `i64` for an integer. The runtime measures
+    /// every part, allocates the result once, and writes the digits and the
+    /// escaped text straight into it. It reads every part and consumes none,
+    /// so nothing is retained or released here, and `nvs-ir` releases each
+    /// fresh piece after this call. It cannot fail, so it has no status check,
+    /// like [`Self::emit_concat`]'s two calls.
+    fn emit_concat_parts(&mut self, pieces: &[ConcatPart]) -> Result<Value, CodegenError> {
+        let count =
+            i32::try_from(pieces.len()).map_err(|_| internal("a join past i32 pieces"))?;
+        if count == 0 {
+            return Err(internal("a join of no pieces"));
+        }
+        let words = count
+            .checked_mul(2)
+            .ok_or_else(|| internal("a join past i32 pieces"))?;
+        let base = self.pointer_array_slot(words);
+        for (index, piece) in pieces.iter().enumerate() {
+            let (value, ty) = self.value(piece.value)?;
+            let kind = match (piece.kind, ty) {
+                (PartKind::Str, Ty::Str | Ty::Bytes) => StrPart::STR,
+                (PartKind::Int, Ty::Int) => StrPart::INT,
+                (PartKind::HtmlText, Ty::Str) => StrPart::HTML_TEXT,
+                _ => {
+                    return Err(internal(
+                        "a join piece whose kind does not match its representation",
+                    ));
+                }
+            };
+            let offset = i32::try_from(index)
+                .ok()
+                .and_then(|index| index.checked_mul(2 * POINTER_SIZE))
+                .ok_or_else(|| internal("a join past i32 pieces"))?;
+            let kind = self.b.ins().iconst(types::I64, kind.cast_signed());
+            self.b.ins().store(trusted(), kind, base, offset);
+            self.b
+                .ins()
+                .store(trusted(), value, base, offset + POINTER_SIZE);
+        }
+        let len = self.b.ins().iconst(types::I64, i64::from(count));
+        let callee = self.runtime_ref("nvs_str_concat_parts", RuntimeSig::StrConcat)?;
         let call = self.b.ins().call(callee, &[base, len]);
         Ok(self.b.inst_results(call)[0])
     }

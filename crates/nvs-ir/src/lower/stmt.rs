@@ -1088,13 +1088,13 @@ impl<'a> Lowering<'a> {
         Self::flatten_concat(value, &mut operands);
         let mark = self.temporaries_mark();
         let mut pieces = Vec::with_capacity(operands.len());
-        pieces.push(current);
+        pieces.push(ConcatPart::str(current));
         for operand in &operands[1..] {
             let (v, aliasing) = self.concat_operand(operand, env, cur);
             if !aliasing {
                 self.own_temporary(v);
             }
-            pieces.push(v);
+            pieces.push(ConcatPart::str(v));
         }
         let (joined, _) = self.emit(*cur, Ty::Str, InstKind::Concat { pieces });
         self.release_temporaries_since(mark, *cur);

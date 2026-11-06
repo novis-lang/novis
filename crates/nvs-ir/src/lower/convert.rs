@@ -1233,7 +1233,11 @@ impl<'a> Lowering<'a> {
             refused,
             Ty::Str,
             InstKind::Concat {
-                pieces: vec![opening, named, closing],
+                pieces: vec![
+                    ConcatPart::str(opening),
+                    ConcatPart::str(named),
+                    ConcatPart::str(closing),
+                ],
             },
         );
         if fresh {

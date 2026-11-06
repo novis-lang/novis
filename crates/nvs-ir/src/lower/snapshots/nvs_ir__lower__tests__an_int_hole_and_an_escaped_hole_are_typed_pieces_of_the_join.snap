@@ -1,0 +1,35 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, int, string) -> object {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    v2 = param 2  ; string
+    ; stmt s0 @4:5-4:30
+    v3 = const.str "n="  ; string
+    v4 = const.str ", s="  ; string
+    v5 = concat v3, int v1, v4, v2  ; string
+    release v3
+    release v4
+    ; stmt s1 @5:5-5:38
+    v6 = const.str "<b>"  ; string
+    v7 = const.str "</b>"  ; string
+    v8 = concat v6, html v2, v7, int v1, html v5  ; string
+    release v6
+    release v7
+    v9 = core.call nvs_core_html_markup(v8) ! bb1  ; object
+    release v8
+    release v2
+    release v5
+    release v0
+    return v9
+  bb1:
+    release v8
+    release v2
+    release v5
+    release v0
+    propagate "m() at t.nvs:5"
+}

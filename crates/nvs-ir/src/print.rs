@@ -10,7 +10,7 @@ use nvs_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator,
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, PartKind, Program, Terminator,
     TestedClass, UnOp,
 };
 use crate::ty::Ty;
@@ -327,7 +327,14 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             }
         },
         InstKind::Concat { pieces } => {
-            let parts: Vec<String> = pieces.iter().map(|p| format!("v{}", p.index())).collect();
+            let parts: Vec<String> = pieces
+                .iter()
+                .map(|p| match p.kind {
+                    PartKind::Str => format!("v{}", p.value.index()),
+                    PartKind::Int => format!("int v{}", p.value.index()),
+                    PartKind::HtmlText => format!("html v{}", p.value.index()),
+                })
+                .collect();
             format!("concat {}", parts.join(", "))
         }
         InstKind::StrAppend { target, suffix } => {

@@ -1597,9 +1597,10 @@ pub enum InstKind {
     /// two-piece case kept on `nvs_str_concat` because it needs neither the
     /// stack array nor the count.
     ///
-    /// `pieces` always holds **two or more**. A single-piece interpolation
-    /// emits no `Concat` at all — `lower_interpolated_parts`' own doc comment
-    /// says what it does instead — and nothing else produces one.
+    /// `pieces` always holds **two or more**, or one piece that is not a
+    /// [`PartKind::Str`]: an html template whose one hole is escaped. A
+    /// single-piece interpolation emits no `Concat` at all —
+    /// `lower_interpolated_parts`' own doc comment says what it does instead.
     ///
     /// **Consumes one reference to the leading piece and yields one to the
     /// result**, on [`InstKind::ArraySet`]'s protocol, which that variant's own
@@ -1633,10 +1634,21 @@ pub enum InstKind {
     /// leading piece's own — so `crate::lower::is_aliasing_read` stays `false`
     /// for `ExprKind::Binary`, same as it already is for
     /// [`InstKind::ConstStr`]/[`InstKind::New`]/[`InstKind::Call`].
+    ///
+    /// **A piece has a kind** ([`ConcatPart`]). A piece of any kind but
+    /// [`PartKind::Str`] makes this a join of typed parts, which
+    /// `nvs_runtime`'s `nvs_str_concat_parts` writes: an `int` written as its
+    /// digits and html text written escaped, each straight into the result.
+    /// That join **reads every piece and consumes none**, so the protocol above
+    /// holds only when every piece is a [`PartKind::Str`]
+    /// ([`ConcatPart::all_str`]); otherwise the leading piece is owned like
+    /// every later one. `crate::lower::Lowering::emit_concat` is the one home
+    /// for that choice too.
     Concat {
-        /// The operands in evaluation order, each already lowered and already
-        /// [`Ty::Str`]. Two or more. One reference to the first is consumed.
-        pieces: Vec<ValueId>,
+        /// The operands in evaluation order, each already lowered, and of the
+        /// [`Ty`] its [`PartKind`] names. When every one is a
+        /// [`PartKind::Str`], one reference to the first is consumed.
+        pieces: Vec<ConcatPart>,
     },
     /// `$s .= e` where `$s` is a plain [`Ty::Str`] local — the one compound
     /// assignment `crate::lower::Lowering::lower_compound_assignment` does not
@@ -2277,6 +2289,48 @@ pub enum InstKind {
 /// `iconst`; `rule:types/type-test`'s value arm `$x is $cls` already has the address in a
 /// register, because a `class<T>` value *is* a descriptor.
 ///
+/// One piece of an [`InstKind::Concat`]: a value, and what the join writes for
+/// it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConcatPart {
+    /// What the join writes for [`Self::value`].
+    pub kind: PartKind,
+    /// The piece itself, of the [`Ty`] [`Self::kind`] names.
+    pub value: ValueId,
+}
+
+impl ConcatPart {
+    /// A [`PartKind::Str`] piece reading `value`.
+    #[must_use]
+    pub const fn str(value: ValueId) -> Self {
+        Self {
+            kind: PartKind::Str,
+            value,
+        }
+    }
+
+    /// Whether every piece is a [`PartKind::Str`], which is the join that
+    /// consumes its leading piece ([`InstKind::Concat`]).
+    #[must_use]
+    pub fn all_str(pieces: &[Self]) -> bool {
+        pieces.iter().all(|piece| piece.kind == PartKind::Str)
+    }
+}
+
+/// What an [`InstKind::Concat`] writes for one piece. Each is one of
+/// `nvs_runtime::StrPart`'s kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartKind {
+    /// A [`Ty::Str`] or [`Ty::Bytes`], copied as it is.
+    Str,
+    /// A [`Ty::Int`], written as its decimal digits — what
+    /// [`Helper::IntToString`] answers for it, with no string in between.
+    Int,
+    /// A [`Ty::Str`], written as `Core\Html::escape` writes it
+    /// (`rule:core-classes/html-auto-escape`), with no escaped copy in between.
+    HtmlText,
+}
+
 /// The written form keeps its label rather than lowering to a
 /// [`TestedClass::Descriptor`] over an [`InstKind::ClassDescConst`], for the
 /// reason [`InstKind::New`] keeps its own: the class is a fact of the program

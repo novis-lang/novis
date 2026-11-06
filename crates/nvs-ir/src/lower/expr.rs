@@ -853,7 +853,13 @@ impl<'a> Lowering<'a> {
                     let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
-                StringPart::Expr(e) => self.lower_html_template_hole(e, env, cur),
+                StringPart::Expr(e) => {
+                    let (part, fresh) = self.lower_html_template_hole(e, env, cur);
+                    if part.kind != PartKind::Str && fresh {
+                        self.own_temporary(part.value);
+                    }
+                    self.html_hole_bytes(part, env, cur)
+                }
             };
             // Every piece is fresh and has exactly one use, the write below,
             // which writes it as the `Markup` it would have been part of.
@@ -2297,7 +2303,7 @@ impl<'a> Lowering<'a> {
         // each lives on [`Self::owned_temporaries`], and only the finished
         // string leaves it ([`Self::forget_temporaries_since`]).
         let mark = self.temporaries_mark();
-        let mut pieces: Vec<(ValueId, bool)> = Vec::with_capacity(parts.len());
+        let mut pieces: Vec<(ConcatPart, bool)> = Vec::with_capacity(parts.len());
         let mut leading = None;
         for (i, part) in parts.iter().enumerate() {
             let piece = match part {
@@ -2316,38 +2322,70 @@ impl<'a> Lowering<'a> {
                     } else {
                         nvs_types::string_lit::cook_double_quoted_text(self.src, *span).0
                     };
-                    (self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0, false)
+                    let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(s));
+                    (ConcatPart::str(v), false)
                 }
-                StringPart::Expr(e) => self.concat_operand(e, env, cur),
+                StringPart::Expr(e) => self.interpolated_hole(e, parts.len() > 1, env, cur),
             };
             if !piece.1 {
                 if pieces.is_empty() {
                     leading = Some(self.temporaries_mark());
                 }
-                self.own_temporary(piece.0);
+                self.own_temporary(piece.0.value);
             }
             pieces.push(piece);
         }
         self.join_pieces(&pieces, mark, leading, *cur)
     }
 
+    /// One hole of an interpolated string, as a piece of its join, and whether
+    /// nothing is left for this frame to release once the join has read it.
+    ///
+    /// An `int` hole is a [`PartKind::Int`] piece when `joined`, so the join
+    /// writes its digits into the result and no string of digits is made. A
+    /// hole alone in its string is not joined, so it converts as every other
+    /// hole does, through [`Self::convert_operand`].
+    fn interpolated_hole(
+        &mut self,
+        e: &Expr,
+        joined: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ConcatPart, bool) {
+        let (v, ty) = self.lower_expr(e, None, env, cur);
+        if joined && ty == Ty::Int {
+            let part = ConcatPart {
+                kind: PartKind::Int,
+                value: v,
+            };
+            return (part, true);
+        }
+        let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
+        (ConcatPart::str(text), aliasing)
+    }
+
     /// Joins the pieces [`Self::lower_interpolated_parts`] and
     /// [`Self::lower_format_pieces`] lowered into one fresh `string`.
     ///
-    /// Each piece is a value and whether it aliases storage a durable slot
-    /// still owns. Every fresh piece is staged since `mark`, and `leading` is
-    /// the mark before the first piece when that piece is fresh.
+    /// Each piece is a part and whether nothing is staged for it: it aliases
+    /// storage a durable slot still owns, or it is an `int`. Every fresh piece
+    /// is staged since `mark`, and `leading` is the mark before the first
+    /// piece when that piece is fresh. A piece alone is always a
+    /// [`PartKind::Str`].
     fn join_pieces(
         &mut self,
-        pieces: &[(ValueId, bool)],
+        pieces: &[(ConcatPart, bool)],
         mark: usize,
         leading: Option<usize>,
         cur: BlockId,
     ) -> (ValueId, Ty) {
         let (v, alias) = match pieces[..] {
-            [only] => only,
+            [(only, alias)] => {
+                debug_assert_eq!(only.kind, PartKind::Str, "a piece alone is a string");
+                (only.value, alias)
+            }
             _ => {
-                let ids = pieces.iter().map(|(v, _)| *v).collect();
+                let ids = pieces.iter().map(|(part, _)| *part).collect();
                 let result = self.emit_concat(cur, ids, leading);
                 // Every piece is read here, and whichever of them were fresh
                 // are on the stack — so this releases exactly what the
@@ -2389,7 +2427,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        let mut lowered: Vec<(ValueId, bool)> = Vec::with_capacity(pieces.len());
+        let mut lowered: Vec<(ConcatPart, bool)> = Vec::with_capacity(pieces.len());
         let mut leading = None;
         for piece in pieces {
             let piece = match piece {
@@ -2432,7 +2470,7 @@ impl<'a> Lowering<'a> {
                 }
                 self.own_temporary(piece.0);
             }
-            lowered.push(piece);
+            lowered.push((ConcatPart::str(piece.0), piece.1));
         }
         self.join_pieces(&lowered, mark, leading, *cur)
     }
@@ -2465,7 +2503,7 @@ impl<'a> Lowering<'a> {
             values.push(v);
         }
         let mark = self.temporaries_mark();
-        let mut lowered: Vec<(ValueId, bool)> = Vec::with_capacity(pieces.len());
+        let mut lowered: Vec<(ConcatPart, bool)> = Vec::with_capacity(pieces.len());
         let mut leading = None;
         for piece in pieces {
             let v = match piece {
@@ -2497,7 +2535,7 @@ impl<'a> Lowering<'a> {
                 leading = Some(self.temporaries_mark());
             }
             self.own_temporary(v);
-            lowered.push((v, false));
+            lowered.push((ConcatPart::str(v), false));
         }
         let result = self.join_pieces(&lowered, mark, leading, *cur);
         self.release_temporaries_since(arguments, *cur);
@@ -2603,18 +2641,25 @@ impl<'a> Lowering<'a> {
             return self.emit(*cur, Ty::Object, InstKind::ConstMarkup(text));
         }
         let mark = self.temporaries_mark();
-        let mut pieces: Vec<ValueId> = Vec::with_capacity(parts.len());
+        let mut pieces: Vec<ConcatPart> = Vec::with_capacity(parts.len());
+        let mut leading = None;
         for part in parts {
-            let piece = match part {
+            let (piece, staged) = match part {
                 StringPart::Text(span) => {
                     // The issues are discarded: `nvs_types::check_program` has
                     // already reported them against this same span.
                     let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
-                    self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
+                    let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(s));
+                    (ConcatPart::str(v), true)
                 }
                 StringPart::Expr(e) => self.lower_html_template_hole(e, env, cur),
             };
-            self.own_temporary(piece);
+            if staged {
+                if pieces.is_empty() {
+                    leading = Some(self.temporaries_mark());
+                }
+                self.own_temporary(piece.value);
+            }
             pieces.push(piece);
         }
         let bytes = match pieces[..] {
@@ -2626,12 +2671,14 @@ impl<'a> Lowering<'a> {
                 self.own_temporary(empty);
                 empty
             }
-            [only] => only,
+            // A segment or a spliced carrier alone, which is already the
+            // bytes. A hole alone that is escaped or an `int` still needs the
+            // join below to write it.
+            [only] if only.kind == PartKind::Str => only.value,
             _ => {
-                // Every piece is fresh, so the leading one is the entry the
-                // loop above staged first — `emit_concat` drops it there and
-                // hands its reference to the instruction.
-                let joined = self.emit_concat(*cur, pieces.clone(), Some(mark));
+                // A join of strings alone hands the leading piece's reference
+                // to the instruction, and `emit_concat` drops its entry here.
+                let joined = self.emit_concat(*cur, pieces.clone(), leading);
                 // Every piece is read here, so this releases exactly what the
                 // loop above staged and the hand-off left.
                 self.release_temporaries_since(mark, *cur);
@@ -2661,43 +2708,77 @@ impl<'a> Lowering<'a> {
     /// checked type at the hole's own span and [`Self::hole_is_carrier`] reads
     /// it back.
     ///
-    /// Neither answer is a [`Helper`] row, for [`Self::lower_markup_lift`]'s
-    /// reason: what the escape produces is the sink's own transform and what
-    /// the raw splice reads is a `Core` class's slot, and both belong to the
-    /// crate that owns that layout. A non-carrier hole reaches the escape as
-    /// the `string` [`Self::convert_operand`] makes of it, which is the same
-    /// row `.`-concatenation gives a scalar, a union or a `toString`.
+    /// A carrier's raw splice is not a [`Helper`] row, for
+    /// [`Self::lower_markup_lift`]'s reason: it reads a `Core` class's slot,
+    /// which belongs to the crate that owns that layout. The call borrows the
+    /// carrier, so a fresh one is staged and released once the call has read
+    /// it, and the answer is a fresh [`PartKind::Str`] piece.
     ///
-    /// The call borrows its argument, so a fresh operand is staged and released
-    /// once the call has read it and a borrowed one is left where it is. The
-    /// answer is this expression's own fresh `string`, which the literal's join
-    /// then owns.
-    fn lower_html_template_hole(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+    /// An escaped hole is a [`PartKind::HtmlText`] piece over the `string`
+    /// [`Self::convert_operand`] makes of it, which is the same row
+    /// `.`-concatenation gives a scalar, a union or a `toString`. The join
+    /// escapes it while it writes the result, so no escaped copy is made. An
+    /// `int` hole is a [`PartKind::Int`] piece, because its digits are the same
+    /// bytes escaped or not.
+    ///
+    /// The second answer is whether the piece is fresh, so the literal stages
+    /// it and releases it once the join has read it.
+    fn lower_html_template_hole(
+        &mut self,
+        e: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ConcatPart, bool) {
         let mark = self.temporaries_mark();
         let (v, ty) = self.lower_expr(e, None, env, cur);
-        let (operand, operand_ty, symbol, aliasing) = if self.hole_is_carrier(e.span) {
-            (
-                v,
-                Ty::Object,
-                nvs_types::CORE_HTML_MARKUP_TEXT,
-                self.aliasing_read(e),
-            )
-        } else {
-            let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
-            (text, Ty::Str, nvs_types::CORE_HTML_ESCAPE_TEXT, aliasing)
+        if self.hole_is_carrier(e.span) {
+            let aliasing = self.aliasing_read(e);
+            self.account_for_arg(v, Ty::Object, ArgOwnership::Borrowed, aliasing, *cur);
+            let (bytes, _) = self.emit_fallible(
+                *cur,
+                Ty::Str,
+                InstKind::CoreCall {
+                    symbol: nvs_types::CORE_HTML_MARKUP_TEXT,
+                    args: vec![v],
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            return (ConcatPart::str(bytes), true);
+        }
+        if ty == Ty::Int {
+            let part = ConcatPart {
+                kind: PartKind::Int,
+                value: v,
+            };
+            return (part, false);
+        }
+        let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
+        let part = ConcatPart {
+            kind: PartKind::HtmlText,
+            value: text,
         };
-        self.account_for_arg(operand, operand_ty, ArgOwnership::Borrowed, aliasing, *cur);
-        let (bytes, _) = self.emit_fallible(
-            *cur,
-            Ty::Str,
-            InstKind::CoreCall {
-                symbol,
-                args: vec![operand],
+        (part, !aliasing)
+    }
+    /// The bytes an html template's hole writes, as a fresh `string`, for an
+    /// `echo` that writes each piece on its own.
+    ///
+    /// A [`PartKind::Str`] piece is already those bytes. An `int` is converted
+    /// to its digits, and html text goes through the escape `Core\Html::escape`
+    /// runs. Both calls borrow the piece, so the caller still owns it.
+    fn html_hole_bytes(&mut self, part: ConcatPart, env: &mut Env, cur: &mut BlockId) -> ValueId {
+        let kind = match part.kind {
+            PartKind::Str => return part.value,
+            PartKind::Int => InstKind::HelperCall {
+                helper: Helper::IntToString,
+                args: vec![part.value],
             },
-            env,
-        );
-        self.release_temporaries_since(mark, *cur);
-        bytes
+            PartKind::HtmlText => InstKind::CoreCall {
+                symbol: nvs_types::CORE_HTML_ESCAPE_TEXT,
+                args: vec![part.value],
+            },
+        };
+        self.emit_fallible(*cur, Ty::Str, kind, env).0
     }
     /// Whether the markup hole at `span` already holds a `Core\Html\Markup`.
     ///
@@ -3104,7 +3185,7 @@ impl<'a> Lowering<'a> {
                 }
                 self.own_temporary(v);
             }
-            pieces.push(v);
+            pieces.push(ConcatPart::str(v));
         }
         let result = self.emit_concat(*cur, pieces, leading);
         self.release_temporaries_since(mark, *cur);
@@ -3127,15 +3208,21 @@ impl<'a> Lowering<'a> {
     /// has been lowered, so nothing that can throw runs between the two and no
     /// unwinding edge ever sees a reference this frame holds and nothing names.
     /// [`InstKind::Concat`]'s own doc comment owns the protocol itself.
+    ///
+    /// A join with any piece that is not a [`PartKind::Str`] consumes nothing,
+    /// so it hands nothing over and retains nothing: a staged leading piece
+    /// stays staged, and the caller's sweep releases it with the rest.
     pub(crate) fn emit_concat(
         &mut self,
         cur: BlockId,
-        pieces: Vec<ValueId>,
+        pieces: Vec<ConcatPart>,
         leading: Option<usize>,
     ) -> ValueId {
-        match leading {
-            Some(slot) => self.forget_temporary(slot),
-            None => self.emit_retain(cur, pieces[0]),
+        if ConcatPart::all_str(&pieces) {
+            match leading {
+                Some(slot) => self.forget_temporary(slot),
+                None => self.emit_retain(cur, pieces[0].value),
+            }
         }
         self.emit(cur, Ty::Str, InstKind::Concat { pieces }).0
     }

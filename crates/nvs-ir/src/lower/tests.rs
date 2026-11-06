@@ -1485,6 +1485,19 @@ fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
+/// An `int` hole of an interpolated string is an `int` piece of the join, and
+/// an escaped hole of an html template is an `html` piece. Neither is
+/// converted or escaped into a string of its own first, and the join consumes
+/// no piece, so the leading literal is released after it like every other.
+#[test]
+fn an_int_hole_and_an_escaped_hole_are_typed_pieces_of_the_join() {
+    let (f, map, file) = lower_first_method(
+        "<?nvs\nclass T {\n  function m(int $n, string $s): Core\\Html\\Markup {\n    \
+         string $t = \"n=$n, s=$s\";\n    return html`<b>{$s}</b>{$n}{$t}`;\n  }\n}\n",
+    );
+    assert_snapshot!(print_function(&f, map.file(file)));
+}
+
 /// `$flag . "!"` — a `bool` local read (an aliasing read of its own
 /// slot) converts through `Helper::BoolToString`; the conversion result
 /// is still a fresh, non-aliasing `Ty::Str` value (the `bool` itself was
