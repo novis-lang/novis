@@ -26,6 +26,10 @@ export interface Point {
 }
 /** A place in the world at scene time `t`; a part hands these out so others can point at it. */
 export type Anchor = (t: number) => Point
+/** A value that may differ per layout: one for both, or `{ wide, tall }`. */
+export type PerLayout<T> = T | { wide: T; tall: T }
+/** A direction of travel in the world. */
+export type Dir = 'left' | 'right' | 'up' | 'down'
 
 export const WORLD: Record<Layout, { w: number; h: number }> = {
   wide: { w: 1600, h: 900 },
@@ -86,6 +90,15 @@ export abstract class Part {
     return r
   }
 
+  /** A point on one side of the part's rect, `along` that side from its top or left end (0 to 1). */
+  edge(side: 'left' | 'right' | 'top' | 'bottom', along = 0.5): Point {
+    const r = this.rect()
+    if (side === 'left') return { x: r.x, y: r.y + r.h * along }
+    if (side === 'right') return { x: r.x + r.w, y: r.y + r.h * along }
+    if (side === 'top') return { x: r.x + r.w * along, y: r.y }
+    return { x: r.x + r.w * along, y: r.y + r.h }
+  }
+
   /** Where a descendant of this part is in world units: its centre, or a corner. */
   anchor(target: string | HTMLElement, where: 'center' | 'left' | 'right' | 'top' | 'bottom' = 'center'): Point {
     const el = typeof target === 'string' ? this.el.querySelector<HTMLElement>(target) : target
@@ -138,22 +151,44 @@ interface Shot {
   at: number
   motion: Motion
   target: Target
-  pad: number
+  pad?: number
   maxZoom: number
+  only?: Layout
 }
 
-/** The camera: which part of the world fills the stage, and which parts are in focus. */
+/** The room the camera leaves around what it frames, per layout. A phone frames one part edge to edge. */
+const PAD: Record<Layout, number> = { wide: 48, tall: 20 }
+/**
+ * Whether the view stays inside the world. On a phone a part at the top or bottom of the column would
+ * otherwise leave a third of the stage empty, so the view shows the parts next to it instead.
+ */
+const INSIDE: Record<Layout, boolean> = { wide: false, tall: true }
+
+/**
+ * The camera: which part of the world fills the stage, and which parts are in focus.
+ *
+ * A phone's `tall` layout stacks the parts in one column, each about as wide as the world, so a shot
+ * of two of them is no closer than the whole world. A scene therefore frames one part at a time there:
+ * a shot with `only: 'wide'` is skipped in `tall`, and one with `only: 'tall'` exists only there.
+ */
 export class Camera {
   private shots: Shot[] = []
+  /** The shots of each layout, built on its first frame after the last `focus`. */
+  private inLayout: Partial<Record<Layout, Shot[]>> = {}
 
   constructor(private readonly stage: Stage) {}
 
   /** Frames `target` at the cursor: one part, several, or the whole world. */
-  focus(target: Target, opts: { motion?: MotionName | Motion; pad?: number; maxZoom?: number; delay?: number } = {}): number {
+  focus(
+    target: Target,
+    opts: { motion?: MotionName | Motion; pad?: number; maxZoom?: number; delay?: number; only?: Layout } = {},
+  ): number {
     const motion = motionOf(opts.motion ?? 'glide')
     const at = this.stage.tl.now + (opts.delay ?? 0)
-    this.shots.push({ at, motion, target, pad: opts.pad ?? 48, maxZoom: opts.maxZoom ?? 1.9 })
+    this.shots.push({ at, motion, target, pad: opts.pad, maxZoom: opts.maxZoom ?? 1.9, only: opts.only })
     this.shots.sort((a, b) => a.at - b.at)
+    this.inLayout = {}
+    // The scene is timed once for both layouts, so a shot for one layout still returns its length.
     return (opts.delay ?? 0) + motion.dur
   }
 
@@ -166,10 +201,11 @@ export class Camera {
     const all = { x: 0, y: 0, w: world.w, h: world.h }
     if (!shot || shot.target === 'all') return all
     const rs = this.parts(shot.target).map((p) => p.rect())
-    const x0 = Math.min(...rs.map((r) => r.x)) - shot.pad
-    const y0 = Math.min(...rs.map((r) => r.y)) - shot.pad
-    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + shot.pad
-    const y1 = Math.max(...rs.map((r) => r.y + r.h)) + shot.pad
+    const pad = shot.pad ?? PAD[this.stage.layout]
+    const x0 = Math.min(...rs.map((r) => r.x)) - pad
+    const y0 = Math.min(...rs.map((r) => r.y)) - pad
+    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad
+    const y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad
     // Never closer than maxZoom: grow the rect around its centre to the world's aspect at that zoom.
     const minW = world.w / shot.maxZoom
     const minH = world.h / shot.maxZoom
@@ -180,10 +216,12 @@ export class Camera {
 
   /** Writes the world's transform and every part's focus for scene time `t`. */
   render(t: number): void {
+    const layout = this.stage.layout
+    const shots = (this.inLayout[layout] ??= this.shots.filter((s) => !s.only || s.only === layout))
     let i = -1
-    for (let k = 0; k < this.shots.length; k++) if (this.shots[k].at <= t) i = k
-    const cur = this.shots[i]
-    const prev = this.shots[i - 1]
+    for (let k = 0; k < shots.length; k++) if (shots[k].at <= t) i = k
+    const cur = shots[i]
+    const prev = shots[i - 1]
     const p = cur ? (cur.motion.dur === 0 ? 1 : cur.motion.ease(Math.min(1, (t - cur.at) / cur.motion.dur))) : 1
     const a = this.rectOf(prev)
     const b = this.rectOf(cur)
@@ -192,8 +230,14 @@ export class Camera {
     const kB = Math.min(world.w / b.w, world.h / b.h)
     // Zoom moves in log space and the centre in a straight line, so a pull-back feels even.
     const k = Math.exp(mix(Math.log(kA), Math.log(kB), p))
-    const cx = mix(a.x + a.w / 2, b.x + b.w / 2, p)
-    const cy = mix(a.y + a.h / 2, b.y + b.h / 2, p)
+    let cx = mix(a.x + a.w / 2, b.x + b.w / 2, p)
+    let cy = mix(a.y + a.h / 2, b.y + b.h / 2, p)
+    if (INSIDE[layout]) {
+      const vw = world.w / k
+      const vh = world.h / k
+      if (vw < world.w) cx = Math.min(Math.max(cx, vw / 2), world.w - vw / 2)
+      if (vh < world.h) cy = Math.min(Math.max(cy, vh / 2), world.h - vh / 2)
+    }
     this.stage.frame(k, cx, cy)
 
     const inA = new Set(prev && prev.target !== 'all' ? this.parts(prev.target) : this.stage.parts)
@@ -277,11 +321,19 @@ export class Stage {
     return this.playing
   }
 
-  /** The index of the beat scene time `t` is in, the last one past the end. */
+  /**
+   * The index of the beat scene time `t` is in, the last one past the end. A beat's own end belongs to
+   * it, so a stop at the end of a step, by `next()`, `prev()` or `?step=N`, shows that step's caption.
+   */
   beatAt(t = this.t): number {
     const beats = this.tl.beats
-    for (let i = 0; i < beats.length; i++) if (t < beats[i].end) return i
+    for (let i = 0; i < beats.length; i++) if (t <= beats[i].end) return i
     return beats.length - 1
+  }
+
+  /** The value of `v` for the current layout. */
+  pick<T>(v: PerLayout<T>): T {
+    return v !== null && typeof v === 'object' && 'wide' in v && 'tall' in v ? v[this.layout] : (v as T)
   }
 
   private relayout(): void {

@@ -16,7 +16,7 @@ import Movers from '../Movers.astro'
 
 <Stage id="wt-after-response" label="How Core\Task::afterResponse works, step by step">
   <Movers kind="wire" name="wire" />
-  <Browser name="browser" url="shop.example.com/checkout" tab="Shop" place={{ wide: [50, 50, 600, 610], tall: [30, 520, 840, 620] }}>
+  <Browser name="browser" url="shop.example.com/checkout" tab="Shop" place={{ wide: [50, 50, 600, 610], tall: [150, 530, 600, 610] }}>
     <div class="wt-screen" data-screen="checkout">
       <div class="wt-shop-item" data-stagger>
         <div class="wt-shop-thumb"></div>
@@ -32,9 +32,9 @@ import Movers from '../Movers.astro'
       <div class="wt-muted" data-stagger>Order #1042 is confirmed.</div>
     </div>
   </Browser>
-  <Inbox name="inbox" title="Mail" empty="No new mail" place={{ wide: [50, 700, 600, 160], tall: [30, 1440, 840, 140] }} />
-  <Editor name="editor" src="walkthroughs/after-response.nvs" title="order.nvs" place={{ wide: [730, 50, 820, 470], tall: [30, 30, 840, 470] }} />
-  <Server name="server" title="nvs serve" pps={100} place={{ wide: [730, 560, 820, 300], tall: [30, 1160, 840, 260] }} />
+  <Inbox name="inbox" title="Mail" empty="No new mail" place={{ wide: [50, 700, 600, 160], tall: [150, 1445, 600, 140] }} />
+  <Editor name="editor" src="walkthroughs/after-response.nvs" title="order.nvs" place={{ wide: [730, 50, 820, 470], tall: [50, 30, 800, 470] }} />
+  <Server name="server" title="nvs serve" pps={100} place={{ wide: [730, 560, 820, 300], tall: [70, 1165, 760, 260] }} />
   <Movers kind="card" name="receipt" label="send receipt" />
   <Movers kind="pointer" name="pointer" />
 </Stage>

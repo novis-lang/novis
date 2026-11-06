@@ -8,7 +8,7 @@
  * - `Wire`: a line between two anchors that `pulse(dir)` sends a dot along, as a request or a
  *   response travelling over the network.
  */
-import { css, mix, Part, type Anchor, type Stage } from '../engine/stage'
+import { css, mix, Part, type Anchor, type Dir, type PerLayout, type Stage } from '../engine/stage'
 import { motionOf, type Motion, type MotionName, type Track } from '../engine/time'
 
 interface Leg {
@@ -172,12 +172,24 @@ export class Pointer extends Part {
   }
 }
 
+const DIR: Record<Dir, { x: number; y: number }> = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+}
+/** How far, in world units, the handles of a loop reach out from its two ends. */
+const LOOP_REACH = 120
+
 export class Wire extends Part {
   private readonly path: SVGPathElement
   private readonly pulses: { el: SVGCircleElement; at: number; dur: number; back: boolean }[] = []
   private readonly drawT: Track
-  private from: Anchor = () => ({ x: 0, y: 0 })
-  private to: Anchor = () => ({ x: 0, y: 0 })
+  private from: PerLayout<Anchor> = () => ({ x: 0, y: 0 })
+  private to: PerLayout<Anchor> = () => ({ x: 0, y: 0 })
+  private leave: PerLayout<Dir> = 'right'
+  private arrive: PerLayout<Dir> = 'right'
+  private ends: Part[] = []
 
   constructor(stage: Stage, el: HTMLElement) {
     super(stage, el)
@@ -185,17 +197,21 @@ export class Wire extends Part {
     this.drawT = stage.tl.track(0)
   }
 
-  private axis: 'x' | 'y' = 'x'
-  private ends: Part[] = []
-
   /**
-   * Draws the wire between two anchors at the cursor. `axis` is the direction it leaves and arrives
-   * in; `ends` are the parts it joins, and it dims while the camera frames neither.
+   * Draws the wire between two anchors at the cursor. `leave` is the direction it sets off in and
+   * `arrive` the direction it travels in at the end, so `right` and `right` is an S-curve and `left`
+   * and `right` a loop out to the left. The anchors and both directions may differ per layout. `ends`
+   * are the parts it joins, and it dims while the camera frames neither.
    */
-  connect(from: Anchor, to: Anchor, opts: { axis?: 'x' | 'y'; ends?: Part[] } = {}): number {
+  connect(
+    from: PerLayout<Anchor>,
+    to: PerLayout<Anchor>,
+    opts: { leave?: PerLayout<Dir>; arrive?: PerLayout<Dir>; ends?: Part[] } = {},
+  ): number {
     this.from = from
     this.to = to
-    this.axis = opts.axis ?? 'x'
+    this.leave = opts.leave ?? 'right'
+    this.arrive = opts.arrive ?? this.leave
     this.ends = opts.ends ?? []
     return this.drawT.to(1, 'soft')
   }
@@ -220,15 +236,16 @@ export class Wire extends Part {
   }
 
   render(t: number): void {
-    const a = this.from(t)
-    const b = this.to(t)
-    // An S-curve that leaves and arrives along its axis.
-    const mx = (a.x + b.x) / 2
-    const my = (a.y + b.y) / 2
-    const d =
-      this.axis === 'x'
-        ? `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`
-        : `M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}`
+    const stage = this.stage
+    const a = stage.pick(this.from)(t)
+    const b = stage.pick(this.to)(t)
+    const u = DIR[stage.pick(this.leave)]
+    const v = DIR[stage.pick(this.arrive)]
+    // A cubic curve whose ends point along `u` and `v`. Facing the same way it is an S-curve with its
+    // handles half way across; facing apart it is a loop that bulges out by a fixed reach.
+    const along = Math.abs((b.x - a.x) * u.x + (b.y - a.y) * u.y)
+    const reach = u.x * v.x + u.y * v.y > 0 ? along / 2 : LOOP_REACH
+    const d = `M${a.x},${a.y} C${a.x + u.x * reach},${a.y + u.y * reach} ${b.x - v.x * reach},${b.y - v.y * reach} ${b.x},${b.y}`
     if (this.path.getAttribute('d') !== d) this.path.setAttribute('d', d)
     const draw = this.drawT.value(t)
     css(this.path, 'stroke-dasharray', '1 1')
